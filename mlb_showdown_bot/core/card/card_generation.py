@@ -516,7 +516,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     # GET ALL HISTORICAL CARDS
     return CareerTrends(yearly_trends=yearly_trends_data)
 
-def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, latest_game_boxscore:dict=None, **kwargs) -> InSeasonTrends:
+def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, latest_game_boxscore:dict=None, include_day_over_day: bool = False, **kwargs) -> InSeasonTrends:
     """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week."""
 
     # REMOVE PRINT TO CLI
@@ -545,7 +545,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     # DEFINE DATE RANGES
     date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
     date_str_from_boxscore = latest_game_boxscore.get('datetime', {}).get('official_date', None) if latest_game_boxscore else None
-    is_day_over_day_comparison = False
+    is_day_over_day_comparison = include_day_over_day
     if date_str_from_boxscore:
         # IF LATEST GAME DATE = THE PLAYER LAST DATE:
         # ADD A TREND POINT FOR THE LATEST GAME'S DATE -1
@@ -651,7 +651,7 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     if random_player:
         return random_player
 
-def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[ShowdownPlayerCard]:
+def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[dict[str, Any]]:
     """Generate multiple cards for a list of player ids and a year. Only works with MLB API datasource.
 
     Args:
@@ -660,7 +660,12 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[Sh
         **kwargs: Keyword arguments to pass to card generation function
 
     Returns:
-        List of generated ShowdownPlayerCard objects
+        List of generated ShowdownPlayerCardApi data
+        {
+            "card": ShowdownPlayerCard,
+            "in_season_trends": InSeasonTrends,
+            ...
+        }
     """
 
     # Remove stats kwarg since we will be pulling stats from the MLB API
@@ -692,7 +697,7 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[Sh
     )
 
     # Generate cards for each player
-    final_cards: list[ShowdownPlayerCard] = []
+    final_cards: list[dict] = []
     for player_data in player_stats.players:
         try:
             normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(
@@ -722,7 +727,23 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[Sh
                 image=ShowdownImage(**kwargs),
                 **kwargs
             )
-            final_cards.append(card)
+            final_data: dict[str, Any] = {
+                "card": card.as_json(),
+            }
+
+            in_season_trends_data = generate_in_season_trends_for_player(
+                actual_card=card, 
+                date_aggregation="week", 
+                include_day_over_day=True,
+                name=player_data.full_name,
+                **kwargs
+            )
+            if in_season_trends_data:
+                final_data["in_season_trends"] = in_season_trends_data.as_json() 
+            else:
+                print(f"No in-season trends data for {player_data.full_name} in {years[0]}.")
+
+            final_cards.append(final_data)
         except Exception as e:
             import traceback
             traceback.print_exc()

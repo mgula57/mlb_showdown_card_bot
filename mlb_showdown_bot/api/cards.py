@@ -180,9 +180,7 @@ def build_cards_from_ids():
         card_settings = payload.get('card_settings', {})
         generated_cards = generate_cards(player_ids=ids, years=[season] if season else None, **card_settings)
 
-        generate_cards_data = [{'card': card.as_json()} for card in generated_cards]
-
-        return jsonify({'cards': generate_cards_data}), 200
+        return jsonify({'cards': generated_cards}), 200
 
     except Exception as e:
         print(f"Error in build_cards_from_ids: {str(e)}")
