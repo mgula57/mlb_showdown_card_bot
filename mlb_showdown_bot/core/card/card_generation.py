@@ -711,6 +711,10 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[Sh
             if position_stats and normalized_player_stats.type == PlayerType.HITTER:
                 normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
 
+            if normalized_player_stats.is_missing_stats:
+                print(f"Skipping card generation for {player_data.full_name} in {years[0]} due to missing stats.")
+                continue
+
             card = ShowdownPlayerCard(
                 name=player_data.full_name,
                 stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(years[0])), 

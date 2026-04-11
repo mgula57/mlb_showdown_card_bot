@@ -143,7 +143,6 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
         const useLastYear = new Date().getMonth() < 3; // Months are 0-indexed
         const adjustedSeason = (sportId === 1 && isCurrentSeason && useLastYear) ? season - 1 : season;
 
-        const isWbc = sportId === 51;
         const cardSettings = {
             year: adjustedSeason,
             set: showdownSet,
@@ -151,7 +150,6 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
         }
         // No need to reload if all IDs are already in the map
         if ([...allIds].every(id => cardMap[Number(id)])) {
-            console.log("All player cards already in map, skipping card fetch");
             return;
         }
         buildCardsFromIds([...allIds], adjustedSeason, cardSettings)
@@ -174,7 +172,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
         return (
             <div className="space-y-4">
                 <BackButton onBack={onBack} />
-                <div className="flex items-center justify-center py-20 text-(--text-secondary) text-sm">
+                <div className="flex items-center justify-center py-20 text-(--secondary) text-sm">
                     Loading boxscore…
                 </div>
             </div>
@@ -211,13 +209,14 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
                 linescore={ls}
                 sportId={sportId}
                 detailedState={detailedState}
+                isInProgress={isInProgress}
             />
 
-            {/* Live Situation */}
-            {isInProgress && <LiveSituation linescore={ls} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} />}
+            {/* Matchup Strip */}
+            {isInProgress && <MatchupStrip linescore={ls} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} />}
 
             {/* Linescore Table */}
-            <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} />
+            <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} currentInning={ls.current_inning} isInProgress={isInProgress} />
 
             {/* Decisions */}
             {isFinal && <Decisions boxscore={boxscore} />}
@@ -262,7 +261,7 @@ function BackButton({ onBack }: { onBack: () => void }) {
         <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-1.5 text-sm font-semibold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 text-sm font-semibold text-(--secondary) hover:text-(--primary) bg-(--background-secondary) p-2 rounded-lg cursor-pointer transition-colors"
         >
             <FaChevronLeft className="h-3 w-3" />
             Back to Games
@@ -277,70 +276,95 @@ function ScoreHeader({
     linescore,
     sportId,
     detailedState,
+    isInProgress,
 }: {
     away: BoxscoreTeamData;
     home: BoxscoreTeamData;
     linescore: GameBoxscoreDetail["linescore"];
     sportId?: number;
     detailedState: string;
+    isInProgress?: boolean;
 }) {
     const awayCode = countryCodeForTeam(sportId ?? 0, away.team.abbreviation);
     const homeCode = countryCodeForTeam(sportId ?? 0, home.team.abbreviation);
     const awayRecord = away.team.record;
     const homeRecord = home.team.record;
 
-    const awayBadgeBg = away.team.primary_color ?? undefined;
-    const awayBadgeText = awayBadgeBg ? getReadableTextColor(awayBadgeBg, '#ffffff') : undefined;
-    const homeBadgeBg = home.team.primary_color ?? undefined;
-    const homeBadgeText = homeBadgeBg ? getReadableTextColor(homeBadgeBg, '#ffffff') : undefined;
+    const awayBadgeBg = away.team.primary_color ?? '#374151';
+    const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
+    const homeBadgeBg = home.team.primary_color ?? '#374151';
+    const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
+
+    const awayRuns = linescore.teams.away.runs ?? 0;
+    const homeRuns = linescore.teams.home.runs ?? 0;
+
+    const rawHalf = (linescore.inning_half || linescore.inning_state || '');
+    const inningHalf = rawHalf.charAt(0).toUpperCase() + rawHalf.slice(1).toLowerCase();
+    const inningOrdinal = linescore.current_inning_ordinal || linescore.current_inning || '';
+    const inningStr = inningHalf && inningOrdinal ? `${inningHalf} ${inningOrdinal}` : String(inningOrdinal);
 
     return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4 space-y-3">
-            <div className="text-center text-xs font-bold uppercase tracking-wide text-(--text-secondary)">
-                {detailedState}
-            </div>
-
-            <div className="flex items-center justify-center gap-6">
-                {/* Away */}
-                <div className="flex flex-col items-center gap-1 min-w-20">
+        <>
+        <style>{`@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }`}</style>
+        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                {/* Away team - left aligned */}
+                <div className="flex flex-col gap-1">
                     {sportId === 51 && awayCode && (
-                        <ReactCountryFlag countryCode={awayCode} svg style={{ width: '2em', height: '2em' }} />
+                        <ReactCountryFlag countryCode={awayCode} svg style={{ width: '1.5em', height: '1.5em' }} />
                     )}
-                    <span
-                        className={`text-lg font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
-                        style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
-                    >{away.team.abbreviation}</span>
+                    <div
+                        className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none"
+                        style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
+                    >{away.team.abbreviation}</div>
+                    <div className="text-[14px] hidden sm:block font-semibold text-(--primary) leading-snug">{away.team.name}</div>
                     {awayRecord && (
-                        <span className="text-[11px] text-(--text-secondary)">
-                            {awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}
-                        </span>
+                        <div className="text-[12px] text-(--secondary)">{awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}</div>
                     )}
                 </div>
 
-                {/* Score */}
-                <div className="flex items-center gap-3">
-                    <span className="text-4xl font-black text-(--text-primary)">{linescore.teams.away.runs}</span>
-                    <span className="text-xl font-bold text-(--text-secondary)">-</span>
-                    <span className="text-4xl font-black text-(--text-primary)">{linescore.teams.home.runs}</span>
+                {/* Center: Score + status */}
+                <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        <span className={`text-[40px] font-bold leading-none text-(--primary)`}>
+                            {awayRuns}
+                        </span>
+                        <span className="text-2xl font-bold text-(--secondary)">–</span>
+                        <span className={`text-[40px] font-bold leading-none text-(--primary)`}>
+                            {homeRuns}
+                        </span>
+                    </div>
+                    {isInProgress && inningStr ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-(--background-primary) border border-(--divider) text-[11px]">
+                            <span className="w-1.75 h-1.75 rounded-full bg-red-500 shrink-0" style={{ animation: 'live-pulse 1.4s ease-in-out infinite' }} />
+                            <span className="font-semibold tracking-[0.5px] text-red-500">LIVE</span>
+                            <span className="text-(--secondary) mx-0.5">·</span>
+                            <span className="text-(--secondary)">{inningStr}</span>
+                        </div>
+                    ) : (
+                        <div className="text-xs font-semibold text-(--secondary) uppercase tracking-wide">{detailedState}</div>
+                    )}
                 </div>
 
-                {/* Home */}
-                <div className="flex flex-col items-center gap-1 min-w-20">
+                {/* Home team - right aligned */}
+                <div className="flex flex-col items-end gap-1">
                     {sportId === 51 && homeCode && (
-                        <ReactCountryFlag countryCode={homeCode} svg style={{ width: '2em', height: '2em' }} />
+                        <div className="self-end">
+                            <ReactCountryFlag countryCode={homeCode} svg style={{ width: '1.5em', height: '1.5em' }} />
+                        </div>
                     )}
-                    <span
-                        className={`text-lg font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
-                        style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
-                    >{home.team.abbreviation}</span>
+                    <div
+                        className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none"
+                        style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
+                    >{home.team.abbreviation}</div>
+                    <div className="text-[14px] hidden sm:block  font-semibold text-(--primary) leading-snug text-right">{home.team.name}</div>
                     {homeRecord && (
-                        <span className="text-[11px] text-(--text-secondary)">
-                            {homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}
-                        </span>
+                        <div className="text-[12px] text-(--secondary)">{homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}</div>
                     )}
                 </div>
             </div>
         </div>
+        </>
     );
 }
 
@@ -350,57 +374,79 @@ function LinescoreTable({
     home,
     innings,
     teams,
+    currentInning,
+    isInProgress,
 }: {
     away: BoxscoreTeamData;
     home: BoxscoreTeamData;
     innings: BoxscoreLinescoreInning[];
     teams: GameBoxscoreDetail["linescore"]["teams"];
+    currentInning?: number;
+    isInProgress?: boolean;
 }) {
-
-    // Fill in innings if there are less than 9, to keep the table layout consistent
     const filledInnings = [...innings];
     for (let i = innings.length + 1; i <= 9; i++) {
         filledInnings.push({ num: i, away: { runs: undefined }, home: { runs: undefined } });
     }
 
+    const awayBadgeBg = away.team.primary_color ?? '#374151';
+    const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
+    const homeBadgeBg = home.team.primary_color ?? '#374151';
+    const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
+
+    const isCurrent = (n: number) => isInProgress && currentInning != null && n === currentInning;
+    const isFuture = (n: number) => isInProgress && currentInning != null && n > currentInning;
+
+    const rows = [
+        { key: 'away', data: away, side: 'away' as const, badgeBg: awayBadgeBg, badgeText: awayBadgeText },
+        { key: 'home', data: home, side: 'home' as const, badgeBg: homeBadgeBg, badgeText: homeBadgeText },
+    ];
+
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-x-auto">
             <table className="w-full text-xs text-center">
                 <thead>
-                    <tr className="border-b border-(--divider) text-(--text-secondary) font-bold">
+                    <tr className="border-b border-(--divider) text-(--secondary)">
                         <th className="pl-3 pr-2 py-2 text-left w-16" />
                         {filledInnings.map((inn) => (
-                            <th key={inn.num} className="px-1.5 py-2 min-w-7">{inn.num}</th>
+                            <th key={inn.num} className={`px-1.5 py-2 min-w-7 text-[10px] tracking-[0.5px] font-semibold ${isCurrent(inn.num) ? 'text-(--primary)' : ''}`}>
+                                {inn.num}
+                            </th>
                         ))}
-                        <th className="px-2 py-2 font-black text-(--text-primary) border-l border-(--divider)">R</th>
-                        <th className="px-2 py-2 font-black text-(--text-primary)">H</th>
-                        <th className="px-2 py-2 font-black text-(--text-primary)">E</th>
+                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary) border-l border-(--divider)">R</th>
+                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary)">H</th>
+                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary)">E</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr className="border-b border-(--divider)">
-                        <td className="pl-3 pr-2 py-2 text-left">
-                            {(() => { const bg = away.team.primary_color; const tc = bg ? getReadableTextColor(bg, '#ffffff') : undefined; return <span className={`font-black ${bg ? 'px-1 py-0.5 rounded' : 'text-(--text-primary)'}`} style={bg ? { backgroundColor: bg, color: tc } : undefined}>{away.team.abbreviation}</span>; })()}
-                        </td>
-                        {filledInnings.map((inn) => (
-                            <td key={inn.num} className="px-1.5 py-2 text-(--text-primary)">{inn.away.runs ?? "-"}</td>
-                        ))}
-                        <td className="px-2 py-2 font-black text-(--text-primary) border-l border-(--divider)">{teams.away.runs}</td>
-                        <td className="px-2 py-2 font-bold text-(--text-primary)">{teams.away.hits}</td>
-                        <td className="px-2 py-2 font-bold text-(--text-primary)">{teams.away.errors}</td>
-                    </tr>
-                    <tr>
-                        <td className="pl-3 pr-2 py-2 text-left">
-                            {(() => { const bg = home.team.primary_color; const tc = bg ? getReadableTextColor(bg, '#ffffff') : undefined; return <span className={`font-black ${bg ? 'px-1 py-0.5 rounded' : 'text-(--text-primary)'}`} style={bg ? { backgroundColor: bg, color: tc } : undefined}>{home.team.abbreviation}</span>; })()}
-                        </td>
-                        {filledInnings.map((inn) => (
-                            <td key={inn.num} className="px-1.5 py-2 text-(--text-primary)">{inn.home.runs ?? "-"}</td>
-                        ))}
-                        {/* Add a divider */}
-                        <td className="px-2 py-2 font-black text-(--text-primary) border-l border-(--divider)">{teams.home.runs}</td>
-                        <td className="px-2 py-2 font-bold text-(--text-primary)">{teams.home.hits}</td>
-                        <td className="px-2 py-2 font-bold text-(--text-primary)">{teams.home.errors}</td>
-                    </tr>
+                    {rows.map(({ key, data, side, badgeBg, badgeText }, rowIdx) => (
+                        <tr key={key} className={rowIdx < rows.length - 1 ? 'border-b border-(--divider)' : ''}>
+                            <td className="pl-3 pr-2 py-2 text-left">
+                                <span
+                                    className="inline-flex items-center justify-center rounded font-bold text-[10px] px-1 py-0.5 leading-none"
+                                    style={{ backgroundColor: badgeBg, color: badgeText, minWidth: '22px' }}
+                                >{data.team.abbreviation}</span>
+                            </td>
+                            {filledInnings.map((inn) => {
+                                const val = inn[side].runs;
+                                return (
+                                    <td
+                                        key={inn.num}
+                                        className={`px-1.5 py-2 text-[13px] ${
+                                            isCurrent(inn.num) ? 'bg-(--background-quaternary) text-(--primary)' :
+                                            isFuture(inn.num) ? 'text-(--secondary) opacity-30' :
+                                            'text-(--secondary)'
+                                        }`}
+                                    >
+                                        {isFuture(inn.num) ? '' : (val ?? '-')}
+                                    </td>
+                                );
+                            })}
+                            <td className="px-2 py-2 font-semibold text-(--primary) border-l border-(--divider)">{teams[side].runs}</td>
+                            <td className="px-2 py-2 font-semibold text-(--primary)">{teams[side].hits}</td>
+                            <td className={`px-2 py-2 font-semibold text-(--primary)'}`}>{teams[side].errors}</td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>
@@ -408,7 +454,7 @@ function LinescoreTable({
 }
 
 
-function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { linescore: GameBoxscoreDetail["linescore"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
+function MatchupStrip({ linescore, isRefreshing, cardMap, onCardSelect }: { linescore: GameBoxscoreDetail["linescore"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const inningHalf = (linescore.inning_half || linescore.inning_state || "").toUpperCase();
     const inningLabel = linescore.current_inning_ordinal || linescore.current_inning || "";
     const outs = linescore.outs ?? 0;
@@ -435,97 +481,59 @@ function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { lin
             className="rounded-xl border bg-(--background-secondary) p-4 space-y-3"
             style={{ animation: 'live-border-glow 2s ease-in-out infinite' }}
         >
-            {/* ── Top-left: LIVE badge + Inning + refresh spinner ── */}
-            <div className="flex items-center gap-2 justify-between">
+            <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold uppercase tracking-wide text-yellow-600">
+                    {inningHalf} {inningLabel}
+                </span>
                 <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                        </span>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-red-400">Live</span>
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-wide text-yellow-600 whitespace-nowrap">
-                        {inningHalf} {inningLabel}
-                    </span>
                     {isRefreshing && (
                         <svg className="animate-spin h-3 w-3 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
                     )}
-                </div>
-
-                <div className="text-xs text-yellow-600 italic">
-                    Updates every 30s
+                    {!isRefreshing && (
+                        <span className="text-xs text-yellow-600/60 italic">Updates every 30s</span>
+                    )}
                 </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-
-                {/* ── Left: situation indicators ── */}
-                <div className="flex items-center justify-center gap-4 sm:pr-4 sm:border-r sm:border-yellow-500/15 shrink-0">
-
-                    {/* Diamond + Outs + Count */}
-                    <div className="flex items-center gap-6">
-                        {/* Bases diamond */}
-                        <div className="flex flex-col items-center gap-1">
-                            <div className="relative w-12 h-12">
-                                <div className={`absolute top-0 left-1/2 -translate-x-1/2 translate-y-1/4 w-4 h-4 rotate-45 border ${
-                                    hasSecond ? 'bg-yellow-400 border-yellow-500' : 'bg-gray-600 border-gray-500'
-                                }`} />
-                                <div className={`absolute bottom-1/4 left-0.5 w-4 h-4 rotate-45 border ${
-                                    hasThird ? 'bg-yellow-400 border-yellow-500' : 'bg-gray-600 border-gray-500'
-                                }`} />
-                                <div className={`absolute bottom-1/4 right-0.5 w-4 h-4 rotate-45 border ${
-                                    hasFirst ? 'bg-yellow-400 border-yellow-500' : 'bg-gray-600 border-gray-500'
-                                }`} />
-                            </div>
-                            {/* Outs */}
-                            <div className="flex items-center gap-1.5">
-                                {[0, 1, 2].map((i) => (
-                                    <span
-                                        key={i}
-                                        className={`h-2.5 w-2.5 rounded-full border ${
-                                            i < outs ? 'bg-yellow-400 border-yellow-500' : 'bg-transparent border-(--text-secondary)/50'
-                                        }`}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Count */}
-                        {(linescore.balls != null && linescore.strikes != null) && (
-                            <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-secondary)">Count</span>
-                                <span className="text-xl font-black text-(--text-primary)">{linescore.balls}-{linescore.strikes}</span>
-                            </div>
-                        )}
-                    </div>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-x-8 max-w-280">
+                {/* Pitcher side */}
+                <div className="space-y-1.5 min-w-0">
+                    <div className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary)">Pitching</div>
+                    {pitcherCard ? (
+                        <CardItemFromCard card={pitcherCard} onClick={() => onCardSelect?.(pitcherCard)} />
+                    ) : pitcherName ? (
+                        <div className="text-sm font-semibold text-(--primary) truncate">{pitcherName}</div>
+                    ) : null}
                 </div>
 
-                {/* ── Right: Batter / Pitcher cards ── */}
-                {(batterName || pitcherName) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0 flex-1">
-                        <div className="space-y-1 min-w-0">
-                            <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-secondary) pl-1">Pitching</div>
-                            {pitcherCard ? (
-                                <CardItemFromCard card={pitcherCard} hideYear={true} onClick={() => onCardSelect?.(pitcherCard)} />
-                            ) : pitcherName ? (
-                                <div className="px-2 py-1.5 text-sm font-semibold text-(--text-primary) truncate">{pitcherName}</div>
-                            ) : null}
-                        </div>
-                        <div className="space-y-1 min-w-0">
-                            <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-secondary) pl-1">At Bat</div>
-                            {batterCard ? (
-                                <CardItemFromCard card={batterCard} hideYear={true} onClick={() => onCardSelect?.(batterCard)} />
-                            ) : batterName ? (
-                                <div className="px-2 py-1.5 text-sm font-semibold text-(--text-primary) truncate">{batterName}</div>
-                            ) : null}
-                        </div>
+                {/* Center: Count + Diamond + Outs */}
+                <div className="flex flex-col items-center gap-1.5 px-2 shrink-0">
+                    {linescore.balls != null && linescore.strikes != null ? (
+                        <>
+                            <div className="text-[10px] uppercase text-(--secondary) tracking-wide">Count</div>
+                            <div className="text-[22px] font-bold text-(--primary) leading-none">{linescore.balls}–{linescore.strikes}</div>
+                        </>
+                    ) : null}
+                    <div className="relative w-12 h-12 mt-1">
+                        <div className={`absolute top-0 left-1/2 -translate-x-1/2 translate-y-1/4 w-4 h-4 rotate-45 border ${hasSecond ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
+                        <div className={`absolute bottom-1/4 left-0.5 w-4 h-4 rotate-45 border ${hasThird ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
+                        <div className={`absolute bottom-1/4 right-0.5 w-4 h-4 rotate-45 border ${hasFirst ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
                     </div>
-                )}
+                    <div className="text-[12px] text-(--secondary)">{outs} out{outs !== 1 ? 's' : ''}</div>
+                </div>
 
+                {/* Batter side - right aligned */}
+                <div className="space-y-1.5 min-w-0 flex flex-col items-start">
+                    <div className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary) w-full text-right">At Bat</div>
+                    {batterCard ? (
+                        <CardItemFromCard card={batterCard} className="w-full" onClick={() => onCardSelect?.(batterCard)} />
+                    ) : batterName ? (
+                        <div className="text-sm font-semibold text-(--primary) truncate">{batterName}</div>
+                    ) : null}
+                </div>
             </div>
         </div>
         </>
@@ -553,36 +561,89 @@ function Decisions({ boxscore }: { boxscore: GameBoxscoreDetail }) {
             {winner && (
                 <div className="flex items-center gap-1.5">
                     <span className="font-bold text-green-400">W:</span>
-                    <span className="font-semibold text-(--text-primary)">{winner.full_name}</span>
-                    <span className="text-(--text-secondary) text-xs">{findPitcherNote(winner.id)}</span>
+                    <span className="font-semibold text-(--primary)">{winner.full_name}</span>
+                    <span className="text-(--secondary) text-xs">{findPitcherNote(winner.id)}</span>
                 </div>
             )}
             {loser && (
                 <div className="flex items-center gap-1.5">
                     <span className="font-bold text-red-400">L:</span>
-                    <span className="font-semibold text-(--text-primary)">{loser.full_name}</span>
-                    <span className="text-(--text-secondary) text-xs">{findPitcherNote(loser.id)}</span>
+                    <span className="font-semibold text-(--primary)">{loser.full_name}</span>
+                    <span className="text-(--secondary) text-xs">{findPitcherNote(loser.id)}</span>
                 </div>
             )}
             {saveDecision && (
                 <div className="flex items-center gap-1.5">
                     <span className="font-bold text-blue-400">SV:</span>
-                    <span className="font-semibold text-(--text-primary)">{saveDecision.full_name}</span>
-                    <span className="text-(--text-secondary) text-xs">{findPitcherNote(saveDecision.id)}</span>
+                    <span className="font-semibold text-(--primary)">{saveDecision.full_name}</span>
+                    <span className="text-(--secondary) text-xs">{findPitcherNote(saveDecision.id)}</span>
                 </div>
             )}
         </div>
     );
 }
 
+function PlayerNameCell({ name, position, card }: { name: string; position?: string; card?: ShowdownBotCard; onClick?: () => void }) {
+
+    const defenseForPosition = () => {
+        if (!card) return null;
+        if (!position) return null;
+        if (position === "DH") return null; // DH has no defensive value
+        
+        // Check for exact position match first
+        const exactMatch = card.positions_and_defense[position];
+        if (exactMatch != null) return exactMatch;
+
+        // If no exact match, check for these common position groupings
+        const positionGroups: Record<string, string[]> = {
+            'IF': ['1B', '2B', '3B', 'SS'],
+            'OF': ['LF', 'CF', 'RF'],
+            'LF/RF': ['LF', 'RF'],
+        };
+        for (const group in positionGroups) {
+            if (positionGroups[group].includes(position)) {
+                const groupMatch = card.positions_and_defense[group];
+                if (groupMatch != null) return groupMatch;
+            }
+        }
+
+        return null;
+    }
+        
+    return (
+        <div className="flex items-center space-x-1.5">
+            {card && (
+                <CardCommand
+                    isPitcher={card.chart.is_pitcher}
+                    primaryColor={card.image.color_primary ?? '#333'}
+                    secondaryColor={card.image.color_secondary ?? '#666'}
+                    command={card.chart.command}
+                    team={card.team ?? undefined}
+                    className="w-6 h-6 text-[12px]"
+                />
+            )}
+            <div className="space-y-0.5">
+                
+                <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
+                <div className="flex items-center gap-1">
+                    {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
+                    {position && <div className="text-[10px] text-(--text-tertiary)">
+                        {position}{defenseForPosition() != null && (defenseForPosition() || 0) >= 0 ? "+" : ""}{defenseForPosition()}
+                    </div>}
+                </div>
+                
+            </div>
+        </div>
+    );
+
+}
 
 function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
+    const badgeBg = team.team.primary_color ?? '#374151';
+    const badgeText = getReadableTextColor(badgeBg, '#ffffff');
     const hasCards = Object.keys(cardMap).length > 0;
-    const badgeBg = team.team.primary_color ?? undefined;
-    const badgeText = badgeBg ? getReadableTextColor(badgeBg, '#ffffff') : undefined;
 
-    // Sort: lineup batters first in batting order, then substitutes
     const sortedBatters = [...team.batting]
         .filter((b) => b.is_in_lineup)
         .sort((a, b) => {
@@ -602,22 +663,20 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
                     <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                 )}
                 <span
-                    className={`font-black ${badgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
-                    style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
+                    className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
+                    style={{ backgroundColor: badgeBg, color: badgeText }}
                 >{team.team.abbreviation}</span>
-                <span className="text-xs text-(--text-secondary) font-semibold">Batting</span>
+                <span className="text-xs text-(--secondary) font-semibold">Batting</span>
                 {hasCards && totalPoints > 0 && (
-                    <span className="ml-auto text-xs font-bold text-(--text-secondary)">{totalPoints.toLocaleString()} PTS</span>
+                    <span className="ml-auto text-[11px] font-bold text-(--quaternary)">{totalPoints.toLocaleString()} PTS</span>
                 )}
             </div>
 
             <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                     <thead>
-                        <tr className="border-b border-(--divider) text-(--text-secondary) font-bold">
+                        <tr className="border-b border-(--divider) text-(--secondary) font-semibold text-[10px] tracking-[0.5px] uppercase">
                             <th className="pl-3 pr-2 py-2 text-left min-w-36">Batters</th>
-                            {hasCards && <th className="px-1 py-2 text-center min-w-9">CMD</th>}
-                            {hasCards && <th className="px-1 py-2 text-center min-w-8">PTS</th>}
                             <th className="px-2 py-2 text-right">AB</th>
                             <th className="px-2 py-2 text-right">R</th>
                             <th className="px-2 py-2 text-right">H</th>
@@ -630,27 +689,25 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
                     </thead>
                     <tbody>
                         {sortedBatters.map((batter) => (
-                            <BatterRow key={batter.id} batter={batter} card={cardMap[batter.id]} hasCards={hasCards} onCardSelect={onCardSelect} />
+                            <BatterRow key={batter.id} batter={batter} card={cardMap[batter.id]} onCardSelect={onCardSelect} />
                         ))}
                         {sortedBatters.length === 0 && (
                             <tr>
-                                <td colSpan={hasCards ? 14 : 12} className="px-3 py-4 text-center text-(--text-secondary)">
+                                <td colSpan={9} className="px-3 py-4 text-center text-(--secondary)">
                                     No batting data available.
                                 </td>
                             </tr>
                         )}
                         <tr className="border-t border-(--divider) font-bold">
-                            <td className="pl-3 pr-2 py-2 text-left text-(--text-primary)">Totals</td>
-                            {hasCards && <td />}
-                            {hasCards && <td />}
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.at_bats}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.runs}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.hits}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.rbi}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.strike_outs}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)" />
-                            <td className="px-2 py-2 text-right pr-3 text-(--text-primary)" />
+                            <td className="pl-3 pr-2 py-2 text-left text-(--primary)">Totals</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.at_bats}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.runs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.hits}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.rbi}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.base_on_balls}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.strike_outs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)" />
+                            <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
                         </tr>
                     </tbody>
                 </table>
@@ -659,49 +716,26 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
     );
 }
 
-function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreBatter; card?: ShowdownBotCard; hasCards: boolean; onCardSelect?: (card: ShowdownBotCard) => void }) {
+function BatterRow({ batter, card, onCardSelect }: { batter: BoxscoreBatter; card?: ShowdownBotCard; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const indent = batter.is_substitute && !batter.is_in_lineup;
+    const hasHit = (batter.stats.hits ?? 0) > 0;
 
     return (
-        <tr 
+        <tr
             className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${card ? 'cursor-pointer' : ''}`}
             onClick={card ? () => onCardSelect?.(card) : undefined}
         >
             <td className={`${indent ? 'pl-6' : 'pl-3'} pr-2 py-1.5 text-left`}>
-                <span className="font-semibold text-(--text-primary)">{batter.name}</span>
-                <span className="ml-1.5 text-(--text-secondary)">{batter.position}</span>
+                <PlayerNameCell name={batter.name} position={batter.position} card={card} />
             </td>
-            {hasCards && (
-                <td className="px-1 py-1 text-center">
-                    {card && (
-                        <div
-                            className="flex justify-center"
-                        >
-                            <CardCommand
-                                isPitcher={false}
-                                primaryColor={card.image.color_primary ?? '#333'}
-                                secondaryColor={card.image.color_secondary ?? '#666'}
-                                command={card.chart.command}
-                                team={card.team ?? undefined}
-                                className="w-7 h-7 text-[12px]"
-                            />
-                        </div>
-                    )}
-                </td>
-            )}
-            {hasCards && (
-                <td className="px-1 py-1 text-center">
-                    {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
-                </td>
-            )}
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.at_bats}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.hits}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.rbi}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.strike_outs}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-secondary)">{batter.season_stats.avg}</td>
-            <td className="px-2 py-1.5 text-right pr-3 text-(--text-secondary)">{batter.season_stats.ops}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.at_bats}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.runs}</td>
+            <td className={`px-2 py-1.5 text-right font-semibold ${hasHit ? 'text-(--primary)' : 'text-(--secondary)'}`}>{batter.stats.hits}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.rbi}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.base_on_balls}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.strike_outs}</td>
+            <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
+            <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
         </tr>
     );
 }
@@ -709,9 +743,10 @@ function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreB
 
 function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
+    const badgeBg = team.team.primary_color ?? '#374151';
+    const badgeText = getReadableTextColor(badgeBg, '#ffffff');
+
     const hasCards = Object.keys(cardMap).length > 0;
-    const badgeBg = team.team.primary_color ?? undefined;
-    const badgeText = badgeBg ? getReadableTextColor(badgeBg, '#ffffff') : undefined;
 
     const totalPoints = hasCards
         ? team.pitching.reduce((sum, p) => sum + (cardMap[p.id]?.points ?? 0), 0)
@@ -724,22 +759,20 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
                     <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                 )}
                 <span
-                    className={`font-black ${badgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
-                    style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
+                    className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
+                    style={{ backgroundColor: badgeBg, color: badgeText }}
                 >{team.team.abbreviation}</span>
-                <span className="text-xs text-(--text-secondary) font-semibold">Pitching</span>
+                <span className="text-xs text-(--secondary) font-semibold">Pitching</span>
                 {hasCards && totalPoints > 0 && (
-                    <span className="ml-auto text-xs font-bold text-(--text-secondary)">{totalPoints.toLocaleString()} PTS</span>
+                    <span className="ml-auto text-[11px] font-bold text-(--quaternary)">{totalPoints.toLocaleString()} PTS</span>
                 )}
             </div>
 
             <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                     <thead>
-                        <tr className="border-b border-(--divider) text-(--text-secondary) font-bold">
+                        <tr className="border-b border-(--divider) text-(--secondary) font-semibold text-[10px] tracking-[0.5px] uppercase">
                             <th className="pl-3 pr-2 py-2 text-left min-w-36">Pitchers</th>
-                            {hasCards && <th className="px-1 py-2 text-center min-w-9">CMD</th>}
-                            {hasCards && <th className="px-1 py-2 text-center min-w-8">PT</th>}
                             <th className="px-2 py-2 text-right">IP</th>
                             <th className="px-2 py-2 text-right">H</th>
                             <th className="px-2 py-2 text-right">R</th>
@@ -753,30 +786,28 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
                     </thead>
                     <tbody>
                         {team.pitching.map((pitcher) => (
-                            <PitcherRow key={pitcher.id} pitcher={pitcher} card={cardMap[pitcher.id]} hasCards={hasCards} onCardSelect={onCardSelect} />
+                            <PitcherRow key={pitcher.id} pitcher={pitcher} card={cardMap[pitcher.id]} onCardSelect={onCardSelect} />
                         ))}
                         {team.pitching.length === 0 && (
                             <tr>
-                                <td colSpan={hasCards ? 15 : 13} className="px-3 py-4 text-center text-(--text-secondary)">
+                                <td colSpan={10} className="px-3 py-4 text-center text-(--secondary)">
                                     No pitching data available.
                                 </td>
                             </tr>
                         )}
                         <tr className="border-t border-(--divider) font-bold">
-                            <td className="pl-3 pr-2 py-2 text-left text-(--text-primary)">Totals</td>
-                            {hasCards && <td />}
-                            {hasCards && <td />}
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.innings_pitched}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.hits}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.runs}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.earned_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.strike_outs}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.home_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--text-primary)">
+                            <td className="pl-3 pr-2 py-2 text-left text-(--primary)">Totals</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.innings_pitched}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.hits}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.runs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.earned_runs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.base_on_balls}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.strike_outs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.home_runs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">
                                 {team.pitching_totals.pitches_thrown}-{team.pitching_totals.strikes}
                             </td>
-                            <td className="px-2 py-2 text-right pr-3 text-(--text-primary)" />
+                            <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
                         </tr>
                     </tbody>
                 </table>
@@ -785,52 +816,26 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
     );
 }
 
-function PitcherRow({ pitcher, card, hasCards, onCardSelect }: { pitcher: BoxscorePitcher; card?: ShowdownBotCard; hasCards: boolean; onCardSelect?: (card: ShowdownBotCard) => void }) {
+function PitcherRow({ pitcher, card, onCardSelect }: { pitcher: BoxscorePitcher; card?: ShowdownBotCard; onCardSelect?: (card: ShowdownBotCard) => void }) {
     return (
-        <tr 
+        <tr
             className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${card ? 'cursor-pointer' : ''}`}
             onClick={card ? () => onCardSelect?.(card) : undefined}
         >
             <td className="pl-3 pr-2 py-1.5 text-left">
-                <span className="font-semibold text-(--text-primary)">{pitcher.name}</span>
-                {pitcher.stats.note && (
-                    <span className="ml-1.5 text-[10px] font-bold text-(--text-secondary)">{pitcher.stats.note}</span>
-                )}
+                <PlayerNameCell name={pitcher.name} position={'P'} card={card} />
             </td>
-            {hasCards && (
-                <td className="px-1 py-1 text-center">
-                    {card && (
-                        <div
-                            className="flex justify-center"
-                        >
-                            <CardCommand
-                                isPitcher={true}
-                                primaryColor={card.image.color_primary ?? '#333'}
-                                secondaryColor={card.image.color_secondary ?? '#666'}
-                                command={card.chart.command}
-                                team={card.team ?? undefined}
-                                className="w-7 h-7 text-[12px]"
-                            />
-                        </div>
-                    )}
-                </td>
-            )}
-            {hasCards && (
-                <td className="px-1 py-1 text-center">
-                    {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
-                </td>
-            )}
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.innings_pitched}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.hits}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.earned_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.strike_outs}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.home_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--text-primary)">
+            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.innings_pitched}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.hits}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.runs}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.earned_runs}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.base_on_balls}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.strike_outs}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.home_runs}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">
                 {pitcher.stats.pitches_thrown}-{pitcher.stats.strikes}
             </td>
-            <td className="px-2 py-1.5 text-right pr-3 text-(--text-secondary)">{pitcher.season_stats.era}</td>
+            <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{pitcher.season_stats.era}</td>
         </tr>
     );
 }
@@ -839,11 +844,11 @@ function PitcherRow({ pitcher, card, hasCards, onCardSelect }: { pitcher: Boxsco
 function PointsBadge({ points, bg_color }: { points: number, bg_color?: string | null }) {
     return (
         <span 
-            className="inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full text-[10px] font-bold leading-none"
+            className="inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full text-[9px] font-bold leading-none"
             style={
-                { backgroundColor: bg_color ?? 'var(--text-secondary)/15', color: getContrastColor(bg_color ?? 'var(--text-secondary)/15') }}    
+                { backgroundColor: bg_color ?? 'var(--secondary)/15', color: getContrastColor(bg_color ?? 'var(--secondary)/15') }}    
         >
-            {points}
+            {points} PT
         </span>
     );
 }
@@ -856,14 +861,14 @@ function GameInfo({ away, home }: { away: BoxscoreTeamData; home: BoxscoreTeamDa
 
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3 space-y-3">
-            <div className="font-black text-sm text-(--text-primary)">Game Info</div>
+            <div className="font-black text-sm text-(--primary)">Game Info</div>
             {allInfo.map((section, idx) => (
                 <div key={idx} className="space-y-1">
-                    <div className="text-xs font-bold text-(--text-secondary) uppercase tracking-wide">{section.title}</div>
+                    <div className="text-xs font-bold text-(--secondary) uppercase tracking-wide">{section.title}</div>
                     {section.fieldList.map((field, fidx) => (
                         <div key={fidx} className="flex gap-2 text-xs">
-                            <span className="font-bold text-(--text-primary) shrink-0">{field.label}:</span>
-                            <span className="text-(--text-secondary)">{field.value}</span>
+                            <span className="font-bold text-(--primary) shrink-0">{field.label}:</span>
+                            <span className="text-(--secondary)">{field.value}</span>
                         </div>
                     ))}
                 </div>

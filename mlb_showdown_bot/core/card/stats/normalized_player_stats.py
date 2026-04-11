@@ -250,6 +250,19 @@ class NormalizedPlayerStats(BaseModel):
         self.bref_id = bref_id
         self.bref_url = f"https://www.baseball-reference.com/players/{bref_id[0]}/{bref_id}.shtml"
 
+    @property
+    def is_missing_stats(self) -> bool:
+        """Determines if the player is missing core stats (e.g., G, PA, IP) which may indicate incomplete data"""
+        if not self.type:
+            return True
+        match self.type:
+            case PlayerType.HITTER:
+                return not self.G and not self.PA
+            case PlayerType.PITCHER:
+                return not self.GS and not self.IP
+            
+        return False
+
 # -------------------------------
 # MARK: - Normalizer Class
 # -------------------------------
@@ -613,9 +626,6 @@ class PlayerStatsNormalizer:
                 if is_primary_type or key not in combined_stats:
                     combined_stats[key] = value
 
-        if not combined_stats:
-            print("No standard stats available.")
-
         return combined_stats
 
     @staticmethod
@@ -658,7 +668,6 @@ class PlayerStatsNormalizer:
         )
 
         if not standard_stat_splits or len(standard_stat_splits) == 0:
-            print("No standard stats available.")
             return None  # No stats available
         
         # Get team with most games played

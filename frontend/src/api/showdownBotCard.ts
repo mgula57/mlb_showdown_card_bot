@@ -390,6 +390,7 @@ export type ShowdownBotCard = {
     
     /** Formatted positions with defensive ratings */
     positions_and_defense_string: string;
+    positions_and_defense: Record<string, number>;
 
     // Visual presentation
     /** Card image styling and metadata */

@@ -347,6 +347,14 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
             {isNotStarted && showMatchupDetails && (
                 <>
                     <div className="border-t border-(--divider) my-1" />
+                    <div className="flex justify-between items-center">
+                        <div className="flex gap-1 items-center">
+                            <span className="text-[12px] font-bold text-(--quaternary)">Away Probable</span>
+                        </div>
+                        <div className="flex gap-1 items-center">
+                            <span className="text-[12px] font-bold text-(--quaternary)">Home Probable</span>
+                        </div>
+                    </div>
                     <div className="pt-1 flex gap-2 items-center">
                         <CardItemCompact card={awayProbableCard} />
                         <span className="text-[12px]">vs</span>
@@ -360,10 +368,10 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">At Bat</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">At Bat</span>
                         </div>
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Pitching</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Pitching</span>
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">
@@ -378,10 +386,10 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Winning Pitcher</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Winning Pitcher</span>
                         </div>
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Losing Pitcher</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Losing Pitcher</span>
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">

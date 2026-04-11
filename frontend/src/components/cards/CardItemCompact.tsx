@@ -167,7 +167,7 @@ export const CardItemCompact = ({
 
             {showExtraDetails && (
                 <div className="shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
-                    {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'No position data')}
+                    {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
                 </div>
             )}
         </button>
