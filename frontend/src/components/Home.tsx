@@ -25,7 +25,7 @@ import { CardDetail } from './cards/CardDetail';
 import { getReadableTextColor } from '../functions/colors';
 
 // API
-import { fetchCardById, buildCards, buildCardsFromIds } from '../api/showdownBotCard';
+import { fetchCardById, buildCardsFromIds } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
 

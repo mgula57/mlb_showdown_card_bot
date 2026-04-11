@@ -149,6 +149,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             set: showdownSet,
             stat_highlights_type: "ALL",
         }
+        // No need to reload if all IDs are already in the map
+        if ([...allIds].every(id => cardMap[Number(id)])) {
+            console.log("All player cards already in map, skipping card fetch");
+            return;
+        }
         buildCardsFromIds([...allIds], adjustedSeason, cardSettings)
             .then((response) => {
                 if (cancelled) return;
