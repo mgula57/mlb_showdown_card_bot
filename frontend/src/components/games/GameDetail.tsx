@@ -643,7 +643,7 @@ function Decisions({ boxscore }: { boxscore: GameBoxscoreDetail }) {
     );
 }
 
-function PlayerNameCell({ name, position, card }: { name: string; position?: string; card?: ShowdownBotCard; onClick?: () => void }) {
+function PlayerNameCell({ name, position, card, ptsChange }: { name: string; position?: string; card?: ShowdownBotCard; ptsChange?: number | null; onClick?: () => void }) {
 
     const defenseForPosition = () => {
         if (!card) return null;
@@ -687,6 +687,11 @@ function PlayerNameCell({ name, position, card }: { name: string; position?: str
                 <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
                 <div className="flex items-center gap-1">
                     {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
+                    {card && ptsChange != null && ptsChange !== 0 && (
+                        <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}
+                        </span>
+                    )}
                     {position && <div className="text-[10px] text-(--text-tertiary)">
                         {position}{defenseForPosition() != null && (defenseForPosition() || 0) >= 0 ? "+" : ""}{defenseForPosition()}
                     </div>}
@@ -787,7 +792,7 @@ function BatterRow({ batter, cardResponse, onCardSelect }: { batter: BoxscoreBat
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
         >
             <td className={`${indent ? 'pl-6' : 'pl-3'} pr-2 py-1.5 text-left`}>
-                <PlayerNameCell name={batter.name} position={batter.position} card={card} />
+                <PlayerNameCell name={batter.name} position={batter.position} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} />
             </td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.at_bats}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.runs}</td>
@@ -885,7 +890,7 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect }: { pitcher: Boxscore
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
         >
             <td className="pl-3 pr-2 py-1.5 text-left">
-                <PlayerNameCell name={pitcher.name} position={'P'} card={card} />
+                <PlayerNameCell name={pitcher.name} position={'P'} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} />
             </td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.innings_pitched}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.hits}</td>
