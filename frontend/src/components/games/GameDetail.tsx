@@ -13,14 +13,13 @@ import {
     type BoxscorePitcher,
     type BoxscoreLinescoreInning,
 } from "../../api/mlbAPI";
-import { type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
-import { fetchCardsByMlbIds } from "../../api/card_db/cardDatabase";
+import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import CardCommand from "../cards/card_elements/CardCommand";
-import { CardItemFromCardDatabaseRecord } from "../cards/CardItem";
+import { CardItemFromCard } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { getContrastColor } from "../shared/Color";
 
-type CardMap = Record<number, CardDatabaseRecord>;
+type CardMap = Record<number, ShowdownBotCard>;
 
 type GameDetailProps = {
     gamePk: number;
@@ -37,7 +36,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const [selectedCard, setSelectedCard] = useState<CardDatabaseRecord | null>(null);
+    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
     const handleModalCardClose = () => {
         setSelectedCard(null);
     };
@@ -121,10 +120,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
         if (!boxscore || !season || !showdownSet) return;
         let cancelled = false;
 
-        const allIds = new Set<number>();
+        const allIds = new Set<string>();
         for (const side of ["away", "home"] as const) {
-            for (const b of boxscore.teams[side].batting) allIds.add(b.id);
-            for (const p of boxscore.teams[side].pitching) allIds.add(p.id);
+            for (const b of boxscore.teams[side].batting) allIds.add(String(b.id));
+            for (const p of boxscore.teams[side].pitching) allIds.add(String(p.id));
         }
 
         // Override the team for each ID based on the boxscore data, to ensure we get the correct card even if the player is now on a new team
@@ -141,12 +140,26 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
 
         // Check if sport is not WBC and date is before May 1st of that season, if so subtract 1 from the season to use last year's cards
         const isCurrentSeason = new Date().getFullYear() === season;
-        const isBeforeMay = new Date().getMonth() < 4; // Months are 0-indexed
-        const adjustedSeason = (sportId === 1 && isCurrentSeason && isBeforeMay) ? season - 1 : season;
+        const useLastYear = new Date().getMonth() < 3; // Months are 0-indexed
+        const adjustedSeason = (sportId === 1 && isCurrentSeason && useLastYear) ? season - 1 : season;
 
         const isWbc = sportId === 51;
-        fetchCardsByMlbIds([...allIds], adjustedSeason, showdownSet, isWbc, overrides)
-            .then((map) => { if (!cancelled) setCardMap(map); })
+        const cardSettings = {
+            year: adjustedSeason,
+            set: showdownSet,
+            stat_highlights_type: "ALL",
+        }
+        buildCardsFromIds([...allIds], adjustedSeason, cardSettings)
+            .then((response) => {
+                if (cancelled) return;
+                const map: CardMap = {};
+                for (const entry of response.cards ?? []) {
+                    if (entry.card?.mlb_id != null) {
+                        map[entry.card.mlb_id] = entry.card;
+                    }
+                }
+                setCardMap(map);
+            })
             .catch(() => { /* cards are supplementary – fail silently */ });
 
         return () => { cancelled = true; };
@@ -225,7 +238,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             <div className={selectedCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={handleModalCardClose} isVisible={!!selectedCard}>
                     <CardDetail
-                        cardId={selectedCard?.card_id}
+                        showdownBotCardData={{ card: selectedCard } as ShowdownBotCardAPIResponse}
                         hideTrendGraphs={true}
                         context="game_detail"
                         parent='game_detail'
@@ -390,7 +403,7 @@ function LinescoreTable({
 }
 
 
-function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { linescore: GameBoxscoreDetail["linescore"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: CardDatabaseRecord) => void }) {
+function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { linescore: GameBoxscoreDetail["linescore"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const inningHalf = (linescore.inning_half || linescore.inning_state || "").toUpperCase();
     const inningLabel = linescore.current_inning_ordinal || linescore.current_inning || "";
     const outs = linescore.outs ?? 0;
@@ -492,7 +505,7 @@ function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { lin
                         <div className="space-y-1 min-w-0">
                             <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-secondary) pl-1">Pitching</div>
                             {pitcherCard ? (
-                                <CardItemFromCardDatabaseRecord card={pitcherCard} hideYear={true} onClick={() => onCardSelect?.(pitcherCard)} />
+                                <CardItemFromCard card={pitcherCard} hideYear={true} onClick={() => onCardSelect?.(pitcherCard)} />
                             ) : pitcherName ? (
                                 <div className="px-2 py-1.5 text-sm font-semibold text-(--text-primary) truncate">{pitcherName}</div>
                             ) : null}
@@ -500,7 +513,7 @@ function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { lin
                         <div className="space-y-1 min-w-0">
                             <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-secondary) pl-1">At Bat</div>
                             {batterCard ? (
-                                <CardItemFromCardDatabaseRecord card={batterCard} hideYear={true} onClick={() => onCardSelect?.(batterCard)} />
+                                <CardItemFromCard card={batterCard} hideYear={true} onClick={() => onCardSelect?.(batterCard)} />
                             ) : batterName ? (
                                 <div className="px-2 py-1.5 text-sm font-semibold text-(--text-primary) truncate">{batterName}</div>
                             ) : null}
@@ -558,7 +571,7 @@ function Decisions({ boxscore }: { boxscore: GameBoxscoreDetail }) {
 }
 
 
-function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: CardDatabaseRecord) => void }) {
+function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const hasCards = Object.keys(cardMap).length > 0;
     const badgeBg = team.team.primary_color ?? undefined;
@@ -641,7 +654,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
     );
 }
 
-function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreBatter; card?: CardDatabaseRecord; hasCards: boolean; onCardSelect?: (card: CardDatabaseRecord) => void }) {
+function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreBatter; card?: ShowdownBotCard; hasCards: boolean; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const indent = batter.is_substitute && !batter.is_in_lineup;
 
     return (
@@ -661,9 +674,9 @@ function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreB
                         >
                             <CardCommand
                                 isPitcher={false}
-                                primaryColor={card.color_primary ?? '#333'}
-                                secondaryColor={card.color_secondary ?? '#666'}
-                                command={card.command}
+                                primaryColor={card.image.color_primary ?? '#333'}
+                                secondaryColor={card.image.color_secondary ?? '#666'}
+                                command={card.chart.command}
                                 team={card.team ?? undefined}
                                 className="w-7 h-7 text-[12px]"
                             />
@@ -673,7 +686,7 @@ function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreB
             )}
             {hasCards && (
                 <td className="px-1 py-1 text-center">
-                    {card && <PointsBadge points={card.points} bg_color={card.color_secondary} />}
+                    {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
                 </td>
             )}
             <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.at_bats}</td>
@@ -689,7 +702,7 @@ function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreB
 }
 
 
-function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: CardDatabaseRecord) => void }) {
+function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const hasCards = Object.keys(cardMap).length > 0;
     const badgeBg = team.team.primary_color ?? undefined;
@@ -767,7 +780,7 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
     );
 }
 
-function PitcherRow({ pitcher, card, hasCards, onCardSelect }: { pitcher: BoxscorePitcher; card?: CardDatabaseRecord; hasCards: boolean; onCardSelect?: (card: CardDatabaseRecord) => void }) {
+function PitcherRow({ pitcher, card, hasCards, onCardSelect }: { pitcher: BoxscorePitcher; card?: ShowdownBotCard; hasCards: boolean; onCardSelect?: (card: ShowdownBotCard) => void }) {
     return (
         <tr 
             className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${card ? 'cursor-pointer' : ''}`}
@@ -787,9 +800,9 @@ function PitcherRow({ pitcher, card, hasCards, onCardSelect }: { pitcher: Boxsco
                         >
                             <CardCommand
                                 isPitcher={true}
-                                primaryColor={card.color_primary ?? '#333'}
-                                secondaryColor={card.color_secondary ?? '#666'}
-                                command={card.command}
+                                primaryColor={card.image.color_primary ?? '#333'}
+                                secondaryColor={card.image.color_secondary ?? '#666'}
+                                command={card.chart.command}
                                 team={card.team ?? undefined}
                                 className="w-7 h-7 text-[12px]"
                             />
@@ -799,7 +812,7 @@ function PitcherRow({ pitcher, card, hasCards, onCardSelect }: { pitcher: Boxsco
             )}
             {hasCards && (
                 <td className="px-1 py-1 text-center">
-                    {card && <PointsBadge points={card.points} bg_color={card.color_secondary} />}
+                    {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
                 </td>
             )}
             <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.innings_pitched}</td>
