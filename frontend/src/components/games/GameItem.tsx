@@ -46,6 +46,7 @@ function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
                     ? { wins: (awayTeamInfo.record as { wins?: number }).wins, losses: (awayTeamInfo.record as { losses?: number }).losses }
                     : undefined,
                 batting: raw.teams.away.batting,
+                pitching: raw.teams.away.pitching,
             },
             home: {
                 team: homeTeamInfo,
@@ -55,6 +56,7 @@ function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
                     ? { wins: (homeTeamInfo.record as { wins?: number }).wins, losses: (homeTeamInfo.record as { losses?: number }).losses }
                     : undefined,
                 batting: raw.teams.home.batting,
+                pitching: raw.teams.home.pitching,
             },
         },
         linescore: {
@@ -188,7 +190,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     );
 
     const playerIdLinescoreMatch = playerIdForLinescoreHighlight ?
-        (game.teams?.away?.batting?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.batting?.find(player => player.id === playerIdForLinescoreHighlight))
+        (game.teams?.away?.batting?.find(player => player.id === playerIdForLinescoreHighlight && player.is_in_lineup) || game.teams?.home?.batting?.find(player => player.id === playerIdForLinescoreHighlight && player.is_in_lineup))
         || (game.teams?.away?.pitching?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.pitching?.find(player => player.id === playerIdForLinescoreHighlight))
         : undefined;
     const playerLinescoreSummary = playerIdLinescoreMatch ? (
