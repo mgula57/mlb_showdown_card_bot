@@ -309,7 +309,8 @@ export default function Home() {
                             const linescore = game.linescore;
                             const inning = linescore?.current_inning;
                             const inningHalf = linescore?.inning_half === 'Top' ? '▲' : linescore?.inning_half === 'Bottom' ? '▼' : '';
-
+                            const isAwayStarred = starredTeamKeys.includes(`${away?.team?.id}-${tickerSeason?.season_id}`);
+                            const isHomeStarred = starredTeamKeys.includes(`${home?.team?.id}-${tickerSeason?.season_id}`);
                             const statusLabel = isFinal
                                 ? 'FINAL'
                                 : isLive
@@ -346,10 +347,11 @@ export default function Home() {
                                     <div className={`flex items-center justify-between gap-1 mb-1`}>
                                         <div className="flex items-center gap-2">
                                             <span 
-                                                className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`}
+                                                className={`flex items-center gap-0.5 text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`}
                                                 style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
                                             >
                                                 {awayAbbr}
+                                                {isAwayStarred && <FaStar className="text-yellow-400 w-2 h-2" />}
                                             </span>
                                             {away?.league_record && (
                                                 <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{away.league_record.wins}-{away.league_record.losses}</span>
@@ -362,10 +364,11 @@ export default function Home() {
                                     <div className={`flex items-center justify-between gap-1`}>
                                         <div className="flex items-center gap-2">
                                             <span 
-                                                className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`} 
+                                                className={`flex items-center gap-0.5 text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`} 
                                                 style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
                                             >
                                                 {homeAbbr}
+                                                {isHomeStarred && <FaStar className="text-yellow-400 w-2 h-2" />}
                                             </span>
                                             {home?.league_record && (
                                                 <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{home.league_record.wins}-{home.league_record.losses}</span>
