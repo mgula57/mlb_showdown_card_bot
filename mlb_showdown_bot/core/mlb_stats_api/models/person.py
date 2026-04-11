@@ -117,7 +117,14 @@ class PlayerWithShowdownCard(Player):
 class Players(BaseModel):
     """Model for API response when fetching multiple players"""
     
-    players: List[PlayerWithShowdownCard] = Field(..., alias='people')
+    players: List[Player] = Field(..., alias='people')
+
+    @property
+    def fangraphs_ids(self) -> List[Optional[int]]:
+        """Helper property to get a list of Fangraphs IDs for all players"""
+        if not self.players:
+            return []
+        return [player.fangraphs_id for player in self.players] if len(self.players) > 0 else []
 
 
 class FreeAgent(BaseModel):

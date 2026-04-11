@@ -90,7 +90,6 @@ export const CardItemCompact = ({
             return;
         }
         const updateHidePoints = () => {
-            console.log('CardItemCompact: Updating hidePoints for', element);
             const width = element.getBoundingClientRect().width || element.clientWidth;
             setHidePoints(width < 100);
             setShowExtraDetails(width >= 180);

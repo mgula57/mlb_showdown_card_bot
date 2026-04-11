@@ -104,6 +104,24 @@ const formatGameTime = (gameDate?: string): string => {
     }).format(parsedDate);
 };
 
+const formatGameDate = (gameDate?: string, includeTime: boolean = false): string => {
+    if (!gameDate) {
+        return "TBD";
+    }
+
+    const parsedDate = new Date(gameDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+        return "TBD";
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: includeTime ? 'numeric' : undefined,
+        minute: includeTime ? '2-digit' : undefined,
+    }).format(parsedDate);
+};
+
 export default function GameItem({ game: rawGame, sportId, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, onSelect }: GameItemProps) {
     const game = normalizeGame(rawGame);
     const awayTeam = game.teams?.away?.team;
@@ -263,7 +281,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
             <div className="py-1 flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-1 text-sm font-extrabold text-(--text-primary)">
                     {isFinal && (
-                        <><span>FINAL</span></>
+                        <span>{formatGameDate(game.game_date)}</span>
                     )}
                     {!isFinal && hasStarted && (
                         <span>{inningHalf && inningNumber ? `${inningHalf} ${inningNumber}` : ''}</span>

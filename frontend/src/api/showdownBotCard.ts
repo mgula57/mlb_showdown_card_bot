@@ -184,6 +184,23 @@ export async function buildCards(requestedCards: Record<string, any>[]): Promise
     return res.json();
 }
 
+export async function buildCardsFromIds(cardIds: string[], season: number | string, cardSettings: Record<string, any> = {}): Promise<ShowdownBotMultiCardAPIResponse> {
+    const res = await fetch(`${API_BASE}/build_cards_from_ids`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: cardIds, season: season, card_settings: cardSettings }),
+
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch cards failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
 // =============================================================================
 // MARK: - API RESPONSE TYPES
 // =============================================================================

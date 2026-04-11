@@ -1,7 +1,7 @@
 from pprint import pprint
 
 from ..models.stats.leaders import LeadersGroup
-from ..models.stats.enums import LeaderLeaderStatEnum, StatGroupEnum
+from ..models.stats.enums import LeaderLeaderStatEnum, StatGroupEnum, StatTypeEnum
 from ..models.stats.enums import PlayerPoolEnum
 from ..base_client import BaseMLBClient
 from typing import Optional, List

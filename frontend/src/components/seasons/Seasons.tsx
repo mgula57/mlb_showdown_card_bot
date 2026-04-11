@@ -10,7 +10,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
     fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
-    fetchTodaysSchedule, fetchSchedule, fetchSeasonTeams,
+    fetchSchedule, fetchSeasonTeams,
     type Season, type Sport, type League, type Standings, type Team, type Roster,
     type Schedule
 } from '../../api/mlbAPI';
@@ -22,7 +22,7 @@ import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
 
 import {
-    FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas, FaCalendarDays,
+    FaRankingStar, FaClipboardList, FaUserGroup, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
     FaStar, FaRegStar, FaArrowsRotate
 } from "react-icons/fa6";
@@ -508,7 +508,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         beginLoading();
         try {
             const rosterType = "active";
-            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, userShowdownSet, selectedSport.id, team.abbreviation || team.name);
+            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, selectedSport.id, team.abbreviation || team.name);
             console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
             setSelectedRoster(rosterData);
         } catch (error) {
@@ -1043,6 +1043,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     sportId={selectedSport?.id || null}
                                                     roster={selectedRoster}
                                                     isStarred={isSelectedTeamStarred}
+                                                    season={Number(selectedSeason.season_id)}
+                                                    loadShowdownCards={true}
                                                     onToggleStar={() => toggleStarTeam(selectedTeam)}
                                                 />
                                             )}

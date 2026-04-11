@@ -6,8 +6,8 @@ from .clients.leagues_client import LeaguesClient, Standings
 from .clients.seasons_client import SeasonsClient
 from .clients.sports_client import SportsClient, SportEnum
 from .clients.games_client import GamesClient, Schedule
-from .clients.stats_client import StatsClient
-from .models.person import Player
+from .clients.stats_client import StatsClient, StatTypeEnum
+from .models.person import Player, Players
 from .models.leagues.league import LeagueListEnum
 from typing import Optional
 import logging
@@ -77,6 +77,34 @@ class MLBStatsAPI:
         player = self.people.get_player(player_id=player_search_results[0].id, primary_position=player_search_results[0].primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
 
         return player
+    
+
+    def build_players_from_id_list(self, player_ids: list[int], seasons: list[int], league:str='MLB') -> Players:
+
+        league_list = None
+        match league.upper():
+            case 'MILB':
+                league_list = LeagueListEnum.MILB_FULL
+
+        players = self.people.get_players(
+            player_ids=player_ids,
+            include_stats=True,
+            type=None,
+            seasons=seasons,
+            league_list=league_list,
+            stat_types=[
+                StatTypeEnum.SABERMETRICS,
+                StatTypeEnum.RANKINGS_BY_YEAR,
+                StatTypeEnum.STATS_SINGLE_SEASON,
+                StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED,
+                StatTypeEnum.SABERMETRICS,
+                StatTypeEnum.STAT_SPLITS,
+                StatTypeEnum.GAME_LOG,
+            ],
+            limit_hydrated_fields=True
+        )
+        
+        return players
     
 
     # -------------------------

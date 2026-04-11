@@ -177,6 +177,17 @@ class NormalizedPlayerStats(BaseModel):
         
         return int(value)
 
+    @field_validator('go_ao_ratio', 'if_fb_ratio', mode='before')
+    def validate_advanced_ratios(cls, value) -> float:
+        """Defaults advanced ratios to None if empty string"""
+        if value is None:
+            return None
+        
+        if str(value) == '' or str(value) == '-.--':
+            return None
+        
+        return float(value)
+
     @classmethod
     def expected_fields(cls) -> List[str]:
         """Returns a list of expected fields in the NormalizedPlayerStats model"""
@@ -420,7 +431,7 @@ class PlayerStatsNormalizer:
                 seasons=stats_period.year_list
             )
             games_pitched = 0
-            for split in pitching_standard_stats:
+            for split in (pitching_standard_stats or []):
                 stats = split.stat
                 if stats and 'gamesPitched' in stats:
                     games_pitched += stats['gamesPitched']
@@ -439,7 +450,7 @@ class PlayerStatsNormalizer:
             return None  # No stats available
 
         converted_stats: Dict[str, Dict[str, Any]] = {}
-        for split in fielding_stat_splits:
+        for split in (fielding_stat_splits or []):
 
             # Check for position data
             stats = split.stat
@@ -569,8 +580,11 @@ class PlayerStatsNormalizer:
                         if isinstance(stat_value_converted, float):
                             stat_value_converted = round(stat_value_converted, 4)
                     except Exception as e:
-                        print(f"Error converting stat '{stat_key_normalized}': {e}")
-                        stat_value_converted = str(value)
+                        if str(value) == '-.--':  # Handle special case for missing advanced ratios
+                            stat_value_converted = None
+                        else:
+                            print(f"Error converting stat '{stat_key_normalized}': {e}")
+                            stat_value_converted = str(value)
 
                     # IP NEEDS SPECIAL HANDLING TO COMBINE FRACTIONAL INNINGS
                     if stat_key_normalized == 'IP' and len(splits) > 1:
@@ -1008,7 +1022,7 @@ class PlayerStatsNormalizer:
             seasons=stats_period.year_list
         )
 
-        for split in standard_stat_splits:
+        for split in (standard_stat_splits or []):
             if not split.stat: continue
 
             for key, value in split.stat.items():

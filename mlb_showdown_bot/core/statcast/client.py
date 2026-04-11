@@ -77,19 +77,16 @@ class StatcastAPIClient:
     # SPRINT SPEED 
     # -------------------
 
-    def fetch_sprint_speed_leaderboard(self, stats_period: StatsPeriod, min_opportunities: int = 0) -> list[StatcastLeaderboardEntry]:
+    def fetch_sprint_speed_leaderboard(self, season: Optional[int] = None, min_opportunities: int = 0) -> list[StatcastLeaderboardEntry]:
         """Fetch sprint speed leaderboard from Statcast
         
         Args:
-            stats_period: StatsPeriod object defining the time frame.
+            season: Year of the leaderboard.
             min_opportunities: Minimum opportunities to filter players.
         
         Returns:
             List of sprint speed stats dictionaries
         """
-        
-        # PARSE INPUTS
-        season = stats_period.year_int if stats_period.year_int else None
 
         cache_key = (season, min_opportunities)
         now = datetime.now(timezone.utc)
@@ -120,7 +117,7 @@ class StatcastAPIClient:
             Sprint speed stats dictionary for the player
         """
 
-        leaderboard = self.fetch_sprint_speed_leaderboard(stats_period, min_opportunities=0)
+        leaderboard = self.fetch_sprint_speed_leaderboard(season=stats_period.year_int, min_opportunities=0)
         for entry in leaderboard:
             if entry.player_id == player_id:
                 return entry

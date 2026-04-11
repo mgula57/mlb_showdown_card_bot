@@ -651,16 +651,77 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     if random_player:
         return random_player
 
-def _convert_to_seasons_list(input: list | str | int) -> list[str | int]:
-    """Convert input to a list of seasons."""
-    if isinstance(input, int):
-        return [input]
-    elif isinstance(input, str):
-        if input.lower() == 'career':
-            return ['career']
-        else:
-            return convert_year_string_to_list(input)
-    elif isinstance(input, list):
-        return input
-    else:
+def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[ShowdownPlayerCard]:
+    """Generate multiple cards for a list of player ids and a year. Only works with MLB API datasource.
+
+    Args:
+        player_ids: List of player ids to generate cards for
+        years: List of years to generate cards for
+        **kwargs: Keyword arguments to pass to card generation function
+
+    Returns:
+        List of generated ShowdownPlayerCard objects
+    """
+
+    # Remove stats kwarg since we will be pulling stats from the MLB API
+    if 'stats' in kwargs:
+        kwargs.pop('stats')
+
+    # Pull stats across player ids
+    mlb_api = MLBStatsAPI_V2()
+    player_stats = mlb_api.build_players_from_id_list(
+        player_ids=player_ids,
+        seasons=years
+    )
+    if len(player_stats.players) == 0:
+        print("No players found for the provided player ids and years.")
         return []
+
+    # Get statcast sprint speed data for all players if applicable
+    statcast_api_client = StatcastAPIClient()
+    sprint_speed_data = statcast_api_client.fetch_sprint_speed_leaderboard(years[0])
+
+    # Get Fangraphs defensive stats for all players if applicable
+    fangraphs_api = FangraphsAPIClient()
+    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+        stat_type="fld",
+        season_start=years[0],
+        season_end=years[-1],
+        position="all",
+        fangraphs_player_ids=player_stats.fangraphs_ids,
+    )
+
+    # Generate cards for each player
+    final_cards: list[ShowdownPlayerCard] = []
+    for player_data in player_stats.players:
+        try:
+            normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(
+                player=player_data, 
+                stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(years[0]))
+            )
+
+            # Inject sprint speed if available
+            if sprint_speed_data and normalized_player_stats.type == PlayerType.HITTER:
+                player_sprint_speed_data = next((s for s in sprint_speed_data if s.player_id == player_data.id), None)
+                if player_sprint_speed_data:
+                    normalized_player_stats.sprint_speed = player_sprint_speed_data.sprint_speed
+
+            # Inject defensive stats if available
+            position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list if pos_stats.get('xMLBAMID', None) == player_data.id]
+            if position_stats and normalized_player_stats.type == PlayerType.HITTER:
+                normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+
+            card = ShowdownPlayerCard(
+                name=player_data.full_name,
+                stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(years[0])), 
+                stats=normalized_player_stats.as_dict(), 
+                image=ShowdownImage(**kwargs),
+                **kwargs
+            )
+            final_cards.append(card)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    return final_cards

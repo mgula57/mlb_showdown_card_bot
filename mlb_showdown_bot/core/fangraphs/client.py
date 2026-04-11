@@ -41,14 +41,14 @@ class FangraphsAPIClient:
     # -------------------
 
 
-    def fetch_leaderboard_stats(self, stats_period: StatsPeriod, stat_type: str = "fld", league='MLB', position: str = "all", fangraphs_player_ids: list[str] = None) -> list[dict]:
+    def fetch_leaderboard_stats(self, season_start:int, season_end:int, stat_type: str = "fld", league='MLB', position: str = "all", fangraphs_player_ids: list[str] = None) -> list[dict]:
         """Fetch fielding stats from Fangraphs
         
         Args:
-            stats_period: StatsPeriod object defining the time frame.
+            season_start: Start year of the season to fetch stats for.
+            season_end: End year of the season to fetch stats for.
             stat_type: Type of stats to fetch (e.g., "fld", "bat", "pit").
             league: League to fetch stats for (e.g., "MLB", "NPB", "KBO").
-            season: Year of the season to fetch stats for.
             position: Position to filter by (e.g., "C", "1B", "2B"). Use "all" for all positions.
             fangraphs_player_ids: List of Fangraphs player IDs to fetch stats for.
         
@@ -57,6 +57,7 @@ class FangraphsAPIClient:
         """
 
         # PARSE INPUTS
+        fangraphs_player_ids = [str(pid) for pid in fangraphs_player_ids] if fangraphs_player_ids else []
         ids_str = ",".join(fangraphs_player_ids) if fangraphs_player_ids and len(fangraphs_player_ids) > 0 else ""
         position_str = (position if position else "all").lower()
 
@@ -65,7 +66,7 @@ class FangraphsAPIClient:
             "stats": stat_type,
             "qual": "0",
             "type": "0",
-            "season": str(stats_period.last_year),   # END YEAR
+            "season": str(season_end),   # END YEAR
             "ind": "0",
             "team": "0",
             "pageitems": "2000",
@@ -96,7 +97,7 @@ class FangraphsAPIClient:
         match stat_type.lower():
             case 'fld':
                 params.update({
-                    "season1": str(stats_period.first_year), # START YEAR
+                    "season1": str(season_start), # START YEAR
                     "sortstat": "DRS",
                     "sortdir": "desc",
                     "month": "0",

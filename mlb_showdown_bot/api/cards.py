@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.data_conversion import convert_form_data_types
-from ..core.card.card_generation import generate_card
+from ..core.card.card_generation import generate_card, generate_cards
 from ..core.card.showdown_player_card import ShowdownPlayerCard
 
 cards_bp = Blueprint('cards', __name__)
@@ -17,7 +17,6 @@ _cards_cache: dict[str, tuple[dict, datetime]] = {}
 @cards_bp.route('/build_custom_card', methods=["POST", "GET"])
 def build_custom_card():
     kwargs: dict[str, str] = {}
-    print(request.content_type)
 
     # Check if this is a multipart form (file upload) or JSON
     if request.content_type and 'multipart/form-data' in request.content_type:
@@ -168,4 +167,28 @@ def build_cards():
         return jsonify({
             'error': str(e),
             'error_for_user': 'Failed to generate cards'
+        }), 500
+    
+@cards_bp.route('/build_cards_from_ids', methods=["POST"])
+def build_cards_from_ids():
+    """Helper function to build cards from a list of player IDs. This can be used for batch generation from the CLI or other sources."""
+
+    try:
+        payload = request.get_json()
+        ids = payload.get('ids', [])
+        season = payload.get('season', None)
+        card_settings = payload.get('card_settings', {})
+        generated_cards = generate_cards(player_ids=ids, years=[season] if season else None, **card_settings)
+
+        generate_cards_data = [{'card': card.as_json()} for card in generated_cards]
+
+        return jsonify({'cards': generate_cards_data}), 200
+
+    except Exception as e:
+        print(f"Error in build_cards_from_ids: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'error_for_user': 'Failed to generate cards from IDs'
         }), 500

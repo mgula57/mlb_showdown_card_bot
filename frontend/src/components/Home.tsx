@@ -25,7 +25,7 @@ import { CardDetail } from './cards/CardDetail';
 import { getReadableTextColor } from '../functions/colors';
 
 // API
-import { fetchCardById, buildCards } from '../api/showdownBotCard';
+import { fetchCardById, buildCards, buildCardsFromIds } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
 
@@ -123,27 +123,29 @@ export default function Home() {
         if (!tickerSeason || leaderGroups.length === 0) return;
         const allEntries = leaderGroups.flatMap(g => g.leaders ?? []);
         const seenIds = new Set<number>();
-        const requestedCards = allEntries
-            .filter(e => { if (!e.person?.id || seenIds.has(e.person.id)) return false; seenIds.add(e.person.id); return true; })
-            .map(e => ({
-                player_id: String(e.person!.id),
-                year: tickerSeason.season_id,
-                name: e.person?.full_name ?? 'Unknown Player',
-                stat_highlights_type: 'ALL',
-                set: userShowdownSet,
-            }));
-        if (requestedCards.length === 0) return;
+        const uniquePlayerIds = allEntries.map(e => String(e.person?.id)).filter((id): id is string => id !== undefined);
+        const cardSettings = {
+            year: tickerSeason.season_id,
+            set: userShowdownSet,
+            stat_highlights_type: 'ALL',
+        };
+        if (uniquePlayerIds.length === 0) return;
         setIsLoadingLeaders(true);
-        buildCards(requestedCards).then(res => {
-            if (res.cards) {
-                const cardMap: { [playerId: string]: ShowdownBotCard } = {};
-                res.cards.forEach(response => {
-                    if (response?.card?.mlb_id) cardMap[String(response.card.mlb_id)] = response.card;
-                });
-                setLeaderCards(cardMap);
-            }
-        }).catch(err => console.error('Failed to build leader cards:', err))
-        .finally(() => setIsLoadingLeaders(false));
+        buildCardsFromIds(uniquePlayerIds, tickerSeason.season_id, cardSettings).then(cardsResponse => {
+            if (!cardsResponse.cards) { console.error('No cards returned from buildCardsFromIds for leader cards'); return; }
+            const cardMap: { [playerId: string]: ShowdownBotCard } = {};
+            cardsResponse.cards.forEach(cardRes => {
+                if (cardRes.card?.mlb_id && !seenIds.has(cardRes.card.mlb_id)) {
+                    seenIds.add(cardRes.card.mlb_id);
+                    cardMap[String(cardRes.card.mlb_id)] = cardRes.card;
+                }
+            });
+            setLeaderCards(cardMap);
+        }).catch(err => {
+            console.error('Failed to build leader cards:', err);
+        }).finally(() => {
+            setIsLoadingLeaders(false);
+        });
     }, [leaderGroups, userShowdownSet]);
 
     // Fetch total card count on mount
@@ -315,9 +317,6 @@ export default function Home() {
                                 : game.game_date
                                 ? new Date(game.game_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                                 : detailedState ?? '';
-
-                            const awayWin = isFinal && (awayScore ?? 0) > (homeScore ?? 0);
-                            const homeWin = isFinal && (homeScore ?? 0) > (awayScore ?? 0);
 
                             return (
                                 <Link
