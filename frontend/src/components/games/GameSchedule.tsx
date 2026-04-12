@@ -55,7 +55,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         };
 
         setIsLoadingCards(true);
-        buildCardsFromIds([...allIds], adjustedSeason, cardSettings)
+        buildCardsFromIds([...allIds], adjustedSeason, cardSettings, true)
             .then((response) => {
                 if (cancelled) return;
                 const map: CardMap = {};

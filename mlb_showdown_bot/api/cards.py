@@ -178,9 +178,23 @@ def build_cards_from_ids():
         ids = payload.get('ids', [])
         season = payload.get('season', None)
         card_settings = payload.get('card_settings', {})
-        generated_cards = generate_cards(player_ids=ids, years=[season] if season else None, **card_settings)
+        use_cache = payload.get('use_cache', False)
 
-        return jsonify({'cards': generated_cards}), 200
+        if use_cache:
+            cache_key = hashlib.md5(json.dumps({'ids': sorted(ids), 'season': season, 'card_settings': card_settings}, sort_keys=True).encode()).hexdigest()
+            now = datetime.now(timezone.utc)
+            cached = _cards_cache.get(cache_key)
+            if cached and now < cached[1]:
+                print("Serving build_cards_from_ids from cache")
+                return jsonify(cached[0]), 200
+
+        generated_cards = generate_cards(player_ids=ids, years=[season] if season else None, **card_settings)
+        result = {'cards': generated_cards}
+
+        if use_cache:
+            _cards_cache[cache_key] = (result, now + CARDS_CACHE_TTL)
+
+        return jsonify(result), 200
 
     except Exception as e:
         print(f"Error in build_cards_from_ids: {str(e)}")

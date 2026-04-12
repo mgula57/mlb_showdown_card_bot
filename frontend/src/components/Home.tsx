@@ -131,7 +131,7 @@ export default function Home() {
         };
         if (uniquePlayerIds.length === 0) return;
         setIsLoadingLeaders(true);
-        buildCardsFromIds(uniquePlayerIds, tickerSeason.season_id, cardSettings).then(cardsResponse => {
+        buildCardsFromIds(uniquePlayerIds, tickerSeason.season_id, cardSettings, true).then(cardsResponse => {
             if (!cardsResponse.cards) { console.error('No cards returned from buildCardsFromIds for leader cards'); return; }
             const cardMap: { [playerId: string]: ShowdownBotCard } = {};
             cardsResponse.cards.forEach(cardRes => {
