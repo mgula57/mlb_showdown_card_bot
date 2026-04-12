@@ -343,7 +343,6 @@ def generate_card(**kwargs) -> dict[str, Any]:
             in_season_trends_data = generate_in_season_trends_for_player(
                 actual_card=card, 
                 date_aggregation=in_season_trend_aggregation, 
-                latest_game_boxscore=game_boxscore,
                 **kwargs
             )
             if in_season_trends_data:
@@ -516,7 +515,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     # GET ALL HISTORICAL CARDS
     return CareerTrends(yearly_trends=yearly_trends_data)
 
-def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, latest_game_boxscore:dict=None, include_day_over_day: bool = False, **kwargs) -> InSeasonTrends:
+def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, include_day_over_day: bool = False, **kwargs) -> InSeasonTrends:
     """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week."""
 
     # REMOVE PRINT TO CLI
@@ -544,17 +543,12 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     
     # DEFINE DATE RANGES
     date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
-    date_str_from_boxscore = latest_game_boxscore.get('datetime', {}).get('official_date', None) if latest_game_boxscore else None
-    is_day_over_day_comparison = include_day_over_day
-    if date_str_from_boxscore:
-        # IF LATEST GAME DATE = THE PLAYER LAST DATE:
+    if include_day_over_day:
         # ADD A TREND POINT FOR THE LATEST GAME'S DATE -1
-        date_from_boxscore = convert_to_date(game_log_date_str=date_str_from_boxscore, year=year)
-        if date_from_boxscore == player_last_date:
-            yesterday = date_from_boxscore - timedelta(days=1)
+        yesterday = player_last_date - timedelta(days=1)
+        if yesterday not in [dr[1] for dr in date_ranges]: # CHECK TO MAKE SURE WE DON'T DUPLICATE A DATE RANGE IF THE LAST DATE RANGE ALREADY ENDS ON THE LATEST GAME DATE
             # APPEND AT SECOND TO LAST POSITION
             date_ranges.insert(-1, (player_first_date, yesterday))
-            is_day_over_day_comparison = True
 
     in_season_trends_data: dict[str, TrendDatapoint] = {}
     for dr in date_ranges:
@@ -590,12 +584,12 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
         last_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-2]]
 
         # DAY
-        if is_day_over_day_comparison:
+        if include_day_over_day:
             # GET THE LAST TWO DAYS
             in_season_trends.pts_change['day'] = int(current_card.points - last_card.points)
 
         # WEEK
-        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if is_day_over_day_comparison and trends_data_count > 2 else last_card
+        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if include_day_over_day and trends_data_count > 2 else last_card
         in_season_trends.pts_change['week'] = int(current_card.points - last_weeks_card.points)
 
     # PRINT HISTORICAL POINTS

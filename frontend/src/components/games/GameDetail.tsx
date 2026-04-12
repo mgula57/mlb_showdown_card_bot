@@ -13,12 +13,16 @@ import {
     type BoxscorePitcher,
     type BoxscoreLinescoreInning,
     type MostRecentPlay,
+    type BoxscoreDecisionPerson,
 } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import CardCommand from "../cards/card_elements/CardCommand";
-import { CardItem, CardItemFromCard } from "../cards/CardItem";
+import { CardItemFromCard } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { getContrastColor } from "../shared/Color";
+import {
+    useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
+} from "@floating-ui/react";
 
 type CardMap = Record<number, ShowdownBotCardAPIResponse>;
 
@@ -35,6 +39,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isLoadingCards, setIsLoadingCards] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
@@ -153,6 +158,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
         if ([...allIds].every(id => cardMap[Number(id)])) {
             return;
         }
+        setIsLoadingCards(true);
         buildCardsFromIds([...allIds], adjustedSeason, cardSettings)
             .then((response) => {
                 if (cancelled) return;
@@ -164,7 +170,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
                 }
                 setCardMap(map);
             })
-            .catch(() => { /* cards are supplementary – fail silently */ });
+            .catch(() => { /* cards are supplementary – fail silently */ })
+            .finally(() => { if (!cancelled) setIsLoadingCards(false); });
 
         return () => { cancelled = true; };
     }, [boxscore, season, showdownSet, sportId]);
@@ -214,25 +221,25 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             />
 
             {/* Matchup Strip */}
-            {isInProgress && <MatchupStrip linescore={ls} mostRecentPlay={boxscore.most_recent_play} teams={boxscore.teams} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} />}
+            {isInProgress && <MatchupStrip linescore={ls} mostRecentPlay={boxscore.most_recent_play} teams={boxscore.teams} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
 
             {/* Linescore Table */}
             <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} currentInning={ls.current_inning} isInProgress={isInProgress} />
 
             {/* Decisions */}
-            {isFinal && <Decisions boxscore={boxscore} />}
+            {isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
 
             <div className="grid sm:grid-cols-2 gap-4">
                 {/* Away Batting */}
-                <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
                 {/* Home Batting */}
-                <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
 
                 {/* Away Pitching */}
-                <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
 
                 {/* Home Pitching */}
-                <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
 
             </div>
 
@@ -472,7 +479,7 @@ function LastResultBanner({ play }: { play?: MostRecentPlay }) {
                     {event ?? 'Last Play'}
                 </span>
                 {isScoringPlay && rbi != null && rbi > 0 && (
-                    <span className="text-[10px] font-semibold text-green-400">{rbi} RBI · {awayScore}–{homeScore}</span>
+                    <span className="text-[10px] font-semibold text-(--green)">{rbi} RBI · {awayScore}–{homeScore}</span>
                 )}
             </div>
             <p className="text-(--secondary) leading-snug line-clamp-2">{description}</p>
@@ -480,7 +487,7 @@ function LastResultBanner({ play }: { play?: MostRecentPlay }) {
     );
 }
 
-function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap, onCardSelect }: { linescore: GameBoxscoreDetail["linescore"]; mostRecentPlay?: MostRecentPlay; teams?: GameBoxscoreDetail["teams"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void }) {
+function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap, onCardSelect, isLoadingCards }: { linescore: GameBoxscoreDetail["linescore"]; mostRecentPlay?: MostRecentPlay; teams?: GameBoxscoreDetail["teams"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
     const inningHalf = (linescore.inning_half || linescore.inning_state || "").toUpperCase();
     const inningLabel = linescore.current_inning_ordinal || linescore.current_inning || "";
     const outs = linescore.outs ?? 0;
@@ -543,13 +550,15 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                             {pitcherSummary && <div className="text-[10px] text-(--secondary) truncate">{pitcherSummary}</div>}
                         </div>
                         {pitcherCard?.in_season_trends?.pts_change.day != null && pitcherCard?.in_season_trends?.pts_change.day !== 0 && (
-                            <div className={`text-[10px] font-semibold ${pitcherCard.in_season_trends.pts_change.day >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            <div className={`text-[10px] font-semibold ${pitcherCard.in_season_trends.pts_change.day >= 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                                 {pitcherCard.in_season_trends.pts_change.day >= 0 ? '+' : ''}{pitcherCard.in_season_trends.pts_change.day} PTS today
                             </div>
                         )}
                     </div>
                     {pitcherCard ? (
                         <CardItemFromCard card={pitcherCard.card} onClick={() => onCardSelect?.(cardMap[pitcherId!])} />
+                    ) : isLoadingCards ? (
+                        <CardItemSkeleton/>
                     ) : pitcherName ? (
                         <div className="text-sm font-semibold text-(--primary) truncate">{pitcherName}</div>
                     ) : <CardItemFromCard card={undefined} className="opacity-50" />}
@@ -580,13 +589,15 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                         </div>
                         
                         {batterCard?.in_season_trends?.pts_change.day != null && (
-                            <div className={`text-[10px] font-semibold ${batterCard.in_season_trends.pts_change.day >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            <div className={`text-[10px] font-semibold ${batterCard.in_season_trends.pts_change.day >= 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                                 {batterCard.in_season_trends.pts_change.day >= 0 ? '+' : ''}{batterCard.in_season_trends.pts_change.day} PTS today
                             </div>
                         )}
                     </div>
                     {batterCard ? (
                         <CardItemFromCard card={batterCard.card} className="w-full" onClick={() => onCardSelect?.(cardMap[batterId!])} />
+                    ) : isLoadingCards ? (
+                        <CardItemSkeleton className="w-full" />
                     ) : batterName ? (
                         <div className="text-sm font-semibold text-(--primary) truncate">{batterName}</div>
                     ) : <CardItemFromCard card={undefined} className="opacity-50" />}
@@ -601,7 +612,7 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
 }
 
 
-function Decisions({ boxscore }: { boxscore: GameBoxscoreDetail }) {
+function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxscore: GameBoxscoreDetail; cardMap: Record<number, ShowdownBotCardAPIResponse>; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
     const { winner, loser, save: saveDecision } = boxscore.decisions;
 
     // Find the pitcher note (e.g. "(W, 1-0)") for each decision pitcher
@@ -614,36 +625,52 @@ function Decisions({ boxscore }: { boxscore: GameBoxscoreDetail }) {
         return "";
     };
 
+    // Standarize the rendering of each decision item (W/L/S) since they all follow the same pattern
+    const decisionItem = (color: string, label: string, pitcher: BoxscoreDecisionPerson, card?: ShowdownBotCardAPIResponse) => (
+        
+        <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+                <span className={`font-bold ${color}`}>{label}:</span>
+                <span className="font-semibold text-(--primary)">{pitcher?.full_name}</span>
+                <span className="text-(--secondary) text-xs">{findPitcherNote(pitcher?.id)}</span>
+
+                {card && card.in_season_trends?.pts_change.day != null && card.in_season_trends.pts_change.day !== 0 && (
+                    <span className={`text-[9px] font-bold leading-none ${card.in_season_trends.pts_change.day > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                        {card.in_season_trends.pts_change.day > 0 ? '▲' : '▼'}{Math.abs(card.in_season_trends.pts_change.day)} PTS
+                    </span>
+                )}
+            </div>
+            {isLoadingCards && !card ? (
+                <CardItemSkeleton className="w-full" />
+            ) : (
+                <CardItemFromCard card={card?.card} className="w-full" onClick={card ? () => onCardSelect?.(card) : undefined} />
+            )}
+        </div>
+    );
+
     if (!winner && !loser) return null;
 
+    const winnerCardData = winner?.id ? cardMap[winner.id] : undefined;
+    const loserCardData = loser?.id ? cardMap[loser.id] : undefined;
+    const saveCardData = saveDecision?.id ? cardMap[saveDecision.id] : undefined;
+
     return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            {winner && (
-                <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-green-400">W:</span>
-                    <span className="font-semibold text-(--primary)">{winner.full_name}</span>
-                    <span className="text-(--secondary) text-xs">{findPitcherNote(winner.id)}</span>
-                </div>
-            )}
-            {loser && (
-                <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-red-400">L:</span>
-                    <span className="font-semibold text-(--primary)">{loser.full_name}</span>
-                    <span className="text-(--secondary) text-xs">{findPitcherNote(loser.id)}</span>
-                </div>
-            )}
-            {saveDecision && (
-                <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-blue-400">SV:</span>
-                    <span className="font-semibold text-(--primary)">{saveDecision.full_name}</span>
-                    <span className="text-(--secondary) text-xs">{findPitcherNote(saveDecision.id)}</span>
-                </div>
-            )}
+        <div 
+            className="
+                flex flex-col
+                md:grid md:grid-cols-2 xl:grid-cols-3
+                p-3 gap-x-6 gap-y-2
+                rounded-xl border border-(--divider) bg-(--background-secondary) 
+                text-sm
+            ">
+                {winner && decisionItem('text-(--green)', 'W', winner, winnerCardData)}
+                {loser && decisionItem('text-(--red)', 'L', loser, loserCardData)}
+                {saveDecision && decisionItem('text-blue-400', 'SV', saveDecision, saveCardData)}
         </div>
     );
 }
 
-function PlayerNameCell({ name, position, card, ptsChange }: { name: string; position?: string; card?: ShowdownBotCard; ptsChange?: number | null; onClick?: () => void }) {
+function PlayerNameCell({ name, position, card, ptsChange, isLoadingCard }: { name: string; position?: string; card?: ShowdownBotCard; ptsChange?: number | null; isLoadingCard?: boolean; onClick?: () => void }) {
 
     const defenseForPosition = () => {
         if (!card) return null;
@@ -672,23 +699,26 @@ function PlayerNameCell({ name, position, card, ptsChange }: { name: string; pos
         
     return (
         <div className="flex items-center space-x-1.5">
-            {card && (
+            {isLoadingCard ? (
+                <div className="w-6 h-6 rounded-full bg-(--background-quaternary) animate-pulse shrink-0" />
+            ) : (
                 <CardCommand
-                    isPitcher={card.chart.is_pitcher}
-                    primaryColor={card.image.color_primary ?? '#333'}
-                    secondaryColor={card.image.color_secondary ?? '#666'}
-                    command={card.chart.command}
-                    team={card.team ?? undefined}
-                    className="w-6 h-6 text-[12px]"
+                    isPitcher={card?.chart.is_pitcher ?? true}
+                    primaryColor={card?.image.color_primary ?? '#333'}
+                    secondaryColor={card?.image.color_secondary ?? '#666'}
+                    command={card?.chart.command}
+                    team={card?.team ?? undefined}
+                    className={`w-6 h-6 ${card === undefined && 'opacity-40'}`}
                 />
             )}
             <div className="space-y-0.5">
                 
                 <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
                 <div className="flex items-center gap-1">
+                    {isLoadingCard && <div className="h-4 w-10 rounded-full bg-(--background-quaternary) animate-pulse" />}
                     {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
                     {card && ptsChange != null && ptsChange !== 0 && (
-                        <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                             {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}
                         </span>
                     )}
@@ -703,9 +733,23 @@ function PlayerNameCell({ name, position, card, ptsChange }: { name: string; pos
 
 }
 
-function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void }) {
+function TablePointsSummary({ totalPoints, pointsChange, backgroundColor }: { totalPoints: number; pointsChange: number; backgroundColor?: string }) {
+    if (totalPoints === 0) return null;
+    
+    return (
+        <>
+            <div className="ml-auto text-[10px] font-bold text-(--quaternary) flex gap-x-2">
+                <span className={`${pointsChange < 0 ? 'text-(--red)' : pointsChange > 0 ? 'text-(--green)' : ''}`}>{pointsChange > 0 ? '▲' : pointsChange < 0 ? '▼' : ''}{pointsChange !== 0 ? Math.abs(pointsChange) : ''}</span>
+                <PointsBadge points={totalPoints} bg_color={backgroundColor} className="text-[10px]"/>
+            </div>
+        </>
+    );
+}
+
+function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const badgeBg = team.team.primary_color ?? '#374151';
+    const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
     const badgeText = getReadableTextColor(badgeBg, '#ffffff');
     const hasCards = Object.keys(cardMap).length > 0;
 
@@ -720,6 +764,9 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
     const totalPoints = hasCards
         ? sortedBatters.reduce((sum, b) => sum + (cardMap[b.id]?.card?.points ?? 0), 0)
         : 0;
+    const totalPointsChange = hasCards && hasGameStarted
+        ? sortedBatters.reduce((sum, b) => sum + (cardMap[b.id]?.in_season_trends?.pts_change.day ?? 0), 0)
+        : 0;
 
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
@@ -733,7 +780,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
                 >{team.team.abbreviation}</span>
                 <span className="text-xs text-(--secondary) font-semibold">Batting</span>
                 {hasCards && totalPoints > 0 && (
-                    <span className="ml-auto text-[11px] font-bold text-(--quaternary)">{totalPoints.toLocaleString()} PTS</span>
+                    <TablePointsSummary totalPoints={totalPoints} pointsChange={totalPointsChange} backgroundColor={badgeBgSecondary} />
                 )}
             </div>
 
@@ -754,7 +801,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
                     </thead>
                     <tbody>
                         {sortedBatters.map((batter) => (
-                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[batter.id]} onCardSelect={onCardSelect} />
+                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[batter.id]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                         ))}
                         {sortedBatters.length === 0 && (
                             <tr>
@@ -781,7 +828,18 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
     );
 }
 
-function BatterRow({ batter, cardResponse, onCardSelect }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void }) {
+function BatterRow({ batter, cardResponse, onCardSelect, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const { refs, floatingStyles, context } = useFloating({
+        open: isOpen,
+        onOpenChange: setIsOpen,
+        placement: "right",           // start right, auto-flips if near edge
+        middleware: [offset(8), flip(), shift({ padding: 8 })],
+        whileElementsMounted: autoUpdate,
+    });
+    const hover = useHover(context, { delay: { open: 300, close: 100 } }); // 300ms open delay prevents flicker
+    const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
+
     const card = cardResponse?.card ?? undefined;
     const indent = batter.is_substitute && !batter.is_in_lineup;
     const hasHit = (batter.stats.hits ?? 0) > 0;
@@ -791,8 +849,8 @@ function BatterRow({ batter, cardResponse, onCardSelect }: { batter: BoxscoreBat
             className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${cardResponse ? 'cursor-pointer' : ''}`}
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
         >
-            <td className={`${indent ? 'pl-6' : 'pl-3'} pr-2 py-1.5 text-left`}>
-                <PlayerNameCell name={batter.name} position={batter.position} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} />
+            <td ref={refs.setReference} {...getReferenceProps()} className="pl-3 pr-2 py-1.5 text-left" >
+                <PlayerNameCell name={batter.name} position={batter.position} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
             </td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.at_bats}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.runs}</td>
@@ -802,20 +860,36 @@ function BatterRow({ batter, cardResponse, onCardSelect }: { batter: BoxscoreBat
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.strike_outs}</td>
             <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
+            {isOpen && card && (
+                <FloatingPortal>
+                    <div
+                        ref={refs.setFloating}
+                        style={floatingStyles}
+                        className="z-50 w-48"
+                        {...getFloatingProps()}
+                    >
+                        <CardItemFromCard card={card} className="min-w-xs max-w-md" />
+                    </div>
+                </FloatingPortal>
+            )}
         </tr>
     );
 }
 
 
-function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void }) {
+function PitchingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const badgeBg = team.team.primary_color ?? '#374151';
+    const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
     const badgeText = getReadableTextColor(badgeBg, '#ffffff');
 
     const hasCards = Object.keys(cardMap).length > 0;
 
     const totalPoints = hasCards
         ? team.pitching.reduce((sum, p) => sum + (cardMap[p.id]?.card?.points ?? 0), 0)
+        : 0;
+    const totalPointsChange = hasCards && hasGameStarted
+        ? team.pitching.reduce((sum, p) => sum + (cardMap[p.id]?.in_season_trends?.pts_change.day ?? 0), 0)
         : 0;
 
     return (
@@ -830,7 +904,7 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
                 >{team.team.abbreviation}</span>
                 <span className="text-xs text-(--secondary) font-semibold">Pitching</span>
                 {hasCards && totalPoints > 0 && (
-                    <span className="ml-auto text-[11px] font-bold text-(--quaternary)">{totalPoints.toLocaleString()} PTS</span>
+                    <TablePointsSummary totalPoints={totalPoints} pointsChange={totalPointsChange} backgroundColor={badgeBgSecondary} />
                 )}
             </div>
 
@@ -852,7 +926,7 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
                     </thead>
                     <tbody>
                         {team.pitching.map((pitcher) => (
-                            <PitcherRow key={pitcher.id} pitcher={pitcher} cardResponse={cardMap[pitcher.id]} onCardSelect={onCardSelect} />
+                            <PitcherRow key={pitcher.id} pitcher={pitcher} cardResponse={cardMap[pitcher.id]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                         ))}
                         {team.pitching.length === 0 && (
                             <tr>
@@ -882,15 +956,27 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
     );
 }
 
-function PitcherRow({ pitcher, cardResponse, onCardSelect }: { pitcher: BoxscorePitcher; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void }) {
+function PitcherRow({ pitcher, cardResponse, onCardSelect, isLoadingCards }: { pitcher: BoxscorePitcher; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
+    
+    const [isOpen, setIsOpen] = useState(false);
+    const { refs, floatingStyles, context } = useFloating({
+        open: isOpen,
+        onOpenChange: setIsOpen,
+        placement: "right",           // start right, auto-flips if near edge
+        middleware: [offset(8), flip(), shift({ padding: 8 })],
+        whileElementsMounted: autoUpdate,
+    });
+    const hover = useHover(context, { delay: { open: 300, close: 100 } }); // 300ms open delay prevents flicker
+    const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
+
     const card = cardResponse?.card ?? undefined;
     return (
         <tr
             className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${cardResponse ? 'cursor-pointer' : ''}`}
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
         >
-            <td className="pl-3 pr-2 py-1.5 text-left">
-                <PlayerNameCell name={pitcher.name} position={'P'} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} />
+            <td ref={refs.setReference} {...getReferenceProps()} className="pl-3 pr-2 py-1.5 text-left" >
+                <PlayerNameCell name={pitcher.name} position={'P'} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
             </td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.innings_pitched}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.hits}</td>
@@ -903,15 +989,48 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect }: { pitcher: Boxscore
                 {pitcher.stats.pitches_thrown}-{pitcher.stats.strikes}
             </td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{pitcher.season_stats.era}</td>
+            {isOpen && card && (
+                <FloatingPortal>
+                    <div
+                        ref={refs.setFloating}
+                        style={floatingStyles}
+                        className="z-50 w-48"
+                        {...getFloatingProps()}
+                    >
+                        <CardItemFromCard card={card} className="min-w-xs max-w-md" />
+                    </div>
+                </FloatingPortal>
+            )}
         </tr>
     );
 }
 
 
-function PointsBadge({ points, bg_color }: { points: number, bg_color?: string | null }) {
+function CardItemSkeleton({ className }: { className?: string }) {
+    return (
+        <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-xl border border-(--divider) animate-pulse`}>
+            <div className="flex flex-row gap-2 items-center">
+                <div className="w-9 h-9 rounded-full bg-(--background-quaternary) shrink-0" />
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                    <div className="h-3 w-20 rounded bg-(--background-quaternary)" />
+                    <div className="h-2.5 w-14 rounded bg-(--background-quaternary)" />
+                </div>
+            </div>
+            <div className="h-5 w-full rounded bg-(--background-quaternary)" />
+            <div className="h-2.5 w-full rounded bg-(--background-quaternary)" />
+            <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-(--background-secondary)/60 backdrop-blur-[1px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:300ms]" />
+            </div>
+        </div>
+    );
+}
+
+function PointsBadge({ points, bg_color, className }: { points: number, bg_color?: string | null, className?: string }) {
     return (
         <span 
-            className="inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full text-[9px] font-bold leading-none"
+            className={`inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full text-[9px] font-bold leading-none text-nowrap ${className ?? ''}`}
             style={
                 { backgroundColor: bg_color ?? 'var(--secondary)/15', color: getContrastColor(bg_color ?? 'var(--secondary)/15') }}    
         >

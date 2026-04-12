@@ -77,7 +77,7 @@ class StatsPeriodDateAggregation(str, Enum):
             case StatsPeriodDateAggregation.DAY:
                 # CREATE RUNNING RANGE OF DATES, STARTING FROM MARCH 15 UNTIL OCT 10
                 end_date = start_date
-                while end_date < stop_date:
+                while end_date <= stop_date:
                     date_ranges.append((start_date, end_date))
                     end_date = end_date + timedelta(days=1)
 
