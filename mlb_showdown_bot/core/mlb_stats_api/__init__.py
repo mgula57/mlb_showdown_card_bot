@@ -60,21 +60,40 @@ class MLBStatsAPI:
 
     def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod, league:str='MLB') -> Player:
 
-        # Search for the player by name
-        player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, active_status='both')
-
-        # If no results found, return None
-        if not player_search_results or len(player_search_results) == 0:
-            logger.warning(f"No players found for name: {search_name}")
-            return None
-
-        # Fetch full player details using the player ID
+        # Check for league filtering
         league_list = None
         match league.upper():
             case 'MILB':
                 league_list = LeagueListEnum.MILB_FULL
-        
-        player = self.people.get_player(player_id=player_search_results[0].id, primary_position=player_search_results[0].primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
+
+        # Is this a search by ID instead of name?
+        if search_name.isdigit():
+            player_id = int(search_name)
+            league_list = None
+            match league.upper():
+                case 'MILB':
+                    league_list = LeagueListEnum.MILB_FULL
+
+            player_search_result = self.people.get_player(player_id=player_id, include_stats=False)
+
+        else:
+
+            # Search for the player by name
+            player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, active_status='both')
+
+            # If no results found, return None
+            if not player_search_results or len(player_search_results) == 0:
+                logger.warning(f"No players found for name: {search_name}")
+                return None
+            
+            player_search_result = player_search_results[0]
+
+        # GET FULL STATS FOR THE PLAYER
+        player = self.people.get_player(player_id=player_search_result.id, primary_position=player_search_result.primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
+
+        import json 
+        with open(f"data/{player.full_name}.json", "w") as f:
+            json.dump(player.model_dump(), f, indent=4)
 
         return player
     

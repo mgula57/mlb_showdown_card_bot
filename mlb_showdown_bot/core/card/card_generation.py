@@ -185,6 +185,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')}")
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
+                if normalized_player_stats is None or normalized_player_stats.PA is None or normalized_player_stats.PA == 0:
+                    raise Exception(f"No stats found for player and year combination.")
+
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
                 # GRAB FROM FANGRAPHS IF AVAILABLE
                 has_pulled_fangraphs_defense = False
@@ -400,6 +403,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         is_user_year_before_player_career_start = input_year_int < first_year if input_year_int else False
         is_error_cannot_find_bref_page = "cannot find bref page" in (error_full.lower() or '')
         is_error_too_many_requests_to_bref = "429 - TOO MANY REQUESTS TO " in error_full.upper() and "baseball-ref" in error_full.lower()
+        is_error_missing_mlb_api_data = "no stats found for player and year combination" in error_full.lower()
 
         # ERROR SENT TO USER
         error_for_user = error_full
@@ -420,7 +424,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
         elif is_user_year_before_player_career_start:
             error_for_user = year_range_error_message
-
+        elif is_error_missing_mlb_api_data:
+            error_for_user = "Failed to retrieve valid stats from MLB API for the player. Check the year and name spelling. If needed, grab the player's ID from MLB.com via the url and enter it as the name. Ex: https://www.mlb.com/player/ramon-laureano-656555 would have a player ID of 656555."
         print("--------- ERROR MESSAGE ---------")
         traceback.print_exc()
         print("---------------------------------")
@@ -522,6 +527,8 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     kwargs.pop('print_to_cli', None)
     kwargs.pop('show_image', None)
     kwargs.pop('chart_version', None)
+
+    print(kwargs.get('in_season_trends_end_date', None))
     
     # CHECK FOR GAME LOGS
     game_logs = actual_card.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
@@ -538,11 +545,18 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
 
     # GET IN SEASON TRENDS
     year = actual_card.stats_period.year_list[0]
-    player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', game_logs[0].get('date_game', None)), year=year)
-    player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', game_logs[-1].get('date_game', None)), year=year)
+    first_game_date_str = game_logs[0].get('date', game_logs[0].get('date_game', None))
+    last_game_date_str = kwargs.get('in_season_trends_end_date', game_logs[-1].get('date', game_logs[-1].get('date_game', None)))
+    player_first_date = convert_to_date(game_log_date_str=first_game_date_str, year=year)
+    player_last_date = convert_to_date(game_log_date_str=last_game_date_str, year=year)
+
+    # RANGE
+    in_season_trends_range_start_date = kwargs.get('in_season_trends_range_start_date', None)
+    if in_season_trends_range_start_date:
+        in_season_trends_range_start_date = convert_to_date(game_log_date_str=in_season_trends_range_start_date, year=year)
     
     # DEFINE DATE RANGES
-    date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
+    date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date, range_start_date=in_season_trends_range_start_date)
     if include_day_over_day:
         # ADD A TREND POINT FOR THE LATEST GAME'S DATE -1
         yesterday = player_last_date - timedelta(days=1)
