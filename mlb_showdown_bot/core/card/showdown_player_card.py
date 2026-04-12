@@ -258,7 +258,8 @@ class ShowdownPlayerCard(BaseModel):
         self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
         self.player_sub_type = self.calculate_player_sub_type()
         self.ip: int = self._innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
-        self.hand: Hand = self._handedness(hand_raw=self.stats_for_card.get('hand', None))
+        hand_raw = self.stats_for_card.get('hand', None) if self.player_type == PlayerType.HITTER else ( self.stats_for_card.get('hand_throw', None) or self.stats_for_card.get('hand', None) )
+        self.hand: Hand = self._handedness(hand_raw=hand_raw)
         sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
         pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
         sb_per_650_pa = sb_safe / (pa_safe / 650.0) if pa_safe > 0 else 0
