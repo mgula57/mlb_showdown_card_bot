@@ -191,13 +191,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     };
 
-    const isMidSeason = (season: Season) => {
-        const today = new Date();
-        const startDate = new Date(season.regular_season_start_date);
-        const endDate = new Date(season.season_end_date);
-        return today >= startDate && today <= endDate;
-    };
-
     const seasonOptions: SelectOption[] = seasons
         .filter(season => season.season_id != null)
         .map(season => ({
