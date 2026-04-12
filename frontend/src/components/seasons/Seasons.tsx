@@ -1017,6 +1017,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     dateLabel={gamesTabDateLabel}
                                                     description={gamesTabDescription}
                                                     sportId={selectedSport?.id}
+                                                    season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
+                                                    showdownSet={userShowdownSet}
                                                     starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
                                                     onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
                                                     onRefresh={() => {

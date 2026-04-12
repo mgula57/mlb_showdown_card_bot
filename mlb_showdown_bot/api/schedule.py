@@ -35,18 +35,6 @@ def fetch_schedule():
             include_decisions=include_decisions,
         )
         
-        # ADD PROBABLE PITCHERS TO SCHEDULE RESPONSE
-        if schedule and probable_pitchers:
-            db = PostgresDB()
-            showdown_set = request.args.get('showdown_set', default='2000', type=str)
-            is_wbc = sport_id == SportEnum.INTERNATIONAL.value # SPORT_ID 51
-            schedule = db.add_player_cards_to_game_schedule(
-                schedule, 
-                showdown_set=showdown_set, 
-                is_wbc=is_wbc,
-                season=int(season)
-            )
-        
         # ADD TEAM COLORS IF SPORT IS MLB (SPORT_ID 1)
         if schedule and sport_id == SportEnum.MLB.value:
             schedule.add_team_colors()

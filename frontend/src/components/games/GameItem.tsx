@@ -4,8 +4,8 @@ import { FaStar } from "react-icons/fa6";
 import { countryCodeForTeam } from "../../functions/flags";
 import { getReadableTextColor } from "../../functions/colors";
 import { type GameScheduled, type GameBoxscoreDetail } from "../../api/mlbAPI";
-import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
-import { CardItemCompact } from "../cards/CardItemCompact";
+import { type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "../../api/showdownBotCard";
+import { CardItemCompact, CardItemCompactFromCard } from "../cards/CardItemCompact";
 
 type GameItemProps = {
     game: GameScheduled | GameBoxscoreDetail;
@@ -13,6 +13,8 @@ type GameItemProps = {
     isStarred?: boolean;
     showMatchupDetails?: boolean;
     playerIdForLinescoreHighlight?: number;
+    cardMap?: Record<number, ShowdownBotCardAPIResponse>;
+    isLoadingCards?: boolean;
     onSelect?: (gamePk: number) => void;
 };
 
@@ -124,7 +126,7 @@ const formatGameDate = (gameDate?: string, includeTime: boolean = false): string
     }).format(parsedDate);
 };
 
-export default function GameItem({ game: rawGame, sportId, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, onSelect }: GameItemProps) {
+export default function GameItem({ game: rawGame, sportId, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, cardMap, isLoadingCards, onSelect }: GameItemProps) {
     const game = normalizeGame(rawGame);
     const awayTeam = game.teams?.away?.team;
     const homeTeam = game.teams?.home?.team;
@@ -155,6 +157,22 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const homeProbablePitcherName = game.teams?.home?.probable_pitcher?.full_name;
     const winningPitcherName = game.decisions?.winner?.full_name;
     const losingPitcherName = game.decisions?.loser?.full_name;
+
+    // Player IDs for cardMap lookups
+    const awayProbableId = game.teams?.away?.probable_pitcher?.id;
+    const homeProbableId = game.teams?.home?.probable_pitcher?.id;
+    const livePitcherId = game.linescore?.defense?.pitcher?.id;
+    const liveBatterId = game.linescore?.offense?.batter?.id;
+    const winnerId = game.decisions?.winner?.id;
+    const loserId = game.decisions?.loser?.id;
+
+    // Card responses from map
+    const awayProbableCardResponse = awayProbableId ? cardMap?.[awayProbableId] : undefined;
+    const homeProbableCardResponse = homeProbableId ? cardMap?.[homeProbableId] : undefined;
+    const liveAtBatCardResponse = liveBatterId ? cardMap?.[liveBatterId] : undefined;
+    const livePitchingCardResponse = livePitcherId ? cardMap?.[livePitcherId] : undefined;
+    const winningPitcherCardResponse = winnerId ? cardMap?.[winnerId] : undefined;
+    const losingPitcherCardResponse = loserId ? cardMap?.[loserId] : undefined;
 
     const inningHalf = (game.linescore?.inning_half || game.linescore?.inning_state || '').toUpperCase();
     const inningNumber = game.linescore?.current_inning_ordinal || game.linescore?.current_inning || '';
@@ -251,12 +269,12 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const winningPitcherCardFallback = createPlaceholderCard('winner', winningPitcherName, winnerTeamAbbr, 'Winning Pitcher');
     const losingPitcherCardFallback = createPlaceholderCard('loser', losingPitcherName, loserTeamAbbr, 'Losing Pitcher');
 
-    const awayProbableCard = game.teams?.away?.probable_pitcher?.card || awayProbableCardFallback;
-    const homeProbableCard = game.teams?.home?.probable_pitcher?.card || homeProbableCardFallback;
-    const liveAtBatCard = game.linescore?.offense?.batter?.card || liveAtBatCardFallback;
-    const livePitchingCard = game.linescore?.defense?.pitcher?.card || livePitchingCardFallback;
-    const winningPitcherCard = game.decisions?.winner?.card || winningPitcherCardFallback;
-    const losingPitcherCard = game.decisions?.loser?.card || losingPitcherCardFallback;
+    const awayProbableCard = awayProbableCardFallback;
+    const homeProbableCard = homeProbableCardFallback;
+    const liveAtBatCard = liveAtBatCardFallback;
+    const livePitchingCard = livePitchingCardFallback;
+    const winningPitcherCard = winningPitcherCardFallback;
+    const losingPitcherCard = losingPitcherCardFallback;
     const stateBadgeLabel = isFinal ? 'Final' : isInProgress ? 'Live' : 'Preview';
     const stateBadgeClasses = isFinal
         ? 'border-green-500/40 bg-green-500/10 text-green-300'
@@ -358,9 +376,13 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2 items-center">
-                        <CardItemCompact card={awayProbableCard} />
+                        {awayProbableCardResponse?.card
+                            ? <CardItemCompactFromCard card={awayProbableCardResponse.card} />
+                            : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} />}
                         <span className="text-[12px]">vs</span>
-                        <CardItemCompact card={homeProbableCard} />
+                        {homeProbableCardResponse?.card
+                            ? <CardItemCompactFromCard card={homeProbableCardResponse.card} />
+                            : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} />}
                     </div>
                 </>
             )}
@@ -377,8 +399,12 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">
-                        <CardItemCompact card={liveAtBatCard} />
-                        <CardItemCompact card={livePitchingCard} />
+                        {liveAtBatCardResponse?.card
+                            ? <CardItemCompactFromCard card={liveAtBatCardResponse.card} />
+                            : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} />}
+                        {livePitchingCardResponse?.card
+                            ? <CardItemCompactFromCard card={livePitchingCardResponse.card} />
+                            : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} />}
                     </div>
                 </>
             )}
@@ -395,8 +421,12 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">
-                        <CardItemCompact card={winningPitcherCard} />
-                        <CardItemCompact card={losingPitcherCard} />
+                        {winningPitcherCardResponse?.card
+                            ? <CardItemCompactFromCard card={winningPitcherCardResponse.card} />
+                            : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} />}
+                        {losingPitcherCardResponse?.card
+                            ? <CardItemCompactFromCard card={losingPitcherCardResponse.card} />
+                            : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} />}
                     </div>
                 </>
             )}

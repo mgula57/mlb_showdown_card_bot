@@ -9,6 +9,7 @@ type CardItemCompactProps = {
     card?: ShowdownBotCardCompact | null;
     className?: string;
     isSelected?: boolean;
+    isLoading?: boolean;
     onClick?: () => void;
 };
 
@@ -16,6 +17,7 @@ export const CardItemCompact = ({
     card,
     className,
     isSelected,
+    isLoading,
     onClick,
 }: CardItemCompactProps) => {
 
@@ -130,6 +132,7 @@ export const CardItemCompact = ({
             onClick={onClick}
             className={`
                 ${className || ''}
+                relative
                 w-full min-w-0
                 flex items-center gap-2
                 rounded-lg px-2 py-1.5 
@@ -168,6 +171,14 @@ export const CardItemCompact = ({
             {showExtraDetails && (
                 <div className="shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
                     {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
+                </div>
+            )}
+
+            {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-(--background-secondary)/70 backdrop-blur-[1px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--text-secondary) animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--text-secondary) animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--text-secondary) animate-bounce [animation-delay:300ms]" />
                 </div>
             )}
         </button>
