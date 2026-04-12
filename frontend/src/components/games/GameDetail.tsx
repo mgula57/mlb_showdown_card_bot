@@ -148,11 +148,16 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
         const isCurrentSeason = new Date().getFullYear() === season;
         const useLastYear = new Date().getMonth() < 3; // Months are 0-indexed
         const adjustedSeason = (sportId === 1 && isCurrentSeason && useLastYear) ? season - 1 : season;
+        const gameDate = new Date(boxscore.datetime.official_date ?? "") || new Date();
+        const yesterday = new Date(gameDate);
+        yesterday.setDate(yesterday.getDate() - 1);
 
         const cardSettings = {
             year: adjustedSeason,
             set: showdownSet,
             stat_highlights_type: "ALL",
+            in_season_trends_range_start_date: yesterday.toISOString().split("T")[0], // Notes the end date to start with to speed up processing
+            in_season_trends_end_date: boxscore.datetime.official_date,
         }
         // No need to reload if all IDs are already in the map
         if ([...allIds].every(id => cardMap[Number(id)])) {

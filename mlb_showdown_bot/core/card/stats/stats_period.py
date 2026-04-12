@@ -62,7 +62,7 @@ class StatsPeriodDateAggregation(str, Enum):
     WEEK = "WEEK"
     MONTH = "MONTH"
 
-    def date_ranges(self, year:str, start_date:date = None, stop_date:date = None) -> list[tuple[date, date]]:
+    def date_ranges(self, year:str, start_date:date = None, stop_date:date = None, range_start_date:date = None) -> list[tuple[date, date]]:
 
         # ONLY WORKS ON SINGLE YEAR
         try: 
@@ -81,6 +81,10 @@ class StatsPeriodDateAggregation(str, Enum):
                     date_ranges.append((start_date, end_date))
                     end_date = end_date + timedelta(days=1)
 
+                # REMOVE DATE RANGES THAT ARE BEFORE THE RANGE START DATE
+                if range_start_date:
+                    date_ranges = [dr for dr in date_ranges if dr[1] >= range_start_date]
+
                 return date_ranges
             
             case StatsPeriodDateAggregation.WEEK:
@@ -90,6 +94,10 @@ class StatsPeriodDateAggregation(str, Enum):
                     days_to_sunday = 6 - end_date.weekday() if end_date.weekday() != 6 else 7
                     end_date = min(end_date + timedelta(days=days_to_sunday), stop_date)
                     date_ranges.append((start_date, end_date))
+
+                # REMOVE DATE RANGES THAT ARE BEFORE THE RANGE START DATE
+                if range_start_date:
+                    date_ranges = [dr for dr in date_ranges if dr[1] >= range_start_date]
 
                 return date_ranges
             
@@ -113,6 +121,10 @@ class StatsPeriodDateAggregation(str, Enum):
                     last_day = calendar.monthrange(start_date.year, next_month)[1]
                     end_date = min(date(start_date.year, next_month, last_day), stop_date)
                     date_ranges.append((start_date, end_date))
+                
+                # REMOVE DATE RANGES THAT ARE BEFORE THE RANGE START DATE
+                if range_start_date:
+                    date_ranges = [dr for dr in date_ranges if dr[1] >= range_start_date]
                 
                 return date_ranges
 
