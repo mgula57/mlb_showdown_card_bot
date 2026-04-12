@@ -197,7 +197,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                         fangraphs_api = FangraphsAPIClient()
                         fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
                             stat_type="fld",
-                            stats_period=stats_period,
+                            season_start=stats_period.first_year,
+                            season_end=stats_period.last_year,
                             position="all",
                             fangraphs_player_ids=[str(player_data.fangraphs_id)],
                         )

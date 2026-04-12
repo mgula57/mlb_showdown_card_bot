@@ -92,7 +92,7 @@ class StatcastAPIClient:
         now = datetime.now(timezone.utc)
         cached = _LEADERBOARD_CACHE.get(cache_key)
         if cached and now < cached[1]:
-            print("Serving sprint speed leaderboard from cache")
+            print("Serving Savant Sprint Speed leaderboard from cache")
             return cached[0]
 
         params = {
