@@ -269,6 +269,14 @@ class GamesClient(BaseMLBClient):
                 "loser": _extract_decision("loser"),
                 "save": _extract_decision("save"),
             },
+            "probable_pitchers": {
+                side: {
+                    "id": pitcher.get("id"),
+                    "full_name": pitcher.get("fullName", ""),
+                }
+                for side, pitcher in game_data.get("probablePitchers", {}).items()
+                if pitcher
+            },
             "most_recent_play": _extract_most_recent_play(plays_raw),
         }
 

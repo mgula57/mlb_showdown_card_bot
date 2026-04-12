@@ -234,6 +234,9 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             {/* Decisions */}
             {isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
 
+            {/* Probable Starting Pitchers */}
+            {isNotStarted && boxscore.probable_pitchers && <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+
             <div className="grid sm:grid-cols-2 gap-4">
                 {/* Away Batting */}
                 <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
@@ -675,6 +678,54 @@ function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxsco
     );
 }
 
+function ProbableStartingPitchers({
+    away, home, probablePitchers, cardMap, onCardSelect, isLoadingCards
+}: {
+    away: BoxscoreTeamData;
+    home: BoxscoreTeamData;
+    probablePitchers: NonNullable<GameBoxscoreDetail["probable_pitchers"]>;
+    cardMap: CardMap;
+    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+    isLoadingCards?: boolean;
+}) {
+    const pitcherItem = (team: BoxscoreTeamData, pitcher?: { id?: number; full_name?: string }) => {
+        const card = pitcher?.id ? cardMap[pitcher.id] : undefined;
+        const badgeBg = team.team.primary_color ?? '#374151';
+        const badgeText = getReadableTextColor(badgeBg, '#ffffff');
+        return (
+            <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                    <span
+                        className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
+                        style={{ backgroundColor: badgeBg, color: badgeText }}
+                    >{team.team.abbreviation}</span>
+                    <span className="font-semibold text-(--primary) text-sm">{pitcher?.full_name ?? 'TBD'}</span>
+                    {card && card.in_season_trends?.pts_change.day != null && card.in_season_trends.pts_change.day !== 0 && (
+                        <span className={`text-[9px] font-bold leading-none ${card.in_season_trends.pts_change.day > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                            {card.in_season_trends.pts_change.day > 0 ? '▲' : '▼'}{Math.abs(card.in_season_trends.pts_change.day)} PTS
+                        </span>
+                    )}
+                </div>
+                {isLoadingCards && !card ? (
+                    <CardItemSkeleton className="w-full" />
+                ) : (
+                    <CardItemFromCard card={card?.card} className="w-full" onClick={card ? () => onCardSelect?.(card) : undefined} />
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex flex-col md:grid md:grid-cols-2 p-3 gap-x-6 gap-y-2 rounded-xl border border-(--divider) bg-(--background-secondary) text-sm">
+            <div className="col-span-full mb-1">
+                <span className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Probable Starting Pitchers</span>
+            </div>
+            {pitcherItem(away, probablePitchers.away)}
+            {pitcherItem(home, probablePitchers.home)}
+        </div>
+    );
+}
+
 function PlayerNameCell({ name, position, card, ptsChange, isLoadingCard }: { name: string; position?: string; card?: ShowdownBotCard; ptsChange?: number | null; isLoadingCard?: boolean; onClick?: () => void }) {
 
     const defenseForPosition = () => {
@@ -759,7 +810,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, ha
     const hasCards = Object.keys(cardMap).length > 0;
 
     const sortedBatters = [...team.batting]
-        .filter((b) => b.is_in_lineup)
+        .filter((b) => b.batting_order != null && b.batting_order !== "")
         .sort((a, b) => {
             const orderA = a.batting_order ? parseInt(a.batting_order, 10) : 9999;
             const orderB = b.batting_order ? parseInt(b.batting_order, 10) : 9999;
@@ -846,16 +897,29 @@ function BatterRow({ batter, cardResponse, onCardSelect, isLoadingCards }: { bat
     const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
     const card = cardResponse?.card ?? undefined;
-    const indent = batter.is_substitute && !batter.is_in_lineup;
+    const indent = batter.is_substitute;
     const hasHit = (batter.stats.hits ?? 0) > 0;
+
+    if (batter.name == 'Brett Baty') {
+        console.log("Baty Card Response", indent);
+    }
 
     return (
         <tr
-            className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${cardResponse ? 'cursor-pointer' : ''}`}
+            className={`
+                border-b border-(--divider)/50 hover:bg-(--background-primary)/50 
+                ${cardResponse ? 'cursor-pointer' : ''}
+            `}
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
         >
-            <td ref={refs.setReference} {...getReferenceProps()} className="pl-3 pr-2 py-1.5 text-left" >
-                <PlayerNameCell name={batter.name} position={batter.position} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
+            <td 
+                ref={refs.setReference} {...getReferenceProps()} 
+                className={`
+                    pl-3 pr-2 py-1.5 text-left
+                    ${indent ? 'pl-8' : ''}
+                    ${!batter.is_in_lineup ? 'opacity-60' : ''}
+                `} >
+                    <PlayerNameCell name={batter.name} position={batter.position} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
             </td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.at_bats}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.runs}</td>

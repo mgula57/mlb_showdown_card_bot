@@ -762,6 +762,10 @@ export interface GameBoxscoreDetail {
         away: BoxscoreTeamData;
         home: BoxscoreTeamData;
     };
+    probable_pitchers?: {
+        away?: { id?: number; full_name?: string };
+        home?: { id?: number; full_name?: string };
+    };
     linescore: BoxscoreLinescore;
     decisions: BoxscoreDecisions;
     most_recent_play?: MostRecentPlay;
