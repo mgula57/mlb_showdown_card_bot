@@ -527,8 +527,6 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     kwargs.pop('print_to_cli', None)
     kwargs.pop('show_image', None)
     kwargs.pop('chart_version', None)
-
-    print(kwargs.get('in_season_trends_end_date', None))
     
     # CHECK FOR GAME LOGS
     game_logs = actual_card.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
