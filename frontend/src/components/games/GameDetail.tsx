@@ -239,9 +239,9 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
 
             <div className="grid sm:grid-cols-2 gap-4">
                 {/* Away Batting */}
-                <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
+                <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
                 {/* Home Batting */}
-                <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
+                <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
 
                 {/* Away Pitching */}
                 <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
