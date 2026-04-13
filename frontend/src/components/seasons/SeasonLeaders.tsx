@@ -169,7 +169,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
         const teamAbbr = entry?.team?.abbreviation ?? '';
         
         return (
-            <div key={entry?.rank ?? i} className="flex flex-col gap-1.5 shrink-0 w-72 xl:w-auto">
+            <div key={entry?.rank ?? i} className="flex flex-col gap-1.5 shrink-0 w-80 lg:w-auto">
                 {/* Rank / stat row */}
                 <div className="flex items-center px-1.5 space-x-1.5">
                     <span className={`text-xs font-bold tabular-nums ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
