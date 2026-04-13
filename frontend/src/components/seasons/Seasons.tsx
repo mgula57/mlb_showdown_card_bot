@@ -24,12 +24,13 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaUserGroup, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate
+    FaStar, FaRegStar, FaArrowsRotate, FaTrophy
 } from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
 import GameDetail from "../games/GameDetail";
+import SeasonLeaders from "./SeasonLeaders";
 import { getReadableTextColor } from "../../functions/colors";
 
 const formatScheduleDate = (date?: string): string => {
@@ -238,6 +239,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const tabs = [
         { id: "schedule", label: "Schedule", icon: <FaCalendarDays /> },
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
+        { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
@@ -1047,6 +1049,21 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     onToggleStar={() => toggleStarTeam(selectedTeam)}
                                                 />
                                             )}
+                                    </Tabs.Content>
+
+                                    {/* Leaders Tab */}
+                                    <Tabs.Content
+                                        value="leaders"
+                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
+                                        forceMount
+                                    >
+                                        <SeasonLeaders
+                                            seasonId={selectedSeason.season_id}
+                                            season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
+                                            showdownSet={userShowdownSet}
+                                            sportId={selectedSport?.id}
+                                            isActive={activeTab === 'leaders'}
+                                        />
                                     </Tabs.Content>
 
                                     {/* Players Tab */}

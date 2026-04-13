@@ -98,7 +98,7 @@ export default function Home() {
             });
 
             setIsLoadingLeaders(true);
-            const leadersPromise = fetchSeasonLeaders(active.season_id, ['ON_BASE_PLUS_SLUGGING', 'WALKS_HITS_PER_INNING_PITCHED'], 3)
+            const leadersPromise = fetchSeasonLeaders(active.season_id, ['ON_BASE_PLUS_SLUGGING', 'WALKS_HITS_PER_INNING_PITCHED'], undefined, 3)
                 .then(({ leaders }) => {
                     const seenCategories = new Set<string>();
                     const deduped = leaders.filter(g => {

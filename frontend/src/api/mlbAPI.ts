@@ -77,12 +77,16 @@ export interface LeadersResponse {
 export const fetchSeasonLeaders = async (
     seasonId: string,
     categories?: string[],
+    statGroups?: string[],
     limit: number = 5,
     showdownSet?: string
 ): Promise<LeadersResponse> => {
     let url = `${API_BASE}/seasons/${seasonId}/leaders?limit=${limit}`;
     if (categories && categories.length > 0) {
         url += `&categories=${encodeURIComponent(categories.join(','))}`;
+    }
+    if (statGroups && statGroups.length > 0) {
+        url += `&stat_groups=${encodeURIComponent(statGroups.join(','))}`;
     }
     if (showdownSet) {
         url += `&showdown_set=${encodeURIComponent(showdownSet)}`;
