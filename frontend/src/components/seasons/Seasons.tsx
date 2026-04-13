@@ -971,6 +971,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 sportId={selectedSport?.id}
                                                 season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
                                                 showdownSet={userShowdownSet}
+                                                isActive={activeTab === 'schedule'}
                                                 onBack={() => setSelectedGamePk(null)}
                                             />
                                         ) : (

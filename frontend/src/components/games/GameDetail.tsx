@@ -31,10 +31,12 @@ type GameDetailProps = {
     sportId?: number;
     season?: number;
     showdownSet?: string;
+    /** When false, stops auto-refresh polling (e.g. user switched to another tab) */
+    isActive?: boolean;
     onBack: () => void;
 };
 
-export default function GameDetail({ gamePk, sportId, season, showdownSet, onBack }: GameDetailProps) {
+export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, onBack }: GameDetailProps) {
     const [boxscore, setBoxscore] = useState<GameBoxscoreDetail | null>(null);
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -86,6 +88,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
     useEffect(() => {
         if (!boxscore) return;
         if (!isInProgressRef.current) return;
+        if (!isActive) return;
 
         let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -119,7 +122,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             document.removeEventListener("visibilitychange", onVisibility);
             stopPolling();
         };
-    }, [boxscore, refreshBoxscore]);
+    }, [boxscore, refreshBoxscore, isActive]);
 
     // Fetch Showdown cards for all players in the boxscore
     useEffect(() => {
