@@ -1110,11 +1110,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             label=""
                                             value={query}
                                             className={`flex-1 ${animationTw}`}
+                                            searchOptions={{ include_mlb_api_current_season: true }}
                                             onChange={(selection) => setForm({ 
                                                 ...form, 
                                                 name: selection.name, 
                                                 year: selection.year,
-                                                player_id: selection.bref_id,
+                                                player_id: selection.player_id,
                                                 player_type_override: selection.player_type_override,
                                             })}
                                         />

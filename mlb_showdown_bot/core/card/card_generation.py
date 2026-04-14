@@ -103,8 +103,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             kwargs['year'] = str(random_player.year)
 
         # REPLACE NAME WITH PLAYER ID IF PROVIDED
-        disable_player_id = kwargs.get('datasource', 'BREF') == 'MLB_API' # TODO: REMOVE THIS LATER
-        if kwargs.get('player_id', None) and not disable_player_id:
+        if kwargs.get('player_id', None):
             kwargs['name'] = kwargs['player_id']
 
         # REMOVE IMAGE PREFIXES FROM KEYS

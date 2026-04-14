@@ -23,7 +23,7 @@ interface PlayerSearchOption {
     /** Formatted year display (e.g., "2020-2024" for multi-year) */
     year_display?: string | null;
     /** Baseball Reference player ID */
-    bref_id: string;
+    player_id: string;
     /** Whether player is in Hall of Fame */
     is_hof: boolean;
     /** Summary of major awards (MVP, Cy Young, etc.) */
@@ -39,7 +39,7 @@ interface PlayerSearchOption {
 export type PlayerSearchSelection = {
     name: string;
     year: string;
-    bref_id: string;
+    player_id: string;
     player_type_override?: string;
 };
 
@@ -61,6 +61,7 @@ interface PlayerSearchInputProps {
         exclude_career?: boolean;
         min_bwar?: number;
         limit?: number;
+        include_mlb_api_current_season?: boolean; // TEMP: Option to include current season active players from MLB API for better results on active players
     };
 }
 
@@ -77,7 +78,6 @@ const PLACEHOLDER_EXAMPLES = [
     "Try: 1998-2002",
     "Try: Barry Bonds",
     "Try: Tarik Skubal",
-    "Try: Shohei Hitting",
     "Try: Rodriguez NYY",
 ];
 
@@ -106,7 +106,7 @@ const PLACEHOLDER_EXAMPLES = [
  *       ...form,
  *       name: selection.name,
  *       year: selection.year,
- *       player_id: selection.bref_id
+ *       player_id: selection.player_id
  *     });
  *   }}
  * />
@@ -253,6 +253,9 @@ export function PlayerSearchInput({
                 if (searchOptions.limit !== undefined) {
                     params.append('limit', searchOptions.limit.toString());
                 }
+                if (searchOptions.include_mlb_api_current_season) {
+                    params.append('include_mlb_api_current_season', 'true');
+                }
 
                 const response = await fetch(`/api/players/search?${params.toString()}`);
                 const results = await response.json();
@@ -267,7 +270,7 @@ export function PlayerSearchInput({
             } finally {
                 setIsLoading(false);
             }
-        }, 300);
+        }, 800); // Debounce delay of 800ms
 
         return () => {
             if (debounceRef.current) {
@@ -337,7 +340,7 @@ export function PlayerSearchInput({
         onChange({
             name: `${option.name}${typeOverride}`,
             year: option.year.toString(),
-            bref_id: option.bref_id.toString(),
+            player_id: option.player_id.toString(),
             player_type_override: option.player_type_override ? option.player_type_override.toUpperCase().replace("(", "").replace(")", "") : undefined,
         });
         
@@ -436,7 +439,7 @@ export function PlayerSearchInput({
                     >
                         {options.map((option, index) => (
                             <div
-                                key={`${option.year.toString()}-${option.bref_id}`}
+                                key={`${option.year.toString()}-${option.player_id}`}
                                 onClick={() => handleSelect(option)}
                                 className={`
                                     px-3 py-3 cursor-pointer border-b border-form-element last:border-b-0

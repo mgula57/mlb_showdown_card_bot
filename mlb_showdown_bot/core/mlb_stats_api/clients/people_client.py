@@ -53,15 +53,21 @@ class PeopleClient(BaseMLBClient):
     # STANDARD PLAYERS
     # -----------------------
 
-    def search_players(self, name: str, active_status: str = 'both', limit: int = 25, seasons: Optional[List[int]] = None) -> List[Player]:
+    def search_players(self, name: str, active_status: str = 'both', limit: int = 25, seasons: Optional[List[int]] = None, hydrations: Optional[List[str]] = None, response_fields_list: Optional[List[str]] = None) -> List[Player]:
         """Search for players by name"""
         params = {
             'names': name,
             'activeStatus': active_status,
             'limit': limit
         }
+        if len(name) == 0:
+            del params['names']  # API does not like empty string for name search, so we will remove the parameter to search all players (filtered by activeStatus and seasons if provided)
         if seasons:
             params['seasons'] = ','.join(map(str, seasons))
+        if response_fields_list:
+            params['fields'] = ','.join(response_fields_list + ['people']) # Ensure 'people' is always included in the response for proper parsing into Player objects
+        if hydrations:
+            params['hydrate'] = ','.join(hydrations)   
         # Uses base client's _make_request with caching and rate limiting
         data = self._make_request('people/search', params)
         return [Player(**player_data) for player_data in data.get('people', [])]
