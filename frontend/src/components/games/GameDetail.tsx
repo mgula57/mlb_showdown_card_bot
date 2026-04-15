@@ -24,7 +24,16 @@ import {
     useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
 } from "@floating-ui/react";
 
-type CardMap = Record<number, ShowdownBotCardAPIResponse>;
+type CardMap = Record<string, ShowdownBotCardAPIResponse>;
+
+// TODO: replace hard-coded IDs with a general two-way player detection strategy
+const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
+
+/** Returns the CardMap key for a player in a given table context. */
+const cardKey = (id: number, table: 'batting' | 'pitching'): string => {
+    if (TWO_WAY_PLAYER_IDS.has(id)) return `${id}-${table === 'batting' ? 'H' : 'P'}`;
+    return String(id);
+};
 
 type GameDetailProps = {
     gamePk: number;
@@ -159,11 +168,14 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             year: adjustedSeason,
             set: showdownSet,
             stat_highlights_type: "ALL",
+            stats_period_type: "DATES",
+            start_date: `${gameDate.getFullYear()}-03-01`, // Pull stats from the start of the season to ensure we have data for early-season games
+            end_date: boxscore.datetime.official_date,
             in_season_trends_range_start_date: yesterday.toISOString().split("T")[0], // Notes the end date to start with to speed up processing
             in_season_trends_end_date: boxscore.datetime.official_date,
         }
         // No need to reload if all IDs are already in the map
-        if ([...allIds].every(id => cardMap[Number(id)])) {
+        if ([...allIds].every(id => cardMap[id])) {
             return;
         }
         setIsLoadingCards(true);
@@ -173,7 +185,13 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 const map: CardMap = {};
                 for (const entry of response.cards ?? []) {
                     if (entry.card?.mlb_id != null) {
-                        map[entry.card.mlb_id] = entry;
+                        const id = entry.card.mlb_id;
+                        if (TWO_WAY_PLAYER_IDS.has(id)) {
+                            const suffix = entry.card.player_type === "Pitcher" ? "P" : "H";
+                            map[`${id}-${suffix}`] = entry;
+                        } else {
+                            map[String(id)] = entry;
+                        }
                     }
                 }
                 setCardMap(map);
@@ -510,9 +528,9 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
     const pitcherName = linescore.defense?.pitcher;
     const pitcherId = linescore.defense?.pitcher_id;
 
-    const batterCard = batterId ? cardMap[batterId] : undefined;
+    const batterCard = batterId ? cardMap[cardKey(batterId, 'batting')] : undefined;
     console.log("Batter Card", batterCard);
-    const pitcherCard = pitcherId ? cardMap[pitcherId] : undefined;
+    const pitcherCard = pitcherId ? cardMap[cardKey(pitcherId, 'pitching')] : undefined;
 
     const allBatters = [...(teams?.away.batting ?? []), ...(teams?.home.batting ?? [])];
     const allPitchers = [...(teams?.away.pitching ?? []), ...(teams?.home.pitching ?? [])];
@@ -567,7 +585,7 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                         )}
                     </div>
                     {pitcherCard ? (
-                        <CardItemFromCard card={pitcherCard.card} onClick={() => onCardSelect?.(cardMap[pitcherId!])} />
+                        <CardItemFromCard card={pitcherCard.card} onClick={() => onCardSelect?.(cardMap[cardKey(pitcherId!, 'pitching')])} />
                     ) : isLoadingCards ? (
                         <CardItemSkeleton/>
                     ) : pitcherName ? (
@@ -606,7 +624,7 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                         )}
                     </div>
                     {batterCard ? (
-                        <CardItemFromCard card={batterCard.card} className="w-full" onClick={() => onCardSelect?.(cardMap[batterId!])} />
+                        <CardItemFromCard card={batterCard.card} className="w-full" onClick={() => onCardSelect?.(cardMap[cardKey(batterId!, 'batting')])} />
                     ) : isLoadingCards ? (
                         <CardItemSkeleton className="w-full" />
                     ) : batterName ? (
@@ -623,7 +641,7 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
 }
 
 
-function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxscore: GameBoxscoreDetail; cardMap: Record<number, ShowdownBotCardAPIResponse>; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
+function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxscore: GameBoxscoreDetail; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
     const { winner, loser, save: saveDecision } = boxscore.decisions;
 
     // Find the pitcher note (e.g. "(W, 1-0)") for each decision pitcher
@@ -661,9 +679,9 @@ function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxsco
 
     if (!winner && !loser) return null;
 
-    const winnerCardData = winner?.id ? cardMap[winner.id] : undefined;
-    const loserCardData = loser?.id ? cardMap[loser.id] : undefined;
-    const saveCardData = saveDecision?.id ? cardMap[saveDecision.id] : undefined;
+    const winnerCardData = winner?.id ? cardMap[cardKey(winner.id, 'pitching')] : undefined;
+    const loserCardData = loser?.id ? cardMap[cardKey(loser.id, 'pitching')] : undefined;
+    const saveCardData = saveDecision?.id ? cardMap[cardKey(saveDecision.id, 'pitching')] : undefined;
 
     return (
         <div 
@@ -692,7 +710,7 @@ function ProbableStartingPitchers({
     isLoadingCards?: boolean;
 }) {
     const pitcherItem = (team: BoxscoreTeamData, pitcher?: { id?: number; full_name?: string }) => {
-        const card = pitcher?.id ? cardMap[pitcher.id] : undefined;
+        const card = pitcher?.id ? cardMap[cardKey(pitcher.id, 'pitching')] : undefined;
         const badgeBg = team.team.primary_color ?? '#374151';
         const badgeText = getReadableTextColor(badgeBg, '#ffffff');
         return (
@@ -821,10 +839,10 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, ha
         });
 
     const totalPoints = hasCards
-        ? sortedBatters.reduce((sum, b) => sum + (cardMap[b.id]?.card?.points ?? 0), 0)
+        ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'batting')]?.card?.points ?? 0), 0)
         : 0;
     const totalPointsChange = hasCards && hasGameStarted
-        ? sortedBatters.reduce((sum, b) => sum + (cardMap[b.id]?.in_season_trends?.pts_change.day ?? 0), 0)
+        ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'batting')]?.in_season_trends?.pts_change.day ?? 0), 0)
         : 0;
 
     return (
@@ -860,7 +878,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, ha
                     </thead>
                     <tbody>
                         {sortedBatters.map((batter) => (
-                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[batter.id]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[cardKey(batter.id, 'batting')]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                         ))}
                         {sortedBatters.length === 0 && (
                             <tr>
@@ -958,10 +976,10 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, h
     const hasCards = Object.keys(cardMap).length > 0;
 
     const totalPoints = hasCards
-        ? team.pitching.reduce((sum, p) => sum + (cardMap[p.id]?.card?.points ?? 0), 0)
+        ? team.pitching.reduce((sum, p) => sum + (cardMap[cardKey(p.id, 'pitching')]?.card?.points ?? 0), 0)
         : 0;
     const totalPointsChange = hasCards && hasGameStarted
-        ? team.pitching.reduce((sum, p) => sum + (cardMap[p.id]?.in_season_trends?.pts_change.day ?? 0), 0)
+        ? team.pitching.reduce((sum, p) => sum + (cardMap[cardKey(p.id, 'pitching')]?.in_season_trends?.pts_change.day ?? 0), 0)
         : 0;
 
     return (
@@ -998,7 +1016,7 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, h
                     </thead>
                     <tbody>
                         {team.pitching.map((pitcher) => (
-                            <PitcherRow key={pitcher.id} pitcher={pitcher} cardResponse={cardMap[pitcher.id]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                            <PitcherRow key={pitcher.id} pitcher={pitcher} cardResponse={cardMap[cardKey(pitcher.id, 'pitching')]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                         ))}
                         {team.pitching.length === 0 && (
                             <tr>

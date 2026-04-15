@@ -657,6 +657,10 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     if random_player:
         return random_player
 
+# Players that should generate two separate cards (one Hitter, one Pitcher).
+# TODO: replace hard-coded IDs with a general two-way player detection strategy.
+_TWO_WAY_PLAYER_IDS: set[int] = {660271}  # Ohtani
+
 def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[dict[str, Any]]:
     """Generate multiple cards for a list of player ids and a year. Only works with MLB API datasource.
 
@@ -705,54 +709,67 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[di
     # Generate cards for each player
     final_cards: list[dict] = []
     for player_data in player_stats.players:
-        try:
-            normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(
-                player=player_data, 
-                stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(years[0]))
-            )
+        # Two-way players (e.g. Ohtani) get one card per type; all others get a single card.
+        player_type_overrides: list[PlayerType | None] = (
+            [PlayerType.HITTER, PlayerType.PITCHER]
+            if player_data.id in _TWO_WAY_PLAYER_IDS
+            else [None]
+        )
+        for player_type_override in player_type_overrides:
+            try:
+                stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
+                stats_period = StatsPeriod(
+                    type=stats_period_type,
+                    player_type_override=player_type_override.value if player_type_override else None,
+                    **kwargs
+                )
+                normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(
+                    player=player_data,
+                    stats_period=stats_period,
+                )
 
-            # Inject sprint speed if available
-            if sprint_speed_data and normalized_player_stats.type == PlayerType.HITTER:
-                player_sprint_speed_data = next((s for s in sprint_speed_data if s.player_id == player_data.id), None)
-                if player_sprint_speed_data:
-                    normalized_player_stats.sprint_speed = player_sprint_speed_data.sprint_speed
+                # Inject sprint speed if available
+                if sprint_speed_data and normalized_player_stats.type == PlayerType.HITTER:
+                    player_sprint_speed_data = next((s for s in sprint_speed_data if s.player_id == player_data.id), None)
+                    if player_sprint_speed_data:
+                        normalized_player_stats.sprint_speed = player_sprint_speed_data.sprint_speed
 
-            # Inject defensive stats if available
-            position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list if pos_stats.get('xMLBAMID', None) == player_data.id]
-            if position_stats and normalized_player_stats.type == PlayerType.HITTER:
-                normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+                # Inject defensive stats if available
+                position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list if pos_stats.get('xMLBAMID', None) == player_data.id]
+                if position_stats and normalized_player_stats.type == PlayerType.HITTER:
+                    normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
 
-            if normalized_player_stats.is_missing_stats:
-                print(f"Skipping card generation for {player_data.full_name} in {years[0]} due to missing stats.")
+                if normalized_player_stats.is_missing_stats:
+                    print(f"Skipping card generation for {player_data.full_name} ({normalized_player_stats.type}) in {years[0]} due to missing stats.")
+                    continue
+
+                card = ShowdownPlayerCard(
+                    name=player_data.full_name,
+                    stats_period=stats_period,
+                    stats=normalized_player_stats.as_dict(),
+                    image=ShowdownImage(**kwargs),
+                    **kwargs
+                )
+                final_data: dict[str, Any] = {
+                    "card": card.as_json(),
+                }
+
+                in_season_trends_data = generate_in_season_trends_for_player(
+                    actual_card=card,
+                    date_aggregation="week",
+                    include_day_over_day=True,
+                    name=player_data.full_name,
+                    **kwargs
+                )
+                if in_season_trends_data:
+                    final_data["in_season_trends"] = in_season_trends_data.as_json()
+                else:
+                    print(f"No in-season trends data for {player_data.full_name} in {years[0]}.")
+
+                final_cards.append(final_data)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
                 continue
 
-            card = ShowdownPlayerCard(
-                name=player_data.full_name,
-                stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(years[0])), 
-                stats=normalized_player_stats.as_dict(), 
-                image=ShowdownImage(**kwargs),
-                **kwargs
-            )
-            final_data: dict[str, Any] = {
-                "card": card.as_json(),
-            }
-
-            in_season_trends_data = generate_in_season_trends_for_player(
-                actual_card=card, 
-                date_aggregation="week", 
-                include_day_over_day=True,
-                name=player_data.full_name,
-                **kwargs
-            )
-            if in_season_trends_data:
-                final_data["in_season_trends"] = in_season_trends_data.as_json() 
-            else:
-                print(f"No in-season trends data for {player_data.full_name} in {years[0]}.")
-
-            final_cards.append(final_data)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            continue
-    
     return final_cards
