@@ -74,15 +74,15 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
 
         setIsLoadingCards(true);
         const todayDate = new Date();
-        const yesterdayDate = new Date(todayDate);
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const oneWeekAgoDate = new Date(todayDate);
+        oneWeekAgoDate.setDate(oneWeekAgoDate.getDate() - 7);
         const today = todayDate.toISOString().split("T")[0];
-        const yesterday = yesterdayDate.toISOString().split("T")[0];
+        const oneWeekAgo = oneWeekAgoDate.toISOString().split("T")[0];
         const cardSettings = {
             year: season,
             set: userShowdownSet,
             stat_highlights_type: "ALL",
-            in_season_trends_range_start_date: yesterday,
+            in_season_trends_range_start_date: oneWeekAgo,
             in_season_trends_end_date: today,
         }
         buildCardsFromIds(ids, season, cardSettings)
@@ -111,6 +111,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                         });
                     }
                 }
+                console.log("Loaded showdown cards for roster:", { newCardMap, newTwoWayPitcherSlots });
                 setCardMap(newCardMap);
                 setTwoWayPitcherSlots(newTwoWayPitcherSlots);
             })
@@ -145,6 +146,10 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
         return (card?.points !== undefined || slot.person.points !== undefined) && card?.stats_period?.type !== "REPLACEMENT";
     }).length;
     const teamAvgPointsPerPlayer = rosterSlots.length > 0 ? teamShowdownPointsTotal / rosterSlots.length : 0;
+    const teamPtsChangeWeek = rosterSlots.reduce((total, slot) => {
+        const change = getResponseForSlot(slot)?.in_season_trends?.pts_change.week ?? 0;
+        return total + change;
+    }, 0);
 
     // Handle selection of players
     const handleRowClick = (slot: RosterSlot) => {
@@ -269,6 +274,11 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                         <p className="mt-1 text-2xl font-bold text-(--text-primary)">
                             {teamShowdownPointsTotal.toLocaleString()}
                         </p>
+                        {teamPtsChangeWeek !== 0 && (
+                            <p className={`text-xs font-semibold ${teamPtsChangeWeek > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                                {teamPtsChangeWeek > 0 ? '▲' : '▼'}{Math.abs(teamPtsChangeWeek)} this week
+                            </p>
+                        )}
                         <p className="text-xs text-(--text-secondary)">
                             {teamAvgPointsPerPlayer > 0 ? `Avg ${teamAvgPointsPerPlayer.toFixed(0)} / Player` : "No player points"}
                         </p>
@@ -294,6 +304,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                                     <CardItemFromCard
                                         key={`${slot.person.id}-${slot.position.type ?? slot.position.code}`}
                                         card={getResponseForSlot(slot)?.card}
+                                        ptsChange={getResponseForSlot(slot)?.in_season_trends?.pts_change.week}
                                         className="w-full"
                                         hideYear={true}
                                         onClick={() => handleRowClick(slot)}

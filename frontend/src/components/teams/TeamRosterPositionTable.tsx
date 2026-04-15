@@ -47,6 +47,8 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
         header: "Name",
         cell: ({ row, getValue }) => {
             const card = getCard(row.original);
+            const response = cardMap[getCardMapKey(row.original)];
+            const ptsChange = response?.in_season_trends?.pts_change.week;
             const name = getValue();
             const year = card?.year || "-";
             const isWbc = card?.image.edition === 'WBC';
@@ -59,8 +61,13 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
                     <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-scroll">
                         {name}
                     </div>
-                    <div className="flex flex-row italic text-[11px] gap-1">
+                    <div className="flex flex-row italic text-[11px] gap-1 items-center">
                         {isReplacement ? "-" : `${year} ${team}`}
+                        {ptsChange != null && ptsChange !== 0 && (
+                            <span className={`not-italic text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                                {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}
+                            </span>
+                        )}
                         {card?.icons && (
                             <>
                                 {card.icons.map((icon, index) => (

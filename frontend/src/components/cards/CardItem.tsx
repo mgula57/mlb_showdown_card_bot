@@ -31,6 +31,7 @@ type CardItemProps = {
     cardPoints?: number;
     cardPointsEstimated?: number;
     cardPointsDiffEstimatedVsActual?: number;
+    cardPtsChange?: number | null;
 
     // Command and Outs
     cardCommand?: number;
@@ -100,7 +101,7 @@ type CardItemProps = {
 export const CardItem = ({ 
     cardId, cardTeam, cardName, cardYear, cardStatsPeriod,
     cardCommand, cardIsPitcher,
-    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual,
+    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange,
     cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
     cardIsErrata, cardNotes, cardIsStatsEstimate,
     cardPrimaryColor, cardSecondaryColor, cardEdition,
@@ -266,6 +267,11 @@ export const CardItem = ({
                                 </>
                             )}
                         </div>
+                        {cardPtsChange != null && cardPtsChange !== 0 && (
+                            <span className={`text-[9px] font-bold leading-none ${cardPtsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                                {cardPtsChange > 0 ? '▲' : '▼'}{Math.abs(cardPtsChange)}
+                            </span>
+                        )}
                         {cardPointsEstimated && cardPoints && (
                             renderPointsComparison(cardPointsEstimated, cardPointsDiffEstimatedVsActual || 0)
                         )}
@@ -391,9 +397,11 @@ type CardItemFromCardProps = {
     isSelected?: boolean;
     /** Optionally hide the year */
     hideYear?: boolean;
+    /** Optional weekly pts change from in_season_trends */
+    ptsChange?: number | null;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -415,6 +423,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             cardPoints={card?.points}
             cardPointsEstimated={card?.points_estimated || undefined}
             cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
+            cardPtsChange={ptsChange}
             cardSpeed={card?.speed.speed || undefined}
             cardHand={card?.hand || undefined}
             cardIp={card?.ip || undefined}
