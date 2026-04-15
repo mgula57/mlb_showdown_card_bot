@@ -317,15 +317,17 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
             )}
 
             {/* Modal for selected card */}
-            {selectedModalCard && (
-                <Modal onClose={() => setSelectedModalCard(null)}>
+            <div className={selectedModalCard ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={() => setSelectedModalCard(null)} isVisible={!!selectedModalCard}>
                     <CardDetail
-                        showdownBotCardData={selectedModalCard}
-                        isLoading={false}
-                        context="season"
+                        showdownBotCardData={selectedModalCard!}
+                        hideTrendGraphs={true}
+                        context="home"
+                        parent='home'
                     />
                 </Modal>
-            )}
+            </div>
+            
         </div>
     );
 }
