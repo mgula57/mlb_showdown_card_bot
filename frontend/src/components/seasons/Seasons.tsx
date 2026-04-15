@@ -6,6 +6,8 @@
  */
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/style.css";
 import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
@@ -124,6 +126,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     });
     const [selectedGamePk, setSelectedGamePk] = useState<number | null>(null);
+    const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+    const datePickerRef = useRef<HTMLDivElement>(null);
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -179,6 +183,19 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const isLoadingSeasonsRef = useRef(false);
     const pendingRequestsRef = useRef(0);
     const isRunningLoadAllRef = useRef(false);
+    const scheduleAbortControllerRef = useRef<AbortController | null>(null);
+
+    // Close date picker when clicking outside
+    useEffect(() => {
+        if (!isDatePickerOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+                setIsDatePickerOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [isDatePickerOpen]);
 
     const beginLoading = () => {
         pendingRequestsRef.current += 1;
@@ -529,12 +546,20 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             return;
         }
 
+        // Cancel any in-flight schedule request
+        scheduleAbortControllerRef.current?.abort();
+        const controller = new AbortController();
+        scheduleAbortControllerRef.current = controller;
+
         beginLoading();
         try {
             const selectedDate = formatDateForApi(gamesDate);
-            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet);
+            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet, controller.signal);
             setGamesSchedule(scheduleData);
         } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error(`Error fetching games schedule for season ${selectedSeason.season_id}:`, error);
             setGamesSchedule(null);
         } finally {
@@ -993,9 +1018,34 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             <FaChevronLeft className="h-5 w-5" />
                                                         </button>
 
-                                                        <div className="text-center leading-tight">
-                                                            <div className="text-sm font-extrabold tracking-wide text-(--text-secondary)">{gamesHeaderTopText}</div>
-                                                            <div className="text-xl font-black text-(--text-primary)">{gamesHeaderBottomText}</div>
+                                                        <div className="relative" ref={datePickerRef}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsDatePickerOpen((prev) => !prev)}
+                                                                className="flex flex-col items-center text-center leading-tight hover:opacity-70 transition-opacity cursor-pointer group"
+                                                                aria-label="Pick a date"
+                                                            >
+                                                                <div className="text-sm font-extrabold tracking-wide text-(--text-secondary)">{gamesHeaderTopText}</div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-xl font-black text-(--text-primary)">{gamesHeaderBottomText}</span>
+                                                                    <FaChevronDown className={`h-3 w-3 text-(--text-secondary) transition-transform ${isDatePickerOpen ? 'rotate-180' : ''}`} />
+                                                                </div>
+                                                            </button>
+                                                            {isDatePickerOpen && (
+                                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 rounded-xl border border-(--divider) bg-(--background-secondary) shadow-xl p-2">
+                                                                    <DayPicker
+                                                                        mode="single"
+                                                                        selected={gamesDate}
+                                                                        onSelect={(day) => {
+                                                                            if (day) {
+                                                                                setGamesDate(new Date(day.getFullYear(), day.getMonth(), day.getDate()));
+                                                                                setIsDatePickerOpen(false);
+                                                                            }
+                                                                        }}
+                                                                        defaultMonth={gamesDate}
+                                                                    />
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         <button

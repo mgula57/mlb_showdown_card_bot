@@ -128,7 +128,7 @@ const getDateInTimeZone = (timeZone: string): string => {
     return `${year}-${month}-${day}`;
 };
 
-export const fetchSchedule = async (sportId: number, season: Season, date?: string, leagues?: League[], showdownSet?: string): Promise<Schedule> => {
+export const fetchSchedule = async (sportId: number, season: Season, date?: string, leagues?: League[], showdownSet?: string, signal?: AbortSignal): Promise<Schedule> => {
     var url = `${API_BASE}/schedule?season=${season.season_id}&sport_id=${sportId}`;
     const userTimeZone = getUserTimeZone();
     url += `&tz_name=${encodeURIComponent(userTimeZone)}`;
@@ -145,7 +145,7 @@ export const fetchSchedule = async (sportId: number, season: Season, date?: stri
     url += `&include_probable_pitchers=true`;
     url += `&include_linescore=true`;
     url += `&include_decisions=true`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal });
     if (!response.ok) {
         throw new Error(`Failed to fetch games for season ${season.season_id}: ${response.statusText}`);
     }
