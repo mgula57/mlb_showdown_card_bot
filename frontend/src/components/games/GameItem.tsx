@@ -13,7 +13,7 @@ type GameItemProps = {
     isStarred?: boolean;
     showMatchupDetails?: boolean;
     playerIdForLinescoreHighlight?: number;
-    cardMap?: Record<number, ShowdownBotCardAPIResponse>;
+    cardMap?: Record<string | number, ShowdownBotCardAPIResponse>;
     isLoadingCards?: boolean;
     onSelect?: (gamePk: number) => void;
 };

@@ -176,9 +176,9 @@ export const CardItemCompact = ({
 
             {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-(--background-secondary)/70 backdrop-blur-[1px]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-(--text-secondary) animate-bounce [animation-delay:0ms]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-(--text-secondary) animate-bounce [animation-delay:150ms]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-(--text-secondary) animate-bounce [animation-delay:300ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
             )}
         </button>

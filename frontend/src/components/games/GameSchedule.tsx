@@ -4,7 +4,10 @@ import { buildCardsFromIds, type ShowdownBotCardAPIResponse } from "../../api/sh
 import { FaArrowsRotate } from "react-icons/fa6";
 import GameItem from "./GameItem";
 
-type CardMap = Record<number, ShowdownBotCardAPIResponse>;
+type CardMap = Record<string, ShowdownBotCardAPIResponse>;
+
+// TODO: replace hard-coded IDs with a general two-way player detection strategy
+const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 
 type GameScheduleProps = {
     games: GameScheduled[];
@@ -55,13 +58,23 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         const isCurrentSeason = new Date().getFullYear() === season;
         const useLastYear = new Date().getMonth() < 3;
         const adjustedSeason = (sportId === 1 && isCurrentSeason && useLastYear) ? season - 1 : season;
+        const todayDate = new Date();
+        const yesterdayDate = new Date(todayDate);
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const today = todayDate.toISOString().split("T")[0];
+        const yesterday = yesterdayDate.toISOString().split("T")[0];
 
         const cardSettings = {
             year: adjustedSeason,
             set: showdownSet,
             stat_highlights_type: "ALL",
+            stats_period_type: "DATES",
+            start_date: `${adjustedSeason}-03-01`,
+            end_date: today,
+            in_season_trends_range_start_date: yesterday,
+            in_season_trends_end_date: today,
         };
-
+        
         setIsLoadingCards(true);
         buildCardsFromIds(allIds, adjustedSeason, cardSettings, true)
             .then((response) => {
@@ -69,7 +82,13 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                 const map: CardMap = {};
                 for (const entry of response.cards ?? []) {
                     if (entry.card?.mlb_id != null) {
-                        map[entry.card.mlb_id] = entry;
+                        const id = entry.card.mlb_id;
+                        if (TWO_WAY_PLAYER_IDS.has(id)) {
+                            const suffix = entry.card.player_type === "Pitcher" ? "P" : "H";
+                            map[`${id}-${suffix}`] = entry;
+                        } else {
+                            map[String(id)] = entry;
+                        }
                     }
                 }
                 setCardMap(map);
