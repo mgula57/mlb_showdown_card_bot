@@ -13,7 +13,7 @@ import { getContrastColor } from "../shared/Color";
 const h = createColumnHelper<RosterSlot>();
 
 const getCardMapKey = (slot: RosterSlot): string =>
-    slot.position.type === 'Two-Way Player' ? `${slot.person.id}-P` : String(slot.person.id);
+    slot.is_pitcher_slot ? `${slot.person.id}-P` : String(slot.person.id);
 
 type TeamRosterPositionTableProps = {
     position: string;

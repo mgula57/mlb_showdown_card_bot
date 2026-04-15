@@ -459,6 +459,8 @@ export interface RosterSlot {
     };
     jersey_number?: string;
     parent_team_id?: number;
+    /** True only for the synthetic extra slot inserted for two-way players pitching role. */
+    is_pitcher_slot?: boolean;
 }
 
 export interface Player {

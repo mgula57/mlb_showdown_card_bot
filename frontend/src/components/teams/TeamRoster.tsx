@@ -106,11 +106,11 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                     if (TWO_WAY_PLAYER_IDS.has(slot.person.id) && newCardMap[`${slot.person.id}-P`]) {
                         newTwoWayPitcherSlots.push({
                             ...slot,
+                            is_pitcher_slot: true,
                             position: { code: '1', name: 'Two-Way Player', type: 'Two-Way Player', abbreviation: 'TWP' },
                         });
                     }
                 }
-
                 setCardMap(newCardMap);
                 setTwoWayPitcherSlots(newTwoWayPitcherSlots);
             })
@@ -121,7 +121,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
     const rosterSlots = [...(roster?.roster ?? []), ...twoWayPitcherSlots];
 
     const getResponseForSlot = (slot: RosterSlot): ShowdownBotCardAPIResponse | undefined => {
-        const key = slot.position.type === 'Two-Way Player' ? `${slot.person.id}-P` : String(slot.person.id);
+        const key = slot.is_pitcher_slot ? `${slot.person.id}-P` : String(slot.person.id);
         return cardMap[key];
     };
 
