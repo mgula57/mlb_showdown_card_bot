@@ -569,7 +569,7 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-x-8 max-w-280">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center sm:items-start gap-x-8 max-w-280">
                 {/* Pitcher side */}
                 <div className="space-y-1.5 min-w-0">
                     <div className="flex items-baseline gap-1.5 justify-between w-full">
@@ -594,19 +594,19 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                 </div>
 
                 {/* Center: Count + Diamond + Outs */}
-                <div className="flex flex-col items-center gap-1.5 px-2 shrink-0">
+                <div className="flex flex-row md:flex-col items-center justify-center gap-1.5 px-2 shrink-0 py-2 space-x-4 md:space-x-0">
                     {linescore.balls != null && linescore.strikes != null ? (
-                        <>
+                        <div className="space-y-1 items-center">
                             <div className="text-[10px] uppercase text-(--secondary) tracking-wide">Count</div>
                             <div className="text-[22px] font-bold text-(--primary) leading-none">{linescore.balls}–{linescore.strikes}</div>
-                        </>
+                        </div>
                     ) : null}
                     <div className="relative w-12 h-12 mt-1">
                         <div className={`absolute top-0 left-1/2 -translate-x-1/2 translate-y-1/4 w-4 h-4 rotate-45 border ${hasSecond ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
                         <div className={`absolute bottom-1/4 left-0.5 w-4 h-4 rotate-45 border ${hasThird ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
                         <div className={`absolute bottom-1/4 right-0.5 w-4 h-4 rotate-45 border ${hasFirst ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
                     </div>
-                    <div className="text-[12px] text-(--secondary)">{outs} out{outs !== 1 ? 's' : ''}</div>
+                    <div className="text-[14px] md:text-[12px] text-(--secondary)">{outs} out{outs !== 1 ? 's' : ''}</div>
                 </div>
 
                 {/* Batter side - right aligned */}
