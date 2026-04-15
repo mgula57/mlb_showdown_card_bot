@@ -9,6 +9,9 @@ import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from "../../api/show
 import { buildCardsFromIds } from "../../api/showdownBotCard";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 
+// TODO: replace hard-coded IDs with a general two-way player detection strategy
+const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
+
 import { CardItemFromCard } from "../cards/CardItem";
 import TeamRosterPositionTable from "./TeamRosterPositionTable";
 import { Modal } from "../shared/Modal";
@@ -69,29 +72,70 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
         if (ids.length === 0) return;
 
         setIsLoadingCards(true);
+        const todayDate = new Date();
+        const yesterdayDate = new Date(todayDate);
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const today = todayDate.toISOString().split("T")[0];
+        const yesterday = yesterdayDate.toISOString().split("T")[0];
         const cardSettings = {
             year: season,
             set: userShowdownSet,
             stat_highlights_type: "ALL",
+            in_season_trends_range_start_date: yesterday,
+            in_season_trends_end_date: today,
         }
         buildCardsFromIds(ids, season, cardSettings)
             .then((response) => {
                 const cardsByMlbId = new Map<number, ShowdownBotCard>();
+                const twoWayCards = new Map<number, { hitter?: ShowdownBotCard; pitcher?: ShowdownBotCard }>();
                 for (const entry of response.cards ?? []) {
                     if (entry.card?.mlb_id != null) {
-                        cardsByMlbId.set(entry.card.mlb_id, entry.card);
+                        const id = entry.card.mlb_id;
+                        if (TWO_WAY_PLAYER_IDS.has(id)) {
+                            const bucket = twoWayCards.get(id) ?? {};
+                            if (entry.card.player_type === "Pitcher") {
+                                bucket.pitcher = entry.card;
+                            } else {
+                                bucket.hitter = entry.card;
+                            }
+                            twoWayCards.set(id, bucket);
+                        } else {
+                            cardsByMlbId.set(id, entry.card);
+                        }
                     }
                 }
-                console.log("Loaded showdown cards for roster:", cardsByMlbId);
-                setEnrichedRoster({
-                    ...roster,
-                    roster: (roster.roster ?? []).map((slot) => ({
+                // For two-way players, store the hitter card in the primary map
+                // for use when mapping back to the original slot.
+                for (const [id, { hitter }] of twoWayCards) {
+                    if (hitter) cardsByMlbId.set(id, hitter);
+                }
+
+                const expandedRoster: RosterSlot[] = [];
+                for (const slot of roster.roster ?? []) {
+                    expandedRoster.push({
                         ...slot,
                         person: {
                             ...slot.person,
                             showdown_card_data: cardsByMlbId.get(slot.person.id) ?? slot.person.showdown_card_data,
                         },
-                    })),
+                    });
+                    // Insert an extra pitcher slot immediately after for two-way players.
+                    const twoWay = twoWayCards.get(slot.person.id);
+                    if (twoWay?.pitcher) {
+                        expandedRoster.push({
+                            ...slot,
+                            position: { code: '1', name: 'Two-Way Player', type: 'Two-Way Player', abbreviation: 'TWP' },
+                            person: {
+                                ...slot.person,
+                                showdown_card_data: twoWay.pitcher,
+                            },
+                        });
+                    }
+                }
+
+                setEnrichedRoster({
+                    ...roster,
+                    roster: expandedRoster,
                 });
             })
             .catch((err) => console.error("Failed to load showdown cards:", err))
@@ -156,7 +200,11 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
     }, {});
 
     const orderedPositions = Object.keys(groupedByPosition)
-        .sort((a, b) => a.localeCompare(b));
+        .sort((a, b) => {
+            if (a === 'Two-Way Player') return -1;
+            if (b === 'Two-Way Player') return 1;
+            return a.localeCompare(b);
+        });
     const topPlayers = [...rosterSlots]
         .filter((slot) => slot.person.showdown_card_data)
         .sort((a, b) => (b.person.showdown_card_data?.stats_period.type === "REPLACEMENT" ? -1 : 0) - (a.person.showdown_card_data?.stats_period?.type === "REPLACEMENT" ? -1 : 0))
@@ -165,9 +213,9 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
 
     const loadingOverlay = (
         <div className={`absolute inset-0 z-10 flex items-center justify-center gap-2 backdrop-blur-[2px] ${isDark ? 'bg-neutral-900/60' : 'bg-white/60'}`}>
-            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
-            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:150ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
-            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:300ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
+            <span className={`w-2 h-2 rounded-full animate-bounce ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} style={{ animationDelay: '0ms' }} />
+            <span className={`w-2 h-2 rounded-full animate-bounce ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} style={{ animationDelay: '150ms' }} />
+            <span className={`w-2 h-2 rounded-full animate-bounce ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} style={{ animationDelay: '300ms' }} />
         </div>
     );
 
