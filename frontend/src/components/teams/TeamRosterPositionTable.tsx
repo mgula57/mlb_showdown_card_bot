@@ -227,7 +227,6 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
                 <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
                     <CardDetail
                         showdownBotCardData={selectedCard!}
-                        hideTrendGraphs={true}
                         context="home"
                         parent='home'
                     />

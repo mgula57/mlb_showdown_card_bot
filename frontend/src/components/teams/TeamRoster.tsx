@@ -74,15 +74,11 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
 
         setIsLoadingCards(true);
         const todayDate = new Date();
-        const oneWeekAgoDate = new Date(todayDate);
-        oneWeekAgoDate.setDate(oneWeekAgoDate.getDate() - 7);
         const today = todayDate.toISOString().split("T")[0];
-        const oneWeekAgo = oneWeekAgoDate.toISOString().split("T")[0];
         const cardSettings = {
             year: season,
             set: userShowdownSet,
             stat_highlights_type: "ALL",
-            in_season_trends_range_start_date: oneWeekAgo,
             in_season_trends_end_date: today,
         }
         buildCardsFromIds(ids, season, cardSettings)
@@ -338,7 +334,6 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                     <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
                         <CardDetail
                             showdownBotCardData={selectedCard!}
-                            hideTrendGraphs={true}
                             context="home"
                             parent='home'
                         />
