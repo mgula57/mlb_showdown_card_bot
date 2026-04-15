@@ -5,8 +5,7 @@
 import { useEffect, useState } from "react";
 
 import { type Roster, type RosterSlot, type Team } from "../../api/mlbAPI";
-import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { buildCardsFromIds } from "../../api/showdownBotCard";
+import { buildCardsFromIds, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
@@ -53,12 +52,14 @@ const getPositionLabel = (slot: RosterSlot): string => {
 };
 
 export default function TeamRoster({ team, sportId, roster, isStarred = false, onToggleStar, season, loadShowdownCards = false }: TeamRosterProps) {
-    const [enrichedRoster, setEnrichedRoster] = useState<Roster | null>(roster);
+    const [cardMap, setCardMap] = useState<Record<string, ShowdownBotCardAPIResponse>>({});
+    const [twoWayPitcherSlots, setTwoWayPitcherSlots] = useState<RosterSlot[]>([]);
     const [isLoadingCards, setIsLoadingCards] = useState(false);
     const { userShowdownSet, isDark } = useSiteSettings();
 
     useEffect(() => {
-        setEnrichedRoster(roster);
+        setCardMap({});
+        setTwoWayPitcherSlots([]);
     }, [roster]);
 
     useEffect(() => {
@@ -86,89 +87,72 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
         }
         buildCardsFromIds(ids, season, cardSettings)
             .then((response) => {
-                const cardsByMlbId = new Map<number, ShowdownBotCard>();
-                const twoWayCards = new Map<number, { hitter?: ShowdownBotCard; pitcher?: ShowdownBotCard }>();
+                const newCardMap: Record<string, ShowdownBotCardAPIResponse> = {};
                 for (const entry of response.cards ?? []) {
                     if (entry.card?.mlb_id != null) {
                         const id = entry.card.mlb_id;
                         if (TWO_WAY_PLAYER_IDS.has(id)) {
-                            const bucket = twoWayCards.get(id) ?? {};
-                            if (entry.card.player_type === "Pitcher") {
-                                bucket.pitcher = entry.card;
-                            } else {
-                                bucket.hitter = entry.card;
-                            }
-                            twoWayCards.set(id, bucket);
+                            const suffix = entry.card.player_type === "Pitcher" ? "-P" : "";
+                            newCardMap[`${id}${suffix}`] = entry;
                         } else {
-                            cardsByMlbId.set(id, entry.card);
+                            newCardMap[String(id)] = entry;
                         }
                     }
                 }
-                // For two-way players, store the hitter card in the primary map
-                // for use when mapping back to the original slot.
-                for (const [id, { hitter }] of twoWayCards) {
-                    if (hitter) cardsByMlbId.set(id, hitter);
-                }
 
-                const expandedRoster: RosterSlot[] = [];
+                // Build extra pitcher slots for two-way players
+                const newTwoWayPitcherSlots: RosterSlot[] = [];
                 for (const slot of roster.roster ?? []) {
-                    expandedRoster.push({
-                        ...slot,
-                        person: {
-                            ...slot.person,
-                            showdown_card_data: cardsByMlbId.get(slot.person.id) ?? slot.person.showdown_card_data,
-                        },
-                    });
-                    // Insert an extra pitcher slot immediately after for two-way players.
-                    const twoWay = twoWayCards.get(slot.person.id);
-                    if (twoWay?.pitcher) {
-                        expandedRoster.push({
+                    if (TWO_WAY_PLAYER_IDS.has(slot.person.id) && newCardMap[`${slot.person.id}-P`]) {
+                        newTwoWayPitcherSlots.push({
                             ...slot,
                             position: { code: '1', name: 'Two-Way Player', type: 'Two-Way Player', abbreviation: 'TWP' },
-                            person: {
-                                ...slot.person,
-                                showdown_card_data: twoWay.pitcher,
-                            },
                         });
                     }
                 }
 
-                setEnrichedRoster({
-                    ...roster,
-                    roster: expandedRoster,
-                });
+                setCardMap(newCardMap);
+                setTwoWayPitcherSlots(newTwoWayPitcherSlots);
             })
             .catch((err) => console.error("Failed to load showdown cards:", err))
             .finally(() => setIsLoadingCards(false));
     }, [loadShowdownCards, roster, season, userShowdownSet]);
 
-    const rosterSlots = enrichedRoster?.roster ?? [];
+    const rosterSlots = [...(roster?.roster ?? []), ...twoWayPitcherSlots];
+
+    const getResponseForSlot = (slot: RosterSlot): ShowdownBotCardAPIResponse | undefined => {
+        const key = slot.position.type === 'Two-Way Player' ? `${slot.person.id}-P` : String(slot.person.id);
+        return cardMap[key];
+    };
+
     const [topPlayerLimit, setTopPlayerLimit] = useState<number>(() => {
         if (typeof window === "undefined") {
             return 3; // Default for server-side rendering
         }
         return getTopPlayerLimit(window.innerWidth);
     });
-    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
+    const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Calculate team points summary
-    const teamRosterSlots = enrichedRoster?.roster ?? [];
-    const teamShowdownPointsTotal = teamRosterSlots.reduce((total, slot) => {
-        const playerPoints = slot.person.showdown_card_data?.stats_period?.type !== "REPLACEMENT" ? slot.person.showdown_card_data?.points ?? 0 : 0;
+    const teamShowdownPointsTotal = rosterSlots.reduce((total, slot) => {
+        const card = getResponseForSlot(slot)?.card;
+        const playerPoints = card?.stats_period?.type !== "REPLACEMENT" ? card?.points ?? 0 : 0;
         return total + playerPoints;
     }, 0);
-    const teamPlayersWithShowdownCards = teamRosterSlots.filter((slot) =>
-        (slot.person.showdown_card_data?.points !== undefined || slot.person.points !== undefined) && slot.person.showdown_card_data?.stats_period?.type !== "REPLACEMENT"
-    ).length;
-    const teamAvgPointsPerPlayer = teamRosterSlots.length > 0 ? teamShowdownPointsTotal / teamRosterSlots.length : 0;
+    const teamPlayersWithShowdownCards = rosterSlots.filter((slot) => {
+        const card = getResponseForSlot(slot)?.card;
+        return (card?.points !== undefined || slot.person.points !== undefined) && card?.stats_period?.type !== "REPLACEMENT";
+    }).length;
+    const teamAvgPointsPerPlayer = rosterSlots.length > 0 ? teamShowdownPointsTotal / rosterSlots.length : 0;
 
     // Handle selection of players
     const handleRowClick = (slot: RosterSlot) => {
-        if (!slot.person.showdown_card_data) {
+        const response = getResponseForSlot(slot);
+        if (!response) {
             return;
         }
-        setSelectedCard(slot.person.showdown_card_data);
+        setSelectedCard(response);
         setIsModalOpen(true);
     }
 
@@ -190,6 +174,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
     const isLoadingRoster = roster === null;
     const isLoading = isLoadingRoster || isLoadingCards;
 
+
     const groupedByPosition = rosterSlots.reduce<Record<string, RosterSlot[]>>((groups, slot) => {
         const positionKey = getPositionLabel(slot);
         if (!groups[positionKey]) {
@@ -206,9 +191,9 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
             return a.localeCompare(b);
         });
     const topPlayers = [...rosterSlots]
-        .filter((slot) => slot.person.showdown_card_data)
-        .sort((a, b) => (b.person.showdown_card_data?.stats_period.type === "REPLACEMENT" ? -1 : 0) - (a.person.showdown_card_data?.stats_period?.type === "REPLACEMENT" ? -1 : 0))
-        .sort((a, b) => (b.person.showdown_card_data?.points || 0) - (a.person.showdown_card_data?.points || 0))
+        .filter((slot) => getResponseForSlot(slot) != null)
+        .sort((a, b) => (getResponseForSlot(b)?.card?.stats_period?.type === "REPLACEMENT" ? -1 : 0) - (getResponseForSlot(a)?.card?.stats_period?.type === "REPLACEMENT" ? -1 : 0))
+        .sort((a, b) => (getResponseForSlot(b)?.card?.points || 0) - (getResponseForSlot(a)?.card?.points || 0))
         .slice(0, topPlayerLimit);
 
     const loadingOverlay = (
@@ -305,18 +290,15 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                         <div className="px-4 py-3 text-sm text-(--text-secondary)">No showdown card data available.</div>
                     ) : (
                         <div className="p-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-2">
-                            {topPlayers.map((slot) => {
-                                const card = slot.person.showdown_card_data;
-                                return (
+                            {topPlayers.map((slot) => (
                                     <CardItemFromCard
-                                        key={slot.person.id}
-                                        card={card}
+                                        key={`${slot.person.id}-${slot.position.type ?? slot.position.code}`}
+                                        card={getResponseForSlot(slot)?.card}
                                         className="w-full"
                                         hideYear={true}
                                         onClick={() => handleRowClick(slot)}
                                     />
-                                );
-                            })}
+                                ))}
                         </div>
                     )}
                 </section>
@@ -334,6 +316,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                                 key={position}
                                 position={position}
                                 slots={groupedByPosition[position]}
+                                cardMap={cardMap}
                                 className="p-3"
                             />
                         ))
@@ -343,7 +326,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                 <div className={isModalOpen ? '' : 'hidden pointer-events-none'}>
                     <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
                         <CardDetail
-                            showdownBotCardData={{ card: selectedCard } as ShowdownBotCardAPIResponse} 
+                            showdownBotCardData={selectedCard!}
                             hideTrendGraphs={true}
                             context="home"
                             parent='home'

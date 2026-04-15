@@ -27,22 +27,34 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
 
     // Derive a stable key from only the IDs relevant to each game's current state,
     // so the card-fetch effect only re-runs when those IDs actually change.
+    // Two-way players are encoded with a role suffix (e.g. "660271-H" vs "660271-P")
+    // so the key changes when their on-field role changes.
     const idsKey = useMemo(() => {
         const ids = new Set<string>();
+        const encodeId = (id: number, role: 'H' | 'P'): string =>
+            TWO_WAY_PLAYER_IDS.has(id) ? `${id}-${role}` : String(id);
+
         for (const game of games) {
             const coded = game.status?.coded_game_state;
             const isFinal = coded === 'F' || game.status?.status_code === 'F';
             const isNotStarted = coded === 'P' || coded === 'S';
             const isInProgress = !isFinal && !isNotStarted;
 
-            const candidates = isFinal
-                ? [game.decisions?.winner?.id, game.decisions?.loser?.id]
-                : isInProgress
-                    ? [game.linescore?.offense?.batter?.id, game.linescore?.defense?.pitcher?.id]
-                    : [game.teams?.away?.probable_pitcher?.id, game.teams?.home?.probable_pitcher?.id];
-
-            for (const id of candidates) {
-                if (id != null) ids.add(String(id));
+            if (isFinal) {
+                const winner = game.decisions?.winner?.id;
+                const loser = game.decisions?.loser?.id;
+                if (winner != null) ids.add(encodeId(winner, 'P'));
+                if (loser != null) ids.add(encodeId(loser, 'P'));
+            } else if (isInProgress) {
+                const batter = game.linescore?.offense?.batter?.id;
+                const pitcher = game.linescore?.defense?.pitcher?.id;
+                if (batter != null) ids.add(encodeId(batter, 'H'));
+                if (pitcher != null) ids.add(encodeId(pitcher, 'P'));
+            } else {
+                const awayPitcher = game.teams?.away?.probable_pitcher?.id;
+                const homePitcher = game.teams?.home?.probable_pitcher?.id;
+                if (awayPitcher != null) ids.add(encodeId(awayPitcher, 'P'));
+                if (homePitcher != null) ids.add(encodeId(homePitcher, 'P'));
             }
         }
         return [...ids].sort().join(',');
@@ -52,7 +64,8 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         if (!season || !showdownSet || !idsKey) return;
         let cancelled = false;
 
-        const allIds = idsKey.split(',');
+        // Strip role suffixes (e.g. "660271-H" → "660271") to get plain IDs for the API call.
+        const allIds = [...new Set(idsKey.split(',').map(k => k.split('-')[0]))];
 
         // Apply same season adjustment as GameDetail (use prior year's cards before May 1st)
         const isCurrentSeason = new Date().getFullYear() === season;

@@ -92,6 +92,13 @@ function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
     };
 }
 
+// TODO: replace hard-coded IDs with a general two-way player detection strategy
+const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
+
+/** Returns the cardMap key for a player, adding a role suffix for two-way players. */
+const cardKey = (id: number, role: 'H' | 'P'): string =>
+    TWO_WAY_PLAYER_IDS.has(id) ? `${id}-${role}` : String(id);
+
 const formatGameTime = (gameDate?: string): string => {
     if (!gameDate) {
         return "TBD";
@@ -166,13 +173,13 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const winnerId = game.decisions?.winner?.id;
     const loserId = game.decisions?.loser?.id;
 
-    // Card responses from map
-    const awayProbableCardResponse = awayProbableId ? cardMap?.[awayProbableId] : undefined;
-    const homeProbableCardResponse = homeProbableId ? cardMap?.[homeProbableId] : undefined;
-    const liveAtBatCardResponse = liveBatterId ? cardMap?.[liveBatterId] : undefined;
-    const livePitchingCardResponse = livePitcherId ? cardMap?.[livePitcherId] : undefined;
-    const winningPitcherCardResponse = winnerId ? cardMap?.[winnerId] : undefined;
-    const losingPitcherCardResponse = loserId ? cardMap?.[loserId] : undefined;
+    // Card responses from map — two-way players use a role suffix to pick the correct card.
+    const awayProbableCardResponse = awayProbableId ? cardMap?.[cardKey(awayProbableId, 'P')] : undefined;
+    const homeProbableCardResponse = homeProbableId ? cardMap?.[cardKey(homeProbableId, 'P')] : undefined;
+    const liveAtBatCardResponse = liveBatterId ? cardMap?.[cardKey(liveBatterId, 'H')] : undefined;
+    const livePitchingCardResponse = livePitcherId ? cardMap?.[cardKey(livePitcherId, 'P')] : undefined;
+    const winningPitcherCardResponse = winnerId ? cardMap?.[cardKey(winnerId, 'P')] : undefined;
+    const losingPitcherCardResponse = loserId ? cardMap?.[cardKey(loserId, 'P')] : undefined;
 
     const inningHalf = (game.linescore?.inning_half || game.linescore?.inning_state || '').toUpperCase();
     const inningNumber = game.linescore?.current_inning_ordinal || game.linescore?.current_inning || '';

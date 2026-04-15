@@ -9,7 +9,7 @@
  * @version 4.0
  */
 
-import { type ShowdownBotCard, type ShowdownBotCardCompact } from "./showdownBotCard";
+import { type ShowdownBotCard, type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "./showdownBotCard";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -470,7 +470,7 @@ export interface Player {
 
     // Optional Showdown Card Data
     points?: number;
-    showdown_card_data?: ShowdownBotCard;
+    showdown_card_data?: ShowdownBotCardAPIResponse;
 }
 
 // ***************************
