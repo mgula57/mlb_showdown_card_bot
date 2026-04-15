@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { type GameScheduled } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { FaArrowsRotate } from "react-icons/fa6";
@@ -22,26 +22,34 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoadingCards, setIsLoadingCards] = useState(false);
 
-    useEffect(() => {
-        if (!season || !showdownSet || games.length === 0) return;
-        let cancelled = false;
-
-        const allIds = new Set<string>();
+    // Derive a stable key from only the IDs relevant to each game's current state,
+    // so the card-fetch effect only re-runs when those IDs actually change.
+    const idsKey = useMemo(() => {
+        const ids = new Set<string>();
         for (const game of games) {
-            const candidates = [
-                game.teams?.away?.probable_pitcher?.id,
-                game.teams?.home?.probable_pitcher?.id,
-                game.linescore?.defense?.pitcher?.id,
-                game.linescore?.offense?.batter?.id,
-                game.decisions?.winner?.id,
-                game.decisions?.loser?.id,
-            ];
+            const coded = game.status?.coded_game_state;
+            const isFinal = coded === 'F' || game.status?.status_code === 'F';
+            const isNotStarted = coded === 'P' || coded === 'S';
+            const isInProgress = !isFinal && !isNotStarted;
+
+            const candidates = isFinal
+                ? [game.decisions?.winner?.id, game.decisions?.loser?.id]
+                : isInProgress
+                    ? [game.linescore?.offense?.batter?.id, game.linescore?.defense?.pitcher?.id]
+                    : [game.teams?.away?.probable_pitcher?.id, game.teams?.home?.probable_pitcher?.id];
+
             for (const id of candidates) {
-                if (id != null) allIds.add(String(id));
+                if (id != null) ids.add(String(id));
             }
         }
+        return [...ids].sort().join(',');
+    }, [games]);
 
-        if (allIds.size === 0) return;
+    useEffect(() => {
+        if (!season || !showdownSet || !idsKey) return;
+        let cancelled = false;
+
+        const allIds = idsKey.split(',');
 
         // Apply same season adjustment as GameDetail (use prior year's cards before May 1st)
         const isCurrentSeason = new Date().getFullYear() === season;
@@ -55,7 +63,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         };
 
         setIsLoadingCards(true);
-        buildCardsFromIds([...allIds], adjustedSeason, cardSettings, true)
+        buildCardsFromIds(allIds, adjustedSeason, cardSettings, true)
             .then((response) => {
                 if (cancelled) return;
                 const map: CardMap = {};
@@ -67,10 +75,12 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                 setCardMap(map);
             })
             .catch(() => {})
-            .finally(() => { if (!cancelled) setIsLoadingCards(false); });
+            .finally(() => { if (!cancelled) {
+                setIsLoadingCards(false);
+            }});
 
         return () => { cancelled = true; };
-    }, [games, season, showdownSet, sportId]);
+    }, [idsKey, season, showdownSet, sportId]);
 
     if (!games.length) {
         return null;

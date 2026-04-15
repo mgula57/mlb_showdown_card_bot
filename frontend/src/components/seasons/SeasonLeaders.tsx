@@ -227,8 +227,6 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
         { value: 'pitching', label: 'Pitching' },
     ];
 
-    console.log('SeasonLeaders render:', { leaderGroups, cardMap, filterGroup, groupsByCategory, visibleCategories });
-
     return (
         <div className="pb-24">
             {/* Header */}
