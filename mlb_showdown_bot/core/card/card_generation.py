@@ -10,7 +10,7 @@ import ast
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
-from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
+from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, StatsPeriodLeague
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
@@ -191,7 +191,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # GRAB FROM FANGRAPHS IF AVAILABLE
                 has_pulled_fangraphs_defense = False
                 defense_empty_warning = "Failed to fetch defensive stats. Using league avg for defense instead."
-                if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER:
+                if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_mlb:
                     try:
                         fangraphs_api = FangraphsAPIClient()
                         fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
@@ -214,7 +214,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                             normalized_player_stats.warnings.append(defense_empty_warning)
 
                 # IF FANGRAPHS FAILS, USE STATCAST DEFENSE IF AVAILABLE
-                if not has_pulled_fangraphs_defense and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_during_statcast_era:
+                if not has_pulled_fangraphs_defense and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_mlb and stats_period.is_during_statcast_era:
                     statcast_api_client = StatcastAPIClient()
                     oaa_dict = statcast_api_client.fetch_defense_for_player(stats_period=stats_period, mlb_player_id=player_data.id)
                     normalized_player_stats.inject_statcast_oaa(oaa_stats=oaa_dict)
@@ -227,7 +227,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     db.close_connection()
                     normalized_player_stats.add_bref_id(bref_id)
 
-                if stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
+                if stats_period.is_mlb and stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
                     statcast_api_client = StatcastAPIClient()
                     sprint_speed_data = statcast_api_client.fetch_sprint_speed_for_player(stats_period=stats_period, player_id=player_data.id)
                     normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed if sprint_speed_data else None

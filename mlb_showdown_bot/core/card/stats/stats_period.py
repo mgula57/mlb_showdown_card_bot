@@ -142,6 +142,11 @@ class StatsPeriodYearType(str, Enum):
     MULTI_YEAR = "MULTI_YEAR"
     FULL_CAREER = "FULL_CAREER"
 
+class StatsPeriodLeague(str, Enum):
+    MLB = "MLB"
+    MILB = "MILB"
+    NPB = "NPB"
+    KBO = "KBO"
 
 class StatsPeriod(BaseModel):
 
@@ -168,6 +173,7 @@ class StatsPeriod(BaseModel):
 
     # SOURCE
     source: str = 'Unknown'
+    league: Optional[StatsPeriodLeague] = StatsPeriodLeague.MLB
 
     # STATS
     # FILLED IN SHOWDOWN BOT CLASS
@@ -294,6 +300,19 @@ class StatsPeriod(BaseModel):
         year_list:list[int] = info.data.get('year_list', [])
         return len(year_list) > 1
     
+    @field_validator('league', mode='before')
+    def validate_league(cls, league:Optional[StatsPeriodLeague]) -> Optional[StatsPeriodLeague]:
+        if league is None:
+            return StatsPeriodLeague.MLB
+        if isinstance(league, StatsPeriodLeague):
+            return league
+        if isinstance(league, str):
+            try:
+                return StatsPeriodLeague(league.upper())
+            except ValueError:
+                raise ValueError(f"Invalid league: {league}. Must be one of {[l.value for l in StatsPeriodLeague]}")
+        raise ValueError(f"Invalid league type: {type(league)}. Must be a string or StatsPeriodLeague enum.")
+
     # ---------------------------------
     # PROPERTIES
     # ---------------------------------
@@ -419,6 +438,13 @@ class StatsPeriod(BaseModel):
         """
         return self.player_type_override and self.player_type_override == PlayerType.HITTER
 
+    @property
+    def is_mlb(self) -> bool:
+        """
+        Returns True if the league is MLB or not set.
+        """
+        return self.league in [StatsPeriodLeague.MLB] or self.league is None
+    
     # ---------------------------------
     # METHODS
     # ---------------------------------

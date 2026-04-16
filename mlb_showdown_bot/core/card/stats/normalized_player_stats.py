@@ -8,7 +8,7 @@ from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
-from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType
+from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague
 from .datasource import Datasource
 
 # -------------------------------
@@ -658,6 +658,11 @@ class PlayerStatsNormalizer:
     @staticmethod
     def extract_team_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
         """Extracts the team ID for the player in the given stats period"""
+
+        if stats_period.league and stats_period.league == StatsPeriodLeague.MILB:
+            # TODO: USE GENERIC MILB TEAM FOR NOW. EVENTUALLY WILL NEED TO MAP TO SPECIFIC TEAMS
+            return 'MILB'
+
         stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
         is_hitter = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER if stats_period else not mlb_player.is_pitcher
         group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
@@ -973,6 +978,9 @@ class PlayerStatsNormalizer:
     @staticmethod
     def _determine_rookie_status(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> bool:
         """Determines if the player is a rookie in the given stats period"""
+
+        if stats_period.league and stats_period.league == StatsPeriodLeague.MILB:
+            return False  # We don't want to classify any minor league players as rookies since they won't have MLB rookie status
         
         if mlb_player.rookie_seasons is None or len(mlb_player.rookie_seasons) == 0:
             return False
