@@ -53,7 +53,7 @@ class PeopleClient(BaseMLBClient):
     # STANDARD PLAYERS
     # -----------------------
 
-    def search_players(self, name: str, active_status: str = 'both', limit: int = 25, seasons: Optional[List[int]] = None, hydrations: Optional[List[str]] = None, response_fields_list: Optional[List[str]] = None) -> List[Player]:
+    def search_players(self, name: str, active_status: str = 'both', limit: int = 25, seasons: Optional[List[int]] = None, league_list: Optional[LeagueListEnum] = None, hydrations: Optional[List[str]] = None, response_fields_list: Optional[List[str]] = None) -> List[Player]:
         """Search for players by name"""
         params = {
             'names': name,
@@ -67,7 +67,9 @@ class PeopleClient(BaseMLBClient):
         if response_fields_list:
             params['fields'] = ','.join(response_fields_list + ['people']) # Ensure 'people' is always included in the response for proper parsing into Player objects
         if hydrations:
-            params['hydrate'] = ','.join(hydrations)   
+            params['hydrate'] = ','.join(hydrations)
+        if league_list:
+            params['leagueListId'] = league_list.value
         # Uses base client's _make_request with caching and rate limiting
         data = self._make_request('people/search', params)
         return [Player(**player_data) for player_data in data.get('people', [])]
@@ -120,7 +122,7 @@ class PeopleClient(BaseMLBClient):
                         seasons = stats_period.year_list
                         types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED])
 
-                if player_type.is_pitcher:
+                if player_type.is_pitcher and not is_non_mlb:
                     types.append(StatTypeEnum.STAT_SPLITS)
 
         try:
@@ -184,7 +186,8 @@ class PeopleClient(BaseMLBClient):
                 pitcher_stat_groups = ['pitching', 'fielding']
                 hitter_stat_groups = ['hitting', 'fielding']
                 league_list_hydration = f",leagueListId={league_list.value}" if league_list else ""
-                pitcher_sit_codes = ',sitCodes=[sp,rp]'
+                is_milb = league_list and 'milb' in league_list.value.lower()
+                pitcher_sit_codes = '' if is_milb else ',sitCodes=[sp,rp]'
                 if type:
                     match type:
                         case PlayerType.PITCHER:

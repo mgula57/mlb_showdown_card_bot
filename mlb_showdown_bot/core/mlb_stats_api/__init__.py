@@ -74,12 +74,12 @@ class MLBStatsAPI:
                 case 'MILB':
                     league_list = LeagueListEnum.MILB_FULL
 
-            player_search_result = self.people.get_player(player_id=player_id, include_stats=False)
+            player_search_result = self.people.get_player(player_id=player_id, include_stats=False, league_list=league_list)
 
         else:
 
             # Search for the player by name
-            player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, active_status='both')
+            player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, league_list=league_list, active_status='both')
 
             # If no results found, return None
             if not player_search_results or len(player_search_results) == 0:
