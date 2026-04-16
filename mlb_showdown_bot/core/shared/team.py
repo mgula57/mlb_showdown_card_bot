@@ -339,6 +339,8 @@ class Team(str, Enum):
             case 'WSA': return (0, 33, 68, 255)
             case 'WSH': return (0, 33, 68, 255)
             case 'WSN': return (171, 0, 3, 255)
+
+            case 'MILB': return (1, 37, 142, 255)
             case _: return (55, 55, 55, 255)
 
     @property
@@ -600,6 +602,8 @@ class Team(str, Enum):
             case 'WAP': return (20, 20, 20, 255)
             case 'WMP' | 'WP': return (10, 33, 63, 255)
             case 'WSH': return (204, 9, 47, 255)
+
+            case 'MILB': return (0, 111, 255, 255)
 
             case _: return self.primary_color
     
@@ -1328,7 +1332,7 @@ class Team(str, Enum):
                     case 'MIL-5': return (-25, -60)
                     case 'MLA': return (-90, -250)
                     case 'MLB': return (-70, -200)
-                    case 'MILB': return (-70, -200)
+                    case 'MILB': return (-120, -220)
                     case 'MLN': return (-160, -100)
                     case 'PBG': return (0, -50)
                     case 'PBS': return (-60, -50)
