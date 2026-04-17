@@ -143,6 +143,13 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             for (const b of boxscore.teams[side].batting) allIds.add(String(b.id));
             for (const p of boxscore.teams[side].pitching) allIds.add(String(p.id));
         }
+        // Include probable starters for pre-game state
+        if (boxscore.probable_pitchers) {
+            for (const side of ["away", "home"] as const) {
+                const id = boxscore.probable_pitchers[side]?.id;
+                if (id != null) allIds.add(String(id));
+            }
+        }
 
         // Override the team for each ID based on the boxscore data, to ensure we get the correct card even if the player is now on a new team
         const overrides: Record<number, Record<string, unknown>> = {};
@@ -153,6 +160,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             }
             for (const p of boxscore.teams[side].pitching) {
                 overrides[p.id] = { team: teamAbbreviation };
+            }
+            // Also override probable pitchers
+            const probableId = boxscore.probable_pitchers?.[side]?.id;
+            if (probableId != null) {
+                overrides[probableId] = { team: teamAbbreviation };
             }
         }
 
