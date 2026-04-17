@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlb-showdown-bot"
-version = "4.1"
+version = "4.11"
 description = "Create custom MLB Showdown cards"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"

@@ -27,6 +27,15 @@ class Team(BaseModel):
             return None
         return v
     
+    @property
+    def bref_team(self) -> Optional[str]:
+        """Helper property to get the Baseball Reference team code for this team, which is used in various places in the frontend."""
+        if self.abbreviation:
+            showdown_team_match = ShowdownTeam.map_from_mlb_api_team(self.abbreviation)
+            if showdown_team_match and showdown_team_match != ShowdownTeam.MLB:
+                return showdown_team_match.value
+        return None
+    
 class TeamWithColors(Team):
     """Extension of Team model that includes primary and secondary colors for the team. These colors are used for styling purposes in the frontend."""
     

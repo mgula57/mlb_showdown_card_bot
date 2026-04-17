@@ -2,7 +2,7 @@ import typer
 from typing import Optional
 
 # Import business logic
-from ...core.card.card_generation import generate_card
+from ...core.card.card_generation import generate_card, generate_cards
 
 app = typer.Typer()
 
@@ -11,6 +11,7 @@ def card_main(
     ctx: typer.Context,
     name: str = typer.Option(None, "--name", "-n", help="Player name"),
     year: str = typer.Option(None, "--year", "-y", help="The year of the player"),
+    player_ids: str = typer.Option(None, "--player_ids", "-ids", help="Comma separated list of MLB player IDs to generate cards for. Overrides name and year parameters."),
 
     # OVERRIDES
     player_type_override: str = typer.Option(None, "--player_type_override", "-pto", help="Override the card type. Either `Pitcher` or `Hitter`"),
@@ -82,6 +83,12 @@ def card_main(
     # Get all CLI parameters
     params = ctx.params
     
+    # Run multiple card generation if player_ids is provided, otherwise generate a single card
+    if params['player_ids']:
+        params['player_ids'] = [int(pid.strip()) for pid in params['player_ids'].split(",")]
+        params['years'] = [params['year']] if params['year'] else None
+        return generate_cards(**params)
+
     # Generate card
     payload = generate_card(**params)
     

@@ -2,8 +2,14 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..core.shared.team import Team
 from .utils.search_helpers import summarize_awards, get_career_records
+from ..core.mlb_stats_api import MLBStatsAPI
+
+from unidecode import unidecode
 
 search_bp = Blueprint('search', __name__)
+
+# MLB API CACHE
+_mlb_api = MLBStatsAPI(cache_ttl=360) # CACHE FOR 6 HOURS TO IMPROVE PERFORMANCE ON ACTIVE PLAYER SEARCHES
 
 @search_bp.route('/players/search', methods=["POST", "GET"])
 def search_players():
@@ -13,6 +19,11 @@ def search_players():
 
     # OPTIONS
     exclude_multi_year = request.args.get('exclude_multi_year', 'false').lower() == 'true'
+    include_mlb_api_current_season = request.args.get('include_mlb_api_current_season', 'false').lower() == 'true'
+
+    # CONFIG
+    mlb_api_fields = ['id', 'fullName', 'currentTeam', 'team', 'abbreviation']
+    mlb_api_hydrations = ['currentTeam', 'team']
 
     # MINIMUM OF 2 CHARACTERS
     if len(query) < 2:
@@ -23,6 +34,33 @@ def search_players():
         return jsonify([])
 
     try:
+
+        # LOOK FOR `{YEAR}` PATTERN FOR CURRENT YEAR
+        # EX: '2026'
+        current_year = datetime.now().year
+
+        if include_mlb_api_current_season and query == str(current_year):
+                            
+            active_players = _mlb_api.people.search_players(
+                                name='', 
+                                active_status='active', 
+                                seasons=[current_year], 
+                                hydrations=mlb_api_hydrations, 
+                                response_fields_list=mlb_api_fields,
+                                limit=15
+                            )
+            return jsonify([{
+                'type': 'single_year',
+                'name': unidecode(player.full_name),
+                'year': current_year,
+                'player_id': player.id,
+                'is_hof': None,
+                'award_summary': None,
+                'bwar': None,
+                'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
+            } for player in active_players])
+
+
         from mlb_showdown_bot.core.database.postgres_db import PostgresDB
 
         # CONNECT TO DB
@@ -80,7 +118,7 @@ def search_players():
                     'name': name,
                     'year': int(year),
                     'year_display': str(int(year)),
-                    'bref_id': bref_id,
+                    'player_id': bref_id,
                     'team': team,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
@@ -119,7 +157,7 @@ def search_players():
                     'name': name,
                     'year': "CAREER",
                     'year_display': f"Career ({int(first_year)}-{int(last_year)})",
-                    'bref_id': bref_id,
+                    'player_id': bref_id,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
                     'bwar': round(career_bwar, 1),
@@ -190,7 +228,7 @@ def search_players():
                         'name': name,
                         'year': f"{int(first_year)}-{int(last_year)}",
                         'year_display': f"{int(first_year)}-{int(last_year)}",
-                        'bref_id': bref_id,
+                        'player_id': bref_id,
                         'is_hof': is_hof,
                         'award_summary': award_summary,
                         'bwar': round(total_bwar, 1),
@@ -226,7 +264,7 @@ def search_players():
                     'type': 'single_year',
                     'name': name,
                     'year': year,
-                    'bref_id': bref_id,
+                    'player_id': bref_id,
                     'team': team,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
@@ -243,6 +281,31 @@ def search_players():
                 displays = get_career_records(cursor=cursor, name=name)
             else:
                 year = int(year)
+
+                # CHECK FOR CURRENT YEAR SEARCH WITH MLB API OPTION
+                if include_mlb_api_current_season and current_year == int(year):
+                    active_players = _mlb_api.people.search_players(
+                                        name=name, 
+                                        active_status='active', 
+                                        seasons=[current_year], 
+                                        hydrations=mlb_api_hydrations, 
+                                        response_fields_list=mlb_api_fields,
+                                        limit=15
+                                    )
+                    displays = [{
+                        'type': 'single_year',
+                        'name': unidecode(player.full_name),
+                        'year': current_year,
+                        'player_id': player.id,
+                        'is_hof': None,
+                        'award_summary': None,
+                        'bwar': None,
+                        'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
+                    } for player in active_players]
+
+                    return jsonify(displays)
+
+                
                 cursor.execute("""
                     SELECT 
                         name,
@@ -265,7 +328,7 @@ def search_players():
                         'type': 'single_year',
                         'name': name,
                         'year': year,
-                        'bref_id': bref_id,
+                        'player_id': bref_id,
                         'is_hof': is_hof,
                         'award_summary': award_summary,
                         'bwar': bwar,
@@ -317,7 +380,7 @@ def search_players():
                     'type': 'single_year',
                     'name': name,
                     'year': year,
-                    'bref_id': bref_id,
+                    'player_id': bref_id,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
                     'bwar': bwar,
@@ -360,7 +423,7 @@ def search_players():
                         'name': name,
                         'year': f"{int(first_year)}-{int(last_year)}",
                         'year_display': f"Career ({int(first_year)}-{int(last_year)})",
-                        'bref_id': bref_id,
+                        'player_id': bref_id,
                         'is_hof': is_hof,
                         'award_summary': award_summary,
                         'bwar': round(career_bwar, 1),
@@ -410,13 +473,42 @@ def search_players():
                     'type': 'single_year',
                     'name': name,
                     'year': year,
-                    'bref_id': bref_id,
+                    'player_id': bref_id,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
                     'bwar': bwar,
                     'team': team,
                     'player_type_override': player_type_override,
                 })
+
+            if include_mlb_api_current_season:
+                active_players = _mlb_api.people.search_players(
+                                    name=query, 
+                                    active_status='active', 
+                                    seasons=[current_year], 
+                                    hydrations=mlb_api_hydrations, 
+                                    response_fields_list=mlb_api_fields,
+                                    limit=8
+                                )
+                displays.extend([{
+                    'type': 'single_year',
+                    'name': unidecode(player.full_name),
+                    'year': current_year,
+                    'player_id': player.id,
+                    'is_hof': None,
+                    'award_summary': None,
+                    'bwar': None,
+                    'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
+                } for player in active_players])
+
+                # RE-SORT
+                displays.sort(key=lambda x: (
+                    x['name'].lower() == query.lower(),  # Exact name match first
+                    x['year'] == current_year,  # Current year first
+                    x['bwar'] if x['bwar'] is not None else -float('inf'),  # Then by bwar
+                    x['name']  # Then alphabetically
+                ), reverse=True)
+
 
         # CLOSE THE CONNECTION
         conn.close()

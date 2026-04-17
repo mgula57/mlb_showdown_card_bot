@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type RosterSlot } from "../../api/mlbAPI";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import { BasicDataTable } from "../shared/BasicDataTable";
@@ -12,13 +12,43 @@ import { getContrastColor } from "../shared/Color";
 
 const h = createColumnHelper<RosterSlot>();
 
-/** Create a column helper that tells tanstack the format of the data*/
-const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
-    h.accessor((slot) => slot.person.showdown_card_data?.name || slot.person.full_name || "-", {
+const getCardMapKey = (slot: RosterSlot): string =>
+    slot.is_pitcher_slot ? `${slot.person.id}-P` : String(slot.person.id);
+
+type TeamRosterPositionTableProps = {
+    position: string;
+    slots: RosterSlot[];
+    cardMap: Record<string, ShowdownBotCardAPIResponse>;
+    className?: string;
+    tableClassName?: string;
+};
+
+export default function TeamRosterPositionTable({ position, slots, cardMap, className, tableClassName }: TeamRosterPositionTableProps) {
+
+    const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleRowClick = (slot: RosterSlot) => {
+        const response = cardMap[getCardMapKey(slot)];
+        if (!response) {
+            return;
+        }
+        setSelectedCard(response);
+        setIsModalOpen(true);
+    };
+
+    const showdownCardColumns = useMemo((): ColumnDef<RosterSlot, any>[] => {
+        const getCard = (slot: RosterSlot): ShowdownBotCard | undefined =>
+            cardMap[getCardMapKey(slot)]?.card ?? undefined;
+
+        return [
+    h.accessor((slot) => getCard(slot)?.name || slot.person.full_name || "-", {
         id: "name",
         header: "Name",
         cell: ({ row, getValue }) => {
-            const card = row.original.person.showdown_card_data;
+            const card = getCard(row.original);
+            const response = cardMap[getCardMapKey(row.original)];
+            const ptsChange = response?.in_season_trends?.pts_change.week;
             const name = getValue();
             const year = card?.year || "-";
             const isWbc = card?.image.edition === 'WBC';
@@ -31,8 +61,13 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
                     <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-scroll">
                         {name}
                     </div>
-                    <div className="flex flex-row italic text-[11px] gap-1">
+                    <div className="flex flex-row italic text-[11px] gap-1 items-center">
                         {isReplacement ? "-" : `${year} ${team}`}
+                        {ptsChange != null && ptsChange !== 0 && (
+                            <span className={`not-italic text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                                {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}
+                            </span>
+                        )}
                         {card?.icons && (
                             <>
                                 {card.icons.map((icon, index) => (
@@ -56,26 +91,25 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
             )
         }
     }),
-    h.accessor((slot) => slot.person.showdown_card_data?.team || "-", {
+    h.accessor((slot) => getCard(slot)?.team || "-", {
         id: "team",
         header: "Team",
         meta: {
             className: "hidden",
         }
     }),
-    h.accessor((slot) => slot.person.showdown_card_data?.points ?? "-", {
+    h.accessor((slot) => getCard(slot)?.points ?? "-", {
         id: "points",
         header: "PTS",
     }),
-    h.accessor((slot) => slot.person.showdown_card_data?.speed.speed ?? "-", {
+    h.accessor((slot) => getCard(slot)?.speed.speed ?? "-", {
         id: "speed_or_ip",
         header: "SPD/IP",
         meta: {
             className: "hidden sm:table-cell",
         },
         cell: ({ row, getValue }) => {
-            
-            const card = row.original.person.showdown_card_data;
+            const card = getCard(row.original);
             const isPitcher = card?.chart.is_pitcher;
 
             if (isPitcher) {
@@ -92,7 +126,7 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
     
     h.accessor((slot) => {
         return (
-            slot.person.showdown_card_data?.positions_and_defense_string.replace(" +", "+") ||
+            getCard(slot)?.positions_and_defense_string.replace(" +", "+") ||
             slot.position.abbreviation ||
             slot.position.code ||
             slot.position.name ||
@@ -104,11 +138,11 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
         header: "Def"
     }),
 
-    h.accessor((slot) => slot.person.showdown_card_data?.chart?.command, {
+    h.accessor((slot) => getCard(slot)?.chart?.command, {
         id: "command",
         header: "Ctrl/OB",
         cell: ({ row }) => {
-            const card = row.original.person.showdown_card_data;
+            const card = getCard(row.original);
             if (!card) {
                 return '—';
             }
@@ -124,11 +158,11 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
             );
         },
     }),
-    h.accessor((slot) => slot.person.showdown_card_data?.chart?.ranges, {
+    h.accessor((slot) => getCard(slot)?.chart?.ranges, {
         id: "chart",
         header: "Chart",
         cell: ({ row }) => {
-            const card = row.original.person.showdown_card_data;
+            const card = getCard(row.original);
             if (!card) {
                 return '—';
             }
@@ -145,7 +179,7 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
             );
         },
     }),
-     h.accessor((slot) => slot.person.showdown_card_data?.set, {
+    h.accessor((slot) => getCard(slot)?.set, {
         header: "Set",
         cell: ({ getValue }) => {
             const set = getValue();
@@ -162,27 +196,8 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
             className: "hidden sm:table-cell",
         }
     }),
-];
-
-type TeamRosterPositionTableProps = {
-    position: string;
-    slots: RosterSlot[];
-    className?: string;
-    tableClassName?: string;
-};
-
-export default function TeamRosterPositionTable({ position, slots, className, tableClassName }: TeamRosterPositionTableProps) {
-
-    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
-    const handleRowClick = (slot: RosterSlot) => {
-        if (!slot.person.showdown_card_data) {
-            return;
-        }
-        setSelectedCard(slot.person.showdown_card_data);
-        setIsModalOpen(true);
-    };
+        ];
+    }, [cardMap]);
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
@@ -211,8 +226,7 @@ export default function TeamRosterPositionTable({ position, slots, className, ta
             <div className={isModalOpen ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
                     <CardDetail
-                        showdownBotCardData={{ card: selectedCard } as ShowdownBotCardAPIResponse} 
-                        hideTrendGraphs={true}
+                        showdownBotCardData={selectedCard!}
                         context="home"
                         parent='home'
                     />

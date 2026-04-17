@@ -2,17 +2,21 @@ import io
 import csv
 import cloudscraper
 import requests
-from typing import Any, Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 import re
 import json
 from ..card.stats.stats_period import StatsPeriod
 from .models import StatcastLeaderboardEntry
 
+_LEADERBOARD_CACHE: dict[tuple, tuple[list, datetime]] = {}
+_LEADERBOARD_CACHE_TTL = timedelta(hours=8)
+
 class StatcastAPIClient:
     """Client to interact with Statcast API for fetching baseball statistics"""
 
     BASE_URL = "https://baseballsavant.mlb.com"
-    
+
     def __init__(self, timeout: int = 30):
         self.timeout = timeout
         self.session = requests.Session()
@@ -73,19 +77,23 @@ class StatcastAPIClient:
     # SPRINT SPEED 
     # -------------------
 
-    def fetch_sprint_speed_leaderboard(self, stats_period: StatsPeriod, min_opportunities: int = 0) -> list[StatcastLeaderboardEntry]:
+    def fetch_sprint_speed_leaderboard(self, season: Optional[int] = None, min_opportunities: int = 0) -> list[StatcastLeaderboardEntry]:
         """Fetch sprint speed leaderboard from Statcast
         
         Args:
-            stats_period: StatsPeriod object defining the time frame.
+            season: Year of the leaderboard.
             min_opportunities: Minimum opportunities to filter players.
         
         Returns:
             List of sprint speed stats dictionaries
         """
-        
-        # PARSE INPUTS
-        season = stats_period.year_int if stats_period.year_int else None
+
+        cache_key = (season, min_opportunities)
+        now = datetime.now(timezone.utc)
+        cached = _LEADERBOARD_CACHE.get(cache_key)
+        if cached and now < cached[1]:
+            print("Serving Savant Sprint Speed leaderboard from cache")
+            return cached[0]
 
         params = {
             "year": season,
@@ -93,9 +101,9 @@ class StatcastAPIClient:
         }
 
         data = self._request("leaderboard/sprint_speed", params)
-
         leaderboard_entries = [StatcastLeaderboardEntry(**entry) for entry in data]
 
+        _LEADERBOARD_CACHE[cache_key] = (leaderboard_entries, now + _LEADERBOARD_CACHE_TTL)
         return leaderboard_entries
     
     def fetch_sprint_speed_for_player(self, stats_period: StatsPeriod, player_id: int) -> StatcastLeaderboardEntry:
@@ -109,7 +117,7 @@ class StatcastAPIClient:
             Sprint speed stats dictionary for the player
         """
 
-        leaderboard = self.fetch_sprint_speed_leaderboard(stats_period, min_opportunities=0)
+        leaderboard = self.fetch_sprint_speed_leaderboard(season=stats_period.year_int, min_opportunities=0)
         for entry in leaderboard:
             if entry.player_id == player_id:
                 return entry

@@ -258,7 +258,8 @@ class ShowdownPlayerCard(BaseModel):
         self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
         self.player_sub_type = self.calculate_player_sub_type()
         self.ip: int = self._innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
-        self.hand: Hand = self._handedness(hand_raw=self.stats_for_card.get('hand', None))
+        hand_raw = self.stats_for_card.get('hand', None) if self.player_type == PlayerType.HITTER else ( self.stats_for_card.get('hand_throw', None) or self.stats_for_card.get('hand', None) )
+        self.hand: Hand = self._handedness(hand_raw=hand_raw)
         sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
         pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
         sb_per_650_pa = sb_safe / (pa_safe / 650.0) if pa_safe > 0 else 0
@@ -419,7 +420,7 @@ class ShowdownPlayerCard(BaseModel):
         return Nationality(stats.get('nationality', Nationality.NONE))
 
     @field_validator('player_type_override', mode='before')
-    def parse_player_type_override(cls, player_type_override:str) -> PlayerType:
+    def parse_player_type_override(cls, player_type_override:str, info:ValidationInfo) -> PlayerType:
         """Check for player type override as an input and within the user inputted name."""
 
         if player_type_override:
@@ -432,6 +433,10 @@ class ShowdownPlayerCard(BaseModel):
             player_type_override = player_type_override.replace('(','').replace(')','').title()
             return PlayerType(player_type_override)
 
+        # CHECK STATS PERIOD FOR OVERRIDE
+        stats_period: StatsPeriod = info.data.get('stats_period', None)
+        if stats_period and stats_period.player_type_override and type(stats_period.player_type_override) is PlayerType:
+            return stats_period.player_type_override
         
         return None
 
@@ -1918,8 +1923,10 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_pitcher and 'fip' not in stats.keys():
             
             fip_constant = sc.FIP_CONSTANT.get(self.median_year, 3.2)
+            if sc.FIP_CONSTANT.get(self.median_year, None) is None:
+                print("WARNING: FIP CONSTANT NOT FOUND FOR YEAR {}, USING 3.2".format(self.median_year)) if fip_constant is None else None
             hr_weighted = 13 * stats.get('HR', 0)
-            bb_weighted = 3 * stats.get('BB', 0)
+            bb_weighted = 3 * (stats.get('BB', 0) + stats.get('HBP', 0))
             so_weighted = 2 * stats.get('SO', 0)
             ip = stats.get('IP', 1)
             stats['fip'] = round(( (hr_weighted + bb_weighted - so_weighted) / ip) + fip_constant, 2)

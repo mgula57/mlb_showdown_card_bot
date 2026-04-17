@@ -1283,7 +1283,7 @@ class PostgresDB:
                             season_int = int(standing.league.season)
                         except ValueError:
                             season_int = datetime.now().year
-                        season_offset = 1 if season_int == current_year and standing.league.sport.id == 1 and current_month < 4 else 0
+                        season_offset = 1 if season_int == current_year and standing.league.sport.id == 1 and current_month < 5 else 0
                         filter_values = (standing.league.season, standing.league.season, season_offset, showdown_set)
                 
                 results = self.execute_query(query=query, filter_values=filter_values)

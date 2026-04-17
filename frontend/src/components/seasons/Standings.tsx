@@ -84,9 +84,9 @@ export default function Standings({ standingsEntries, selectedSportId, onTeamSel
 													<th className="px-4 py-2.5">{isCompact ? 'W' : 'Wins'}</th>
 													<th className="px-4 py-2.5">{isCompact ? 'L' : 'Losses'}</th>
 													<th className="px-4 py-2.5">{isCompact ? 'Pct' : 'Win %'}</th>
-													{leagueStanding.team_records?.[0]?.showdown_points !== undefined && (
+													{/* {leagueStanding.team_records?.[0]?.showdown_points !== undefined && (
 														<th className="px-4 py-2.5">{isCompact ? 'Pts' : 'Points'}</th>
-													)}
+													)} */}
 												</tr>
 											</thead>
 											<tbody>
@@ -121,9 +121,9 @@ export default function Standings({ standingsEntries, selectedSportId, onTeamSel
 															<td className="px-4 py-2.5">{record.league_record.wins}</td>
 															<td className="px-4 py-2.5">{record.league_record.losses}</td>
 															<td className="px-4 py-2.5">{record.league_record.percentage || '-'}</td>
-															{record.showdown_points !== undefined && record.showdown_points !== null && (
+															{/* {record.showdown_points !== undefined && record.showdown_points !== null && (
 																<td className="px-4 py-2.5">{record.showdown_points.toLocaleString()}</td>
-															)}
+															)} */}
 														</tr>
 													);
 												})}

@@ -168,6 +168,39 @@ export async function fetchCardById(cardId: string, source: string): Promise<Sho
     return res.json();
 }
 
+export async function buildCards(requestedCards: Record<string, any>[]): Promise<ShowdownBotMultiCardAPIResponse> {
+    const res = await fetch(`${API_BASE}/build_cards`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requested_cards: requestedCards }),
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch cards failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
+export async function buildCardsFromIds(cardIds: string[], season: number | string, cardSettings: Record<string, any> = {}, useCache: boolean = false, explicit_types_mapping?: Record<string, string>): Promise<ShowdownBotMultiCardAPIResponse> {
+    const res = await fetch(`${API_BASE}/build_cards_from_ids`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: cardIds, season: season, card_settings: cardSettings, use_cache: useCache, explicit_types_mapping: explicit_types_mapping }),
+
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch cards failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
 // =============================================================================
 // MARK: - API RESPONSE TYPES
 // =============================================================================
@@ -196,6 +229,17 @@ export type ShowdownBotCardAPIResponse = {
     
     /** User-friendly error message for display */
     error_for_user: string | null;
+
+    /** Generic extra stat attribute. Used to display things like badges, icons, or other visual indicators */
+    extra_stat?: Record<string, any> | null;
+};
+
+export type ShowdownBotMultiCardAPIResponse = {
+
+    cards?: ShowdownBotCardAPIResponse[] | null;
+    error: string | null;
+    error_for_user: string | null;
+
 };
 
 // =============================================================================
@@ -346,6 +390,7 @@ export type ShowdownBotCard = {
     
     /** Formatted positions with defensive ratings */
     positions_and_defense_string: string;
+    positions_and_defense: Record<string, number>;
 
     // Visual presentation
     /** Card image styling and metadata */

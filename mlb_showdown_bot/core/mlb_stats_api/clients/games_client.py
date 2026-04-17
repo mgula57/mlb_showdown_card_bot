@@ -29,6 +29,7 @@ class GamesClient(BaseMLBClient):
         boxscore = live_data.get("boxscore", {})
         linescore_raw = live_data.get("linescore", {})
         decisions_raw = live_data.get("decisions", {})
+        plays_raw = live_data.get("plays", {})
 
         def _extract_team_info(side: str) -> dict:
             team_raw = game_data.get("teams", {}).get(side, {})
@@ -183,6 +184,20 @@ class GamesClient(BaseMLBClient):
                 "full_name": d.get("fullName", ""),
                 "link": d.get("link", ""),
             }
+        
+        def _extract_most_recent_play(plays: dict) -> dict | None:
+            """Extract details of the most recent play from the plays data. Only include result and matchup details, not the full play-by-play info."""
+            all_plays = plays.get("allPlays", [])
+            if not all_plays:
+                return None
+            if len(all_plays) == 0:
+                return None
+            most_recent = all_plays[-1]
+            return {
+                "result": most_recent.get("result", {}),
+                "matchup": most_recent.get("matchup", {}),
+                "about": most_recent.get("about", {}),
+            }
 
         # Linescore
         innings = []
@@ -254,6 +269,15 @@ class GamesClient(BaseMLBClient):
                 "loser": _extract_decision("loser"),
                 "save": _extract_decision("save"),
             },
+            "probable_pitchers": {
+                side: {
+                    "id": pitcher.get("id"),
+                    "full_name": pitcher.get("fullName", ""),
+                }
+                for side, pitcher in game_data.get("probablePitchers", {}).items()
+                if pitcher
+            },
+            "most_recent_play": _extract_most_recent_play(plays_raw),
         }
 
     def _resolve_target_date(self, date_str: Optional[str], tz_name: str) -> dt_date:

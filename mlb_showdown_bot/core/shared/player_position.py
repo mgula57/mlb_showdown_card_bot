@@ -211,6 +211,9 @@ class Position(Enum):
         if value in ['LF/RF', 'LFRF']: # HANDLE LF/RF ALTERNATIVES
             return cls.LFRF
         
+        if value == 'TWP': # HANDLE TWO WAY PLAYER DESIGNATION
+            return cls.SP
+        
         return None
     
     @property

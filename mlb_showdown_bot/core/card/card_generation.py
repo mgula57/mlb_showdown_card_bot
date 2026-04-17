@@ -10,7 +10,7 @@ import ast
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
-from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
+from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, StatsPeriodLeague
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
@@ -103,8 +103,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             kwargs['year'] = str(random_player.year)
 
         # REPLACE NAME WITH PLAYER ID IF PROVIDED
-        disable_player_id = kwargs.get('datasource', 'BREF') == 'MLB_API' # TODO: REMOVE THIS LATER
-        if kwargs.get('player_id', None) and not disable_player_id:
+        if kwargs.get('player_id', None):
             kwargs['name'] = kwargs['player_id']
 
         # REMOVE IMAGE PREFIXES FROM KEYS
@@ -176,19 +175,29 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # NORMALIZE FORMAT
                 mlb_stats_api = MLBStatsAPI_V2()
                 league = kwargs.get('league', 'MLB')
-                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period, league=league)
+                # Strip all extra overrides from the search name (ex: "Shohei Ohtani (Pitching)" -> "Shohei Ohtani") to improve MLB API search results. MLB API is very bad at handling extra characters in the search query.
+                search_name = kwargs.get('name', '')
+                if search_name:
+                    search_name = search_name.split('(')[0].strip()
+                player_data = mlb_stats_api.build_full_player_from_search(search_name=search_name, stats_period=stats_period, league=league)
+                if player_data is None:
+                    raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')}")
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
+
+                if normalized_player_stats is None or normalized_player_stats.PA is None or normalized_player_stats.PA == 0:
+                    raise Exception(f"No stats found for player and year combination.")
 
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
                 # GRAB FROM FANGRAPHS IF AVAILABLE
                 has_pulled_fangraphs_defense = False
                 defense_empty_warning = "Failed to fetch defensive stats. Using league avg for defense instead."
-                if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER:
+                if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_mlb:
                     try:
                         fangraphs_api = FangraphsAPIClient()
                         fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
                             stat_type="fld",
-                            stats_period=stats_period,
+                            season_start=stats_period.first_year,
+                            season_end=stats_period.last_year,
                             position="all",
                             fangraphs_player_ids=[str(player_data.fangraphs_id)],
                         )
@@ -205,7 +214,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                             normalized_player_stats.warnings.append(defense_empty_warning)
 
                 # IF FANGRAPHS FAILS, USE STATCAST DEFENSE IF AVAILABLE
-                if not has_pulled_fangraphs_defense and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_during_statcast_era:
+                if not has_pulled_fangraphs_defense and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_mlb and stats_period.is_during_statcast_era:
                     statcast_api_client = StatcastAPIClient()
                     oaa_dict = statcast_api_client.fetch_defense_for_player(stats_period=stats_period, mlb_player_id=player_data.id)
                     normalized_player_stats.inject_statcast_oaa(oaa_stats=oaa_dict)
@@ -218,7 +227,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     db.close_connection()
                     normalized_player_stats.add_bref_id(bref_id)
 
-                if stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
+                if stats_period.is_mlb and stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
                     statcast_api_client = StatcastAPIClient()
                     sprint_speed_data = statcast_api_client.fetch_sprint_speed_for_player(stats_period=stats_period, player_id=player_data.id)
                     normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed if sprint_speed_data else None
@@ -337,7 +346,6 @@ def generate_card(**kwargs) -> dict[str, Any]:
             in_season_trends_data = generate_in_season_trends_for_player(
                 actual_card=card, 
                 date_aggregation=in_season_trend_aggregation, 
-                latest_game_boxscore=game_boxscore,
                 **kwargs
             )
             if in_season_trends_data:
@@ -395,6 +403,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         is_user_year_before_player_career_start = input_year_int < first_year if input_year_int else False
         is_error_cannot_find_bref_page = "cannot find bref page" in (error_full.lower() or '')
         is_error_too_many_requests_to_bref = "429 - TOO MANY REQUESTS TO " in error_full.upper() and "baseball-ref" in error_full.lower()
+        is_error_missing_mlb_api_data = "no stats found for player and year combination" in error_full.lower()
 
         # ERROR SENT TO USER
         error_for_user = error_full
@@ -415,7 +424,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
         elif is_user_year_before_player_career_start:
             error_for_user = year_range_error_message
-
+        elif is_error_missing_mlb_api_data:
+            error_for_user = "Failed to retrieve valid stats from MLB API for the player. Check the year and name spelling. If needed, grab the player's ID from MLB.com via the url and enter it as the name. Ex: https://www.mlb.com/player/ramon-laureano-656555 would have a player ID of 656555."
         print("--------- ERROR MESSAGE ---------")
         traceback.print_exc()
         print("---------------------------------")
@@ -510,7 +520,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     # GET ALL HISTORICAL CARDS
     return CareerTrends(yearly_trends=yearly_trends_data)
 
-def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, latest_game_boxscore:dict=None, **kwargs) -> InSeasonTrends:
+def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, include_day_over_day: bool = False, **kwargs) -> InSeasonTrends:
     """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week."""
 
     # REMOVE PRINT TO CLI
@@ -533,22 +543,24 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
 
     # GET IN SEASON TRENDS
     year = actual_card.stats_period.year_list[0]
-    player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', game_logs[0].get('date_game', None)), year=year)
-    player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', game_logs[-1].get('date_game', None)), year=year)
+    first_game_date_str = game_logs[0].get('date', game_logs[0].get('date_game', None))
+    last_game_date_str = kwargs.get('in_season_trends_end_date', game_logs[-1].get('date', game_logs[-1].get('date_game', None)))
+    player_first_date = convert_to_date(game_log_date_str=first_game_date_str, year=year)
+    player_last_date = convert_to_date(game_log_date_str=last_game_date_str, year=year)
+
+    # RANGE
+    in_season_trends_range_start_date = kwargs.get('in_season_trends_range_start_date', None)
+    if in_season_trends_range_start_date:
+        in_season_trends_range_start_date = convert_to_date(game_log_date_str=in_season_trends_range_start_date, year=year)
     
     # DEFINE DATE RANGES
-    date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
-    date_str_from_boxscore = latest_game_boxscore.get('datetime', {}).get('official_date', None) if latest_game_boxscore else None
-    is_day_over_day_comparison = False
-    if date_str_from_boxscore:
-        # IF LATEST GAME DATE = THE PLAYER LAST DATE:
+    date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date, range_start_date=in_season_trends_range_start_date)
+    if include_day_over_day:
         # ADD A TREND POINT FOR THE LATEST GAME'S DATE -1
-        date_from_boxscore = convert_to_date(game_log_date_str=date_str_from_boxscore, year=year)
-        if date_from_boxscore == player_last_date:
-            yesterday = date_from_boxscore - timedelta(days=1)
+        yesterday = player_last_date - timedelta(days=1)
+        if yesterday not in [dr[1] for dr in date_ranges]: # CHECK TO MAKE SURE WE DON'T DUPLICATE A DATE RANGE IF THE LAST DATE RANGE ALREADY ENDS ON THE LATEST GAME DATE
             # APPEND AT SECOND TO LAST POSITION
             date_ranges.insert(-1, (player_first_date, yesterday))
-            is_day_over_day_comparison = True
 
     in_season_trends_data: dict[str, TrendDatapoint] = {}
     for dr in date_ranges:
@@ -584,12 +596,12 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
         last_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-2]]
 
         # DAY
-        if is_day_over_day_comparison:
+        if include_day_over_day:
             # GET THE LAST TWO DAYS
             in_season_trends.pts_change['day'] = int(current_card.points - last_card.points)
 
         # WEEK
-        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if is_day_over_day_comparison and trends_data_count > 2 else last_card
+        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if include_day_over_day and trends_data_count > 2 else last_card
         in_season_trends.pts_change['week'] = int(current_card.points - last_weeks_card.points)
 
     # PRINT HISTORICAL POINTS
@@ -645,16 +657,119 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     if random_player:
         return random_player
 
-def _convert_to_seasons_list(input: list | str | int) -> list[str | int]:
-    """Convert input to a list of seasons."""
-    if isinstance(input, int):
-        return [input]
-    elif isinstance(input, str):
-        if input.lower() == 'career':
-            return ['career']
-        else:
-            return convert_year_string_to_list(input)
-    elif isinstance(input, list):
-        return input
-    else:
+# Players that should generate two separate cards (one Hitter, one Pitcher).
+# TODO: replace hard-coded IDs with a general two-way player detection strategy.
+_TWO_WAY_PLAYER_IDS: set[int] = {660271}  # Ohtani
+
+def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[dict[str, Any]]:
+    """Generate multiple cards for a list of player ids and a year. Only works with MLB API datasource.
+
+    Args:
+        player_ids: List of player ids to generate cards for
+        years: List of years to generate cards for
+        **kwargs: Keyword arguments to pass to card generation function
+
+    Returns:
+        List of generated ShowdownPlayerCardApi data
+        {
+            "card": ShowdownPlayerCard,
+            "in_season_trends": InSeasonTrends,
+            ...
+        }
+    """
+
+    # Remove stats kwarg since we will be pulling stats from the MLB API
+    if 'stats' in kwargs:
+        kwargs.pop('stats')
+
+    # Pull stats across player ids
+    mlb_api = MLBStatsAPI_V2()
+    player_stats = mlb_api.build_players_from_id_list(
+        player_ids=player_ids,
+        seasons=years
+    )
+    if len(player_stats.players) == 0:
+        print("No players found for the provided player ids and years.")
         return []
+
+    # Get statcast sprint speed data for all players if applicable
+    statcast_api_client = StatcastAPIClient()
+    sprint_speed_data = statcast_api_client.fetch_sprint_speed_leaderboard(years[0])
+
+    # Get Fangraphs defensive stats for all players if applicable
+    fangraphs_api = FangraphsAPIClient()
+    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+        stat_type="fld",
+        season_start=years[0],
+        season_end=years[-1],
+        position="all",
+        fangraphs_player_ids=player_stats.fangraphs_ids,
+    )
+
+    # Generate cards for each player
+    final_cards: list[dict] = []
+    for player_data in player_stats.players:
+        # Two-way players (e.g. Ohtani) get one card per type; all others get a single card.
+        player_type_overrides: list[PlayerType | None] = (
+            [PlayerType.HITTER, PlayerType.PITCHER]
+            if player_data.id in _TWO_WAY_PLAYER_IDS
+            else [None]
+        )
+        for player_type_override in player_type_overrides:
+            try:
+                stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
+                stats_period = StatsPeriod(
+                    type=stats_period_type,
+                    player_type_override=player_type_override.value if player_type_override else None,
+                    **kwargs
+                )
+                normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(
+                    player=player_data,
+                    stats_period=stats_period,
+                )
+
+                # Inject sprint speed if available
+                if sprint_speed_data and normalized_player_stats.type == PlayerType.HITTER:
+                    player_sprint_speed_data = next((s for s in sprint_speed_data if s.player_id == player_data.id), None)
+                    if player_sprint_speed_data:
+                        normalized_player_stats.sprint_speed = player_sprint_speed_data.sprint_speed
+
+                # Inject defensive stats if available
+                position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list if pos_stats.get('xMLBAMID', None) == player_data.id]
+                if position_stats and normalized_player_stats.type == PlayerType.HITTER:
+                    normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+
+                if normalized_player_stats.is_missing_stats:
+                    print(f"Skipping card generation for {player_data.full_name} ({normalized_player_stats.type}) in {years[0]} due to missing stats.")
+                    continue
+
+                card = ShowdownPlayerCard(
+                    name=player_data.full_name,
+                    stats_period=stats_period,
+                    stats=normalized_player_stats.as_dict(),
+                    image=ShowdownImage(**kwargs),
+                    **kwargs
+                )
+                final_data: dict[str, Any] = {
+                    "card": card.as_json(),
+                }
+
+                in_season_trends_data = generate_in_season_trends_for_player(
+                    actual_card=card,
+                    date_aggregation="week",
+                    include_day_over_day=True,
+                    name=player_data.full_name,
+                    **kwargs
+                )
+                if in_season_trends_data:
+                    final_data["in_season_trends"] = in_season_trends_data.as_json()
+                else:
+                    print(f"No in-season trends data for {player_data.full_name} in {years[0]}.")
+
+                final_cards.append(final_data)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                continue
+
+    return final_cards

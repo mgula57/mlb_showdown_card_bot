@@ -4,8 +4,8 @@ import { FaStar } from "react-icons/fa6";
 import { countryCodeForTeam } from "../../functions/flags";
 import { getReadableTextColor } from "../../functions/colors";
 import { type GameScheduled, type GameBoxscoreDetail } from "../../api/mlbAPI";
-import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
-import { CardItemCompact } from "../cards/CardItemCompact";
+import { type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "../../api/showdownBotCard";
+import { CardItemCompact, CardItemCompactFromCard } from "../cards/CardItemCompact";
 
 type GameItemProps = {
     game: GameScheduled | GameBoxscoreDetail;
@@ -13,6 +13,8 @@ type GameItemProps = {
     isStarred?: boolean;
     showMatchupDetails?: boolean;
     playerIdForLinescoreHighlight?: number;
+    cardMap?: Record<string | number, ShowdownBotCardAPIResponse>;
+    isLoadingCards?: boolean;
     onSelect?: (gamePk: number) => void;
 };
 
@@ -46,6 +48,7 @@ function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
                     ? { wins: (awayTeamInfo.record as { wins?: number }).wins, losses: (awayTeamInfo.record as { losses?: number }).losses }
                     : undefined,
                 batting: raw.teams.away.batting,
+                pitching: raw.teams.away.pitching,
             },
             home: {
                 team: homeTeamInfo,
@@ -55,6 +58,7 @@ function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
                     ? { wins: (homeTeamInfo.record as { wins?: number }).wins, losses: (homeTeamInfo.record as { losses?: number }).losses }
                     : undefined,
                 batting: raw.teams.home.batting,
+                pitching: raw.teams.home.pitching,
             },
         },
         linescore: {
@@ -88,6 +92,13 @@ function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
     };
 }
 
+// TODO: replace hard-coded IDs with a general two-way player detection strategy
+const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
+
+/** Returns the cardMap key for a player, adding a role suffix for two-way players. */
+const cardKey = (id: number, role: 'H' | 'P'): string =>
+    TWO_WAY_PLAYER_IDS.has(id) ? `${id}-${role}` : String(id);
+
 const formatGameTime = (gameDate?: string): string => {
     if (!gameDate) {
         return "TBD";
@@ -104,7 +115,25 @@ const formatGameTime = (gameDate?: string): string => {
     }).format(parsedDate);
 };
 
-export default function GameItem({ game: rawGame, sportId, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, onSelect }: GameItemProps) {
+const formatGameDate = (gameDate?: string, includeTime: boolean = false): string => {
+    if (!gameDate) {
+        return "TBD";
+    }
+
+    const parsedDate = new Date(gameDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+        return "TBD";
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: includeTime ? 'numeric' : undefined,
+        minute: includeTime ? '2-digit' : undefined,
+    }).format(parsedDate);
+};
+
+export default function GameItem({ game: rawGame, sportId, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, cardMap, isLoadingCards, onSelect }: GameItemProps) {
     const game = normalizeGame(rawGame);
     const awayTeam = game.teams?.away?.team;
     const homeTeam = game.teams?.home?.team;
@@ -135,6 +164,22 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const homeProbablePitcherName = game.teams?.home?.probable_pitcher?.full_name;
     const winningPitcherName = game.decisions?.winner?.full_name;
     const losingPitcherName = game.decisions?.loser?.full_name;
+
+    // Player IDs for cardMap lookups
+    const awayProbableId = game.teams?.away?.probable_pitcher?.id;
+    const homeProbableId = game.teams?.home?.probable_pitcher?.id;
+    const livePitcherId = game.linescore?.defense?.pitcher?.id;
+    const liveBatterId = game.linescore?.offense?.batter?.id;
+    const winnerId = game.decisions?.winner?.id;
+    const loserId = game.decisions?.loser?.id;
+
+    // Card responses from map — two-way players use a role suffix to pick the correct card.
+    const awayProbableCardResponse = awayProbableId ? cardMap?.[cardKey(awayProbableId, 'P')] : undefined;
+    const homeProbableCardResponse = homeProbableId ? cardMap?.[cardKey(homeProbableId, 'P')] : undefined;
+    const liveAtBatCardResponse = liveBatterId ? cardMap?.[cardKey(liveBatterId, 'H')] : undefined;
+    const livePitchingCardResponse = livePitcherId ? cardMap?.[cardKey(livePitcherId, 'P')] : undefined;
+    const winningPitcherCardResponse = winnerId ? cardMap?.[cardKey(winnerId, 'P')] : undefined;
+    const losingPitcherCardResponse = loserId ? cardMap?.[cardKey(loserId, 'P')] : undefined;
 
     const inningHalf = (game.linescore?.inning_half || game.linescore?.inning_state || '').toUpperCase();
     const inningNumber = game.linescore?.current_inning_ordinal || game.linescore?.current_inning || '';
@@ -170,7 +215,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     );
 
     const playerIdLinescoreMatch = playerIdForLinescoreHighlight ?
-        (game.teams?.away?.batting?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.batting?.find(player => player.id === playerIdForLinescoreHighlight))
+        (game.teams?.away?.batting?.find(player => player.id === playerIdForLinescoreHighlight && player.is_in_lineup) || game.teams?.home?.batting?.find(player => player.id === playerIdForLinescoreHighlight && player.is_in_lineup))
         || (game.teams?.away?.pitching?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.pitching?.find(player => player.id === playerIdForLinescoreHighlight))
         : undefined;
     const playerLinescoreSummary = playerIdLinescoreMatch ? (
@@ -231,12 +276,12 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const winningPitcherCardFallback = createPlaceholderCard('winner', winningPitcherName, winnerTeamAbbr, 'Winning Pitcher');
     const losingPitcherCardFallback = createPlaceholderCard('loser', losingPitcherName, loserTeamAbbr, 'Losing Pitcher');
 
-    const awayProbableCard = game.teams?.away?.probable_pitcher?.card || awayProbableCardFallback;
-    const homeProbableCard = game.teams?.home?.probable_pitcher?.card || homeProbableCardFallback;
-    const liveAtBatCard = game.linescore?.offense?.batter?.card || liveAtBatCardFallback;
-    const livePitchingCard = game.linescore?.defense?.pitcher?.card || livePitchingCardFallback;
-    const winningPitcherCard = game.decisions?.winner?.card || winningPitcherCardFallback;
-    const losingPitcherCard = game.decisions?.loser?.card || losingPitcherCardFallback;
+    const awayProbableCard = awayProbableCardFallback;
+    const homeProbableCard = homeProbableCardFallback;
+    const liveAtBatCard = liveAtBatCardFallback;
+    const livePitchingCard = livePitchingCardFallback;
+    const winningPitcherCard = winningPitcherCardFallback;
+    const losingPitcherCard = losingPitcherCardFallback;
     const stateBadgeLabel = isFinal ? 'Final' : isInProgress ? 'Live' : 'Preview';
     const stateBadgeClasses = isFinal
         ? 'border-green-500/40 bg-green-500/10 text-green-300'
@@ -246,25 +291,24 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
 
     return (
         <div
-            className={`rounded-xl border bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-yellow-400/50' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
+            className={`rounded-xl border-2 bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-yellow-400/50' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
             onClick={onSelect ? () => onSelect(game.game_pk) : undefined}
             role={onSelect ? "button" : undefined}
             tabIndex={onSelect ? 0 : undefined}
             onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(game.game_pk); } } : undefined}
         >
-            {(game.series_description || game.description) && (
+            {(game.series_description || game.description) && game.series_description !== "Regular Season" && (
                 <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
-                    {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
                     <span>{(game.series_description || game.description || "Game")}
                     {game.series_game_number ? ` | Game ${game.series_game_number}` : ""}</span>
                 </div>
                 )
             }
 
-            <div className="py-2 flex items-center justify-between gap-2">
-                <div className="text-md font-extrabold text-(--text-primary)">
+            <div className="py-1 flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-1 text-sm font-extrabold text-(--text-primary)">
                     {isFinal && (
-                        <><span>FINAL</span></>
+                        <span>{formatGameDate(game.game_date)}</span>
                     )}
                     {!isFinal && hasStarted && (
                         <span>{inningHalf && inningNumber ? `${inningHalf} ${inningNumber}` : ''}</span>
@@ -272,6 +316,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     {!isFinal && !hasStarted && (
                         <span>{formatGameTime(game.game_date)}</span>
                     )}
+                    {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
                 </div>
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
                     {stateBadgeLabel}
@@ -290,7 +335,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                                 <ReactCountryFlag countryCode={awayCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                             )}
                             <span
-                                className={`text-lg font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                                className={`font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
                                 style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
                             >{awayAbbr}</span>
                             {awayRecord && (
@@ -298,7 +343,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                             )}
                         </div>
                         {hasStarted && awayScore != null && (
-                            <span className="text-lg font-black text-(--text-primary)">{awayScore}</span>
+                            <span className="font-black text-(--text-primary)">{awayScore}</span>
                         )}
                     </div>
 
@@ -308,7 +353,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                                 <ReactCountryFlag countryCode={homeCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                             )}
                             <span
-                                className={`text-lg font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                                className={`font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
                                 style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
                             >{homeAbbr}</span>
                             {homeRecord && (
@@ -316,7 +361,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                             )}
                         </div>
                         {hasStarted && homeScore != null && (
-                            <span className="text-lg font-black text-(--text-primary)">{homeScore}</span>
+                            <span className="font-black text-(--text-primary)">{homeScore}</span>
                         )}
                     </div>
                 </div>
@@ -328,54 +373,67 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
             
             {isNotStarted && showMatchupDetails && (
                 <>
-                    <div className="border-t border-(--divider) my-2" />
+                    <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Away Probable</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Away Probable</span>
                         </div>
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Home Probable</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Home Probable</span>
                         </div>
                     </div>
-                    <div className="pt-1 flex gap-2">
-                        <CardItemCompact card={awayProbableCard} />
-                        <CardItemCompact card={homeProbableCard} />
+                    <div className="pt-1 flex gap-2 items-center">
+                        {awayProbableCardResponse?.card
+                            ? <CardItemCompactFromCard card={awayProbableCardResponse.card} />
+                            : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} />}
+                        <span className="text-[12px]">vs</span>
+                        {homeProbableCardResponse?.card
+                            ? <CardItemCompactFromCard card={homeProbableCardResponse.card} />
+                            : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} />}
                     </div>
                 </>
             )}
 
             {isInProgress && showMatchupDetails && (
                 <>
-                    <div className="border-t border-(--divider) my-2" />
+                    <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">At Bat</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">At Bat</span>
                         </div>
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Pitching</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Pitching</span>
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">
-                        <CardItemCompact card={liveAtBatCard} />
-                        <CardItemCompact card={livePitchingCard} />
+                        {liveAtBatCardResponse?.card
+                            ? <CardItemCompactFromCard card={liveAtBatCardResponse.card} />
+                            : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} />}
+                        {livePitchingCardResponse?.card
+                            ? <CardItemCompactFromCard card={livePitchingCardResponse.card} />
+                            : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} />}
                     </div>
                 </>
             )}
 
             {isFinal && showMatchupDetails && (
                 <>
-                    <div className="border-t border-(--divider) my-2" />
+                    <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Winning Pitcher</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Winning Pitcher</span>
                         </div>
                         <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Losing Pitcher</span>
+                            <span className="text-[12px] font-bold text-(--quaternary)">Losing Pitcher</span>
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">
-                        <CardItemCompact card={winningPitcherCard} />
-                        <CardItemCompact card={losingPitcherCard} />
+                        {winningPitcherCardResponse?.card
+                            ? <CardItemCompactFromCard card={winningPitcherCardResponse.card} />
+                            : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} />}
+                        {losingPitcherCardResponse?.card
+                            ? <CardItemCompactFromCard card={losingPitcherCardResponse.card} />
+                            : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} />}
                     </div>
                 </>
             )}

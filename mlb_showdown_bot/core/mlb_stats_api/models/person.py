@@ -114,6 +114,18 @@ class PlayerWithShowdownCard(Player):
     points: Optional[int] = None # Points from showdown card data
     showdown_card_data: Optional[ShowdownPlayerCard] = None # Flexible field to hold any relevant showdown card data for the player 
 
+class Players(BaseModel):
+    """Model for API response when fetching multiple players"""
+    
+    players: List[Player] = Field(..., alias='people')
+
+    @property
+    def fangraphs_ids(self) -> List[Optional[int]]:
+        """Helper property to get a list of Fangraphs IDs for all players"""
+        if not self.players:
+            return []
+        return [player.fangraphs_id for player in self.players] if len(self.players) > 0 else []
+
 
 class FreeAgent(BaseModel):
     """Model for free agents"""

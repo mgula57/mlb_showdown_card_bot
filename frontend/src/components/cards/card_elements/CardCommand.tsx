@@ -12,6 +12,7 @@ type CardCommandProps = {
     team?: string;
     /** Optional CSS classes for sizing and positioning */
     className?: string;
+    
 };
 
 /**
@@ -56,25 +57,26 @@ export default function CardCommand({ isPitcher, primaryColor, secondaryColor, c
     };
 
     return (
-        <div className={`relative ${className} text-xl`}>
+        <div className={`relative @container ${className}`}>
             {/* Theme-aware command background image */}
             <img
                 src={getSrcImage()}
                 alt={isPitcher ? 'Control Background' : 'OnBase Background'}
                 className="absolute top-0 left-0 w-full h-full object-cover"
             />
-            
+
             {/* Command rating number with team color styling */}
-            <div 
+            <div
                 className={`
-                    absolute top-1/2 left-1/2 
-                    transform -translate-x-1/2 
+                    absolute top-1/2 left-1/2
+                    transform -translate-x-1/2
                     ${isPitcher ? '-translate-y-1/2' : '-translate-y-3/5'}
-                    text-white font-black tracking-tighter
+                    font-black tracking-tighter
                     drop-shadow-lg
                 `}
-                style={{ 
+                style={{
                     color: colorAdjusted,
+                    fontSize: '60cqw',
                 }}
             >
                 {command}

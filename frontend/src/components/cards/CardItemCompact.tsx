@@ -9,6 +9,7 @@ type CardItemCompactProps = {
     card?: ShowdownBotCardCompact | null;
     className?: string;
     isSelected?: boolean;
+    isLoading?: boolean;
     onClick?: () => void;
 };
 
@@ -16,6 +17,7 @@ export const CardItemCompact = ({
     card,
     className,
     isSelected,
+    isLoading,
     onClick,
 }: CardItemCompactProps) => {
 
@@ -64,14 +66,31 @@ export const CardItemCompact = ({
         return parts[parts.length - 1];
     };
 
-    const displayName = hidePoints ? getLastName(card?.name) : (card?.name || 'Unknown Player');
+    const getFirstInitial = (name?: string): string => {
+        if (!name) {
+            return '';
+        }
+
+        const trimmed = name.trim();
+        if (!trimmed) {
+            return '';
+        }
+
+        const parts = trimmed.split(/\s+/);
+        if (parts.length === 1) {
+            return parts[0][0].toUpperCase();
+        }
+
+        return parts[0][0].toUpperCase();
+    };
+
+    const displayName = `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
     useEffect(() => {
         const element = containerRef.current;
         if (!element) {
             return;
         }
-
         const updateHidePoints = () => {
             const width = element.getBoundingClientRect().width || element.clientWidth;
             setHidePoints(width < 100);
@@ -113,6 +132,7 @@ export const CardItemCompact = ({
             onClick={onClick}
             className={`
                 ${className || ''}
+                relative
                 w-full min-w-0
                 flex items-center gap-2
                 rounded-lg px-2 py-1.5 
@@ -126,7 +146,7 @@ export const CardItemCompact = ({
                 secondaryColor={secondaryColor}
                 command={card?.command}
                 team={card?.team || 'N/A'}
-                className="w-8 h-8 shrink-0"
+                className="w-6 h-6 shrink-0"
             />
 
             <div className="min-w-0 flex-1 text-left">
@@ -134,12 +154,12 @@ export const CardItemCompact = ({
                     {displayName}
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
-                    <div className="text-[11px] font-semibold text-(--text-secondary) truncate">
+                    <div className="text-[10px] font-semibold text-(--text-secondary) truncate">
                         {card?.team || 'N/A'}
                     </div>
                     {!hidePoints && (
                         <div
-                            className="shrink-0 text-[10px] leading-none font-black rounded px-1 py-0.5"
+                            className="shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
                             style={pointsBadgeStyle}
                         >
                             {card?.points != null ? `${card.points} PTS` : '-- PTS'}
@@ -150,7 +170,15 @@ export const CardItemCompact = ({
 
             {showExtraDetails && (
                 <div className="shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
-                    {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'No position data')}
+                    {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
+                </div>
+            )}
+
+            {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-(--background-secondary)/70 backdrop-blur-[1px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
             )}
         </button>
