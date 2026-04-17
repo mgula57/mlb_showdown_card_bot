@@ -91,10 +91,6 @@ class MLBStatsAPI:
         # GET FULL STATS FOR THE PLAYER
         player = self.people.get_player(player_id=player_search_result.id, primary_position=player_search_result.primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
 
-        import json 
-        with open(f"data/{player.full_name}.json", "w") as f:
-            json.dump(player.model_dump(), f, indent=4)
-
         return player
     
 
