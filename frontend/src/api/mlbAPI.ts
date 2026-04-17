@@ -9,7 +9,7 @@
  * @version 4.0
  */
 
-import { type ShowdownBotCard, type ShowdownBotCardCompact } from "./showdownBotCard";
+import { type ShowdownBotCard, type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "./showdownBotCard";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -69,8 +69,37 @@ export const fetchSeasonTeams = async (season: Season, league: League, sportId: 
     return data.teams as Team[];
 }
 
-export const fetchTeamRoster = async (season: Season, teamId: number, rosterType: string, showdownSet: string, sportId: number, teamAbbr: string): Promise<Roster> => {
-    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/roster?roster_type=${rosterType}&showdown_set=${showdownSet}&sport_id=${sportId}&team_abbr=${teamAbbr}`);
+export interface LeadersResponse {
+    leaders: LeadersGroup[];
+    cardData?: { [playerId: string]: ShowdownBotCard };
+}
+
+export const fetchSeasonLeaders = async (
+    seasonId: string,
+    categories?: string[],
+    statGroups?: string[],
+    limit: number = 5,
+    showdownSet?: string
+): Promise<LeadersResponse> => {
+    let url = `${API_BASE}/seasons/${seasonId}/leaders?limit=${limit}`;
+    if (categories && categories.length > 0) {
+        url += `&categories=${encodeURIComponent(categories.join(','))}`;
+    }
+    if (statGroups && statGroups.length > 0) {
+        url += `&stat_groups=${encodeURIComponent(statGroups.join(','))}`;
+    }
+    if (showdownSet) {
+        url += `&showdown_set=${encodeURIComponent(showdownSet)}`;
+    }
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch leaders for season ${seasonId}: ${response.statusText}`);
+    }
+    return response.json() as Promise<LeadersResponse>;
+};
+
+export const fetchTeamRoster = async (season: Season, teamId: number, rosterType: string, sportId: number, teamAbbr: string, showdownSet?: string): Promise<Roster> => {
+    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/roster?roster_type=${rosterType}${showdownSet ? `&showdown_set=${encodeURIComponent(showdownSet)}` : ''}&sport_id=${sportId}&team_abbr=${teamAbbr}`);
     if (!response.ok) {
         throw new Error(`Failed to fetch roster for season ${season.season_id} and team ${teamId}: ${response.statusText}`);
     }
@@ -99,7 +128,7 @@ const getDateInTimeZone = (timeZone: string): string => {
     return `${year}-${month}-${day}`;
 };
 
-export const fetchSchedule = async (sportId: number, season: Season, date?: string, leagues?: League[], showdownSet?: string): Promise<Schedule> => {
+export const fetchSchedule = async (sportId: number, season: Season, date?: string, leagues?: League[], showdownSet?: string, signal?: AbortSignal): Promise<Schedule> => {
     var url = `${API_BASE}/schedule?season=${season.season_id}&sport_id=${sportId}`;
     const userTimeZone = getUserTimeZone();
     url += `&tz_name=${encodeURIComponent(userTimeZone)}`;
@@ -116,7 +145,7 @@ export const fetchSchedule = async (sportId: number, season: Season, date?: stri
     url += `&include_probable_pitchers=true`;
     url += `&include_linescore=true`;
     url += `&include_decisions=true`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal });
     if (!response.ok) {
         throw new Error(`Failed to fetch games for season ${season.season_id}: ${response.statusText}`);
     }
@@ -430,6 +459,8 @@ export interface RosterSlot {
     };
     jersey_number?: string;
     parent_team_id?: number;
+    /** True only for the synthetic extra slot inserted for two-way players pitching role. */
+    is_pitcher_slot?: boolean;
 }
 
 export interface Player {
@@ -441,7 +472,7 @@ export interface Player {
 
     // Optional Showdown Card Data
     points?: number;
-    showdown_card_data?: ShowdownBotCard;
+    showdown_card_data?: ShowdownBotCardAPIResponse;
 }
 
 // ***************************
@@ -631,6 +662,101 @@ export interface BoxscoreDecisions {
     save?: BoxscoreDecisionPerson;
 }
 
+// ***************************
+// Stat Leaders Types
+// ***************************
+
+export interface LeaderPerson {
+    id: number;
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
+}
+
+export interface LeaderTeam {
+    id?: number;
+    name?: string;
+    abbreviation?: string;
+}
+
+export interface PlayerLeader {
+    rank?: number;
+    value?: string;
+    season?: string;
+    person?: LeaderPerson;
+    team?: LeaderTeam;
+}
+
+export interface LeadersGroup {
+    leader_category?: string;
+    stat_group?: string;
+    season?: string;
+    leaders?: PlayerLeader[];
+}
+
+// ***************************
+// Play Types (allPlays / most_recent_play)
+// ***************************
+
+export interface PlayPersonRef {
+    id: number;
+    fullName?: string;
+    link?: string;
+}
+
+export interface PlayHandedness {
+    code?: string;
+    description?: string;
+}
+
+export interface PlayResult {
+    type?: string;
+    event?: string;
+    eventType?: string;
+    description?: string;
+    rbi?: number;
+    awayScore?: number;
+    homeScore?: number;
+    isOut?: boolean;
+}
+
+export interface PlayAbout {
+    atBatIndex?: number;
+    halfInning?: 'top' | 'bottom';
+    isTopInning?: boolean;
+    inning?: number;
+    startTime?: string;
+    endTime?: string;
+    isComplete?: boolean;
+    isScoringPlay?: boolean;
+    hasReview?: boolean;
+    hasOut?: boolean;
+    captivatingIndex?: number;
+}
+
+export interface PlayMatchupSplits {
+    batter?: string;
+    pitcher?: string;
+    menOnBase?: string;
+}
+
+export interface PlayMatchup {
+    batter?: PlayPersonRef;
+    batSide?: PlayHandedness;
+    pitcher?: PlayPersonRef;
+    pitchHand?: PlayHandedness;
+    postOnFirst?: PlayPersonRef;
+    postOnSecond?: PlayPersonRef;
+    postOnThird?: PlayPersonRef;
+    splits?: PlayMatchupSplits;
+}
+
+export interface MostRecentPlay {
+    result?: PlayResult;
+    about?: PlayAbout;
+    matchup?: PlayMatchup;
+}
+
 export interface GameBoxscoreDetail {
     game_pk: number;
     status: GameStatus;
@@ -642,7 +768,12 @@ export interface GameBoxscoreDetail {
         away: BoxscoreTeamData;
         home: BoxscoreTeamData;
     };
+    probable_pitchers?: {
+        away?: { id?: number; full_name?: string };
+        home?: { id?: number; full_name?: string };
+    };
     linescore: BoxscoreLinescore;
     decisions: BoxscoreDecisions;
+    most_recent_play?: MostRecentPlay;
 }
 

@@ -8,7 +8,7 @@ from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
-from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType
+from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague
 from .datasource import Datasource
 
 # -------------------------------
@@ -177,6 +177,17 @@ class NormalizedPlayerStats(BaseModel):
         
         return int(value)
 
+    @field_validator('go_ao_ratio', 'if_fb_ratio', mode='before')
+    def validate_advanced_ratios(cls, value) -> float:
+        """Defaults advanced ratios to None if empty string"""
+        if value is None:
+            return None
+        
+        if str(value) == '' or str(value) == '-.--':
+            return None
+        
+        return float(value)
+
     @classmethod
     def expected_fields(cls) -> List[str]:
         """Returns a list of expected fields in the NormalizedPlayerStats model"""
@@ -239,6 +250,19 @@ class NormalizedPlayerStats(BaseModel):
         self.bref_id = bref_id
         self.bref_url = f"https://www.baseball-reference.com/players/{bref_id[0]}/{bref_id}.shtml"
 
+    @property
+    def is_missing_stats(self) -> bool:
+        """Determines if the player is missing core stats (e.g., G, PA, IP) which may indicate incomplete data"""
+        if not self.type:
+            return True
+        match self.type:
+            case PlayerType.HITTER:
+                return not self.G and not self.PA
+            case PlayerType.PITCHER:
+                return not self.GS and not self.IP
+            
+        return False
+
 # -------------------------------
 # MARK: - Normalizer Class
 # -------------------------------
@@ -253,7 +277,8 @@ class PlayerStatsNormalizer:
         # This is a placeholder for the actual normalization logic
         
         # Build normalized player
-        player_type = PlayerStatsNormalizer._mlb_api_determine_player_type(player.primary_position)
+        player_type = PlayerStatsNormalizer._mlb_api_determine_player_type(player.primary_position, stats_period)
+        player_type_override = stats_period.player_type_override if stats_period else None
         normalized_data = {
             # Identity
             'primary_datasource': Datasource.MLB_API,
@@ -264,6 +289,7 @@ class PlayerStatsNormalizer:
             'team_ID': PlayerStatsNormalizer.extract_team_id(player, stats_period),
             'lg_ID': PlayerStatsNormalizer._extract_league_id(player, stats_period),
             'type': player_type,
+            'player_type_override': player_type_override,
             'hand': Hand(player.bat_side.description).value,
             'hand_throw': Hand(player.pitch_hand.description).value,
             
@@ -377,8 +403,10 @@ class PlayerStatsNormalizer:
             return ",".join(str(s) for s in seasons)
 
     @staticmethod
-    def _mlb_api_determine_player_type(primary_position: Position) -> Optional[str]:
+    def _mlb_api_determine_player_type(primary_position: Position, stats_period: StatsPeriod) -> Optional[str]:
         """Determines if player is a Hitter or Pitcher based on stats"""
+        if stats_period and stats_period.player_type_for_mlb_api(primary_position.abbreviation):
+            return stats_period.player_type_for_mlb_api(primary_position.abbreviation)
         if primary_position is None:
             return None
         if primary_position and primary_position.code == '1':
@@ -416,7 +444,7 @@ class PlayerStatsNormalizer:
                 seasons=stats_period.year_list
             )
             games_pitched = 0
-            for split in pitching_standard_stats:
+            for split in (pitching_standard_stats or []):
                 stats = split.stat
                 if stats and 'gamesPitched' in stats:
                     games_pitched += stats['gamesPitched']
@@ -435,7 +463,7 @@ class PlayerStatsNormalizer:
             return None  # No stats available
 
         converted_stats: Dict[str, Dict[str, Any]] = {}
-        for split in fielding_stat_splits:
+        for split in (fielding_stat_splits or []):
 
             # Check for position data
             stats = split.stat
@@ -492,7 +520,7 @@ class PlayerStatsNormalizer:
         each stat type.
         """
 
-        is_pitcher = mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.PITCHER
+        is_pitcher = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.PITCHER if stats_period else mlb_player.is_pitcher
         stats_types = [PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)] \
                         + ([StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED] if is_pitcher else []) \
                         + [StatTypeEnum.SABERMETRICS]
@@ -565,8 +593,11 @@ class PlayerStatsNormalizer:
                         if isinstance(stat_value_converted, float):
                             stat_value_converted = round(stat_value_converted, 4)
                     except Exception as e:
-                        print(f"Error converting stat '{stat_key_normalized}': {e}")
-                        stat_value_converted = str(value)
+                        if str(value) == '-.--':  # Handle special case for missing advanced ratios
+                            stat_value_converted = None
+                        else:
+                            print(f"Error converting stat '{stat_key_normalized}': {e}")
+                            stat_value_converted = str(value)
 
                     # IP NEEDS SPECIAL HANDLING TO COMBINE FRACTIONAL INNINGS
                     if stat_key_normalized == 'IP' and len(splits) > 1:
@@ -594,9 +625,6 @@ class PlayerStatsNormalizer:
             for key, value in type_stats.items():
                 if is_primary_type or key not in combined_stats:
                     combined_stats[key] = value
-
-        if not combined_stats:
-            print("No standard stats available.")
 
         return combined_stats
 
@@ -630,8 +658,14 @@ class PlayerStatsNormalizer:
     @staticmethod
     def extract_team_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
         """Extracts the team ID for the player in the given stats period"""
+
+        if stats_period.league and stats_period.league == StatsPeriodLeague.MILB:
+            # TODO: USE GENERIC MILB TEAM FOR NOW. EVENTUALLY WILL NEED TO MAP TO SPECIFIC TEAMS
+            return 'MILB'
+
         stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
-        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
+        is_hitter = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER if stats_period else not mlb_player.is_pitcher
+        group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
         standard_stat_splits = mlb_player.get_stat_splits(
             group_type=group_type,
             types=[stats_type],
@@ -639,7 +673,6 @@ class PlayerStatsNormalizer:
         )
 
         if not standard_stat_splits or len(standard_stat_splits) == 0:
-            print("No standard stats available.")
             return None  # No stats available
         
         # Get team with most games played
@@ -685,7 +718,8 @@ class PlayerStatsNormalizer:
         # FIND THE TEAM MATCHING THE PRIMARY TEAM ID
         # RETURN THE FIRST (WILL BE LATEST YEAR'S) LEAGUE ABBREVIATION
         stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
-        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
+        is_hitter = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER if stats_period else not mlb_player.is_pitcher
+        group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
         standard_stat_splits = mlb_player.get_stat_splits(
             group_type=group_type,
             types=[stats_type],
@@ -703,7 +737,8 @@ class PlayerStatsNormalizer:
     def _extract_game_logs(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> List['GameLog']:
         """Extracts game logs for the player. Stats are in a gameLogs split. Returns a list of GameLog objects."""
         stats_type = StatTypeEnum.GAME_LOG
-        group_type = StatGroupEnum.PITCHING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.PITCHER else StatGroupEnum.HITTING
+        is_hitter = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER if stats_period else not mlb_player.is_pitcher
+        group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
         game_log_splits = mlb_player.get_stat_splits(
             group_type=group_type,
             types=[stats_type],
@@ -740,7 +775,7 @@ class PlayerStatsNormalizer:
                 except Exception as e:
                     stat_value_converted = str(value)
 
-                if type(stat_value_converted) == float or type(stat_value_converted) == int and stat_value_converted == 0:
+                if (type(stat_value_converted) == float or type(stat_value_converted) == int) and stat_value_converted == 0:
                     continue # Skip zero values in game logs to reduce size
                 stats_normalized[stat_key_normalized] = stat_value_converted
 
@@ -770,6 +805,7 @@ class PlayerStatsNormalizer:
             'groundIntoDoublePlay': 'GIDP',
             'groundOutsToAirouts': 'GO/AO',
             'hitByPitch': 'HBP',
+            'hitBatsmen': 'HBP',
             'hits': 'H',
             'homeRuns': 'HR',
             'inningsPitched': 'IP',
@@ -942,6 +978,9 @@ class PlayerStatsNormalizer:
     @staticmethod
     def _determine_rookie_status(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> bool:
         """Determines if the player is a rookie in the given stats period"""
+
+        if stats_period.league and stats_period.league == StatsPeriodLeague.MILB:
+            return False  # We don't want to classify any minor league players as rookies since they won't have MLB rookie status
         
         if mlb_player.rookie_seasons is None or len(mlb_player.rookie_seasons) == 0:
             return False
@@ -992,14 +1031,15 @@ class PlayerStatsNormalizer:
         """Determines if the pitcher won 20 games in the given stats period"""
         
         stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
-        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
+        is_hitter = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER if stats_period else not mlb_player.is_pitcher
+        group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
         standard_stat_splits = mlb_player.get_stat_splits(
             group_type=group_type,
             types=[stats_type],
             seasons=stats_period.year_list
         )
 
-        for split in standard_stat_splits:
+        for split in (standard_stat_splits or []):
             if not split.stat: continue
 
             for key, value in split.stat.items():

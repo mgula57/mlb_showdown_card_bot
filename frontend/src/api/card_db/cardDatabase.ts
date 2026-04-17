@@ -228,44 +228,6 @@ export async function fetchCompactCardsByMlbIds(
     return result;
 }
 
-/**
- * Fetches full card data for a batch of MLB player IDs.
- * Returns a map of mlb_id → CardDatabaseRecord.
- */
-export async function fetchCardsByMlbIds(
-    mlbIds: number[],
-    season: number,
-    showdownSet: string,
-    isWbc: boolean,
-    overrides?: Record<number, Record<string, unknown>>, // Optional overrides for specific mlb_ids
-): Promise<Record<number, CardDatabaseRecord>> {
-    if (mlbIds.length === 0) return {};
-
-    const res = await fetch(`${API_BASE}/cards/full`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            mlb_ids: mlbIds,
-            season,
-            showdown_set: showdownSet,
-            is_wbc: isWbc,
-            overrides: overrides ?? undefined,
-        }),
-    });
-
-    if (!res.ok) return {};
-
-    // Backend returns { "mlb_id_string": card_data }
-    const raw: Record<string, CardDatabaseRecord> = await res.json();
-
-    // Convert string keys back to numbers
-    const result: Record<number, CardDatabaseRecord> = {};
-    for (const [key, value] of Object.entries(raw)) {
-        result[Number(key)] = value;
-    }
-    return result;
-}
-
 export async function fetchTotalCardCount(): Promise<number> {
     const res = await fetch(`${API_BASE}/cards/total_count`, {
         method: "GET",

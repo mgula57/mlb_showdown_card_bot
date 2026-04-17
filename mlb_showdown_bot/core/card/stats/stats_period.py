@@ -8,6 +8,7 @@ import calendar
 # INTERNAL
 from ..utils.shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date, convert_year_string_to_list
 from ...shared.team import Team
+from ...shared.player_position import PlayerType, Position
 
 class StatsPeriodType(str, Enum):
 
@@ -61,7 +62,7 @@ class StatsPeriodDateAggregation(str, Enum):
     WEEK = "WEEK"
     MONTH = "MONTH"
 
-    def date_ranges(self, year:str, start_date:date = None, stop_date:date = None) -> list[tuple[date, date]]:
+    def date_ranges(self, year:str, start_date:date = None, stop_date:date = None, range_start_date:date = None) -> list[tuple[date, date]]:
 
         # ONLY WORKS ON SINGLE YEAR
         try: 
@@ -76,9 +77,13 @@ class StatsPeriodDateAggregation(str, Enum):
             case StatsPeriodDateAggregation.DAY:
                 # CREATE RUNNING RANGE OF DATES, STARTING FROM MARCH 15 UNTIL OCT 10
                 end_date = start_date
-                while end_date < stop_date:
+                while end_date <= stop_date:
                     date_ranges.append((start_date, end_date))
                     end_date = end_date + timedelta(days=1)
+
+                # REMOVE DATE RANGES THAT ARE BEFORE THE RANGE START DATE
+                if range_start_date:
+                    date_ranges = [dr for dr in date_ranges if dr[1] >= range_start_date]
 
                 return date_ranges
             
@@ -89,6 +94,10 @@ class StatsPeriodDateAggregation(str, Enum):
                     days_to_sunday = 6 - end_date.weekday() if end_date.weekday() != 6 else 7
                     end_date = min(end_date + timedelta(days=days_to_sunday), stop_date)
                     date_ranges.append((start_date, end_date))
+
+                # REMOVE DATE RANGES THAT ARE BEFORE THE RANGE START DATE
+                if range_start_date:
+                    date_ranges = [dr for dr in date_ranges if dr[1] >= range_start_date]
 
                 return date_ranges
             
@@ -113,6 +122,10 @@ class StatsPeriodDateAggregation(str, Enum):
                     end_date = min(date(start_date.year, next_month, last_day), stop_date)
                     date_ranges.append((start_date, end_date))
                 
+                # REMOVE DATE RANGES THAT ARE BEFORE THE RANGE START DATE
+                if range_start_date:
+                    date_ranges = [dr for dr in date_ranges if dr[1] >= range_start_date]
+                
                 return date_ranges
 
     def get_first_date_of_aggregation(self, end_date:date) -> date:
@@ -129,6 +142,11 @@ class StatsPeriodYearType(str, Enum):
     MULTI_YEAR = "MULTI_YEAR"
     FULL_CAREER = "FULL_CAREER"
 
+class StatsPeriodLeague(str, Enum):
+    MLB = "MLB"
+    MILB = "MILB"
+    NPB = "NPB"
+    KBO = "KBO"
 
 class StatsPeriod(BaseModel):
 
@@ -151,9 +169,11 @@ class StatsPeriod(BaseModel):
 
     # OVERRIDES
     team_override: Optional[Team] = None
+    player_type_override: Optional[PlayerType] = None
 
     # SOURCE
     source: str = 'Unknown'
+    league: Optional[StatsPeriodLeague] = StatsPeriodLeague.MLB
 
     # STATS
     # FILLED IN SHOWDOWN BOT CLASS
@@ -162,6 +182,37 @@ class StatsPeriod(BaseModel):
     # ADDITIONAL INFO
     display_text: Optional[str] = None
     disable_display_text_on_card: Optional[bool] = None
+
+    # ---------------------------------
+    # INITIALIZATION
+    # ---------------------------------
+
+    def __init__(self, **data):
+
+        # CHECK FOR ANY "NAME" ATTRIBUTE THAT INCLUDES OVERRIDES
+        name:str = data.get('name', None)
+        player_type_override = data.get('player_type_override', None)
+        team_override = data.get('team_override', None)
+        if name:
+
+            # CHECK FOR OVERRIDES WITHIN THE PLAYER NAME
+            if player_type_override is None:
+                if '(PITCHER)' in name.upper() or '(PITCHING)' in name.upper():
+                    data['player_type_override'] = PlayerType.PITCHER
+                elif '(HITTER)' in name.upper() or '(HITTING)' in name.upper():
+                    data['player_type_override'] = PlayerType.HITTER
+
+            if team_override is None:
+                for team_id in [team.value for team in Team]:
+                    team_match = f'({team_id})' in name.upper()
+                    if team_match:
+                        data['team_override'] = Team(team_id)
+
+            # VALIDATE TEAM OVERRIDE
+            if data.get('team_override') is not None and type(data.get('team_override')) == Team and data['team_override'] == Team.MLB:
+                data['team_override'] = None
+
+        super().__init__(**data)
 
     def model_post_init(self, __context):
 
@@ -249,6 +300,19 @@ class StatsPeriod(BaseModel):
         year_list:list[int] = info.data.get('year_list', [])
         return len(year_list) > 1
     
+    @field_validator('league', mode='before')
+    def validate_league(cls, league:Optional[StatsPeriodLeague]) -> Optional[StatsPeriodLeague]:
+        if league is None:
+            return StatsPeriodLeague.MLB
+        if isinstance(league, StatsPeriodLeague):
+            return league
+        if isinstance(league, str):
+            try:
+                return StatsPeriodLeague(league.upper())
+            except ValueError:
+                raise ValueError(f"Invalid league: {league}. Must be one of {[l.value for l in StatsPeriodLeague]}")
+        raise ValueError(f"Invalid league type: {type(league)}. Must be a string or StatsPeriodLeague enum.")
+
     # ---------------------------------
     # PROPERTIES
     # ---------------------------------
@@ -359,10 +423,46 @@ class StatsPeriod(BaseModel):
     def year_list_as_strs(self) -> str:
         """Returns the year list as a list of strings. Orders in ascending order."""
         return [str(year) for year in sorted(self.year_list)]
+    
+    @property
+    def is_pitcher_override(self) -> bool:
+        """
+        Returns True if the player type override is set to pitcher.
+        """
+        return self.player_type_override and self.player_type_override == PlayerType.PITCHER
+    
+    @property
+    def is_hitter_override(self) -> bool:
+        """
+        Returns True if the player type override is set to hitter.
+        """
+        return self.player_type_override and self.player_type_override == PlayerType.HITTER
 
+    @property
+    def is_mlb(self) -> bool:
+        """
+        Returns True if the league is MLB or not set.
+        """
+        return self.league in [StatsPeriodLeague.MLB] or self.league is None
+    
     # ---------------------------------
     # METHODS
     # ---------------------------------
+
+    def player_type_for_mlb_api(self, primary_position:str | Position = None) -> PlayerType:
+        """
+        Determine whether to use pitching or hitting stats for the MLB API based on the stats period overrides and primary position.
+        """
+        if primary_position and type(primary_position) == Position:
+            primary_position = 'P' if primary_position.is_pitcher else 'HITTER'
+
+        is_pitcher = (
+            (
+                (primary_position and primary_position == 'P') and not self.is_hitter_override
+            )
+            or self.is_pitcher_override
+        )
+        return PlayerType.PITCHER if is_pitcher else PlayerType.HITTER
 
     def _check_and_apply_current_season_adjustment(self) -> None:
         """

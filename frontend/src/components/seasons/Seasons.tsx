@@ -5,11 +5,14 @@
  * player cards, team points, and performance analytics.
  */
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/style.css";
 import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
     fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
-    fetchTodaysSchedule, fetchSchedule, fetchSeasonTeams,
+    fetchSchedule, fetchSeasonTeams,
     type Season, type Sport, type League, type Standings, type Team, type Roster,
     type Schedule
 } from '../../api/mlbAPI';
@@ -21,14 +24,15 @@ import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
 
 import {
-    FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas, FaCalendarDays,
+    FaRankingStar, FaClipboardList, FaUserGroup, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate
+    FaStar, FaRegStar, FaArrowsRotate, FaTrophy
 } from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
 import GameDetail from "../games/GameDetail";
+import SeasonLeaders from "./SeasonLeaders";
 import { getReadableTextColor } from "../../functions/colors";
 
 const formatScheduleDate = (date?: string): string => {
@@ -113,17 +117,17 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [teams, setTeams] = useState<Team[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-    const hasLoadedTeams = teams.length > 0;
 
     const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
 
-    const [todaysSchedule, setTodaysSchedule] = useState<Schedule | null>(null);
     const [gamesSchedule, setGamesSchedule] = useState<Schedule | null>(null);
     const [gamesDate, setGamesDate] = useState<Date>(() => {
         const now = new Date();
         return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     });
     const [selectedGamePk, setSelectedGamePk] = useState<number | null>(null);
+    const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+    const datePickerRef = useRef<HTMLDivElement>(null);
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -145,6 +149,21 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "schedule");
+
+    // Open a specific game if ?gamePk=XXX is in the URL (e.g. linked from Home ticker)
+    const location = useLocation();
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const gamePkParam = params.get('gamePk');
+        if (gamePkParam) {
+            const pk = parseInt(gamePkParam, 10);
+            if (!isNaN(pk)) {
+                setSelectedGamePk(pk);
+                setActiveTab('schedule');
+            }
+        }
+    }, [location.search]);
+
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
     const [starredTeamKeys, setStarredTeamKeys] = useState<string[]>(() => {
         const stored = getStoredValue(STORAGE_KEYS.starredTeams);
@@ -164,6 +183,19 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const isLoadingSeasonsRef = useRef(false);
     const pendingRequestsRef = useRef(0);
     const isRunningLoadAllRef = useRef(false);
+    const scheduleAbortControllerRef = useRef<AbortController | null>(null);
+
+    // Close date picker when clicking outside
+    useEffect(() => {
+        if (!isDatePickerOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+                setIsDatePickerOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [isDatePickerOpen]);
 
     const beginLoading = () => {
         pendingRequestsRef.current += 1;
@@ -175,13 +207,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (pendingRequestsRef.current === 0) {
             setIsLoading(false);
         }
-    };
-
-    const isMidSeason = (season: Season) => {
-        const today = new Date();
-        const startDate = new Date(season.regular_season_start_date);
-        const endDate = new Date(season.season_end_date);
-        return today >= startDate && today <= endDate;
     };
 
     const seasonOptions: SelectOption[] = seasons
@@ -231,6 +256,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const tabs = [
         { id: "schedule", label: "Schedule", icon: <FaCalendarDays /> },
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
+        { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
@@ -291,93 +317,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error("Error fetching seasons:", error);
         } finally {
             isLoadingSeasonsRef.current = false;
-            endLoading();
-        }
-    };
-
-    const loadSports = async () => {
-        if (!selectedSeason) {
-            return;
-        }
-
-        if (hasStaticSports) {
-            const staticSportsData = staticSports ?? [];
-            setSports(staticSportsData);
-
-            const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
-            const sportFromStorage = storedSportId
-                ? staticSportsData.find((sport) => sport.id.toString() === storedSportId)
-                : null;
-
-            setSelectedSport((previousSport) => {
-                if (previousSport && staticSportsData.some((sport) => sport.id === previousSport.id)) {
-                    return previousSport;
-                }
-                return sportFromStorage ?? (staticSportsData.length > 0 ? staticSportsData[0] : null);
-            });
-            return;
-        }
-
-        beginLoading();
-        try {
-            const sportsData = await fetchSeasonSports(selectedSeason);
-            console.log(`Fetched sports for season ${selectedSeason.season_id}:`, sportsData);
-            setSports(sportsData);
-
-            const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
-            const sportFromStorage = storedSportId
-                ? sportsData.find((sport) => sport.id.toString() === storedSportId)
-                : null;
-
-            setSelectedSport((previousSport) => {
-                if (previousSport && sportsData.some((sport) => sport.id === previousSport.id)) {
-                    return previousSport;
-                }
-                return sportFromStorage ?? (sportsData.length > 0 ? sportsData[0] : null);
-            });
-        } catch (error) {
-            console.error(`Error fetching sports for season ${selectedSeason.season_id}:`, error);
-        } finally {
-            endLoading();
-        }
-    };
-
-    const loadLeagues = async () => {
-        if (!selectedSeason || !selectedSport) {
-            return;
-        }
-        
-        beginLoading();
-        try {
-            
-            const leaguesData = await fetchSeasonLeagues(selectedSeason, selectedSport);
-            console.log(`Fetched leagues for season ${selectedSeason.season_id}:`, leaguesData);
-
-            const uniqueLeagueGroups = Array.from(
-                new Set(
-                    leaguesData
-                        .map((league) => getLeagueGroupForLeague(league))
-                        .filter((group): group is string => group !== null)
-                )
-            );
-            console.log("Unique league groups identified:", uniqueLeagueGroups);
-            setLeagueGroups(uniqueLeagueGroups);
-
-            setSelectedLeagueGroup((prevGroup) => {
-                if (uniqueLeagueGroups.length <= 1) {
-                    return null;
-                }
-                if (prevGroup && uniqueLeagueGroups.includes(prevGroup)) {
-                    return prevGroup;
-                }
-                return uniqueLeagueGroups[0] ?? null;
-            });
-
-            setLeagues(leaguesData);
-            
-        } catch (error) {
-            console.error(`Error fetching leagues for season ${selectedSeason.season_id}:`, error);
-        } finally {
             endLoading();
         }
     };
@@ -524,9 +463,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
                         return {} as { [leagueAbbreviation: string]: Standings[] };
                     }),
-                fetchTodaysSchedule(resolvedSport.id, selectedSeason, leaguesToQuery, userShowdownSet)
-                    .then(setTodaysSchedule)
-                    .catch(() => setTodaysSchedule(null)),
                 fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
                     .then(data => {
                         setGamesSchedule(data);
@@ -584,40 +520,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         beginLoading();
         try {
             const rosterType = "active";
-            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, userShowdownSet, selectedSport.id, team.abbreviation || team.name);
+            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, selectedSport.id, team.abbreviation || team.name);
             console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
             setSelectedRoster(rosterData);
         } catch (error) {
             console.error(`Error fetching roster for team ${team.name} in season ${selectedSeason.season_id}:`, error);
-        } finally {
-            endLoading();
-        }
-    };
-
-    const loadSchedule = async () => {
-        if (!selectedSeason || leagues.length === 0) {
-            setTodaysSchedule(null);
-            return;
-        }
-
-        const shouldFilterByLeagueGroup = leagueGroups.length > 1 && selectedLeagueGroup !== null;
-        const leaguesToQuery = shouldFilterByLeagueGroup
-            ? leagues.filter((league) => getLeagueGroupForLeague(league) === selectedLeagueGroup)
-            : leagues;
-
-        if (leaguesToQuery.length === 0) {
-            setTodaysSchedule(null);
-            return;
-        }
-
-        beginLoading();
-        try {
-            const scheduleData = await fetchTodaysSchedule(selectedSport?.id || 1, selectedSeason, leaguesToQuery, userShowdownSet);
-            console.log(`Fetched schedule for season ${selectedSeason.season_id}:`, scheduleData);
-            setTodaysSchedule(scheduleData);
-        } catch (error) {
-            console.error(`Error fetching schedule for season ${selectedSeason.season_id}:`, error);
-            setTodaysSchedule(null);
         } finally {
             endLoading();
         }
@@ -639,12 +546,20 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             return;
         }
 
+        // Cancel any in-flight schedule request
+        scheduleAbortControllerRef.current?.abort();
+        const controller = new AbortController();
+        scheduleAbortControllerRef.current = controller;
+
         beginLoading();
         try {
             const selectedDate = formatDateForApi(gamesDate);
-            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet);
+            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet, controller.signal);
             setGamesSchedule(scheduleData);
         } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             console.error(`Error fetching games schedule for season ${selectedSeason.season_id}:`, error);
             setGamesSchedule(null);
         } finally {
@@ -669,7 +584,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         if (isRunningLoadAllRef.current || !selectedSeason || leagues.length === 0) return;
         loadStandings();
-        loadSchedule();
         loadGamesSchedule();
     }, [selectedLeagueGroup, userShowdownSet]);
 
@@ -725,10 +639,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const isSelectedTeamStarred = selectedTeamKey ? starredTeamKeys.includes(selectedTeamKey) : false;
     const standingsEntries = Object.entries(standings);
-    const scheduleDates = todaysSchedule?.dates ?? [];
-    const todaysGames = scheduleDates.flatMap((scheduleDate) => scheduleDate.games ?? []);
-    const scheduleDateLabel = formatScheduleDate(scheduleDates[0]?.date);
-    const scheduleDescription = todaysGames[0]?.series_description || todaysGames[0]?.description || "";
 
     const gamesScheduleDates = gamesSchedule?.dates ?? [];
     const gamesTabGames = gamesScheduleDates.flatMap((scheduleDate) => scheduleDate.games ?? []);
@@ -988,7 +898,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center font-bold text-2xl">
-                                                        <FaEarthAmericas className="inline-block mr-2" />
+                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2" /> : <FaCalendarDays className="inline-block mr-2" />}
                                                         {title}
                                                     </div>
                                                     <button
@@ -999,7 +909,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         aria-label="Refresh data"
                                                         title="Refresh data"
                                                     >
-                                                        <FaArrowsRotate className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                                        <FaArrowsRotate className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
                                                     </button>
                                                 </div>
                                             )}
@@ -1086,6 +996,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 sportId={selectedSport?.id}
                                                 season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
                                                 showdownSet={userShowdownSet}
+                                                isActive={activeTab === 'schedule'}
                                                 onBack={() => setSelectedGamePk(null)}
                                             />
                                         ) : (
@@ -1107,9 +1018,34 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             <FaChevronLeft className="h-5 w-5" />
                                                         </button>
 
-                                                        <div className="text-center leading-tight">
-                                                            <div className="text-sm font-extrabold tracking-wide text-(--text-secondary)">{gamesHeaderTopText}</div>
-                                                            <div className="text-xl font-black text-(--text-primary)">{gamesHeaderBottomText}</div>
+                                                        <div className="relative" ref={datePickerRef}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsDatePickerOpen((prev) => !prev)}
+                                                                className="flex flex-col items-center text-center leading-tight hover:opacity-70 transition-opacity cursor-pointer group"
+                                                                aria-label="Pick a date"
+                                                            >
+                                                                <div className="text-sm font-extrabold tracking-wide text-(--text-secondary)">{gamesHeaderTopText}</div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-xl font-black text-(--text-primary)">{gamesHeaderBottomText}</span>
+                                                                    <FaChevronDown className={`h-3 w-3 text-(--text-secondary) transition-transform ${isDatePickerOpen ? 'rotate-180' : ''}`} />
+                                                                </div>
+                                                            </button>
+                                                            {isDatePickerOpen && (
+                                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 rounded-xl border border-(--divider) bg-(--background-secondary) shadow-xl p-2">
+                                                                    <DayPicker
+                                                                        mode="single"
+                                                                        selected={gamesDate}
+                                                                        onSelect={(day) => {
+                                                                            if (day) {
+                                                                                setGamesDate(new Date(day.getFullYear(), day.getMonth(), day.getDate()));
+                                                                                setIsDatePickerOpen(false);
+                                                                            }
+                                                                        }}
+                                                                        defaultMonth={gamesDate}
+                                                                    />
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         <button
@@ -1134,8 +1070,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     dateLabel={gamesTabDateLabel}
                                                     description={gamesTabDescription}
                                                     sportId={selectedSport?.id}
+                                                    season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
+                                                    showdownSet={userShowdownSet}
                                                     starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
                                                     onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
+                                                    onRefresh={() => {
+                                                        // Force re-fetch games schedule for the current date
+                                                        setGamesDate((previous) => new Date(previous));
+                                                    }}
                                                 />
                                             </div>
                                         )}
@@ -1153,9 +1095,26 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     sportId={selectedSport?.id || null}
                                                     roster={selectedRoster}
                                                     isStarred={isSelectedTeamStarred}
+                                                    season={Number(selectedSeason.season_id)}
+                                                    loadShowdownCards={true}
                                                     onToggleStar={() => toggleStarTeam(selectedTeam)}
                                                 />
                                             )}
+                                    </Tabs.Content>
+
+                                    {/* Leaders Tab */}
+                                    <Tabs.Content
+                                        value="leaders"
+                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
+                                        forceMount
+                                    >
+                                        <SeasonLeaders
+                                            seasonId={selectedSeason.season_id}
+                                            season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
+                                            showdownSet={userShowdownSet}
+                                            sportId={selectedSport?.id}
+                                            isActive={activeTab === 'leaders'}
+                                        />
                                     </Tabs.Content>
 
                                     {/* Players Tab */}

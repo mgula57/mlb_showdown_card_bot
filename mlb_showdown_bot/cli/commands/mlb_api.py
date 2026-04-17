@@ -8,6 +8,8 @@ from ...core.mlb_stats_api.models.leagues.league import SportEnum
 from ...core.mlb_stats_api.models.teams.team import Team
 from ...core.mlb_stats_api.models.teams.roster import RosterTypeEnum
 from ...core.mlb_stats_api.models.games.schedule import Schedule
+from ...core.mlb_stats_api.models.stats.leaders import PlayerLeader
+from ...core.mlb_stats_api.models.stats.enums import LeaderLeaderStatEnum, PlayerPoolEnum, StatGroupEnum
 
 app = typer.Typer()
 
@@ -149,6 +151,65 @@ def schedule(
                         game.venue.name if game.venue else '-',
                     ])
     print(table)
+
+@app.command("leaders")
+def leaders(
+    season: int = typer.Option(..., "--season", "-s", help="Season year."),
+    categories: str = typer.Option("HOME_RUNS,BATTING_AVERAGE,EARNED_RUN_AVERAGE,STRIKEOUTS", "--categories", "-c", help="Comma-separated leader categories (e.g. HOME_RUNS,BATTING_AVERAGE)."),
+    stat_group: str = typer.Option(None, "--stat_group", "-sg", help="Stat group to filter by: hitting, pitching, fielding."),
+    sport_id: int = typer.Option(1, "--sport_id", "-sp", help="MLB sport ID. Default is 1 (MLB)."),
+    limit: int = typer.Option(5, "--limit", "-l", help="Number of leaders to show per category."),
+    days_back: int = typer.Option(None, "--days_back", "-db", help="Optionally filter leaders to only include stats from the last X days."),
+):
+    """Fetch stat leaders from MLB Stats API"""
+
+    category_enums = []
+    for cat in categories.split(','):
+        cat = cat.strip().upper()
+        try:
+            category_enums.append(LeaderLeaderStatEnum(cat))
+        except ValueError:
+            valid = [e.value for e in LeaderLeaderStatEnum]
+            typer.echo(f"Invalid category '{cat}'. Valid options:\n  {', '.join(valid)}", err=True)
+            raise typer.Exit(1)
+
+    stat_group_enums = None
+    if stat_group:
+        try:
+            stat_group_enums = [StatGroupEnum(stat_group.strip().lower())]
+        except ValueError:
+            valid = [e.value for e in StatGroupEnum]
+            typer.echo(f"Invalid stat_group '{stat_group}'. Valid options: {', '.join(valid)}", err=True)
+            raise typer.Exit(1)
+
+    groups = _mlb_api.stats.get_leaders(
+        sport_id=sport_id,
+        season=season,
+        categories=category_enums,
+        statGroups=stat_group_enums,
+        limit=limit,
+        days_back=days_back,
+    )
+
+    for group in groups:
+        category_label = (group.leader_category or "Unknown").replace("_", " ").title()
+        typer.echo(f"\n── {category_label} ({season}) ──")
+
+        table = PrettyTable()
+        table.field_names = ["Rank", "Player", "Team", "Value"]
+        table.align["Player"] = "l"
+        table.align["Team"] = "l"
+        table.align["Value"] = "r"
+
+        for entry in (group.leaders or []):
+            table.add_row([
+                entry.rank if entry.rank is not None else "-",
+                entry.person.full_name if entry.person else "-",
+                entry.team.abbreviation or entry.team.name if entry.team else "-",
+                entry.value if entry.value is not None else "-",
+            ])
+        print(table)
+
 
 @app.command("cards")
 def cards(

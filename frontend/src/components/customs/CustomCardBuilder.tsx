@@ -228,12 +228,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // Animation
     const animationTw = 'transition-all duration-200 ease-in-out';
 
-    // Live update states
-    const [isLiveUpdating, setIsLiveUpdating] = useState(false);
-    const [isLoadingGameBoxscore, setIsLoadingGameBoxscore] = useState(false);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const lastFormRef = useRef<CustomCardFormState | null>(null);
-
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>(loadFormSettings());
     const disableBuildButton = (
@@ -636,7 +630,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             console.log("Card built successfully:", cardData);
             console.log(currentSubMessage);
 
-            lastFormRef.current = card_payload; // Store form data for live updates
             setLoadingStatus(prevStatus => ({
                 ...prevStatus, // Keep all existing values
                 message: "Done!",
@@ -1096,7 +1089,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                     {/* Scrollable area */}
                     <div className={`flex-1 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}
-                        overflow-visible @2xl:overflow-y-auto 
+                        overflow-visible @2xl:overflow-y-auto scrollbar-hide
                     `}>
 
                         {/* Search and Form Inputs */}
@@ -1117,11 +1110,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             label=""
                                             value={query}
                                             className={`flex-1 ${animationTw}`}
+                                            searchOptions={{ include_mlb_api_current_season: true }}
                                             onChange={(selection) => setForm({ 
                                                 ...form, 
                                                 name: selection.name, 
                                                 year: selection.year,
-                                                player_id: selection.bref_id,
+                                                player_id: selection.player_id,
                                                 player_type_override: selection.player_type_override,
                                             })}
                                         />
@@ -1479,7 +1473,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             <CardDetail 
                                 showdownBotCardData={showdownBotCardData} 
                                 isLoading={isProcessingCard} 
-                                isLoadingGameBoxscore={isLoadingGameBoxscore}
                             />
                         </div>
 

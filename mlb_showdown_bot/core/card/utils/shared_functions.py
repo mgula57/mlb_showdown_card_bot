@@ -223,7 +223,7 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
     if 'onbase_perc' not in current_categories:
         sf = 0 if len(str(stats_data.get('SF', ''))) == 0 else stats_data.get('SF', 0)
         obp_denominator = ( stats_data.get('AB', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0) + sf ) if 'AB' in stats_data.keys() else stats_data['PA']
-        stats_data['onbase_perc'] = round((stats_data.get('H', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0)) / obp_denominator, 5)
+        stats_data['onbase_perc'] = round((stats_data.get('H', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0)) / obp_denominator, 5) if obp_denominator > 0 else 0.0
     
     if 'batting_avg' not in current_categories:
         stats_data['batting_avg'] = round(stats_data.get('H', 0) / stats_data['AB'], 5) if stats_data.get('AB', 0) > 0 else 0.0

@@ -6,7 +6,8 @@ from .clients.leagues_client import LeaguesClient, Standings
 from .clients.seasons_client import SeasonsClient
 from .clients.sports_client import SportsClient, SportEnum
 from .clients.games_client import GamesClient, Schedule
-from .models.person import Player
+from .clients.stats_client import StatsClient, StatTypeEnum
+from .models.person import Player, Players
 from .models.leagues.league import LeagueListEnum
 from typing import Optional
 import logging
@@ -51,29 +52,78 @@ class MLBStatsAPI:
         self.seasons = SeasonsClient(**config)
         self.sports = SportsClient(**config)
         self.games = GamesClient(**config)
+        self.stats = StatsClient(**config)
+        
     # -------------------------
     # PLAYER SEARCH + BUILD
     # -------------------------
 
     def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod, league:str='MLB') -> Player:
 
-        # Search for the player by name
-        player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, active_status='both')
-
-        # If no results found, return None
-        if not player_search_results or len(player_search_results) == 0:
-            logger.warning(f"No players found for name: {search_name}")
-            return None
-
-        # Fetch full player details using the player ID
+        # Check for league filtering
         league_list = None
         match league.upper():
             case 'MILB':
                 league_list = LeagueListEnum.MILB_FULL
-        
-        player = self.people.get_player(player_id=player_search_results[0].id, primary_position=player_search_results[0].primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
+
+        # Is this a search by ID instead of name?
+        if search_name.isdigit():
+            player_id = int(search_name)
+            league_list = None
+            match league.upper():
+                case 'MILB':
+                    league_list = LeagueListEnum.MILB_FULL
+
+            player_search_result = self.people.get_player(player_id=player_id, include_stats=False, league_list=league_list)
+
+        else:
+
+            # Search for the player by name
+            player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, league_list=league_list, active_status='both')
+
+            # If no results found, return None
+            if not player_search_results or len(player_search_results) == 0:
+                logger.warning(f"No players found for name: {search_name}")
+                return None
+            
+            player_search_result = player_search_results[0]
+
+        # GET FULL STATS FOR THE PLAYER
+        player = self.people.get_player(player_id=player_search_result.id, primary_position=player_search_result.primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
+
+        import json 
+        with open(f"data/{player.full_name}.json", "w") as f:
+            json.dump(player.model_dump(), f, indent=4)
 
         return player
+    
+
+    def build_players_from_id_list(self, player_ids: list[int], seasons: list[int], league:str='MLB') -> Players:
+
+        league_list = None
+        match league.upper():
+            case 'MILB':
+                league_list = LeagueListEnum.MILB_FULL
+
+        players = self.people.get_players(
+            player_ids=player_ids,
+            include_stats=True,
+            type=None,
+            seasons=seasons,
+            league_list=league_list,
+            stat_types=[
+                StatTypeEnum.SABERMETRICS,
+                StatTypeEnum.RANKINGS_BY_YEAR,
+                StatTypeEnum.STATS_SINGLE_SEASON,
+                StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED,
+                StatTypeEnum.SABERMETRICS,
+                StatTypeEnum.STAT_SPLITS,
+                StatTypeEnum.GAME_LOG,
+            ],
+            limit_hydrated_fields=True
+        )
+        
+        return players
     
 
     # -------------------------
