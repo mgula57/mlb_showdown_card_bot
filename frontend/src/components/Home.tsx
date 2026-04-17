@@ -29,6 +29,10 @@ import { fetchCardById, buildCardsFromIds } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
 
+// TODO: replace hard-coded IDs with a general two-way player detection strategy
+const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
+const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
+
 export default function Home() {
 
     // State
@@ -135,9 +139,15 @@ export default function Home() {
             if (!cardsResponse.cards) { console.error('No cards returned from buildCardsFromIds for leader cards'); return; }
             const cardMap: { [playerId: string]: ShowdownBotCard } = {};
             cardsResponse.cards.forEach(cardRes => {
-                if (cardRes.card?.mlb_id && !seenIds.has(cardRes.card.mlb_id)) {
-                    seenIds.add(cardRes.card.mlb_id);
-                    cardMap[String(cardRes.card.mlb_id)] = cardRes.card;
+                if (cardRes.card?.mlb_id != null) {
+                    const id = cardRes.card.mlb_id;
+                    if (TWO_WAY_PLAYER_IDS.has(id)) {
+                        const suffix = cardRes.card.player_type === 'Pitcher' ? 'P' : 'H';
+                        cardMap[`${id}-${suffix}`] = cardRes.card;
+                    } else if (!seenIds.has(id)) {
+                        seenIds.add(id);
+                        cardMap[String(id)] = cardRes.card;
+                    }
                 }
             });
             setLeaderCards(cardMap);
@@ -394,12 +404,17 @@ export default function Home() {
                     {(isLoadingLeaders && leaderGroups.length === 0 ? [null, null] : leaderGroups).map((group, gi) => {
                         const label = group?.leader_category ? (LEADER_CATEGORY_LABELS[group.leader_category] ?? group.leader_category) : '';
                         const entries = group ? (group.leaders ?? []).slice(0, 3) : [...Array(3)].map(() => null);
+                        const isPitchingGroup = PITCHING_LEADER_CATEGORIES.has(group?.leader_category ?? '');
                         return (
                             <div key={group?.leader_category ?? gi}>
                                 <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{label}</span>
                                 <div className="mt-2 flex gap-2 overflow-x-auto scrollbar-hide lg:grid lg:grid-cols-3">
                                     {entries.map((entry, i) => {
-                                        const card = entry?.person?.id ? leaderCards[String(entry.person.id)] : undefined;
+                                        const rawId = entry?.person?.id;
+                                        const lookupKey = rawId != null && TWO_WAY_PLAYER_IDS.has(rawId)
+                                            ? `${rawId}-${isPitchingGroup ? 'P' : 'H'}`
+                                            : rawId != null ? String(rawId) : undefined;
+                                        const card = lookupKey ? leaderCards[lookupKey] : undefined;
                                         return (
                                             <div key={entry?.rank ?? i} className="flex flex-col items-center gap-1 shrink-0 w-72 lg:w-auto">
                                                 <CardItemFromCard
