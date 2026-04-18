@@ -447,6 +447,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 if (form.start_date) summaries.push({ label: 'Start', value: form.start_date });
                 if (form.end_date) summaries.push({ label: 'End', value: form.end_date });
                 if (form.split) summaries.push({ label: 'Split', value: form.split });
+                if (form.league !== FORM_DEFAULTS.league) {
+                    const leagueOption = leagueOptions.find(opt => opt.value === form.league);
+                    summaries.push(leagueOption || { label: 'League', value: form.league });
+                }
                 break;
                 
             case 'set':
