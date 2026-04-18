@@ -158,14 +158,14 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                         </tr>
                     ) : (
                         // Render data rows with alternating background colors and optional click handling
-                        table.getRowModel().rows.map(r => (
+                        table.getRowModel().rows.map((r, i) => (
                             <tr 
                                 key={r.id} 
                                 className={`
                                     ${onRowClick ? 'cursor-pointer' : ''}
                                 `}
                                 style={{
-                                    backgroundColor: r.index % 2 === 0
+                                    backgroundColor: i % 2 === 0
                                         ? 'var(--table-banding, var(--background-secondary))'
                                         : 'var(--background-secondary)',
                                 }}
