@@ -6,6 +6,7 @@ class DefenseMetric(Enum):
     DRS = 'drs'
     TZR = 'tzr'
     DWAR = 'dWAR'
+    FLD_PCT = 'fld_pct'
     
     def range_min(self, position_str:str, set_str:str) -> float:
         """ Returns the minimum range value for the given position """
@@ -47,6 +48,17 @@ class DefenseMetric(Enum):
             case DefenseMetric.OAA:
                 match position_str:
                     case 'LF' | 'RF': min_basis *= 1.3
+            case DefenseMetric.FLD_PCT:
+                match position_str: # DOESN'T USE MIN-BASE, JUST STATIC CUTOFFS
+                    case 'C':              return 0.980
+                    case '1B':             return 0.988
+                    case '2B':             return 0.968
+                    case '3B':             return 0.942
+                    case 'SS':             return 0.958
+                    case 'LF' | 'RF':     return 0.970
+                    case 'CF':             return 0.978
+                    case 'OF':             return 0.972
+                    case _:                return 0.970
                 
         return (min_basis * multiplier)
 
@@ -93,9 +105,25 @@ class DefenseMetric(Enum):
                     case 'LF' | 'RF' | 'CF' | 'OF': basis = 1.25
                     case _: basis = 2.0
                 return basis * multiplier
+            case DefenseMetric.FLD_PCT:
+                match position_str:
+                    case 'C':          return 1.000
+                    case '1B':         return 1.000
+                    case '2B':         return 0.994
+                    case '3B':         return 0.978
+                    case 'SS':         return 0.989
+                    case 'LF' | 'RF':  return 0.998
+                    case 'CF':         return 0.999
+                    case 'OF':         return 0.998
+                    case _:            return 0.994
 
     def range_total_values(self, position_str:str, set_str:str) -> float:
         return self.range_max(position_str, set_str) - self.range_min(position_str, set_str)
+
+    @property
+    def is_rate_stat(self) -> bool:
+        """ Returns True if the metric is a rate stat (like fielding percentage) rather than a counting stat (like OAA) """
+        return self in {DefenseMetric.FLD_PCT}
 
     @property
     def first_base_plus_2_cutoff(self) -> float:
@@ -105,6 +133,7 @@ class DefenseMetric(Enum):
             case 'drs': return 17
             case 'tzr': return 16
             case 'dWAR': return 1.5
+            case 'fld_pct': return 1.001 # MAKE IMPOSSIBLE TO GET +2 FOR FLD_PCT SINCE IT'S A RATE STAT
 
     @property
     def first_base_plus_1_cutoff(self) -> int:
@@ -114,6 +143,7 @@ class DefenseMetric(Enum):
             case 'drs': return 4
             case 'tzr': return 4
             case 'dWAR': return -0.25
+            case 'fld_pct': return 0.992
     
     @property
     def first_base_minus_1_cutoff(self) -> float:
@@ -123,6 +153,7 @@ class DefenseMetric(Enum):
             case 'drs': return -5
             case 'tzr': return -5
             case 'dWAR': return -1.0
+            case 'fld_pct': return 0.975
     
     @property
     def over_max_multiplier(self) -> float:

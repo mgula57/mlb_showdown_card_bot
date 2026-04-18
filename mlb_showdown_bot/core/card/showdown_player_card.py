@@ -857,6 +857,11 @@ class ShowdownPlayerCard(BaseModel):
                     tzr = int(defensive_stats['tzr']) if defensive_stats['tzr'] != None else None
                 except:
                     tzr = None
+                # FLD_PCT
+                try:
+                    fld_pct = float(defensive_stats.get('fld_pct', None)) if defensive_stats.get('fld_pct', None) is not None else None
+                except:
+                    fld_pct = None
                 # DWAR
                 dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
                 
@@ -869,6 +874,9 @@ class ShowdownPlayerCard(BaseModel):
                 elif tzr != None: 
                     metric = DefenseMetric.TZR
                     defensive_rating = tzr
+                elif fld_pct != None and not self.stats_period.is_mlb: # MINOR LEAGUES ONLY
+                    metric = DefenseMetric.FLD_PCT
+                    defensive_rating = fld_pct
                 else:
                     metric = DefenseMetric.DWAR
                     defensive_rating = dWar
@@ -1176,12 +1184,14 @@ class ShowdownPlayerCard(BaseModel):
         
         is_1b = position == Position._1B
 
-        # CALCULATE RATING PER 150 GAMES
-        rating = rating / games * 150
-
         # CUTS DOWN SMALL SAMPLE SIZES, WHERE PLAYERS HAVE PLAYED < 30 GAMES
-        small_sample_reduction = min((games / 30), 1.0)
-        rating *= small_sample_reduction
+        if not metric.is_rate_stat:
+
+            # CALCULATE RATING PER 150 GAMES
+            rating = rating / games * 150
+
+            small_sample_reduction = min((games / 30), 1.0)
+            rating *= small_sample_reduction
 
         # FOR DEFENSIVE OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
         # EX: NICK AHMED 2018 - 38.45 OAA per 150
@@ -1194,7 +1204,7 @@ class ShowdownPlayerCard(BaseModel):
         #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
         
         metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
-        if rating > metric_max:
+        if rating > metric_max and not metric.is_rate_stat:
             amount_over_max = rating - metric_max
             over_max_small_sample_reduction = min((games / 120), 1.0)
             reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * over_max_small_sample_reduction

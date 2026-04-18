@@ -460,13 +460,42 @@ class PlayerStatsNormalizer:
                 }
 
         if not mlb_player.is_pitcher and (not fielding_stat_splits or len(fielding_stat_splits) == 0):
+            
+            # FIELDING STATS FOR MINOR LEAGUERS PRE ~2007 DOES NOT EXIST. FILL WITH PRIMARY POSITION AND GAMES PLAYED IF AVAILABLE
+            if not stats_period.is_mlb and mlb_player.primary_position and stats_period.last_year < 2007:
+                primary_position = mlb_player.primary_position.abbreviation
+                if primary_position and stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR:
+                    standard_stats = mlb_player.get_stat_splits(
+                        group_type=StatGroupEnum.HITTING,
+                        types=[stats_type],
+                        seasons=stats_period.year_list
+                    )
+                    games_played = 0
+                    for split in (standard_stats or []):
+                        stats = split.stat
+                        if stats and 'gamesPlayed' in stats:
+                            games_played += stats['gamesPlayed']
+                    if games_played > 0:
+                        return PlayerStatsNormalizer._create_generic_position_stats_from_list(positions=[primary_position], games=games_played)
+
             return None  # No stats available
 
         converted_stats: Dict[str, Dict[str, Any]] = {}
+        unique_sport_ids = list(set([split.sport.id for split in fielding_stat_splits if split.sport]))
         for split in (fielding_stat_splits or []):
 
             # Check for position data
             stats = split.stat
+
+            # IF THERE ARE MULTIPLE SPLITS AND SOME HAVE TEAM AND ANOTHER IS OVERALL, TAKE THE OVERALL SPLIT
+            if len(fielding_stat_splits) > 1 and split.team and any(s.team is None for s in fielding_stat_splits):
+                continue
+
+            # SKIP NON-TOTAL SPLITS WHEN A MINOR LEAGUE TOTAL ROW EXISTS
+            minor_total_sport_id = 21
+            if len(unique_sport_ids) > 1 and split.sport and minor_total_sport_id in unique_sport_ids and split.sport.id != minor_total_sport_id:
+                continue
+
             position = stats.get('position', None) if stats else None
             if not position:
                 print("No position found in fielding stats split.")
@@ -480,10 +509,17 @@ class PlayerStatsNormalizer:
             # Get required stats
             games_played = stats.get('gamesPlayed', 0)
 
+            # Add fielding percent if MILB
+            fielding_pct = stats.get('fielding', None) if position.abbreviation != 'DH' else None
+            if fielding_pct is not None:
+                try: fielding_pct = float(fielding_pct)
+                except: fielding_pct = None
+
             if position.abbreviation not in converted_stats:
                 converted_stats[position.abbreviation] = {
                     'g': games_played,
-                    # 'tzr': 0.0, TODO: ADD FROM ANOTHER SOURCE
+                    'fld_pct': fielding_pct,
+                    # 'tzr': 0.0, ADDED FROM FANGRAPHS LATER
                     # 'drs': 0.0,
                     # 'oaa': 0.0,
                     # 'uzr': 0.0,
@@ -492,6 +528,16 @@ class PlayerStatsNormalizer:
             current_stats = converted_stats[position.abbreviation]
             current_stats['g'] += games_played
             converted_stats[position.abbreviation] = current_stats
+
+        # MAKE COMBINED `OF` POSITION IF PLAYER HAS CF AND LF OR RF, SINCE BREF USED TO COMBINE THEM INTO ONE POSITION
+        # DO A WEIGHTED AVERAGE FOR FIELDING PCT IF AVAILABLE
+        of_positions = [p for p in ('CF', 'LF', 'RF') if p in converted_stats]
+        if len(of_positions) > 1:
+            of_games = sum(converted_stats[p]['g'] for p in of_positions)
+            pct_and_games = [(converted_stats[p]['fld_pct'], converted_stats[p]['g']) for p in of_positions if converted_stats[p].get('fld_pct') is not None]
+            games_with_pct = sum(g for _, g in pct_and_games)
+            of_fld_pct = round(sum(pct * g for pct, g in pct_and_games) / games_with_pct, 4) if games_with_pct > 0 else None
+            converted_stats['OF'] = {'g': of_games, 'fld_pct': of_fld_pct}
 
         return converted_stats
 
@@ -1360,6 +1406,7 @@ class PositionStats(BaseModel):
     drs: Optional[float] = None  # Defensive Runs Saved
     oaa: Optional[float] = None  # Outs Above Average
     uzr: Optional[float] = None  # Ultimate Zone Rating
+    fld_pct: Optional[float] = None  # Fielding Percentage
 
     @staticmethod
     def from_fangraphs_fielding_stats(fangraphs_stats: FieldingStats) -> 'PositionStats':

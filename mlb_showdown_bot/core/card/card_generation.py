@@ -181,7 +181,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     search_name = search_name.split('(')[0].strip()
                 player_data = mlb_stats_api.build_full_player_from_search(search_name=search_name, stats_period=stats_period, league=league)
                 if player_data is None:
-                    raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')}")
+                    raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')} in the {league}.")
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 if normalized_player_stats is None or normalized_player_stats.PA is None or normalized_player_stats.PA == 0:
