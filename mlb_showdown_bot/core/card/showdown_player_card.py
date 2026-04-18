@@ -3013,14 +3013,14 @@ class ShowdownPlayerCard(BaseModel):
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
 
             # ADJUST IF THERE'S STATS PERIOD TEXT
-            if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card and self.set == Set._2003:
+            if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card and self.set == Set._2003:
                 paste_location = (paste_location[0], paste_location[1] - 65)
 
             year_container_img = self._year_container_add_on()
             card_image.paste(year_container_img, self._coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
         # SPLIT/DATE RANGE
-        if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
+        if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
             split_image = self._stats_period_type_text_img()
             paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career)
             card_image.paste(split_image, self._coordinates_adjusted_for_bordering(paste_coordinates), split_image)
@@ -3503,7 +3503,7 @@ class ShowdownPlayerCard(BaseModel):
             if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-HIGHLIGHTS{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
-            elif self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
+            elif self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-PERIOD-HOLDER{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
         elif self.is_2002_asg_tan_template:
@@ -4912,6 +4912,7 @@ class ShowdownPlayerCard(BaseModel):
         font = ImageFont.truetype(font_path, size=text_size)
         
         text = self.stats_period.display_text or ""
+        print(f"Stats period display text: '{text}'")
         text = text if len(text) < text_length_limit else f"{text[:text_length_limit-3]}.."
         text_color = self.set.template_component_font_color(TemplateImageComponent.SPLIT, is_dark_mode=self.image.is_dark_mode)
         text_image_large = self._text_image(
@@ -4949,7 +4950,7 @@ class ShowdownPlayerCard(BaseModel):
         # BACKGROUND IMAGE
         match self.set:
             case Set._2002:
-                x_size = 528 if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 784
+                x_size = 528 if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 784
                 bg_image = Image.new('RGBA', (x_size, 38), color=colors.BLACK)
                 y_text_offset = 2
             case Set._2003:
@@ -4957,7 +4958,7 @@ class ShowdownPlayerCard(BaseModel):
                 bg_image = Image.new('RGBA', (x_size, 45), color="#E2E2E2")
                 y_text_offset = 0
             case Set._2004 | Set._2005:
-                x_size = 680 if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 1000
+                x_size = 680 if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 1000
                 if not self.image.expansion.has_image:
                     x_size += 100
                 bg_image = Image.new('RGBA', (x_size, 46))

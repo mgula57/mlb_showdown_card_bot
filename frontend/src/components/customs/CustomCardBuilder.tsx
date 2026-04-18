@@ -64,6 +64,7 @@ export interface CustomCardFormState {
     start_date?: string | null; // e.g. "2023-05-01"
     end_date?: string | null; // e.g. "2023-10-01"
     split?: string | null; // e.g. "First Half"
+    league: string; // e.g. "MLB" or "MILB"
 
     // Set
     expansion: string; // e.g. "BS"
@@ -107,6 +108,7 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     start_date: null, 
     end_date: null, 
     split: null,
+    league: 'MLB',
 
     expansion: "BS", 
     set_number: null, 
@@ -144,7 +146,7 @@ type loadingStatusContent = {
 // MARK: - Local Storage
 // ----------------------------------
 
-const STORAGE_KEY = 'customCardFormSettings';
+const STORAGE_KEY = 'customCardFormSettings-V2';
 const WBC_BANNER_DISMISSED_KEY = 'customCardWbcBannerDismissed';
 
 /** Save form settings to localStorage */
@@ -271,6 +273,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆', 'borderColor': 'border-yellow-500'},
         { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅', 'borderColor': 'border-red-600' },
         { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀', 'borderColor': 'border-blue-700' },
+    ]
+
+    const leagueOptions: SelectOption[] = [
+        { 'value': 'MLB', 'label': 'MLB' },
+        { 'value': 'MILB', 'label': 'MiLB' }
     ]
 
     // Edition Options
@@ -1201,6 +1208,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <FormInput
                                                 label="Year*"
                                                 value={form.year}
+                                                className='col-span-full'
                                                 onChange={(value) => setForm({ ...form, year: value || '' })}
                                                 isClearable={true}
                                             />
@@ -1210,6 +1218,27 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 options={statsPeriodOptions}
                                                 selectedOption={form.stats_period_type}
                                                 onChange={(value) => setForm({ ...form, stats_period_type: value })}
+                                            />
+
+                                            <FormDropdown
+                                                label={
+                                                    <span className="flex items-center gap-1.5">
+                                                        League
+                                                        <span
+                                                            className="relative group inline-flex items-center"
+                                                        >
+                                                            <span className="text-[10px] font-black bg-(--red) text-white rounded px-1 py-0.5 leading-none cursor-default">
+                                                                NEW
+                                                            </span>
+                                                            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-3/4 mb-1.5 w-48 rounded-lg bg-gray-900 text-white text-xs px-2.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">
+                                                                You can now generate cards using MiLB (Minor League) stats. Some stats are limited due to lack of availability.
+                                                            </span>
+                                                        </span>
+                                                    </span>
+                                                }
+                                                options={leagueOptions}
+                                                selectedOption={form.league}
+                                                onChange={(value) => setForm({ ...form, league: value })}
                                             />
 
                                             {renderStatsPeriodInputs()}

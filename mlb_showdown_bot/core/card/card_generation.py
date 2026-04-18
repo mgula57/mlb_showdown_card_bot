@@ -136,6 +136,13 @@ def generate_card(**kwargs) -> dict[str, Any]:
         stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
 
+        # ALL NON-MLB CARDS ARE THROUGH MLB'S API
+        if not stats_period.is_mlb:
+            expected_source = Datasource.MLB_API
+            # IF THE PLAYER ID LOOKS LIKE A BREF ID, RESET IT TO THE NAME FIELD AND LET MLB API FIGURE IT OUT. THIS ALLOWS USERS TO INPUT BREF IDS FOR NON-MLB PLAYERS WITHOUT CAUSING ISSUES WITH THE BASEBALL REFERENCE SCRAPER.
+            if str(kwargs.get('name', '')).endswith(('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')):
+                kwargs['name'] = kwargs.get('name_original', '')
+
         # CHECK FOR YEAR IN THE FUTURE AND WBC
         edition_raw = kwargs.get('edition', None)
         edition = Edition(edition_raw) if edition_raw else None
