@@ -1174,7 +1174,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                         <FaXmark />
                                                     </button>
                                                 </div>
-                                                <div className="text-md font-bold overflow-scroll">
+                                                <div className="text-md font-bold overflow-scroll scrollbar-hide">
                                                     {errorMessage}
                                                 </div>
                                             </div>
