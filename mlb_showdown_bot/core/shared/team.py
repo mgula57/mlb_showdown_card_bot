@@ -1083,6 +1083,8 @@ class Team(str, Enum):
         ]
     
     def logo_size_multiplier(self, year:int, is_alternate:bool=False) -> float:
+        if self in [Team.MILB] and is_alternate:
+            return 1.15
         is_wide = self.is_logo_wide(year=year, is_alternate=is_alternate)
         if is_wide:
             return 1.25
