@@ -1078,7 +1078,7 @@ class Team(str, Enum):
             'ANA-1','ANA-A-1','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CIN-8','CIN-11','CIN-12','CIN-13',
             'CRS-A','CRS','IA-A','IA',
-            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','MILB','NYG-2','NYG-A-2','SDP-6','SDP-A-6''SEP-A','SEP',
+            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','MILB','MILB-A','NYG-2','NYG-A-2','SDP-6','SDP-A-6''SEP-A','SEP',
             'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
         ]
     
