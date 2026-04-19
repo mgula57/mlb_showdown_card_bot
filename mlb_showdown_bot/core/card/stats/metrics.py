@@ -52,9 +52,9 @@ class DefenseMetric(Enum):
                 match position_str: # DOESN'T USE MIN-BASE, JUST STATIC CUTOFFS
                     case 'C':              return 0.980
                     case '1B':             return 0.988
-                    case '2B':             return 0.968
+                    case '2B':             return 0.955
                     case '3B':             return 0.942
-                    case 'SS':             return 0.958
+                    case 'SS':             return 0.950
                     case 'LF' | 'RF':     return 0.970
                     case 'CF':             return 0.978
                     case 'OF':             return 0.972
