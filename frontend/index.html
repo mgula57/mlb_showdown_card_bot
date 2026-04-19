@@ -6,8 +6,17 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#18191c" id="theme-color-meta">
     <title>Showdown Bot</title>
+    <script>
+      (function() {
+        var saved = localStorage.getItem('theme');
+        var isDark = saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.add(isDark ? 'dark' : 'light');
+        var meta = document.getElementById('theme-color-meta');
+        if (meta) meta.content = isDark ? '#18191c' : '#f3f7fa';
+      })();
+    </script>
 
     <!-- Standard Favicon -->
     <link rel="icon" type="image/png" href="/favicon.png" />
