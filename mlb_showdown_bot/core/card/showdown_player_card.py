@@ -4912,7 +4912,6 @@ class ShowdownPlayerCard(BaseModel):
         font = ImageFont.truetype(font_path, size=text_size)
         
         text = self.stats_period.display_text or ""
-        print(f"Stats period display text: '{text}'")
         text = text if len(text) < text_length_limit else f"{text[:text_length_limit-3]}.."
         text_color = self.set.template_component_font_color(TemplateImageComponent.SPLIT, is_dark_mode=self.image.is_dark_mode)
         text_image_large = self._text_image(
@@ -5589,6 +5588,8 @@ class ShowdownPlayerCard(BaseModel):
         if '(WBC_' in img_name and self.image.special_edition != SpecialEdition.WBC:
             match_score -= 2
 
+        
+
         return match_score
 
     def _img_match_keyword_list(self) -> list[str]:
@@ -5625,6 +5626,10 @@ class ShowdownPlayerCard(BaseModel):
             additional_substring_filters.append(f'{self.wbc_year}') 
             for _ in range(0,4):
                 additional_substring_filters.append(f'(WBC_{self.wbc_team.value})') # ADDS TEAM FOUR TIMES TO GIVE IT 4X IMPORTANCE FOR WBC CARDS
+
+        # NON-MLB PLAYERS WILL HAVE ({LEAGUE}_{TEAM}) INSTEAD OF (TEAM)
+        if self.league and not self.stats_period.is_mlb:
+            additional_substring_filters.append(f'({self.league}_')
         
         # PERIOD TYPE
         if self.stats_period.type.player_image_search_term: 
