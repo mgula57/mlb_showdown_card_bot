@@ -1222,6 +1222,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 options={statsPeriodOptions}
                                                 selectedOption={form.stats_period_type}
                                                 onChange={(value) => setForm({ ...form, stats_period_type: value })}
+                                                disabled={form.league === 'MILB'}
                                             />
 
                                             <FormDropdown
@@ -1242,7 +1243,19 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 }
                                                 options={leagueOptions}
                                                 selectedOption={form.league}
-                                                onChange={(value) => setForm({ ...form, league: value })}
+                                                onChange={(value) => {
+                                                    const isMiLB = value === 'MILB';
+                                                    setForm({
+                                                        ...form,
+                                                        league: value,
+                                                        ...(isMiLB && ['POST', 'DATES', 'SPLIT'].includes(form.stats_period_type) && {
+                                                            stats_period_type: 'REGULAR',
+                                                            start_date: null,
+                                                            end_date: null,
+                                                            split: null,
+                                                        }),
+                                                    });
+                                                }}
                                             />
 
                                             {renderStatsPeriodInputs()}

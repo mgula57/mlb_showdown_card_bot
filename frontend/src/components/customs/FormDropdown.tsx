@@ -59,7 +59,7 @@ const FormDropdown = ({ label, options, selectedOption, onChange, className="", 
     return (
         <div className={className}>
             {/* Form label with consistent styling */}
-            <label className="text-sm font-medium text-secondary block">{label}</label>
+            <label className={`text-sm font-medium block ${disabled ? 'text-tertiary' : 'text-secondary'}`}>{label}</label>
 
             {/* Dropdown selection component */}
             <CustomSelect

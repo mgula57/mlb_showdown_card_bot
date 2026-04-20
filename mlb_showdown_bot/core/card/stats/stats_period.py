@@ -476,6 +476,10 @@ class StatsPeriod(BaseModel):
         except: year = None
         if year is None: return
 
+        # ONLY ADJUST TO MLB
+        if not self.is_mlb:
+            return
+
         # CHECK TYPE
         if self.type != StatsPeriodType.REGULAR_SEASON:
             return
