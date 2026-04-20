@@ -1087,7 +1087,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     <Tabs.Content
                                         value="teams"
                                         className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
-                                        forceMount
                                     >                                        
                                             {selectedTeam && (
                                                 <TeamRoster 

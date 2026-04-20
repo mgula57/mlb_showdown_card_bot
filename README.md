@@ -63,6 +63,7 @@ card = generate_card(
 - [Special Editions](#editions)
 - [Visual Parallels](#parallels)
 - [Time Periods](#periods)
+- [MiLB Cards](#milb-cards)
 - [Advanced Options](#more-options)
 - [Custom Images](#uploading-custom-images)
 
@@ -79,7 +80,7 @@ card = generate_card(
 ## 🛠️ Installation
 
 ### Prerequisites
-- **Python 3.8+** - [Download here](https://www.python.org/downloads/)
+- **Python 3.10+** - [Download here](https://www.python.org/downloads/)
 - **(Optional)** Virtual environment manager like [pyenv](https://github.com/pyenv/pyenv) or [virtualenv](https://virtualenv.pypa.io/en/latest/)
 - **(For local development)** [Node.js 18+](https://nodejs.org/) and npm 9+
 
@@ -123,32 +124,38 @@ Showdown Bot transforms real baseball statistics into balanced MLB Showdown card
 
 ### 1. Player Identification
 
-The system uses multiple methods to find your player:
+The data source used depends on the league and year:
 
+**Historical MLB players (pre-2026)** use Baseball Reference for identification:
 1. **Internal Database**: First checks our comprehensive player mapping (Name → Baseball Reference ID)
 2. **Smart Search**: If not found, searches "baseball reference {name} {year}" using Bing
 3. **Fuzzy Matching**: Handles variations in player names and nicknames
 
-<div align="center">
-  <img src="./docs/images/RM-BingSearch.png" alt="Search Process" width="500"/>
-</div>
+**Current MLB players (2026+) and all non-MLB players** (MiLB) are identified through the **MLB Stats API** by name search.
 
-> 💡 **Pro Tip**: Having trouble finding a player? Try using their Baseball Reference ID (e.g., `degroja01`) as the name input.
+> 💡 **Pro Tip**: Having trouble finding a historical MLB player? Try using their Baseball Reference ID (e.g., `degroja01`) or MLB ID (e.g. `594798`) as the name input. Both can be found in the URL of the player's stat page on bref/mlb.com
 
 ### 2. Data Collection
 
-**Primary Sources:**
-- 📊 **[Baseball Reference](https://www.baseball-reference.com)**: Complete statistics for ~20,000 MLB players
-- ⚡ **[Baseball Savant](https://baseballsavant.mlb.com)**: Modern metrics (2015+) including sprint speed and defensive stats
+The data source used for stats depends on the league and year:
 
-**What Gets Collected:**
+**Historical MLB Cards (pre-2026) — [Baseball Reference](https://www.baseball-reference.com) + [Baseball Savant](https://baseballsavant.mlb.com)**
+- Complete historical statistics for ~20,000 MLB players
+- Modern metrics (2015+) including sprint speed and defensive stats (OAA, DRS)
+- Supports all periods: Regular Season, Postseason, Date Range, and Splits
+
+**Current MLB Cards (2026+) and Non-MLB Cards (MiLB) — [MLB Stats API](https://statsapi.mlb.com)**
+- Stats pulled directly from MLB's official API
+- Updates live during games
+- Defense and sprint speed are pulled separately (FanGraphs and Baseball Savant)
+
+**What Gets Collected (all sources):**
 - **Hitters**: BA, OBP, SLG, HR, SB, defensive metrics, etc.
 - **Pitchers**: Opponent batting stats (BA against, OBP against, etc.)
-- **Modern Era**: Sprint speed, outs above average, advanced defensive metrics
 
 **⚠️ Limitations:**
-- Minor League statistics (insufficient opponent data)
 - Spring Training games (statistical reliability)
+- Historical MiLB seasons (limited data coverage in MLB Stats API)
 - Foreign leagues (data availability)
 
 ### 3. Player Overrides
@@ -651,7 +658,7 @@ The `Command Adjustment Factor` is a way for shOPS+ to account for normal Showdo
 
 ## **Editions**
 
-Use Editions to add style variety to your cards. There are currently 6 different Editions available on Showdown Bot.
+Use Editions to add style variety to your cards. There are currently 8 different Editions available on Showdown Bot.
 
 1. [Cooperstown Collection](#cooperstown-collection)
 2. [Super Season](#super-season)
@@ -660,6 +667,7 @@ Use Editions to add style variety to your cards. There are currently 6 different
 5. [Rookie Season](#rookie-season)
 6. [Holiday](#holiday)
 7. [WBC](#wbc)
+8. [Postseason](#postseason)
 
 ### **Cooperstown Collection**
 
@@ -789,7 +797,7 @@ Replaces a player's MLB team with their birthplace country. Adds a custom backgr
 
 List of supported countries:
  - United States
- - Domican Republic
+ - Dominican Republic
  - Venezuela
  - Cuba
  - Canada
@@ -810,6 +818,9 @@ List of supported countries:
  - Germany
  - Taiwan
  - Curacao
+ - Brazil
+ - Spain
+ - South Africa
 
 2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of select players. CLASSIC/EXPANDED sets feature a new gradient design for the outs portion of player charts.
 
@@ -923,6 +934,7 @@ Available Parallels:
 - Flames
 - Mystery
 - Moonlight
+- Galaxy
 
 Stay tuned for more image parallels coming soon!
 
@@ -967,6 +979,34 @@ Filter to stats from a particular split on baseball reference. See player's "Spl
 Certain stat inputs are unavailable for splits. The following stat inputs will use full regular season values:
 - Sprint Speed
 - Defense
+
+## MiLB Cards
+
+![Image](./docs/images/RM-MILB.png)
+
+Showdown Bot supports Minor League (MiLB) cards for players with stats available on MLB.com. MiLB cards work across all sets and editions, but have several differences from standard MLB cards due to data availability limitations.
+
+### Defense
+
+MiLB defensive data does not include advanced metrics (DRS, OAA, TZR). Instead, defensive ratings are calculated using **fielding percentage** relative to the position average. This produces reasonable ratings but will generally be less precise than MLB defensive ratings derived from modern tracking data.
+
+### Historical Stats
+
+MiLB historical data coverage is significantly more limited than MLB. Stats for older seasons or lower-level affiliates may be incomplete or unavailable. The bot will do its best to fill in gaps, but cards from certain time periods may not work.
+
+### Stats Period
+
+MiLB cards only support the **Regular Season** period. The following period options are unavailable:
+
+- Postseason
+- Date Range
+- Split
+
+This is because postseason and split data is not available through Baseball Reference for minor league players.
+
+### Team Logos
+
+Team logos for MiLB affiliates are not currently supported. Cards will display a generic MiLB placeholder in place of the team logo. Logo support for MiLB teams is planned for a future update.
 
 ## More Options
 
@@ -1041,7 +1081,7 @@ Tips for uploading your own custom images:
 ## 🛠️ Development & Local Setup
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+
 - Node.js 18+ and npm 9+ (for web interface)
 - Git
 

@@ -39,7 +39,7 @@ _STAT_KEYS = [
     # IF/FB batted ball components (pitcher advanced)
     'popOuts', 'popHits', 'flyOuts', 'flyHits', 'lineOuts', 'lineHits',
     # Fielding
-    'position',
+    'position', 'fielding',
     # Rate / slashline
     'avg', 'slg', 'obp', 'ops',
     # Sabermetrics
