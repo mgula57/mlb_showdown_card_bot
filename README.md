@@ -133,7 +133,7 @@ The data source used depends on the league and year:
 
 **Current MLB players (2026+) and all non-MLB players** (MiLB) are identified through the **MLB Stats API** by name search.
 
-> 💡 **Pro Tip**: Having trouble finding a historical MLB player? Try using their Baseball Reference ID (e.g., `degroja01`) or MLB ID (e.g. `594798`) as the name input.
+> 💡 **Pro Tip**: Having trouble finding a historical MLB player? Try using their Baseball Reference ID (e.g., `degroja01`) or MLB ID (e.g. `594798`) as the name input. Both can be found in the URL of the player's stat page on bref/mlb.com
 
 ### 2. Data Collection
 
