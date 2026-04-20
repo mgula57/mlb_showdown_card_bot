@@ -242,11 +242,12 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 type="button"
                 ref={buttonRef}
                 className={buttonClassName ? buttonClassName : `
-                    w-full px-3 py-2 
+                    w-full px-3 py-2
                     border-2 ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
-                    bg-secondary text-primary text-nowrap text-left 
+                    bg-secondary text-primary text-nowrap text-left
                     overflow-clip
                     cursor-pointer
+                    disabled:opacity-40 disabled:cursor-not-allowed disabled:border-form-element
                 `}
                 onClick={handleToggle}
                 disabled={disabled}

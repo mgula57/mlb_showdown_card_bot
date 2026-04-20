@@ -857,6 +857,11 @@ class ShowdownPlayerCard(BaseModel):
                     tzr = int(defensive_stats['tzr']) if defensive_stats['tzr'] != None else None
                 except:
                     tzr = None
+                # FLD_PCT
+                try:
+                    fld_pct = float(defensive_stats.get('fld_pct', None)) if defensive_stats.get('fld_pct', None) is not None else None
+                except:
+                    fld_pct = None
                 # DWAR
                 dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
                 
@@ -869,6 +874,9 @@ class ShowdownPlayerCard(BaseModel):
                 elif tzr != None: 
                     metric = DefenseMetric.TZR
                     defensive_rating = tzr
+                elif fld_pct != None and not self.stats_period.is_mlb: # MINOR LEAGUES ONLY
+                    metric = DefenseMetric.FLD_PCT
+                    defensive_rating = fld_pct
                 else:
                     metric = DefenseMetric.DWAR
                     defensive_rating = dWar
@@ -1176,12 +1184,14 @@ class ShowdownPlayerCard(BaseModel):
         
         is_1b = position == Position._1B
 
-        # CALCULATE RATING PER 150 GAMES
-        rating = rating / games * 150
-
         # CUTS DOWN SMALL SAMPLE SIZES, WHERE PLAYERS HAVE PLAYED < 30 GAMES
-        small_sample_reduction = min((games / 30), 1.0)
-        rating *= small_sample_reduction
+        if not metric.is_rate_stat:
+
+            # CALCULATE RATING PER 150 GAMES
+            rating = rating / games * 150
+
+            small_sample_reduction = min((games / 30), 1.0)
+            rating *= small_sample_reduction
 
         # FOR DEFENSIVE OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
         # EX: NICK AHMED 2018 - 38.45 OAA per 150
@@ -1194,7 +1204,7 @@ class ShowdownPlayerCard(BaseModel):
         #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
         
         metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
-        if rating > metric_max:
+        if rating > metric_max and not metric.is_rate_stat:
             amount_over_max = rating - metric_max
             over_max_small_sample_reduction = min((games / 120), 1.0)
             reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * over_max_small_sample_reduction
@@ -3003,14 +3013,14 @@ class ShowdownPlayerCard(BaseModel):
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
 
             # ADJUST IF THERE'S STATS PERIOD TEXT
-            if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card and self.set == Set._2003:
+            if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card and self.set == Set._2003:
                 paste_location = (paste_location[0], paste_location[1] - 65)
 
             year_container_img = self._year_container_add_on()
             card_image.paste(year_container_img, self._coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
         # SPLIT/DATE RANGE
-        if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
+        if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
             split_image = self._stats_period_type_text_img()
             paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career)
             card_image.paste(split_image, self._coordinates_adjusted_for_bordering(paste_coordinates), split_image)
@@ -3493,7 +3503,7 @@ class ShowdownPlayerCard(BaseModel):
             if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-HIGHLIGHTS{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
-            elif self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
+            elif self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-PERIOD-HOLDER{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
         elif self.is_2002_asg_tan_template:
@@ -4939,7 +4949,7 @@ class ShowdownPlayerCard(BaseModel):
         # BACKGROUND IMAGE
         match self.set:
             case Set._2002:
-                x_size = 528 if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 784
+                x_size = 528 if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 784
                 bg_image = Image.new('RGBA', (x_size, 38), color=colors.BLACK)
                 y_text_offset = 2
             case Set._2003:
@@ -4947,7 +4957,7 @@ class ShowdownPlayerCard(BaseModel):
                 bg_image = Image.new('RGBA', (x_size, 45), color="#E2E2E2")
                 y_text_offset = 0
             case Set._2004 | Set._2005:
-                x_size = 680 if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 1000
+                x_size = 680 if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 1000
                 if not self.image.expansion.has_image:
                     x_size += 100
                 bg_image = Image.new('RGBA', (x_size, 46))
@@ -5578,6 +5588,8 @@ class ShowdownPlayerCard(BaseModel):
         if '(WBC_' in img_name and self.image.special_edition != SpecialEdition.WBC:
             match_score -= 2
 
+        
+
         return match_score
 
     def _img_match_keyword_list(self) -> list[str]:
@@ -5614,6 +5626,10 @@ class ShowdownPlayerCard(BaseModel):
             additional_substring_filters.append(f'{self.wbc_year}') 
             for _ in range(0,4):
                 additional_substring_filters.append(f'(WBC_{self.wbc_team.value})') # ADDS TEAM FOUR TIMES TO GIVE IT 4X IMPORTANCE FOR WBC CARDS
+
+        # NON-MLB PLAYERS WILL HAVE ({LEAGUE}_{TEAM}) INSTEAD OF (TEAM)
+        if self.league and not self.stats_period.is_mlb:
+            additional_substring_filters.append(f'({self.league}_')
         
         # PERIOD TYPE
         if self.stats_period.type.player_image_search_term: 

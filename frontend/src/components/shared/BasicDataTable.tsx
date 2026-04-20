@@ -121,7 +121,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
     });
 
     return (
-        <div className={`overflow-scroll rounded-lg border-2 border-(--background-tertiary) ${className} text-sm`}>
+        <div className={`overflow-scroll scrollbar-hide rounded-lg border-2 border-(--background-tertiary) ${className} text-sm`}>
             <table className="min-w-full">
                 {/* Table Header with sortable columns */}
                 <thead className="bg-table-header">
@@ -158,14 +158,14 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                         </tr>
                     ) : (
                         // Render data rows with alternating background colors and optional click handling
-                        table.getRowModel().rows.map(r => (
+                        table.getRowModel().rows.map((r, i) => (
                             <tr 
                                 key={r.id} 
                                 className={`
                                     ${onRowClick ? 'cursor-pointer' : ''}
                                 `}
                                 style={{
-                                    backgroundColor: r.index % 2 === 0
+                                    backgroundColor: i % 2 === 0
                                         ? 'var(--table-banding, var(--background-secondary))'
                                         : 'var(--background-secondary)',
                                 }}

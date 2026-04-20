@@ -37,10 +37,6 @@ class StatsPeriodType(str, Enum):
         match self:
             case StatsPeriodType.POSTSEASON: return "(POST)"
             case _: return None
-
-    @property
-    def show_text_on_card_image(self) -> bool:
-        return self not in [StatsPeriodType.REGULAR_SEASON]
     
     @property
     def is_regular_season_games_stat_needed(self) -> bool:
@@ -445,6 +441,11 @@ class StatsPeriod(BaseModel):
         """
         return self.league in [StatsPeriodLeague.MLB] or self.league is None
     
+    @property
+    def show_text_on_card_image(self) -> bool:
+        return self.type not in [StatsPeriodType.REGULAR_SEASON] or not self.is_mlb
+    
+
     # ---------------------------------
     # METHODS
     # ---------------------------------
@@ -474,6 +475,10 @@ class StatsPeriod(BaseModel):
         try: year = int(self.year)
         except: year = None
         if year is None: return
+
+        # ONLY ADJUST TO MLB
+        if not self.is_mlb:
+            return
 
         # CHECK TYPE
         if self.type != StatsPeriodType.REGULAR_SEASON:
@@ -656,4 +661,6 @@ class StatsPeriod(BaseModel):
                 text = f"PROJECTED"
             case StatsPeriodType.REPLACEMENT:
                 text = f"REPLACEMENT"
+        if not self.is_mlb:
+            text = f"{self.league.value}" + (f" {text}" if text and self.type != StatsPeriodType.REGULAR_SEASON else "")
         return text

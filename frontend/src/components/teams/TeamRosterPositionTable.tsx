@@ -58,7 +58,7 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
             const isReplacement = card?.stats_period?.type === "REPLACEMENT";
             return (
                 <div className="flex flex-col gap-0 max-w-28 sm:max-w-40">
-                    <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-scroll">
+                    <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-scroll scrollbar-hide">
                         {name}
                     </div>
                     <div className="flex flex-row italic text-[11px] gap-1 items-center">
