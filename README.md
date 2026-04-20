@@ -79,7 +79,7 @@ card = generate_card(
 ## 🛠️ Installation
 
 ### Prerequisites
-- **Python 3.8+** - [Download here](https://www.python.org/downloads/)
+- **Python 3.10+** - [Download here](https://www.python.org/downloads/)
 - **(Optional)** Virtual environment manager like [pyenv](https://github.com/pyenv/pyenv) or [virtualenv](https://virtualenv.pypa.io/en/latest/)
 - **(For local development)** [Node.js 18+](https://nodejs.org/) and npm 9+
 
@@ -651,7 +651,7 @@ The `Command Adjustment Factor` is a way for shOPS+ to account for normal Showdo
 
 ## **Editions**
 
-Use Editions to add style variety to your cards. There are currently 6 different Editions available on Showdown Bot.
+Use Editions to add style variety to your cards. There are currently 8 different Editions available on Showdown Bot.
 
 1. [Cooperstown Collection](#cooperstown-collection)
 2. [Super Season](#super-season)
@@ -660,6 +660,7 @@ Use Editions to add style variety to your cards. There are currently 6 different
 5. [Rookie Season](#rookie-season)
 6. [Holiday](#holiday)
 7. [WBC](#wbc)
+8. [Postseason](#postseason)
 
 ### **Cooperstown Collection**
 
@@ -789,7 +790,7 @@ Replaces a player's MLB team with their birthplace country. Adds a custom backgr
 
 List of supported countries:
  - United States
- - Domican Republic
+ - Dominican Republic
  - Venezuela
  - Cuba
  - Canada
@@ -810,6 +811,9 @@ List of supported countries:
  - Germany
  - Taiwan
  - Curacao
+ - Brazil
+ - Spain
+ - South Africa
 
 2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of select players. CLASSIC/EXPANDED sets feature a new gradient design for the outs portion of player charts.
 
@@ -923,6 +927,7 @@ Available Parallels:
 - Flames
 - Mystery
 - Moonlight
+- Galaxy
 
 Stay tuned for more image parallels coming soon!
 
@@ -1041,7 +1046,7 @@ Tips for uploading your own custom images:
 ## 🛠️ Development & Local Setup
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+
 - Node.js 18+ and npm 9+ (for web interface)
 - Git
 
