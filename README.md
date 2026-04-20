@@ -63,6 +63,7 @@ card = generate_card(
 - [Special Editions](#editions)
 - [Visual Parallels](#parallels)
 - [Time Periods](#periods)
+- [MiLB Cards](#milb-cards)
 - [Advanced Options](#more-options)
 - [Custom Images](#uploading-custom-images)
 
@@ -972,6 +973,34 @@ Filter to stats from a particular split on baseball reference. See player's "Spl
 Certain stat inputs are unavailable for splits. The following stat inputs will use full regular season values:
 - Sprint Speed
 - Defense
+
+## MiLB Cards
+
+![Image](./docs/images/RM-MILB.png)
+
+Showdown Bot supports Minor League (MiLB) cards for players with stats available on MLB.com. MiLB cards work across all sets and editions, but have several differences from standard MLB cards due to data availability limitations.
+
+### Defense
+
+MiLB defensive data does not include advanced metrics (DRS, OAA, TZR). Instead, defensive ratings are calculated using **fielding percentage** relative to the position average. This produces reasonable ratings but will generally be less precise than MLB defensive ratings derived from modern tracking data.
+
+### Historical Stats
+
+MiLB historical data coverage is significantly more limited than MLB. Stats for older seasons or lower-level affiliates may be incomplete or unavailable. The bot will do its best to fill in gaps, but cards from certain time periods may not work.
+
+### Stats Period
+
+MiLB cards only support the **Regular Season** period. The following period options are unavailable:
+
+- Postseason
+- Date Range
+- Split
+
+This is because postseason and split data is not available through Baseball Reference for minor league players.
+
+### Team Logos
+
+Team logos for MiLB affiliates are not currently supported. Cards will display a generic MiLB placeholder in place of the team logo. Logo support for MiLB teams is planned for a future update.
 
 ## More Options
 
