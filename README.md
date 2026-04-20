@@ -124,32 +124,38 @@ Showdown Bot transforms real baseball statistics into balanced MLB Showdown card
 
 ### 1. Player Identification
 
-The system uses multiple methods to find your player:
+The data source used depends on the league and year:
 
+**Historical MLB players (pre-2026)** use Baseball Reference for identification:
 1. **Internal Database**: First checks our comprehensive player mapping (Name → Baseball Reference ID)
 2. **Smart Search**: If not found, searches "baseball reference {name} {year}" using Bing
 3. **Fuzzy Matching**: Handles variations in player names and nicknames
 
-<div align="center">
-  <img src="./docs/images/RM-BingSearch.png" alt="Search Process" width="500"/>
-</div>
+**Current MLB players (2026+) and all non-MLB players** (MiLB) are identified through the **MLB Stats API** by name search.
 
-> 💡 **Pro Tip**: Having trouble finding a player? Try using their Baseball Reference ID (e.g., `degroja01`) as the name input.
+> 💡 **Pro Tip**: Having trouble finding a historical MLB player? Try using their Baseball Reference ID (e.g., `degroja01`) or MLB ID (e.g. `594798`) as the name input.
 
 ### 2. Data Collection
 
-**Primary Sources:**
-- 📊 **[Baseball Reference](https://www.baseball-reference.com)**: Complete statistics for ~20,000 MLB players
-- ⚡ **[Baseball Savant](https://baseballsavant.mlb.com)**: Modern metrics (2015+) including sprint speed and defensive stats
+The data source used for stats depends on the league and year:
 
-**What Gets Collected:**
+**Historical MLB Cards (pre-2026) — [Baseball Reference](https://www.baseball-reference.com) + [Baseball Savant](https://baseballsavant.mlb.com)**
+- Complete historical statistics for ~20,000 MLB players
+- Modern metrics (2015+) including sprint speed and defensive stats (OAA, DRS)
+- Supports all periods: Regular Season, Postseason, Date Range, and Splits
+
+**Current MLB Cards (2026+) and Non-MLB Cards (MiLB) — [MLB Stats API](https://statsapi.mlb.com)**
+- Stats pulled directly from MLB's official API
+- Updates live during games
+- Defense and sprint speed are pulled separately (FanGraphs and Baseball Savant)
+
+**What Gets Collected (all sources):**
 - **Hitters**: BA, OBP, SLG, HR, SB, defensive metrics, etc.
 - **Pitchers**: Opponent batting stats (BA against, OBP against, etc.)
-- **Modern Era**: Sprint speed, outs above average, advanced defensive metrics
 
 **⚠️ Limitations:**
-- Minor League statistics (insufficient opponent data)
 - Spring Training games (statistical reliability)
+- Historical MiLB seasons (limited data coverage in MLB Stats API)
 - Foreign leagues (data availability)
 
 ### 3. Player Overrides
