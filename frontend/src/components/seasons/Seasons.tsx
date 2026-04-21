@@ -24,7 +24,7 @@ import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
 
 import {
-    FaRankingStar, FaClipboardList, FaUserGroup, FaEarthAmericas, FaCalendarDays,
+    FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
     FaStar, FaRegStar, FaArrowsRotate, FaTrophy
 } from "react-icons/fa6";
@@ -258,7 +258,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
-        { id: "players", label: "Players", icon: <FaUserGroup /> },
+        // { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
 
     // ************************
@@ -937,20 +937,17 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         </div>
 
                                         <Tabs.List
-                                            className="grid gap-1 rounded-lg bg-(--background-tertiary) p-1"
-                                            style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+                                            className="flex gap-1 rounded-lg bg-(--background-tertiary) p-1 overflow-x-auto scrollbar-hide"
                                         >
                                             {tabs.map((tab) => (
                                                 <Tabs.Trigger
                                                     key={tab.id}
                                                     value={tab.id}
-                                                    className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs rounded-md
-                                                               data-[state=active]:bg-(--background-quaternary)
-                                                               data-[state=active]:font-bold
-                                                               data-[state=active]:text-(--showdown-blue)
-                                                               data-[state=inactive]:text-tertiary"
+                                                    className="flex flex-1 min-w-fit items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-md whitespace-nowrap transition-colors duration-150
+                                                               data-[state=active]:bg-(--showdown-blue) data-[state=active]:text-white data-[state=active]:font-semibold data-[state=active]:shadow-sm
+                                                               data-[state=inactive]:text-tertiary data-[state=inactive]:hover:text-secondary"
                                                 >
-                                                    <span className="text-(--text-secondary)">{tab.icon}</span>
+                                                    <span>{tab.icon}</span>
                                                     <span>{tab.label}</span>
                                                 </Tabs.Trigger>
                                             ))}
@@ -971,10 +968,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     {/* Standings Tab */}
                             		<Tabs.Content
                                         value="standings"
-                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        <div className="space-y-2 pb-24">
+                                        <div className="space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <StandingsTab
                                                 standingsEntries={standingsEntries}
                                                 selectedSportId={selectedSport?.id}
@@ -987,7 +984,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     {/* Schedule Tab - Only for ongoing seasons */}
                                     <Tabs.Content
                                         value="schedule"
-                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
                                         {selectedGamePk !== null ? (
@@ -1000,7 +997,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 onBack={() => setSelectedGamePk(null)}
                                             />
                                         ) : (
-                                        <div className="space-y-5 lg:pr-6">
+                                        <div className="space-y-5 lg:pt-6 lg:pr-6">
                                                 <div className="rounded-xl border border-(--divider) bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
@@ -1086,10 +1083,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     {/* Teams Tab */}
                                     <Tabs.Content
                                         value="teams"
-                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
-                                    >                                        
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        <div className="lg:pt-6 lg:pr-6">
                                             {selectedTeam && (
-                                                <TeamRoster 
+                                                <TeamRoster
                                                     team={selectedTeam}
                                                     sportId={selectedSport?.id || null}
                                                     roster={selectedRoster}
@@ -1099,21 +1097,23 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     onToggleStar={() => toggleStarTeam(selectedTeam)}
                                                 />
                                             )}
+                                        </div>
                                     </Tabs.Content>
 
                                     {/* Leaders Tab */}
                                     <Tabs.Content
                                         value="leaders"
-                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
-                                        forceMount
+                                        className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <SeasonLeaders
-                                            seasonId={selectedSeason.season_id}
-                                            season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
-                                            showdownSet={userShowdownSet}
-                                            sportId={selectedSport?.id}
-                                            isActive={activeTab === 'leaders'}
-                                        />
+                                        <div className="lg:pt-6">
+                                            <SeasonLeaders
+                                                seasonId={selectedSeason.season_id}
+                                                season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
+                                                showdownSet={userShowdownSet}
+                                                sportId={selectedSport?.id}
+                                                isActive={activeTab === 'leaders'}
+                                            />
+                                        </div>
                                     </Tabs.Content>
 
                                     {/* Players Tab */}
