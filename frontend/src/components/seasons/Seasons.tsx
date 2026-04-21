@@ -994,6 +994,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
                                                 showdownSet={userShowdownSet}
                                                 isActive={activeTab === 'schedule'}
+                                                className="lg:py-6 lg:pr-6"
                                                 onBack={() => setSelectedGamePk(null)}
                                             />
                                         ) : (

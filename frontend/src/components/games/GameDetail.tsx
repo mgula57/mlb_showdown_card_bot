@@ -42,10 +42,11 @@ type GameDetailProps = {
     showdownSet?: string;
     /** When false, stops auto-refresh polling (e.g. user switched to another tab) */
     isActive?: boolean;
+    className?: string;
     onBack: () => void;
 };
 
-export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, onBack }: GameDetailProps) {
+export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, className, onBack }: GameDetailProps) {
     const [boxscore, setBoxscore] = useState<GameBoxscoreDetail | null>(null);
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -245,7 +246,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const detailedState = boxscore.status?.detailed_state ?? (isFinal ? "Final" : "In Progress");
 
     return (
-        <div className="space-y-4 pb-24">
+        <div className={`space-y-4 pb-24 ${className}`}>
             <BackButton onBack={onBack} />
 
             {/* Header: Teams + Score */}
