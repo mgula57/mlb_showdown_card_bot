@@ -5152,7 +5152,7 @@ class ShowdownPlayerCard(BaseModel):
                     image = None
                     type_override = self.player_type_override.override_string if self.player_type_override else ''
                     stats_period = self.stats_period.type.player_image_search_term if self.stats_period.type.player_image_search_term else ''
-                    cached_image_filename = f"{img_component.source_name}-{self.year}-({self.bref_id or self.mlb_id})-({self.team.value}){type_override}{stats_period}.png"
+                    cached_image_filename = f"{img_component.source_name}-{self.year}-({self.mlb_id or self.bref_id})-({self.team.value}){type_override}{stats_period}.png"
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'image_uploads', cached_image_filename)
                     if not self.ignore_cache:
                         try:
