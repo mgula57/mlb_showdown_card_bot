@@ -98,8 +98,8 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
         const pitchingCategoryIds = PITCHING_CATEGORIES.map(c => c.id);
 
         Promise.all([
-            fetchSeasonLeaders(seasonId, hittingCategoryIds, ['hitting'], 3),
-            fetchSeasonLeaders(seasonId, pitchingCategoryIds, ['pitching'], 3),
+            fetchSeasonLeaders(seasonId, hittingCategoryIds, ['hitting'], 5),
+            fetchSeasonLeaders(seasonId, pitchingCategoryIds, ['pitching'], 5),
         ])
             .then(([hittingRes, pitchingRes]) => {
                 const combined = [...hittingRes.leaders, ...pitchingRes.leaders];
@@ -230,7 +230,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
     return (
         <div className="pb-24">
             {/* Header */}
-            <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
+            <div className="flex items-center justify-between gap-4 mb-5 flex-wrap lg:pr-6">
                 <div className="flex items-center gap-2">
                     <FaTrophy className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} />
                     <span className={`text-sm font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
@@ -265,10 +265,10 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
             {/* Loading state (first load, no data yet) */}
             {isLoadingLeaders && leaderGroups.length === 0 && (
                 <div className="space-y-8">
-                    {visibleCategories.slice(0, 4).map((cat) => (
+                    {visibleCategories.slice(0, 6).map((cat) => (
                         <div key={cat.id}>
                             <div className={`h-4 w-32 rounded mb-3 animate-pulse ${isDark ? 'bg-neutral-700' : 'bg-neutral-200'}`} />
-                            <div className="flex gap-3 overflow-x-auto scrollbar-hide lg:grid lg:grid-cols-3">
+                            <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-3">
                                 {[0, 1, 2].map(i => (
                                     <div
                                         key={i}
@@ -288,7 +288,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                         const group = groupsByCategory[catDef.apiKey];
                         // Show placeholder entries while loading or if no data for this category
                         const entries: (PlayerLeader | null)[] = group
-                            ? (group.leaders ?? []).slice(0, 3)
+                            ? (group.leaders ?? []).slice(0, 6)
                             : [null, null, null];
 
                         // Pad to 3 if fewer entries
@@ -297,7 +297,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                         return (
                             <div key={catDef.id}>
                                 {/* Category header */}
-                                <div className="flex items-center gap-2 mb-3">
+                                <div className="flex items-center gap-2 mb-3 lg:pr-6">
                                     <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
                                         {catDef.label}
                                     </span>
@@ -307,7 +307,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                                 </div>
 
                                 {/* 3 cards */}
-                                <div className="flex gap-3 overflow-x-scroll scrollbar-hide">
+                                <div className="flex gap-3 overflow-x-scroll scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0">
                                     {entries.map((entry, i) => renderLeaderCard(entry, catDef, i))}
                                 </div>
                             </div>

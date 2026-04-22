@@ -150,10 +150,10 @@ class NormalizedPlayerStats(BaseModel):
         """Ensures pos_season is always a string, defaults to empty string if None"""
         return str(value) if value is not None else None
     
-    @field_validator('dWAR', mode='before')
-    def validate_dwar(cls, value) -> float:
-        """Defaults dWAR to None if empty string"""
-        return None if value is not None and str(value) == '' else value
+    @field_validator('dWAR', 'bWAR', 'age', 'earned_run_avg', mode='before')
+    def validate_empty_stats(cls, value) -> float:
+        """Defaults dWAR, bWAR, and age to None if empty string"""
+        return None if value is not None and (str(value) == '' or str(value) == '--' or str(value) == '-.--') else value
 
     @field_validator('PA', 'AB', mode='before')
     def validate_counting_ints(cls, value) -> int:
@@ -166,13 +166,13 @@ class NormalizedPlayerStats(BaseModel):
         
         return int(value)
     
-    @field_validator('SB', mode='before')
+    @field_validator('SB', 'RBI', mode='before')
     def validate_zeroed_out_stats(cls, value) -> int:
         """Sets stats that are zero to None to indicate missing data"""
         if value is None:
             return 0
         
-        if str(value) == '':
+        if str(value) == '' or str(value) == '--':
             return 0
         
         return int(value)

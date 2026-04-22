@@ -42,10 +42,36 @@ type GameDetailProps = {
     showdownSet?: string;
     /** When false, stops auto-refresh polling (e.g. user switched to another tab) */
     isActive?: boolean;
+    className?: string;
     onBack: () => void;
 };
 
-export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, onBack }: GameDetailProps) {
+const cardDefenseForPosition = (card: ShowdownBotCard | undefined, position: string | null) => {
+    if (!card) return null;
+    if (!position) return null;
+    if (position === "DH") return null; // DH has no defensive value
+    
+    // Check for exact position match first
+    const exactMatch = card.positions_and_defense[position];
+    if (exactMatch != null) return exactMatch;
+
+    // If no exact match, check for these common position groupings
+    const positionGroups: Record<string, string[]> = {
+        'IF': ['1B', '2B', '3B', 'SS'],
+        'OF': ['LF', 'CF', 'RF'],
+        'LF/RF': ['LF', 'RF'],
+    };
+    for (const group in positionGroups) {
+        if (positionGroups[group].includes(position)) {
+            const groupMatch = card.positions_and_defense[group];
+            if (groupMatch != null) return groupMatch;
+        }
+    }
+
+    return null;
+}
+
+export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, className, onBack }: GameDetailProps) {
     const [boxscore, setBoxscore] = useState<GameBoxscoreDetail | null>(null);
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -245,7 +271,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const detailedState = boxscore.status?.detailed_state ?? (isFinal ? "Final" : "In Progress");
 
     return (
-        <div className="space-y-4 pb-24">
+        <div className={`space-y-4 pb-24 ${className}`}>
             <BackButton onBack={onBack} />
 
             {/* Header: Teams + Score */}
@@ -760,31 +786,6 @@ function ProbableStartingPitchers({
 }
 
 function PlayerNameCell({ name, position, card, ptsChange, isLoadingCard }: { name: string; position?: string; card?: ShowdownBotCard; ptsChange?: number | null; isLoadingCard?: boolean; onClick?: () => void }) {
-
-    const defenseForPosition = () => {
-        if (!card) return null;
-        if (!position) return null;
-        if (position === "DH") return null; // DH has no defensive value
-        
-        // Check for exact position match first
-        const exactMatch = card.positions_and_defense[position];
-        if (exactMatch != null) return exactMatch;
-
-        // If no exact match, check for these common position groupings
-        const positionGroups: Record<string, string[]> = {
-            'IF': ['1B', '2B', '3B', 'SS'],
-            'OF': ['LF', 'CF', 'RF'],
-            'LF/RF': ['LF', 'RF'],
-        };
-        for (const group in positionGroups) {
-            if (positionGroups[group].includes(position)) {
-                const groupMatch = card.positions_and_defense[group];
-                if (groupMatch != null) return groupMatch;
-            }
-        }
-
-        return null;
-    }
         
     return (
         <div className="flex items-center space-x-1.5">
@@ -812,7 +813,7 @@ function PlayerNameCell({ name, position, card, ptsChange, isLoadingCard }: { na
                         </span>
                     )}
                     {position && <div className="text-[10px] text-(--text-tertiary)">
-                        {position}{defenseForPosition() != null && (defenseForPosition() || 0) >= 0 ? "+" : ""}{defenseForPosition()}
+                        {position}{cardDefenseForPosition(card, position) != null && (cardDefenseForPosition(card, position) || 0) >= 0 ? "+" : ""}{cardDefenseForPosition(card, position)}
                     </div>}
                 </div>
                 
@@ -850,12 +851,31 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, ha
             return orderA - orderB;
         });
 
+    // PTS
     const totalPoints = hasCards
         ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'batting')]?.card?.points ?? 0), 0)
         : 0;
     const totalPointsChange = hasCards && hasGameStarted
         ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'batting')]?.in_season_trends?.pts_change.day ?? 0), 0)
         : 0;
+    
+    // CURRENT DEFENSE
+    const INFIELD = new Set(['1B', '2B', '3B', 'SS']);
+    const OUTFIELD = new Set(['LF', 'CF', 'RF']);
+    const defTotals = hasCards
+        ? sortedBatters.filter((b) => b.is_in_lineup).reduce(
+            (acc, b) => {
+                const card = cardMap[cardKey(b.id, 'batting')]?.card ?? undefined;
+                const val = cardDefenseForPosition(card, b.position ?? null);
+                if (val == null) return acc;
+                if (b.position === 'C')                  acc.catcher += val;
+                else if (INFIELD.has(b.position ?? ''))  acc.infield += val;
+                else if (OUTFIELD.has(b.position ?? '')) acc.outfield += val;
+                return acc;
+            },
+            { infield: 0, outfield: 0, catcher: 0 }
+        )
+        : null;
 
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
@@ -868,6 +888,13 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, ha
                     style={{ backgroundColor: badgeBg, color: badgeText }}
                 >{team.team.abbreviation}</span>
                 <span className="text-xs text-(--secondary) font-semibold">Batting</span>
+                {defTotals && (
+                    <div className="ml-auto flex items-center gap-x-3">
+                        <span className="text-[10px] text-(--secondary)">C {defTotals.catcher >= 0 ? '+' : ''}{defTotals.catcher}</span>
+                        <span className="text-[10px] text-(--secondary)">IF {defTotals.infield >= 0 ? '+' : ''}{defTotals.infield}</span>
+                        <span className="text-[10px] text-(--secondary)">OF {defTotals.outfield >= 0 ? '+' : ''}{defTotals.outfield}</span>
+                    </div>
+                )}
                 {hasCards && totalPoints > 0 && (
                     <TablePointsSummary totalPoints={totalPoints} pointsChange={totalPointsChange} backgroundColor={badgeBgSecondary} />
                 )}
