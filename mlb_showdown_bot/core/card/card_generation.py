@@ -142,6 +142,10 @@ def generate_card(**kwargs) -> dict[str, Any]:
             # IF THE PLAYER ID LOOKS LIKE A BREF ID, RESET IT TO THE NAME FIELD AND LET MLB API FIGURE IT OUT. THIS ALLOWS USERS TO INPUT BREF IDS FOR NON-MLB PLAYERS WITHOUT CAUSING ISSUES WITH THE BASEBALL REFERENCE SCRAPER.
             if str(kwargs.get('name', '')).endswith(('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')):
                 kwargs['name'] = kwargs.get('name_original', '')
+        
+        # CHANGE EXPECTED DATASOURCE TO MLB API IF MULTI-YEAR DATE RANGE
+        if stats_period.has_game_logs and stats_period.is_multi_year:
+            expected_source = Datasource.MLB_API
 
         # CHECK FOR YEAR IN THE FUTURE AND WBC
         edition_raw = kwargs.get('edition', None)
@@ -188,7 +192,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     search_name = search_name.split('(')[0].strip()
                 player_data = mlb_stats_api.build_full_player_from_search(search_name=search_name, stats_period=stats_period, league=league)
                 if player_data is None:
-                    raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')} in the {league}.")
+                    raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')} in the {league}. Check spelling or try using the player's MLB ID from the URL on MLB.com as the name instead. Ex: https://www.mlb.com/player/aaron-judge-592450 would have a player ID of 592450.")
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 if normalized_player_stats is None or normalized_player_stats.PA is None or normalized_player_stats.PA == 0:
@@ -211,7 +215,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                         # INJECT INTO NORMALIZED STATS
                         position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list]
                         normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
-                        has_pulled_fangraphs_defense = True
+                        has_pulled_fangraphs_defense = len(position_stats) > 0
                     except Exception as e:
                         if normalized_player_stats.warnings is None:
                             normalized_player_stats.warnings = []

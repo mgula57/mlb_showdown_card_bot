@@ -26,11 +26,11 @@ class StatsPeriodType(str, Enum):
 
     @property
     def enable_date_range(self) -> bool:
-        return self.name in ['DATE_RANGE']
+        return self in [StatsPeriodType.DATE_RANGE]
     
     @property
     def enable_split(self) -> bool:
-        return self.name in ['SPLIT']
+        return self in [StatsPeriodType.SPLIT]
     
     @property
     def player_image_search_term(self) -> str:
@@ -445,6 +445,12 @@ class StatsPeriod(BaseModel):
     def show_text_on_card_image(self) -> bool:
         return self.type not in [StatsPeriodType.REGULAR_SEASON] or not self.is_mlb
     
+    @property
+    def has_game_logs(self) -> bool:
+        """
+        Returns True if the stats period type is DATE_RANGE or POSTSEASON, which require game logs to calculate stats.
+        """
+        return self.type.uses_game_logs
 
     # ---------------------------------
     # METHODS
