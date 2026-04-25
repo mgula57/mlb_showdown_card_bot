@@ -320,7 +320,7 @@ class PlayerStatsNormalizer:
                 normalized_data['IP/GS'] = gs_ip
 
         # ADD GAME LOGS
-        if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR:
+        if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR or stats_period.has_game_logs:
             normalized_data['game_logs'] = PlayerStatsNormalizer._extract_game_logs(player, stats_period)
 
         # FILL IN EMPTY VALUES
