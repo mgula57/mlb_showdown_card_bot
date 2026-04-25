@@ -298,15 +298,15 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
             <div className="grid sm:grid-cols-2 gap-4">
                 {/* Away Batting */}
-                <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
+                <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
                 {/* Home Batting */}
-                <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
+                <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
 
                 {/* Away Pitching */}
-                <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
+                <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
 
                 {/* Home Pitching */}
-                <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} />
+                <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
 
             </div>
 
@@ -836,7 +836,7 @@ function TablePointsSummary({ totalPoints, pointsChange, backgroundColor }: { to
     );
 }
 
-function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
+function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const badgeBg = team.team.primary_color ?? '#374151';
     const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
@@ -917,7 +917,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, ha
                     </thead>
                     <tbody>
                         {sortedBatters.map((batter) => (
-                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[cardKey(batter.id, 'batting')]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[cardKey(batter.id, 'batting')]} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
                         ))}
                         {sortedBatters.length === 0 && (
                             <tr>
@@ -944,7 +944,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, ha
     );
 }
 
-function BatterRow({ batter, cardResponse, onCardSelect, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
+function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
@@ -989,7 +989,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isLoadingCards }: { bat
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.strike_outs}</td>
             <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
-            {isOpen && card && (
+            {isOpen && card && !isShowingModal && (
                 <FloatingPortal>
                     <div
                         ref={refs.setFloating}
@@ -1005,8 +1005,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isLoadingCards }: { bat
     );
 }
 
-
-function PitchingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
+function PitchingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const badgeBg = team.team.primary_color ?? '#374151';
     const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
@@ -1055,7 +1054,7 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, h
                     </thead>
                     <tbody>
                         {team.pitching.map((pitcher) => (
-                            <PitcherRow key={pitcher.id} pitcher={pitcher} cardResponse={cardMap[cardKey(pitcher.id, 'pitching')]} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                            <PitcherRow key={pitcher.id} pitcher={pitcher} cardResponse={cardMap[cardKey(pitcher.id, 'pitching')]} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
                         ))}
                         {team.pitching.length === 0 && (
                             <tr>
@@ -1085,7 +1084,7 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect, isLoadingCards, h
     );
 }
 
-function PitcherRow({ pitcher, cardResponse, onCardSelect, isLoadingCards }: { pitcher: BoxscorePitcher; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
+function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { pitcher: BoxscorePitcher; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
     
     const [isOpen, setIsOpen] = useState(false);
     const { refs, floatingStyles, context } = useFloating({
@@ -1118,7 +1117,7 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isLoadingCards }: { p
                 {pitcher.stats.pitches_thrown}-{pitcher.stats.strikes}
             </td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{pitcher.season_stats.era}</td>
-            {isOpen && card && (
+            {isOpen && card && !isShowingModal && (
                 <FloatingPortal>
                     <div
                         ref={refs.setFloating}

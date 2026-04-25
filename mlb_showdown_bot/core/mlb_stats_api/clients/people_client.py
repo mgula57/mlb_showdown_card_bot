@@ -7,7 +7,7 @@ from datetime import datetime
 from ..base_client import BaseMLBClient
 from ..models.person import Players, Player, FreeAgent, StatTypeEnum
 from ..models.leagues.league import LeagueListEnum
-from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType, PlayerType
+from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType, StatsPeriodType, PlayerType
 import json
 
 _PLAYER_FIELDS = [
@@ -121,6 +121,8 @@ class PeopleClient(BaseMLBClient):
                     case StatsPeriodYearType.MULTI_YEAR:
                         seasons = stats_period.year_list
                         types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED])
+                        if stats_period.type == StatsPeriodType.DATE_RANGE:
+                            types.append(StatTypeEnum.GAME_LOG)
 
                 if player_type.is_pitcher and not is_non_mlb:
                     types.append(StatTypeEnum.STAT_SPLITS)
