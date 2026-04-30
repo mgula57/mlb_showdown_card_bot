@@ -723,7 +723,7 @@ class PlayerStatsNormalizer:
         
         # Get team with most games played
         team_games_played: Dict[str, int] = {}
-        for split in standard_stat_splits:
+        for split in standard_stat_splits or []:
             team = split.team
             if team and team.abbreviation:
                 games_played = split.stat.get('gamesPlayed', 0)
@@ -771,7 +771,7 @@ class PlayerStatsNormalizer:
             types=[stats_type],
             seasons=stats_period.year_list
         )
-        for split in standard_stat_splits:
+        for split in standard_stat_splits or []:
             team = split.team
             if team and team.abbreviation == primary_team_id:
                 if team.league and team.league.abbreviation:
