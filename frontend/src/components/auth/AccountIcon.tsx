@@ -119,27 +119,40 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
             {/* Account Icon/Avatar */}
             <button
                 onClick={handleIconClick}
-                className="
+                className={`
                     flex items-center justify-center
                     w-7 h-7 rounded-full
-                    text-primary
                     transition-colors duration-200
                     cursor-pointer
-                    border-2 border-(--tertiary)
-                "
+                    border-2
+                    ${user
+                        ? 'bg-indigo-600 border-indigo-600 hover:bg-indigo-700 hover:border-indigo-700'
+                        : 'bg-transparent border-(--tertiary) hover:border-secondary opacity-60 hover:opacity-100'
+                    }
+                `}
                 aria-label={user ? 'Open account menu' : 'Sign in'}
-                title={user ? 'Account' : 'Sign in'}
+                title={user ? (username || 'Account') : 'Sign in to your account'}
             >
                 {user ? (
-                    // Logged in: Show initials or avatar
-                    <span className="font-semibold text-lg">
+                    <span className="font-semibold text-xs text-white select-none">
                         {getUserInitials()}
                     </span>
                 ) : (
-                    // Logged out: Show generic user icon with sign-in text
                     <FaUserCircle className="w-8 h-8 text-secondary" />
                 )}
             </button>
+
+            {/* Online status dot — visible only when logged in */}
+            {user && (
+                <span className="
+                    absolute bottom-0 right-0
+                    w-2 h-2
+                    bg-green-500
+                    rounded-full
+                    ring-2 ring-primary
+                    pointer-events-none
+                " />
+            )}
 
             <LoadingStatusToast
                 loadingStatus={hasSignedOut ? {
