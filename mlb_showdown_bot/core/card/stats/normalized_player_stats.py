@@ -313,7 +313,7 @@ class PlayerStatsNormalizer:
         }
 
         # TYPE BASED ADDITIONS
-        if player_type == PlayerType.PITCHER.value:
+        if player_type.is_pitcher:
             # LOOK WITHIN STAT SPLITS FOR IP/GS
             gs_ip = PlayerStatsNormalizer._extract_ip_per_gs(player, stats_period)
             if gs_ip:
@@ -326,7 +326,7 @@ class PlayerStatsNormalizer:
         # FILL IN EMPTY VALUES
         normalized_data = fill_empty_stat_categories(
             stats_data=normalized_data,
-            is_pitcher=player_type == PlayerType.PITCHER.value,
+            is_pitcher=player_type.is_pitcher,
             is_game_logs=False
         )
 
@@ -403,15 +403,15 @@ class PlayerStatsNormalizer:
             return ",".join(str(s) for s in seasons)
 
     @staticmethod
-    def _mlb_api_determine_player_type(primary_position: Position, stats_period: StatsPeriod) -> Optional[str]:
+    def _mlb_api_determine_player_type(primary_position: Position, stats_period: StatsPeriod) -> Optional[PlayerType]:
         """Determines if player is a Hitter or Pitcher based on stats"""
         if stats_period and stats_period.player_type_for_mlb_api(primary_position.abbreviation):
             return stats_period.player_type_for_mlb_api(primary_position.abbreviation)
         if primary_position is None:
             return None
         if primary_position and primary_position.code == '1':
-            return PlayerType.PITCHER.value
-        return PlayerType.HITTER.value
+            return PlayerType.PITCHER
+        return PlayerType.HITTER
 
     @staticmethod
     def _extract_position_stats(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[Dict[str, Dict[str, Any]]]:
@@ -1123,7 +1123,21 @@ class PlayerStatsNormalizer:
                 total_ip_list.append(ip_float)
         total_ip = total_innings_pitched(total_ip_list)
         if total_gs > 0:
+            
             return round(total_ip / total_gs, 1) # Rounded to 1 to match bref
+        
+        print(f"Calculated IP/GS from 'SP' splits: {total_ip} IP over {total_gs} GS for ratio of {total_ip / total_gs}")
+        # BACKUP: IF THERE ARE NO 'SP' SPLITS, CHECK GAME LOGS FOR STARTING PITCHER APPEARANCES AND CALCULATE IP/GS FROM THERE
+        game_logs = PlayerStatsNormalizer._extract_game_logs(mlb_player, stats_period)
+        if game_logs and len(game_logs) > 0:
+            total_ip_from_logs = 0.0
+            total_gs_from_logs = 0
+            for log in game_logs:
+                if log.GS and log.IP:
+                    total_gs_from_logs += 1
+                    total_ip_from_logs += log.IP
+            if total_gs_from_logs > 0:
+                return round(total_ip_from_logs / total_gs_from_logs, 1)
         
         return None
         
