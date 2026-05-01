@@ -121,7 +121,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                 onClick={handleIconClick}
                 className="
                     flex items-center justify-center
-                    w-8 h-8 rounded-full
+                    w-7 h-7 rounded-full
                     text-primary
                     transition-colors duration-200
                     cursor-pointer

@@ -264,7 +264,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 <header
                     className={`
                         ${isIOSSafari ? 'fixed left-0 right-0 top-0' : 'sticky top-0'}
-                        z-30 flex h-12 p-4 w-full items-center justify-between
+                        z-30 flex h-10 p-4 w-full items-center justify-between
                         border-b-gray-600 shadow-md bg-primary/95 backdrop-blur
                     `}
                     // Ensure header respects device notch and status bar on iOS
@@ -277,7 +277,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         <button
                             type="button"
                             className="
-                                md:hidden inline-flex items-center justify-center p-2 
+                                md:hidden inline-flex items-center justify-center p-1.5
                                 rounded-md border border-form-element 
                                 text-secondary hover:bg-background-secondary
                                 cursor-pointer
@@ -285,19 +285,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             aria-label="Open navigation menu"
                             onClick={() => setIsSideMenuOpenMobile(true)}
                         >
-                            <FiMenu className="h-5 w-5" />
+                            <FiMenu className="h-4 w-4" />
                         </button>
                         
                         {/* Logo Display Logic */}
                         {/* Always show on mobile */}
-                        <ShowdownBotLogo className="max-w-48 md:hidden" />
+                        <ShowdownBotLogo className="max-w-42 md:hidden" />
                         {/* Show on desktop only when sidebar is collapsed */}
-                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48 hidden md:block" />}
+                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-42 hidden md:block" />}
                         
                         {/* Page Title with Icon - Route-based content */}
                         {(selectedMenuItem?.text || 'Home') !== 'Home' && (
-                            <h1 className="hidden sm:flex sm:flex-row text-xl font-semibold text-secondary items-center">
-                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-5 h-5 mr-2" />}
+                            <h1 className="hidden sm:flex sm:flex-row text-lg font-semibold text-secondary items-center">
+                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-4 h-4 mr-2" />}
                                 {selectedMenuItem?.text || 'Home'}
                             </h1>
                         )}
@@ -307,7 +307,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     {/* Right Section: Showdown Set Selector and Account Icon */}
                     <div className="flex items-center space-x-2">
                         <CustomSelect
-                            className="font-showdown-set-italic w-20 text-xl"
+                            className="font-showdown-set-italic w-16 text-xl"
                             buttonClassName="flex justify-center cursor-pointer select-none"
                             imageClassName="object-contain object-center"
                             value={userShowdownSet}
@@ -315,7 +315,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             options={showdownSets}
                         />
                         {/* TODO: Enable this when logins are complete */}
-                        {/* <AccountIcon onLoginClick={() => setShowLoginModal(true)} /> */}
+                        <AccountIcon onLoginClick={() => setShowLoginModal(true)} />
                     </div>
                     
                 </header>

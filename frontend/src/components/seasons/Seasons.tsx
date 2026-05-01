@@ -892,7 +892,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     )}
                                 </div>
 
-                                <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
+                                <div className="min-w-0 order-2 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
                                     <div className="lg:hidden mb-4 rounded-2xl space-y-4">
                                         <div className="space-y-2">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
