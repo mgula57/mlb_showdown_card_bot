@@ -313,7 +313,7 @@ class PlayerStatsNormalizer:
         }
 
         # TYPE BASED ADDITIONS
-        if player_type == PlayerType.PITCHER.value:
+        if player_type.is_pitcher:
             # LOOK WITHIN STAT SPLITS FOR IP/GS
             gs_ip = PlayerStatsNormalizer._extract_ip_per_gs(player, stats_period)
             if gs_ip:
@@ -326,7 +326,7 @@ class PlayerStatsNormalizer:
         # FILL IN EMPTY VALUES
         normalized_data = fill_empty_stat_categories(
             stats_data=normalized_data,
-            is_pitcher=player_type == PlayerType.PITCHER.value,
+            is_pitcher=player_type.is_pitcher,
             is_game_logs=False
         )
 
@@ -403,15 +403,15 @@ class PlayerStatsNormalizer:
             return ",".join(str(s) for s in seasons)
 
     @staticmethod
-    def _mlb_api_determine_player_type(primary_position: Position, stats_period: StatsPeriod) -> Optional[str]:
+    def _mlb_api_determine_player_type(primary_position: Position, stats_period: StatsPeriod) -> Optional[PlayerType]:
         """Determines if player is a Hitter or Pitcher based on stats"""
         if stats_period and stats_period.player_type_for_mlb_api(primary_position.abbreviation):
             return stats_period.player_type_for_mlb_api(primary_position.abbreviation)
         if primary_position is None:
             return None
         if primary_position and primary_position.code == '1':
-            return PlayerType.PITCHER.value
-        return PlayerType.HITTER.value
+            return PlayerType.PITCHER
+        return PlayerType.HITTER
 
     @staticmethod
     def _extract_position_stats(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[Dict[str, Dict[str, Any]]]:
