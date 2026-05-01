@@ -1123,21 +1123,7 @@ class PlayerStatsNormalizer:
                 total_ip_list.append(ip_float)
         total_ip = total_innings_pitched(total_ip_list)
         if total_gs > 0:
-            
             return round(total_ip / total_gs, 1) # Rounded to 1 to match bref
-        
-        print(f"Calculated IP/GS from 'SP' splits: {total_ip} IP over {total_gs} GS for ratio of {total_ip / total_gs}")
-        # BACKUP: IF THERE ARE NO 'SP' SPLITS, CHECK GAME LOGS FOR STARTING PITCHER APPEARANCES AND CALCULATE IP/GS FROM THERE
-        game_logs = PlayerStatsNormalizer._extract_game_logs(mlb_player, stats_period)
-        if game_logs and len(game_logs) > 0:
-            total_ip_from_logs = 0.0
-            total_gs_from_logs = 0
-            for log in game_logs:
-                if log.GS and log.IP:
-                    total_gs_from_logs += 1
-                    total_ip_from_logs += log.IP
-            if total_gs_from_logs > 0:
-                return round(total_ip_from_logs / total_gs_from_logs, 1)
         
         return None
         
