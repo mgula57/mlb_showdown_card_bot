@@ -834,7 +834,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     return (
         <div className="w-full bg-(--background-primary)">
-            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-3rem)] lg:overflow-hidden">
+            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">

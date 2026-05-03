@@ -33,7 +33,10 @@ import FormEnabler from './FormEnabler';
 import { PlayerSearchInput } from './PlayerSearchInput';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
+
+// Popovers
 import { ToastMessage } from '../shared/ToastMessage';
+import { OnboardingPopover } from '../shared/OnboardingPopover';
 
 import { CardDetail } from '../cards/CardDetail';
 import { CardHistory } from '../cards/CardHistory';
@@ -148,6 +151,7 @@ type loadingStatusContent = {
 
 const STORAGE_KEY = 'customCardFormSettings-V2';
 const WBC_BANNER_DISMISSED_KEY = 'customCardWbcBannerDismissed';
+const HISTORY_ONBOARDING_DISMISSED_KEY = 'customCardHistoryOnboardingDismissed';
 
 /** Save form settings to localStorage */
 const saveFormSettings = (formData: CustomCardFormState) => {
@@ -213,6 +217,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return dismissed !== 'true';
         } catch (error) {
             console.warn('Failed to load WBC banner state:', error);
+            return true;
+        }
+    });
+    const [showHistoryOnboarding, setShowHistoryOnboarding] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem(HISTORY_ONBOARDING_DISMISSED_KEY) !== 'true';
+        } catch {
             return true;
         }
     });
@@ -1002,7 +1013,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             <div className="
                 @container flex flex-col @2xl:flex-row 
                 @2xl:overflow-hidden 
-                @2xl:h-[calc(100dvh-3rem)]
+                @2xl:h-[calc(100dvh-2.5rem)]
             ">
                 {/* Loading Indicator */}
                 <ToastMessage 
@@ -1476,23 +1487,36 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     Build Card
                                 </button>
 
-                                {/* TODO: Enable after login system is complete */}
                                 {/* History Icon/Button */}
-                                {/* <button
-                                    type="button"
-                                    onClick={toggleHistory}
-                                    title="Toggle History"
-                                    className={`
-                                        flex items-center justify-center text-xl
-                                        rounded-xl px-4
-                                        hover:bg-(--background-tertiary) transition-colors
-                                        cursor-pointer
-                                        font-bold
-                                        ${isHistoryOpen ? 'border-2 border-(--warning)' : 'border-2 border-form-element '}
-                                    `}
-                                >
-                                    <FaClock />
-                                </button> */}
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={toggleHistory}
+                                        title="Toggle History"
+                                        className={`
+                                            flex items-center justify-center text-xl
+                                            rounded-xl px-4 h-full
+                                            hover:bg-(--background-tertiary) transition-colors
+                                            cursor-pointer
+                                            font-bold
+                                            ${isHistoryOpen ? 'border-2 border-(--warning)' : 'border-2 border-form-element '}
+                                        `}
+                                    >
+                                        <FaClock />
+                                    </button>
+
+                                    {/* History onboarding popover */}
+                                    {showHistoryOnboarding && (
+                                        <OnboardingPopover
+                                            title="Card History"
+                                            content="Quickly view and reload any of your recently built cards right from the form."
+                                            onClose={() => {
+                                                localStorage.setItem(HISTORY_ONBOARDING_DISMISSED_KEY, 'true');
+                                                setShowHistoryOnboarding(false);
+                                            }}
+                                        />
+                                    )}
+                                </div>
 
                             </div>
 

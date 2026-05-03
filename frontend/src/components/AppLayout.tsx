@@ -321,7 +321,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </header>
 
                 {/* iOS Safari Spacer - Maintains layout when header is fixed */}
-                {isIOSSafari && <div style={{ height: '3rem' /* matches h-12 */ }} aria-hidden="true" />}
+                {isIOSSafari && <div style={{ height: '2.5rem' /* matches h-10 */ }} aria-hidden="true" />}
 
                 {/* Main Content Area - Scrollable container for page content */}
                 <main className={`flex-1 overflow-auto w-full relative`}>
