@@ -1108,6 +1108,9 @@ class PlayerStatsNormalizer:
             types=[StatTypeEnum.STAT_SPLITS],
             seasons=stats_period.year_list
         )
+
+        if not pitching_stat_splits or len(pitching_stat_splits) == 0:
+            return None
         
         total_ip_list = []
         total_gs = 0
