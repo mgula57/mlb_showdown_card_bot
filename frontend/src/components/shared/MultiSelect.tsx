@@ -223,8 +223,8 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
     return (
         <div className={`space-y-2 ${className}`} ref={wrapperRef}>
             <div>
-                <label className="block text-sm font-medium text-[var(--text-primary)]">{label}</label>
-                {labelDescription && <p className="text-[9px] text-[var(--text-secondary)]">{labelDescription}</p>}
+                <label className="block text-sm font-medium text-(--text-primary)">{label}</label>
+                {labelDescription && <p className="text-[9px] text-(--text-secondary)">{labelDescription}</p>}
             </div>
             
             {/* Dropdown Button */}
@@ -235,17 +235,17 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     onClick={() => !disabled && setIsOpen(o => !o)}  // re-click closes
                     disabled={disabled}
                     className={`
-                        w-full flex items-center justify-between px-3 py-2 min-h-[2.5rem]
+                        w-full flex items-center justify-between px-3 py-2 min-h-10
                         border-2 border-form-element rounded-lg 
-                        bg-[var(--background-primary)] text-[var(--text-primary)]
-                        hover:border-[var(--tertiary)] focus:outline-none focus:ring-2 focus:ring-primary/20
+                        bg-(--background-primary) text-(--text-primary)
+                        hover:border-(--tertiary) focus:outline-none focus:ring-2 focus:ring-primary/20
                         ${isOpen ? 'border-primary' : ''}
                         ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
                     `}
                 >
                     <div className="flex flex-wrap gap-1 flex-1 mr-2">
                         {selectedValues.length === 0 ? (
-                            <span className="text-[var(--tertiary)]">{placeholder}</span>
+                            <span className="text-(--tertiary)">{placeholder}</span>
                         ) : (
                             selectedValues.map(value => {
                                 const option = options.find(opt => opt.value === value);
@@ -271,14 +271,14 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                         {selectedValues.length > 1 && !disabled && (
                             <button
                                 onClick={clearAll}
-                                className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1"
+                                className="text-xs text-(--text-secondary) hover:text-(--text-primary) p-1"
                                 title="Clear all"
                             >
                                 <FaTimes className="h-3 w-3" />
                             </button>
                         )}
                         <FaChevronDown 
-                            className={`h-4 w-4 transition-transform text-[var(--text-secondary)] ${isOpen ? 'rotate-180' : ''}`} 
+                            className={`h-4 w-4 transition-transform text-(--text-secondary) ${isOpen ? 'rotate-180' : ''}`} 
                         />
                     </div>
                 </button>
@@ -288,11 +288,11 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     <div
                         ref={menuRef}
                         style={dropdownStyle}
-                        className={`bg-[var(--background-primary)] border border-[var(--border-primary)] rounded-lg shadow-lg overflow-y-auto
+                        className={`bg-(--background-primary) border border-(--border-primary) rounded-lg shadow-lg overflow-y-auto
                                     transform ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}`}
                     >
                         {/* Header with select all / clear all */}
-                        <div className="px-3 py-2 border-b border-[var(--border-secondary)] bg-[var(--background-secondary)]">
+                        <div className="px-3 py-2 border-b border-(--border-secondary) bg-(--background-secondary)">
                             <div className="flex justify-between text-xs">
                                 <button
                                     onClick={() => onChange(options.map(opt => opt.value))}
@@ -304,7 +304,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                 <button
                                     onClick={() => onChange([])}
                                     disabled={disabled}
-                                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                    className="text-(--text-secondary) hover:text-(--text-primary)"
                                 >
                                     Clear All
                                 </button>
@@ -319,7 +319,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                     key={option.value}
                                     onClick={() => toggleOption(option.value)}
                                     className={`
-                                        flex items-center px-3 py-2 cursor-pointer hover:bg-[var(--background-secondary)]
+                                        flex items-center px-3 py-2 cursor-pointer hover:bg-(--background-secondary)
                                         ${isSelected ? 'bg-primary/10' : ''}
                                     `}
                                 >
@@ -327,7 +327,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                         flex items-center justify-center w-4 h-4 mr-3 border rounded
                                         ${isSelected 
                                             ? 'bg-primary border-primary'
-                                            : 'border-[var(--border-primary)]'
+                                            : 'border-(--border-primary)'
                                         }
                                     `}>
                                         {isSelected && <FaCheck className="h-2 w-2" />}
@@ -339,7 +339,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
 
                         {/* No options message */}
                         {options.length === 0 && (
-                            <div className="px-3 py-4 text-center text-[var(--text-secondary)] text-sm">
+                            <div className="px-3 py-4 text-center text-(--text-secondary) text-sm">
                                 No options available
                             </div>
                         )}
