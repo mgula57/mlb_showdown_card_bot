@@ -50,7 +50,12 @@ const cardDefenseForPosition = (card: ShowdownBotCard | undefined, position: str
     if (!card) return null;
     if (!position) return null;
     if (position === "DH") return null; // DH has no defensive value
-    
+
+    // Remove PH- prefix if present, since Showdown cards use the same defensive ratings for PH and regular players
+    if (position.startsWith("PH-")) {
+        position = position.substring(3);
+    }
+
     // Check for exact position match first
     const exactMatch = card.positions_and_defense[position];
     if (exactMatch != null) return exactMatch;
@@ -866,11 +871,12 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
         ? sortedBatters.filter((b) => b.is_in_lineup).reduce(
             (acc, b) => {
                 const card = cardMap[cardKey(b.id, 'batting')]?.card ?? undefined;
-                const val = cardDefenseForPosition(card, b.position ?? null);
+                const pos = b.position.replaceAll('PH-', '');
+                const val = cardDefenseForPosition(card, pos ?? null);
                 if (val == null) return acc;
-                if (b.position === 'C')                  acc.catcher += val;
-                else if (INFIELD.has(b.position ?? ''))  acc.infield += val;
-                else if (OUTFIELD.has(b.position ?? '')) acc.outfield += val;
+                if (pos === 'C')                  acc.catcher += val;
+                else if (INFIELD.has(pos ?? ''))  acc.infield += val;
+                else if (OUTFIELD.has(pos ?? '')) acc.outfield += val;
                 return acc;
             },
             { infield: 0, outfield: 0, catcher: 0 }
