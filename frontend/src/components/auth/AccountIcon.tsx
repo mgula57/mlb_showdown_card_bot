@@ -121,7 +121,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                 onClick={handleIconClick}
                 className={`
                     flex items-center justify-center
-                    w-7 h-7 rounded-full
+                    w-9 h-9 rounded-full
                     transition-colors duration-200
                     cursor-pointer
                     border-2
@@ -186,13 +186,27 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                     animate-fade-in
                 ">
                     {/* User Info Section */}
-                    <div className="px-4 py-3 border-b border-form-element">
-                        <p className="text-md font-bold text-primary truncate">
-                            {username}
-                        </p>
-                        <p className="text-[11px] text-secondary truncate">
-                            {user.email}
-                        </p>
+                    <div className='flex space-x-3 px-2 py-3 border-b border-form-element'>
+
+                        {user && (
+                            userSettings?.avatar_url && (
+                                <img
+                                    src={userSettings.avatar_url}
+                                    alt="avatar"
+                                    className="w-10 h-10 rounded-full object-contain"
+                                />
+                            )
+                        )}
+
+                        <div className="">
+                            <p className="text-md font-bold text-primary truncate">
+                                {username}
+                            </p>
+                            <p className="text-[11px] text-secondary truncate">
+                                {user.email}
+                            </p>
+                        </div>
+
                     </div>
 
                     {/* Actions Section */}

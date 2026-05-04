@@ -314,8 +314,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             onChange={setUserShowdownSet}
                             options={showdownSets}
                         />
-                        {/* TODO: Enable this when logins are complete */}
+
                         <AccountIcon onLoginClick={() => setShowLoginModal(true)} />
+
                     </div>
                     
                 </header>
