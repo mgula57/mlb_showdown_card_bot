@@ -21,9 +21,12 @@
  * ```
  */
 
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { supabase } from '../../api/supabase';
 import type { User, Session } from '@supabase/supabase-js';
+import { getUserSettings, updateUserSettings, type UserSettingsDB } from '../../api/userSettings';
+
+export type { UserSettingsDB };
 
 /**
  * Authentication context interface
@@ -53,6 +56,12 @@ interface AuthContextType {
     signInWithProvider: (provider: 'google') => Promise<{ error: Error | null }>;
     /** Refresh username check (call after username is set) */
     refreshProfile: () => Promise<void>;
+    /** Settings loaded from DB after login (null when logged out or not yet loaded) */
+    userSettings: UserSettingsDB | null;
+    /** True once the first settings fetch completes after login */
+    settingsLoaded: boolean;
+    /** Persist a partial settings update; optimistic local update + debounced API write */
+    syncSetting: (partial: Partial<UserSettingsDB>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,6 +100,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [needsUsername, setNeedsUsername] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
+    const [userSettings, setUserSettings] = useState<UserSettingsDB | null>(null);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+    const sessionRef = useRef<Session | null>(null);
+    const pendingSettings = useRef<Partial<UserSettingsDB>>({});
+    const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     /**
      * Check if user has a username in their profile
@@ -136,6 +151,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(session?.user ?? null);
             if (session?.user) {
                 checkUserProfile(session.user.id);
+                loadUserSettings(session.access_token);
             }
             setLoading(false);
         });
@@ -148,14 +164,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(session?.user ?? null);
             if (session?.user) {
                 checkUserProfile(session.user.id);
+                // Only fetch settings on actual sign-in, not on token refresh (tab focus)
+                if (_event === 'SIGNED_IN') {
+                    loadUserSettings(session.access_token);
+                }
             } else {
                 setNeedsUsername(false);
                 setUsername(null);
+                setUserSettings(null);
+                setSettingsLoaded(false);
             }
             setLoading(false);
         });
 
         return () => subscription.unsubscribe();
+    }, []);
+
+    // Keep sessionRef current so the syncSetting debounce callback always has a fresh token
+    useEffect(() => { sessionRef.current = session; }, [session]);
+
+    const loadUserSettings = async (accessToken: string) => {
+        const settings = await getUserSettings(accessToken);
+        setUserSettings(settings);
+        setSettingsLoaded(true);
+    };
+
+    const syncSetting = useCallback((partial: Partial<UserSettingsDB>) => {
+        setUserSettings(prev => prev ? { ...prev, ...partial } : { ...partial });
+        Object.assign(pendingSettings.current, partial);
+        if (syncTimeout.current) clearTimeout(syncTimeout.current);
+        syncTimeout.current = setTimeout(async () => {
+            const token = sessionRef.current?.access_token;
+            if (token && Object.keys(pendingSettings.current).length > 0) {
+                await updateUserSettings(token, { ...pendingSettings.current });
+            }
+            pendingSettings.current = {};
+        }, 1500);
     }, []);
 
     /**
@@ -265,6 +309,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading,
         needsUsername,
         username,
+        userSettings,
+        settingsLoaded,
+        syncSetting,
         signIn,
         signUp,
         signOut,

@@ -2837,6 +2837,65 @@ class PostgresDB:
         self.create_log_card_image_generation_table()
         self.create_log_card_id_lookup_table()
 
+# ------------------------------------------------------------------------
+# USER SETTINGS
+# ------------------------------------------------------------------------
+
+    def build_user_settings_table(self) -> None:
+        """Create the user settings table if it does not exist."""
+        if not self.connection:
+            print("No database connection available.")
+            return
+        schema_sql = "CREATE SCHEMA IF NOT EXISTS internal;"
+        table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.user_settings (
+                user_id TEXT NOT NULL PRIMARY KEY,
+                theme VARCHAR(10) DEFAULT 'system',
+                showdown_set VARCHAR(20) DEFAULT '2001',
+                custom_card_form_settings JSONB,
+                starred_teams JSONB,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        """
+        with self.connection.cursor() as cur:
+            cur.execute(schema_sql)
+            cur.execute(table_sql)
+
+    def get_user_settings(self, user_id: str) -> dict | None:
+        """Fetch settings for the given Supabase user UUID. Returns None if no row exists."""
+        if not self.connection:
+            return None
+        query = """
+            SELECT theme, showdown_set, custom_card_form_settings, starred_teams
+            FROM internal.user_settings
+            WHERE user_id = %s
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def upsert_user_settings(self, user_id: str, settings_dict: dict) -> None:
+        """Insert or update user settings. Only keys present in settings_dict are written."""
+        if not self.connection or not settings_dict:
+            return
+        ALLOWED = {'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams'}
+        fields = {k: v for k, v in settings_dict.items() if k in ALLOWED}
+        if not fields:
+            return
+        cols = ', '.join(fields.keys())
+        placeholders = ', '.join(['%s'] * len(fields))
+        updates = ', '.join([f"{k} = EXCLUDED.{k}" for k in fields])
+        upsert_sql = f"""
+            INSERT INTO internal.user_settings (user_id, {cols})
+            VALUES (%s, {placeholders})
+            ON CONFLICT (user_id) DO UPDATE SET {updates}, updated_at = NOW()
+        """
+        values = [extras.Json(v) if isinstance(v, (dict, list)) else v for v in fields.values()]
+        with self.connection.cursor() as cur:
+            cur.execute(upsert_sql, [user_id] + values)
+
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""
 

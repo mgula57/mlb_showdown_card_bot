@@ -482,6 +482,19 @@ def build_logging_tables(
     db.build_logging_tables()
     print("✅ Logging tables built.")
 
+@app.command("build_user_settings_table")
+def build_user_settings_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")
+):
+    """Build the user settings table in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building user settings table...")
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
+    db.build_user_settings_table()
+    print("✅ User settings table built.")
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

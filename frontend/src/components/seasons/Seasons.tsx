@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import * as Tabs from '@radix-ui/react-tabs';
@@ -104,6 +105,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     };
 
     const { userShowdownSet } = useSiteSettings();
+    const { userSettings, settingsLoaded, syncSetting } = useAuth();
     const hasStaticSeasons = staticSeasons !== undefined;
     const hasStaticSports = staticSports !== undefined;
 
@@ -179,6 +181,17 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     });
     const [isTeamsNavOpen, setIsTeamsNavOpen] = useState<boolean>(true);
+
+    // Apply DB starred teams when user logs in (DB takes precedence for cross-device sync)
+    useEffect(() => {
+        if (!settingsLoaded || !userSettings?.starred_teams) return;
+        const dbStarred = userSettings.starred_teams as { mlb?: string[]; wbc?: string[] };
+        const typeKey = type as 'mlb' | 'wbc';
+        if (Array.isArray(dbStarred[typeKey]) && dbStarred[typeKey]!.length > 0) {
+            setStarredTeamKeys(dbStarred[typeKey]!);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [settingsLoaded]);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
     const pendingRequestsRef = useRef(0);
@@ -611,6 +624,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.starredTeams, JSON.stringify(starredTeamKeys));
+        const currentStarred = (userSettings?.starred_teams ?? {}) as { mlb?: string[]; wbc?: string[] };
+        syncSetting({ starred_teams: { ...currentStarred, [type]: starredTeamKeys } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [starredTeamKeys]);
 
     useEffect(() => {

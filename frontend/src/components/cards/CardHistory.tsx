@@ -83,6 +83,9 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                     <div className="flex items-center gap-1.5 text-nowrap overflow-x-clip">
                                         <span className="text-md font-medium">{group.record.user_inputs?.name_original ? titleCase(group.record.user_inputs.name_original) : group.record.name}</span>
                                         <span className="text-xs text-tertiary">{group.record.year}</span>
+                                        {group.record.user_inputs?.league && group.record.user_inputs?.league !== 'MLB' && (
+                                            <span className="text-xs text-tertiary -ml-0.5">{group.record.user_inputs.league}</span>
+                                        )}
                                     </div>
 
                                     {/* Showdown Set */}

@@ -307,7 +307,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     {/* Right Section: Showdown Set Selector and Account Icon */}
                     <div className="flex items-center space-x-2">
                         <CustomSelect
-                            className="font-showdown-set-italic w-16 text-xl"
+                            className="font-showdown-set-italic w-18 text-xl"
                             buttonClassName="flex justify-center cursor-pointer select-none"
                             imageClassName="object-contain object-center"
                             value={userShowdownSet}
