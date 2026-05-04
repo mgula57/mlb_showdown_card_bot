@@ -508,3 +508,24 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
         />
     );
 }
+
+export function CardItemSkeleton({ className }: { className?: string }) {
+    return (
+        <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-xl border border-(--divider) animate-pulse`}>
+            <div className="flex flex-row gap-2 items-center">
+                <div className="w-9 h-9 rounded-full bg-(--background-quaternary) shrink-0" />
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                    <div className="h-3 w-20 rounded bg-(--background-quaternary)" />
+                    <div className="h-2.5 w-14 rounded bg-(--background-quaternary)" />
+                </div>
+            </div>
+            <div className="h-8 w-full rounded bg-(--background-quaternary)" />
+            <div className="h-2.5 w-full rounded bg-(--background-quaternary)" />
+            <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-(--background-secondary)/60 backdrop-blur-[1px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:300ms]" />
+            </div>
+        </div>
+    );
+}
