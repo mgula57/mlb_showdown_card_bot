@@ -502,7 +502,7 @@ const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSel
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='24', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
