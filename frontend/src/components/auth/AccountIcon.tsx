@@ -43,7 +43,7 @@ interface AccountIconProps {
  * @returns Account icon with dropdown functionality
  */
 export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLoginClick }) => {
-    const { user, signOut, username } = useAuth();
+    const { user, signOut, username, userSettings } = useAuth();
     const navigate = useNavigate();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -126,7 +126,9 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                     cursor-pointer
                     border-2
                     ${user
-                        ? 'bg-indigo-600 border-indigo-600 hover:bg-indigo-700 hover:border-indigo-700'
+                        ? userSettings?.avatar_url
+                            ? 'bg-transparent border-transparent hover:border-indigo-400 overflow-hidden'
+                            : 'bg-indigo-600 border-indigo-600 hover:bg-indigo-700 hover:border-indigo-700'
                         : 'bg-transparent border-(--tertiary) hover:border-secondary opacity-60 hover:opacity-100'
                     }
                 `}
@@ -134,9 +136,17 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                 title={user ? (username || 'Account') : 'Sign in to your account'}
             >
                 {user ? (
-                    <span className="font-semibold text-xs text-white select-none">
-                        {getUserInitials()}
-                    </span>
+                    userSettings?.avatar_url ? (
+                        <img
+                            src={userSettings.avatar_url}
+                            alt="avatar"
+                            className="w-full h-full rounded-full object-cover"
+                        />
+                    ) : (
+                        <span className="font-semibold text-xs text-white select-none">
+                            {getUserInitials()}
+                        </span>
+                    )
                 ) : (
                     <FaUserCircle className="w-8 h-8 text-secondary" />
                 )}

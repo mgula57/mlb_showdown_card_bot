@@ -2854,20 +2854,23 @@ class PostgresDB:
                 showdown_set VARCHAR(20) DEFAULT '2001',
                 custom_card_form_settings JSONB,
                 starred_teams JSONB,
+                avatar_url TEXT,
                 created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
                 updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );
         """
+        alter_sql = "ALTER TABLE internal.user_settings ADD COLUMN IF NOT EXISTS avatar_url TEXT;"
         with self.connection.cursor() as cur:
             cur.execute(schema_sql)
             cur.execute(table_sql)
+            cur.execute(alter_sql)
 
     def get_user_settings(self, user_id: str) -> dict | None:
         """Fetch settings for the given Supabase user UUID. Returns None if no row exists."""
         if not self.connection:
             return None
         query = """
-            SELECT theme, showdown_set, custom_card_form_settings, starred_teams
+            SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url
             FROM internal.user_settings
             WHERE user_id = %s
         """
@@ -2880,7 +2883,7 @@ class PostgresDB:
         """Insert or update user settings. Only keys present in settings_dict are written."""
         if not self.connection or not settings_dict:
             return
-        ALLOWED = {'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams'}
+        ALLOWED = {'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url'}
         fields = {k: v for k, v in settings_dict.items() if k in ALLOWED}
         if not fields:
             return

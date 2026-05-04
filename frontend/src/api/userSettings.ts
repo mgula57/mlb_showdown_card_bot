@@ -5,6 +5,7 @@ export interface UserSettingsDB {
     showdown_set?: string;
     custom_card_form_settings?: Record<string, unknown>;
     starred_teams?: { mlb?: string[]; wbc?: string[] };
+    avatar_url?: string;
 }
 
 export async function getUserSettings(token: string): Promise<UserSettingsDB | null> {
