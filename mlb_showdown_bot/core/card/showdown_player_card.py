@@ -6627,7 +6627,7 @@ class ShowdownPlayerCard(BaseModel):
         
         # UPLOAD IMAGE
         if self.is_running_on_website:
-            img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
+            img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
         else:
             img_path = os.path.join(os.path.dirname(__file__), 'image_output', self.image.output_file_name)
         

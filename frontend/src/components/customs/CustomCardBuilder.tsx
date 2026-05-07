@@ -1579,7 +1579,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     overflow-x-hidden
                                 "
                             >
-                                <h2 className="sticky top-0 flex p-4 justify-between items-center font-bold text-lg mb-2 text-(--primary) bg-background-secondary/95 backdrop-blur">
+                                <h2 className="sticky top-0 flex px-4 pt-4 pb-2 justify-between items-center align-top font-bold text-lg text-(--primary) bg-background-secondary/95 backdrop-blur">
                                     
                                     <div className='flex gap-1.5 items-center'>
                                         <FaClock />
@@ -1595,6 +1595,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     </button>
 
                                 </h2>
+
+                                {/* Instructions */}
+                                <div className="px-4 text-xs text-(--tertiary) text-wrap leading-snug mb-2">
+                                    Click a timestamp to reload that card into the form. 
+                                </div>
+
                                 <CardHistory history={cardHistory} onSelectCard={handleSelectHistoryCard} />
                             </div>
                         )}
