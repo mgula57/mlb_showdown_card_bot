@@ -1,8 +1,9 @@
 import pprint
 import hashlib
 import json
+import traceback
 from datetime import datetime, timedelta, timezone
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.data_conversion import convert_form_data_types
 from ..core.card.card_generation import generate_card, generate_cards
@@ -12,6 +13,39 @@ cards_bp = Blueprint('cards', __name__)
 
 CARDS_CACHE_TTL = timedelta(hours=8)
 _cards_cache: dict[str, tuple[dict, datetime]] = {}
+
+
+def _record_gallery_image(user_id: str, card_dict: dict, storage_path: str) -> None:
+    """Save a gallery record after successful Supabase upload. Errors are swallowed."""
+    try:
+        from ..core.database.postgres_db import PostgresDB
+        from ..core.supabase import SupabaseClientManager
+        public_url = None
+        try:
+            mgr = SupabaseClientManager()
+            public_url = mgr.get_public_url('card_images', storage_path)
+        except Exception:
+            pass
+        card_metadata = {k: v for k, v in {
+            'points': card_dict.get('points'),
+            'team': card_dict.get('team'),
+            'player_type': card_dict.get('player_type'),
+            'parallel': (card_dict.get('image') or {}).get('parallel'),
+            'edition': (card_dict.get('image') or {}).get('edition'),
+        }.items() if v is not None}
+        db = PostgresDB()
+        db.save_card_to_gallery(
+            user_id=user_id,
+            storage_path=storage_path,
+            public_url=public_url,
+            player_name=card_dict.get('name'),
+            year=str(card_dict.get('year', '')),
+            set_name=card_dict.get('set'),
+            card_metadata=card_metadata or None,
+        )
+        db.close_connection()
+    except Exception:
+        traceback.print_exc()
 
 
 @cards_bp.route('/build_custom_card', methods=["POST", "GET"])
@@ -56,9 +90,17 @@ def build_custom_card():
     # Random
     is_random = kwargs.get('name', '').upper() == '((RANDOM))'
 
+    # Upload to supabase
+    if kwargs.get('user_id'):
+        payload['upload_to_supabase'] = True
+
     try:
         # Normal card generation
         card_data = generate_card(randomize=is_random, store_in_logs=True, **payload)
+
+        storage_path = (card_data.get('card') or {}).get('image', {}).get('storage_path')
+        if storage_path and kwargs.get('user_id'):
+            _record_gallery_image(kwargs['user_id'], card_data['card'], storage_path)
 
         return jsonify(card_data)
         
@@ -99,6 +141,7 @@ def build_image_for_card():
 
         # PRODUCE IMAGE AND UPDATE DATASET
         card.generate_card_image()
+
         payload['card'] = card.as_json()
 
         # LOGGING

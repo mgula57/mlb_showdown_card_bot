@@ -2879,6 +2879,91 @@ class PostgresDB:
             row = cur.fetchone()
             return dict(row) if row else None
 
+    def build_user_card_gallery_table(self) -> None:
+        """Create the user_card_gallery table if it does not exist."""
+        if not self.connection:
+            return
+        schema_sql = "CREATE SCHEMA IF NOT EXISTS internal;"
+        table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.user_card_gallery (
+                id           SERIAL PRIMARY KEY,
+                user_id      TEXT NOT NULL,
+                storage_path TEXT NOT NULL,
+                public_url   TEXT,
+                player_name  TEXT,
+                year         TEXT,
+                set_name     TEXT,
+                card_metadata JSONB,
+                created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        """
+        index_sql = """
+            CREATE INDEX IF NOT EXISTS idx_user_card_gallery_user_id_created
+                ON internal.user_card_gallery (user_id, created_at DESC);
+        """
+        with self.connection.cursor() as cur:
+            cur.execute(schema_sql)
+            cur.execute(table_sql)
+            cur.execute(index_sql)
+
+    def save_card_to_gallery(self, user_id: str, storage_path: str, public_url: str | None,
+                             player_name: str | None, year: str | None, set_name: str | None,
+                             card_metadata: dict | None) -> int | None:
+        """Insert a gallery record and return its id, or None on failure."""
+        if not self.connection:
+            return None
+        insert_sql = """
+            INSERT INTO internal.user_card_gallery
+                (user_id, storage_path, public_url, player_name, year, set_name, card_metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(insert_sql, (
+                    user_id, storage_path, public_url, player_name, year, set_name,
+                    extras.Json(card_metadata) if card_metadata else None,
+                ))
+                row = cur.fetchone()
+                return row[0] if row else None
+        except Exception as e:
+            self.connection.rollback()
+            print(f"Error saving card to gallery: {e}")
+            return None
+
+    def get_user_gallery(self, user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Return gallery records for user, newest first, with pagination."""
+        if not self.connection:
+            return []
+        query = """
+            SELECT id, storage_path, public_url, player_name, year, set_name, card_metadata, created_at
+            FROM internal.user_card_gallery
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+        """
+        try:
+            with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(query, (user_id, limit, offset))
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            print(f"Error fetching user gallery: {e}")
+            return []
+
+    def delete_user_gallery_card(self, user_id: str, gallery_id: int) -> bool:
+        """Delete a gallery record owned by user_id. Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        delete_sql = "DELETE FROM internal.user_card_gallery WHERE id = %s AND user_id = %s"
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(delete_sql, (gallery_id, user_id))
+                return cur.rowcount > 0
+        except Exception as e:
+            self.connection.rollback()
+            print(f"Error deleting gallery card: {e}")
+            return False
+
     def upsert_user_settings(self, user_id: str, settings_dict: dict) -> None:
         """Insert or update user settings. Only keys present in settings_dict are written."""
         if not self.connection or not settings_dict:

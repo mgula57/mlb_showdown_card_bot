@@ -68,7 +68,6 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-
 @user_settings_bp.route('/user/settings', methods=['GET'])
 @require_auth
 def get_user_settings():

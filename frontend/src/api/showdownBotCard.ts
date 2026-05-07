@@ -60,14 +60,14 @@ type Primitive = string | number | boolean | File | null | undefined;
  * ```
  */
 export async function buildCustomCard(payload: Record<string, Primitive>): Promise<ShowdownBotCardAPIResponse> {
-    
+
     // Detect file upload and use appropriate request format
     const hasFileUpload = payload.image_upload instanceof File;
-    
+
     if (hasFileUpload) {
         // Use FormData for file uploads
         const formData = new FormData();
-        
+
         // Add all non-null values to FormData
         Object.keys(payload).forEach(key => {
             const value = payload[key];
@@ -79,22 +79,22 @@ export async function buildCustomCard(payload: Record<string, Primitive>): Promi
                 }
             }
         });
-        
+
         const res = await fetch(`${API_BASE}/build_custom_card`, {
             method: "POST",
             // Let browser set Content-Type header for FormData (includes boundary)
             body: formData,
         });
-        
+
         if (!res.ok) {
             throw new Error(`Card build failed: ${res.status} ${res.statusText}`);
         }
         return res.json();
-        
+
     } else {
         // Use JSON for text-only requests (remove unused image fields)
         const { image_upload, image_source, ...cleanedData } = payload;
-        
+
         const res = await fetch(`${API_BASE}/build_custom_card`, {
             method: "POST",
             headers: {
