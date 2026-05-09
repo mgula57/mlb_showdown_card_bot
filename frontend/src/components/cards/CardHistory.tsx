@@ -131,7 +131,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                             const fullUrl = getFullImageUrl(group.record);
                                             return (
                                                 <div
-                                                    className={`relative z-0 shrink-0 w-20 rounded overflow-hidden bg-(--background-secondary) group/thumb ${fullUrl ? 'cursor-zoom-in' : ''}`}
+                                                    className={`relative z-0 shrink-0 w-20 rounded-lg overflow-hidden bg-(--background-secondary) group/thumb ${fullUrl ? 'cursor-zoom-in' : ''}`}
                                                     style={{ aspectRatio: '3.5 / 4.5' }}
                                                     onClick={() => fullUrl && setModalImageUrl(fullUrl)}
                                                 >

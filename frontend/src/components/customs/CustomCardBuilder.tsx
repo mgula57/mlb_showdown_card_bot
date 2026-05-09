@@ -1580,7 +1580,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     fixed @2xl:absolute left-0 bottom-0 z-21 @6xl:relative @6xl:left-auto @6xl:bottom-auto
                                     w-full shrink-0 @2xl:w-84 @2xl:shrink-0 @6xl:block @6xl:w-76
                                     max-h-[50dvh] @6xl:max-h-none
-                                    rounded-t-xl backdrop-blur bg-secondary
+                                    rounded-t-xl backdrop-blur-md bg-background-secondary/80
                                     border-2 border-form-element
                                     @6xl:m-4 @6xl:ml-2 
                                     overflow-x-hidden
