@@ -968,6 +968,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         ) as CustomCardFormState;
 
         setForm(userInputs);
+
+        setLoadingStatus({
+            message: "Card inputs updated",
+            icon: <FaRotateLeft className="text-sm" />,
+            backgroundColor: "var(--success)",
+            removeAfterSeconds: 3,
+        });
     };
 
     // Load history when user is available if history panel was previously open
