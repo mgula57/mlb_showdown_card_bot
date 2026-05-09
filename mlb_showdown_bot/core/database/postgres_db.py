@@ -3050,6 +3050,7 @@ class PostgresDB:
                 version text,
                 in_season_trends jsonb,
                 storage_path text,
+                thumbnail_storage_path text,
                 user_id text
             );
         """
@@ -3231,6 +3232,7 @@ class PostgresDB:
                 'stat_highlights_type': card.image.stat_highlights_type.value if card.image else None,
                 'glow_multiplier': card.image.glow_multiplier if card.image else None,
                 'storage_path': card.image.storage_path if card.image else None,
+                'thumbnail_storage_path': card.image.thumbnail_storage_path if card.image else None,
                 'user_id': card.user_id if card.user_id else None
             }
         else:
@@ -3367,7 +3369,8 @@ class PostgresDB:
             return []
         
         sql = """
-            SELECT id, name, year, set, created_on, user_id, user_inputs, error_for_user
+            SELECT id, name, year, set, created_on, user_id, user_inputs, error_for_user,
+                   storage_path, img_url, img_name, thumbnail_storage_path
             FROM internal.log_custom_card_bot
         """
         params = []
@@ -3391,7 +3394,11 @@ class PostgresDB:
                         'created_on': row[4].isoformat(),
                         'user_id': row[5],
                         'user_inputs': row[6],
-                        'error_for_user': row[7]
+                        'error_for_user': row[7],
+                        'storage_path': row[8],
+                        'img_url': row[9],
+                        'img_name': row[10],
+                        'thumbnail_storage_path': row[11]
                     })
                 return history
         except Exception as error:

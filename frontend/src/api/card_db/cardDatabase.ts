@@ -441,6 +441,10 @@ export type CustomCardLogRecord = CardDatabaseRecord & {
     created_on: string; // Timestamp of when the custom card was created
     error_for_user?: string | null; // Error message if card creation failed
     user_inputs?: CustomCardFormState | null; // Original user inputs for the card creation, if available
+    storage_path?: string | null; // Supabase storage URL for the card image
+    img_url?: string | null; // Image URL (if available)
+    img_name?: string | null; // Local image file name
+    thumbnail_storage_path?: string | null; // Supabase storage path for thumbnail (200px wide)
 };
 
 export async function fetchCustomCardLogs(userId?: string): Promise<CustomCardLogRecord[]> {

@@ -6612,7 +6612,7 @@ class ShowdownPlayerCard(BaseModel):
         self.load_time = round((end_time - start_time).total_seconds(),2)
 
     def upload_image_to_supabase(self) -> None:
-        """Uploads current image to Supabase storage.
+        """Uploads current image and thumbnail to Supabase storage.
 
         Args:
           None
@@ -6624,25 +6624,61 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.output_file_name is None:
             print("Image output file name is not set. Skipping upload.")
             return
-        
-        # UPLOAD IMAGE
+
+        # GET IMAGE PATH
         if self.is_running_on_website:
             img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
         else:
             img_path = os.path.join(os.path.dirname(__file__), 'image_output', self.image.output_file_name)
-        
+
         card_bucket = 'card_images'
         card_folder_destination = f'users/{self.user_id}' if self.user_id else f'public/{self.set.name}'
-        full_path = f'{card_folder_destination}/{self.image.output_file_name}'
 
+        # UPLOAD FULL-SIZE IMAGE
+        full_path = f'{card_folder_destination}/{self.image.output_file_name}'
         upload_result_data:dict = upload_to_supabase(
             bucket_name=card_bucket,
             file_path=img_path,
             destination_path=full_path
         )
         self.image.storage_path = upload_result_data.get('path', None)
+        print("Full image uploaded to Supabase storage with path: ", self.image.storage_path)
 
-        print("Image uploaded to Supabase storage with path: ", self.image.storage_path)
+        # CREATE AND UPLOAD THUMBNAIL
+        try:
+            from PIL import Image
+            # Load the saved image
+            with Image.open(img_path) as img:
+                # Create thumbnail (200px wide, maintains aspect ratio)
+                thumbnail = img.copy()
+                thumbnail.thumbnail((200, 280), Image.Resampling.LANCZOS)
+
+                # Save thumbnail to temp file
+                thumb_filename = self.image.output_file_name.replace('.png', '-thumb.png')
+                if self.is_running_on_website:
+                    thumb_path = os.path.join(self.image.output_folder_path, thumb_filename)
+                else:
+                    thumb_path = os.path.join(os.path.dirname(__file__), 'image_output', thumb_filename)
+                thumbnail.save(thumb_path, dpi=(72, 72), quality=85, optimize=True)
+
+                # Upload thumbnail
+                thumb_dest_path = f'{card_folder_destination}/{thumb_filename}'
+                thumb_upload_result = upload_to_supabase(
+                    bucket_name=card_bucket,
+                    file_path=thumb_path,
+                    destination_path=thumb_dest_path
+                )
+                self.image.thumbnail_storage_path = thumb_upload_result.get('path', None)
+                print("Thumbnail uploaded to Supabase storage with path: ", self.image.thumbnail_storage_path)
+
+                # Clean up temp thumbnail file
+                if os.path.exists(thumb_path):
+                    os.remove(thumb_path)
+        except Exception as e:
+            print(f"Failed to create/upload thumbnail: {e}")
+            # Don't fail the whole upload if thumbnail fails
+            import traceback
+            traceback.print_exc()
 
     def _clean_images_directory(self) -> None:
         """Removes all images from output folder that are not the current card. Leaves

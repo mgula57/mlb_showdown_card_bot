@@ -1571,7 +1571,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             <div 
                                 className="
                                     fixed @2xl:absolute left-0 bottom-0 z-21 @6xl:relative @6xl:left-auto @6xl:bottom-auto
-                                    w-full shrink-0 @2xl:w-84 @2xl:shrink-0 @6xl:block @6xl:w-64 
+                                    w-full shrink-0 @2xl:w-88 @4xl:w-lg @2xl:shrink-0 @6xl:block @6xl:w-64 
                                     max-h-[50dvh] @6xl:max-h-none
                                     rounded-t-xl backdrop-blur bg-secondary
                                     border-2 border-form-element
