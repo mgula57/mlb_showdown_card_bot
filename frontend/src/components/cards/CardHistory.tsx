@@ -33,11 +33,13 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
         history.forEach((record) => {
             const expansion = record.user_inputs?.expansion !== undefined ? record.user_inputs.expansion : 'BS';
             const set_number = record.user_inputs?.set_number !== undefined ? record.user_inputs.set_number : '0';
-            const key = `${record.name}-${record.year}-${record.set}-${expansion}-${set_number}`;
+            const edition = record.user_inputs?.edition && record.user_inputs.edition !== 'NONE' ? record.user_inputs.edition : 'NONE';
+            const key = `${record.name}-${record.year}-${record.set}-${expansion}-${set_number}-${edition}`;
             
             const currentExpansion = currentGroup?.record.user_inputs?.expansion !== undefined ? currentGroup.record.user_inputs.expansion : 'BS';
             const currentSetNumber = currentGroup?.record.user_inputs?.set_number !== undefined ? currentGroup.record.user_inputs.set_number : '0';
-            const currentKey = currentGroup ? `${currentGroup.record.name}-${currentGroup.record.year}-${currentGroup.record.set}-${currentExpansion}-${currentSetNumber}` : null;
+            const currentEdition = currentGroup?.record.user_inputs?.edition && currentGroup.record.user_inputs.edition !== 'NONE' ? currentGroup.record.user_inputs.edition : 'NONE';
+            const currentKey = currentGroup ? `${currentGroup.record.name}-${currentGroup.record.year}-${currentGroup.record.set}-${currentExpansion}-${currentSetNumber}-${currentEdition}` : null;
             
             if (key === currentKey) {
                 // Same card, add to current group
@@ -116,6 +118,8 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                             const edition = inputs?.edition && inputs.edition !== 'NONE' ? (editionLabel[inputs.edition] ?? inputs.edition) : null;
                             const split = inputs?.split ?? null;
                             const league = inputs?.league && inputs.league !== 'MLB' ? inputs.league : null;
+                            const expansion = inputs?.expansion !== undefined ? inputs.expansion : 'BS';
+                            const set_number = inputs?.set_number !== undefined ? inputs.set_number : null;
 
                             return (
                                 <li key={index}>
@@ -168,15 +172,23 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                                     <span className="text-xs text-secondary shrink-0">{group.record.year}</span>
                                                 </div>
 
-                                                {/* Set image + set number + league */}
+                                                {/* Set image + set number + expansion + league */}
                                                 <div className="text-xs text-secondary flex items-center gap-1.5">
                                                     <img src={imageForSet(group.record.set)} alt={group.record.set} className="h-4 object-contain" />
                                                     {inputs?.set_number && (
-                                                        <span className="text-[11px]">#{inputs.set_number}</span>
+                                                        <span className="text-[11px]">#{set_number}</span>
+                                                    )}
+                                                    {expansion && expansion !== 'BS' && (
+                                                        <>
+                                                            <img
+                                                                src={`/images/card/expansion-${expansion.toLowerCase()}.png`}
+                                                                alt={expansion}
+                                                                className="h-4 object-contain"
+                                                            />
+                                                        </>
                                                     )}
                                                     {league && (
                                                         <>
-                                                            <span>•</span>
                                                             <span>{league}</span>
                                                         </>
                                                     )}

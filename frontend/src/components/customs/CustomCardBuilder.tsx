@@ -1598,7 +1598,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                 {/* Instructions */}
                                 <div className="px-4 text-xs text-(--tertiary) text-wrap leading-snug mb-2">
-                                    Click a timestamp to reload that card into the form. 
+                                    Click a timestamp to reload that card into the form, thumbnail to see a larger preview.
                                 </div>
 
                                 <CardHistory history={cardHistory} onSelectCard={handleSelectHistoryCard} />
