@@ -1571,7 +1571,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             <div 
                                 className="
                                     fixed @2xl:absolute left-0 bottom-0 z-21 @6xl:relative @6xl:left-auto @6xl:bottom-auto
-                                    w-full shrink-0 @2xl:w-88 @4xl:w-lg @2xl:shrink-0 @6xl:block @6xl:w-64 
+                                    w-full shrink-0 @2xl:w-84 @2xl:shrink-0 @6xl:block @6xl:w-76
                                     max-h-[50dvh] @6xl:max-h-none
                                     rounded-t-xl backdrop-blur bg-secondary
                                     border-2 border-form-element
@@ -1579,7 +1579,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     overflow-x-hidden
                                 "
                             >
-                                <h2 className="sticky top-0 flex px-4 pt-4 pb-2 justify-between items-center align-top font-bold text-lg text-(--primary) bg-background-secondary/95 backdrop-blur">
+                                <h2 className="sticky top-0 z-10 flex px-4 pt-4 pb-2 justify-between items-center align-top font-bold text-lg text-(--primary) bg-background-secondary/95 backdrop-blur">
                                     
                                     <div className='flex gap-1.5 items-center'>
                                         <FaClock />
