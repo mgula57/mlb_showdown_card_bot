@@ -637,7 +637,7 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                 </div>
 
                 {/* Center: Count + Diamond + Outs */}
-                <div className="flex flex-row md:flex-col items-center justify-center gap-1.5 px-2 shrink-0 py-2 space-x-4 md:space-x-0">
+                <div className="flex flex-row sm:flex-col items-center justify-center gap-1.5 px-2 shrink-0 py-2 space-x-4 sm:space-x-0">
                     {linescore.balls != null && linescore.strikes != null ? (
                         <div className="space-y-1 items-center">
                             <div className="text-[10px] uppercase text-(--secondary) tracking-wide">Count</div>
