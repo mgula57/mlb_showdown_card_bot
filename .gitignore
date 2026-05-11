@@ -66,3 +66,6 @@ temp_uploads/
 # CREDS
 firebase_creds.json
 *.pem
+
+# AI
+.claude/
