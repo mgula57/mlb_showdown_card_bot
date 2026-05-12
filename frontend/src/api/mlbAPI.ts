@@ -16,6 +16,25 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // ***************************
 // API Client Functions
 // ***************************
+
+// Splits Cache (browser memory, lives for the page session)
+const _splitsCache = new Map<string, SituationCode[]>();
+
+export const fetchSplits = async (season: string): Promise<SituationCode[]> => {
+    const cached = _splitsCache.get(season);
+    if (cached) return cached;
+
+    const response = await fetch(`${API_BASE}/metadata/splits?season=${encodeURIComponent(season)}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch splits for season ${season}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    const splits = data.splits as SituationCode[];
+    _splitsCache.set(season, splits);
+    console.log(`Fetched splits for season ${season}:`, splits);
+    return splits;
+};
+
 export const fetchSeasons = async (): Promise<Season[]> => {
     const response = await fetch(`${API_BASE}/seasons/list`);
     if (!response.ok) {
@@ -777,3 +796,13 @@ export interface GameBoxscoreDetail {
     most_recent_play?: MostRecentPlay;
 }
 
+export interface SituationCode {
+    code: string;
+    description: string;
+    navigation_menu?: string;
+    team?: boolean;
+    batting?: boolean;
+    fielding?: boolean;
+    pitching?: boolean;
+    sort_order?: number;
+}

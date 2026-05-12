@@ -41,6 +41,7 @@ import { CardHistory } from '../cards/CardHistory';
 // API
 import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { fetchCustomCardLogs, type CustomCardLogRecord } from '../../api/card_db/cardDatabase';
+import { fetchSplits } from '../../api/mlbAPI';
 // Icons
 import { 
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
@@ -217,6 +218,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
     });
     const [cardHistory, setCardHistory] = useState<CustomCardLogRecord[]>([]);
+    const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
     // User Context
@@ -945,6 +947,19 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
     }, [user]); // Run when user becomes available
 
+    // Fetch MLB situation codes when the user is in SPLIT mode for 2026+ seasons
+    useEffect(() => {
+        if (form.stats_period_type !== 'SPLIT') return;
+        const yearNum = parseInt(form.year, 10);
+        if (isNaN(yearNum) || yearNum < 2026) return;
+
+        fetchSplits(form.year)
+            .then((codes) =>
+                setSplitOptions(codes.map((c) => ({ value: c.code, label: c.description, group: c.navigation_menu })))
+            )
+            .catch(console.error);
+    }, [form.stats_period_type, form.year]);
+
 
     // ---------------------------------
     // MARK: Render SubComponents
@@ -973,7 +988,22 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         />
                     </>
                 );
-            case 'SPLIT':
+            case 'SPLIT': {
+                const yearNum = parseInt(form.year, 10);
+                const isMlbApiYear = !isNaN(yearNum) && yearNum >= 2026;
+                if (isMlbApiYear) {
+                    return (
+                        <FormDropdown
+                            label="Split*"
+                            options={splitOptions}
+                            selectedOption={form.split || ''}
+                            onChange={(value) => setForm({ ...form, split: value || null })}
+                            className='col-span-full'
+                            disabled={splitOptions.length === 0}
+                            placeholder={splitOptions.length === 0 ? 'Loading...' : 'Select a Split'}
+                        />
+                    );
+                }
                 return (
                     <FormInput
                         label="Split*"
@@ -983,6 +1013,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         className='col-span-full'
                     />
                 );
+            }
             default:
                 return null;
         }
