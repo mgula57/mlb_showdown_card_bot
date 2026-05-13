@@ -51,6 +51,8 @@ type SelectOption = {
     textColor?: string;
     /** Group/category label — consecutive options sharing the same group are rendered under a header */
     group?: string;
+    /** Content rendered after the label inside dropdown items — e.g. small badge tags */
+    trailing?: React.ReactNode;
 }
 
 /**
@@ -316,14 +318,15 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                         ${option.group ? 'pl-6 pr-3' : 'px-2'} py-2
                                         cursor-pointer hover:bg-(--background-secondary)
                                         border-b border-(--background-tertiary) last:border-b-0
-                                        flex ${option.textColor || 'text-inherit'}
+                                        flex items-center gap-2 ${option.textColor || 'text-inherit'}
                                     `}
                                     onClick={() => handleOptionClick(option.value)}
                                 >
                                     { renderImage(option.image) }
                                     { renderSymbol(option.symbol) }
                                     { renderIcon(option.icon) }
-                                    <span>{option.label}</span>
+                                    <span className="flex">{option.label}</span>
+                                    { option.trailing }
                                 </div>
                             );
                             return acc;

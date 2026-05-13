@@ -968,7 +968,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         fetchSplits(form.year)
             .then((codes) =>
-                setSplitOptions(codes.map((c) => ({ value: c.code, label: c.description, group: c.navigation_menu })))
+                setSplitOptions(codes.map((c) => ({
+                    value: c.code,
+                    label: c.description,
+                    group: c.navigation_menu,
+                    trailing: (c.batting || c.pitching) ? (
+                        <span className="flex gap-1 shrink-0">
+                            {c.batting  && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 font-semibold">Hitting</span>}
+                            {c.pitching && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-semibold">Pitching</span>}
+                        </span>
+                    ) : undefined,
+                })))
             )
             .catch(console.error);
     }, [form.stats_period_type, form.year]);
