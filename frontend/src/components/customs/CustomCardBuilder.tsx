@@ -606,13 +606,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             // Define datasource
             // Use MLB API if year has 2026+
+            let isMlbApiYear = false;
             if (finalPayload.year) {
                 const yearNums = (finalPayload.year as string).match(/\d+/g)?.map(Number) ?? [];
                 const maxYear = yearNums.length > 0 ? Math.max(...yearNums) : 0;
-                if (maxYear >= 2026) {
-                    finalPayload.datasource = 'MLB_API';
-                } else {
-                    finalPayload.datasource = 'BREF';
+                isMlbApiYear = maxYear >= 2026;
+                finalPayload.datasource = isMlbApiYear ? 'MLB_API' : 'BREF';
+            }
+
+            // For 2026+ splits the stored value is a situation code — resolve to description + code
+            if (isMlbApiYear && finalPayload.split) {
+                const matched = splitOptions.find(o => o.value === finalPayload.split);
+                if (matched) {
+                    finalPayload.situation_code = matched.value;
+                    finalPayload.split = matched.label;
                 }
             }
             const cardData = await buildCustomCard({

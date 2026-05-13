@@ -162,6 +162,7 @@ class StatsPeriod(BaseModel):
 
     # SPLIT
     split: Optional[str] = None
+    situation_code: Optional[str] = None
 
     # OVERRIDES
     team_override: Optional[Team] = None
