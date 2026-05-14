@@ -326,14 +326,18 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                         cursor-pointer hover:bg-(--background-secondary)
                                         border-b border-(--background-tertiary) last:border-b-0
                                         flex items-center gap-2 ${option.textColor || 'text-inherit'}
+                                        ${option.value === value ? 'bg-(--background-secondary) font-semibold' : ''}
                                     `}
                                     onClick={() => handleOptionClick(option.value)}
                                 >
                                     { renderImage(option.image) }
                                     { renderSymbol(option.symbol) }
                                     { renderIcon(option.icon) }
-                                    <span className="flex">{option.label}</span>
+                                    <span className="flex flex-1">{option.label}</span>
                                     { option.trailing }
+                                    {option.value === value && (
+                                        <span className="ml-auto text-blue-400 text-xs">✓</span>
+                                    )}
                                 </div>
                             );
                             return acc;
