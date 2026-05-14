@@ -111,6 +111,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
     // Refs for DOM element access and click-outside detection
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement | null>(null);
+    const selectedItemRef = useRef<HTMLDivElement | null>(null);
 
     /** Toggles dropdown visibility when the select button is clicked */
     const handleToggle = () => {
@@ -199,6 +200,11 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         if (!isOpen) return;
 
         measureAndSetDirection();
+        if (selectedItemRef.current && dropdownRef.current) {
+            const item = selectedItemRef.current;
+            const container = dropdownRef.current;
+            container.scrollTop = item.offsetTop - container.clientHeight / 2 + item.offsetHeight / 2;
+        }
         const handleUpdate = () => measureAndSetDirection();
         
         // Listen for viewport changes to maintain correct positioning
@@ -314,6 +320,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                             acc.push(
                                 <div
                                     key={option.value}
+                                    ref={option.value === value ? selectedItemRef : null}
                                     className={`
                                         ${option.group ? 'pl-6 pr-3' : 'px-2'} py-2
                                         cursor-pointer hover:bg-(--background-secondary)
