@@ -41,6 +41,7 @@ import { CardHistory } from '../cards/CardHistory';
 // API
 import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { fetchCustomCardLogs, type CustomCardLogRecord } from '../../api/card_db/cardDatabase';
+import { fetchSplits } from '../../api/mlbAPI';
 // Icons
 import { 
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
@@ -217,6 +218,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
     });
     const [cardHistory, setCardHistory] = useState<CustomCardLogRecord[]>([]);
+    const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
     // User Context
@@ -446,7 +448,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 }
                 if (form.start_date) summaries.push({ label: 'Start', value: form.start_date });
                 if (form.end_date) summaries.push({ label: 'End', value: form.end_date });
-                if (form.split) summaries.push({ label: 'Split', value: form.split });
+                if (form.split) {
+                    const yearNum = parseInt(form.year, 10);
+                    const splitLabel = (!isNaN(yearNum) && yearNum >= 2026)
+                        ? (splitOptions.find(o => o.value === form.split)?.label ?? form.split)
+                        : form.split;
+                    summaries.push({ label: 'Split', value: splitLabel });
+                }
                 if (form.league !== FORM_DEFAULTS.league) {
                     const leagueOption = leagueOptions.find(opt => opt.value === form.league);
                     summaries.push(leagueOption || { label: 'League', value: form.league });
@@ -598,13 +606,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             // Define datasource
             // Use MLB API if year has 2026+
+            let isMlbApiYear = false;
             if (finalPayload.year) {
                 const yearNums = (finalPayload.year as string).match(/\d+/g)?.map(Number) ?? [];
                 const maxYear = yearNums.length > 0 ? Math.max(...yearNums) : 0;
-                if (maxYear >= 2026) {
-                    finalPayload.datasource = 'MLB_API';
-                } else {
-                    finalPayload.datasource = 'BREF';
+                isMlbApiYear = maxYear >= 2026;
+                finalPayload.datasource = isMlbApiYear ? 'MLB_API' : 'BREF';
+            }
+
+            // For 2026+ splits the stored value is a situation code — resolve to description + code
+            if (isMlbApiYear && finalPayload.split) {
+                const matched = splitOptions.find(o => o.value === finalPayload.split);
+                if (matched) {
+                    finalPayload.situation_code = matched.value;
+                    finalPayload.split = matched.label;
                 }
             }
             const cardData = await buildCustomCard({
@@ -945,6 +960,29 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
     }, [user]); // Run when user becomes available
 
+    // Fetch MLB situation codes when the user is in SPLIT mode for 2026+ seasons
+    useEffect(() => {
+        if (form.stats_period_type !== 'SPLIT') return;
+        const yearNum = parseInt(form.year, 10);
+        if (isNaN(yearNum) || yearNum < 2026) return;
+
+        fetchSplits(form.year)
+            .then((codes) =>
+                setSplitOptions(codes.map((c) => ({
+                    value: c.code,
+                    label: c.description,
+                    group: c.navigation_menu,
+                    trailing: (c.batting || c.pitching) ? (
+                        <span className="flex gap-1 shrink-0">
+                            {c.batting  && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 font-semibold">Hitting</span>}
+                            {c.pitching && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-semibold">Pitching</span>}
+                        </span>
+                    ) : undefined,
+                })))
+            )
+            .catch(console.error);
+    }, [form.stats_period_type, form.year]);
+
 
     // ---------------------------------
     // MARK: Render SubComponents
@@ -973,7 +1011,22 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         />
                     </>
                 );
-            case 'SPLIT':
+            case 'SPLIT': {
+                const yearNum = parseInt(form.year, 10);
+                const isMlbApiYear = !isNaN(yearNum) && yearNum >= 2026;
+                if (isMlbApiYear) {
+                    return (
+                        <FormDropdown
+                            label="Split*"
+                            options={splitOptions}
+                            selectedOption={form.split || ''}
+                            onChange={(value) => setForm({ ...form, split: value || null })}
+                            className='col-span-full'
+                            disabled={splitOptions.length === 0}
+                            placeholder={splitOptions.length === 0 ? 'Loading...' : 'Select a Split'}
+                        />
+                    );
+                }
                 return (
                     <FormInput
                         label="Split*"
@@ -983,6 +1036,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         className='col-span-full'
                     />
                 );
+            }
             default:
                 return null;
         }
