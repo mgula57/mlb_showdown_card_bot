@@ -330,6 +330,32 @@ class PlayerStatsNormalizer:
             is_game_logs=False
         )
 
+        # WARNING CHECKS
+
+        # IF STATS PERIOD HAS A SITUATION CODE, CHECK IF ANY STATS WERE POPULATED FROM THE SPLIT TYPE THAT MATCHES THAT SITUATION CODE. 
+        # IF NOT, ADD A WARNING THAT STATS MAY BE INCOMPLETE AND REMOVE THE SITUATION CODE AND SPLIT FROM THE STATS PERIOD
+        if stats_period.situation_code:
+            splits = player.get_stat_splits(
+                group_type=StatGroupEnum.PITCHING if player_type.is_pitcher else StatGroupEnum.HITTING,
+                types=[StatTypeEnum.STAT_SPLITS],
+                seasons=stats_period.year_list
+            )
+            split_matches = 0
+            for split in splits or []:
+                if split.split and split.split.code == stats_period.situation_code:
+                    # THIS MEANS THE STAT_SPLITS TYPE SUCCESSFULLY POPULATED STATS FOR THE REQUESTED SPLIT, SO WE CAN CONSIDER ALL KEYS FROM THIS TYPE AS OWNED BY THE SPLIT AND NOT FILLABLE BY TRAILING TYPES
+                    split_matches += 1
+                    break
+            
+            if stats_period.situation_code and split_matches == 0:
+                warning_msg = f"No split stats found for split '{stats_period.split}' with situation code '{stats_period.situation_code}'. Resetting to normal regular season stats."
+                normalized_data['warnings'] = normalized_data.get('warnings', []) + [warning_msg]
+                print(f"WARNING: {warning_msg}")
+                # REMOVE THE SITUATION CODE AND SPLIT FROM THE STATS PERIOD SO THAT DOWNSTREAM LOGIC DOESN'T MISTAKENLY TREAT THE STATS AS SPLIT-SPECIFIC WHEN THEY MAY NOT BE
+                stats_period.situation_code = None
+                stats_period.split = None
+                stats_period.type = StatsPeriodType.REGULAR_SEASON  # Default to regular season for any logic that depends on the type
+
         normalized_player_stats = NormalizedPlayerStats(**normalized_data)
         return normalized_player_stats
     
@@ -567,9 +593,17 @@ class PlayerStatsNormalizer:
         """
 
         is_pitcher = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.PITCHER if stats_period else mlb_player.is_pitcher
-        stats_types = [PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)] \
+        splits_filter: Optional[str] = None
+        primary_types = [PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)] \
                         + ([StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED] if is_pitcher else []) \
                         + [StatTypeEnum.SABERMETRICS]
+        if stats_period.situation_code:
+            # STAT_SPLITS filtered to the code is the primary source; primary types trail so
+            # fields absent from split rows (e.g. IP) are still filled in without split filtering.
+            stats_types = [StatTypeEnum.STAT_SPLITS] + primary_types
+            splits_filter = stats_period.situation_code
+        else:
+            stats_types = primary_types
         group_type = StatGroupEnum.PITCHING if is_pitcher else StatGroupEnum.HITTING
 
         stat_name_mapping = PlayerStatsNormalizer._map_mlb_api_stats_to_bref()
@@ -601,6 +635,13 @@ class PlayerStatsNormalizer:
                 if not stats:
                     continue
 
+                # IF STATS PERIOD IS SPLIT SPECIFIC, SKIP SPLITS NOT MATCHING THE SITUATION CODE
+                # Only filter by situation code for STAT_SPLITS — primary types run unfiltered
+                # so they can contribute fields absent from split rows (e.g. IP).
+                if stats_type == StatTypeEnum.STAT_SPLITS and splits_filter:
+                    if not (split.split and split.split.code == splits_filter):
+                        continue
+
                 # IF THERE ARE MULTIPLE SPLITS AND SOME HAVE TEAM AND ANOTHER IS OVERALL, TAKE THE OVERALL SPLIT
                 if len(splits) > 1 and split.team and any(s.team is None for s in splits):
                     continue
@@ -631,7 +672,8 @@ class PlayerStatsNormalizer:
 
                     # SKIP NON-COUNTING METRICS WHEN MULTIPLE SPLITS EXIST
                     # THEY WILL BE RECALCULATED AFTER SUMMING COUNTING STATS
-                    if is_non_counting_metric and len(splits) > 1:
+                    is_split_stats_period = (stats_type == StatTypeEnum.STAT_SPLITS and stats_period.situation_code is not None and split.split and split.split.code == stats_period.situation_code)
+                    if is_non_counting_metric and len(splits) > 1 and not is_split_stats_period:
                         continue
 
                     try:

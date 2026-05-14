@@ -26,6 +26,8 @@ type FormDropdownProps = {
     className?: string;
     /** Whether this dropdown is disabled */
     disabled?: boolean;
+    /** Placeholder text shown in muted style when no option is selected */
+    placeholder?: string;
 };
 
 /**
@@ -55,7 +57,7 @@ type FormDropdownProps = {
  * @param className - Additional styling classes
  * @returns Labeled dropdown form component
  */
-const FormDropdown = ({ label, options, selectedOption, onChange, className="", disabled = false }: FormDropdownProps) => {
+const FormDropdown = ({ label, options, selectedOption, onChange, className="", disabled = false, placeholder }: FormDropdownProps) => {
     return (
         <div className={className}>
             {/* Form label with consistent styling */}
@@ -67,6 +69,7 @@ const FormDropdown = ({ label, options, selectedOption, onChange, className="", 
                 onChange={onChange}
                 options={options}
                 disabled={disabled}
+                placeholder={placeholder}
             />
         </div>
     );

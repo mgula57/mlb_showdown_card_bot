@@ -214,7 +214,8 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     } : {};
     var weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
     const isThisYearBeforeOct8th = activeCardData?.card?.year === String(new Date().getFullYear()) && (new Date().getMonth() < 9 || (new Date().getMonth() === 9 && new Date().getDate() < 8));
-    if (isThisYearBeforeOct8th === false) {
+    const isValidStatsPeriodType = activeCardData?.card?.stats_period && ['REGULAR', 'PRESEASON', 'POSTSEASON'].includes(activeCardData.card.stats_period.type);
+    if (isThisYearBeforeOct8th === false || !isValidStatsPeriodType) {
         weeklyChangePoints = null; // Only show for current year cards
     }
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';

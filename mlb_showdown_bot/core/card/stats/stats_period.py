@@ -162,6 +162,7 @@ class StatsPeriod(BaseModel):
 
     # SPLIT
     split: Optional[str] = None
+    situation_code: Optional[str] = None
 
     # OVERRIDES
     team_override: Optional[Team] = None
@@ -660,6 +661,8 @@ class StatsPeriod(BaseModel):
                 is_single_game = game_1_comp == game_2_comp            
                 text = game_1_comp if is_single_game else ' - '.join(text_list)
             case StatsPeriodType.SPLIT:
+                if not self.split:
+                    return 'N/A'
                 text = self.split.upper()
             case StatsPeriodType.REGULAR_SEASON:
                 text = self.year
