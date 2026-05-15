@@ -4946,7 +4946,7 @@ class ShowdownPlayerCard(BaseModel):
         # CALCULATE METRIC LIMIT
         is_expansion_img = self.image.expansion.has_image
         is_set_num = self.image.set_number is not None
-        is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
+        is_period_box = self.stats_period.show_text_on_card_image
         is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
         y_text_offset = 3
 

@@ -49,6 +49,10 @@ type SelectOption = {
     borderColor?: string;
     /** Custom text color for the option */
     textColor?: string;
+    /** Group/category label — consecutive options sharing the same group are rendered under a header */
+    group?: string;
+    /** Content rendered after the label inside dropdown items — e.g. small badge tags */
+    trailing?: React.ReactNode;
 }
 
 /**
@@ -76,6 +80,8 @@ type CustomSelectProps = {
     suffix?: string;
     /** Whether the select is disabled */
     disabled?: boolean;
+    /** Placeholder text shown in muted style when no option is selected */
+    placeholder?: string;
 };
 
 /**
@@ -92,19 +98,20 @@ type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
     const [isOpen, setIsOpen] = useState(false);
     /** Determines if dropdown should open above the button (when space below is limited) */
     const [openAbove, setOpenAbove] = useState(false);
-    /** Absolute positioning coordinates for the portal dropdown */
-    const [menuPos, setMenuPos] = useState<{ left: number; top: number; }>({ left: 0, top: 0 });
+    /** Absolute positioning coordinates and sizing for the portal dropdown */
+    const [menuPos, setMenuPos] = useState<{ left: number; top: number; minWidth: number; maxWidth: number; maxHeight: number }>({ left: 0, top: 0, minWidth: 0, maxWidth: 9999, maxHeight: 400 });
 
     // Refs for DOM element access and click-outside detection
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement | null>(null);
+    const selectedItemRef = useRef<HTMLDivElement | null>(null);
 
     /** Toggles dropdown visibility when the select button is clicked */
     const handleToggle = () => {
@@ -154,15 +161,28 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         const spaceBelow = window.innerHeight - btnRect.bottom;
         const spaceAbove = btnRect.top;
         const menuH = dropdownRef.current?.getBoundingClientRect().height ?? 0;
-        
+
+        const MARGIN = 8;
+
         // Open above if insufficient space below and more space above
         const shouldOpenAbove = spaceBelow < menuH && spaceAbove > spaceBelow;
         setOpenAbove(shouldOpenAbove);
-        
-        // Set fixed positioning coordinates for portal
-        setMenuPos({ 
-            left: btnRect.left, 
-            top: shouldOpenAbove ? btnRect.top : btnRect.bottom 
+
+        // Height: constrained to whichever direction we open into
+        const maxHeight = (shouldOpenAbove ? spaceAbove : spaceBelow) - MARGIN;
+
+        // Width: at least as wide as the button, capped so it doesn't overflow the right edge
+        const minWidth = btnRect.width;
+        const maxWidth = Math.min(400, window.innerWidth - btnRect.left - MARGIN);
+        // Clamp left so the dropdown never overflows the right edge
+        const left = Math.min(btnRect.left, window.innerWidth - maxWidth - MARGIN);
+
+        setMenuPos({
+            left: Math.max(0, left),
+            top: shouldOpenAbove ? btnRect.top : btnRect.bottom,
+            minWidth,
+            maxWidth,
+            maxHeight,
         });
     };
 
@@ -180,6 +200,11 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         if (!isOpen) return;
 
         measureAndSetDirection();
+        if (selectedItemRef.current && dropdownRef.current) {
+            const item = selectedItemRef.current;
+            const container = dropdownRef.current;
+            container.scrollTop = item.offsetTop - container.clientHeight / 2 + item.offsetHeight / 2;
+        }
         const handleUpdate = () => measureAndSetDirection();
         
         // Listen for viewport changes to maintain correct positioning
@@ -256,7 +281,10 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                     { renderImage(options.find(option => option.value === value)?.image) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
                     { renderIcon(options.find(option => option.value === value)?.icon) }
-                    <span className={labelClassName}> {options.find(option => option.value === value)?.label || null} </span>
+                    {options.find(option => option.value === value)?.label
+                        ? <span className={labelClassName}>{options.find(option => option.value === value)?.label}</span>
+                        : <span className={`${labelClassName} text-tertiary`}>{placeholder}</span>
+                    }
                     {suffix && <span className='ml-1'>{suffix}</span>}
                 </div>
             </button>
@@ -272,27 +300,48 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                             left-0 transform
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
                             bg-(--background-primary) rounded-xl shadow-lg
-                            text-nowrap overflow-auto max-h-[60vh]
+                            border border-(--background-tertiary)
+                            overflow-auto
                         `}
-                        style={{ left: menuPos.left, top: menuPos.top }}
+                        style={{ left: menuPos.left, top: menuPos.top, minWidth: menuPos.minWidth, maxWidth: menuPos.maxWidth, maxHeight: menuPos.maxHeight }}
                     >
-                        {options.map((option) => (
-                            <div
-                                key={option.value}
-                                className={`
-                                    ${className} px-2 py-2
-                                    cursor-pointer hover:bg-(--background-secondary)
-                                    border-b border-(--background-tertiary) last:border-b-0
-                                    flex ${option.textColor || 'text-inherit'}
-                                `}
-                                onClick={() => handleOptionClick(option.value)}
-                            >
-                                { renderImage(option.image) }
-                                { renderSymbol(option.symbol) }
-                                { renderIcon(option.icon) }
-                                <span>{option.label}</span>
-                            </div>
-                        ))}
+                        {options.reduce<React.ReactNode[]>((acc, option, idx) => {
+                            const prevGroup = idx > 0 ? options[idx - 1].group : undefined;
+                            if (option.group && option.group !== prevGroup) {
+                                acc.push(
+                                    <div
+                                        key={`group-${option.group}`}
+                                        className="px-3 pt-3 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider select-none"
+                                    >
+                                        {option.group}
+                                    </div>
+                                );
+                            }
+                            acc.push(
+                                <div
+                                    key={option.value}
+                                    ref={option.value === value ? selectedItemRef : null}
+                                    className={`
+                                        ${option.group ? 'pl-6 pr-3' : 'px-2'} py-2
+                                        cursor-pointer hover:bg-(--background-secondary)
+                                        border-b border-(--background-tertiary) last:border-b-0
+                                        flex items-center gap-2 ${option.textColor || 'text-inherit'}
+                                        ${option.value === value ? 'bg-(--background-secondary) font-semibold' : ''}
+                                    `}
+                                    onClick={() => handleOptionClick(option.value)}
+                                >
+                                    { renderImage(option.image) }
+                                    { renderSymbol(option.symbol) }
+                                    { renderIcon(option.icon) }
+                                    <span className="flex flex-1">{option.label}</span>
+                                    { option.trailing }
+                                    {option.value === value && (
+                                        <span className="ml-auto text-blue-400 text-xs">✓</span>
+                                    )}
+                                </div>
+                            );
+                            return acc;
+                        }, [])}
                     </div>,
                     document.body
                 )

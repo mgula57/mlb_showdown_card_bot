@@ -46,7 +46,7 @@ class BaseMLBClient(BaseModel):
     # CORE REQUEST LOGIC
     # -------------------
 
-    def _make_request(self, endpoint: str, params: Optional[Dict] = None, cache_override: Optional[bool] = None) -> Dict[str, Any]:
+    def _make_request(self, endpoint: str, params: Optional[Dict] = None, cache_override: Optional[bool] = None) -> Dict[str, Any] | list:
         """
         Core HTTP request method with caching, rate limiting, and retries
         
