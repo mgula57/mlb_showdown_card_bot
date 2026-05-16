@@ -148,7 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
             setSession(session);
-            setUser(session?.user ?? null);
+            setUser(prev => { const next = session?.user ?? null; return prev?.id === next?.id ? prev : next; });
             if (session?.user) {
                 checkUserProfile(session.user.id);
                 loadUserSettings(session.access_token);
@@ -161,7 +161,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
             setSession(session);
-            setUser(session?.user ?? null);
+            setUser(prev => { const next = session?.user ?? null; return prev?.id === next?.id ? prev : next; });
             if (session?.user) {
                 checkUserProfile(session.user.id);
                 // Only fetch settings on actual sign-in, not on token refresh (tab focus)

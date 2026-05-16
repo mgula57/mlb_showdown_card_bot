@@ -2894,7 +2894,8 @@ class PostgresDB:
                 year         TEXT,
                 set_name     TEXT,
                 card_metadata JSONB,
-                created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                is_hidden    BOOLEAN NOT NULL DEFAULT FALSE
             );
         """
         index_sql = """
@@ -2938,7 +2939,7 @@ class PostgresDB:
         query = """
             SELECT id, storage_path, public_url, player_name, year, set_name, card_metadata, created_at
             FROM internal.user_card_gallery
-            WHERE user_id = %s
+            WHERE user_id = %s AND is_hidden IS NOT TRUE
             ORDER BY created_at DESC
             LIMIT %s OFFSET %s
         """
@@ -2951,17 +2952,17 @@ class PostgresDB:
             return []
 
     def delete_user_gallery_card(self, user_id: str, gallery_id: int) -> bool:
-        """Delete a gallery record owned by user_id. Returns True if a row was deleted."""
+        """Hide a gallery record owned by user_id. Returns True if a row was updated."""
         if not self.connection:
             return False
-        delete_sql = "DELETE FROM internal.user_card_gallery WHERE id = %s AND user_id = %s"
+        hide_sql = "UPDATE internal.user_card_gallery SET is_hidden = TRUE WHERE id = %s AND user_id = %s"
         try:
             with self.connection.cursor() as cur:
-                cur.execute(delete_sql, (gallery_id, user_id))
+                cur.execute(hide_sql, (gallery_id, user_id))
                 return cur.rowcount > 0
         except Exception as e:
             self.connection.rollback()
-            print(f"Error deleting gallery card: {e}")
+            print(f"Error hiding gallery card: {e}")
             return False
 
     def upsert_user_settings(self, user_id: str, settings_dict: dict) -> None:

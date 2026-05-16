@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FaImages, FaTrash, FaSpinner } from 'react-icons/fa';
 import { fetchUserGallery, deleteGalleryCard, type GalleryImageRecord } from '../../api/gallery';
+import { Modal } from '../shared/Modal';
 
 const PAGE_SIZE = 50;
+
+// Module-level: survives component remounts so navigating back doesn't re-fetch
+let galleryLoadedForUserId: string | null = null;
 
 const GalleryCard: React.FC<{
     item: GalleryImageRecord;
@@ -65,6 +69,9 @@ const GalleryPage: React.FC = () => {
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+    const sessionRef = useRef(session);
+    useEffect(() => { sessionRef.current = session; }, [session]);
 
     // Redirect if not logged in (matches AccountPage pattern)
     useEffect(() => {
@@ -74,12 +81,13 @@ const GalleryPage: React.FC = () => {
     }, [user, loading, navigate]);
 
     const loadGallery = useCallback(async (offset: number, append: boolean) => {
-        if (!session?.access_token) return;
+        const token = sessionRef.current?.access_token;
+        if (!token) return;
         if (append) setIsLoadingMore(true);
         else setIsLoading(true);
         setError(null);
         try {
-            const data = await fetchUserGallery(session.access_token, PAGE_SIZE, offset);
+            const data = await fetchUserGallery(token, PAGE_SIZE, offset);
             setGallery(prev => append ? [...prev, ...data.gallery] : data.gallery);
             setHasMore(data.has_more);
         } catch (err) {
@@ -88,22 +96,27 @@ const GalleryPage: React.FC = () => {
             setIsLoading(false);
             setIsLoadingMore(false);
         }
-    }, [session?.access_token]);
+    }, []);
 
     useEffect(() => {
-        if (user && session?.access_token) {
+        if (user && user.id !== galleryLoadedForUserId) {
+            galleryLoadedForUserId = user.id;
             loadGallery(0, false);
         }
-    }, [user, session?.access_token, loadGallery]);
+    }, [user, loadGallery]);
 
-    const handleDelete = async (id: number) => {
-        if (!session?.access_token) return;
+    const handleConfirmDelete = async () => {
+        const id = pendingDeleteId;
+        if (!id) return;
+        setPendingDeleteId(null);
+        const token = sessionRef.current?.access_token;
+        if (!token) return;
         setDeletingId(id);
         try {
-            await deleteGalleryCard(session.access_token, id);
+            await deleteGalleryCard(token, id);
             setGallery(prev => prev.filter(item => item.id !== id));
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to delete card');
+            setError(err instanceof Error ? err.message : 'Failed to hide card');
         } finally {
             setDeletingId(null);
         }
@@ -124,6 +137,31 @@ const GalleryPage: React.FC = () => {
     if (!user) return null;
 
     return (
+        <>
+        {pendingDeleteId !== null && (
+            <Modal size="sm" onClose={() => setPendingDeleteId(null)}>
+                <div className="p-6 flex flex-col gap-5">
+                    <div className="flex flex-col gap-1">
+                        <h2 className="text-lg font-semibold text-primary">Remove card?</h2>
+                        <p className="text-sm text-secondary">This card will be hidden from your gallery. You can restore it later if needed.</p>
+                    </div>
+                    <div className="flex gap-3 justify-end">
+                        <button
+                            onClick={() => setPendingDeleteId(null)}
+                            className="px-4 py-2 rounded-lg bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleConfirmDelete}
+                            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+                        >
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        )}
         <div className="min-h-screen bg-(--background-primary) p-6 md:p-8">
             <div className="max-w-7xl mx-auto">
 
@@ -165,7 +203,7 @@ const GalleryPage: React.FC = () => {
                                 <GalleryCard
                                     key={item.id}
                                     item={item}
-                                    onDelete={handleDelete}
+                                    onDelete={setPendingDeleteId}
                                     isDeleting={deletingId === item.id}
                                 />
                             ))}
@@ -188,6 +226,7 @@ const GalleryPage: React.FC = () => {
                 )}
             </div>
         </div>
+        </>
     );
 };
 
