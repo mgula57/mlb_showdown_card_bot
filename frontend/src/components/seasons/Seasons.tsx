@@ -104,6 +104,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         window.localStorage.setItem(key, value);
     };
 
+    const getTeamsCacheKey = (seasonId: string) => `${type}.seasons.teams.${seasonId}`;
+
     const { userShowdownSet } = useSiteSettings();
     const { userSettings, settingsLoaded, syncSetting } = useAuth();
     const hasStaticSeasons = staticSeasons !== undefined;
@@ -412,6 +414,28 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         isRunningLoadAllRef.current = true;
         beginLoading();
+
+        // Apply cached teams immediately so the list renders before network completes
+        const teamsCacheKey = getTeamsCacheKey(selectedSeason.season_id.toString());
+        const cachedTeamsRaw = getStoredValue(teamsCacheKey);
+        if (cachedTeamsRaw) {
+            try {
+                const cachedTeams = JSON.parse(cachedTeamsRaw) as Team[];
+                if (Array.isArray(cachedTeams) && cachedTeams.length > 0) {
+                    setTeams(cachedTeams);
+                    setSelectedTeam(prevTeam => {
+                        if (prevTeam && cachedTeams.some(t => `${t.id}-${t.season}` === `${prevTeam.id}-${prevTeam.season}`)) return prevTeam;
+                        return cachedTeams.sort((a, b) => {
+                            const aStarred = starredTeamKeys.includes(`${a.id}-${a.season}`);
+                            const bStarred = starredTeamKeys.includes(`${b.id}-${b.season}`);
+                            if (aStarred !== bStarred) return aStarred ? -1 : 1;
+                            return (a.abbreviation || "").localeCompare(b.abbreviation || "");
+                        })[0] ?? null;
+                    });
+                }
+            } catch { /* ignore malformed cache */ }
+        }
+
         try {
             // 1. Resolve sport (without waiting for state to settle)
             let resolvedSport: Sport | null = null;
@@ -504,6 +528,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             }
 
             allTeams.sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || ""));
+            setStoredValue(teamsCacheKey, JSON.stringify(allTeams));
             setTeams(allTeams);
             setSelectedTeam(prevTeam => {
                 if (prevTeam && allTeams.some(t => `${t.id}-${t.season}` === `${prevTeam.id}-${prevTeam.season}`)) {
@@ -646,11 +671,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [activeTab]);
 
     useEffect(() => {
-        if (selectedTeam === null || selectedTeam.id === undefined) {
-            return;
-        }
+        if (activeTab !== "teams") return;
+        if (selectedTeam === null || selectedTeam.id === undefined) return;
         loadTeamRoster(selectedTeam);
-    }, [selectedTeam, userShowdownSet]);
+    }, [selectedTeam, userShowdownSet, activeTab]);
 
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const isSelectedTeamStarred = selectedTeamKey ? starredTeamKeys.includes(selectedTeamKey) : false;
