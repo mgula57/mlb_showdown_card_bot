@@ -877,9 +877,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         setForm({ ...form, image_upload: file });
     };
 
-    // Dynamic date management
+    // Dynamic stats period handling
     useEffect(() => {
-        
+
+        // Remove split value if not in SPLIT mode to prevent invalid combinations
+        if (form.stats_period_type !== 'SPLIT' && form.split) {
+            setForm(prevForm => ({
+                ...prevForm,
+                split: null
+            }));
+        }
+
+        // Date Management
         if (form.year && form.stats_period_type === 'DATES') {
             const year = parseInt(form.year);
             

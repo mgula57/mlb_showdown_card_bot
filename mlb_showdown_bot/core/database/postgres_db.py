@@ -1729,7 +1729,17 @@ class PostgresDB:
         finally:
             if cursor:
                 cursor.close()
-                 
+
+    def fetch_bref_ids_from_mlb_ids(self, mlb_ids: List[int]) -> Dict[int, str]:
+        """Returns {mlb_id: bref_id} for all matched rows in dim_player_id_map."""
+        if not mlb_ids or self.connection is None:
+            return {}
+        query = sql.SQL(
+            "SELECT mlb_id, bref_id FROM internal.dim_player_id_map WHERE mlb_id = ANY(%s)"
+        )
+        results = self.execute_query(query=query, filter_values=(mlb_ids,))
+        return {row['mlb_id']: row['bref_id'] for row in results if row.get('bref_id')}
+
 # ------------------------------------------------------------------------
 # MATERIALIZED VIEWS
 # ------------------------------------------------------------------------
@@ -1979,7 +1989,7 @@ class PostgresDB:
                 player_season_stats.id,
                 player_season_stats.year,
                 player_season_stats.bref_id,
-                cast(dim_card.card_data->>'mlb_id' as int) as mlb_id,
+                player_season_stats.mlb_id,
                 unaccent(player_season_stats.name) as name,
                 player_season_stats.player_type,
                 player_season_stats.player_type_override,
@@ -2054,13 +2064,13 @@ class PostgresDB:
                 coalesce((stats->>'is_hof')::boolean, false) as is_hof,
                 card_data->'image'->'stat_highlights_list' as stat_highlights_list,
 
-                -- SMALL SAMPLE
-                case 
-                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['STARTER'] 
-                        then player_season_stats.ip < 75 
-                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['RELIEVER', 'CLOSER'] 
-                        then player_season_stats.ip < 30 
-                    else player_season_stats.pa < 250 
+                -- SMALL SAMPLE (thresholds scale linearly for in-progress seasons)
+                case
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['STARTER']
+                        then player_season_stats.ip < round(75.0 * season_calc.season_progress)
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['RELIEVER', 'CLOSER']
+                        then player_season_stats.ip < round(30.0 * season_calc.season_progress)
+                    else player_season_stats.pa < round(250.0 * season_calc.season_progress)
                 end as is_small_sample_size,
 
                 -- REAL STATS
@@ -2149,6 +2159,13 @@ class PostgresDB:
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
                 and exact_img_match.is_wbc = FALSE
+            cross join lateral (
+                select
+                    case
+                        when player_season_stats.year < extract(year from now())::int then 1.0
+                        else least(1.0, greatest(0.1, (now()::date - make_date(player_season_stats.year, 4, 1))::float / 183.0))
+                    end as season_progress
+            ) as season_calc
         '''
         
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
@@ -2172,6 +2189,7 @@ class PostgresDB:
                     id text NOT NULL,
                     year integer,
                     bref_id text,
+                    mlb_id integer,
                     name text,
                     player_type text,
                     player_type_override text,
@@ -2385,9 +2403,23 @@ class PostgresDB:
             
             # UPSERT into card_bot
             upsert_query = f"""
-                INSERT INTO card_bot
+                INSERT INTO card_bot (
+                    id, year, bref_id, mlb_id, name, player_type, player_type_override, is_two_way,
+                    primary_positions, secondary_positions, g, gs, pa, real_ip, lg_id, team_id,
+                    team_id_list, team_games_played_dict, team_override, stats_modified_date, card_modified_date,
+                    card_id, card_year, showdown_set, showdown_bot_version, expansion, edition, set_number,
+                    points, points_estimated, points_diff_estimated_vs_actual, nationality, organization,
+                    league, team, color_primary, color_secondary, positions_and_defense,
+                    positions_and_defense_string, positions_list, ip, speed, hand, speed_letter, speed_full,
+                    speed_or_ip, icons_list, awards_list, is_hof, stat_highlights_list, is_small_sample_size,
+                    real_pa, real_g, real_gs, real_bwar, real_dwar, real_batting_avg, real_onbase_perc,
+                    real_slugging_perc, real_onbase_plus_slugging, real_onbase_plus_slugging_plus,
+                    real_earned_run_avg, real_whip, real_h, real_1b, real_2b, real_3b, real_hr, real_sb,
+                    real_so, real_bb, real_w, real_sv, command, outs, is_pitcher, is_chart_outlier,
+                    chart_ranges, chart_values, is_errata, notes, image_match_type, image_ids, updated_at
+                )
                 SELECT * FROM ({full_query}) as source_data
-                ON CONFLICT (id, showdown_set, showdown_bot_version) 
+                ON CONFLICT (id, showdown_set, showdown_bot_version)
                 DO UPDATE SET
                     year = EXCLUDED.year,
                     bref_id = EXCLUDED.bref_id,
@@ -2602,7 +2634,8 @@ class PostgresDB:
             CREATE TABLE IF NOT EXISTS player_season_stats{table_suffix}(
                 id varchar(100) PRIMARY KEY,
                 year int NOT NULL,
-                bref_id VARCHAR(10) NOT NULL,
+                bref_id VARCHAR(10),
+                mlb_id INT,
                 historical_date TEXT,
                 name VARCHAR(48) NOT NULL,
                 player_type VARCHAR(10),
@@ -3436,19 +3469,19 @@ class PostgresDB:
                     INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
-                        year, historical_date, name, 
-                        player_type, player_type_override, is_two_way, 
-                        primary_positions, secondary_positions, 
+                        year, historical_date, name, bref_id, mlb_id,
+                        player_type, player_type_override, is_two_way,
+                        primary_positions, secondary_positions,
                         g, gs, pa, ip, war,
-                        lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        lg_id, team_id, team_id_list, team_games_played_dict, team_override,
                         modified_date, stats, stats_modified_date
                     ) =
                     (
-                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
-                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
-                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
+                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, EXCLUDED.bref_id, EXCLUDED.mlb_id,
+                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way,
+                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions,
                         EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.war,
-                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override,
                         NOW(), EXCLUDED.stats, NOW()
                     )
                 '''
@@ -3457,19 +3490,19 @@ class PostgresDB:
                     INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
-                        year, historical_date, name, 
-                        player_type, player_type_override, is_two_way, 
-                        primary_positions, secondary_positions, 
+                        year, historical_date, name, bref_id, mlb_id,
+                        player_type, player_type_override, is_two_way,
+                        primary_positions, secondary_positions,
                         g, gs, pa, ip, war,
-                        lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        lg_id, team_id, team_id_list, team_games_played_dict, team_override,
                         modified_date
                     ) =
                     (
-                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
-                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
-                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
+                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, EXCLUDED.bref_id, EXCLUDED.mlb_id,
+                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way,
+                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions,
                         EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.war,
-                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override,
                         NOW()
                     )
                 '''
@@ -3523,7 +3556,8 @@ class PostgresDB:
                     card_data = showdown.as_json()
                     
                     # Clean up the data for JSON storage
-                    id_fields = [field for field in [showdown.year, showdown.bref_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
+                    bref_or_mlb_id = str(showdown.mlb_id) if showdown.mlb_id else showdown.bref_id
+                    id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
                     player_id = "-".join(id_fields).lower()
                     card_data['player_id'] = player_id
                     card_data['name'] = unidecode(card_data['name'])

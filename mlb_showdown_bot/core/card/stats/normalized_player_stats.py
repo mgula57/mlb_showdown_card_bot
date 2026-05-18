@@ -1,3 +1,5 @@
+import json
+from datetime import datetime
 from pydantic import BaseModel, Field, field_serializer, field_validator
 from typing import Any, Dict, Optional, List, Set
 from enum import Enum
@@ -30,6 +32,8 @@ class NormalizedPlayerStats(BaseModel):
     year_id: int | str = Field(..., alias='year_ID')  # e.g., 2023 or "Career"
     age: Optional[int] = None
     team_id: Optional[str] = Field(None, alias='team_ID')
+    team_id_list: Optional[List[str]] = None
+    team_games_played_dict: Optional[Dict[str, int]] = None
     team_override: Optional[str] = None  # Manually override team if needed
     lg_ID: Optional[str] = None
     
@@ -243,6 +247,60 @@ class NormalizedPlayerStats(BaseModel):
         """Returns a dictionary representation of the model, including aliases"""
         return self.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
 
+    def as_player_season_stats_row(self) -> Dict[str, Any]:
+        """Returns a dict shaped for INSERT/UPSERT into the player_season_stats table."""
+        # Build the row id matching the PlayerStats convention: "{year}-{bref_or_mlb_id}-{type_override}"
+        player_key = str(self.mlb_id) if self.mlb_id else self.bref_id
+        # Only pitchers get the override suffix in the id (matches BREF two-way convention)
+        type_override_suffix = (
+            f"({self.player_type_override.value.lower()})"
+            if self.player_type_override and self.player_type_override == PlayerType.PITCHER
+            else None
+        )
+        id_parts = [str(self.year_id), player_key, type_override_suffix]
+        row_id = "-".join(p for p in id_parts if p is not None)
+
+        # Positions sorted by games played descending
+        sorted_positions = sorted(
+            (self.positions or {}).keys(),
+            key=lambda p: (self.positions or {}).get(p, PositionStats()).g,
+            reverse=True,
+        )
+
+        # WAR: prefer fWAR, fall back to bWAR then dWAR
+        war = self.fWAR or self.bWAR or self.dWAR
+
+        team_gpd = self.team_games_played_dict or {}
+        team_id_list = self.team_id_list or ([self.team_id] if self.team_id else [])
+
+        now = datetime.now()
+        return {
+            'id': row_id,
+            'year': int(self.year_id) if str(self.year_id).isdigit() else None,
+            'bref_id': self.bref_id,
+            'mlb_id': self.mlb_id,
+            'name': self.name,
+            'player_type': self.type.value.upper(),
+            'player_type_override': type_override_suffix,
+            'is_two_way': self.player_type_override is not None,
+            'primary_positions': sorted_positions,
+            'secondary_positions': [],
+            'g': self.G,
+            'gs': self.GS,
+            'pa': self.PA if self.type == PlayerType.HITTER else None,
+            'ip': self.IP if self.type == PlayerType.PITCHER else None,
+            'war': war,
+            'lg_id': self.lg_ID,
+            'team_id': self.team_id,
+            'team_id_list': team_id_list,
+            'team_games_played_dict': json.dumps(team_gpd),
+            'team_override': self.team_override,
+            'stats': json.dumps(self.model_dump(mode="json", by_alias=True, exclude_none=True, exclude_unset=True)),
+            'created_date': now,
+            'modified_date': now,
+            'stats_modified_date': now,
+        }
+
     def add_bref_id(self, bref_id: Optional[str]) -> None:
         """Adds a Baseball Reference ID to the model"""
         if not bref_id:
@@ -279,6 +337,7 @@ class PlayerStatsNormalizer:
         # Build normalized player
         player_type = PlayerStatsNormalizer._mlb_api_determine_player_type(player.primary_position, stats_period)
         player_type_override = stats_period.player_type_override if stats_period else None
+        team_gpd = PlayerStatsNormalizer._extract_team_games_played_dict(player, stats_period)
         normalized_data = {
             # Identity
             'primary_datasource': Datasource.MLB_API,
@@ -286,7 +345,9 @@ class PlayerStatsNormalizer:
 
             'name': player.full_name,
             'year_ID': stats_period.year,
-            'team_ID': PlayerStatsNormalizer.extract_team_id(player, stats_period),
+            'team_ID': max(team_gpd, key=team_gpd.get) if team_gpd else None,
+            'team_games_played_dict': team_gpd,
+            'team_id_list': sorted(team_gpd, key=team_gpd.get) if team_gpd else [],
             'lg_ID': PlayerStatsNormalizer._extract_league_id(player, stats_period),
             'type': player_type,
             'player_type_override': player_type_override,
@@ -485,7 +546,7 @@ class PlayerStatsNormalizer:
                     }
                 }
 
-        if not mlb_player.is_pitcher and (not fielding_stat_splits or len(fielding_stat_splits) == 0):
+        if not mlb_player.is_pitcher and (fielding_stat_splits is None or len(fielding_stat_splits) == 0):
             
             # FIELDING STATS FOR MINOR LEAGUERS PRE ~2007 DOES NOT EXIST. FILL WITH PRIMARY POSITION AND GAMES PLAYED IF AVAILABLE
             if not stats_period.is_mlb and mlb_player.primary_position and stats_period.last_year < 2007:
@@ -507,7 +568,7 @@ class PlayerStatsNormalizer:
             return None  # No stats available
 
         converted_stats: Dict[str, Dict[str, Any]] = {}
-        unique_sport_ids = list(set([split.sport.id for split in fielding_stat_splits if split.sport]))
+        unique_sport_ids = list(set([split.sport.id for split in fielding_stat_splits or [] if split.sport]))
         for split in (fielding_stat_splits or []):
 
             # Check for position data
@@ -744,6 +805,30 @@ class PlayerStatsNormalizer:
         return standard_stats
 
     @staticmethod
+    @staticmethod
+    def _extract_team_games_played_dict(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Dict[str, int]:
+        """Returns {bref_team_id: games_played} across all stat splits for the given period."""
+        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
+        is_hitter = (
+            stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER
+            if stats_period else not mlb_player.is_pitcher
+        )
+        group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
+        standard_stat_splits = mlb_player.get_stat_splits(
+            group_type=group_type,
+            types=[stats_type],
+            seasons=stats_period.year_list
+        )
+        team_games_played: Dict[str, int] = {}
+        for split in standard_stat_splits or []:
+            team = split.team
+            if team and team.abbreviation:
+                games_played = split.stat.get('gamesPlayed', 0)
+                bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation)
+                team_games_played[bref_id] = team_games_played.get(bref_id, 0) + games_played
+        return team_games_played
+
+    @staticmethod
     def extract_team_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
         """Extracts the team ID for the player in the given stats period"""
 
@@ -751,34 +836,12 @@ class PlayerStatsNormalizer:
             # TODO: USE GENERIC MILB TEAM FOR NOW. EVENTUALLY WILL NEED TO MAP TO SPECIFIC TEAMS
             return 'MILB'
 
-        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
-        is_hitter = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER if stats_period else not mlb_player.is_pitcher
-        group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
-        standard_stat_splits = mlb_player.get_stat_splits(
-            group_type=group_type,
-            types=[stats_type],
-            seasons=stats_period.year_list
-        )
-
-        if not standard_stat_splits or len(standard_stat_splits) == 0:
-            return None  # No stats available
-        
-        # Get team with most games played
-        team_games_played: Dict[str, int] = {}
-        for split in standard_stat_splits or []:
-            team = split.team
-            if team and team.abbreviation:
-                games_played = split.stat.get('gamesPlayed', 0)
-                team_games_played[team.abbreviation] = team_games_played.get(team.abbreviation, 0) + games_played
-
+        team_games_played = PlayerStatsNormalizer._extract_team_games_played_dict(mlb_player, stats_period)
         if not team_games_played:
             print("No team games played data available.")
             return None
 
-        # Return the team with the most games played
-        team_raw = max(team_games_played, key=team_games_played.get)
-
-        return PlayerStatsNormalizer._convert_to_bref_team_id(team_raw)
+        return max(team_games_played, key=team_games_played.get)
 
     @staticmethod
     def _convert_to_bref_team_id(team_id: str) -> str:

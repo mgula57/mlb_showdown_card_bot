@@ -487,7 +487,7 @@ export default function Home() {
                             <FaClock className="text-primary" /> Your Recent Customs
                         </h2>
                         <Link
-                            to="/custom"
+                            to="/customs"
                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}
                         >
                             Build More <FaChevronRight />
@@ -499,7 +499,7 @@ export default function Home() {
                                 <div key={i} className="shrink-0 w-32 animate-pulse">
                                     <div
                                         className={`w-full rounded-lg ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}
-                                        style={{ aspectRatio: '3.5 / 4.5' }}
+                                        style={{ aspectRatio: '2.5 / 3.5' }}
                                     />
                                     <div className={`mt-1.5 h-3 w-3/4 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
                                     <div className={`mt-1 h-2.5 w-1/2 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
@@ -513,7 +513,7 @@ export default function Home() {
                                 >
                                     <div
                                         className="w-full rounded-lg overflow-hidden bg-neutral-800 relative"
-                                        style={{ aspectRatio: '3.5 / 4.5' }}
+                                        style={{ aspectRatio: '2.5 / 3.5' }}
                                     >
                                         <img
                                             src={item.thumbUrl}
