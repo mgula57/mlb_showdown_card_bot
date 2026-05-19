@@ -54,7 +54,7 @@ def snapshot_rosters(
         player_ids = [roster['player_id'] for roster in rosters]
         player_id_chunks = [player_ids[i:i + 10] for i in range(0, len(player_ids), 10)]
         
-        for idx, chunk in enumerate(player_id_chunks[:2]):  # Limit to first 3 chunks for testing
+        for idx, chunk in enumerate(player_id_chunks):
             print(f"Processing chunk {idx + 1}/{len(player_id_chunks)} with player IDs: {chunk}")
             # In a real implementation, you would call the card generation function here
             card_settings = {
@@ -70,7 +70,7 @@ def snapshot_rosters(
                 inject_bref_ids=True,
                 **card_settings
             )
-            sleep(1)  # Add a delay between chunks to avoid overwhelming the API
+            sleep(2)  # Add a delay between chunks to avoid overwhelming the API
 
             # UPLOAD GENERATED CARDS TO DATABASE
             if publish_to_database:
