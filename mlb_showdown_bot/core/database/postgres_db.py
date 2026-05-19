@@ -2912,83 +2912,49 @@ class PostgresDB:
             row = cur.fetchone()
             return dict(row) if row else None
 
-    def build_user_card_gallery_table(self) -> None:
-        """Create the user_card_gallery table if it does not exist."""
-        if not self.connection:
-            return
-        schema_sql = "CREATE SCHEMA IF NOT EXISTS internal;"
-        table_sql = """
-            CREATE TABLE IF NOT EXISTS internal.user_card_gallery (
-                id           SERIAL PRIMARY KEY,
-                user_id      TEXT NOT NULL,
-                storage_path TEXT NOT NULL,
-                public_url   TEXT,
-                player_name  TEXT,
-                year         TEXT,
-                set_name     TEXT,
-                card_metadata JSONB,
-                created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
-                is_hidden    BOOLEAN NOT NULL DEFAULT FALSE
-            );
-        """
-        index_sql = """
-            CREATE INDEX IF NOT EXISTS idx_user_card_gallery_user_id_created
-                ON internal.user_card_gallery (user_id, created_at DESC);
-        """
-        with self.connection.cursor() as cur:
-            cur.execute(schema_sql)
-            cur.execute(table_sql)
-            cur.execute(index_sql)
-
-    def save_card_to_gallery(self, user_id: str, storage_path: str, public_url: str | None,
-                             player_name: str | None, year: str | None, set_name: str | None,
-                             card_metadata: dict | None) -> int | None:
-        """Insert a gallery record and return its id, or None on failure."""
-        if not self.connection:
-            return None
-        insert_sql = """
-            INSERT INTO internal.user_card_gallery
-                (user_id, storage_path, public_url, player_name, year, set_name, card_metadata)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """
-        try:
-            with self.connection.cursor() as cur:
-                cur.execute(insert_sql, (
-                    user_id, storage_path, public_url, player_name, year, set_name,
-                    extras.Json(card_metadata) if card_metadata else None,
-                ))
-                row = cur.fetchone()
-                return row[0] if row else None
-        except Exception as e:
-            self.connection.rollback()
-            print(f"Error saving card to gallery: {e}")
-            return None
-
     def get_user_gallery(self, user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
-        """Return gallery records for user, newest first, with pagination."""
+        """Return successful card generations for user from the log table, newest first."""
         if not self.connection:
             return []
         query = """
-            SELECT id, storage_path, public_url, player_name, year, set_name, card_metadata, created_at
-            FROM internal.user_card_gallery
-            WHERE user_id = %s AND is_hidden IS NOT TRUE
-            ORDER BY created_at DESC
+            SELECT id, name, year, set, img_url, storage_path, thumbnail_storage_path, created_on
+            FROM internal.log_custom_card_bot
+            WHERE user_id = %s
+              AND error IS NULL
+              AND is_hidden IS NOT TRUE
+            ORDER BY created_on DESC
             LIMIT %s OFFSET %s
         """
         try:
-            with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            with self.connection.cursor() as cur:
                 cur.execute(query, (user_id, limit, offset))
-                return [dict(row) for row in cur.fetchall()]
+                rows = cur.fetchall()
+                return [
+                    {
+                        'id': row[0],
+                        'player_name': row[1],
+                        'year': row[2],
+                        'set_name': row[3],
+                        'public_url': row[4],
+                        'storage_path': row[5],
+                        'thumbnail_storage_path': row[6],
+                        'created_at': row[7].isoformat() if row[7] else None,
+                    }
+                    for row in rows
+                ]
         except Exception as e:
             print(f"Error fetching user gallery: {e}")
             return []
 
     def delete_user_gallery_card(self, user_id: str, gallery_id: int) -> bool:
-        """Hide a gallery record owned by user_id. Returns True if a row was updated."""
+        """Soft-hide a log row owned by user_id. Returns True if a row was updated."""
         if not self.connection:
             return False
-        hide_sql = "UPDATE internal.user_card_gallery SET is_hidden = TRUE WHERE id = %s AND user_id = %s"
+        hide_sql = """
+            UPDATE internal.log_custom_card_bot
+            SET is_hidden = TRUE
+            WHERE id = %s AND user_id = %s
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(hide_sql, (gallery_id, user_id))
@@ -3085,7 +3051,8 @@ class PostgresDB:
                 in_season_trends jsonb,
                 storage_path text,
                 thumbnail_storage_path text,
-                user_id text
+                user_id text,
+                is_hidden boolean NOT NULL DEFAULT FALSE
             );
         """
 
@@ -3096,12 +3063,17 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_custom_card_bot_user_id
             ON internal.log_custom_card_bot (user_id);
         """
+        migrate_is_hidden_sql = """
+            ALTER TABLE internal.log_custom_card_bot
+                ADD COLUMN IF NOT EXISTS is_hidden boolean NOT NULL DEFAULT FALSE;
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(schema_check_sql)
                 cur.execute(create_table_sql)
                 cur.execute(index_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(migrate_is_hidden_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()

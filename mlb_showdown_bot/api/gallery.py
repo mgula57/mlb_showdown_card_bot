@@ -15,9 +15,6 @@ def get_gallery():
         db = PostgresDB()
         gallery = db.get_user_gallery(g.user_id, limit=limit, offset=offset)
         db.close_connection()
-        for item in gallery:
-            if hasattr(item.get('created_at'), 'isoformat'):
-                item['created_at'] = item['created_at'].isoformat()
         return jsonify({'gallery': gallery, 'has_more': len(gallery) == limit}), 200
     except Exception as exc:
         traceback.print_exc()

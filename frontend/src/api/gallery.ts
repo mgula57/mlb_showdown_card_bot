@@ -2,12 +2,12 @@ const API_BASE = import.meta.env.PROD ? '/api' : 'http://127.0.0.1:5000/api';
 
 export interface GalleryImageRecord {
     id: number;
-    storage_path: string;
-    public_url: string | null;
     player_name: string | null;
     year: string | null;
     set_name: string | null;
-    card_metadata: Record<string, unknown> | null;
+    public_url: string | null;
+    storage_path: string | null;
+    thumbnail_storage_path: string | null;
     created_at: string;
 }
 
