@@ -199,6 +199,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [isFormCollapsed, setIsFormCollapsed] = useState(false);
     type PreviewTab = 'preview' | 'gallery';
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
+    const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [isWbcBannerVisible, setIsWbcBannerVisible] = useState<boolean>(() => {
         try {
             const dismissed = localStorage.getItem(WBC_BANNER_DISMISSED_KEY);
@@ -629,6 +630,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             // Retrieve response, set state
             setShowdownBotCardData(cardData);
             setActivePreviewTab('preview');
+            setGalleryRefreshKey(k => k + 1);
             console.log("Card built successfully:", cardData);
             console.log(currentSubMessage);
 
@@ -1610,6 +1612,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     user={user}
                                     token={session?.access_token ?? null}
                                     onReload={user ? handleGalleryReload : undefined}
+                                    refreshKey={galleryRefreshKey}
                                 />
                             </div>
                         </div>

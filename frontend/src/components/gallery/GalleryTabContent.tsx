@@ -14,6 +14,7 @@ interface GalleryTabContentProps {
     user: User;
     token: string | null;
     onReload?: (userInputs: Record<string, unknown>) => void;
+    refreshKey?: number;
 }
 
 const PAGE_SIZE = 50;
@@ -112,7 +113,7 @@ const LightboxImage: React.FC<{ url: string; label: string }> = ({ url, label })
 // ----------------------------------------------------------------
 // GalleryTabContent
 // ----------------------------------------------------------------
-export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, token, onReload }) => {
+export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, token, onReload, refreshKey }) => {
     const [gallery, setGallery] = useState<GalleryImageRecord[]>([]);
     const [offset, setOffset] = useState(0);
     const [hasMore, setHasMore] = useState(false);
@@ -145,13 +146,13 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
         }
     }, [token, offset]);
 
-    // Initial load when user/token become available
+    // Initial load when user/token become available; re-runs when refreshKey changes
     useEffect(() => {
         if (user && token) {
             loadGallery(true, filters);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, token]);
+    }, [user, token, refreshKey]);
 
     const applyFilters = (next: GalleryFilters) => {
         setFilters(next);
