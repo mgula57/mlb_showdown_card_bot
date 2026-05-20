@@ -88,6 +88,28 @@ const GalleryCard: React.FC<{
 };
 
 // ----------------------------------------------------------------
+// LightboxImage
+// ----------------------------------------------------------------
+const LightboxImage: React.FC<{ url: string; label: string }> = ({ url, label }) => {
+    const [loaded, setLoaded] = useState(false);
+    return (
+        <div className="relative">
+            {!loaded && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-md bg-(--background-secondary) min-h-50 min-w-35">
+                    <FaSpinner className="animate-spin text-secondary" size={24} />
+                </div>
+            )}
+            <img
+                src={url}
+                alt={label}
+                onLoad={() => setLoaded(true)}
+                className={`max-h-[75dvh] w-auto rounded-md object-contain transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            />
+        </div>
+    );
+};
+
+// ----------------------------------------------------------------
 // GalleryTabContent
 // ----------------------------------------------------------------
 export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, token, onReload }) => {
@@ -212,12 +234,8 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
             {/* Lightbox */}
             {lightbox && (
                 <Modal size="lg" onClose={() => setLightbox(null)}>
-                    <div className="p-4 flex flex-col items-center gap-3">
-                        <img
-                            src={lightbox.url}
-                            alt={lightbox.label}
-                            className="max-h-[75dvh] w-auto rounded-md object-contain"
-                        />
+                    <div className="py-8 px-8 flex flex-col items-center gap-3">
+                        <LightboxImage url={lightbox.url} label={lightbox.label} />
                         {lightbox.label && <p className="text-sm text-secondary">{lightbox.label}</p>}
                     </div>
                 </Modal>

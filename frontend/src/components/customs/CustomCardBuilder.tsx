@@ -947,7 +947,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         setActivePreviewTab('preview');
 
         setLoadingStatus({
-            message: "Card inputs updated",
+            message: `Card inputs updated`,
+            subMessage: `${userInputs.name} | ${userInputs.year}`,
             icon: <FaRotateLeft className="text-sm" />,
             backgroundColor: "var(--success)",
             removeAfterSeconds: 3,
