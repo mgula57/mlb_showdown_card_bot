@@ -309,7 +309,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         <CustomSelect
                             className="font-showdown-set-italic w-18 text-xl"
                             buttonClassName="flex justify-center cursor-pointer select-none"
-                            imageClassName="object-contain object-center"
+                            imageClassName="object-contain object-center w-18"
                             value={userShowdownSet}
                             onChange={setUserShowdownSet}
                             options={showdownSets}

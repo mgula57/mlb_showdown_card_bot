@@ -94,9 +94,9 @@ const GalleryCard: React.FC<{
 const LightboxImage: React.FC<{ url: string; label: string }> = ({ url, label }) => {
     const [loaded, setLoaded] = useState(false);
     return (
-        <div className="relative">
+        <div className="relative rounded-md overflow-hidden bg-(--background-secondary)" style={{ height: '75dvh', aspectRatio: '2.5 / 3.5' }}>
             {!loaded && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-md bg-(--background-secondary) min-h-50 min-w-35">
+                <div className="absolute inset-0 flex items-center justify-center">
                     <FaSpinner className="animate-spin text-secondary" size={24} />
                 </div>
             )}
@@ -104,7 +104,7 @@ const LightboxImage: React.FC<{ url: string; label: string }> = ({ url, label })
                 src={url}
                 alt={label}
                 onLoad={() => setLoaded(true)}
-                className={`max-h-[75dvh] w-auto rounded-md object-contain transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+                className={`w-full h-full object-contain transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
             />
         </div>
     );

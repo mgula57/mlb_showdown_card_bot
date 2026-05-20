@@ -2918,7 +2918,7 @@ class PostgresDB:
         """Return successful card generations for user from the log table, newest first."""
         if not self.connection:
             return []
-        conditions = ["user_id = %s", "error IS NULL", "is_hidden IS NOT TRUE"]
+        conditions = ["user_id = %s", "thumbnail_storage_path IS NOT NULL", "error IS NULL", "is_hidden IS NOT TRUE"]
         params: list = [user_id]
         if set_name:
             conditions.append("set = %s")
