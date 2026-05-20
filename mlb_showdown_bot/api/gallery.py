@@ -12,8 +12,16 @@ def get_gallery():
     try:
         limit = min(request.args.get('limit', 50, type=int), 100)
         offset = request.args.get('offset', 0, type=int)
+        set_name = request.args.get('set_name') or None
+        player_name = request.args.get('player_name') or None
+        year = request.args.get('year') or None
+        player_type = request.args.get('player_type') or None
         db = PostgresDB()
-        gallery = db.get_user_gallery(g.user_id, limit=limit, offset=offset)
+        gallery = db.get_user_gallery(
+            g.user_id, limit=limit, offset=offset,
+            set_name=set_name, player_name=player_name,
+            year=year, player_type=player_type,
+        )
         db.close_connection()
         return jsonify({'gallery': gallery, 'has_more': len(gallery) == limit}), 200
     except Exception as exc:

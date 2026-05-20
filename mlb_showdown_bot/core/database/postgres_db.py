@@ -2912,33 +2912,57 @@ class PostgresDB:
             row = cur.fetchone()
             return dict(row) if row else None
 
-    def get_user_gallery(self, user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
+    def get_user_gallery(self, user_id: str, limit: int = 50, offset: int = 0,
+                         set_name: str | None = None, player_name: str | None = None,
+                         year: str | None = None, player_type: str | None = None) -> list[dict]:
         """Return successful card generations for user from the log table, newest first."""
         if not self.connection:
             return []
-        query = """
-            SELECT id, name, year, set, img_url, storage_path, thumbnail_storage_path, created_on
+        conditions = ["user_id = %s", "error IS NULL", "is_hidden IS NOT TRUE"]
+        params: list = [user_id]
+        if set_name:
+            conditions.append("set = %s")
+            params.append(set_name)
+        if player_name:
+            conditions.append("name ILIKE %s")
+            params.append(f"%{player_name}%")
+        if year:
+            conditions.append("year = %s")
+            params.append(year)
+        if player_type:
+            conditions.append("user_inputs->>'player_type' ILIKE %s")
+            params.append(player_type)
+        params.extend([limit, offset])
+        query = f"""
+            SELECT id, name, year, set, img_url, storage_path, thumbnail_storage_path, created_on, user_inputs
             FROM internal.log_custom_card_bot
-            WHERE user_id = %s
-              AND error IS NULL
-              AND is_hidden IS NOT TRUE
+            WHERE {' AND '.join(conditions)}
             ORDER BY created_on DESC
             LIMIT %s OFFSET %s
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(query, (user_id, limit, offset))
+                cur.execute(query, params)
                 rows = cur.fetchall()
+                supabase_url = os.getenv('SUPABASE_URL', '').rstrip('/')
+
+                def _storage_public_url(path):
+                    if not path or not supabase_url:
+                        return None
+                    return f"{supabase_url}/storage/v1/object/public/card_images/{path}"
+
                 return [
                     {
                         'id': row[0],
                         'player_name': row[1],
                         'year': row[2],
                         'set_name': row[3],
-                        'public_url': row[4],
+                        'public_url': _storage_public_url(row[5]),
+                        'thumbnail_public_url': _storage_public_url(row[6]),
                         'storage_path': row[5],
                         'thumbnail_storage_path': row[6],
                         'created_at': row[7].isoformat() if row[7] else None,
+                        'user_inputs': row[8],
                     }
                     for row in rows
                 ]

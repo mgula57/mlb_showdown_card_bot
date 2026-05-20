@@ -40,7 +40,6 @@ import Cards from "./components/cards/Cards";
 import Home from "./components/Home";
 import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
-import GalleryPage from "./components/gallery/GalleryPage";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -152,12 +151,6 @@ const AppContent = () => {
                 </div>
             )}
 
-            {/* Gallery - Mount when first visited */}
-            {mountedRoutes.has('/gallery') && (
-                <div className={isActive('/gallery') ? 'block' : 'hidden'}>
-                    <GalleryPage />
-                </div>
-            )}
         </AppLayout>
     );
 };

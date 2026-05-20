@@ -36,22 +36,19 @@ import { useSiteSettings } from '../shared/SiteSettingsContext';
 
 // Popovers
 import { ToastMessage } from '../shared/ToastMessage';
-import { OnboardingPopover } from '../shared/OnboardingPopover';
-
 import { CardDetail } from '../cards/CardDetail';
-import { CardHistory } from '../cards/CardHistory';
+import { GalleryTabContent } from '../gallery/GalleryTabContent';
 
 // API
 import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
-import { fetchCustomCardLogs, type CustomCardLogRecord } from '../../api/card_db/cardDatabase';
 import { fetchSplits } from '../../api/mlbAPI';
 // Icons
-import { 
-    FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
+import {
+    FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaClock
+    FaImages
 } from 'react-icons/fa';
-import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck } from 'react-icons/fa6';
+import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaEye } from 'react-icons/fa6';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -152,7 +149,6 @@ type loadingStatusContent = {
 
 const STORAGE_KEY = 'customCardFormSettings-V2';
 const WBC_BANNER_DISMISSED_KEY = 'customCardWbcBannerDismissed';
-const HISTORY_ONBOARDING_DISMISSED_KEY = 'customCardHistoryOnboardingDismissed';
 
 /** Save form settings to localStorage */
 const saveFormSettings = (formData: CustomCardFormState) => {
@@ -201,17 +197,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
     const [isFormCollapsed, setIsFormCollapsed] = useState(false);
-    const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(() => {
-        try {
-            const saved = localStorage.getItem('customCardHistoryOpen');
-            if (saved) {
-                return JSON.parse(saved);
-            }
-        } catch (error) {
-            console.warn('Failed to load history open state:', error);
-        }
-        return false;
-    });
+    type PreviewTab = 'preview' | 'gallery';
+    const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [isWbcBannerVisible, setIsWbcBannerVisible] = useState<boolean>(() => {
         try {
             const dismissed = localStorage.getItem(WBC_BANNER_DISMISSED_KEY);
@@ -221,14 +208,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return true;
         }
     });
-    const [showHistoryOnboarding, setShowHistoryOnboarding] = useState<boolean>(() => {
-        try {
-            return localStorage.getItem(HISTORY_ONBOARDING_DISMISSED_KEY) !== 'true';
-        } catch {
-            return true;
-        }
-    });
-    const [cardHistory, setCardHistory] = useState<CustomCardLogRecord[]>([]);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
@@ -412,15 +391,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
     }, [sectionStates]);
 
-    // Save history open state to localStorage when it changes
-    useEffect(() => {
-        try {
-            localStorage.setItem('customCardHistoryOpen', JSON.stringify(isHistoryOpen));
-        } catch (error) {
-            console.warn('Failed to save history open state:', error);
-        }
-    }, [isHistoryOpen]);
-
     // Helper function to toggle section state
     const toggleSection = (sectionName: string) => {
         setSectionStates(prev => ({
@@ -429,12 +399,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }));
     };
 
-    // Helper function to toggle history section
-    const toggleHistory = () => {
-        setIsHistoryOpen(prev => !prev);
-        if (!isHistoryOpen) {
-            reloadCardHistory();
-        }
+    const handleTabChange = (tab: PreviewTab) => {
+        setActivePreviewTab(tab);
     };
 
     const dismissWbcBanner = () => {
@@ -657,13 +623,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     backgroundColor: "rgb(255, 155, 155)", // Red
                     removeAfterSeconds: 5,
                 });
-                reloadCardHistory(); // Reload history to show failed attempt
                 return;
             }
 
             // Retrieve response, set state
             setShowdownBotCardData(cardData);
-            reloadCardHistory(); // Reload history to show successful attempt
+            setActivePreviewTab('preview');
             console.log("Card built successfully:", cardData);
             console.log(currentSubMessage);
 
@@ -958,19 +923,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         return () => clearTimeout(timeoutId);
     }, [form]);
 
-    // ---------------------------------
-    // MARK: Load History
-    // ---------------------------------
-    const reloadCardHistory = async () => {
-        if (!user) return;
-        try {
-            const history = await fetchCustomCardLogs(user?.id);
-            setCardHistory(history);
-        } catch (error) {
-            console.error("Failed to load card history:", error);
-        }
-    };
-
     const handleSelectHistoryCard = (userInputs: CustomCardFormState) => {
         
 
@@ -992,6 +944,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         ) as CustomCardFormState;
 
         setForm(userInputs);
+        setActivePreviewTab('preview');
 
         setLoadingStatus({
             message: "Card inputs updated",
@@ -1001,12 +954,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         });
     };
 
-    // Load history when user is available if history panel was previously open
-    useEffect(() => {
-        if (isHistoryOpen && user) {
-            reloadCardHistory();
-        }
-    }, [user]); // Run when user becomes available
+    const handleGalleryReload = (userInputs: Record<string, unknown>) => {
+        handleSelectHistoryCard(userInputs as unknown as CustomCardFormState);
+    };
 
     // Fetch MLB situation codes when the user is in SPLIT mode for 2026+ seasons
     useEffect(() => {
@@ -1101,14 +1051,37 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
+            {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
+            <div className="flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur">
+                {([
+                    { tab: 'preview' as PreviewTab, icon: <FaEye />, label: 'Card' },
+                    { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
+                ]).map(({ tab, icon, label }) => (
+                    <button
+                        key={tab}
+                        onClick={() => handleTabChange(tab)}
+                        className={`
+                            flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold
+                            border-b-2 transition-colors cursor-pointer
+                            ${activePreviewTab === tab
+                                ? 'border-(--showdown-blue) text-primary'
+                                : 'border-transparent text-secondary hover:text-primary'}
+                        `}
+                    >
+                        {icon} {label}
+                    </button>
+                ))}
+            </div>
+
             <div className="
-                @container flex flex-col @2xl:flex-row 
-                @2xl:overflow-hidden 
+                @container flex flex-col @2xl:flex-row
+                @2xl:overflow-hidden
                 @2xl:h-[calc(100dvh-2.5rem)]
+                pt-11 @2xl:pt-0
             ">
                 {/* Loading Indicator */}
-                <ToastMessage 
-                    loadingStatus={loadingStatus} 
+                <ToastMessage
+                    loadingStatus={loadingStatus}
                     isExiting={isLoadingStatusExiting}
                 />
 
@@ -1117,7 +1090,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     ${isFormCollapsed ? 'w-auto' : 'w-full @2xl:w-84 @2xl:shrink-0'}
                     border-b-2 @2xl:border-r border-form-element
                     bg-background-secondary
-                    flex flex-col 
+                    ${activePreviewTab === 'gallery' ? 'hidden @2xl:flex @2xl:flex-col' : 'flex flex-col'}
                     h-full
                     ${animationTw}
                 `}>
@@ -1556,14 +1529,15 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex flex-row-reverse gap-2">
+                            <div className="flex gap-2 items-center">
+
                                 {/* Build Card */}
                                 <button
                                     type="button"
                                     title={disableBuildButton ? "Please enter player name and year" : ""}
                                     className={`
-                                        flex items-center justify-center
-                                        w-full rounded-xl py-4
+                                        flex flex-1 items-center justify-center
+                                        rounded-xl py-4
                                         text-white
                                         bg-(--showdown-blue)
                                         ${disableBuildButton
@@ -1578,37 +1552,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     Build Card
                                 </button>
 
-                                {/* History Icon/Button */}
-                                <div className="relative">
-                                    <button
-                                        type="button"
-                                        onClick={toggleHistory}
-                                        title="Toggle History"
-                                        className={`
-                                            flex items-center justify-center text-xl
-                                            rounded-xl px-4 h-full
-                                            hover:bg-(--background-tertiary) transition-colors
-                                            cursor-pointer
-                                            font-bold
-                                            ${isHistoryOpen ? 'border-2 border-(--warning)' : 'border-2 border-form-element '}
-                                        `}
-                                    >
-                                        <FaClock />
-                                    </button>
-
-                                    {/* History onboarding popover */}
-                                    {showHistoryOnboarding && (
-                                        <OnboardingPopover
-                                            title="Card History"
-                                            content="Quickly view and reload any of your recently built cards right from the form."
-                                            onClose={() => {
-                                                localStorage.setItem(HISTORY_ONBOARDING_DISMISSED_KEY, 'true');
-                                                setShowHistoryOnboarding(false);
-                                            }}
-                                        />
-                                    )}
-                                </div>
-
                             </div>
 
                         </footer>
@@ -1618,62 +1561,58 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 </section>
 
                 {/* Preview Section */}
-                <section 
+                <section
                     id="preview-section"
                     ref={previewSectionRef}
                     className={`
                         w-full @2xl:grow
-                        pb-64 @2xl:pb-0
+                        ${activePreviewTab === 'gallery' ? 'pb-0' : 'pb-64'} @2xl:pb-0
                         scroll-mt-12
                         @2xl:scroll-mt-0
                         gradient-page
                     `}
                 >
-                    <div className="flex flex-col @2xl:flex-row h-full">
-                        <div className="flex-1 min-w-0">
-                            <CardDetail 
-                                showdownBotCardData={showdownBotCardData} 
-                                isLoading={isProcessingCard} 
-                            />
+                    <div className="flex flex-col h-full">
+
+                        {/* Tab bar — desktop only */}
+                        <div className="hidden @2xl:flex shrink-0 border-b border-form-element bg-background-secondary/80 backdrop-blur sticky top-0 z-10">
+                            {([
+                                { tab: 'preview' as PreviewTab, icon: <FaEye />, label: 'Preview' },
+                                { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
+                            ]).map(({ tab, icon, label }) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => handleTabChange(tab)}
+                                    className={`
+                                        flex items-center gap-1.5 px-4 py-3 text-sm font-semibold
+                                        border-b-2 transition-colors cursor-pointer
+                                        ${activePreviewTab === tab
+                                            ? 'border-(--showdown-blue) text-primary'
+                                            : 'border-transparent text-secondary hover:text-primary'}
+                                    `}
+                                >
+                                    {icon} {label}
+                                </button>
+                            ))}
                         </div>
 
-                        {isHistoryOpen && (
-                            <div 
-                                className="
-                                    fixed @2xl:absolute left-0 bottom-0 z-21 @6xl:relative @6xl:left-auto @6xl:bottom-auto
-                                    w-full shrink-0 @2xl:w-84 @2xl:shrink-0 @6xl:block @6xl:w-76
-                                    max-h-[50dvh] @6xl:max-h-none
-                                    rounded-t-xl backdrop-blur-md bg-background-secondary/80
-                                    border-2 border-form-element
-                                    @6xl:m-4 @6xl:ml-2 
-                                    overflow-x-hidden
-                                "
-                            >
-                                <h2 className="sticky top-0 z-10 flex px-4 pt-4 pb-2 justify-between items-center align-top font-bold text-lg text-(--primary) bg-background-secondary/95 backdrop-blur">
-                                    
-                                    <div className='flex gap-1.5 items-center'>
-                                        <FaClock />
-                                        <span>History </span>
-                                    </div>
-
-                                    <button 
-                                        className="text-secondary p-1 rounded-lg hover:bg-(--background-tertiary) transition-colors" 
-                                        title='Close History'
-                                        onClick={toggleHistory}
-                                    >
-                                        <FaXmark />
-                                    </button>
-
-                                </h2>
-
-                                {/* Instructions */}
-                                <div className="px-4 text-xs text-(--tertiary) text-wrap leading-snug mb-2">
-                                    Click a timestamp to reload that card into the form, thumbnail to see a larger preview.
-                                </div>
-
-                                <CardHistory history={cardHistory} onSelectCard={handleSelectHistoryCard} />
+                        {/* Tab content */}
+                        <div className="flex-1 @2xl:overflow-y-auto scrollbar-hide">
+                            <div className={activePreviewTab === 'preview' ? 'block' : 'hidden'}>
+                                <CardDetail
+                                    showdownBotCardData={showdownBotCardData}
+                                    isLoading={isProcessingCard}
+                                />
                             </div>
-                        )}
+                            <div className={activePreviewTab === 'gallery' ? 'block' : 'hidden'}>
+                                <GalleryTabContent
+                                    user={user}
+                                    token={session?.access_token ?? null}
+                                    onReload={user ? handleGalleryReload : undefined}
+                                />
+                            </div>
+                        </div>
+
                     </div>
                 </section>                    
             </div>

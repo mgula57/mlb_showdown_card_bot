@@ -31,7 +31,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaAddressCard, FaCalendar, FaHome, FaLayerGroup, FaImages } from "react-icons/fa";
+import { FaAddressCard, FaCalendar, FaHome, FaLayerGroup } from "react-icons/fa";
 
 /**
  * Props for the SideMenuItem component
@@ -131,9 +131,4 @@ export const sideMenuItems: SideMenuItemType[] = [
         icon: FaCalendar,      // Calendar icon representing seasons/schedules
         path: "/seasons"
     },
-    {
-        text: "Gallery",
-        icon: FaImages,
-        path: "/gallery"
-    }
 ];
