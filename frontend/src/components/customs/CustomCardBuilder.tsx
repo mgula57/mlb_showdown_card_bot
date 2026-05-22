@@ -1348,8 +1348,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
                                         >
-                                            <div className="col-span-full font-semibold text-xs text-(--tertiary) italic">
-                                                Want to change the Showdown Set? Look in the top right corner of the browser.
+                                            <div className="col-span-full font-semibold text-xs italic text-(--warning)">
+                                                Want to change the Showdown Set (ex: 2000, 2005, etc.)? Look in the top right corner of the browser.
                                             </div>
 
                                             <FormDropdown
