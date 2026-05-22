@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaImages, FaSpinner, FaExpand } from 'react-icons/fa';
-import { FaRotateLeft } from 'react-icons/fa6';
+import { SignInPrompt } from '../shared/SignInPrompt';
+import { FaPencil } from 'react-icons/fa6';
 import { fetchUserGallery, deleteGalleryCard, type GalleryImageRecord, type GalleryFilters } from '../../api/gallery';
+import { fetchTeamHierarchy } from '../../api/card_db/cardDatabase';
 import { Modal } from '../shared/Modal';
 import FormInput from '../customs/FormInput';
 import CustomSelect from '../shared/CustomSelect';
@@ -49,13 +51,6 @@ const STATS_PERIOD_LABELS: Record<string, string> = {
     DATES: 'Date Range',
     POST: 'Postseason',
 };
-
-function formatCreatedAt(iso: string): string {
-    return new Intl.DateTimeFormat(undefined, {
-        month: 'short', day: 'numeric', year: 'numeric',
-        hour: 'numeric', minute: '2-digit',
-    }).format(new Date(iso));
-}
 
 // ----------------------------------------------------------------
 // GalleryCard
@@ -114,7 +109,7 @@ const GalleryCard: React.FC<{
                                 className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors"
                                 title="Reload into form"
                             >
-                                <FaRotateLeft size={16} />
+                                <FaPencil size={16} />
                             </button>
                         )}
 
@@ -145,9 +140,14 @@ const GalleryCard: React.FC<{
 // ----------------------------------------------------------------
 const LightboxImage: React.FC<{ url: string; label: string; createdAt: string }> = ({ url, label, createdAt }) => {
     const [loaded, setLoaded] = useState(false);
+    const utc = createdAt.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(createdAt) ? createdAt : createdAt + 'Z';
+    const createdAtLocalTz = new Date(utc).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+    });
     return (
         <>
-            <div className="relative rounded-md overflow-hidden bg-(--background-secondary)" style={{ height: '75dvh', aspectRatio: '2.5 / 3.5' }}>
+            <div className="relative rounded-md overflow-hidden bg-(--background-secondary)" style={{ height: '70dvh', aspectRatio: '2.5 / 3.5' }}>
                 {!loaded && (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <FaSpinner className="animate-spin text-secondary" size={24} />
@@ -160,7 +160,7 @@ const LightboxImage: React.FC<{ url: string; label: string; createdAt: string }>
                     className={`w-full h-full object-contain transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
                 />
             </div>
-            <p className="text-xs text-secondary">{formatCreatedAt(createdAt)}</p>
+            <p className="text-xs text-secondary">{createdAtLocalTz}</p>
         </>
     );
 };
@@ -177,13 +177,27 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
     const [lightbox, setLightbox] = useState<{ url: string; label: string; sublabel?: string; createdAt: string } | null>(null);
 
+    // Team options for dropdown
+    const [teamOptions, setTeamOptions] = useState<{ value: string; label: string }[]>([]);
+    useEffect(() => {
+        fetchTeamHierarchy().then(data => {
+            const mlbTeams = [...new Set(
+                data.filter(r => r.organization === 'MLB').map(r => r.team)
+            )].sort();
+            setTeamOptions([
+                { value: '', label: 'All Teams' },
+                ...mlbTeams.map(t => ({ value: t, label: t })),
+            ]);
+        });
+    }, []);
+
     // Filter state
     const [nameInput, setNameInput] = useState('');
     const [yearInput, setYearInput] = useState('');
     const [filters, setFilters] = useState<GalleryFilters>({});
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const hasActiveFilters = !!(filters.set_name || filters.player_name || filters.year || filters.player_type);
+    const hasActiveFilters = !!(filters.set_name || filters.player_name || filters.year || filters.player_type || filters.edition || filters.expansion || filters.team);
 
     const loadGallery = useCallback(async (reset: boolean, activeFilters: GalleryFilters) => {
         if (!token) return;
@@ -235,6 +249,18 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
         }, 400);
     };
 
+    const handleEditionChange = (value: string) => {
+        applyFilters({ ...filters, edition: value || undefined });
+    };
+
+    const handleExpansionChange = (value: string) => {
+        applyFilters({ ...filters, expansion: value || undefined });
+    };
+
+    const handleTeamChange = (value: string) => {
+        applyFilters({ ...filters, team: value || undefined });
+    };
+
     const handleConfirmDelete = async () => {
         const id = pendingDeleteId;
         if (!id || !token) return;
@@ -252,10 +278,12 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
 
     if (!user) {
         return (
-            <div className="flex flex-col items-center justify-center h-48 gap-3 text-secondary">
-                <FaImages size={28} className="opacity-40" />
-                <p className="text-sm">Sign in to save and browse your cards.</p>
-            </div>
+            <SignInPrompt
+                icon={<FaImages size={28} />}
+                title="Your Gallery"
+                message="Sign in to save and browse your cards."
+                className="h-48 mt-12"
+            />
         );
     }
 
@@ -302,32 +330,57 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
             )}
 
             {/* Filter bar */}
-            <div className="px-3 pt-3 pb-2 flex gap-2 border-b border-form-element">
-                {/* Row 1: player name search + clear */}
-                <div className="flex-1">
-                    <FormInput
-                        label=""
-                        value={nameInput}
-                        placeholder="Search player…"
-                        onChange={value => handleNameInputChange(value || '')}
-                        isClearable={true}
-                    />
-                </div>                
+            <div className="px-3 pt-3 pb-2 flex flex-col gap-2 border-b border-form-element">
+                {/* Row 1: player name search */}
+                <FormInput
+                    label=""
+                    value={nameInput}
+                    placeholder="Search for player…"
+                    onChange={value => handleNameInputChange(value || '')}
+                    isClearable={true}
+                />
 
-                {/* Row 2: Set, Year, Player type */}
+                {/* Row 2: Set + Expansion + Edition + Team + Year */}
                 <div className="flex items-end gap-1.5">
-                    {/* Set dropdown */}
-
                     <CustomSelect
-                        options={[{ value: '', label: 'All Sets', image: undefined, textColor: 'text-secondary' },...showdownSets]}
+                        options={[{ value: '', label: 'All Sets', image: undefined, textColor: 'text-secondary' }, ...showdownSets]}
                         value={filters.set_name ?? ''}
                         onChange={handleSetChange}
                         buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
                         imageClassName="max-w-18 object-contain object-center"
                     />
-
-                    {/* Year input */}
-                    <div className="w-24 shrink-0">
+                    <CustomSelect
+                        options={[
+                            { value: '', label: 'All Expansions', textColor: 'text-secondary' },
+                            { value: 'BS', label: 'Base Set' },
+                            { value: 'TD', label: 'Trading Deadline' },
+                            { value: 'PR', label: 'Pennant Run' },
+                        ]}
+                        value={filters.expansion ?? ''}
+                        onChange={handleExpansionChange}
+                        buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                    />
+                    <CustomSelect
+                        options={[
+                            { value: '', label: 'All Editions', textColor: 'text-secondary' },
+                            { value: 'CC', label: 'Cooperstown' },
+                            { value: 'SS', label: 'Super Season' },
+                            { value: 'RS', label: 'Rookie Season' },
+                            { value: 'ASG', label: 'All-Star Game' },
+                            { value: 'WBC', label: 'WBC' },
+                            { value: 'POST', label: 'Postseason' },
+                        ]}
+                        value={filters.edition ?? ''}
+                        onChange={handleEditionChange}
+                        buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                    />
+                    <CustomSelect
+                        options={teamOptions}
+                        value={filters.team ?? ''}
+                        onChange={handleTeamChange}
+                        buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                    />
+                    <div className="w-20 shrink-0">
                         <FormInput
                             label=""
                             value={yearInput}
@@ -336,7 +389,6 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                             onChange={value => handleYearChange((value ?? '').slice(0, 4))}
                         />
                     </div>
-
                 </div>
             </div>
 

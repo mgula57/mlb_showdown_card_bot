@@ -16,11 +16,15 @@ def get_gallery():
         player_name = request.args.get('player_name') or None
         year = request.args.get('year') or None
         player_type = request.args.get('player_type') or None
+        edition = request.args.get('edition') or None
+        expansion = request.args.get('expansion') or None
+        team = request.args.get('team') or None
         db = PostgresDB()
         gallery = db.get_user_gallery(
             g.user_id, limit=limit, offset=offset,
             set_name=set_name, player_name=player_name,
             year=year, player_type=player_type,
+            edition=edition, expansion=expansion, team=team,
         )
         db.close_connection()
         return jsonify({'gallery': gallery, 'has_more': len(gallery) == limit}), 200

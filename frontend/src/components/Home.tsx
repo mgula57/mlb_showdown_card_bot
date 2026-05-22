@@ -300,7 +300,7 @@ export default function Home() {
 
             {/* Game Ticker */}
             <div
-                className={`rounded-2xl border-2 overflow-hidden ${isDark ? 'bg-neutral-900/80 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
+                className={`rounded-2xl border-2 overflow-hidden max-w-7xl mx-auto ${isDark ? 'bg-neutral-900/80 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
             >
                 {/* Ticker header */}
                 <div
@@ -484,7 +484,7 @@ export default function Home() {
                 <div className="max-w-7xl mx-auto border-y py-4 border-form-element">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <FaClock className="text-primary" /> Your Recent Customs
+                            <FaClock className="text-primary" /> Your Recent Custom Cards
                         </h2>
                         <Link
                             to="/customs"

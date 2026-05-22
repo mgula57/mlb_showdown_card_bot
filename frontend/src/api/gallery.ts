@@ -23,6 +23,9 @@ export interface GalleryFilters {
     player_name?: string;
     year?: string;
     player_type?: string;
+    edition?: string;
+    expansion?: string;
+    team?: string;
 }
 
 export async function fetchUserGallery(
@@ -36,6 +39,9 @@ export async function fetchUserGallery(
     if (filters.player_name) params.set('player_name', filters.player_name);
     if (filters.year) params.set('year', filters.year);
     if (filters.player_type) params.set('player_type', filters.player_type);
+    if (filters.edition) params.set('edition', filters.edition);
+    if (filters.expansion) params.set('expansion', filters.expansion);
+    if (filters.team) params.set('team', filters.team);
     const res = await fetch(`${API_BASE}/user/gallery?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
     });

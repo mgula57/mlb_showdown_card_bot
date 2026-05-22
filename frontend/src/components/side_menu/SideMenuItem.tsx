@@ -31,7 +31,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaAddressCard, FaCalendar, FaHome, FaLayerGroup } from "react-icons/fa";
+import { FaHammer, FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
 
 /**
  * Props for the SideMenuItem component
@@ -64,6 +64,17 @@ type SideMenuItemProps = {
  * @param props - Component props
  * @returns A clickable navigation item with adaptive layout
  */
+const SEEN_NAV_ITEMS_KEY = 'seenNavItems';
+
+const getSeenNavItems = (): Set<string> => {
+    try {
+        const stored = localStorage.getItem(SEEN_NAV_ITEMS_KEY);
+        return new Set(stored ? JSON.parse(stored) : []);
+    } catch {
+        return new Set();
+    }
+};
+
 export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen, selectedItem, onClick }) => {
 
     // Determine active state based on current selection
@@ -71,10 +82,22 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
     // Special case: highlight home when on root path as fallback behavior
     const isSelected = selectedPath === item.path || (selectedPath === '/' && item.path === '/home');
 
+    const [isNew, setIsNew] = React.useState(() => item.isNew && !getSeenNavItems().has(item.path));
+
+    const handleClick = () => {
+        if (isNew) {
+            const seen = getSeenNavItems();
+            seen.add(item.path);
+            localStorage.setItem(SEEN_NAV_ITEMS_KEY, JSON.stringify([...seen]));
+            setIsNew(false);
+        }
+        onClick(item);
+    };
+
     return (
         <NavLink 
             to={item.path} 
-            onClick={() => onClick(item)}
+            onClick={handleClick}
             className={`
                 flex items-center h-4 py-6 rounded-md w-full
                 hover:bg-(--background-tertiary) cursor-pointer
@@ -84,15 +107,20 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
         >
         
             {/* Icon - Always visible, serves as the collapsed state identifier */}
-            <div className="flex flex-col items-center justify-center text-primary">
+            <div className="relative flex flex-col items-center justify-center text-primary">
                 {item.icon && <item.icon />}
-                <span className={`${isSideMenuOpen ? 'hidden' : 'block'} mt-1 text-[7px] font-semibold text-primary`}>
+                <span className={`${isSideMenuOpen ? 'hidden' : 'block'} mt-1 text-[7px] font-semibold text-primary text-center leading-tight max-w-10`}>
                     {item.text}
                 </span>
+                {isNew && (
+                    <span className={`absolute text-[6px] font-bold leading-none px-1 py-0.5 rounded-full bg-blue-600 text-white ${isSideMenuOpen ? '-top-2 -left-2' : '-top-1 -right-2'}`}>
+                        NEW
+                    </span>
+                )}
             </div>
-            
+
             {/* Text Label - Only visible when menu is expanded */}
-            <h2 className={`${isSideMenuOpen ? 'block' : 'hidden'} pl-2 text-lg font-semibold text-primary`}>
+            <h2 className={`${isSideMenuOpen ? 'flex items-center gap-2' : 'hidden'} pl-2 text-lg font-semibold text-primary leading-tight`}>
                 {item.text}
             </h2>
         </NavLink>
@@ -117,18 +145,25 @@ export const sideMenuItems: SideMenuItemType[] = [
         path: "/home"
     },
     {
-        text: "Custom",
-        icon: FaAddressCard,  // Card/profile icon representing custom card creation
-        path: "/customs"
+        text: "Card Builder",
+        icon: FaHammer,  // Card/profile icon representing custom card creation
+        path: "/customs",
+        isNew: true
     },
     {
-        text: "Cards",
-        icon: FaLayerGroup,      // Compass icon representing exploration/discovery
+        text: "Card Explorer",
+        icon: FaCompass,      // Compass icon representing exploration/discovery
         path: "/cards"
     },
     {
         text: "Seasons",
         icon: FaCalendar,      // Calendar icon representing seasons/schedules
         path: "/seasons"
+    },
+    {
+        text: "Account",
+        icon: FaUserCircle,
+        path: "/account",
+        isNew: true
     },
 ];

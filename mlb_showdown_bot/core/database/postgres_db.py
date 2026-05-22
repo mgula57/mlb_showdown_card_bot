@@ -2914,7 +2914,9 @@ class PostgresDB:
 
     def get_user_gallery(self, user_id: str, limit: int = 50, offset: int = 0,
                          set_name: str | None = None, player_name: str | None = None,
-                         year: str | None = None, player_type: str | None = None) -> list[dict]:
+                         year: str | None = None, player_type: str | None = None,
+                         edition: str | None = None, expansion: str | None = None,
+                         team: str | None = None) -> list[dict]:
         """Return successful card generations for user from the log table, newest first."""
         if not self.connection:
             return []
@@ -2932,6 +2934,15 @@ class PostgresDB:
         if player_type:
             conditions.append("user_inputs->>'player_type' ILIKE %s")
             params.append(player_type)
+        if edition:
+            conditions.append("user_inputs->>'edition' = %s")
+            params.append(edition)
+        if expansion:
+            conditions.append("user_inputs->>'expansion' = %s")
+            params.append(expansion)
+        if team:
+            conditions.append("team ILIKE %s")
+            params.append(team)
         params.extend([limit, offset])
         query = f"""
             SELECT id, name, year, set, img_url, storage_path, thumbnail_storage_path, created_on, user_inputs

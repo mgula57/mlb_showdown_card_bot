@@ -372,15 +372,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                 </form>
 
                 {/* Toggle Sign In/Up */}
-                <div className="mt-6 text-center text-sm text-gray-500">
-                    {isSignUp ? 'Already have an account?' : "Don't have an account?"}
-                    {' '}
+                <div className="mt-4 space-y-2">
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-form-element"></div>
+                        </div>
+                        <div className="relative flex justify-center text-xs">
+                            <span className="px-2 bg-background-secondary text-gray-500">
+                                {isSignUp ? 'Already have an account?' : "New here?"}
+                            </span>
+                        </div>
+                    </div>
                     <button
                         onClick={toggleMode}
                         disabled={loading}
-                        className="text-accent hover:underline font-medium disabled:opacity-50 cursor-pointer"
+                        className="
+                            w-full py-2.5
+                            bg-transparent text-secondary
+                            border border-form-element
+                            rounded-lg
+                            hover:bg-background-primary cursor-pointer
+                            disabled:opacity-50 disabled:cursor-not-allowed
+                            transition-colors duration-150
+                            font-semibold text-sm
+                        "
                     >
-                        {isSignUp ? 'Sign In' : 'Sign Up'}
+                        {isSignUp ? 'Sign In to Existing Account' : 'Create a Free Account'}
                     </button>
                 </div>
             </div>

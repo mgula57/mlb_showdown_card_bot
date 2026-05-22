@@ -22,6 +22,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useSiteSettings, useTheme, showdownSets } from '../shared/SiteSettingsContext';
 import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
+import { SignInPrompt } from '../shared/SignInPrompt';
 import CustomSelect from '../shared/CustomSelect';
 import { uploadAvatar, removeAvatar, validateAvatarFile } from '../../api/userAvatar';
 import AvatarCropModal from './AvatarCropModal';
@@ -53,13 +54,6 @@ const AccountPage: React.FC = () => {
     const [cropSrc, setCropSrc] = useState<string | null>(null);
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
-    // Redirect to home if not authenticated
-    useEffect(() => {
-        if (!loading && !user) {
-            navigate('/');
-        }
-    }, [user, loading, navigate]);
-
     useEffect(() => {
         if (!isEditingUsername) {
             setNewUsername(username ?? '');
@@ -76,9 +70,14 @@ const AccountPage: React.FC = () => {
         );
     }
 
-    // Not authenticated (shouldn't reach here due to useEffect redirect)
     if (!user) {
-        return null;
+        return (
+            <SignInPrompt
+                title="Sign in to view your account"
+                message="Create an account to save cards, track your gallery, and manage settings."
+                className="min-h-screen"
+            />
+        );
     }
 
     /**

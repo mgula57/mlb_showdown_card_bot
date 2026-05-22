@@ -447,13 +447,13 @@ export type CustomCardLogRecord = CardDatabaseRecord & {
     thumbnail_storage_path?: string | null; // Supabase storage path for thumbnail (200px wide)
 };
 
-export async function fetchCustomCardLogs(userId?: string): Promise<CustomCardLogRecord[]> {
+export async function fetchCustomCardLogs(userId?: string, limit?: number): Promise<CustomCardLogRecord[]> {
     const res = await fetch(`${API_BASE}/cards/customs/history`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ user_id: userId }),
+        body: JSON.stringify({ user_id: userId, limit: limit ?? 20 }),
     });
     if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
