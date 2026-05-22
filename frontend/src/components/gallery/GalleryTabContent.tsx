@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaImages, FaTrash, FaSpinner, FaExpand, FaTimes } from 'react-icons/fa';
+import { FaImages, FaSpinner, FaExpand } from 'react-icons/fa';
 import { FaRotateLeft } from 'react-icons/fa6';
 import { fetchUserGallery, deleteGalleryCard, type GalleryImageRecord, type GalleryFilters } from '../../api/gallery';
 import { Modal } from '../shared/Modal';
 import FormInput from '../customs/FormInput';
-import FormDropdown from '../customs/FormDropdown';
 import CustomSelect from '../shared/CustomSelect';
 import { showdownSets } from '../shared/SiteSettingsContext';
 
@@ -19,13 +18,52 @@ interface GalleryTabContentProps {
 
 const PAGE_SIZE = 50;
 
+const EDITION_LABELS: Record<string, string> = {
+    CC: 'Cooperstown',
+    SS: 'Super Season',
+    RS: 'Rookie Season',
+    ASG: 'All-Star Game',
+    WBC: 'WBC',
+    POST: 'Postseason',
+};
+
+const PARALLEL_LABELS: Record<string, string> = {
+    RF: 'Rainbow Foil',
+    TCB: 'Team Color Blast',
+    GALAXY: 'Galaxy',
+    GOLD: 'Gold',
+    GOLDRUSH: 'Gold Rush',
+    GF: 'Gold Frame',
+    SPH: 'Sapphire',
+    'B&W': 'Black & White',
+    RAD: 'Radial',
+    CB: 'Comic Book Hero',
+    WS: 'White Smoke',
+    FLAMES: 'Flames',
+    MYSTERY: 'Mystery',
+};
+
+const STATS_PERIOD_LABELS: Record<string, string> = {
+    CAREER: 'Career',
+    SPLIT: 'Split',
+    DATES: 'Date Range',
+    POST: 'Postseason',
+};
+
+function formatCreatedAt(iso: string): string {
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+    }).format(new Date(iso));
+}
+
 // ----------------------------------------------------------------
 // GalleryCard
 // ----------------------------------------------------------------
 const GalleryCard: React.FC<{
     item: GalleryImageRecord;
     onDeleteRequest: (id: number) => void;
-    onPreview: (url: string, label: string) => void;
+    onPreview: (url: string, label: string, sublabel: string | undefined, createdAt: string) => void;
     onReload?: (userInputs: Record<string, unknown>) => void;
     isDeleting: boolean;
 }> = ({ item, onDeleteRequest, onPreview, onReload, isDeleting }) => {
@@ -33,6 +71,16 @@ const GalleryCard: React.FC<{
     const fullUrl = item.public_url ?? item.storage_path;
     const thumbUrl = item.thumbnail_public_url ?? fullUrl;
     const label = [item.player_name, item.year, item.set_name].filter(Boolean).join(' · ');
+
+    const inputs = item.user_inputs ?? {};
+    const badges = [
+        EDITION_LABELS[inputs.edition as string],
+        PARALLEL_LABELS[inputs.image_parallel as string],
+        STATS_PERIOD_LABELS[inputs.stats_period_type as string],
+        inputs.chart_version !== '1' ? `v${inputs.chart_version}` : undefined,
+        inputs.set_number ? `#${inputs.set_number}` : undefined,
+    ].filter(Boolean) as string[];
+    const subLabel = badges.join(' · ');
 
     return (
         <div
@@ -51,13 +99,13 @@ const GalleryCard: React.FC<{
                 )}
 
                 {isHovered && (
-                    <div className="absolute inset-0 bg-black/50 flex items-end justify-center gap-2 pb-3">
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 pb-3">
                         <button
-                            onClick={() => fullUrl && onPreview(fullUrl, label)}
+                            onClick={() => fullUrl && onPreview(fullUrl, label, subLabel, item.created_at)}
                             className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors"
                             title="View"
                         >
-                            <FaExpand size={13} />
+                            <FaExpand size={16} />
                         </button>
 
                         {onReload && item.user_inputs && (
@@ -66,24 +114,28 @@ const GalleryCard: React.FC<{
                                 className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors"
                                 title="Reload into form"
                             >
-                                <FaRotateLeft size={13} />
+                                <FaRotateLeft size={16} />
                             </button>
                         )}
 
-                        <button
-                            onClick={() => onDeleteRequest(item.id)}
-                            disabled={isDeleting}
-                            className="p-2 rounded-full bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
-                            title="Remove from gallery"
-                        >
-                            {isDeleting ? <FaSpinner className="animate-spin" size={13} /> : <FaTrash size={13} />}
-                        </button>
                     </div>
                 )}
             </div>
-            {label && (
-                <p className="text-xs text-secondary text-center truncate px-1">{label}</p>
-            )}
+            <div className='flex flex-col space-y-0.5'>
+                {label && (
+                    <p className="text-xs font-bold text-secondary text-center truncate px-1">{label}</p>
+                )}
+                {badges.length > 0 && (
+                    <div className="flex flex-wrap justify-center">
+                        {badges.map(badge => (
+                            <span key={badge} className="text-[10px] leading-tight px-1 rounded-full bg-(--background-secondary) text-secondary truncate max-w-full">
+                                {badge}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+            
         </div>
     );
 };
@@ -91,22 +143,25 @@ const GalleryCard: React.FC<{
 // ----------------------------------------------------------------
 // LightboxImage
 // ----------------------------------------------------------------
-const LightboxImage: React.FC<{ url: string; label: string }> = ({ url, label }) => {
+const LightboxImage: React.FC<{ url: string; label: string; createdAt: string }> = ({ url, label, createdAt }) => {
     const [loaded, setLoaded] = useState(false);
     return (
-        <div className="relative rounded-md overflow-hidden bg-(--background-secondary)" style={{ height: '75dvh', aspectRatio: '2.5 / 3.5' }}>
-            {!loaded && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <FaSpinner className="animate-spin text-secondary" size={24} />
-                </div>
-            )}
-            <img
-                src={url}
-                alt={label}
-                onLoad={() => setLoaded(true)}
-                className={`w-full h-full object-contain transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-            />
-        </div>
+        <>
+            <div className="relative rounded-md overflow-hidden bg-(--background-secondary)" style={{ height: '75dvh', aspectRatio: '2.5 / 3.5' }}>
+                {!loaded && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <FaSpinner className="animate-spin text-secondary" size={24} />
+                    </div>
+                )}
+                <img
+                    src={url}
+                    alt={label}
+                    onLoad={() => setLoaded(true)}
+                    className={`w-full h-full object-contain transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+                />
+            </div>
+            <p className="text-xs text-secondary">{formatCreatedAt(createdAt)}</p>
+        </>
     );
 };
 
@@ -120,7 +175,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
     const [isLoading, setIsLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
-    const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+    const [lightbox, setLightbox] = useState<{ url: string; label: string; sublabel?: string; createdAt: string } | null>(null);
 
     // Filter state
     const [nameInput, setNameInput] = useState('');
@@ -235,9 +290,13 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
             {/* Lightbox */}
             {lightbox && (
                 <Modal size="lg" onClose={() => setLightbox(null)}>
-                    <div className="py-8 px-8 flex flex-col items-center gap-3">
-                        <LightboxImage url={lightbox.url} label={lightbox.label} />
-                        {lightbox.label && <p className="text-sm text-secondary">{lightbox.label}</p>}
+                    <div className="py-4 px-8 flex flex-col items-center gap-2">
+                        <div className="flex flex-col items-center space-y-0.5">
+                            {lightbox.label && <p className="text-sm text-secondary font-black">{lightbox.label}</p>}
+                            {lightbox.sublabel && <p className="text-xs text-secondary">{lightbox.sublabel}</p>}
+                        </div>
+                        <LightboxImage url={lightbox.url} label={lightbox.label} createdAt={lightbox.createdAt} />
+                        
                     </div>
                 </Modal>
             )}
@@ -299,13 +358,13 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     </div>
                 ) : (
                     <>
-                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(175px, 100%), 1fr))' }}>
+                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(175px, 100%), 240px))' }}>
                             {gallery.map(item => (
                                 <GalleryCard
                                     key={item.id}
                                     item={item}
                                     onDeleteRequest={setPendingDeleteId}
-                                    onPreview={(url, label) => setLightbox({ url, label })}
+                                    onPreview={(url, label, sublabel, createdAt) => setLightbox({ url, label, sublabel, createdAt })}
                                     onReload={onReload}
                                     isDeleting={deletingId === item.id}
                                 />
