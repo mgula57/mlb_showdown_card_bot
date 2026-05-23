@@ -485,6 +485,10 @@ export type ShowdownBotCardImage = {
 
     /** Set number within the expansion */
     set_number?: number | null;
+
+    /** Supabase storage path for the card image */
+    storage_path?: string | null;
+    thumbnail_storage_path?: string | null;
 };
 
 // =============================================================================

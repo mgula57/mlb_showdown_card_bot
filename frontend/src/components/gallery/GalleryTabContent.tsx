@@ -8,13 +8,15 @@ import { Modal } from '../shared/Modal';
 import FormInput from '../customs/FormInput';
 import CustomSelect from '../shared/CustomSelect';
 import { showdownSets } from '../shared/SiteSettingsContext';
+import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
+import { CardDetail } from '../cards/CardDetail';
 
 type User = { id: string } | null | undefined;
 
 interface GalleryTabContentProps {
     user: User;
     token: string | null;
-    onReload?: (userInputs: Record<string, unknown>) => void;
+    onReload?: (userInputs: Record<string, unknown>, cardResult: ShowdownBotCard) => void;
     refreshKey?: number;
 }
 
@@ -58,8 +60,8 @@ const STATS_PERIOD_LABELS: Record<string, string> = {
 const GalleryCard: React.FC<{
     item: GalleryImageRecord;
     onDeleteRequest: (id: number) => void;
-    onPreview: (url: string, label: string, sublabel: string | undefined, createdAt: string) => void;
-    onReload?: (userInputs: Record<string, unknown>) => void;
+    onPreview: (cardResult: ShowdownBotCard) => void;
+    onReload?: (userInputs: Record<string, unknown>, cardResult: ShowdownBotCard) => void;
     isDeleting: boolean;
 }> = ({ item, onDeleteRequest, onPreview, onReload, isDeleting }) => {
     const [isHovered, setIsHovered] = useState(false);
@@ -75,8 +77,7 @@ const GalleryCard: React.FC<{
         inputs.chart_version !== '1' ? `v${inputs.chart_version}` : undefined,
         inputs.set_number ? `#${inputs.set_number}` : undefined,
     ].filter(Boolean) as string[];
-    const subLabel = badges.join(' · ');
-
+    
     return (
         <div
             className="flex flex-col gap-1"
@@ -96,7 +97,14 @@ const GalleryCard: React.FC<{
                 {isHovered && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 pb-3">
                         <button
-                            onClick={() => fullUrl && onPreview(fullUrl, label, subLabel, item.created_at)}
+                            onClick={
+                                () => {
+                                    if (item.card_result) {
+                                        onPreview(item.card_result);
+                                    }
+                                    console.log("Preview card result:", item.card_result);
+                                }
+                            }
                             className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors"
                             title="View"
                         >
@@ -105,7 +113,7 @@ const GalleryCard: React.FC<{
 
                         {onReload && item.user_inputs && (
                             <button
-                                onClick={() => onReload(item.user_inputs!)}
+                                onClick={() => onReload(item.user_inputs!, item.card_result!)}
                                 className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors"
                                 title="Reload into form"
                             >
@@ -136,36 +144,6 @@ const GalleryCard: React.FC<{
 };
 
 // ----------------------------------------------------------------
-// LightboxImage
-// ----------------------------------------------------------------
-const LightboxImage: React.FC<{ url: string; label: string; createdAt: string }> = ({ url, label, createdAt }) => {
-    const [loaded, setLoaded] = useState(false);
-    const utc = createdAt.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(createdAt) ? createdAt : createdAt + 'Z';
-    const createdAtLocalTz = new Date(utc).toLocaleString(undefined, {
-        month: 'short', day: 'numeric', year: 'numeric',
-        hour: 'numeric', minute: '2-digit',
-    });
-    return (
-        <>
-            <div className="relative rounded-md overflow-hidden bg-(--background-secondary)" style={{ height: '70dvh', aspectRatio: '2.5 / 3.5' }}>
-                {!loaded && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <FaSpinner className="animate-spin text-secondary" size={24} />
-                    </div>
-                )}
-                <img
-                    src={url}
-                    alt={label}
-                    onLoad={() => setLoaded(true)}
-                    className={`w-full h-full object-contain transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-                />
-            </div>
-            <p className="text-xs text-secondary">{createdAtLocalTz}</p>
-        </>
-    );
-};
-
-// ----------------------------------------------------------------
 // GalleryTabContent
 // ----------------------------------------------------------------
 export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, token, onReload, refreshKey }) => {
@@ -175,7 +153,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
     const [isLoading, setIsLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
-    const [lightbox, setLightbox] = useState<{ url: string; label: string; sublabel?: string; createdAt: string } | null>(null);
+    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
 
     // Team options for dropdown
     const [teamOptions, setTeamOptions] = useState<{ value: string; label: string }[]>([]);
@@ -316,18 +294,16 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
             )}
 
             {/* Lightbox */}
-            {lightbox && (
-                <Modal size="lg" onClose={() => setLightbox(null)}>
-                    <div className="py-4 px-8 flex flex-col items-center gap-2">
-                        <div className="flex flex-col items-center space-y-0.5">
-                            {lightbox.label && <p className="text-sm text-secondary font-black">{lightbox.label}</p>}
-                            {lightbox.sublabel && <p className="text-xs text-secondary">{lightbox.sublabel}</p>}
-                        </div>
-                        <LightboxImage url={lightbox.url} label={lightbox.label} createdAt={lightbox.createdAt} />
-                        
-                    </div>
+            <div className={!!selectedCard ? '' : 'hidden pointer-events-none'}>
+                <Modal isVisible={!!selectedCard} onClose={() => setSelectedCard(null)} size="lg">
+                    <CardDetail
+                        showdownBotCardData={selectedCard ? { card: selectedCard } as ShowdownBotCardAPIResponse : undefined}
+                        hideTrendGraphs={true}
+                        context='explore'
+                        parent="modal"
+                    />
                 </Modal>
-            )}
+            </div>
 
             {/* Filter bar */}
             <div className="px-3 pt-3 pb-2 flex flex-col gap-2 border-b border-form-element">
@@ -416,7 +392,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                                     key={item.id}
                                     item={item}
                                     onDeleteRequest={setPendingDeleteId}
-                                    onPreview={(url, label, sublabel, createdAt) => setLightbox({ url, label, sublabel, createdAt })}
+                                    onPreview={(cardResult) => setSelectedCard(cardResult)}
                                     onReload={onReload}
                                     isDeleting={deletingId === item.id}
                                 />

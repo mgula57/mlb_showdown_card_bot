@@ -40,7 +40,7 @@ import { CardDetail } from '../cards/CardDetail';
 import { GalleryTabContent } from '../gallery/GalleryTabContent';
 
 // API
-import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
+import { buildCustomCard, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { fetchSplits } from '../../api/mlbAPI';
 // Icons
 import {
@@ -925,7 +925,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         return () => clearTimeout(timeoutId);
     }, [form]);
 
-    const handleSelectHistoryCard = (userInputs: CustomCardFormState) => {
+    const handleSelectHistoryCard = (userInputs: CustomCardFormState, cardResult: ShowdownBotCard) => {
         
 
         // If name_original is present, replace "name" with "name_original" to preserve original name in form
@@ -946,6 +946,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         ) as CustomCardFormState;
 
         setForm(userInputs);
+        setShowdownBotCardData({ card: cardResult } as ShowdownBotCardAPIResponse);
         setActivePreviewTab('preview');
 
         setLoadingStatus({
@@ -957,8 +958,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         });
     };
 
-    const handleGalleryReload = (userInputs: Record<string, unknown>) => {
-        handleSelectHistoryCard(userInputs as unknown as CustomCardFormState);
+    const handleGalleryReload = (userInputs: Record<string, unknown>, cardResult: ShowdownBotCard) => {
+        handleSelectHistoryCard(userInputs as unknown as CustomCardFormState, cardResult);
     };
 
     // Fetch MLB situation codes when the user is in SPLIT mode for 2026+ seasons

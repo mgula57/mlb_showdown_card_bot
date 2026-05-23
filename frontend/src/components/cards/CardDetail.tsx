@@ -201,7 +201,13 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     // --------------------------------
 
     // Card Calcs
-    const cardImagePath: string | null = activeCardData?.card?.image && activeCardData.card.image.output_folder_path && activeCardData.card.image.output_file_name ? `${activeCardData.card.image.output_folder_path}/${activeCardData.card.image.output_file_name}` : null;
+    const image = activeCardData?.card?.image ?? null;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const cardImagePath: string | null = image?.storage_path
+        ? `${supabaseUrl}/storage/v1/object/public/card_images/${image.storage_path}`
+        : image?.output_folder_path && image?.output_file_name
+            ? `${image.output_folder_path}/${image.output_file_name}`
+            : null;
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
         points: `${activeCardData.card.points} PTS`,
         year: activeCardData.card.year,

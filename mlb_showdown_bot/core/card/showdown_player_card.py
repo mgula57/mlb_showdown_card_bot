@@ -6581,10 +6581,11 @@ class ShowdownPlayerCard(BaseModel):
           None
         """
 
+        name_safe = unidecode.unidecode(self.name).replace(" ", "_").replace("/", "_")
         if self.image.output_file_name is None:
-            self.image.output_file_name = f'{self.name}-{str(datetime.now())}.png'
+            self.image.output_file_name = f'{name_safe}-{str(datetime.now())}.png'
         if self.image.set_name:
-            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {self.name}{img_name_suffix}.png'            
+            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {name_safe}{img_name_suffix}.png'            
         
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')

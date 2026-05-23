@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://127.0.0.1:5000/api';
+import { type ShowdownBotCard } from './showdownBotCard';
 
 export interface GalleryImageRecord {
     id: number;
@@ -11,6 +12,7 @@ export interface GalleryImageRecord {
     thumbnail_storage_path: string | null;
     created_at: string;
     user_inputs: Record<string, unknown> | null;
+    card_result: ShowdownBotCard | null;
 }
 
 export interface GalleryResponse {

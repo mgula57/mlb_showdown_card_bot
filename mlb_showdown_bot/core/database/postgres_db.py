@@ -2945,7 +2945,7 @@ class PostgresDB:
             params.append(team)
         params.extend([limit, offset])
         query = f"""
-            SELECT id, name, year, set, img_url, storage_path, thumbnail_storage_path, created_on, user_inputs
+            SELECT id, name, year, set, img_url, storage_path, thumbnail_storage_path, created_on, user_inputs, card_result
             FROM internal.log_custom_card_bot
             WHERE {' AND '.join(conditions)}
             ORDER BY created_on DESC
@@ -2974,6 +2974,7 @@ class PostgresDB:
                         'thumbnail_storage_path': row[6],
                         'created_at': row[7].isoformat() if row[7] else None,
                         'user_inputs': row[8],
+                        'card_result': row[9],
                     }
                     for row in rows
                 ]
@@ -3193,15 +3194,11 @@ class PostgresDB:
             self.connection.rollback()
 
     def _serialize_card_result(self, card: ShowdownPlayerCard) -> dict:
-        data = card.as_json()
+        data = card.as_json(exclude={'realtime_game_logs': True})
         data.get('stats', {}).pop('game_logs', None)
         data.get('stats', {}).pop('postseason_game_logs', None)
-        data.pop('realtime_game_logs', None)
-
-        # Remove any nested stats objects
-        data.pop('stats_period', {}).pop('stats', {}).pop('game_logs', None)
-        data.pop('stats_period', {}).pop('stats', {}).pop('postseason_game_logs', None)
-        
+        data.get('stats_period', {}).get('stats', {}).pop('game_logs', None)
+        data.get('stats_period', {}).get('stats', {}).pop('postseason_game_logs', None)
         return data
 
     def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
