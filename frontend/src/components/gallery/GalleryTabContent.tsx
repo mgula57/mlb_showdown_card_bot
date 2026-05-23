@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaImages, FaSpinner, FaExpand } from 'react-icons/fa';
+import { FaImages, FaSpinner, FaExpand, FaStar } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { FaPencil } from 'react-icons/fa6';
 import { fetchUserGallery, deleteGalleryCard, type GalleryImageRecord, type GalleryFilters } from '../../api/gallery';
@@ -8,6 +8,8 @@ import { Modal } from '../shared/Modal';
 import FormInput from '../customs/FormInput';
 import CustomSelect from '../shared/CustomSelect';
 import { showdownSets } from '../shared/SiteSettingsContext';
+
+const cardImagePath = (name: string) => `/images/card/${name}.png`;
 import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { CardDetail } from '../cards/CardDetail';
 
@@ -328,9 +330,9 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     <CustomSelect
                         options={[
                             { value: '', label: 'All Expansions', textColor: 'text-secondary' },
-                            { value: 'BS', label: 'Base Set' },
-                            { value: 'TD', label: 'Trading Deadline' },
-                            { value: 'PR', label: 'Pennant Run' },
+                            { value: 'BS', label: 'Base Set', image: cardImagePath('expansion-bs') },
+                            { value: 'TD', label: 'Trading Deadline', image: cardImagePath('expansion-td'), borderColor: 'border-red-600' },
+                            { value: 'PR', label: 'Pennant Run', image: cardImagePath('expansion-pr'), borderColor: 'border-blue-900' },
                         ]}
                         value={filters.expansion ?? ''}
                         onChange={handleExpansionChange}
@@ -339,12 +341,12 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     <CustomSelect
                         options={[
                             { value: '', label: 'All Editions', textColor: 'text-secondary' },
-                            { value: 'CC', label: 'Cooperstown' },
-                            { value: 'SS', label: 'Super Season' },
-                            { value: 'RS', label: 'Rookie Season' },
-                            { value: 'ASG', label: 'All-Star Game' },
-                            { value: 'WBC', label: 'WBC' },
-                            { value: 'POST', label: 'Postseason' },
+                            { value: 'CC', label: 'Cooperstown', image: cardImagePath('edition-cc'), borderColor: 'border-amber-800' },
+                            { value: 'SS', label: 'Super Season', image: cardImagePath('edition-ss'), borderColor: 'border-red-500' },
+                            { value: 'RS', label: 'Rookie Season', image: cardImagePath('edition-rs'), borderColor: 'border-red-800' },
+                            { value: 'ASG', label: 'All-Star Game', symbol: '⭐', borderColor: 'border-yellow-400' },
+                            { value: 'WBC', label: 'WBC', image: cardImagePath('edition-wbc'), borderColor: 'border-red-700' },
+                            { value: 'POST', label: 'Postseason', image: cardImagePath('edition-post'), borderColor: 'border-blue-800' },
                         ]}
                         value={filters.edition ?? ''}
                         onChange={handleEditionChange}
@@ -356,7 +358,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         onChange={handleTeamChange}
                         buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
                     />
-                    <div className="w-20 shrink-0">
+                    <div className="w-24 shrink-0">
                         <FormInput
                             label=""
                             value={yearInput}
