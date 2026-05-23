@@ -179,35 +179,35 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
 
     const hasActiveFilters = !!(filters.set_name || filters.player_name || filters.year || filters.player_type || filters.edition || filters.expansion || filters.team);
 
-    const loadGallery = useCallback(async (reset: boolean, activeFilters: GalleryFilters) => {
+    const loadGallery = useCallback(async (pageOffset: number, activeFilters: GalleryFilters) => {
         if (!token) return;
-        const currentOffset = reset ? 0 : offset;
         setIsLoading(true);
         try {
-            const data = await fetchUserGallery(token, PAGE_SIZE, currentOffset, activeFilters);
-            setGallery(prev => reset ? data.gallery : [...prev, ...data.gallery]);
-            setOffset(currentOffset + data.gallery.length);
+            const data = await fetchUserGallery(token, PAGE_SIZE, pageOffset, activeFilters);
+            setGallery(data.gallery);
+            setOffset(pageOffset);
             setHasMore(data.has_more);
         } catch (err) {
             console.error('Failed to load gallery:', err);
         } finally {
             setIsLoading(false);
         }
-    }, [token, offset]);
+    }, [token]);
 
     // Initial load when user/token become available; re-runs when refreshKey changes
     useEffect(() => {
         if (user && token) {
-            loadGallery(true, filters);
+            loadGallery(0, filters);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, token, refreshKey]);
 
     const applyFilters = (next: GalleryFilters) => {
         setFilters(next);
-        setOffset(0);
-        loadGallery(true, next);
+        loadGallery(0, next);
     };
+
+    const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
 
     const handleNameInputChange = (value: string) => {
         setNameInput(value);
@@ -401,15 +401,24 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                             ))}
                         </div>
 
-                        {hasMore && (
-                            <div className="flex justify-center mt-4">
+                        {(currentPage > 1 || hasMore) && (
+                            <div className="flex items-center justify-center gap-3 mt-4">
                                 <button
-                                    onClick={() => loadGallery(false, filters)}
-                                    disabled={isLoading}
-                                    className="px-5 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    onClick={() => loadGallery(offset - PAGE_SIZE, filters)}
+                                    disabled={isLoading || currentPage === 1}
+                                    className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
                                 >
-                                    {isLoading && <FaSpinner className="animate-spin" size={12} />}
-                                    {isLoading ? 'Loading…' : 'Load More'}
+                                    ← Prev
+                                </button>
+                                <span className="text-sm text-secondary min-w-16 text-center">
+                                    {isLoading ? <FaSpinner className="animate-spin inline" size={12} /> : `Page ${currentPage}`}
+                                </span>
+                                <button
+                                    onClick={() => loadGallery(offset + PAGE_SIZE, filters)}
+                                    disabled={isLoading || !hasMore}
+                                    className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
+                                >
+                                    Next →
                                 </button>
                             </div>
                         )}

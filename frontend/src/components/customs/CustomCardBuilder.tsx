@@ -1305,21 +1305,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             />
 
                                             <FormDropdown
-                                                label={
-                                                    <span className="flex items-center gap-1.5">
-                                                        League
-                                                        <span
-                                                            className="relative group inline-flex items-center"
-                                                        >
-                                                            <span className="text-[10px] font-black bg-(--red) text-white rounded px-1 py-0.5 leading-none cursor-default">
-                                                                NEW
-                                                            </span>
-                                                            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-3/4 mb-1.5 w-48 rounded-lg bg-gray-900 text-white text-xs px-2.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">
-                                                                You can now generate cards using MiLB (Minor League) stats. Some stats are limited due to lack of availability.
-                                                            </span>
-                                                        </span>
-                                                    </span>
-                                                }
+                                                label="League"
                                                 options={leagueOptions}
                                                 selectedOption={form.league}
                                                 onChange={(value) => {
