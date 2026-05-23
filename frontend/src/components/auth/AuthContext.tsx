@@ -52,8 +52,8 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     /** Check if username is available */
     checkUsernameAvailability: (username: string) => Promise<boolean>;
-    /** Sign in with OAuth provider (Google, GitHub, etc.) */
-    signInWithProvider: (provider: 'google') => Promise<{ error: Error | null }>;
+    /** Sign in with OAuth provider (Google, Discord, etc.) */
+    signInWithProvider: (provider: 'google' | 'discord') => Promise<{ error: Error | null }>;
     /** Refresh username check (call after username is set) */
     refreshProfile: () => Promise<void>;
     /** Settings loaded from DB after login (null when logged out or not yet loaded) */
@@ -247,7 +247,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     /**
      * Sign in with OAuth provider
      */
-    const signInWithProvider = async (provider: 'google') => {
+    const signInWithProvider = async (provider: 'google' | 'discord') => {
         try {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider,
