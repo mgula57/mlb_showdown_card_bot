@@ -441,7 +441,7 @@ def snapshot_rosters(
 @app.command("spotlight")
 def publish_spotlight_cards(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
-    player_ids: str = typer.Option(..., "--player_ids", "-p", help="Comma-separated list of player IDs to spotlight."),
+    player_ids: str = typer.Option(..., "--player_ids", "-p", help="Comma-separated list of player IDs to spotlight. Ex: '1980-brettge01,1981-johndoe02'"),
     message: str = typer.Option("Featured by the MLB Showdown Bot team", "--message", "-m", help="Message or reason for spotlighting the cards.")
 ):
     """Publish spotlight cards to the database"""
