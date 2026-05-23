@@ -3192,6 +3192,18 @@ class PostgresDB:
             print(f"Error creating internal.log_card_id_lookup table: {error}")
             self.connection.rollback()
 
+    def _serialize_card_result(self, card: ShowdownPlayerCard) -> dict:
+        data = card.as_json()
+        data.get('stats', {}).pop('game_logs', None)
+        data.get('stats', {}).pop('postseason_game_logs', None)
+        data.pop('realtime_game_logs', None)
+
+        # Remove any nested stats objects
+        data.pop('stats_period', {}).pop('stats', {}).pop('game_logs', None)
+        data.pop('stats_period', {}).pop('stats', {}).pop('postseason_game_logs', None)
+        
+        return data
+
     def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
         """
         Store card submission data in the log_custom_card_bot table.
@@ -3274,7 +3286,8 @@ class PostgresDB:
                 'glow_multiplier': card.image.glow_multiplier if card.image else None,
                 'storage_path': card.image.storage_path if card.image else None,
                 'thumbnail_storage_path': card.image.thumbnail_storage_path if card.image else None,
-                'user_id': card.user_id if card.user_id else None
+                'user_id': card.user_id if card.user_id else None,
+                'card_result': self._serialize_card_result(card),
             }
         else:
             # NO CARD GENERATED
