@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
-    FaUsers, FaFire, FaDiceD20, FaStar, FaClock
+    FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
+    FaHammer, FaCompass, FaCalendar
 } from 'react-icons/fa';
 import { FaXmark } from 'react-icons/fa6';
 import { useState, useEffect, useRef } from 'react';
@@ -298,6 +299,28 @@ export default function Home() {
                 pt-8
             `}>
 
+            {/* Quick Nav */}
+            <div className="max-w-7xl mx-auto w-full py-4 block sm:hidden">
+                <div className="grid grid-cols-3 gap-3">
+                    {([
+                        { label: 'Card Builder', desc: 'Build and customize your own cards', Icon: FaHammer,   to: '/customs', iconColor: 'text-red-500' },
+                        { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
+                        { label: 'Seasons',       desc: 'Follow the 2026 season live',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500' },
+                    ] as const).map(({ label, desc, Icon, to, iconColor }) => (
+                        <Link
+                            key={to}
+                            to={to}
+                            className={`relative overflow-hidden rounded-2xl p-4 flex flex-col gap-1 shadow-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-neutral-900 border-neutral-700 hover:bg-neutral-800' : 'bg-white border-neutral-200 hover:bg-neutral-50'}`}
+                        >
+                            <Icon className={`absolute -bottom-2 -right-2 text-7xl opacity-5`} />
+                            <Icon className={`text-3xl mb-1 ${iconColor}`} />
+                            <span className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{label}</span>
+                            <span className={`text-xs leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{desc}</span>
+                        </Link>
+                    ))}
+                </div>
+            </div>
+
             {/* Game Ticker */}
             <div
                 className={`rounded-2xl border-2 overflow-hidden max-w-7xl mx-auto ${isDark ? 'bg-neutral-900/80 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
@@ -556,7 +579,7 @@ export default function Home() {
             )}
 
             {/* Hero Section */}
-            <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-10">
+            <div className="max-w-7xl mx-auto py-4 flex flex-col md:flex-row items-center justify-between gap-10">
 
                 {/* Left: Text and Actions */}
                 <div className="w-full md:w-1/2 3xl:flex-[0.6] flex flex-col gap-4 items-start">
