@@ -916,7 +916,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
                             <th className="px-2 py-2 text-right">H</th>
                             <th className="px-2 py-2 text-right">RBI</th>
                             <th className="px-2 py-2 text-right">BB</th>
-                            <th className="px-2 py-2 text-right">K</th>
+                            <th className="px-2 py-2 text-right">HR</th>
                             <th className="px-2 py-2 text-right">AVG</th>
                             <th className="px-2 py-2 text-right pr-3">OPS</th>
                         </tr>
@@ -939,7 +939,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
                             <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.hits}</td>
                             <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.rbi}</td>
                             <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.strike_outs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.home_runs}</td>
                             <td className="px-2 py-2 text-right text-(--primary)" />
                             <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
                         </tr>
@@ -992,7 +992,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
             <td className={`px-2 py-1.5 text-right font-semibold ${hasHit ? 'text-(--primary)' : 'text-(--secondary)'}`}>{batter.stats.hits}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.rbi}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.strike_outs}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.home_runs}</td>
             <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
             {isOpen && card && !isShowingModal && (
