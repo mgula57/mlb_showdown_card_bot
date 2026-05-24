@@ -3612,6 +3612,106 @@ class PostgresDB:
         finally:
             cursor.close()
 
+    def get_season_stat_ranges(self, season:int, player_type:str) -> dict[str, dict[str, float]]:
+        """Fetch min and max values for key stats in a given season and player type. Used for percentiles in the frontend."""
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return {}
+        
+        cursor = self.connection.cursor()
+        try:
+            query = """
+                with
+
+                year_thresholds as (
+
+                    select
+                        year,
+                        max(g) as max_games,
+                        round(max(g) * 2.1) as min_pa_hitter,
+                        round(max(g) * 1.25 / 4.16) as min_ip_pitcher
+                    from player_season_stats
+                    where year = %s
+                    group by 1
+
+                ),
+
+                eligible as (
+
+                    select
+                        st.year,
+                        st.player_type,
+                        th.min_ip_pitcher,
+                        th.min_pa_hitter,
+                        st.g,
+                        st.gs,
+                        st.pa,
+                        st.ip,
+                        st.war,
+                        st.stats
+                    from player_season_stats as st 
+                    join year_thresholds as th 
+                        on th.year = st.year
+                    where
+                        case 
+                            when st.player_type = 'PITCHER' then st.ip >= th.min_ip_pitcher
+                            else st.pa >= th.min_pa_hitter
+                        end
+                        and st.player_type = %s
+
+                ),
+                json_stat_rows as (
+                select
+                    e.year,
+                    e.player_type,
+                    j.key as stat_name,
+                    j.value::numeric as stat_value
+                from eligible e
+                cross join lateral jsonb_each_text(coalesce(e.stats, '{}'::jsonb)) as j(key, value)
+                where 
+                    j.value ~ '^[-+]?(\d+\.?\d*|\.\d+)$'
+                    and j.key in (
+                        'batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging','onbase_plus_slugging_plus','wRcPlus',
+
+                        'G','GS','IP','PA','AB','1B','2B','3B','HR','BB','SO','GB','FB','PU','SF',
+
+                        'SB','sprint_speed','dWAR','bWAR','fWAR','earned_run_avg','whip'
+                    )
+                    and
+                        case
+                            when e.player_type = 'PITCHER' then j.key not in (
+                                'SB'
+                            )
+                            else true
+                        end
+
+                )
+                select
+                    r.year,
+                    r.player_type,
+                    r.stat_name,
+                    min(r.stat_value) as stat_min,
+                    max(r.stat_value) as stat_max,
+                    count(*) as sample_size
+                from json_stat_rows r
+                group by r.year, r.player_type, r.stat_name
+            """
+            cursor.execute(query, (season, player_type))
+            results = cursor.fetchall()
+            stat_ranges = {
+                row[2]: {
+                    'min': float(row[3]) if row[3] is not None else None,
+                    'max': float(row[4]) if row[4] is not None else None
+                }
+                for row in results
+            }
+            return stat_ranges
+        except Exception as e:
+            print(f"ERROR fetching season stat ranges: {e}")
+            return {}
+        finally:
+            cursor.close()
+
 # ------------------------------------------------------------------------
 # STATUSES
 # ------------------------------------------------------------------------
