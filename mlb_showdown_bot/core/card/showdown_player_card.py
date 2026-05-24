@@ -6680,7 +6680,6 @@ class ShowdownPlayerCard(BaseModel):
                     destination_path=thumb_dest_path
                 )
                 self.image.thumbnail_storage_path = thumb_upload_result.get('path', None)
-                print("Thumbnail uploaded to Supabase storage with path: ", self.image.thumbnail_storage_path)
 
                 # Clean up temp thumbnail file
                 if os.path.exists(thumb_path):
