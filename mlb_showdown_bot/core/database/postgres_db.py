@@ -3668,7 +3668,7 @@ class PostgresDB:
                     j.value::numeric as stat_value
                 from eligible e
                 cross join lateral jsonb_each_text(coalesce(e.stats, '{}'::jsonb)) as j(key, value)
-                where 
+                where
                     j.value ~ '^[-+]?(\d+\.?\d*|\.\d+)$'
                     and j.key in (
                         'batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging','onbase_plus_slugging_plus','wRcPlus',
@@ -3684,6 +3684,21 @@ class PostgresDB:
                             )
                             else true
                         end
+
+                union all
+
+                -- position-level defensive stats: keys like "C__drs", "1B__tzr"
+                select
+                    e.year,
+                    e.player_type,
+                    upper(pstat.key) || '-' || pos.key as stat_name,
+                    pstat.value::numeric as stat_value
+                from eligible e
+                cross join lateral jsonb_each(coalesce(e.stats->'positions', '{}'::jsonb)) as pos(key, val)
+                cross join lateral jsonb_each_text(coalesce(pos.val, '{}'::jsonb)) as pstat(key, value)
+                where
+                    pstat.value ~ '^[-+]?(\d+\.?\d*|\.\d+)$'
+                    and pstat.key in ('g', 'drs', 'tzr', 'oaa')
 
                 )
                 select
