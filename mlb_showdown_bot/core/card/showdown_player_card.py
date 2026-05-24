@@ -2058,9 +2058,13 @@ class ShowdownPlayerCard(BaseModel):
         if has_slg_and_obp:
             stats_for_real_pa['onbase_plus_slugging'] = round(stats_for_real_pa['onbase_perc'] + stats_for_real_pa['slugging_perc'], 4)
 
-        # ADD shOPS+ (SHOWDOWN OPS+ EQUIVALENT)
+        # ADD shOPS+ (SHOWDOWN OPS+/wRC+ EQUIVALENT)
+        # wRC+ IS USED FOR 2026+
         try:
-            stats_for_real_pa['onbase_plus_slugging_plus'] = self.calculate_shOPS_plus(command=command, proj_obp=stats_for_real_pa['onbase_perc'], proj_slg=stats_for_real_pa['slugging_perc'])
+            shops_plus = self.calculate_shOPS_plus(command=command, proj_obp=stats_for_real_pa['onbase_perc'], proj_slg=stats_for_real_pa['slugging_perc'])
+            stats_for_real_pa['onbase_plus_slugging_plus'] = shops_plus
+            if self.stats_period.first_year >= 2026:
+                stats_for_real_pa['wRcPlus'] = shops_plus
         except:
             stats_for_real_pa['onbase_plus_slugging_plus'] = None
         
@@ -2574,6 +2578,8 @@ class ShowdownPlayerCard(BaseModel):
             stat_categories_dict.pop('OPS+', None)
         else:
             stat_categories_dict['SB'] = 'SB'
+            if self.stats_period.first_year >= 2026:
+                stat_categories_dict.pop('OPS+', None)
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
         final_dict = {
             'projected': [],
@@ -2644,6 +2650,10 @@ class ShowdownPlayerCard(BaseModel):
         for key, cleaned_category in slash_categories:
             if self.is_pitcher and cleaned_category in ['OPS+', 'wRC+']:
                 continue
+            if self.is_hitter and cleaned_category in ['wRC+'] and self.stats_period.first_year < 2026:
+                continue
+            if self.is_hitter and cleaned_category in ['OPS+'] and self.stats_period.first_year >= 2026:
+                continue
             precision = None if cleaned_category == 'OPS+' else 3
             actual_raw = self.stats_for_card.get(key, None)
             actual = round(float(actual_raw), precision) if actual_raw is not None and precision else int(actual_raw) if actual_raw is not None else None
@@ -2689,7 +2699,7 @@ class ShowdownPlayerCard(BaseModel):
             )
         
         # NON COMPARABLE STATS
-        category_dict = {'ERA': 'earned_run_avg', 'WHIP': 'whip', 'bWAR': 'bWAR', 'fWAR': 'fWAR'} if self.is_pitcher else {'SB': 'SB', 'dWAR': 'dWAR', 'bWAR': 'bWAR', 'fWAR': 'fWAR'}
+        category_dict = {'ERA': 'earned_run_avg', 'WHIP': 'whip', 'bWAR': 'bWAR', 'fWAR': 'fWAR'} if self.is_pitcher else {'SB': 'SB', 'SPRINT SPEED': 'sprint_speed', 'dWAR': 'dWAR', 'bWAR': 'bWAR', 'fWAR': 'fWAR'}
         rounded_metrics_list = ['SB']
         for alias, key in category_dict.items():
             if key not in self.stats_for_card.keys():
