@@ -3669,7 +3669,7 @@ class PostgresDB:
                 from eligible e
                 cross join lateral jsonb_each_text(coalesce(e.stats, '{}'::jsonb)) as j(key, value)
                 where
-                    j.value ~ '^[-+]?(\d+\.?\d*|\.\d+)$'
+                    j.value ~ '^[-+]?(\\d+\\.?\\d*|\\.\\d+)$'
                     and j.key in (
                         'batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging','onbase_plus_slugging_plus','wRcPlus',
 
@@ -3697,7 +3697,7 @@ class PostgresDB:
                 cross join lateral jsonb_each(coalesce(e.stats->'positions', '{}'::jsonb)) as pos(key, val)
                 cross join lateral jsonb_each_text(coalesce(pos.val, '{}'::jsonb)) as pstat(key, value)
                 where
-                    pstat.value ~ '^[-+]?(\d+\.?\d*|\.\d+)$'
+                    pstat.value ~ '^[-+]?(\\d+\\.?\\d*|\\.\\d+)$'
                     and pstat.key in ('g', 'drs', 'tzr', 'oaa')
 
                 )

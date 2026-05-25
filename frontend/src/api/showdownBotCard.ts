@@ -555,6 +555,9 @@ export type ShowdownBotCardChart = {
 
     /** Opponent's chart data (for accuracy calculations) */
     opponent?: ShowdownBotCardChart;
+
+    /** Set */
+    set: string;
 };
 
 // =============================================================================

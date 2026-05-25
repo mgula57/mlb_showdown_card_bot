@@ -9,29 +9,32 @@
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
-import CustomSelect from '../shared/CustomSelect';
-import { FaTable, FaPoll, FaCoins, FaBaseballBall, FaUser } from 'react-icons/fa';
+import { FaBaseballBall } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 
 import { imageForSet } from "../shared/SiteSettingsContext";
 
-// Statistical analysis tables
-import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
-import { TableChartsBreakdown } from './TableChartsBreakdown';
-import { TablePointsBreakdown } from './TablePointsBreakdown';
-import { TableOpponentBreakdown } from './TableOpponentBreakdown';
+// Chart accuracy table (kept as table — compact and precise)
+import { ChartSelectionBreakdown } from './card_detail/ChartSelectionBreakdown';
+import { BaselineOpponentBreakdown } from './card_detail/BaselineOpponentBreakdown';
 
 // API integration
-import { generateCardImage, fetchCardById } from '../../api/showdownBotCard';
+import { generateCardImage, fetchCardById, fetchSeasonStatRanges } from '../../api/showdownBotCard';
 
 // Performance visualization
-import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
+import ChartPlayerPointsTrend from './card_detail/ChartPlayerPointsTrend';
 
 // Live game integration
 import GameItem from '../games/GameItem';
+
+// Visual breakdown panels
+import OutcomeProbability from './card_detail/OutcomeProbability';
+import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
+import PercentileGaugesPanel from './card_detail/PercentileGaugesPanel';
+import PointsContributionBars from './card_detail/PointsContributionBars';
 
 /**
  * Props for the CardDetail component
@@ -45,16 +48,24 @@ type CardDetailProps = {
     hideTrendGraphs?: boolean;
     /** Loading state for the main card data */
     isLoading?: boolean;
-    /** Loading state for live game data */
-    isLoadingGameBoxscore?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
     context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail';
     parent?: string;
 };
 
+const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
+    <div className={`bg-secondary rounded-xl p-4 border-2 border-form-element space-y-3 overflow-y-scroll ${isLoading ? 'blur-xs' : ''}`}>
+        <div className="flex flex-col gap-0.5">
+            <div className="text-[12px] font-semibold opacity-40 uppercase tracking-widest">{title}</div>
+            {subtitle && <div className="text-[10px] font-semibold opacity-30 uppercase tracking-widest">{subtitle}</div>}
+        </div>
+        {children}
+    </div>
+);
+
 /**
  * CardDetail - Comprehensive card display and analysis component
- * 
+ *
  * Provides a complete view of generated MLB Showdown cards with interactive
  * analysis tools. Features include:
  * 
@@ -70,7 +81,6 @@ type CardDetailProps = {
  * @param showdownBotCardData - Complete card API response with all data
  * @param hideTrendGraphs - Hide trend charts for compact layouts
  * @param isLoading - Main loading state
- * @param isLoadingGameBoxscore - Live game data loading state
  * @param context - Usage context affecting available features
  * 
  * @example
@@ -82,7 +92,7 @@ type CardDetailProps = {
  * />
  * ```
  */
-export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom', parent }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent }: CardDetailProps) {
 
     // =============================================================================
     // MARK: STATES
@@ -97,6 +107,10 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
+
+    // Extras when card is loaded - stat ranges for real vs projected table
+    const [seasonStatRanges, setSeasonStatRanges] = useState<Record<string, { min: number; max: number }> | null>(null);
+    const [isRangesLoading, setIsRangesLoading] = useState(false);
 
     // Theme and settings
     const { isDark } = useTheme();
@@ -129,7 +143,26 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                 if (isDataWithoutImage && !isGeneratingImage) {
                     console.log("Generating image for new prop data...");
                     handleGenerateImage(showdownBotCardData);
-                }            
+                }
+                
+                // Fetch season stat ranges for real vs projected table if not already present
+                if (showdownBotCardData.card) {
+                    const maxYear = Math.max(...(showdownBotCardData.card.stats_period.year_list || []));
+                    setIsRangesLoading(true);
+                    setSeasonStatRanges(null);
+                    fetchSeasonStatRanges(maxYear, showdownBotCardData.card.player_type.toUpperCase() as "HITTER" | "PITCHER")
+                        .then((response) => {
+                            console.log("Fetched season stat ranges:", response);
+                            setSeasonStatRanges(response?.ranges ?? null);
+                        })
+                        .catch((error) => {
+                            console.error("Error fetching season stat ranges:", error);
+                        })
+                        .finally(() => {
+                            setIsRangesLoading(false);
+                        });
+                }
+
                 return;
             }
         }
@@ -164,9 +197,6 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
         }
 
     }, [showdownBotCardData, cardId]);
-
-    // Breakdown State
-    const [breakdownType, setBreakdownType] = useState<string>("Stats");
 
     // Image Generation State
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
@@ -262,60 +292,16 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
 
     const teamGlowColor = activeCardData?.card?.image ? (
         ( ['NYM', 'SDP', 'NYY'].includes(activeCardData?.card?.team || '') && isDark && !activeCardData.card.wbc_team)
-            ? enhanceColorVisibility(activeCardData?.card?.image?.color_secondary) 
+            ? enhanceColorVisibility(activeCardData?.card?.image?.color_secondary)
             : enhanceColorVisibility(activeCardData?.card?.image?.color_primary)
     ) : 'rgb(0, 0, 0)';
 
-    // MARK: BREAKDOWN TABLES
-    const renderBreakdownTable = () => {
-        switch (breakdownType) {
-            case 'Stats':
-                return (
-                    <div className='space-y-2 overflow-y-auto'>
-                        <TableRealVsProjected
-                            realVsProjectedData={activeCardData?.card?.real_vs_projected_stats || []}
-                            isWotc={activeCardData?.card?.is_wotc || false}
-                        />
-
-                        {/* Footnote */}
-                        <div className='flex flex-col text-xs leading-tight space-y-2'>
-                            <i>* Indicates a Bot estimated value, real stat unavailable or adjusted (ex: 1800's, Negro Leagues, KBO/NPB, PU/FB/GB)</i>
-                            <i>** Chart category was adjusted in post-processing to increase accuracy</i>
-                        </div>
-
-                    </div>
-                );
-            case 'Points':
-                return (
-                    <div className='space-y-2 overflow-y-auto'>
-
-                        <TablePointsBreakdown
-                            pointsBreakdownData={activeCardData?.card?.points_breakdown || null}
-                            ip={activeCardData?.card?.ip || null}
-                        />
-
-                        {/* Footnote */}
-                        <div className='text-xs leading-tight'>
-                            <i>* Slashlines and HR projections used for points are based on Steroid Era opponent.
-                                Stats may not match projections against player's era.</i>
-                        </div>
-
-                    </div>
-                );
-            case 'Charts':
-                return (
-                    <TableChartsBreakdown
-                        chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns || {}}
-                    />
-                );
-            case 'Opponent':
-                return (
-                    <TableOpponentBreakdown
-                        chart={activeCardData?.card?.chart?.opponent}
-                    />
-                );
-        }
-    }
+    // Team colors for visual panels (NYM/SDP swap for better contrast)
+    const team = activeCardData?.card?.wbc_team || activeCardData?.card?.team;
+    const rawPrimary = activeCardData?.card?.image.color_primary || 'rgb(0,0,0)';
+    const rawSecondary = activeCardData?.card?.image.color_secondary || 'rgb(0,0,0)';
+    const mechPrimaryColor = ['NYM', 'SDP'].includes(team || '') ? rawSecondary : rawPrimary;
+    const mechSecondaryColor = ['NYM', 'SDP'].includes(team || '') ? rawPrimary : rawSecondary;
 
     const getBlankPlayerImageName = (): string => {
         const setName = userShowdownSet.toLowerCase() || '2001';
@@ -323,11 +309,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
         return `/images/blank_players/blankplayer-${setName}-${appearance}.png`;
     };
 
-    const hasGameBoxscore = (): boolean => {
-        return !!activeCardData?.latest_game_box_score && showGameBoxscore();
-    }
-    const breakdownFirstRowHeight = '@xl:max-h-[500px] @xl:overflow-hidden @3xl:max-h-[600px] @6xl:max-h-[700px]';
-    const breakdownTablesHeight = hasGameBoxscore() ? `@xl:max-h-[300px] @xl:overflow-hidden @3xl:max-h-[400px] @6xl:max-h-[500px]` : breakdownFirstRowHeight;
+    const cardImageMaxHeight = '@xl:max-h-[600px] @xl:overflow-hidden @3xl:max-h-[700px]';
 
     // MARK: MAIN CONTENT
     return (
@@ -444,9 +426,9 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                         alt="Blank Player"
                         key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
                         className={`
-                            block 
+                            block
                             @2xl:mx-auto
-                            ${breakdownFirstRowHeight}
+                            ${cardImageMaxHeight}
                             rounded-2xl overflow-hidden
                             object-contain
                             fade-in
@@ -493,9 +475,9 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                     )}
                 </div>            
 
-                {/* Card Tables */}
-                <div className="flex flex-col gap-3">
-                    {/* Game Boxscore — desktop only, above the stats panel */}
+                {/* Right column */}
+                <div className={`flex flex-col gap-3 ${cardImageMaxHeight}`}>
+                    {/* Game Boxscore — desktop only */}
                     {showGameBoxscore() && activeCardData?.latest_game_box_score && (
                         <div className='hidden @xl:block'>
                             <GameItem
@@ -504,60 +486,89 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                             />
                         </div>
                     )}
-                <div
-                    className={`
-                        flex flex-col
-                        w-full
-                        bg-secondary
-                        p-4 rounded-xl
-                        space-y-4
-                        border-2 border-form-element
-                        ${breakdownTablesHeight}
-                        ${isLoadingFromId ? 'blur-xs' : ''}
-                    `}
-                >
-                    <CustomSelect
-                        value={breakdownType}
-                        options={[
-                            { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll /> },
-                            { label: 'Points', value: 'Points', icon: <FaCoins /> },
-                            { label: 'Chart', value: 'Charts', icon: <FaTable /> },
-                            { label: 'Opponent', value: 'Opponent', icon: <FaUser /> }
-                        ]}
-                        onChange={(value) => setBreakdownType(value)}
-                    />
 
-                    {/* Breakdown Table */}
-                    {renderBreakdownTable()}
+                    {/* Card vs Real Stats */}
+                    <SectionPanel isLoading={isLoadingOverall} title="Card vs Real Stats">
+                            
+                        <RealVsProjectedVisual
+                            realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
+                            statRanges={seasonStatRanges}
+                            isLoading={isRangesLoading}
+                            playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
+                        />
+                        <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">
+                            <i>* Real stat is estimated (limited data, adjusted era, etc.)</i>
+                            <i>** Projection includes post-processing accuracy correction</i>
+                        </div>
+                    </SectionPanel>
 
-                </div>
-
-                </div>{/* end flex flex-col gap-3 right column */}
+                </div>{/* end right column */}
 
             </div>
 
-            {/* Trend Graphs */}
-            {!hideTrendGraphs && (
-                <div 
-                    className="
-                        w-full
-                        grid grid-cols-1 @xl:grid-cols-2
-                        gap-4
-                    "
+            {/* Below-fold grid: analysis panels + trend graphs */}
+            <div className="w-full grid grid-cols-1 @xl:grid-cols-2 gap-4">
+
+                {/* Points Breakdown */}
+                <SectionPanel isLoading={isLoadingOverall} title="Points Breakdown">
+                    <PointsContributionBars
+                        pointsBreakdownData={activeCardData?.card?.points_breakdown}
+                        ip={activeCardData?.card?.ip}
+                    />
+                    <i className="text-[10px] opacity-40">* Slashlines/HR projections based on Steroid Era opponent.</i>
+                </SectionPanel>
+
+                {/* Chart Accuracy */}
+                <SectionPanel isLoading={isLoadingOverall} title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}>
+                    <ChartSelectionBreakdown
+                        chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns}
+                        selectedChartVersion={activeCardData?.card?.chart_version || 1}
+                    />
+                </SectionPanel>
+
+                {/* Opponent Breakdown */}
+                <SectionPanel 
+                    isLoading={isLoadingOverall} 
+                    title="Opponent Breakdown"
+                    subtitle="The avg opposing pitcher/hitter used to create the card"
                 >
-                    <ChartPlayerPointsTrend 
-                        title="Career Trends" 
-                        trendData={activeCardData?.historical_season_trends?.yearly_trends || null} 
+                    <BaselineOpponentBreakdown
+                        chart={activeCardData?.card?.chart?.opponent}
+                        primaryColor={mechPrimaryColor}
+                        secondaryColor={mechSecondaryColor}
                     />
+                </SectionPanel>
 
-                    <ChartPlayerPointsTrend 
-                        title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"} 
-                        trendData={activeCardData?.in_season_trends?.cumulative_trends || null} 
+                {/* Outcome Distribution */}
+                <SectionPanel isLoading={isLoadingOverall} title="Outcome Probabilities" subtitle="Assuming the chart values shown in the opponent breakdown">
+                    <OutcomeProbability
+                        chart={activeCardData?.card?.chart}
+                        primaryColor={mechPrimaryColor}
+                        secondaryColor={mechSecondaryColor}
+                        set={activeCardData?.card?.set}
                     />
+                </SectionPanel>                
 
-                </div>
-            )}
+                {/* Trend Graphs */}
+                {!hideTrendGraphs && (
+                    <>
+                        <SectionPanel isLoading={isLoadingOverall} title="Career Trends">
+                            <ChartPlayerPointsTrend
+                                title="Career Trends"
+                                trendData={activeCardData?.historical_season_trends?.yearly_trends || null}
+                            />
+                        </SectionPanel>
+                        <SectionPanel isLoading={isLoadingOverall} title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}>
+                            <ChartPlayerPointsTrend
+                                title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}
+                                trendData={activeCardData?.in_season_trends?.cumulative_trends || null}
+                            />
+                        </SectionPanel>
+                    </>
+                )}
+
+            </div>
 
         </div>
     );
-}
+});

@@ -213,7 +213,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
     // User Context
-    const { user, session, userSettings, settingsLoaded, syncSetting } = useAuth();
+    const { user, session } = useAuth();
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
@@ -896,31 +896,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
 
     // Save settings whenever form changes (debounced)
+    // localStorage is always saved; API is only called when logged in
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             saveFormSettings(form);
-        }, 1000); // Save 1 second after user stops typing
-
-        return () => clearTimeout(timeoutId);
-    }, [form]);
-
-    // Apply DB form settings when user logs in (DB takes precedence for cross-device sync)
-    useEffect(() => {
-        if (!settingsLoaded || !userSettings?.custom_card_form_settings) return;
-        setForm(prev => ({
-            ...FORM_DEFAULTS,
-            ...(userSettings.custom_card_form_settings as Partial<CustomCardFormState>),
-            image_upload: prev.image_upload,
-        }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [settingsLoaded]);
-
-    // Write-through to API when logged in (debounced, alongside localStorage save)
-    useEffect(() => {
-        if (!session?.access_token) return;
-        const timeoutId = setTimeout(() => {
-            const { image_upload, ...toSave } = form;
-            syncSetting({ custom_card_form_settings: toSave as Record<string, unknown> });
         }, 1500);
         return () => clearTimeout(timeoutId);
     }, [form]);

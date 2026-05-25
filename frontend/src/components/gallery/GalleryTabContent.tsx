@@ -295,7 +295,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                 </Modal>
             )}
 
-            {/* Lightbox */}
+            {/* Modal for selected card */}
             <div className={!!selectedCard ? '' : 'hidden pointer-events-none'}>
                 <Modal isVisible={!!selectedCard} onClose={() => setSelectedCard(null)} size="lg">
                     <CardDetail
@@ -319,12 +319,12 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                 />
 
                 {/* Row 2: Set + Expansion + Edition + Team + Year */}
-                <div className="flex items-end gap-1.5">
+                <div className="flex items-end gap-1.5 w-full overflow-x-scroll">
                     <CustomSelect
                         options={[{ value: '', label: 'All Sets', image: undefined, textColor: 'text-secondary' }, ...showdownSets]}
                         value={filters.set_name ?? ''}
                         onChange={handleSetChange}
-                        buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
                         imageClassName="max-w-18 object-contain object-center"
                     />
                     <CustomSelect
@@ -336,7 +336,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         ]}
                         value={filters.expansion ?? ''}
                         onChange={handleExpansionChange}
-                        buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
                     />
                     <CustomSelect
                         options={[
@@ -350,13 +350,13 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         ]}
                         value={filters.edition ?? ''}
                         onChange={handleEditionChange}
-                        buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
                     />
                     <CustomSelect
                         options={teamOptions}
                         value={filters.team ?? ''}
                         onChange={handleTeamChange}
-                        buttonClassName="h-11 w-full border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
                     />
                     <div className="w-24 shrink-0">
                         <FormInput
@@ -388,7 +388,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     </div>
                 ) : (
                     <>
-                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(175px, 100%), 240px))' }}>
+                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))' }}>
                             {gallery.map(item => (
                                 <GalleryCard
                                     key={item.id}
