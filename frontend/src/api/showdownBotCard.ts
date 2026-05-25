@@ -201,6 +201,21 @@ export async function buildCardsFromIds(cardIds: string[], season: number | stri
     return res.json();
 }
 
+export async function fetchSeasonStatRanges(season: number, playerType: 'HITTER' | 'PITCHER'): Promise<any> {
+    const res = await fetch(`${API_BASE}/stats/ranges?season=${season}&player_type=${playerType}`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch stat ranges failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
 // =============================================================================
 // MARK: - API RESPONSE TYPES
 // =============================================================================
@@ -386,7 +401,7 @@ export type ShowdownBotCard = {
 
     // Positional information
     /** "HITTER" or "PITCHER" */
-    player_type: string;
+    player_type: "Hitter" | "Pitcher";
     
     /** Formatted positions with defensive ratings */
     positions_and_defense_string: string;
@@ -503,6 +518,7 @@ export type StatsPeriod = {
 
     /** Year or range of years */
     year: string;
+    year_list?: number[] | null;
 
     /** Summary of the stats period */
     display_text?: string | null;
