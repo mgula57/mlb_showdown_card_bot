@@ -510,21 +510,25 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             <div className="w-full grid grid-cols-1 @xl:grid-cols-2 gap-4">
 
                 {/* Points Breakdown */}
-                <SectionPanel isLoading={isLoadingOverall} title="Points Breakdown">
-                    <PointsContributionBars
-                        pointsBreakdownData={activeCardData?.card?.points_breakdown}
-                        ip={activeCardData?.card?.ip}
-                    />
-                    <i className="text-[10px] opacity-40">* Slashlines/HR projections based on Steroid Era opponent.</i>
-                </SectionPanel>
+                {!activeCardData?.card?.is_wotc && (
+                    <SectionPanel isLoading={isLoadingOverall} title="Points Breakdown">
+                        <PointsContributionBars
+                            pointsBreakdownData={activeCardData?.card?.points_breakdown}
+                            ip={activeCardData?.card?.ip}
+                        />
+                        <i className="text-[10px] opacity-40">* Slashlines/HR projections based on Steroid Era opponent.</i>
+                    </SectionPanel>
+                )}
 
                 {/* Chart Accuracy */}
-                <SectionPanel isLoading={isLoadingOverall} title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}>
-                    <ChartSelectionBreakdown
-                        chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns}
-                        selectedChartVersion={activeCardData?.card?.chart_version || 1}
-                    />
-                </SectionPanel>
+                {!activeCardData?.card?.is_wotc && (
+                    <SectionPanel isLoading={isLoadingOverall} title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}>
+                        <ChartSelectionBreakdown
+                            chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns}
+                            selectedChartVersion={activeCardData?.card?.chart_version || 1}
+                        />
+                    </SectionPanel>
+                )}
 
                 {/* Opponent Breakdown */}
                 <SectionPanel 
