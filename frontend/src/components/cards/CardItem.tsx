@@ -1,6 +1,6 @@
 import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
-import CardChart from "./card_elements/CardChart";
+import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";

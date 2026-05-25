@@ -420,6 +420,7 @@ export type ShowdownBotCard = {
     real_vs_projected_stats: RealVsProjectedStat[];
     
     /** Detailed accuracy analysis by command/outs combination */
+    command_out_accuracies?: Record<string, number>;
     command_out_accuracy_breakdowns: Record<string, Record<string, ChartAccuracyCategoryBreakdown>>;
     
     /** Point value calculation breakdown */
@@ -553,6 +554,9 @@ export type ShowdownBotCardChart = {
     /** Probability values for each outcome type */
     values: Record<string, number>;
 
+    /** Results dict maps dice roll number to outcome */
+    results?: Record<number, string>;
+
     /** Opponent's chart data (for accuracy calculations) */
     opponent?: ShowdownBotCardChart;
 
@@ -679,6 +683,9 @@ export type ChartAccuracyCategoryBreakdown = {
     
     /** Accuracy percentage (0-100) */
     accuracy: number;
+
+    /** Weighted accuracy percentage (0-100) */
+    weighted_accuracy?: number | null;
     
     /** Actual player value */
     actual: number;

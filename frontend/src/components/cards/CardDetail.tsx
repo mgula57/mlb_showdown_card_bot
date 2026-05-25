@@ -525,6 +525,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     <SectionPanel isLoading={isLoadingOverall} title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}>
                         <ChartSelectionBreakdown
                             chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns}
+                            commandOutAccuraciesData={activeCardData?.card?.command_out_accuracies}
                             selectedChartVersion={activeCardData?.card?.chart_version || 1}
                         />
                     </SectionPanel>
@@ -534,7 +535,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 <SectionPanel 
                     isLoading={isLoadingOverall} 
                     title="Opponent Breakdown"
-                    subtitle="The avg opposing pitcher/hitter used to create the card"
+                    subtitle={`The avg opposing pitcher/hitter used to create the card. Adjusted to reflect run scoring environment of the ${activeCardData?.card?.era}`}
                 >
                     <BaselineOpponentBreakdown
                         chart={activeCardData?.card?.chart?.opponent}

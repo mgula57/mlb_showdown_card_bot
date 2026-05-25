@@ -33,7 +33,7 @@ type CardChartProps = {
  * />
  * ```
  */
-export default function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className }: CardChartProps) {
+export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className }: CardChartProps) {
     // Extract chart data with fallback to empty object
     const chartData = chartRanges || {};
     const showdownSetValue = showdownSet || '2001';
@@ -139,3 +139,36 @@ export default function CardChart({ chartRanges, showdownSet, primaryColor, seco
         </div>
     );
 };
+
+// ----------------------------
+// MARK: - Helper Functions
+// ----------------------------
+
+export function buildChartRangesFromValues(values: Record<string, number>, set: string, isPitcher: boolean): Record<string, string> {
+    const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
+    const OUTCOME_ORDER_2000 = ['SO', 'PU', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
+    const order = set === '2000' ? OUTCOME_ORDER_2000 : OUTCOME_ORDER;
+    const sorted = Object.entries(values).sort(([a], [b]) => {
+        const ia = order.indexOf(a.toUpperCase());
+        const ib = order.indexOf(b.toUpperCase());
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    const ranges: Record<string, string> = {};
+    let cursor = 1;
+    for (const [key, count] of sorted) {
+        if (count <= 0) continue;
+        if (isPitcher && key.toUpperCase() === '3B') continue; // Pitchers don't have 3B outcomes on their charts
+        if (cursor > 20) {
+            ranges[key] = '---';
+            continue;
+        }; // Just in case, to prevent infinite loops on bad data
+        const end = cursor + Math.floor(count + 0.55) - 1;
+        if (end < cursor) {
+            ranges[key] = '---';
+            continue;
+        }
+        ranges[key] = cursor === end ? String(cursor) : `${cursor}-${end}`;
+        cursor = end + 1;
+    }
+    return ranges;
+}

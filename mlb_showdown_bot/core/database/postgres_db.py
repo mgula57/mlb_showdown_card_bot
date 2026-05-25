@@ -3692,7 +3692,7 @@ class PostgresDB:
                     e.year,
                     e.player_type,
                     upper(pstat.key) || '-' || pos.key as stat_name,
-                    pstat.value::numeric as stat_value
+                    round(pstat.value::numeric, 4) as stat_value
                 from eligible e
                 cross join lateral jsonb_each(coalesce(e.stats->'positions', '{}'::jsonb)) as pos(key, val)
                 cross join lateral jsonb_each_text(coalesce(pos.val, '{}'::jsonb)) as pstat(key, value)

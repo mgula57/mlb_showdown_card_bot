@@ -64,11 +64,12 @@ function AccuracyBar({ row, rank, blurred, isSelected }: { row: ChartRow; rank: 
 
 type ChartSelectionBreakdownProps = {
     chartAccuracyData?: Record<string, Record<string, ChartAccuracyCategoryBreakdown>>;
+    commandOutAccuraciesData?: Record<string, number>;
     selectedChartVersion?: number;
     className?: string;
 };
 
-export function ChartSelectionBreakdown({ chartAccuracyData, selectedChartVersion, className }: ChartSelectionBreakdownProps) {
+export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuraciesData, selectedChartVersion, className }: ChartSelectionBreakdownProps) {
     const isEmpty = !chartAccuracyData || Object.keys(chartAccuracyData).length === 0;
     const data = isEmpty ? PLACEHOLDER_CHART_ACCURACY : chartAccuracyData!;
 
@@ -76,7 +77,11 @@ export function ChartSelectionBreakdown({ chartAccuracyData, selectedChartVersio
         .flatMap(([chart, perStatRecord]) =>
             Object.entries(perStatRecord)
                 .filter(([, item]) => item.stat.toUpperCase() === 'OVERALL')
-                .map(([, item]) => ({ ...item, chart }))
+                .map(([, item]) => ({
+                    ...item,
+                    accuracy: commandOutAccuraciesData?.[chart] ?? 0,
+                    chart,
+                }))
         )
         .sort((a, b) => b.accuracy - a.accuracy)
         .slice(0, 5);

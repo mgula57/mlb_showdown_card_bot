@@ -23,7 +23,7 @@ import type { PlayerSearchSelection } from './customs/PlayerSearchInput';
 // Card Components
 import { CardItemFromCard } from './cards/CardItem';
 import CardCommand from './cards/card_elements/CardCommand';
-import CardChart from './cards/card_elements/CardChart';
+import { CardChart } from './cards/card_elements/CardChart';
 import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
 import { CardDetail } from './cards/CardDetail';
 import { getReadableTextColor } from '../functions/colors';

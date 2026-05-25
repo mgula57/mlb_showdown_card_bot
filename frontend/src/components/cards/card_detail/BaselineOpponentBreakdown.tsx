@@ -1,7 +1,7 @@
 import { type ShowdownBotCardChart } from '../../../api/showdownBotCard';
 import { getContrastColor } from '../../shared/Color';
+import { CardChart, buildChartRangesFromValues } from '../card_elements/CardChart';
 
-const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 const OUTS = new Set(['PU', 'SO', 'GB', 'FB']);
 const TOTAL = 20;
 
@@ -23,7 +23,7 @@ function outcomeColor(key: string, primaryColor?: string, secondaryColor?: strin
 function KpiTile({ label, value, color, blurred }: { label: string; value: number; color: string; blurred: boolean }) {
     return (
         <div className="flex-1 flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 px-3 bg-tertiary">
-            <span className={`text-2xl font-black leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`} style={{ color }}>
+            <span className={`text-2xl font-black leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
                 {value.toFixed(2)}
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-widest opacity-50">{label}</span>
@@ -43,7 +43,7 @@ function Bar({ label, value, color, blurred }: { label: string; value: number; c
                 />
             </div>
             <span className={`text-[11px] font-semibold w-10 shrink-0 text-right opacity-60 tabular-nums ${blurred ? 'blur-xs' : ''}`}>
-                {value % 1 === 0 ? value : value.toFixed(1)}/{TOTAL}
+                {value % 1 === 0 ? value : value.toFixed(2)}/{TOTAL}
             </span>
         </div>
     );
@@ -56,9 +56,14 @@ type BaselineOpponentBreakdownProps = {
     className?: string;
 };
 
+const RESULT_ORDER_DEFAULT = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
+const RESULT_ORDER_2000 = ['SO', 'PU', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
+
 export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor, className }: BaselineOpponentBreakdownProps) {
     const isEmpty = !chart;
     const data = isEmpty ? PLACEHOLDER_CHART : chart!;
+
+    const OUTCOME_ORDER = data.set === '2000' ? RESULT_ORDER_2000 : RESULT_ORDER_DEFAULT;
 
     const commandLabel = data.is_pitcher ? 'Control' : 'Onbase';
     const outcomes = Object.entries(data.values || {}).sort(([a], [b]) => {
@@ -70,11 +75,23 @@ export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor,
     const primaryTextColor = getContrastColor(primaryColor || 'rgb(156,163,175)');
     const secondaryTextColor = getContrastColor(secondaryColor || 'rgb(239,68,68)');
 
+    const chartDataToRender = Object.keys(data.results ?? {}).length > 0 ? data.ranges : buildChartRangesFromValues(data.values ?? {}, data.set, data.is_pitcher);
+
     return (
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''} ${className ?? ''}`}>
             <div className="flex gap-2">
                 <KpiTile label={commandLabel} value={data.command} color={primaryTextColor ?? 'rgb(156,163,175)'} blurred={isEmpty} />
                 <KpiTile label="Outs" value={data.outs} color={secondaryTextColor ?? 'rgb(239,68,68)'} blurred={isEmpty} />
+            </div>
+            <div className="flex flex-col space-y-0.5">
+                <CardChart
+                    chartRanges={chartDataToRender}
+                    showdownSet={data.set}
+                    primaryColor={'rgb(128,128,128)'}
+                    secondaryColor={'rgb(0,0,0)'}
+                    className="max-w-full"
+                />
+                <span className="text-[10px] opacity-40 ml-2">** Chart is approximation, rounded to whole numbers. Actual values used are decimals</span>
             </div>
             <div className="space-y-1.5">
                 {outcomes.map(([key, value]) => (

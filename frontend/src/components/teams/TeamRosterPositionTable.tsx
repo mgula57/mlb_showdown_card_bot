@@ -5,7 +5,7 @@ import { BasicDataTable } from "../shared/BasicDataTable";
 import { CardDetail } from "../cards/CardDetail";
 import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
-import CardChart from "../cards/card_elements/CardChart";
+import { CardChart } from "../cards/card_elements/CardChart";
 import CardCommand from "../cards/card_elements/CardCommand";
 import { imageForSet } from "../shared/SiteSettingsContext";
 import { getContrastColor } from "../shared/Color";
