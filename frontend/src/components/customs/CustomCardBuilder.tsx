@@ -31,8 +31,9 @@ import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
 import { PlayerSearchInput } from './PlayerSearchInput';
+import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
-import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
 
 // Popovers
 import { ToastMessage } from '../shared/ToastMessage';
@@ -192,6 +193,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
+    const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
+    const effectiveShowdownSet = showdownSetOverride ?? userShowdownSet;
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -452,7 +455,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
                 if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
-
+                if (effectiveShowdownSet && effectiveShowdownSet !== userShowdownSet) {
+                    summaries.push({ label: 'Showdown Set', value: effectiveShowdownSet.toUpperCase(), image: showdownSets.find(set => set.value === effectiveShowdownSet)?.image });
+                }
                 break;
                 
             case 'image':
@@ -521,6 +526,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             var value = item.value || "";
                             if (label === "name") {
                                 return <span style={{ textTransform: 'capitalize' }}>{item.value}</span>;
+                            }
+                            if (item.image && item.label === "Showdown Set") {
+                                return <img src={item.image} alt={item.label} className="w-12 object-contain h-5" />;
                             }
                             if (item.image) {
                                 return <img src={item.image} alt={item.label} className="w-5 h-5" />;
@@ -604,7 +612,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 ...finalPayload,
 
                 // Default parameters/settings
-                set: userShowdownSet,
+                set: effectiveShowdownSet,
                 is_running_on_website: true,
                 image_output_folder_path: "static/output",
                 show_historical_points: true,
@@ -736,6 +744,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         // Reset form to initial state
         setForm(FORM_DEFAULTS);
+        setShowdownSetOverride(null);
     };
 
     // Handle Enter key press
@@ -1179,7 +1188,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             label=""
                                             value={query}
                                             className={`flex-1 ${animationTw}`}
-                                            searchOptions={{ include_mlb_api_current_season: true }}
                                             onChange={(selection) => setForm({ 
                                                 ...form, 
                                                 name: selection.name, 
@@ -1314,8 +1322,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
                                         >
-                                            <div className="col-span-full font-semibold text-xs italic text-(--warning)">
-                                                Want to change the Showdown Set (ex: 2000, 2005, etc.)? Look in the top right corner of the browser.
+                                            <div className="col-span-full flex flex-col gap-1">
+                                                <label className="text-xs font-semibold text-secondary">Showdown Set</label>
+                                                <CustomSelect
+                                                    className="font-showdown-set-italic text-lg"
+                                                    imageClassName="object-contain object-center w-18"
+                                                    value={showdownSetOverride ?? ''}
+                                                    onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
+                                                    options={[
+                                                        { value: '', label: `Your Default (${userShowdownSet})` },
+                                                        ...showdownSets,
+                                                    ]}
+                                                />
                                             </div>
 
                                             <FormDropdown
