@@ -107,7 +107,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, playerType, classNam
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-10">
                     <div className="rounded px-2 py-1 text-[9px] font-semibold text-white whitespace-nowrap shadow-lg" style={{ backgroundColor: color }}>
                         <div className="font-black">{targetPct}th percentile</div>
-                        <div className="opacity-80">Min {range!.min} · Max {range!.max}</div>
+                        <div className="opacity-80">Min {formatStatValue(range!.min, stat)} · Max {formatStatValue(range!.max, stat)}</div>
                     </div>
                     <div className="w-1.5 h-1.5 rotate-45 -mt-1" style={{ backgroundColor: color }} />
                 </div>

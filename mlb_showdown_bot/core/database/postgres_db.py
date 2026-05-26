@@ -995,7 +995,7 @@ class PostgresDB:
             return []
 
     def fetch_team_data(self) -> list[dict]:
-        """Fetch team data hierarchyfrom the database"""
+        """Fetch team data hierarchy from the database"""
 
         if not self.connection:
             return None
@@ -1873,14 +1873,23 @@ class PostgresDB:
             player_season_stats as (
             
                 select
-                unaccent(replace(lower(name), '.', '')) as name,
-                year,
-                bref_id,
-                team_id as team,
-                player_type_override,
-                jsonb_extract_path(stats, 'is_hof')::boolean as is_hof,
-                case when length(stats->>'award_summary') = 0 then null else stats->>'award_summary'::text end as award_summary,
-                case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end as bwar
+                    unaccent(replace(lower(name), '.', '')) as name,
+                    year,
+                    bref_id,
+                    mlb_id,
+                    team_id as team,
+                    player_type_override,
+                    jsonb_extract_path(stats, 'is_hof')::boolean as is_hof,
+                    case when length(stats->>'award_summary') = 0 then null else stats->>'award_summary'::text end as award_summary,
+                    case 
+                        when year >= 2026 and length((stats->>'fWAR')) > 0 then (stats->>'fWAR')::float
+                        when length((stats->>'bWAR')) = 0 then 0.0 
+                        else (stats->>'bWAR')::float 
+                    end as war,
+                    case
+                        when year >= 2026 then 'fWAR'
+                        else 'bWAR'
+                    end as war_type
                 from player_season_stats
                 
             )
@@ -2077,7 +2086,11 @@ class PostgresDB:
                 case when length((stats->>'PA')) = 0 then null else round((stats->>'PA')::float)::int end as real_pa,
                 case when length((stats->>'G')) = 0 then null else (stats->>'G')::int end as real_g,
                 case when length((stats->>'GS')) = 0 then null else (stats->>'GS')::int end as real_gs,
-                case when length((stats->>'bWAR')) = 0 then null else (stats->>'bWAR')::float end as real_bwar,
+                case 
+                    when player_season_stats.year >= 2026 and length((stats->>'fWAR')) > 0 then (stats->>'fWAR')::float 
+                    when length((stats->>'bWAR')) = 0 then null 
+                    else (stats->>'bWAR')::float 
+                end as real_bwar,
                 case when length((stats->>'dWAR')) = 0 then null else (stats->>'dWAR')::float end as real_dwar,
                 case when length((stats->>'batting_avg')) = 0 then null else (stats->>'batting_avg')::float end as real_batting_avg,
                 case when length((stats->>'onbase_perc')) = 0 then null else (stats->>'onbase_perc')::float end as real_onbase_perc,

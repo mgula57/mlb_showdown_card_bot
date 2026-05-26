@@ -56,8 +56,9 @@ def search_players():
                 'player_id': player.id,
                 'is_hof': None,
                 'award_summary': None,
-                'bwar': None,
+                'war': None,
                 'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
+                'war_type': 'fWAR',
             } for player in active_players])
 
 
@@ -100,29 +101,32 @@ def search_players():
                     name,
                     year,
                     bref_id,
+                    mlb_id,
                     team,
                     is_hof,
                     award_summary,
-                    bwar
+                    war,
+                    war_type
                 FROM player_search
                 WHERE team = %s
-                ORDER BY COALESCE(bwar, 0) DESC, year DESC, name
+                ORDER BY COALESCE(war, 0) DESC, year DESC, name
                 LIMIT 30
             """, (team_code,))
             
             results = cursor.fetchall()
             displays = []
-            for name, year, bref_id, team, is_hof, award_summary, bwar in results:
+            for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type in results:
                 displays.append({
                     'type': 'single_year',
                     'name': name,
                     'year': int(year),
                     'year_display': str(int(year)),
-                    'player_id': bref_id,
+                    'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
                     'team': team,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
-                    'bwar': bwar,
+                    'war': war,
+                    'war_type': war_type,
                 })
 
         # -------------------
@@ -134,33 +138,35 @@ def search_players():
                 SELECT 
                     name,
                     bref_id,
+                    max(mlb_id) as mlb_id,
                     bool_or(is_hof) as is_hof,
                     string_agg(DISTINCT team, ',' ORDER BY team) as team,
                     string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
-                    SUM(COALESCE(bwar, 0)) as career_bwar,
+                    SUM(COALESCE(war, 0)) as career_war,
                     MIN(year) as first_year,
                     MAX(year) as last_year,
                     COUNT(*) as seasons
                 FROM player_search
-                WHERE bwar IS NOT NULL
+                WHERE war IS NOT NULL
                 GROUP BY name, bref_id
-                HAVING SUM(COALESCE(bwar, 0)) > 5
-                ORDER BY career_bwar DESC
+                HAVING SUM(COALESCE(war, 0)) > 5
+                ORDER BY career_war DESC
                 LIMIT 30
             """)
 
             results = cursor.fetchall()
             displays = []
-            for name, bref_id, is_hof, team, award_summary, career_bwar, first_year, last_year, seasons in results:
+            for name, bref_id, mlb_id, is_hof, team, award_summary, career_war, first_year, last_year, seasons in results:
                 displays.append({
                     'type': 'career',
                     'name': name,
                     'year': "CAREER",
                     'year_display': f"Career ({int(first_year)}-{int(last_year)})",
-                    'player_id': bref_id,
+                    'player_id': bref_id if int(last_year) < 2026 else mlb_id,  # Only show player_id for past seasons
                     'is_hof': is_hof,
                     'award_summary': award_summary,
-                    'bwar': round(career_bwar, 1),
+                    'war': round(career_war, 1),
+                    'war_type': 'fWAR' if int(last_year) >= 2026 else 'bWAR',
                     'seasons': seasons,
                     'team': team,
                 })
@@ -182,24 +188,25 @@ def search_players():
                     SELECT 
                         name,
                         bref_id,
+                        max(mlb_id) as mlb_id,
                         bool_or(is_hof) as is_hof,
                         string_agg(DISTINCT team, ',' ORDER BY team) as team,
                         MIN(year) as first_year,
                         MAX(year) as last_year,
                         string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
-                        SUM(COALESCE(bwar, 0)) as total_bwar
+                        SUM(COALESCE(war, 0)) as total_war
                     FROM player_search
                     WHERE year BETWEEN %s AND %s
-                        AND bwar IS NOT NULL
+                        AND war IS NOT NULL
                     GROUP BY name, bref_id
-                    HAVING SUM(COALESCE(bwar, 0)) > 1
-                    ORDER BY total_bwar DESC
+                    HAVING SUM(COALESCE(war, 0)) > 1
+                    ORDER BY total_war DESC
                     LIMIT 30
                 """, (start_year, end_year))
                 
                 results = cursor.fetchall()
                 displays = []
-                for name, bref_id, is_hof, team, first_year, last_year, award_summary, total_bwar in results:
+                for name, bref_id, mlb_id, is_hof, team, first_year, last_year, award_summary, total_war in results:
 
                     
                     award_list = [award.strip() for award in award_summary.split(',')]
@@ -228,10 +235,11 @@ def search_players():
                         'name': name,
                         'year': f"{int(first_year)}-{int(last_year)}",
                         'year_display': f"{int(first_year)}-{int(last_year)}",
-                        'player_id': bref_id,
+                        'player_id': bref_id if int(last_year) < 2026 else mlb_id,  # Only show player_id for past seasons
                         'is_hof': is_hof,
                         'award_summary': award_summary,
-                        'bwar': round(total_bwar, 1),
+                        'war': round(total_war, 1),
+                        'war_type': 'fWAR' if int(last_year) >= 2026 else 'bWAR',
                         'team': team,
                     })
             except (ValueError, IndexError):
@@ -247,28 +255,31 @@ def search_players():
                     name,
                     year,
                     bref_id,
+                    mlb_id,
                     team,
                     is_hof,
                     award_summary,
-                    bwar
+                    war,
+                    war_type
                 FROM player_search
                 WHERE year = %s
-                ORDER BY COALESCE(bwar, 0) DESC, name
+                ORDER BY COALESCE(war, 0) DESC, name
                 LIMIT 30
             """, (int(query),))
             
             results = cursor.fetchall()
             displays = []
-            for name, year, bref_id, team, is_hof, award_summary, bwar in results:
+            for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type in results:
                 displays.append({
                     'type': 'single_year',
                     'name': name,
                     'year': year,
-                    'player_id': bref_id,
+                    'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
                     'team': team,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
-                    'bwar': bwar
+                    'war': war,
+                    'war_type': war_type,
                 })
         
         # -------------------
@@ -299,7 +310,7 @@ def search_players():
                         'player_id': player.id,
                         'is_hof': None,
                         'award_summary': None,
-                        'bwar': None,
+                        'war': None,
                         'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
                     } for player in active_players]
 
@@ -311,27 +322,30 @@ def search_players():
                         name,
                         year,
                         bref_id,
+                        mlb_id,
                         team,
                         is_hof,
                         award_summary,
-                        bwar
+                        war,
+                        war_type
                     FROM player_search
                     WHERE name LIKE LOWER(%s) AND year = %s
-                    ORDER BY COALESCE(bwar, 0) DESC, name
+                    ORDER BY COALESCE(war, 0) DESC, name
                     LIMIT 30
                 """, (f'%{name}%', year))
 
                 results = cursor.fetchall()
                 displays = []
-                for name, year, bref_id, team, is_hof, award_summary, bwar in results:
+                for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type in results:
                     displays.append({
                         'type': 'single_year',
                         'name': name,
                         'year': year,
-                        'player_id': bref_id,
+                        'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
                         'is_hof': is_hof,
                         'award_summary': award_summary,
-                        'bwar': bwar,
+                        'war': war,
+                        'war_type': war_type,
                         'team': team,
                     })
         
@@ -344,10 +358,12 @@ def search_players():
                     name,
                     year,
                     bref_id,
+                    mlb_id,
                     team,
                     is_hof,
                     award_summary,
-                    bwar,
+                    war,
+                    war_type,
                     CASE 
                         WHEN LOWER(name) = LOWER(%s) THEN 1                    -- Exact match
                         WHEN LOWER(name) LIKE LOWER(%s) THEN 2                 -- Starts with
@@ -359,7 +375,7 @@ def search_players():
                     AND team = %s
                 ORDER BY 
                     LOWER(name) = LOWER(%s) DESC,  -- Exact name match first
-                    COALESCE(bwar, 0) DESC,        -- Then by performance
+                    COALESCE(war, 0) DESC,        -- Then by performance
                     match_rank,                    -- Then by name match quality
                     year DESC,                     -- Then by recent years
                     name
@@ -375,15 +391,16 @@ def search_players():
             
             results = cursor.fetchall()
             displays = []
-            for name, year, bref_id, team, is_hof, award_summary, bwar, match_rank in results:
+            for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type, match_rank in results:
                 displays.append({
                     'type': 'single_year',
                     'name': name,
                     'year': year,
-                    'player_id': bref_id,
+                    'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
                     'is_hof': is_hof,
                     'award_summary': award_summary,
-                    'bwar': bwar,
+                    'war': war,
+                    'war_type': war_type,
                     'team': team,
                 })
         
@@ -403,20 +420,20 @@ def search_players():
                         bool_or(is_hof) as is_hof,
                         string_agg(DISTINCT team, ',' ORDER BY team) as team,
                         string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
-                        SUM(COALESCE(bwar, 0)) as career_bwar,
+                        SUM(COALESCE(war, 0)) as career_war,
                         MIN(year) as first_year,
                         MAX(year) as last_year
                     FROM player_search
                     WHERE name = LOWER(%s)
                     GROUP BY name, bref_id, player_type_override
-                    ORDER BY SUM(COALESCE(bwar, 0)) DESC
+                    ORDER BY SUM(COALESCE(war, 0)) DESC
                 """, (query,))
                 
                 exact_matches = exact_match_cursor.fetchall() or []
                 exact_match_cursor.close()
             
                 for exact_match in exact_matches:
-                    name, bref_id, player_type_override, is_hof, team, award_summary, career_bwar, first_year, last_year = exact_match
+                    name, bref_id, player_type_override, is_hof, team, award_summary, career_war, first_year, last_year = exact_match
                     award_summary = summarize_awards(award_summary)
                     displays.append({
                         'type': 'career',
@@ -426,7 +443,7 @@ def search_players():
                         'player_id': bref_id,
                         'is_hof': is_hof,
                         'award_summary': award_summary,
-                        'bwar': round(career_bwar, 1),
+                        'war': round(career_war, 1),
                         'team': team,
                         'player_type_override': player_type_override,
                     })
@@ -438,10 +455,12 @@ def search_players():
                     year,
                     player_type_override,
                     bref_id,
+                    mlb_id,
                     team,
                     is_hof,
                     award_summary,
-                    bwar,
+                    war,
+                    war_type,
                     CASE 
                         WHEN LOWER(name) = LOWER(%s) THEN 1                    -- Exact match
                         WHEN LOWER(name) LIKE LOWER(%s) THEN 2                 -- Starts with
@@ -453,7 +472,7 @@ def search_players():
                 ORDER BY 
                     LOWER(name) = LOWER(%s) DESC, -- Exact match first
                     year = %s DESC,               -- Prioritize current year
-                    COALESCE(bwar, 0) DESC,
+                    COALESCE(war, 0) DESC,
                     match_rank,
                     year DESC,
                     name
@@ -468,15 +487,16 @@ def search_players():
             ))
             
             results = cursor.fetchall()
-            for name, year, player_type_override, bref_id, team, is_hof, award_summary, bwar, match_rank in results:
+            for name, year, player_type_override, bref_id, mlb_id, team, is_hof, award_summary, war, war_type, match_rank in results:
                 displays.append({
                     'type': 'single_year',
                     'name': name,
                     'year': year,
-                    'player_id': bref_id,
+                    'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
                     'is_hof': is_hof,
                     'award_summary': award_summary,
-                    'bwar': bwar,
+                    'war': war,
+                    'war_type': war_type,
                     'team': team,
                     'player_type_override': player_type_override,
                 })
@@ -497,7 +517,8 @@ def search_players():
                     'player_id': player.id,
                     'is_hof': None,
                     'award_summary': None,
-                    'bwar': None,
+                    'war': None,
+                    'war_type': 'fWAR',
                     'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
                 } for player in active_players])
 
@@ -505,7 +526,7 @@ def search_players():
                 displays.sort(key=lambda x: (
                     x['name'].lower() == query.lower(),  # Exact name match first
                     x['year'] == current_year,  # Current year first
-                    x['bwar'] if x['bwar'] is not None else -float('inf'),  # Then by bwar
+                    x['war'] if x['war'] is not None else -float('inf'),  # Then by war
                     x['name']  # Then alphabetically
                 ), reverse=True)
 
