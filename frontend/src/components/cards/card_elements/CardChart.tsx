@@ -162,7 +162,7 @@ export function buildChartRangesFromValues(values: Record<string, number>, set: 
             ranges[key] = '---';
             continue;
         }; // Just in case, to prevent infinite loops on bad data
-        const end = cursor + Math.floor(count + 0.55) - 1;
+        const end = cursor + Math.floor(count + 0.53) - 1;
         if (end < cursor) {
             ranges[key] = '---';
             continue;

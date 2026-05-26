@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { type ShowdownBotCard } from '../../../api/showdownBotCard';
 import { fetchCardComps, type WotcCompCard } from '../../../api/card_db/cardDatabase';
-import { CardItem, CardItemSkeleton } from '../CardItem';
+import { CardItem, CardItemFromCard, CardItemSkeleton } from '../CardItem';
 
 type CardCompsProps = {
     card: ShowdownBotCard | null | undefined;
@@ -119,6 +119,12 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
 
     return (
         <div className="space-y-2">
+            <CardItemFromCard card={card} />
+
+            {/* Divider */}
+            <div className="border-t-3 border-form-element rounded my-2" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide opacity-40 text-center block">WOTC Comps</span>
+
             {comps.map(comp => (
                 <CompCardItem key={comp.id} comp={comp} />
             ))}
