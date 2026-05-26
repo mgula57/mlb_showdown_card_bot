@@ -463,3 +463,64 @@ export async function fetchCustomCardLogs(userId?: string, limit?: number): Prom
     console.log('Fetched custom card logs:', data);
     return data;
 }
+
+// =============================================================================
+// MARK: - CARD COMPS
+// =============================================================================
+
+export type WotcCompCard = {
+    id: string;
+    name: string;
+    year: string;
+    team: string;
+    showdown_set: string;
+    command: number;
+    outs: number;
+    ip: number | null;
+    speed: number | null;
+    speed_letter: string | null;
+    hand: string | null;
+    points: number;
+    is_pitcher: boolean;
+    positions_and_defense: Record<string, number>;
+    positions_and_defense_string: string | null;
+    positions_list: string[];
+    player_type: string;
+    points_estimated: number | null;
+    points_diff_estimated_vs_actual: number | null;
+    is_errata: boolean | null;
+    notes: string | null;
+    icons_list: string[] | null;
+    awards_list: string[] | null;
+    color_primary: string | null;
+    color_secondary: string | null;
+    edition: string | null;
+    expansion: string | null;
+    set_number: string | null;
+    stat_highlights_list: string[] | null;
+    chart_ranges: Record<string, string> | null;
+    chart_values: Record<string, number>;
+    similarity_score: number;
+};
+
+export async function fetchCardComps(payload: {
+    showdown_set: string;
+    player_type: string;
+    positions_list: string[];
+    command: number;
+    outs: number;
+    ip: number | null;
+    speed: number | null;
+    positions_and_defense: Record<string, number>;
+    chart_values: Record<string, number>;
+    exclude_id?: string;
+    limit?: number;
+}): Promise<WotcCompCard[]> {
+    const res = await fetch(`${API_BASE}/cards/comps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) return [];
+    return (await res.json())?.comps ?? [];
+}

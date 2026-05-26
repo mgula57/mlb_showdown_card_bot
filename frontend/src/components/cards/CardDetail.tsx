@@ -35,6 +35,7 @@ import OutcomeProbability from './card_detail/OutcomeProbability';
 import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
 import PercentileGaugesPanel from './card_detail/PercentileGaugesPanel';
 import PointsContributionBars from './card_detail/PointsContributionBars';
+import { CardComps } from './card_detail/CardComps';
 
 /**
  * Props for the CardDetail component
@@ -571,6 +572,18 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                         </SectionPanel>
                     </>
                 )}
+
+                {/* Most Similar WOTC Cards */}
+                <SectionPanel
+                    isLoading={isLoadingOverall}
+                    title="Most Similar WOTC Cards"
+                    subtitle={`Top matches in ${activeCardData?.card?.set ?? ''} set by chart similarity`}
+                >
+                    <CardComps
+                        card={activeCardData?.card ?? null}
+                        isLoading={isLoadingOverall}
+                    />
+                </SectionPanel>
 
             </div>
 

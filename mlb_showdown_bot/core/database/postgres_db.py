@@ -994,6 +994,166 @@ class PostgresDB:
             traceback.print_exc()
             return []
 
+    def fetch_similar_wotc_cards(self, card_attrs: dict, limit: int = 3) -> list[dict]:
+        """Return the top N most similar WOTC cards for a given card's attributes."""
+
+        if not self.connection:
+            return []
+
+        try:
+            showdown_set = card_attrs.get('showdown_set', '2000')
+            player_type = (card_attrs.get('player_type') or 'HITTER').upper()
+            positions_list = card_attrs.get('positions_list') or []
+            exclude_id = card_attrs.get('exclude_id')
+
+            # Map bot-only sets to the nearest WOTC sets
+            match showdown_set:
+                case 'CLASSIC':
+                    sets_to_query = ['2000', '2001']
+                case 'EXPANDED':
+                    sets_to_query = ['2002', '2003', '2004', '2005']
+                case '2004' | '2005':
+                    sets_to_query = ['2004', '2005']
+                case _:
+                    sets_to_query = [showdown_set]
+
+            # Require at least one position to overlap; fall back to player_type only if empty
+            position_filter = sql.SQL("AND positions_list && %s") if positions_list else sql.SQL("")
+            exclude_filter = sql.SQL("AND id != %s") if exclude_id else sql.SQL("")
+
+            query = sql.SQL("""
+                SELECT
+                    id, name, year, team, showdown_set, command, outs, ip, speed, speed_letter,
+                    hand, positions_and_defense, positions_and_defense_string, positions_list,
+                    player_type, points, points_estimated, points_diff_estimated_vs_actual,
+                    is_errata, notes, icons_list, awards_list,
+                    card_data->'image'->>'color_primary'       AS color_primary,
+                    card_data->'image'->>'color_secondary'     AS color_secondary,
+                    card_data->'image'->>'edition'             AS edition,
+                    card_data->'image'->>'expansion'           AS expansion,
+                    card_data->'image'->>'set_number'          AS set_number,
+                    card_data->'image'->'stat_highlights_list' AS stat_highlights_list,
+                    card_data->'chart'->'ranges'               AS chart_ranges,
+                    COALESCE((card_data->'chart'->'values'->>'SO')::float,  0) AS cv_so,
+                    COALESCE((card_data->'chart'->'values'->>'BB')::float,  0) AS cv_bb,
+                    COALESCE((card_data->'chart'->'values'->>'1B')::float,  0) AS cv_1b,
+                    COALESCE((card_data->'chart'->'values'->>'2B')::float,  0) AS cv_2b,
+                    COALESCE((card_data->'chart'->'values'->>'HR')::float,  0) AS cv_hr,
+                    COALESCE((card_data->'chart'->'values'->>'GB')::float,  0) AS cv_gb,
+                    COALESCE((card_data->'chart'->'values'->>'FB')::float,  0) AS cv_fb
+                FROM card_wotc
+                WHERE showdown_set = ANY(%s)
+                  AND player_type = %s
+                  {position_filter}
+                  {exclude_filter}
+            """).format(position_filter=position_filter, exclude_filter=exclude_filter)
+
+            filter_values: list = [sets_to_query, player_type]
+            if positions_list:
+                filter_values.append(positions_list)
+            if exclude_id:
+                filter_values.append(exclude_id)
+
+            rows = self.execute_query(query=query, filter_values=tuple(filter_values))
+            if not rows:
+                return []
+
+            # Weights and normalizers for each scoring dimension
+            _WEIGHTS = {
+                'command': 4.0, 
+                'outs': 3.0, 
+                'ip': 2.0 if player_type == 'PITCHER' else 0.0,
+                'speed': 1.5 if player_type == 'HITTER' else 0.0, 
+                'defense': 1.0 if player_type == 'HITTER' else 0.0,
+                'SO': 0.5 if player_type == 'HITTER' else 1.5, 
+                'BB': 1.5, 
+                '1B': 1.0, 
+                '2B': 2.0 if player_type == 'HITTER' else 2.0, 
+                'HR': 3.0 if player_type == 'HITTER' else 1.0, 
+                'GB': 0.8, 
+                'FB': 0.8,
+            }
+            _NORMALIZERS = {
+                'command': 5, 'outs': 7, 'ip': 5, 'speed': 12, 'defense': 4,
+                'SO': 6, 'BB': 4, '1B': 5, '2B': 3, 'HR': 4, 'GB': 5, 'FB': 5,
+            }
+
+            def _score(a, b, w, n):
+                if a is None or b is None:
+                    return 0.0, 0.0
+                return w * max(0.0, 1.0 - abs(a - b) / n), w
+
+            ref_command = card_attrs.get('command')
+            ref_outs = card_attrs.get('outs')
+            ref_ip = card_attrs.get('ip')
+            ref_speed = card_attrs.get('speed')
+            ref_defense = card_attrs.get('positions_and_defense') or {}
+            ref_chart = card_attrs.get('chart_values') or {}
+            is_pitcher = player_type == 'PITCHER'
+
+            _CHART_COL_MAP = {
+                'SO': 'cv_so', 'BB': 'cv_bb', '1B': 'cv_1b',
+                '2B': 'cv_2b', 'HR': 'cv_hr', 'GB': 'cv_gb', 'FB': 'cv_fb',
+            }
+
+            scored = []
+            for row in rows:
+                total_score = 0.0
+                total_weight = 0.0
+
+                for key in ('command', 'outs'):
+                    ref_val = ref_command if key == 'command' else ref_outs
+                    s, w = _score(ref_val, row.get(key), _WEIGHTS[key], _NORMALIZERS[key])
+                    total_score += s
+                    total_weight += w
+
+                if is_pitcher:
+                    s, w = _score(ref_ip, row.get('ip'), _WEIGHTS['ip'], _NORMALIZERS['ip'])
+                else:
+                    s, w = _score(ref_speed, row.get('speed'), _WEIGHTS['speed'], _NORMALIZERS['speed'])
+                total_score += s
+                total_weight += w
+
+                # Defense: score the best-matching shared position
+                cand_defense = row.get('positions_and_defense') or {}
+                shared = set(ref_defense.keys()) & set(cand_defense.keys())
+                if shared:
+                    best_ref = max(ref_defense[p] for p in shared)
+                    best_cand = max(cand_defense[p] for p in shared)
+                    s, w = _score(best_ref, best_cand, _WEIGHTS['defense'], _NORMALIZERS['defense'])
+                    total_score += s
+                    total_weight += w
+
+                for chart_key, db_col in _CHART_COL_MAP.items():
+                    ref_val = ref_chart.get(chart_key)
+                    s, w = _score(ref_val, row.get(db_col), _WEIGHTS[chart_key], _NORMALIZERS[chart_key])
+                    total_score += s
+                    total_weight += w
+
+                similarity = round(total_score / total_weight, 4) if total_weight > 0 else 0.0
+
+                # Reconstruct chart_values dict from flattened cv_* columns
+                chart_values = {
+                    'SO': row.get('cv_so', 0), 'BB': row.get('cv_bb', 0),
+                    '1B': row.get('cv_1b', 0), '2B': row.get('cv_2b', 0),
+                    'HR': row.get('cv_hr', 0), 'GB': row.get('cv_gb', 0),
+                    'FB': row.get('cv_fb', 0),
+                }
+
+                result = {k: v for k, v in row.items() if not k.startswith('cv_')}
+                result['chart_values'] = chart_values
+                result['is_pitcher'] = player_type == 'PITCHER'
+                result['similarity_score'] = similarity
+                scored.append(result)
+
+            scored.sort(key=lambda r: r['similarity_score'], reverse=True)
+            return scored[:limit]
+
+        except Exception as e:
+            print("Error fetching similar WOTC cards:", e)
+            traceback.print_exc()
+            return []
+
     def fetch_team_data(self) -> list[dict]:
         """Fetch team data hierarchy from the database"""
 

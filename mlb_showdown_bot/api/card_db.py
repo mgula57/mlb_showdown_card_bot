@@ -49,6 +49,19 @@ def fetch_team_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+@card_db_bp.route('/cards/comps', methods=["POST"])
+def fetch_card_comps():
+    """Fetch the most similar WOTC cards for a given card's attributes"""
+    try:
+        db = PostgresDB()
+        payload = request.get_json() or {}
+        limit = payload.pop('limit', 3)
+        comps = db.fetch_similar_wotc_cards(card_attrs=payload, limit=limit)
+        db.close_connection()
+        return jsonify({'comps': comps})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @card_db_bp.route('/cards/card', methods=["GET"])
 def fetch_card():
     """Fetch a single card by its ID"""
