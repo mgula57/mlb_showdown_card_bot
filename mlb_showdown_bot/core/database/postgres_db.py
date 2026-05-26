@@ -2167,7 +2167,10 @@ class PostgresDB:
                 and team_years.team = player_season_stats.team_id
             left join internal.dim_auto_image as exact_img_match
                 on player_season_stats.year::text = exact_img_match.year
-                and player_season_stats.bref_id = exact_img_match.player_id
+                and (
+                    player_season_stats.bref_id = exact_img_match.player_id
+                    or player_season_stats.mlb_id::text = exact_img_match.player_id
+                )
                 and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
