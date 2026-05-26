@@ -223,6 +223,23 @@ class NormalizedPlayerStats(BaseModel):
         if not position_stats_list or len(position_stats_list) == 0:
             return
         
+        # ADD TOTAL `OF` POSITION IF PLAYER HAS MULTIPLE OUTFIELD POSITIONS WITH GAMES PLAYED, USING A TOTAL FOR OAA IF AVAILABLE
+        of_position_stat_lists = [p for p in position_stats_list if p.position in ('CF', 'LF', 'RF') and p.g and p.g > 0]
+        if len(of_position_stat_lists) > 1:
+            of_position_stats = PositionStats(position='OF', g=0, oaa=0.0)
+            for pos_stats in of_position_stat_lists:
+                of_position_stats.g += pos_stats.g
+                if pos_stats.oaa is None:
+                    of_position_stats.oaa = pos_stats.oaa
+                else:
+                    of_position_stats.oaa += pos_stats.oaa
+
+            # PLAYER CAN MOVE POSITIONS MID-GAME
+            # CAP AT OVERALL GAMES PLAYED TO AVOID DEFLATTING OAA
+            if self.G and of_position_stats.g > self.G:
+                of_position_stats.g = self.G
+            position_stats_list.append(of_position_stats)
+        
         # RESET ALL POSITIONS EXCEPT PITCHER AND DH
         self.positions = {k: v for k, v in (self.positions or {}).items() if k in ['P', 'DH']}
         

@@ -9,9 +9,9 @@ type CardCompsProps = {
 };
 
 function similarityColor(pct: number): string {
-    if (pct >= 80) return '#22c55e';
-    if (pct >= 65) return '#84cc16';
-    if (pct >= 50) return '#eab308';
+    if (pct >= 92) return '#22c55e';
+    if (pct >= 75) return '#eab308';
+    if (pct >= 60) return '#f97316';
     return '#ef4444';
 }
 
