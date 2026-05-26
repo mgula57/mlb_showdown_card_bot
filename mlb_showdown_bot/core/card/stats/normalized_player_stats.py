@@ -686,6 +686,7 @@ class PlayerStatsNormalizer:
 
             unique_sport_ids = list(set([split.sport.id for split in splits if split.sport]))
             ip_splits: List[float] = []
+            sabermetric_splits_count = 0
             type_stats: Dict[str, Any] = {}
 
             # ACCUMULATE RAW BATTED BALL COUNTS FOR IF/FB (keys not in NormalizedPlayerStats)
@@ -711,6 +712,12 @@ class PlayerStatsNormalizer:
                 minor_total_sport_id = 21
                 if len(unique_sport_ids) > 1 and split.sport and minor_total_sport_id in unique_sport_ids and split.sport.id != minor_total_sport_id:
                     continue
+
+                # FOR SABERMETRIC SPLITS + SINGLE YEAR, IF THERE ARE MULTIPLE SPLITS TAKE THE FIRST ONE SINCE THEY SHOULD BE IDENTICAL AND WE DONT WANT TO DOUBLE COUNT
+                if stats_type in [StatTypeEnum.SABERMETRICS] and stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR:
+                    sabermetric_splits_count += 1
+                    if sabermetric_splits_count > 1:
+                        continue
 
                 # ACCUMULATE BATTED BALL COUNTS FOR IF/FB CALCULATION
                 if is_pitcher:

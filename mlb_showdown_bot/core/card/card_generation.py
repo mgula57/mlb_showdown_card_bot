@@ -748,6 +748,11 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
         for set in (sets or [None]):
             for player_type_override in player_type_overrides:
                 card_kwargs = kwargs.copy()
+
+                # Remove potentially conflicting attributes from kwargs
+                card_kwargs.pop('name', None)
+                card_kwargs.pop('player_type_override', None)
+                
                 if set:
                     card_kwargs['set'] = set
                 try:
