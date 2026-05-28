@@ -40,6 +40,7 @@ import Cards from "./components/cards/Cards";
 import Home from "./components/Home";
 import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
+import Privacy from "./components/Privacy";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -133,6 +134,13 @@ const AppContent = () => {
             {mountedRoutes.has('/account') && (
                 <div className={isActive('/account') ? 'block' : 'hidden'}>
                     <AccountPage />
+                </div>
+            )}
+
+            {/* Privacy Policy - Mount when first visited (not in nav) */}
+            {mountedRoutes.has('/privacy') && (
+                <div className={isActive('/privacy') ? 'block' : 'hidden'}>
+                    <Privacy />
                 </div>
             )}
 
