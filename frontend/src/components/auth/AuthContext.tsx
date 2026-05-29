@@ -106,6 +106,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const sessionRef = useRef<Session | null>(null);
     const pendingSettings = useRef<Partial<UserSettingsDB>>({});
     const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastSettingsFetch = useRef<number>(0);
+    const SETTINGS_REFETCH_MS = 5 * 60 * 1000;
 
     /**
      * Check if user has a username in their profile
@@ -164,8 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(prev => { const next = session?.user ?? null; return prev?.id === next?.id ? prev : next; });
             if (session?.user) {
                 checkUserProfile(session.user.id);
-                // Only fetch settings on actual sign-in, not on token refresh (tab focus)
-                if (_event === 'SIGNED_IN') {
+                if (_event === 'SIGNED_IN' || Date.now() - lastSettingsFetch.current > SETTINGS_REFETCH_MS) {
                     loadUserSettings(session.access_token);
                 }
             } else {
@@ -184,6 +185,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     useEffect(() => { sessionRef.current = session; }, [session]);
 
     const loadUserSettings = async (accessToken: string) => {
+        lastSettingsFetch.current = Date.now();
         const settings = await getUserSettings(accessToken);
         setUserSettings(settings);
         setSettingsLoaded(true);

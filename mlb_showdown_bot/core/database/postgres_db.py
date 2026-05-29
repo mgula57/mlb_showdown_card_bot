@@ -3068,11 +3068,9 @@ class PostgresDB:
                 updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );
         """
-        alter_sql = "ALTER TABLE internal.user_settings ADD COLUMN IF NOT EXISTS avatar_url TEXT;"
         with self.connection.cursor() as cur:
             cur.execute(schema_sql)
             cur.execute(table_sql)
-            cur.execute(alter_sql)
 
     def get_user_settings(self, user_id: str) -> dict | None:
         """Fetch settings for the given Supabase user UUID. Returns None if no row exists."""
