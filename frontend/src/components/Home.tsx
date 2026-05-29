@@ -705,6 +705,13 @@ export default function Home() {
                 </div>
             </div>
 
+            {/* Footer */}
+            <div className={`max-w-7xl mx-auto py-4 border-t border-form-element flex justify-center`}>
+                <Link to="/privacy" className={`text-xs ${isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-neutral-400 hover:text-neutral-600'} transition`}>
+                    Privacy Policy
+                </Link>
+            </div>
+
             {/* Modal */}
             <div className={selectedModalCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={handleModalCardClose} isVisible={!!selectedModalCard}>
