@@ -92,9 +92,15 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''} ${className ?? ''}`}>
             {selectedVersion && (
                 <div className="grid grid-cols-3 items-center gap-2">
-                    <div className="flex gap-0.5 items-center bg-tertiary rounded-lg py-2.5 px-3 justify-center">
-                        <CardCommand isPitcher={selectedVersion.is_pitcher} command={Number(selectedVersion.chart.split('-')[0])} primaryColor='#ffffff' secondaryColor='#ffffff' className="w-11 h-11" />
-                        <span className="text-md font-semibold uppercase tracking-wide opacity-90 ml-3 gap-0 flex flex-col items-center">
+                    <div className="flex gap-0.5 items-center bg-tertiary rounded-lg py-2.5 px-1 md:px-3 justify-center">
+                        <CardCommand 
+                            isPitcher={selectedVersion.is_pitcher} 
+                            command={Number(selectedVersion.chart.split('-')[0])} 
+                            primaryColor='#ffffff' 
+                            secondaryColor='#ffffff' 
+                            className="w-7 h-7 md:w-11 md:h-11" 
+                        />
+                        <span className="text-sm md:text-md font-semibold uppercase tracking-wide opacity-90 ml-3 gap-0 flex flex-col items-center">
                             {(selectedVersion.chart.split('-')[1] || '0') === '0' ? '0' : `1-${selectedVersion.chart.split('-')[1]}`}
                             <span className='text-xs opacity-70'> Out</span>
                         </span>

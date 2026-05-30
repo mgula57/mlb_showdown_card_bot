@@ -1,9 +1,6 @@
 name: Snapshot Rosters
 
 on:
-  push:
-    branches:
-      - update/3.2--User-Accounts
   schedule:
     - cron: "0 4 * * *"   # 4:00 AM UTC daily
   workflow_dispatch:        # allow manual runs from the Actions tab
@@ -14,6 +11,7 @@ jobs:
     timeout-minutes: 60
 
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DATABASE_URL_LOGS: ${{ secrets.DATABASE_URL_LOGS }}
       DATABASE_URL_ARCHIVE: ${{ secrets.DATABASE_URL_ARCHIVE }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -36,3 +34,11 @@ jobs:
             --seasons 2026 \
             --publish_to_database \
             --generate-cards \
+
+      - name: Run Auto Image Update
+        run: |
+          showdown_bot database run --auto_im
+
+      - name: Refresh Explore Materialized Views
+        run: |
+          showdown_bot database run --refresh_explore

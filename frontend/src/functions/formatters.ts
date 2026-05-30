@@ -37,6 +37,8 @@ export function formatStatValue(value: unknown, stat: string, digits = 3): strin
             return Number(value).toFixed(2);
         case "FWAR":
             return Number(value).toFixed(2);
+        case "ERA":
+            return Number(value).toFixed(2);
         case "DRS":
         case "TZR":
         case "OAA":

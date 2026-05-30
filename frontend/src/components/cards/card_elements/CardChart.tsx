@@ -167,6 +167,15 @@ export function buildChartRangesFromValues(values: Record<string, number>, set: 
             ranges[key] = '---';
             continue;
         }
+        if (end > 20) {
+            if (cursor === 20) {
+                ranges[key] = '20';
+            } else {
+                ranges[key] = `${cursor}-20`;
+            }
+            cursor = 21; // Move cursor past 20 to prevent further assignments
+            continue;
+        }
         ranges[key] = cursor === end ? String(cursor) : `${cursor}-${end}`;
         cursor = end + 1;
     }

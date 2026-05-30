@@ -745,7 +745,10 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
             if player_data.id in _TWO_WAY_PLAYER_IDS
             else [None]
         )
+        skip_player = False
         for set in (sets or [None]):
+            if skip_player:
+                break
             for player_type_override in player_type_overrides:
                 card_kwargs = kwargs.copy()
 
@@ -783,8 +786,9 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
                         normalized_player_stats.add_bref_id(mlb_id_to_bref.get(player_data.id))
 
                     if normalized_player_stats.is_missing_stats:
-                        print(f"Skipping card generation for {player_data.full_name} ({normalized_player_stats.type}) in {years[0]} due to missing stats.")
-                        continue
+                        print(f"Skipping card generation for {player_data.full_name} ({normalized_player_stats.type.value}) in {years[0]} due to missing stats.")
+                        skip_player = True
+                        break
 
                     card = ShowdownPlayerCard(
                         name=player_data.full_name,

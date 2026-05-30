@@ -20,6 +20,8 @@ const STAT_TO_RANGE_KEY: Record<string, string> = {
     'OPS+':         'onbase_plus_slugging_plus',
     'wRC+':         'wRcPlus',
     'SPRINT SPEED': 'sprint_speed',
+    'ERA':          'earned_run_avg',
+    'WHIP':         'whip',
 };
 
 function rangeKey(stat: string): string {
@@ -44,7 +46,10 @@ const GHOST_COLOR = 'rgb(148,163,184)';
 // Stats where a lower value is better, keyed by player type
 const INVERTED_STATS: Record<'HITTER' | 'PITCHER', Set<string>> = {
     HITTER:  new Set(['SO']),
-    PITCHER: new Set(['BB', 'ERA', 'WHIP']),
+    PITCHER: new Set([
+        'ERA', 'WHIP', 'BA', 'OBP', 'SLG', 'OPS', 'wRC+',
+        'BB', 'H', '1B', '2B', '3B', 'HR',
+    ]), // for pitchers, these hitting stats are inverted since lower is better
 };
 
 function PercentileBar({ stat, real, statRanges, hasRanges, playerType, className }: { stat: string; real: number | null; statRanges: StatRanges; hasRanges: boolean; playerType?: 'HITTER' | 'PITCHER'; className?: string }) {

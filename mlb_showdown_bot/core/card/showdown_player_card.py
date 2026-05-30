@@ -2645,6 +2645,35 @@ class ShowdownPlayerCard(BaseModel):
 
         final_player_data: list[RealVsProjectedStat] = []
 
+        # ERA / WHIP (pitchers only) — added first so they appear at the top
+        projected_by_alias: dict[str, float | None] = {}
+        if self.is_pitcher and self.projected:
+            _pa   = float(self.projected.get('PA') or 650.0)
+            _so   = float(self.projected.get('SO') or 0)
+            _pu   = float(self.projected.get('PU') or 0)
+            _gb   = float(self.projected.get('GB') or 0)
+            _fb   = float(self.projected.get('FB') or 0)
+            _bb   = float(self.projected.get('BB') or 0)
+            _h1b  = float(self.projected.get('1B') or 0)  # includes 1B+
+            _h2b  = float(self.projected.get('2B') or 0)
+            _h3b  = float(self.projected.get('3B') or 0)
+            _hr   = float(self.projected.get('HR') or 0)
+            _h    = _h1b + _h2b + _h3b + _hr
+            _outs = _so + _pu + _gb + _fb
+            if _outs > 0 and _pa > 0:
+                _bf_per_9    = 27.0 * _pa / _outs
+                _runs_per_pa = (_bb * 0.30 + _h1b * 0.46 + _h2b * 0.76 + _h3b * 1.04 + _hr * 1.42 - _outs * 0.09) / _pa
+                projected_by_alias['ERA']  = round(max(0.0, _runs_per_pa * _bf_per_9), 2)
+                projected_by_alias['WHIP'] = round((_h + _bb) / _pa * _bf_per_9 / 9, 2)
+
+            for alias, stat_key in [('ERA', 'earned_run_avg'), ('WHIP', 'whip')]:
+                stat_raw = self.stats_for_card.get(stat_key, None)
+                if stat_raw is None or str(stat_raw) == '':
+                    continue
+                proj = projected_by_alias.get(alias)
+                diff = round(proj - float(stat_raw), 2) if proj is not None else None
+                final_player_data.append(RealVsProjectedStat(stat=alias, real=stat_raw, projected=proj, diff=diff, precision=2 if proj is not None else None))
+
         # SLASH LINE
         slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS'), ('onbase_plus_slugging_plus', 'OPS+'), ('wRcPlus', 'wRC+')]
         for key, cleaned_category in slash_categories:
@@ -2699,9 +2728,11 @@ class ShowdownPlayerCard(BaseModel):
             )
         
         # NON COMPARABLE STATS
-        category_dict = {'ERA': 'earned_run_avg', 'WHIP': 'whip', 'bWAR': 'bWAR', 'fWAR': 'fWAR'} if self.is_pitcher else {'SB': 'SB', 'SPRINT SPEED': 'sprint_speed', 'dWAR': 'dWAR', 'bWAR': 'bWAR', 'fWAR': 'fWAR'}
+        category_dict = {'bWAR': 'bWAR', 'fWAR': 'fWAR'} if self.is_pitcher else {'SB': 'SB', 'SPRINT SPEED': 'sprint_speed', 'dWAR': 'dWAR', 'bWAR': 'bWAR', 'fWAR': 'fWAR'}
         rounded_metrics_list = ['SB']
         for alias, key in category_dict.items():
+            if alias in projected_by_alias:  # ERA/WHIP already added at top
+                continue
             if key not in self.stats_for_card.keys():
                 continue
 

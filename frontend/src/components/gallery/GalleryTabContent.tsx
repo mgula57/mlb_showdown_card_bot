@@ -388,7 +388,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     </div>
                 ) : (
                     <>
-                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))' }}>
+                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))' }}>
                             {gallery.map(item => (
                                 <GalleryCard
                                     key={item.id}
