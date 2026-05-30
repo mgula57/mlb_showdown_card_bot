@@ -1,6 +1,9 @@
 name: Snapshot Rosters
 
 on:
+  push:
+    branches:
+      - update/3.2--User-Accounts
   schedule:
     - cron: "0 4 * * *"   # 4:00 AM UTC daily
   workflow_dispatch:        # allow manual runs from the Actions tab
