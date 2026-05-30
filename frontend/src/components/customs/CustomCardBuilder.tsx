@@ -203,15 +203,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     type PreviewTab = 'preview' | 'gallery';
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
-    const [isWbcBannerVisible, setIsWbcBannerVisible] = useState<boolean>(() => {
-        try {
-            const dismissed = localStorage.getItem(WBC_BANNER_DISMISSED_KEY);
-            return dismissed !== 'true';
-        } catch (error) {
-            console.warn('Failed to load WBC banner state:', error);
-            return true;
-        }
-    });
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
@@ -405,15 +396,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     const handleTabChange = (tab: PreviewTab) => {
         setActivePreviewTab(tab);
-    };
-
-    const dismissWbcBanner = () => {
-        setIsWbcBannerVisible(false);
-        try {
-            localStorage.setItem(WBC_BANNER_DISMISSED_KEY, 'true');
-        } catch (error) {
-            console.warn('Failed to persist WBC banner state:', error);
-        }
     };
 
     const getSectionSummary = (sectionName: string) => {
@@ -1196,48 +1178,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 player_type_override: selection.player_type_override,
                                             })}
                                         />
-
-                                        {isWbcBannerVisible && (
-                                            <div
-                                                className="w-full rounded-xl border px-3 py-2 text-white relative"
-                                                style={{
-                                                    backgroundImage: 'linear-gradient(95deg, var(--showdown-blue), var(--showdown-red))',
-                                                    borderColor: 'color-mix(in srgb, var(--showdown-red) 35%, white 65%)',
-                                                }}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={dismissWbcBanner}
-                                                    aria-label="Dismiss WBC feature message"
-                                                    className="absolute top-2 right-2 rounded-md p-1 text-white/80 hover:text-white hover:bg-white/15 cursor-pointer"
-                                                >
-                                                    <FaXmark className="text-sm" />
-                                                </button>
-
-                                                <div className="flex items-center gap-3 pr-8">
-                                                    <img
-                                                        src={publicImagePath('edition-wbc')}
-                                                        alt="WBC edition"
-                                                        className="h-7 w-auto shrink-0"
-                                                    />
-                                                    <div className="min-w-0 leading-tight">
-                                                        <div className="text-[11px] uppercase tracking-wide font-semibold text-white/85">New Feature</div>
-                                                        <div className="text-sm font-bold">WBC Edition is now available</div>
-                                                        <div className="text-xs text-white/90">
-                                                            Choose <span className="font-bold">WBC</span> in the Edition dropdown under <span className="font-bold">Set</span>.{" "}
-                                                            <a
-                                                                href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#wbc"
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="font-semibold underline underline-offset-2 hover:text-white"
-                                                            >
-                                                                Learn more
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
 
                                         {/* Display Error (If Applicable) */}
                                         {errorMessage && (
