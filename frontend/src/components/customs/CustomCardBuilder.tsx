@@ -48,9 +48,12 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages, 
+    FaImages, FaDatabase
 } from 'react-icons/fa';
-import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaEye, FaClockRotateLeft, FaSquarePollVertical, FaChartBar } from 'react-icons/fa6';
+import { 
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaEye, FaClockRotateLeft,
+    FaSquarePollVertical, FaChartBar, FaRobot, FaGaugeHigh
+} from 'react-icons/fa6';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -1052,10 +1055,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     {/* Feature chips */}
                     <div className="px-3 pb-2 flex flex-col gap-1">
                         {[
-                            { icon: <FaImage />, text: 'Gallery View' },
+                            { icon: <FaImage />, text: 'Gallery View (login required)' },
+                            { icon: <FaDatabase />, text: 'Image Storage (login required)' },
                             { icon: <FaSquarePollVertical />, text: 'Redesigned Breakdowns' },
+                            { icon: <FaChartBar />, text: 'Savant-Style Percentiles' },
                             { icon: <FaClockRotateLeft />, text: 'WOTC Comps' },
-                            { icon: <FaChartBar />, text: 'Percentiles' },
+                            { icon: <FaRobot />, text: 'Dynamic Outcome Projections' },
+                            { icon: <FaGaugeHigh />, text: 'Faster Search' },
                         ].map(({ icon, text }) => (
                             <span key={text} className="flex items-center gap-1.5 text-xs text-blue-100">
                                 <span className="opacity-75">{icon}</span> {text}
