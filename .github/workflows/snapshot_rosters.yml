@@ -33,4 +33,3 @@ jobs:
             --seasons 2026 \
             --publish_to_database \
             --generate-cards \
-            --env prod
