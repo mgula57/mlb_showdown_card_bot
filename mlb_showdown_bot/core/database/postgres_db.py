@@ -3303,13 +3303,24 @@ class PostgresDB:
                 timestamp timestamp without time zone DEFAULT now(),
                 filters jsonb,
                 result_count integer,
-                error text
+                error text,
+                user_id text
             );
+        """
+        migrate_user_id_sql = """
+            ALTER TABLE internal.log_player_search
+                ADD COLUMN IF NOT EXISTS user_id text;
+        """
+        user_id_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_player_search_user_id_idx
+            ON internal.log_player_search (user_id);
         """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
+                cur.execute(migrate_user_id_sql)
+                cur.execute(user_id_index_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3328,13 +3339,24 @@ class PostgresDB:
                 id SERIAL PRIMARY KEY,
                 timestamp timestamp without time zone DEFAULT now(),
                 card_id character varying(32),
-                error text
+                error text,
+                user_id text
             );
+        """
+        migrate_user_id_sql = """
+            ALTER TABLE internal.log_card_image_generation
+                ADD COLUMN IF NOT EXISTS user_id text;
+        """
+        user_id_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_image_generation_user_id_idx
+            ON internal.log_card_image_generation (user_id);
         """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
+                cur.execute(migrate_user_id_sql)
+                cur.execute(user_id_index_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3354,13 +3376,24 @@ class PostgresDB:
                 timestamp timestamp without time zone DEFAULT now(),
                 card_id character varying(32),
                 source character varying(128),
-                error text
+                error text,
+                user_id text
             );
+        """
+        migrate_user_id_sql = """
+            ALTER TABLE internal.log_card_id_lookup
+                ADD COLUMN IF NOT EXISTS user_id text;
+        """
+        user_id_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_id_lookup_user_id_idx
+            ON internal.log_card_id_lookup (user_id);
         """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
+                cur.execute(migrate_user_id_sql)
+                cur.execute(user_id_index_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3494,7 +3527,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_player_search(self, filters: dict, result_count: int, error: str = None) -> None:
+    def log_player_search(self, filters: dict, result_count: int, error: str = None, user_id: str = None) -> None:
         """
         Store player search data in the log_player_search table.
 
@@ -3502,19 +3535,20 @@ class PostgresDB:
             filters: Search filters used.
             result_count: Number of results returned.
             error: Error message if any.
+            user_id: Verified user ID from JWT, if authenticated.
         """
-        
+
         if not self.connection:
             print("No database connection available for logging.")
-            return 
-        
+            return
+
         sql = """
-            INSERT INTO internal.log_player_search (filters, result_count, error) 
-            VALUES (%s, %s, %s)
+            INSERT INTO internal.log_player_search (filters, result_count, error, user_id)
+            VALUES (%s, %s, %s, %s)
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (json.dumps(filters), result_count, error))
+                cur.execute(sql, (json.dumps(filters), result_count, error, user_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3522,26 +3556,27 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_image_generation(self, card_id: str, error: str = None) -> None:
+    def log_card_image_generation(self, card_id: str, error: str = None, user_id: str = None) -> None:
         """
         Store card image generation data in the log_card_image_generation table.
 
         Args:
             card_id: ID of the card.
             error: Error message if any.
+            user_id: Verified user ID from JWT, if authenticated.
         """
-        
+
         if not self.connection:
             print("No database connection available for logging.")
-            return 
-        
+            return
+
         sql = """
-            INSERT INTO internal.log_card_image_generation (card_id, error) 
-            VALUES (%s, %s)
+            INSERT INTO internal.log_card_image_generation (card_id, error, user_id)
+            VALUES (%s, %s, %s)
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (card_id, error))
+                cur.execute(sql, (card_id, error, user_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3549,7 +3584,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_id_lookup(self, card_id: str, source: str, error: str = None) -> None:
+    def log_card_id_lookup(self, card_id: str, source: str, error: str = None, user_id: str = None) -> None:
         """
         Store card ID lookup data in the log_card_id_lookup table.
 
@@ -3557,19 +3592,20 @@ class PostgresDB:
             card_id: ID of the card.
             source: Source of the lookup.
             error: Error message if any.
+            user_id: Verified user ID from JWT, if authenticated.
         """
-        
+
         if not self.connection:
             print("No database connection available for logging.")
-            return 
-        
+            return
+
         sql = """
-            INSERT INTO internal.log_card_id_lookup (card_id, source, error) 
-            VALUES (%s, %s, %s)
+            INSERT INTO internal.log_card_id_lookup (card_id, source, error, user_id)
+            VALUES (%s, %s, %s, %s)
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (card_id, source, error))
+                cur.execute(sql, (card_id, source, error, user_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()

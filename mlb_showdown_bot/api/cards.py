@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, g
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.data_conversion import convert_form_data_types
+from .user_settings import optional_user_id
 from ..core.card.card_generation import generate_card, generate_cards
 from ..core.card.showdown_player_card import ShowdownPlayerCard
 
@@ -109,7 +110,7 @@ def build_image_for_card():
         payload['card'] = card.as_json()
 
         # LOGGING
-        db.log_card_image_generation(card_id=card.id)
+        db.log_card_image_generation(card_id=card.id, user_id=optional_user_id())
 
         return jsonify(payload)
 

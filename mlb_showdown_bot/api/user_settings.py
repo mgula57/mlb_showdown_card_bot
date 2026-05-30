@@ -68,6 +68,50 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+
+def optional_user_id() -> str | None:
+    """Return the verified user_id from the JWT if present and valid, else None.
+
+    Use this on endpoints that work anonymously but want to attribute actions
+    to a logged-in user. Never trust user_id from the request body/params.
+    """
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+    token = auth_header.split(' ', 1)[1].strip()
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+    except jwt.InvalidTokenError:
+        return None
+
+    alg = unverified_header.get('alg', '')
+    try:
+        if alg == 'ES256':
+            raw_key = os.getenv('SUPABASE_JWT_PUBLIC_KEY', '')
+            if not raw_key:
+                return None
+            key = ECAlgorithm.from_jwk(raw_key)
+            algorithms = ['ES256']
+        elif alg == 'HS256':
+            key = os.getenv('SUPABASE_JWT_SECRET', '')
+            if not key:
+                return None
+            algorithms = ['HS256']
+        else:
+            return None
+
+        payload = jwt.decode(
+            token,
+            key,
+            algorithms=algorithms,
+            audience='authenticated',
+            options={'verify_exp': True},
+        )
+        return payload.get('sub') or None
+    except jwt.InvalidTokenError:
+        return None
+
+
 @user_settings_bp.route('/user/settings', methods=['GET'])
 @require_auth
 def get_user_settings():
