@@ -546,7 +546,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 </SectionPanel>
 
                 {/* Outcome Distribution */}
-                <SectionPanel isLoading={isLoadingOverall} title="Outcome Probabilities" subtitle="Assuming the chart values shown in the opponent breakdown">
+                <SectionPanel isLoading={isLoadingOverall} title="Outcome Probabilities" subtitle="Use baseline or search for a specific opponent">
                     <OutcomeProbability
                         chart={activeCardData?.card?.chart}
                         primaryColor={mechPrimaryColor}
@@ -577,7 +577,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 <SectionPanel
                     isLoading={isLoadingOverall}
                     title="Most Similar WOTC Cards"
-                    subtitle={`Top matches in ${activeCardData?.card?.set ?? ''} set by chart similarity`}
+                    subtitle={`Top matches by chart similarity`}
                 >
                     <CardComps
                         card={activeCardData?.card ?? null}

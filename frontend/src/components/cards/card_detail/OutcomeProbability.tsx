@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
-import { type ShowdownBotCardChart } from '../../../api/showdownBotCard';
+import { useState, useEffect, useRef } from 'react';
+import { type ShowdownBotCardChart, type ShowdownBotCard, fetchCardById } from '../../../api/showdownBotCard';
+import { PlayerSearchInput, type PlayerSearchSelection } from '../../customs/PlayerSearchInput';
+import { CardItemCompactFromCard } from '../CardItemCompact';
+import { CardItemFromCard } from '../CardItem';
 
 const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 const TOTAL = 20;
@@ -22,6 +25,7 @@ function outcomeColor(key: string, primaryColor?: string, secondaryColor?: strin
 function calcProbabilities(
     playerChart: ShowdownBotCardChart,
     opponentCommand: number,
+    opponentValuesOverride?: Record<string, number>,
 ): { key: string; prob: number }[] {
     const isPitcher = playerChart.is_pitcher;
 
@@ -31,8 +35,8 @@ function calcProbabilities(
     const pBatterChart  = Math.max(0, Math.min(batterOB - pitcherCtrl, TOTAL)) / TOTAL;
     const pPitcherChart = 1 - pBatterChart;
 
-    const batterValues  = isPitcher ? (playerChart.opponent?.values ?? {}) : playerChart.values;
-    const pitcherValues = isPitcher ? playerChart.values : (playerChart.opponent?.values ?? {});
+    const batterValues  = isPitcher ? (opponentValuesOverride ?? playerChart.opponent?.values ?? {}) : playerChart.values;
+    const pitcherValues = isPitcher ? playerChart.values : (opponentValuesOverride ?? playerChart.opponent?.values ?? {});
 
     const allKeys = Array.from(new Set([...Object.keys(batterValues), ...Object.keys(pitcherValues)]));
 
@@ -50,7 +54,6 @@ function calcProbabilities(
         });
 }
 
-// Linear run weights (approximate, based on run expectancy tables)
 const RUN_WEIGHTS: Record<string, number> = {
     BB: 0.30, '1B': 0.46, '1B+': 0.50, '2B': 0.76, '3B': 1.04, HR: 1.42,
     PU: -0.09, SO: -0.09, GB: -0.09, FB: -0.09,
@@ -118,6 +121,8 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
     );
 }
 
+type OpponentMode = 'slider' | 'search';
+
 type OutcomeProbabilityProps = {
     chart?: ShowdownBotCardChart;
     primaryColor?: string;
@@ -132,43 +137,130 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
     const defaultOpponentCommand = Math.round(data.opponent?.command ?? (data.is_pitcher ? 7 : 5));
     const [opponentCommand, setOpponentCommand] = useState<number>(defaultOpponentCommand);
 
+    const [opponentMode, setOpponentMode] = useState<OpponentMode>('slider');
+    const [opponentCard, setOpponentCard] = useState<ShowdownBotCard | null>(null);
+    const [opponentLoading, setOpponentLoading] = useState(false);
+    const [searchKey, setSearchKey] = useState(0);
+
+    const searchQueryRef = useRef('');
+
     useEffect(() => {
         setOpponentCommand(defaultOpponentCommand);
+        setOpponentCard(null);
+        setSearchKey(k => k + 1);
     }, [chart, set]);
+
+    const handleOpponentSelect = async (selection: PlayerSearchSelection) => {
+        const suffix = selection.player_type_override ? `-(${selection.player_type_override.toLowerCase()})` : '';
+        const cardId = `${selection.year}-${selection.player_id}${suffix}-${set ?? '2005'}`;
+        setOpponentLoading(true);
+        try {
+            const result = await fetchCardById(cardId, 'outcome-opponent');
+            if (result.card) {
+                setOpponentCard(result.card);
+                setOpponentCommand(result.card.chart.command);
+            }
+        } finally {
+            setOpponentLoading(false);
+        }
+    };
+
+    const handleClearOpponent = () => {
+        setOpponentCard(null);
+        setOpponentCommand(defaultOpponentCommand);
+        setSearchKey(k => k + 1);
+        searchQueryRef.current = '';
+    };
 
     const isExpanded = !['2000', '2001', 'CLASSIC'].includes(set ?? '2005');
     const opponentCommandMin = data.is_pitcher ? (isExpanded ? 7 : 4) : (isExpanded ? 1 : 0);
     const opponentCommandMax = data.is_pitcher ? (isExpanded ? 16 : 12) : 6;
     const opponentLabel = data.is_pitcher ? 'Opp. Onbase' : 'Opp. Control';
 
-    const results = calcProbabilities(data, opponentCommand);
+    const opponentValues = opponentCard ? opponentCard.chart.values as Record<string, number> : undefined;
+    const results = calcProbabilities(data, opponentCommand, opponentValues);
     const total = results.reduce((s, r) => s + r.prob, 0) || 1;
     const isPitcher = data.is_pitcher;
-    const stats     = isPitcher ? null : calcSeasonStats(results);
-    const pStats    = isPitcher ? calcPitcherStats(results) : null;
+    const stats  = isPitcher ? null : calcSeasonStats(results);
+    const pStats = isPitcher ? calcPitcherStats(results) : null;
 
     const fmtRate = (n: number) => n.toFixed(3).replace('0.', '.');
+
+    const resultsAreBaseline = opponentMode === 'search' && !opponentCard && !opponentLoading;
 
     return (
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
 
-            {/* Opponent command slider */}
-            <div className="flex items-center gap-3">
-                <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50 shrink-0 w-24">{opponentLabel}</span>
-                <input
-                    type="range"
-                    min={opponentCommandMin}
-                    max={opponentCommandMax}
-                    step={1}
-                    value={opponentCommand}
-                    onChange={e => setOpponentCommand(Number(e.target.value))}
-                    className="flex-1 accent-current"
-                />
-                <span className="text-sm font-black w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
+            {/* Mode toggle */}
+            <div className="flex items-center gap-1 p-0.5 rounded-lg self-start" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
+                {(['slider', 'search'] as OpponentMode[]).map(mode => (
+                    <button
+                        key={mode}
+                        onClick={() => {
+                            setOpponentMode(mode);
+                            if (mode === 'slider') handleClearOpponent();
+                        }}
+                        className={`px-3 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wide transition-colors cursor-pointer ${
+                            opponentMode === mode
+                                ? 'bg-background-primary text-secondary shadow-sm'
+                                : 'text-secondary opacity-40 hover:opacity-60'
+                        }`}
+                    >
+                        {mode === 'slider' ? 'Baseline' : 'Search Opponent'}
+                    </button>
+                ))}
             </div>
 
+            {/* Opponent control */}
+            {opponentMode === 'slider' ? (
+                <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50 shrink-0 w-24">{opponentLabel}</span>
+                    <input
+                        type="range"
+                        min={opponentCommandMin}
+                        max={opponentCommandMax}
+                        step={1}
+                        value={opponentCommand}
+                        onChange={e => setOpponentCommand(Number(e.target.value))}
+                        className="flex-1 accent-current"
+                    />
+                    <span className="text-sm font-black w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
+                </div>
+            ) : (
+                <div className="space-y-1">
+                    <div className="flex flex-1 items-center gap-1">
+                        {/* Player search */}
+                        <PlayerSearchInput
+                            key={searchKey}
+                            label=""
+                            value={searchQueryRef.current}
+                            onChange={handleOpponentSelect}
+                            searchOptions={{ exclude_multi_year: true, exclude_career: true }}
+                            className="flex-1"
+                        />
+
+                        {/* Loading indicator */}
+                        {opponentLoading && (
+                            <div className="flex items-center gap-2 px-3 py-2 text-[10px] opacity-50">
+                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Selected opponent card */}
+                    <div className="flex items-center gap-2">
+                        <CardItemFromCard
+                            card={opponentCard}
+                            className="flex-1"
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* Stacked area bar */}
-            <div className="flex h-10 rounded-lg overflow-hidden gap-px">
+            <div className={`flex h-10 rounded-lg overflow-hidden gap-px transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`}>
                 {results.map(({ key, prob }) => {
                     const pct = (prob / total) * 100;
                     const color = outcomeColor(key, primaryColor, secondaryColor);
@@ -194,7 +286,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             </div>
 
             {/* Legend */}
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <div className={`flex flex-wrap gap-x-3 gap-y-1 transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`}>
                 {results.map(({ key, prob }) => {
                     const pct = (prob / total) * 100;
                     const color = outcomeColor(key, primaryColor);
@@ -210,7 +302,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             </div>
 
             {/* Estimated season stats */}
-            <div className="rounded-lg p-3 space-y-2.5" style={{ background: 'color-mix(in srgb, var(--form-element) 20%, transparent)' }}>
+            <div className={`rounded-lg p-3 space-y-2.5 transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`} style={{ background: 'color-mix(in srgb, var(--form-element) 20%, transparent)' }}>
                 {isPitcher && pStats ? (
                     <>
                         <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Est. per 9 inn.</div>
