@@ -18,6 +18,8 @@ _CARD_OF_THE_DAY_FOLDER = "static/card_of_the_day"
 _trending_cache: dict[str, tuple[list, float]] = {}
 _popular_cache: dict[str, tuple[list, float]] = {}
 _spotlight_cache: dict[str, tuple[list, float]] = {}  # key: "{set}:{limit}"
+_total_card_count_cache: tuple[int, float] | None = None
+_TOTAL_CARD_COUNT_TTL = 60 * 60  # 1 hour
 
 @card_db_bp.route('/cards/search', methods=["POST", "GET"])
 def fetch_card_list():
@@ -87,10 +89,20 @@ def fetch_card():
 def fetch_total_card_count():
     """Fetch the total count of cards in the database"""
     try:
+
+        # CHECK CACHE FIRST
+        global _total_card_count_cache
+        if _total_card_count_cache is not None:
+            cached_count, cached_at = _total_card_count_cache
+            if (time.time() - cached_at) < _TOTAL_CARD_COUNT_TTL:
+                return jsonify({'total_count': cached_count})
+
+        # IF NOT IN CACHE OR CACHE EXPIRED, FETCH FROM DB
         db = PostgresDB()
         total_count = db.fetch_total_card_count()
         db.close_connection()
 
+        _total_card_count_cache = (total_count, time.time())
         return jsonify({'total_count': total_count})
 
     except Exception as e:
