@@ -59,7 +59,8 @@ from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings
 class PlayerArchive(BaseModel):
     id: str
     year: int
-    bref_id: str
+    bref_id: Optional[str] = None
+    mlb_id: Optional[int] = None
     historical_date: Optional[str]
     name: str
     player_type: str
