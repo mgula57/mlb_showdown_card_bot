@@ -149,7 +149,6 @@ type loadingStatusContent = {
 // ----------------------------------
 
 const STORAGE_KEY = 'customCardFormSettings-V2';
-const WBC_BANNER_DISMISSED_KEY = 'customCardWbcBannerDismissed';
 
 /** Save form settings to localStorage */
 const saveFormSettings = (formData: CustomCardFormState) => {
