@@ -3262,7 +3262,8 @@ class PostgresDB:
                 storage_path text,
                 thumbnail_storage_path text,
                 user_id text,
-                is_hidden boolean NOT NULL DEFAULT FALSE
+                is_hidden boolean NOT NULL DEFAULT FALSE,
+                card_result jsonb
             );
         """
 
