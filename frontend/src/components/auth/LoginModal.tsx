@@ -18,7 +18,7 @@
  * @component
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { FaDiscord } from 'react-icons/fa';
 
@@ -55,29 +55,43 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    /**
-     * Handle username blur - check availability
-     */
-    const handleUsernameBlur = async () => {
-        if (!username || username.length < 3) {
-            setUsernameError('Username must be at least 3 characters');
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (!isSignUp) return;
+
+        if (!username) {
+            setUsernameError(null);
+            setCheckingUsername(false);
             return;
         }
+
+        if (username.length < 3) {
+            setUsernameError('Username must be at least 3 characters');
+            setCheckingUsername(false);
+            return;
+        }
+
         if (!/^[a-zA-Z0-9_]+$/.test(username)) {
             setUsernameError('Username can only contain letters, numbers, and underscores');
+            setCheckingUsername(false);
             return;
         }
-        
+
+        setUsernameError(null);
         setCheckingUsername(true);
-        const isAvailable = await checkUsernameAvailability(username);
-        setCheckingUsername(false);
-        
-        if (!isAvailable) {
-            setUsernameError('Username is already taken');
-        } else {
-            setUsernameError(null);
-        }
-    };
+
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(async () => {
+            const isAvailable = await checkUsernameAvailability(username);
+            setCheckingUsername(false);
+            setUsernameError(isAvailable ? null : 'Username is already taken');
+        }, 500);
+
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, [username, isSignUp]);
 
     /**
      * Handle form submission
@@ -137,6 +151,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                 setUsernameError(null);
                 setIsSignUp(false);
                 onSuccess?.();
+                onClose();
             }
         } catch (err) {
             setError('An unexpected error occurred');
@@ -262,11 +277,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 id="username"
                                 type="text"
                                 value={username}
-                                onChange={(e) => {
-                                    setUsername(e.target.value);
-                                    setUsernameError(null);
-                                }}
-                                onBlur={handleUsernameBlur}
+                                onChange={(e) => setUsername(e.target.value)}
                                 required
                                 disabled={loading}
                                 minLength={3}

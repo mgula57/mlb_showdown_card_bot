@@ -25,6 +25,7 @@
 // ----------------------------------
 
 import { useAuth } from '../auth/AuthContext';
+import { LoginModal } from '../auth/LoginModal';
 import { useEffect, useState, useRef } from 'react';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
@@ -47,9 +48,9 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages
+    FaImages, 
 } from 'react-icons/fa';
-import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaEye } from 'react-icons/fa6';
+import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaEye, FaClockRotateLeft, FaSquarePollVertical, FaChartBar } from 'react-icons/fa6';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -207,6 +208,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // User Context
     const { user, session } = useAuth();
+
+    // Dismissable feature banner
+    const [showFeatureBanner, setShowFeatureBanner] = useState<boolean>(
+        () => localStorage.getItem('featureBanner_v3_2_dismissed') !== 'true'
+    );
+    const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
+    const dismissFeatureBanner = () => {
+        localStorage.setItem('featureBanner_v3_2_dismissed', 'true');
+        setShowFeatureBanner(false);
+    };
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
@@ -1024,8 +1035,52 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
+            {/* Feature announcement banner — floating top-right */}
+            {showFeatureBanner && (
+                <div className="fixed top-12 right-3 z-50 w-56 rounded-xl bg-linear-to-br from-blue-500 via-blue-700 to-red-700 text-white shadow-xl shadow-blue-900/40 overflow-hidden">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                        <span className="text-xs font-bold tracking-wide uppercase text-blue-100">What's New</span>
+                        <button
+                            onClick={dismissFeatureBanner}
+                            aria-label="Dismiss"
+                            className="text-blue-300 hover:text-white transition-colors cursor-pointer -mr-0.5"
+                        >
+                            <FaXmark size={13} />
+                        </button>
+                    </div>
+                    {/* Feature chips */}
+                    <div className="px-3 pb-2 flex flex-col gap-1">
+                        {[
+                            { icon: <FaImage />, text: 'Gallery View' },
+                            { icon: <FaSquarePollVertical />, text: 'Redesigned Breakdowns' },
+                            { icon: <FaClockRotateLeft />, text: 'WOTC Comps' },
+                            { icon: <FaChartBar />, text: 'Percentiles' },
+                        ].map(({ icon, text }) => (
+                            <span key={text} className="flex items-center gap-1.5 text-xs text-blue-100">
+                                <span className="opacity-75">{icon}</span> {text}
+                            </span>
+                        ))}
+                    </div>
+                    {/* Sign-in CTA */}
+                    {!user && (
+                        <div className="px-3 pb-3 pt-1 border-t border-blue-500/50">
+                            <button
+                                onClick={() => setShowBannerLoginModal(true)}
+                                className="w-full mt-1.5 flex items-center justify-center gap-1.5 bg-white/15 hover:bg-white/25 transition-colors rounded-lg py-1.5 text-xs font-semibold cursor-pointer"
+                            >
+                                <FaUser size={10} /> Sign in to try it out
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+            {showBannerLoginModal && (
+                <LoginModal onClose={() => setShowBannerLoginModal(false)} />
+            )}
+
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
-            <div className="flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur">
+            <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
                     { tab: 'preview' as PreviewTab, icon: <FaEye />, label: 'Card' },
                     { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
