@@ -232,7 +232,10 @@ class NormalizedPlayerStats(BaseModel):
                 if pos_stats.oaa is None:
                     of_position_stats.oaa = pos_stats.oaa
                 else:
-                    of_position_stats.oaa += pos_stats.oaa
+                    if of_position_stats.oaa is None:
+                        of_position_stats.oaa = pos_stats.oaa
+                    else:
+                        of_position_stats.oaa += pos_stats.oaa
 
             # PLAYER CAN MOVE POSITIONS MID-GAME
             # CAP AT OVERALL GAMES PLAYED TO AVOID DEFLATTING OAA
