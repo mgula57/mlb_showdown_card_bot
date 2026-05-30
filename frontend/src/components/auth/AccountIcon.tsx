@@ -115,7 +115,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
     };
 
     return (
-        <div className={`relative ${className}`} ref={dropdownRef}>
+        <div className={`relative z-50 ${className}`} ref={dropdownRef}>
             {/* Account Icon/Avatar */}
             <button
                 onClick={handleIconClick}

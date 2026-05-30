@@ -325,7 +325,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 {isIOSSafari && <div style={{ height: '2.5rem' /* matches h-10 */ }} aria-hidden="true" />}
 
                 {/* Main Content Area - Scrollable container for page content */}
-                <main className={`flex-1 overflow-auto w-full relative`}>
+                <main className={`flex-1 overflow-auto w-full relative z-0`}>
                     {/* Status Message */}
                     {selectedMenuItemStatus && (
                         <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 m-4 rounded" role="alert">
