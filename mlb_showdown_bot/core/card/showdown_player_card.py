@@ -2086,9 +2086,15 @@ class ShowdownPlayerCard(BaseModel):
             return None
 
         categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
+        
+        # STILL PROCESS STAT HIGHLIGHTS IF `NONE` IS SELECTED, JUST WONT BE SHOWN ON THE IMAGE
+        # USE CLASSIC STAT HIGHLIGHTS IN THAT CASE
+        if len(categories) == 0:
+            categories = self.player_sub_type.stat_highlight_categories(type=StatHighlightsType.CLASSIC)
+        
+        
         stat_and_sort_rank: dict[str, float] = {}
         ignore_dwar = False
-
         for category in categories:
             stat_keys = category.stat_key_list
             category_multiplier = category.sort_rating_multiplier
