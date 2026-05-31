@@ -6,8 +6,9 @@ const OUTS = new Set(['PU', 'SO', 'GB', 'FB']);
 const TOTAL = 20;
 
 const PLACEHOLDER_CHART: ShowdownBotCardChart = {
-    command: 7, outs: 17, outs_full: 17, is_pitcher: false, ranges: {},
-    values: { SO: 3, GB: 6, FB: 3, BB: 2, '1B': 3, '2B': 1, HR: 1 },
+    command: 9, outs: 5, outs_full: 5, is_pitcher: false, 
+    ranges: { },
+    values: { SO: 2, GB: 2, FB: 1, BB: 5, '1B': 6, '2B': 2, HR: 2 },
     set: '2005'
 };
 
