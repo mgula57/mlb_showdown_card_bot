@@ -155,6 +155,12 @@ export function buildChartRangesFromValues(values: Record<string, number>, set: 
     });
     const ranges: Record<string, string> = {};
     const isExpandedSet = !['2000', '2001', 'CLASSIC'].includes(set);
+    const totalOuts: number = Object.entries(values).filter(([key, _]) => {
+        const lowerKey = key.toLowerCase();
+        return lowerKey.includes('so') || lowerKey.includes('gb') || lowerKey.includes('fb') || lowerKey.includes('pu');
+    }).reduce((sum, [_, count]) => sum + count, 0);
+
+    // Iterate through sorted outcomes and assign dice roll ranges based on their counts
     let cursor = 1;
     for (const [key, count] of sorted) {
         if (count <= 0) continue;
@@ -163,7 +169,14 @@ export function buildChartRangesFromValues(values: Record<string, number>, set: 
             ranges[key] = '---';
             continue;
         }; // Just in case, to prevent infinite loops on bad data
-        const end = cursor + Math.floor(count + 0.53) - 1;
+
+        // DEFINE THE END OF A CARD
+        let end = cursor + Math.floor(count + 0.53) - 1;
+        if (key === 'FB' && end > (totalOuts + 0.53)) {
+            // For FB outcomes, if the calculated end exceeds total outs, cap it at total outs to prevent overlap with positive outcomes
+            end = totalOuts;
+        }
+
         if (end < cursor) {
             ranges[key] = '---';
             continue;
