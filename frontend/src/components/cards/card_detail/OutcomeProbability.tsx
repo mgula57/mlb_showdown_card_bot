@@ -402,6 +402,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                             <StatCell label="AVG" value={fmtRate(stats.avg)} />
                             <StatCell label="OBP" value={fmtRate(stats.obp)} />
                             <StatCell label="SLG" value={fmtRate(stats.slg)} />
+                            <StatCell label="OPS" value={fmtRate(stats.obp + stats.slg)} />
                         </div>
                         <div className="h-px opacity-10" style={{ background: 'currentColor' }} />
                         <div className="flex justify-around">
