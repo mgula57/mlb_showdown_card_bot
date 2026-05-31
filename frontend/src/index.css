@@ -211,6 +211,27 @@
     animation: slideOutToRight 0.3s ease-in forwards;
 }
 
+@keyframes card-glow-pulse {
+    0%, 100% {
+        box-shadow:
+            0 0 10px var(--card-glow-lo),
+            0 0 20px var(--card-glow-lo),
+            0 0 40px var(--card-glow-md),
+            0 0 80px var(--card-glow-lo);
+    }
+    50% {
+        box-shadow:
+            0 0 15px var(--card-glow-md),
+            0 0 35px var(--card-glow-md),
+            0 0 60px var(--card-glow-hi),
+            0 0 120px var(--card-glow-md);
+    }
+}
+
+.card-glow-pulse {
+    animation: card-glow-pulse 3s ease-in-out infinite;
+}
+
 body {
     color: var(--primary);
     background-color: var(--background-primary);

@@ -154,6 +154,7 @@ export function buildChartRangesFromValues(values: Record<string, number>, set: 
         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
     const ranges: Record<string, string> = {};
+    const isExpandedSet = !['2000', '2001', 'CLASSIC'].includes(set);
     let cursor = 1;
     for (const [key, count] of sorted) {
         if (count <= 0) continue;
@@ -173,6 +174,12 @@ export function buildChartRangesFromValues(values: Record<string, number>, set: 
             } else {
                 ranges[key] = `${cursor}-20`;
             }
+            cursor = 21; // Move cursor past 20 to prevent further assignments
+            continue;
+        }
+        if (key == "HR" && end < 20) {
+            // HRs that don't end at 20 should show the full range to 20, since HRs are the best outcome and players will want to know if they can get them on a roll of 20
+            ranges[key] = isExpandedSet ? `${cursor}+` : `${cursor}-20`;
             cursor = 21; // Move cursor past 20 to prevent further assignments
             continue;
         }

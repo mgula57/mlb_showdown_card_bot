@@ -9,7 +9,7 @@
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, type CSSProperties } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { FaBaseballBall } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -434,17 +434,17 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                             object-contain
                             fade-in
                             ${isLoadingOverall ? 'blur-xs' : ''}
+                            ${activeCardData?.card?.image ? 'card-glow-pulse' : ''}
                         `}
-                        style={{
-                            boxShadow: activeCardData?.card?.image
-                                ? `0 0 10px ${addOpacityToRGB(teamGlowColor, 0.66)},
-                                   0 0 20px ${addOpacityToRGB(teamGlowColor, 0.52)},
-                                   0 0 40px ${addOpacityToRGB(teamGlowColor, 0.66)},
-                                   0 0 80px ${addOpacityToRGB(teamGlowColor, 0.66)}`
-                                : `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
-                                   0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
-                                   0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
-                       }}
+                        style={activeCardData?.card?.image ? {
+                            '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
+                            '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
+                            '--card-glow-hi': addOpacityToRGB(teamGlowColor, 0.85),
+                        } as CSSProperties : {
+                            boxShadow: `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
+                                        0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
+                                        0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
+                        }}
                     /> 
 
                     {/* Loading Overlay */}

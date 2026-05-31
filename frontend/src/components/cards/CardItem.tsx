@@ -157,7 +157,7 @@ export const CardItem = ({
         cardSpeed ? `SPD ${cardSpeed}` : undefined,
         cardHand ? `BATS ${cardHand}` : undefined,
         cardPositionsAndDefenseString,
-    ];
+    ].filter(Boolean); // Remove undefined values
 
     const renderPointsComparison = (estPoints:number, diffPoints:number) => {
         const absoluteDifference = Math.abs(diffPoints);

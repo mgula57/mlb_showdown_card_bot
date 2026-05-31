@@ -162,7 +162,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
         icons: [],
         hand: '',
         player_type: data.opponent?.is_pitcher ? 'Pitcher' : 'Hitter',
-        positions_and_defense_string: '**APPROXIMATION**',
+        positions_and_defense_string: chart.is_pitcher ? 'HITTER' : 'PITCHER',
         positions_and_defense: {},
         chart: {
             ...data.opponent!,
@@ -176,6 +176,9 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             is_multi_colored: false,
             color_primary: 'rgb(0,0,0)',
             color_secondary: 'rgb(0,0,0)',
+            stat_highlights_list: [
+                "**APPROXIMATE: rounded to whole numbers. Actual values used are decimals**"
+            ]
         },
         real_vs_projected_stats: [],
         command_out_accuracy_breakdowns: {},
