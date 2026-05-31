@@ -2090,8 +2090,7 @@ class ShowdownPlayerCard(BaseModel):
         # STILL PROCESS STAT HIGHLIGHTS IF `NONE` IS SELECTED, JUST WONT BE SHOWN ON THE IMAGE
         # USE CLASSIC STAT HIGHLIGHTS IN THAT CASE
         if len(categories) == 0:
-            categories = self.player_sub_type.stat_highlight_categories(type=StatHighlightsType.CLASSIC)
-        
+            categories = self.player_sub_type.stat_highlight_categories(type=StatHighlightsType.ALL)
         
         stat_and_sort_rank: dict[str, float] = {}
         ignore_dwar = False

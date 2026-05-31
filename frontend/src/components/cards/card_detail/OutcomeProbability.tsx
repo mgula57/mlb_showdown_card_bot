@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { type ShowdownBotCardChart, type ShowdownBotCard, fetchCardById } from '../../../api/showdownBotCard';
 import { PlayerSearchInput, type PlayerSearchSelection } from '../../customs/PlayerSearchInput';
-import { CardItemCompactFromCard } from '../CardItemCompact';
 import { CardItemFromCard } from '../CardItem';
+import { buildChartRangesFromValues } from '../card_elements/CardChart';
+import { FaMinus } from 'react-icons/fa';
+import { FaMagnifyingGlass } from 'react-icons/fa6';
 
 const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 const TOTAL = 20;
@@ -122,6 +124,7 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
 }
 
 type OpponentMode = 'slider' | 'search';
+type OpponentModeOption = { label: string; value: OpponentMode, symbol: ReactNode };
 
 type OutcomeProbabilityProps = {
     chart?: ShowdownBotCardChart;
@@ -143,6 +146,52 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
     const [searchKey, setSearchKey] = useState(0);
 
     const searchQueryRef = useRef('');
+
+    const baselineOpponentCard: ShowdownBotCard | undefined = isEmpty ? undefined : {
+        bref_id: 'opp01',
+        bref_url: '',
+        name: 'Baseline Opponent',
+        year: '',
+        team: '',
+        set: set ?? '2001',
+        era: '',
+        points: 0,
+        ip: null,
+        chart_version: 1,
+        speed: { speed: 0, letter: '' },
+        icons: [],
+        hand: '',
+        player_type: data.opponent?.is_pitcher ? 'Pitcher' : 'Hitter',
+        positions_and_defense_string: '**APPROXIMATION**',
+        positions_and_defense: {},
+        chart: {
+            ...data.opponent!,
+            command: opponentCommand,
+            ranges: buildChartRangesFromValues(data.opponent?.values ?? {}, set ?? '2005', data.opponent?.is_pitcher ?? false),
+        },
+        image: {
+            expansion: null,
+            edition: null,
+            parallel: null,
+            is_multi_colored: false,
+            color_primary: 'rgb(0,0,0)',
+            color_secondary: 'rgb(0,0,0)',
+        },
+        real_vs_projected_stats: [],
+        command_out_accuracy_breakdowns: {},
+        points_breakdown: {
+            allow_negatives: false,
+            breakdowns: {},
+            command_out_multiplier: 1,
+            decay_rate: 0,
+            decay_start: 0,
+            ip_multiplier: 1,
+        },
+        stats: {},
+        stats_period: { type: 'REGULAR', year: '' },
+        warnings: [],
+    };
+
 
     useEffect(() => {
         setOpponentCommand(defaultOpponentCommand);
@@ -193,39 +242,60 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
 
             {/* Mode toggle */}
             <div className="flex items-center gap-1 p-0.5 rounded-lg self-start" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
-                {(['slider', 'search'] as OpponentMode[]).map(mode => (
+                {(
+                    [
+                        { label: 'Baseline', value: 'slider', symbol: <FaMinus /> },
+                        { label: 'Search Opponent', value: 'search', symbol: <FaMagnifyingGlass /> },
+                    ] as OpponentModeOption[]
+                ).map(mode => (
                     <button
-                        key={mode}
+                        key={mode.value}
                         onClick={() => {
-                            setOpponentMode(mode);
-                            if (mode === 'slider') handleClearOpponent();
+                            setOpponentMode(mode.value);
+                            if (mode.value === 'slider') handleClearOpponent();
                         }}
-                        className={`px-3 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wide transition-colors cursor-pointer ${
-                            opponentMode === mode
-                                ? 'bg-background-primary text-secondary shadow-sm'
-                                : 'text-secondary opacity-40 hover:opacity-60'
-                        }`}
+                        className={`
+                            flex items-center gap-1
+                            px-3 py-1 rounded-md 
+                            text-[10px] font-semibold uppercase tracking-wide 
+                            transition-colors cursor-pointer
+                            ${
+                                opponentMode === mode.value
+                                    ? 'bg-background-primary text-secondary shadow-sm'
+                                    : 'text-secondary opacity-40 hover:opacity-60'
+                            }`}
                     >
-                        {mode === 'slider' ? 'Baseline' : 'Search Opponent'}
+                        {mode.symbol}
+                        {mode.label}
                     </button>
                 ))}
             </div>
 
             {/* Opponent control */}
             {opponentMode === 'slider' ? (
-                <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50 shrink-0 w-24">{opponentLabel}</span>
-                    <input
-                        type="range"
-                        min={opponentCommandMin}
-                        max={opponentCommandMax}
-                        step={1}
-                        value={opponentCommand}
-                        onChange={e => setOpponentCommand(Number(e.target.value))}
-                        className="flex-1 accent-current"
-                    />
-                    <span className="text-sm font-black w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
-                </div>
+                <>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50 shrink-0 w-24">{opponentLabel}</span>
+                        <input
+                            type="range"
+                            min={opponentCommandMin}
+                            max={opponentCommandMax}
+                            step={1}
+                            value={opponentCommand}
+                            onChange={e => setOpponentCommand(Number(e.target.value))}
+                            className="flex-1 accent-current"
+                        />
+                        <span className="text-sm font-black w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <CardItemFromCard
+                            card={opponentCard || baselineOpponentCard}
+                            className="flex-1"
+                        />
+                    </div>
+
+                </>
             ) : (
                 <div className="space-y-1">
                     <div className="flex flex-1 items-center gap-1">

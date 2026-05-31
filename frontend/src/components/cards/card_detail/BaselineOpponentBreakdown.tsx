@@ -21,7 +21,7 @@ function outcomeColor(key: string, primaryColor?: string, secondaryColor?: strin
     return 'rgb(156,163,175)';
 }
 
-function KpiTile({ label, value, color, blurred }: { label: string; value: number; color: string; blurred: boolean }) {
+function KpiTile({ label, value, blurred }: { label: string; value: number; blurred: boolean }) {
     return (
         <div className="flex-1 flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 px-3 bg-tertiary">
             <span className={`text-2xl font-black leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
@@ -81,8 +81,8 @@ export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor,
     return (
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''} ${className ?? ''}`}>
             <div className="flex gap-2">
-                <KpiTile label={commandLabel} value={data.command} color={primaryTextColor ?? 'rgb(156,163,175)'} blurred={isEmpty} />
-                <KpiTile label="Outs" value={data.outs} color={secondaryTextColor ?? 'rgb(239,68,68)'} blurred={isEmpty} />
+                <KpiTile label={commandLabel} value={data.command} blurred={isEmpty} />
+                <KpiTile label="Outs" value={data.outs} blurred={isEmpty} />
             </div>
             <div className="flex flex-col space-y-0.5">
                 <CardChart

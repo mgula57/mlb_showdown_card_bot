@@ -79,7 +79,7 @@ export default function CardCommand({ isPitcher, primaryColor, secondaryColor, c
                     fontSize: '60cqw',
                 }}
             >
-                {command}
+                {command != null && !Number.isInteger(command) ? command.toFixed(1) : command}
             </div>
         </div>
     );

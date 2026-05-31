@@ -535,7 +535,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 {/* Opponent Breakdown */}
                 <SectionPanel 
                     isLoading={isLoadingOverall} 
-                    title="Opponent Breakdown"
+                    title="Baseline Opponent"
                     subtitle={`The avg opposing pitcher/hitter used to create the card. Adjusted to reflect run scoring environment of the ${activeCardData?.card?.era}`}
                 >
                     <BaselineOpponentBreakdown

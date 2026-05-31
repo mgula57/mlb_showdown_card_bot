@@ -134,10 +134,14 @@ export const CardItem = ({
     // Determine whether the stats have been estimated
     const isStatsEstimate = cardIsStatsEstimate || (cardLeague && cardEdition === 'WBC' && !['AL', 'NL', 'MLB'].includes(cardLeague)); // WBC cards for MLB players are often estimates
     
+    const isClickable = onClick !== undefined;
+
     // Dynamic border styling based on selection state and theme
-    const borderSettings = isSelected 
-        ? (isDark ? 'border-3' : 'border-3 shadow-xl hover:shadow-2xl') 
-        : (isDark ? 'border-white/10 hover:border-white/50' : 'shadow-xl hover:shadow-2xl border-gray-200 hover:border-black/40');
+    const borderSettings = isSelected
+        ? (isDark ? 'border-3' : `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`)
+        : (isDark
+            ? `border-white/10${isClickable ? ' hover:border-white/50' : ''}`
+            : `shadow-xl border-gray-200${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     /**
      * Player-type specific metadata display
@@ -147,11 +151,11 @@ export const CardItem = ({
      */
     const metadataArray: (string | undefined)[] = cardIsPitcher ? [
         cardPositionsAndDefenseString,
-        `${cardHand}HP`, // HP = Handed Pitcher
-        `IP ${cardIp}`,
+        cardHand ? `${cardHand}HP` : undefined, // HP = Handed Pitcher
+        cardIp ? `IP ${cardIp}` : undefined,
     ] : [
-        `SPD ${cardSpeed}`,
-        `BATS ${cardHand}`,
+        cardSpeed ? `SPD ${cardSpeed}` : undefined,
+        cardHand ? `BATS ${cardHand}` : undefined,
         cardPositionsAndDefenseString,
     ];
 
@@ -179,7 +183,7 @@ export const CardItem = ({
                 bg-secondary
                 rounded-xl
                 border-3
-                ${onClick ? 'cursor-pointer' : ''}
+                ${isClickable ? 'cursor-pointer' : ''}
                 ${borderSettings}
             `}
             onClick={onClick}
