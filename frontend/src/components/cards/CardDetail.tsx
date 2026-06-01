@@ -489,7 +489,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     )}
 
                     {/* Card vs Real Stats */}
-                    <SectionPanel isLoading={isLoadingOverall} title="Card vs Real Stats">
+                    <SectionPanel isLoading={isLoadingOverall} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
                             
                         <RealVsProjectedVisual
                             realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}

@@ -492,6 +492,20 @@ def build_user_settings_table(
     db.build_user_settings_table()
     print("✅ User settings table built.")
 
+@app.command("build_season_stat_range_table")
+def build_season_stat_range_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    drop_existing: bool = typer.Option(False, "--drop_existing", "-drop", help="Drop existing table, full reload"),
+):
+    """Build the season stat range table in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building season stat range table...")
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
+    db.build_season_stat_range_table(drop_existing=drop_existing)
+    print("✅ Season stat range table built.")
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

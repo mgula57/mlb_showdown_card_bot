@@ -32,7 +32,7 @@ from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
 from .utils import showdown_constants as sc, colors
-from .utils.shared_functions import convert_to_date, convert_number_to_ordinal
+from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, total_ip_for_calculations
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
@@ -1947,7 +1947,7 @@ class ShowdownPlayerCard(BaseModel):
             
         # ADD K/9 FOR PITCHERS
         if self.is_pitcher and 'strikeouts_per_nine' not in stats.keys():
-            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
+            k_per_9 = stats.get('SO', 0) * 9 / total_ip_for_calculations(stats.get('IP', 1))
             stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         # CLEAN SLASHLINE
@@ -2670,8 +2670,9 @@ class ShowdownPlayerCard(BaseModel):
                 _runs_per_pa = (_bb * 0.30 + _h1b * 0.46 + _h2b * 0.76 + _h3b * 1.04 + _hr * 1.42 - _outs * 0.09) / _pa
                 projected_by_alias['ERA']  = round(max(0.0, _runs_per_pa * _bf_per_9), 2)
                 projected_by_alias['WHIP'] = round((_h + _bb) / _pa * _bf_per_9 / 9, 2)
+                projected_by_alias['K/9']  = round(_so / _pa * _bf_per_9, 2)
 
-            for alias, stat_key in [('ERA', 'earned_run_avg'), ('WHIP', 'whip')]:
+            for alias, stat_key in [('ERA', 'earned_run_avg'), ('WHIP', 'whip'), ('K/9', 'strikeouts_per_nine')]:
                 stat_raw = self.stats_for_card.get(stat_key, None)
                 if stat_raw is None or str(stat_raw) == '':
                     continue
