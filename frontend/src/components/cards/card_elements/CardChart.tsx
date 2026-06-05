@@ -174,7 +174,7 @@ export function buildChartRangesFromValues(values: Record<string, number>, set: 
         let end = cursor + Math.floor(count + 0.53) - 1;
         if (key === 'FB' && end > (totalOuts + 0.53)) {
             // For FB outcomes, if the calculated end exceeds total outs, cap it at total outs to prevent overlap with positive outcomes
-            end = totalOuts;
+            end = Math.round(totalOuts);
         }
 
         if (end < cursor) {

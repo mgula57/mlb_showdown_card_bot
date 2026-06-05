@@ -1257,7 +1257,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                         {/* Showdown Set */}
                                         <div className="flex flex-col gap-1">
-                                            <label className="text-xs font-semibold text-secondary">Showdown Style</label>
+                                            <div className="flex flex-col space-y-0">
+                                                <label className="text-xs font-semibold text-secondary">Showdown Style</label>
+                                                <div className="text-[11px] text-(--tertiary) opacity-75">
+                                                    Manage default in the top right corner
+                                                </div>
+                                            </div>
                                             <CustomSelect
                                                 className="text-sm"
                                                 imageClassName="object-contain object-center w-18 mr-2"

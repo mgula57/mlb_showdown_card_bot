@@ -294,7 +294,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                     <div className="flex items-center gap-2">
                         <CardItemFromCard
                             card={opponentCard || baselineOpponentCard}
-                            className="flex-1"
+                            className="max-w-full"
                         />
                     </div>
 
