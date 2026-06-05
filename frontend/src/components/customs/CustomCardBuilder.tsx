@@ -208,6 +208,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
+    const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
 
     // User Context
     const { user, session } = useAuth();
@@ -1257,10 +1258,25 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             </div>
                                         )}
 
+                                        {/* Showdown Set */}
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs font-semibold text-secondary">Showdown Style</label>
+                                            <CustomSelect
+                                                className="font-showdown-set-italic text-lg"
+                                                imageClassName="object-contain object-center w-18"
+                                                value={showdownSetOverride ?? ''}
+                                                onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
+                                                options={[
+                                                    { value: '', label: ` (User Default)`, image: userDefaultSetImage },
+                                                    ...showdownSets,
+                                                ]}
+                                            />
+                                        </div>
+
                                         {/* Player */}
-                                        <FormSection 
-                                            title='Player' 
-                                            icon={<FaUser />} 
+                                        <FormSection
+                                            title='Player'
+                                            icon={<FaUser />}
                                             isOpenByDefault={sectionStates['Player']}
                                             onToggle={() => toggleSection('Player')}
                                             childrenWhenClosed={sectionWhenClosed('Player')}
@@ -1322,20 +1338,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
                                         >
-                                            <div className="col-span-full flex flex-col gap-1">
-                                                <label className="text-xs font-semibold text-secondary">Showdown Set</label>
-                                                <CustomSelect
-                                                    className="font-showdown-set-italic text-lg"
-                                                    imageClassName="object-contain object-center w-18"
-                                                    value={showdownSetOverride ?? ''}
-                                                    onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
-                                                    options={[
-                                                        { value: '', label: `Your Default (${userShowdownSet})` },
-                                                        ...showdownSets,
-                                                    ]}
-                                                />
-                                            </div>
-
                                             <FormDropdown
                                                 label="Expansion"
                                                 options={expansionOptions}
