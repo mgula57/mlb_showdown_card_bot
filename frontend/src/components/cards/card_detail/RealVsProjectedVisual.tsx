@@ -52,7 +52,13 @@ const INVERTED_STATS: Record<'HITTER' | 'PITCHER', Set<string>> = {
     ]), // for pitchers, these hitting stats are inverted since lower is better
 };
 
-function PercentileBar({ stat, real, statRanges, hasRanges, playerType, className }: { stat: string; real: number | null; statRanges: StatRanges; hasRanges: boolean; playerType?: 'HITTER' | 'PITCHER'; className?: string }) {
+function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerType, className }: { stat: string; real: number | null; statRanges: StatRanges; hasRanges: boolean; isLoading?: boolean; playerType?: 'HITTER' | 'PITCHER'; className?: string }) {
+    if (isLoading) return (
+        <div className={`flex-1 relative h-5 flex items-center ${className || ''}`}>
+            <div className="absolute inset-x-0 h-1 rounded-full animate-pulse" style={{ background: 'rgba(148,163,184,0.35)' }} />
+            <div className="absolute h-5 w-5 rounded-full animate-pulse" style={{ left: '0%', background: 'rgba(148,163,184,0.35)' }} />
+        </div>
+    );
     // Compute target pct unconditionally so hooks are always called in the same order
     const key = rangeKey(stat);
     const range = (real !== null && real !== undefined) ? statRanges[key] : undefined;
@@ -140,7 +146,7 @@ const PLACEHOLDER_STATS = [
     { stat: 'WAR', real: 5.2, projected: 5.0, diff: -0.2, diff_str: '-0.2', precision: 1 },
 ] as RealVsProjectedStat[];
 
-export default function RealVsProjectedVisual({ realVsProjectedData, statRanges, playerType }: RealVsProjectedVisualProps) {
+export default function RealVsProjectedVisual({ realVsProjectedData, statRanges, isLoading, playerType }: RealVsProjectedVisualProps) {
     const isEmpty = !realVsProjectedData?.length;
     const data = isEmpty ? PLACEHOLDER_STATS : realVsProjectedData!.filter(stat => !['GB', 'FB', 'PU', 'SF'].includes(stat.stat)); // these adjusted metrics are less intuitive to interpret without context, so exclude from visual
 
@@ -171,7 +177,7 @@ export default function RealVsProjectedVisual({ realVsProjectedData, statRanges,
                             {formatStatValue(stat.real, cleanStat)}
                         </span>
 
-                        <PercentileBar className="py-2" stat={cleanStat} real={stat.real} statRanges={statRanges || {}} hasRanges={!!statRanges} playerType={playerType} />
+                        <PercentileBar className="py-2" stat={cleanStat} real={stat.real} statRanges={statRanges || {}} hasRanges={!!statRanges} isLoading={isLoading} playerType={playerType} />
 
                         <span className={`text-[12px] font-bold w-14 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : diffColor(stat.diff_str)}`}>
                             {stat.diff_str}

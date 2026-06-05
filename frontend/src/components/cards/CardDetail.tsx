@@ -324,7 +324,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 @container
                 w-full
                 overflow-visible @2xl:overflow-y-auto
-                p-4 space-y-4
+                p-4 @6xl:px-8 space-y-4
                 h-full
                 pb-24
             "
@@ -499,6 +499,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                         <RealVsProjectedVisual
                             realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
                             statRanges={seasonStatRanges}
+                            isLoading={isRangesLoading}
                             playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
                         />
                         <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">
