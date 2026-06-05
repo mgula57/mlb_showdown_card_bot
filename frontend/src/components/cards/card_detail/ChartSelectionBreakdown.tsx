@@ -13,12 +13,12 @@ const PLACEHOLDER_CHART_ACCURACY: Record<string, Record<string, ChartAccuracyCat
 function KpiTile({ label, value, blurred }: { label: string; value: string | number; blurred: boolean }) {
     return (
         <div 
-            className="flex-1 flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 px-3 bg-tertiary" 
+            className="@container flex-1 flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 px-3 bg-tertiary" 
         >
-            <span className={`text-2xl font-black leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
+            <span className={`text-xl @[80px]:text-2xl font-black leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
                 {value}
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-widest opacity-50">{label}</span>
+            <span className="text-[8px] @[80px]:text-[10px] font-semibold uppercase tracking-widest opacity-50">{label}</span>
         </div>
     );
 }
@@ -38,14 +38,15 @@ function AccuracyBar({ row, rank, blurred, isSelected }: { row: ChartRow; rank: 
                 <div className="w-1.5 h-1.5 rounded-full shrink-0 translate-x-0.5" style={{ backgroundColor: isSelected ? 'rgb(34,197,94)' : 'transparent' }} />
                 <span className={`text-[12px] font-black w-14 text-right shrink-0 tabular-nums ${isSelected ? 'opacity-100' : 'opacity-60'}`}>{rank}. {label}</span>
             </div>
-            <div className="relative flex-1 h-3.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
+            <div className="@container relative flex-1 h-3.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
                 <div
                     className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
                     style={{ width: `${barPct}%`, backgroundColor: 'rgb(156,163,175)', opacity: 0.85 }}
                 />
                 {isOutlier && (
                     <span className="absolute inset-y-0 flex items-center text-[8px] font-black uppercase tracking-wide leading-none pointer-events-none px-1 rounded" style={{ color: 'rgb(234,179,8)', background: 'rgba(0,0,0,0.45)' }}>
-                        outlier
+                        <span className="@max-[60px]:hidden">outlier</span>
+                        <span className="@[60px]:hidden">ol</span>
                     </span>
                 )}
             </div>
@@ -92,17 +93,17 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''} ${className ?? ''}`}>
             {selectedVersion && (
                 <div className="grid grid-cols-3 items-center gap-2">
-                    <div className="flex gap-0.5 items-center bg-tertiary rounded-lg py-2.5 px-1 md:px-3 justify-center">
+                    <div className="@container flex gap-2 items-center bg-tertiary rounded-lg py-2.5 px-1 w-full justify-center">
                         <CardCommand 
                             isPitcher={selectedVersion.is_pitcher} 
                             command={Number(selectedVersion.chart.split('-')[0])} 
                             primaryColor='#ffffff' 
                             secondaryColor='#ffffff' 
-                            className="w-7 h-7 md:w-11 md:h-11" 
+                            className="w-5 h-5 @[10px]:w-7 @[10px]:h-7 @[100px]:w-11 @[100px]:h-11" 
                         />
-                        <span className="text-sm md:text-md font-semibold uppercase tracking-wide opacity-90 ml-3 gap-0 flex flex-col items-center">
+                        <span className="text-sm md:text-md font-semibold uppercase tracking-wide opacity-90 gap-0 flex flex-col items-center">
                             {(selectedVersion.chart.split('-')[1] || '0') === '0' ? '0' : `1-${selectedVersion.chart.split('-')[1]}`}
-                            <span className='text-xs opacity-70'> Out</span>
+                            <span className='text-[9px] @[80px]:text-xs opacity-70'> Out</span>
                         </span>
                     </div>
                     <KpiTile label="Card OPS" value={formatSlashlineValue(selectedVersion.comparison)} blurred={isEmpty} />
