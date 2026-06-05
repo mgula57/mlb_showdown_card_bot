@@ -950,8 +950,20 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
     );
 }
 
+function useIsSmallScreen() {
+    const [isSmall, setIsSmall] = useState(() => window.matchMedia("(max-width: 639px)").matches);
+    useEffect(() => {
+        const mq = window.matchMedia("(max-width: 639px)");
+        const handler = (e: MediaQueryListEvent) => setIsSmall(e.matches);
+        mq.addEventListener("change", handler);
+        return () => mq.removeEventListener("change", handler);
+    }, []);
+    return isSmall;
+}
+
 function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
+    const isSmallScreen = useIsSmallScreen();
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
         onOpenChange: setIsOpen,
@@ -995,7 +1007,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.home_runs}</td>
             <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
-            {isOpen && card && !isShowingModal && (
+            {isOpen && card && !isShowingModal && !isSmallScreen && (
                 <FloatingPortal>
                     <div
                         ref={refs.setFloating}
@@ -1091,8 +1103,9 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, i
 }
 
 function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { pitcher: BoxscorePitcher; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
-    
+
     const [isOpen, setIsOpen] = useState(false);
+    const isSmallScreen = useIsSmallScreen();
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
         onOpenChange: setIsOpen,
@@ -1123,7 +1136,7 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoa
                 {pitcher.stats.pitches_thrown}-{pitcher.stats.strikes}
             </td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{pitcher.season_stats.era}</td>
-            {isOpen && card && !isShowingModal && (
+            {isOpen && card && !isShowingModal && !isSmallScreen && (
                 <FloatingPortal>
                     <div
                         ref={refs.setFloating}
