@@ -120,7 +120,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 .eq('id', userId)
                 .single();
 
-            if (error || !data || !data.username) {
+            if (error) {
+                // PGRST116 = no row found — user genuinely has no profile/username
+                if (error.code === 'PGRST116') {
+                    setNeedsUsername(true);
+                    setUsername(null);
+                }
+                // any other error (network, timeout, auth) — leave needsUsername unchanged
+                return;
+            }
+
+            if (!data?.username) {
                 setNeedsUsername(true);
                 setUsername(null);
             } else {
@@ -128,9 +138,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setUsername(data.username);
             }
         } catch (err) {
+            // network-level failure — don't prompt for username
             console.error('Error checking profile:', err);
-            setNeedsUsername(true);
-            setUsername(null);
         }
     };
 
