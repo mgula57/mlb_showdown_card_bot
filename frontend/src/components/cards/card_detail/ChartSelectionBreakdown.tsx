@@ -25,10 +25,8 @@ function KpiTile({ label, value, blurred }: { label: string; value: string | num
 
 type ChartRow = ChartAccuracyCategoryBreakdown & { chart: string };
 
-const BAR_FLOOR = 0.85;
-
-function AccuracyBar({ row, rank, blurred, isSelected }: { row: ChartRow; rank: number; blurred: boolean; isSelected: boolean }) {
-    const barPct = Math.max(0, Math.min((row.accuracy - BAR_FLOOR) / (1 - BAR_FLOOR), 1)) * 100;
+function AccuracyBar({ row, rank, blurred, isSelected, barFloor }: { row: ChartRow; rank: number; blurred: boolean; isSelected: boolean; barFloor: number }) {
+    const barPct = Math.max(0, Math.min((row.accuracy - barFloor) / (1 - barFloor), 1)) * 100;
     const [cmd, outs] = row.chart.split('-');
     const label = outs ? `${cmd}-${outs}` : row.chart;
     const isOutlier = row.notes?.includes('OUTLIER');
@@ -87,6 +85,7 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
         .sort((a, b) => b.accuracy - a.accuracy)
         .slice(0, 5);
 
+    const barFloor = ranked.length > 0 ? Math.min(0.85, ranked[ranked.length - 1].accuracy) : 0.85;
     const selectedVersion = ranked.find((_, index) => (index + 1) === (selectedChartVersion ?? 1)) || ranked[0];
 
     return (
@@ -119,7 +118,7 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
                     ))}
                 </div>
                 {ranked.map((row, i) => (
-                    <AccuracyBar key={row.chart} row={row} rank={i + 1} blurred={isEmpty} isSelected={row.chart === selectedVersion?.chart} />
+                    <AccuracyBar key={row.chart} row={row} rank={i + 1} blurred={isEmpty} isSelected={row.chart === selectedVersion?.chart} barFloor={barFloor} />
                 ))}
             </div>
         </div>
