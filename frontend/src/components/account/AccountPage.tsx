@@ -26,6 +26,7 @@ import { SignInPrompt } from '../shared/SignInPrompt';
 import CustomSelect from '../shared/CustomSelect';
 import { uploadAvatar, removeAvatar, validateAvatarFile } from '../../api/userAvatar';
 import AvatarCropModal from './AvatarCropModal';
+import { AccountAvatar } from '../auth/AccountIcon';
 
 /**
  * Account Page Component
@@ -222,7 +223,7 @@ const AccountPage: React.FC = () => {
                         <div className="shrink-0">
                             <div className="relative group w-20 h-20">
                                 {/* Avatar display */}
-                                <button
+                                {/* <button
                                     type="button"
                                     onClick={() => avatarInputRef.current?.click()}
                                     disabled={isUploadingAvatar}
@@ -240,7 +241,12 @@ const AccountPage: React.FC = () => {
                                             {getUserInitials()}
                                         </div>
                                     )}
-                                </button>
+                                </button> */}
+
+                                <AccountAvatar 
+                                    showStatus={false}
+                                    size={20}
+                                />
 
                                 {/* Hover overlay */}
                                 <button
