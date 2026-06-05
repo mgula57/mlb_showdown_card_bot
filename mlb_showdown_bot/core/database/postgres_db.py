@@ -3078,6 +3078,11 @@ class PostgresDB:
                     select
                         st.year,
                         st.player_type,
+                        case
+                            when st.player_type = 'PITCHER' then
+                                case when st.gs::float / nullif(st.g, 0) >= 0.5 then 'SP' else 'RP' end
+                            else null
+                        end as pitcher_role,
                         th.min_ip_pitcher,
                         th.min_pa_hitter,
                         st.g,
@@ -3086,11 +3091,11 @@ class PostgresDB:
                         st.ip,
                         st.war,
                         st.stats
-                    from player_season_stats as st 
-                    join year_thresholds as th 
+                    from player_season_stats as st
+                    join year_thresholds as th
                         on th.year = st.year
                     where
-                        case 
+                        case
                             when st.player_type = 'PITCHER' then st.ip >= th.min_ip_pitcher
                             else st.pa >= th.min_pa_hitter
                         end
@@ -3100,6 +3105,7 @@ class PostgresDB:
                     select
                         e.year,
                         e.player_type,
+                        e.pitcher_role,
                         j.key as stat_name,
                         j.value::numeric as stat_value
                     from eligible e
@@ -3127,6 +3133,7 @@ class PostgresDB:
                     select
                         e.year,
                         e.player_type,
+                        e.pitcher_role,
                         upper(pstat.key) || '-' || pos.key as stat_name,
                         round(pstat.value::numeric, 4) as stat_value
                     from eligible e
@@ -3137,11 +3144,12 @@ class PostgresDB:
                         and pstat.key in ('g', 'drs', 'tzr', 'oaa')
 
                     -- add K/9 for pitchers
-                    -- not included in stored stats 
+                    -- not included in stored stats
                     union all
                     select
                         year,
                         player_type,
+                        pitcher_role,
                         'K/9' as stat_name,
                         case
                             when (stats->>'IP')::decimal = 0 then null
@@ -3166,16 +3174,17 @@ class PostgresDB:
                 select
                     r.year,
                     r.player_type,
+                    r.pitcher_role,
                     r.stat_name,
                     percentile_cont(0.02) within group (order by r.stat_value) as stat_min,
                     percentile_cont(0.98) within group (order by r.stat_value) as stat_max,
                     count(*) as sample_size
                 from json_stat_rows r
-                group by r.year, r.player_type, r.stat_name
+                group by r.year, r.player_type, r.pitcher_role, r.stat_name
             );
         '''
         create_index_sql = '''
-            CREATE INDEX IF NOT EXISTS idx_season_stat_ranges_year_player_type ON internal.dim_season_stat_ranges (year, player_type);
+            CREATE INDEX IF NOT EXISTS idx_season_stat_ranges_year_player_type ON internal.dim_season_stat_ranges (year, player_type, pitcher_role);
         '''
         with self.connection.cursor() as cur:
             cur.execute(create_table_sql)
@@ -3971,12 +3980,15 @@ class PostgresDB:
         finally:
             cursor.close()
 
-    def get_season_stat_ranges(self, season:int, player_type:str) -> dict[str, dict[str, float]]:
-        """Fetch min and max values for key stats in a given season and player type. Used for percentiles in the frontend."""
+    def get_season_stat_ranges(self, season:int, player_type:str, pitcher_role:str|None=None) -> dict[str, dict[str, float]]:
+        """Fetch min and max values for key stats in a given season and player type. Used for percentiles in the frontend.
+
+        pitcher_role: 'SP' or 'RP' (only applies when player_type='PITCHER'). None returns all pitchers combined.
+        """
         if self.connection is None:
             print("ERROR: NO CONNECTION TO DB")
             return {}
-        
+
         cursor = self.connection.cursor()
         try:
             query = """
@@ -4008,15 +4020,19 @@ class PostgresDB:
                         st.ip,
                         st.war,
                         st.stats
-                    from player_season_stats as st 
-                    join year_thresholds as th 
+                    from player_season_stats as st
+                    join year_thresholds as th
                         on th.year = st.year
                     where
-                        case 
+                        case
                             when st.player_type = 'PITCHER' then st.ip >= th.min_ip_pitcher
                             else st.pa >= th.min_pa_hitter
                         end
                         and st.player_type = %s
+                        and (
+                            %s IS NULL
+                            or case when st.gs::float / nullif(st.g, 0) >= 0.5 then 'SP' else 'RP' end = %s
+                        )
 
                 ),
                 json_stat_rows as (
@@ -4070,7 +4086,7 @@ class PostgresDB:
                 from json_stat_rows r
                 group by r.year, r.player_type, r.stat_name
             """
-            cursor.execute(query, (season, player_type))
+            cursor.execute(query, (season, player_type, pitcher_role, pitcher_role))
             results = cursor.fetchall()
             stat_ranges = {
                 row[2]: {

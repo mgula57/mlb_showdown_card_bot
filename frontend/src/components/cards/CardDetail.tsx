@@ -149,9 +149,15 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 // Fetch season stat ranges for real vs projected table if not already present
                 if (showdownBotCardData.card) {
                     const maxYear = Math.max(...(showdownBotCardData.card.stats_period.year_list || []));
+                    const playerType = showdownBotCardData.card.player_type.toUpperCase() as "HITTER" | "PITCHER";
+                    const subType: string | undefined = showdownBotCardData.card.player_sub_type;
+                    const pitcherRole: 'SP' | 'RP' | undefined =
+                        playerType === 'PITCHER'
+                            ? (subType === 'starting_pitcher' ? 'SP' : 'RP')
+                            : undefined;
                     setIsRangesLoading(true);
                     setSeasonStatRanges(null);
-                    fetchSeasonStatRanges(maxYear, showdownBotCardData.card.player_type.toUpperCase() as "HITTER" | "PITCHER")
+                    fetchSeasonStatRanges(maxYear, playerType, pitcherRole)
                         .then((response) => {
                             console.log("Fetched season stat ranges:", response);
                             setSeasonStatRanges(response?.ranges ?? null);

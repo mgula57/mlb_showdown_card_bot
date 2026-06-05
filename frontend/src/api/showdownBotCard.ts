@@ -201,8 +201,9 @@ export async function buildCardsFromIds(cardIds: string[], season: number | stri
     return res.json();
 }
 
-export async function fetchSeasonStatRanges(season: number, playerType: 'HITTER' | 'PITCHER'): Promise<any> {
-    const res = await fetch(`${API_BASE}/stats/ranges?season=${season}&player_type=${playerType}`, {
+export async function fetchSeasonStatRanges(season: number, playerType: 'HITTER' | 'PITCHER', pitcherRole?: 'SP' | 'RP'): Promise<any> {
+    const roleParam = pitcherRole ? `&pitcher_role=${pitcherRole}` : '';
+    const res = await fetch(`${API_BASE}/stats/ranges?season=${season}&player_type=${playerType}${roleParam}`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -402,6 +403,9 @@ export type ShowdownBotCard = {
     // Positional information
     /** "HITTER" or "PITCHER" */
     player_type: "Hitter" | "Pitcher";
+
+    /** Pitcher role: 'starting_pitcher' | 'relief_pitcher', or 'position_player' for hitters */
+    player_sub_type?: 'starting_pitcher' | 'relief_pitcher' | 'position_player';
     
     /** Formatted positions with defensive ratings */
     positions_and_defense_string: string;

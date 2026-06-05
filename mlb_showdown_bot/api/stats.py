@@ -13,11 +13,13 @@ _RANGES_CACHE_TTL = timedelta(hours=24)
 def get_stat_ranges():
     season = request.args.get('season', type=int)
     player_type = request.args.get('player_type', '').upper()
-    print(f"Received request for stat ranges with season={season} and player_type={player_type}")
+    pitcher_role_raw = request.args.get('pitcher_role', '').upper() or None
+    pitcher_role = pitcher_role_raw if pitcher_role_raw in ('SP', 'RP') else None
+    print(f"Received request for stat ranges with season={season} and player_type={player_type} pitcher_role={pitcher_role}")
     if not season or player_type not in ('HITTER', 'PITCHER'):
         return jsonify({'error': 'season (int) and player_type (HITTER|PITCHER) are required'}), 400
 
-    cache_key = f"{season}:{player_type}"
+    cache_key = f"{season}:{player_type}:{pitcher_role}"
     cached = _ranges_cache.get(cache_key)
     if cached:
         data, ts = cached
@@ -26,10 +28,10 @@ def get_stat_ranges():
 
     try:
         db = PostgresDB()
-        ranges = db.get_season_stat_ranges(season=season, player_type=player_type)
+        ranges = db.get_season_stat_ranges(season=season, player_type=player_type, pitcher_role=pitcher_role)
         db.close_connection()
 
-        payload = {'season': season, 'player_type': player_type, 'ranges': ranges}
+        payload = {'season': season, 'player_type': player_type, 'pitcher_role': pitcher_role, 'ranges': ranges}
         _ranges_cache[cache_key] = (payload, datetime.now())
         return jsonify(payload), 200
 
