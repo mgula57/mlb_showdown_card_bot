@@ -25,7 +25,7 @@ function KpiTile({ label, value, blurred }: { label: string; value: string | num
 
 type ChartRow = ChartAccuracyCategoryBreakdown & { chart: string };
 
-const BAR_FLOOR = 0.5;
+const BAR_FLOOR = 0.85;
 
 function AccuracyBar({ row, rank, blurred, isSelected }: { row: ChartRow; rank: number; blurred: boolean; isSelected: boolean }) {
     const barPct = Math.max(0, Math.min((row.accuracy - BAR_FLOOR) / (1 - BAR_FLOOR), 1)) * 100;
