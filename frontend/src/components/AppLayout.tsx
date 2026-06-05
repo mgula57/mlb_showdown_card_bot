@@ -307,12 +307,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     {/* Right Section: Showdown Set Selector and Account Icon */}
                     <div className="flex items-center space-x-2">
                         <CustomSelect
-                            className="font-showdown-set-italic w-18 text-xl"
+                            className="w-22 text-lg"
                             buttonClassName="flex justify-center cursor-pointer select-none"
                             imageClassName="object-contain object-center w-18"
                             value={userShowdownSet}
                             onChange={setUserShowdownSet}
                             options={showdownSets}
+                            showDropdownArrow={false}
                         />
 
                         <AccountIcon onLoginClick={() => setShowLoginModal(true)} />

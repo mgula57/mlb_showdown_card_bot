@@ -451,9 +451,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
                 if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
-                if (effectiveShowdownSet && effectiveShowdownSet !== userShowdownSet) {
-                    summaries.push({ label: 'Showdown Set', value: effectiveShowdownSet.toUpperCase(), image: showdownSets.find(set => set.value === effectiveShowdownSet)?.image });
-                }
                 break;
                 
             case 'image':
@@ -1262,12 +1259,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         <div className="flex flex-col gap-1">
                                             <label className="text-xs font-semibold text-secondary">Showdown Style</label>
                                             <CustomSelect
-                                                className="font-showdown-set-italic text-lg"
-                                                imageClassName="object-contain object-center w-18"
+                                                className="text-sm"
+                                                imageClassName="object-contain object-center w-18 mr-2"
                                                 value={showdownSetOverride ?? ''}
                                                 onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                                 options={[
-                                                    { value: '', label: ` (User Default)`, image: userDefaultSetImage },
+                                                    { value: '', label: ` (Your Default)`, image: userDefaultSetImage },
                                                     ...showdownSets,
                                                 ]}
                                             />

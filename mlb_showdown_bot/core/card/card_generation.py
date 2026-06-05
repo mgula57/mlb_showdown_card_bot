@@ -726,14 +726,18 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
     sprint_speed_data = statcast_api_client.fetch_sprint_speed_leaderboard(years[0])
 
     # Get Fangraphs defensive stats for all players if applicable
-    fangraphs_api = FangraphsAPIClient()
-    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
-        stat_type="fld",
-        season_start=years[0],
-        season_end=years[-1],
-        position="all",
-        fangraphs_player_ids=player_stats.fangraphs_ids,
-    )
+    try:
+        fangraphs_api = FangraphsAPIClient()
+        fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+            stat_type="fld",
+            season_start=years[0],
+            season_end=years[-1],
+            position="all",
+            fangraphs_player_ids=player_stats.fangraphs_ids,
+        )
+    except Exception as e:
+        print("Error fetching Fangraphs defensive stats: ", e)
+        fielding_stats_list = []
 
     # Generate cards for each player
     final_cards: list[dict] = []

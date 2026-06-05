@@ -450,12 +450,13 @@ const AccountPage: React.FC = () => {
                         {/* Default Showdown Set */}
                         <div>
                             <CustomSelect
-                                className="font-showdown-set-italic w-20 text-xl"
+                                className="font-showdown-set-italic w-26 text-xl"
                                 buttonClassName="flex justify-center cursor-pointer select-none p-2 rounded-lg border"
-                                imageClassName="object-contain object-center"
+                                imageClassName="object-contain object-center w-18"
                                 value={userShowdownSet}
                                 onChange={setUserShowdownSet}
                                 options={showdownSets}
+                                showDropdownArrow={true}
                             />
                             
                             <p className="text-xs text-gray-500 mt-2">

@@ -91,18 +91,18 @@ function PercentileBar({ stat, real, statRanges, hasRanges, playerType, classNam
     const badgeOffset = Math.max(0, Math.min(animatedPct, 96));
 
     return (
-        <div className={`flex-1 relative h-5 flex items-center ${className || ''}`}>
+        <div className={`@container flex-1 relative h-5 flex items-center ${className || ''}`}>
             {/* Track */}
-            <div className="absolute inset-x-0 h-1 rounded-full opacity-20" style={{ backgroundColor: color }} />
+            <div className="absolute inset-x-0 h-1 rounded-full opacity-20 hidden @[20px]:block" style={{ backgroundColor: color }} />
             {/* Fill */}
             <div
-                className="absolute left-0 h-1 rounded-full transition-all duration-700"
+                className="absolute left-0 h-1 rounded-full transition-all duration-700 hidden @[20px]:block"
                 style={{ width: `${animatedPct}%`, backgroundColor: color }}
             />
             {/* Badge */}
             <div
                 className={`
-                    absolute h-5 w-5 rounded-full flex items-center justify-center 
+                    absolute h-5 w-5 rounded-full flex items-center justify-center
                     font-extrabold text-white ${targetPct.toString().length > 2 ? 'text-[8px]' : 'text-[10px]'}
                     transition-all duration-700 cursor-default group
                 `}
