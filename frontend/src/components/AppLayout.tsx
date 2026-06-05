@@ -316,7 +316,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             showDropdownArrow={false}
                         />
 
-                        <AccountIcon onLoginClick={() => setShowLoginModal(true)} />
+                        <AccountIcon size={8} onLoginClick={() => setShowLoginModal(true)} />
 
                     </div>
                     

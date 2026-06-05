@@ -70,7 +70,7 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
                         </span>
                     )
                 ) : (
-                    <FaUserCircle className="w-8 h-8 text-secondary" />
+                    <FaUserCircle className="w-full h-full text-secondary" />
                 )}
             </button>
 
@@ -101,11 +101,11 @@ interface AccountIconProps {
 
 export const AccountIcon: React.FC<AccountIconProps> = ({
     className = '',
-    size = 9,
+    size = 8,
     onLoginClick,
     showStatus = true,
 }) => {
-    const { user, signOut, username, userSettings } = useAuth();
+    const { user, signOut, username } = useAuth();
     const navigate = useNavigate();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -144,7 +144,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
     };
 
     return (
-        <div className={`relative z-50 ${className}`} ref={dropdownRef}>
+        <div className={`relative z-50 flex items-center ${className}`} ref={dropdownRef}>
             <AccountAvatar
                 size={size}
                 showStatus={showStatus}
