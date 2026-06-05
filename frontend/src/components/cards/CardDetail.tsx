@@ -33,7 +33,6 @@ import GameItem from '../games/GameItem';
 // Visual breakdown panels
 import OutcomeProbability from './card_detail/OutcomeProbability';
 import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
-import PercentileGaugesPanel from './card_detail/PercentileGaugesPanel';
 import PointsContributionBars from './card_detail/PointsContributionBars';
 import { CardComps } from './card_detail/CardComps';
 
@@ -500,7 +499,6 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                         <RealVsProjectedVisual
                             realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
                             statRanges={seasonStatRanges}
-                            isLoading={isRangesLoading}
                             playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
                         />
                         <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">

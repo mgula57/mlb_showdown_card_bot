@@ -140,7 +140,7 @@ const PLACEHOLDER_STATS = [
     { stat: 'WAR', real: 5.2, projected: 5.0, diff: -0.2, diff_str: '-0.2', precision: 1 },
 ] as RealVsProjectedStat[];
 
-export default function RealVsProjectedVisual({ realVsProjectedData, statRanges, isLoading, playerType }: RealVsProjectedVisualProps) {
+export default function RealVsProjectedVisual({ realVsProjectedData, statRanges, playerType }: RealVsProjectedVisualProps) {
     const isEmpty = !realVsProjectedData?.length;
     const data = isEmpty ? PLACEHOLDER_STATS : realVsProjectedData!.filter(stat => !['GB', 'FB', 'PU', 'SF'].includes(stat.stat)); // these adjusted metrics are less intuitive to interpret without context, so exclude from visual
 
