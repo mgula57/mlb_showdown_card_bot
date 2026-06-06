@@ -8,10 +8,10 @@ interface LoginModalProps {
     onSuccess?: () => void;
 }
 
-type Step = 'email' | 'signin' | 'signup';
+type Step = 'email' | 'signin' | 'signup' | 'forgot';
 
 export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
-    const { signIn, signUp, signInWithProvider, checkUsernameAvailability, checkEmailExists } = useAuth();
+    const { signIn, signUp, signInWithProvider, checkUsernameAvailability, checkEmailExists, resetPassword } = useAuth();
 
     const [step, setStep] = useState<Step>('email');
     const [email, setEmail] = useState('');
@@ -22,6 +22,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
     const [checkingUsername, setCheckingUsername] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [resetSent, setResetSent] = useState(false);
 
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -91,6 +92,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
         onClose();
     };
 
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setLoading(true);
+        const result = await resetPassword(email);
+        setLoading(false);
+        if (result.error) { setError(result.error.message); return; }
+        setResetSent(true);
+    };
+
     const goBack = () => {
         setStep('email');
         setPassword('');
@@ -98,12 +109,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
         setUsername('');
         setUsernameError(null);
         setError(null);
+        setResetSent(false);
     };
 
     const titles: Record<Step, string> = {
         email: 'Sign In',
         signin: 'Welcome back',
         signup: 'Create account',
+        forgot: 'Reset password',
     };
 
     const inputCls = `
@@ -182,7 +195,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                         <p className="text-sm text-secondary mb-4 break-all">{email}</p>
                         <form onSubmit={handleSignIn} className="space-y-4">
                             <div>
-                                <label htmlFor="password" className="block text-sm font-medium text-secondary mb-1">Password</label>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label htmlFor="password" className="block text-sm font-medium text-secondary">Password</label>
+                                    <button type="button" onClick={() => { setStep('forgot'); setError(null); }}
+                                        className="text-xs text-accent hover:underline cursor-pointer">
+                                        Forgot password?
+                                    </button>
+                                </div>
                                 <input
                                     id="password" type="password" value={password} autoFocus
                                     onChange={(e) => setPassword(e.target.value)}
@@ -200,6 +219,50 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                             className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-primary transition-colors cursor-pointer disabled:opacity-50">
                             <FaArrowLeft className="text-xs" /> Use a different email
                         </button>
+                    </>
+                )}
+
+                {/* ── Step: forgot password ── */}
+                {step === 'forgot' && (
+                    <>
+                        {resetSent ? (
+                            <div className="text-center space-y-4">
+                                <p className="text-sm text-secondary">
+                                    We sent a password reset link to <span className="font-medium text-primary break-all">{email}</span>.
+                                    Check your inbox and follow the link to reset your password.
+                                </p>
+                                <button onClick={goBack}
+                                    className="w-full py-2.5 bg-tertiary text-primary rounded-lg hover:bg-quaternary cursor-pointer transition-colors font-semibold">
+                                    Back to Sign In
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <p className="text-sm text-secondary mb-4">
+                                    Enter your email and we'll send you a link to reset your password.
+                                </p>
+                                <form onSubmit={handleForgotPassword} className="space-y-4">
+                                    <div>
+                                        <label htmlFor="reset-email" className="block text-sm font-medium text-secondary mb-1">Email</label>
+                                        <input
+                                            id="reset-email" type="email" value={email} autoFocus
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            required disabled={loading}
+                                            className={inputCls}
+                                            placeholder="you@example.com"
+                                        />
+                                    </div>
+                                    <button type="submit" disabled={loading || !email}
+                                        className="w-full py-2.5 bg-tertiary text-primary rounded-lg hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                        {loading ? 'Sending...' : 'Send Reset Link'}
+                                    </button>
+                                </form>
+                                <button onClick={() => { setStep('signin'); setError(null); }} disabled={loading}
+                                    className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-primary transition-colors cursor-pointer disabled:opacity-50">
+                                    <FaArrowLeft className="text-xs" /> Back to Sign In
+                                </button>
+                            </>
+                        )}
                     </>
                 )}
 

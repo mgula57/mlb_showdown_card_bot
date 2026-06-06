@@ -54,6 +54,8 @@ interface AuthContextType {
     checkUsernameAvailability: (username: string) => Promise<boolean>;
     /** Check if an email is already registered */
     checkEmailExists: (email: string) => Promise<boolean>;
+    /** Send a password reset email */
+    resetPassword: (email: string) => Promise<{ error: Error | null }>;
     /** Sign in with OAuth provider (Google, Discord, etc.) */
     signInWithProvider: (provider: 'google' | 'discord') => Promise<{ error: Error | null }>;
     /** Refresh username check (call after username is set) */
@@ -332,6 +334,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    const resetPassword = async (email: string) => {
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            });
+            return { error: error as Error | null };
+        } catch (error) {
+            return { error: error as Error };
+        }
+    };
+
     const value = {
         user,
         session,
@@ -349,6 +362,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         checkEmailExists,
         updateUsername,
         refreshProfile,
+        resetPassword,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
