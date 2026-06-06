@@ -164,7 +164,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
 
             {user && isDropdownOpen && (
                 <div className="
-                    absolute right-0 mt-2
+                    absolute right-0 top-full mt-2
                     w-72 py-2
                     bg-(--background-secondary)
                     border border-form-element
