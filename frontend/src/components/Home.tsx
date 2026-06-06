@@ -2,9 +2,9 @@ import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
     FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
-    FaHammer, FaCompass, FaCalendar
+    FaHammer, FaCompass, FaCalendar, FaUser, FaImages
 } from 'react-icons/fa';
-import { FaXmark } from 'react-icons/fa6';
+import { FaXmark, FaCloudArrowUp, FaArrowsRotate } from 'react-icons/fa6';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
@@ -15,6 +15,8 @@ import type { GameScheduled, Season, LeadersGroup } from '../api/mlbAPI';
 
 // Modal
 import { Modal } from './shared/Modal';
+import { LoginModal } from './auth/LoginModal';
+import { WhatsNewBanner } from './shared/WhatsNewBanner';
 
 // Create Card Sampler
 import { PlayerSearchInput } from './customs/PlayerSearchInput';
@@ -76,6 +78,9 @@ export default function Home() {
 
     // Auth
     const { user } = useAuth();
+
+    // What's New banner
+    const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
     type RecentCardItem = { record: CustomCardLogRecord; thumbUrl: string; fullUrl: string };
     const [recentCards, setRecentCards] = useState<RecentCardItem[]>([]);
     const [isLoadingRecentCards, setIsLoadingRecentCards] = useState<boolean>(false);
@@ -298,6 +303,21 @@ export default function Home() {
                 pb-24
                 pt-8
             `}>
+
+            {/* What's New Banner */}
+            <WhatsNewBanner
+                storageKey="featureBanner_home_v1_dismissed"
+                features={[
+                    { icon: <FaUser />,         text: 'User accounts are now live!' },
+                    { icon: <FaCloudArrowUp />, text: 'Save & store your card creations' },
+                    { icon: <FaArrowsRotate />, text: 'Sync settings across devices' },
+                    { icon: <FaImages />,       text: 'Gallery to browse past builds' },
+                ]}
+                onLoginClick={() => setShowBannerLoginModal(true)}
+            />
+            {showBannerLoginModal && (
+                <LoginModal onClose={() => setShowBannerLoginModal(false)} />
+            )}
 
             {/* Quick Nav */}
             <div className="max-w-7xl mx-auto w-full py-4 block sm:hidden">

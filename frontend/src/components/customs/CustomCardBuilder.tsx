@@ -40,6 +40,7 @@ import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
 import { ToastMessage } from '../shared/ToastMessage';
 import { CardDetail } from '../cards/CardDetail';
 import { GalleryTabContent } from '../gallery/GalleryTabContent';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 
 // API
 import { buildCustomCard, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -214,14 +215,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const { user, session } = useAuth();
 
     // Dismissable feature banner
-    const [showFeatureBanner, setShowFeatureBanner] = useState<boolean>(
-        () => localStorage.getItem('featureBanner_v3_2_dismissed') !== 'true'
-    );
     const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
-    const dismissFeatureBanner = () => {
-        localStorage.setItem('featureBanner_v3_2_dismissed', 'true');
-        setShowFeatureBanner(false);
-    };
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
@@ -1037,48 +1031,19 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         <div className='@container'>
 
             {/* Feature announcement banner — floating top-right */}
-            {showFeatureBanner && (
-                <div className="fixed top-12 right-3 z-50 w-56 rounded-xl bg-linear-to-br from-blue-500 via-blue-700 to-red-700 text-white shadow-xl shadow-blue-900/40 overflow-hidden">
-                    {/* Header row */}
-                    <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                        <span className="text-xs font-bold tracking-wide uppercase text-blue-100">What's New</span>
-                        <button
-                            onClick={dismissFeatureBanner}
-                            aria-label="Dismiss"
-                            className="text-blue-300 hover:text-white transition-colors cursor-pointer -mr-0.5"
-                        >
-                            <FaXmark size={13} />
-                        </button>
-                    </div>
-                    {/* Feature chips */}
-                    <div className="px-3 pb-2 flex flex-col gap-1">
-                        {[
-                            { icon: <FaImage />, text: 'Gallery View (login required)' },
-                            { icon: <FaDatabase />, text: 'Image Storage (login required)' },
-                            { icon: <FaSquarePollVertical />, text: 'Redesigned Breakdowns' },
-                            { icon: <FaChartBar />, text: 'Savant-Style Percentiles' },
-                            { icon: <FaClockRotateLeft />, text: 'WOTC Comps' },
-                            { icon: <FaRobot />, text: 'Dynamic Outcome Projections' },
-                            { icon: <FaGaugeHigh />, text: 'Faster Search' },
-                        ].map(({ icon, text }) => (
-                            <span key={text} className="flex items-center gap-1.5 text-xs text-blue-100">
-                                <span className="opacity-75">{icon}</span> {text}
-                            </span>
-                        ))}
-                    </div>
-                    {/* Sign-in CTA */}
-                    {!user && (
-                        <div className="px-3 pb-3 pt-1 border-t border-blue-500/50">
-                            <button
-                                onClick={() => setShowBannerLoginModal(true)}
-                                className="w-full mt-1.5 flex items-center justify-center gap-1.5 bg-white/15 hover:bg-white/25 transition-colors rounded-lg py-1.5 text-xs font-semibold cursor-pointer"
-                            >
-                                <FaUser size={10} /> Sign in to try it out
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+            <WhatsNewBanner
+                storageKey="featureBanner_v3_2_dismissed"
+                features={[
+                    { icon: <FaImage />, text: 'Gallery View (login required)' },
+                    { icon: <FaDatabase />, text: 'Image Storage (login required)' },
+                    { icon: <FaSquarePollVertical />, text: 'Redesigned Breakdowns' },
+                    { icon: <FaChartBar />, text: 'Savant-Style Percentiles' },
+                    { icon: <FaClockRotateLeft />, text: 'WOTC Comps' },
+                    { icon: <FaRobot />, text: 'Dynamic Outcome Projections' },
+                    { icon: <FaGaugeHigh />, text: 'Faster Search' },
+                ]}
+                onLoginClick={() => setShowBannerLoginModal(true)}
+            />
             {showBannerLoginModal && (
                 <LoginModal onClose={() => setShowBannerLoginModal(false)} />
             )}
