@@ -1222,9 +1222,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                         {/* Showdown Set */}
                                         <div className="flex flex-col gap-1">
-                                            <div className="flex flex-col space-y-0">
+                                            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                                                 <label className="text-xs font-semibold text-secondary">Showdown Style</label>
-                                                <div className="text-[11px] text-(--tertiary) opacity-75">
+                                                <div className="text-[10px] text-(--tertiary) opacity-75 text-right">
                                                     Manage default in the top right corner
                                                 </div>
                                             </div>
