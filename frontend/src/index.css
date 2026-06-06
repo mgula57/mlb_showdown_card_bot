@@ -105,6 +105,10 @@
         border-color: var(--divider);
     }
 
+    .text-form-element {
+        color: var(--divider);
+    }
+
     .font-showdown-set-italic {
         font-family: 'ShowdownSetItalic', serif;
         font-style: italic;

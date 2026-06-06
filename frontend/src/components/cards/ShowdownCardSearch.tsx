@@ -24,7 +24,7 @@ import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
-    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -615,6 +615,34 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
 
+    // Sidebar resize
+    const [sidebarWidth, setSidebarWidth] = useState(384); // matches w-96
+    const isResizing = useRef(false);
+
+    const handleSidebarResizeStart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        isResizing.current = true;
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+
+        const onMouseMove = (ev: MouseEvent) => {
+            if (!isResizing.current) return;
+            const newWidth = Math.min(Math.max(startWidth + (startX - ev.clientX), 280), 720);
+            setSidebarWidth(newWidth);
+        };
+        const onMouseUp = () => {
+            isResizing.current = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
         if (!disableLocalStorage) {
@@ -1083,7 +1111,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div className={`transition-all duration-300 ease-in-out ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}`}>
+                        <div
+                            className="transition-all duration-300 ease-in-out"
+                            style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
+                        >
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}
@@ -1095,14 +1126,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             <div className="flex flex-1">
 
                 {/* Main Content Area */}
-                <div 
+                <div
                     ref={cardScrollParentRef}
-                    className={`
-                        relative flex-1 min-w-0
-                        ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}
-                        transition-all duration-300 ease-in-out
-                        md:overflow-y-auto
-                    `}>
+                    className="relative flex-1 min-w-0 transition-all duration-300 ease-in-out md:overflow-y-auto"
+                    style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
+                >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
                         {/* Iterate through showdownCards and display each card */}
                         {showdownCards?.map((cardRecord, index) => (
@@ -1163,15 +1191,22 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div
-                    style={{ top: `calc(${verticalOffset} * 0.25rem)` }}
+                    style={{ top: `calc(${verticalOffset} * 0.25rem)`, width: sidebarWidth }}
                     className={`
-                    fixed right-0 bottom-0 w-96 z-30
+                    fixed right-0 bottom-0 z-30
                     bg-primary border-l-2 border-form-element
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
                     hidden lg:block
                     shadow-xl
                 `}>
+                    {/* Drag-to-resize handle */}
+                    <div
+                        onMouseDown={handleSidebarResizeStart}
+                        className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize flex items-center justify-center z-10 group"
+                    >
+                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-tertiary transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-md`} />
+                    </div>
 
                     {/* Sidebar Content */}
                     <div className="h-full flex flex-col">
