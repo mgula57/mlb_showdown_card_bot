@@ -41,6 +41,7 @@ import Home from "./components/Home";
 import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
 import Privacy from "./components/Privacy";
+import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -141,6 +142,13 @@ const AppContent = () => {
             {mountedRoutes.has('/privacy') && (
                 <div className={isActive('/privacy') ? 'block' : 'hidden'}>
                     <Privacy />
+                </div>
+            )}
+
+            {/* Reset Password - shown when user arrives via password reset email */}
+            {mountedRoutes.has('/reset-password') && (
+                <div className={isActive('/reset-password') ? 'block' : 'hidden'}>
+                    <ResetPasswordPage />
                 </div>
             )}
 
