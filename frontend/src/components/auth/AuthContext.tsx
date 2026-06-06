@@ -52,6 +52,8 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     /** Check if username is available */
     checkUsernameAvailability: (username: string) => Promise<boolean>;
+    /** Check if an email is already registered */
+    checkEmailExists: (email: string) => Promise<boolean>;
     /** Sign in with OAuth provider (Google, Discord, etc.) */
     signInWithProvider: (provider: 'google' | 'discord') => Promise<{ error: Error | null }>;
     /** Refresh username check (call after username is set) */
@@ -289,6 +291,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     /**
+     * Check if an email address is already registered
+     */
+    const checkEmailExists = async (email: string): Promise<boolean> => {
+        try {
+            const { data, error } = await supabase.rpc('is_email_registered', {
+                email_to_check: email
+            });
+            if (error) throw error;
+            return data as boolean;
+        } catch (error) {
+            console.error('Error checking email:', error);
+            return false;
+        }
+    };
+
+    /**
      * Update username in profile
      */
     const updateUsername = async (newUsername: string) => {
@@ -328,6 +346,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signOut,
         signInWithProvider,
         checkUsernameAvailability,
+        checkEmailExists,
         updateUsername,
         refreshProfile,
     };
