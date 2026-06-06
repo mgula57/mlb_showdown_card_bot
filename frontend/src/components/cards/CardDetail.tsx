@@ -122,10 +122,33 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
      * to handle local updates (like image regeneration)
      */
     useEffect(() => {
+        const fetchRanges = (card: NonNullable<ShowdownBotCardAPIResponse['card']>) => {
+            const maxYear = Math.max(...(card.stats_period.year_list || []));
+            const playerType = card.player_type.toUpperCase() as "HITTER" | "PITCHER";
+            const subType: string | undefined = card.player_sub_type;
+            const pitcherRole: 'SP' | 'RP' | undefined =
+                playerType === 'PITCHER'
+                    ? (subType === 'starting_pitcher' ? 'SP' : 'RP')
+                    : undefined;
+            setIsRangesLoading(true);
+            setSeasonStatRanges(null);
+            fetchSeasonStatRanges(maxYear, playerType, pitcherRole)
+                .then((response) => {
+                    console.log("Fetched season stat ranges:", response);
+                    setSeasonStatRanges(response?.ranges ?? null);
+                })
+                .catch((error) => {
+                    console.error("Error fetching season stat ranges:", error);
+                })
+                .finally(() => {
+                    setIsRangesLoading(false);
+                });
+        };
+
         // Case 1: New data provided via prop
         if (showdownBotCardData && showdownBotCardData.card) {
             // Skip if same card (by bref_id + year + set)
-            const isSameCard = 
+            const isSameCard =
                 context !== 'custom' &&
                 (
                     (internalCardData?.card?.bref_id || internalCardData?.card?.mlb_id) === (showdownBotCardData?.card?.bref_id || showdownBotCardData?.card?.mlb_id) &&
@@ -144,33 +167,15 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     console.log("Generating image for new prop data...");
                     handleGenerateImage(showdownBotCardData);
                 }
-                
-                // Fetch season stat ranges for real vs projected table if not already present
-                if (showdownBotCardData.card) {
-                    const maxYear = Math.max(...(showdownBotCardData.card.stats_period.year_list || []));
-                    const playerType = showdownBotCardData.card.player_type.toUpperCase() as "HITTER" | "PITCHER";
-                    const subType: string | undefined = showdownBotCardData.card.player_sub_type;
-                    const pitcherRole: 'SP' | 'RP' | undefined =
-                        playerType === 'PITCHER'
-                            ? (subType === 'starting_pitcher' ? 'SP' : 'RP')
-                            : undefined;
-                    setIsRangesLoading(true);
-                    setSeasonStatRanges(null);
-                    fetchSeasonStatRanges(maxYear, playerType, pitcherRole)
-                        .then((response) => {
-                            console.log("Fetched season stat ranges:", response);
-                            setSeasonStatRanges(response?.ranges ?? null);
-                        })
-                        .catch((error) => {
-                            console.error("Error fetching season stat ranges:", error);
-                        })
-                        .finally(() => {
-                            setIsRangesLoading(false);
-                        });
-                }
-
-                return;
             }
+
+            // Fetch ranges whenever the card changes or on initial mount (isSameCard is true
+            // on first render because useState initializes internalCardData from the prop)
+            if (!isSameCard || seasonStatRanges === null) {
+                fetchRanges(showdownBotCardData.card);
+            }
+
+            return;
         }
 
         // Case 2: No data but cardId provided - fetch it from DB
@@ -182,14 +187,18 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     if (data) {
                         const cardResponse = data as ShowdownBotCardAPIResponse;
                         setInternalCardId(cardId);
-                        
+
                         // Load image if necessary
                         const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
                         if (isDataWithoutImage && !isGeneratingImage) {
                             handleGenerateImage(cardResponse);
                         } else {
                             setInternalCardData(cardResponse);
-                        }                        
+                        }
+
+                        if (cardResponse.card) {
+                            fetchRanges(cardResponse.card);
+                        }
                     }
                 })
                 .catch((error) => {
@@ -198,7 +207,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 .finally(() => {
                     setIsLoadingFromId(false);
                 });
-            
+
             return;
         }
 
