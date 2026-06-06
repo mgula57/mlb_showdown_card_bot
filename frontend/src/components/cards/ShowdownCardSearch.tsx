@@ -43,6 +43,7 @@ import RangeFilter from "../customs/RangeFilter";
 import { TeamHierarchy } from "./TeamHierarchy";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 
 /**
  * Props for the ShowdownCardSearch component
@@ -929,8 +930,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             `}
         >
 
+            <WhatsNewBanner
+                storageKey="exploreWhatsNew_v1"
+                features={[
+                    { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
+                    { icon: <FaFilter />, text: 'Quick Filters on cards (login required)' },
+                ]}
+            />
+
             {/* Search Bar and Filters */}
-            <div className="sticky top-0 z-10 flex flex-col gap-2 w-full 
+            <div className="sticky top-0 z-10 flex flex-col gap-2 w-full
                             bg-background-secondary/95 backdrop-blur p-3">
 
                 <div className="flex items-center space-x-2">
