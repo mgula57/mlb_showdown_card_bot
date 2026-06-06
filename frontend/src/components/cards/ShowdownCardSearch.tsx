@@ -498,6 +498,9 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
         { id: 'preset-hof', name: 'Hall of Famers', filters: { is_hof: ['true'], organization: [] } },
     ],
     [CardSource.WOTC]: [
+        { id: 'preset-00-01', name: '2000/2001 Sets', filters: { showdown_set: ['2000', '2001'] } },
+        { id: 'preset-02-03', name: '2002/2003 Sets', filters: { showdown_set: ['2002', '2003'] } },
+        { id: 'preset-04-05', name: '2004/2005 Sets', filters: { showdown_set: ['2004', '2005'] } },
         { id: 'preset-cooperstown', name: 'Cooperstown Collection', filters: { edition: ['CC'] } },
         { id: 'preset-super-season', name: 'Super Season', filters: { edition: ['SS'] } },
     ],
@@ -996,6 +999,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             className="w-full sm:w-1/3 font-bold"
                             isClearable={true}
                             isTitleCase={true}
+                            showSearchIcon={true}
                         />
 
                         {/* Quick Filters */}

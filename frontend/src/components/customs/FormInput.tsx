@@ -8,6 +8,7 @@
 
 import React from "react";
 import { FaXmark } from "react-icons/fa6";
+import { FaSearch } from "react-icons/fa";
 
 /**
  * Props for the FormInput component
@@ -35,6 +36,8 @@ type FormInputProps = {
     isTitleCase?: boolean;
     /** Whether the input should be disabled */
     disabled?: boolean;
+    /** Show a magnifying glass search icon on the left */
+    showSearchIcon?: boolean;
 };
 
 /**
@@ -77,7 +80,7 @@ type FormInputProps = {
  * @param isTitleCase - Auto-format text in title case
  * @returns Versatile input component with label
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false }) => {
 
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
@@ -124,6 +127,13 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                     />
                 ) : (
                     <>
+                        {/* Search icon */}
+                        {showSearchIcon && (
+                            <div className="flex items-center pl-3 text-gray-400">
+                                <FaSearch />
+                            </div>
+                        )}
+
                         {/* Standard text/number/date input */}
                         <input
                             type={type}
