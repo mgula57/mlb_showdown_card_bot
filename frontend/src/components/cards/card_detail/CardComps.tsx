@@ -79,6 +79,11 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
         }
 
         setIsFetching(true);
+        const excludeId = card.is_wotc && card && (
+            // Concatination of year, bref_id, set, expansion, player_type_override (if exists), and "WOTC" if is_wotc to create a unique identifier for WOTC cards to exclude from comps since they won't be in the DB with a bref_id
+            `${card.year}-${card.bref_id}-${card.set}-${card.image.expansion ?? 'BS'}-WOTC`
+        ) || undefined;
+        console.log("Excluding card ID from comps fetch:", excludeId);
         fetchCardComps({
             showdown_set: card.set,
             player_type: card.player_type.toUpperCase(),
@@ -89,7 +94,7 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
             speed: card.speed?.speed ?? null,
             positions_and_defense: card.positions_and_defense ?? {},
             chart_values: card.chart.values ?? {},
-            exclude_id: card.is_wotc ? (card as any).id : undefined,
+            exclude_id: excludeId,
             limit: 3,
         })
             .then(setComps)

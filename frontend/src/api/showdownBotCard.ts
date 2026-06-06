@@ -353,6 +353,7 @@ export type GameBoxscoreTeam = {
  * including statistics, chart data, accuracy breakdowns, and visual metadata.
  */
 export type ShowdownBotCard = {
+
     /** Player's display name */
     name: string;
     
