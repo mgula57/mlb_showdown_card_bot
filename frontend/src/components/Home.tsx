@@ -309,11 +309,13 @@ export default function Home() {
                 storageKey="featureBanner_home_v1_dismissed"
                 features={[
                     { icon: <FaUser />,         text: 'User accounts are now live!' },
-                    { icon: <FaCloudArrowUp />, text: 'Save & store your card creations' },
+                    { icon: <FaCloudArrowUp />, text: 'Store your card creations' },
                     { icon: <FaArrowsRotate />, text: 'Sync settings across devices' },
                     { icon: <FaImages />,       text: 'Gallery to browse past builds' },
+                    { icon: <FaCompass />,         text: '2026 cards in Explore' },
                 ]}
                 onLoginClick={() => setShowBannerLoginModal(true)}
+                textSize="sm"
             />
             {showBannerLoginModal && (
                 <LoginModal onClose={() => setShowBannerLoginModal(false)} />

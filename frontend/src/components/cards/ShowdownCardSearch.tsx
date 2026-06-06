@@ -44,6 +44,8 @@ import { TeamHierarchy } from "./TeamHierarchy";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import { WhatsNewBanner } from '../shared/WhatsNewBanner';
+import { QuickFiltersDropdown } from './QuickFiltersDropdown';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * Props for the ShowdownCardSearch component
@@ -479,6 +481,29 @@ const saveFilters = (filters: FilterSelections, source: CardSource, disableLocal
 const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSelections> = {}, disableLocalStorage = false): FilterSelections =>
     loadSavedFilters(source, defaultFilters, disableLocalStorage) ?? ({ ...getDefaultFilterSelections(source), ...defaultFilters });
 
+// =============================================================================
+// MARK: - QUICK FILTER PRESETS
+// =============================================================================
+
+/**
+ * Hardcoded presets shown to all users regardless of login state.
+ * Keys must match FilterSelections exactly so they can be spread directly.
+ */
+const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filters: Partial<FilterSelections> }[]> = {
+    [CardSource.BOT]: [
+        { id: 'preset-current-season', name: 'Current Season', filters: { min_year: 2026, max_year: 2026, organization: ['MLB'] } },
+        { id: 'preset-mvp', name: 'MVP Winners', filters: { awards: ['MVP-1'], include_small_sample_size: [] } },
+        { id: 'preset-rookie-of-the-year', name: 'RoY Winners', filters: { awards: ['ROY-1'], include_small_sample_size: [] } },
+        { id: 'preset-cy-young', name: 'Cy Young Winners', filters: { awards: ['CYA-1'], include_small_sample_size: [] } },
+        { id: 'preset-hof', name: 'Hall of Famers', filters: { is_hof: ['true'], organization: [] } },
+    ],
+    [CardSource.WOTC]: [
+        { id: 'preset-cooperstown', name: 'Cooperstown Collection', filters: { edition: ['CC'] } },
+        { id: 'preset-super-season', name: 'Super Season', filters: { edition: ['SS'] } },
+    ],
+    [CardSource.WBC]: [],
+};
+
 // --------------------------------------------
 // MARK: - Component
 // --------------------------------------------
@@ -538,6 +563,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Global application state
     /** Current user's selected Showdown set */
     const { userShowdownSet } = useSiteSettings();
+    const { session } = useAuth();
 
     // Separate search from filters
     const [searchText, setSearchText] = useState('');
@@ -830,6 +856,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         setShowFiltersModal(true);
     }
 
+    const handleApplyQuickFilter = (rawFilters: Record<string, unknown>) => {
+        const next = applyLockedFilters({
+            ...getDefaultFilterSelections(source),
+            ...(rawFilters as Partial<FilterSelections>),
+        });
+        setFilters(next);
+        setFiltersForEditing(next);
+    };
+
     const hasFiltersChanged = JSON.stringify(filters) !== JSON.stringify(filtersForEditing);
 
     // Remove the getCardsData call from handleFilterApply
@@ -877,6 +912,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
             return `Small Sample Sizes?: ${finalValue}`;
+        }
+
+        if (key === 'is_hof') {
+            const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
+            const finalValue = finalValues.join(',');
+            return `HOF?: ${finalValue}`;
         }
 
         if (key === 'showdown_set') {
@@ -934,7 +975,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 storageKey="exploreWhatsNew_v1"
                 features={[
                     { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
-                    { icon: <FaFilter />, text: 'Quick Filters on cards (login required)' },
+                    { icon: <FaFilter />, text: 'Save filter presets (login required)' },
                 ]}
             />
 
@@ -957,12 +998,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             isTitleCase={true}
                         />
 
+                        {/* Quick Filters */}
+                        <QuickFiltersDropdown
+                            source={source}
+                            defaultPresets={DEFAULT_QUICK_FILTERS[source]}
+                            currentFilters={filtersWithoutSorting as Record<string, unknown>}
+                            onApply={handleApplyQuickFilter}
+                            token={session?.access_token ?? null}
+                        />
+
                         {/* Filters */}
                         <button
                             onClick={handleOpenFilters}
                             className="
                                 px-3 h-11
-                                rounded-xl bg-(--background-secondary) border-2 border-form-element 
+                                rounded-xl bg-(--background-secondary) border-2 border-form-element
                                 flex items-center gap-2
                                 hover:bg-(--background-secondary-hover)
                             ">

@@ -139,3 +139,82 @@ def upsert_user_settings():
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
+
+
+@user_settings_bp.route('/user/quick_filters', methods=['GET'])
+@require_auth
+def get_quick_filters():
+    source = request.args.get('source', '').upper()
+    if not source:
+        return jsonify({'error': 'source query param is required'}), 400
+    try:
+        db = PostgresDB()
+        filters = db.get_user_quick_filters(g.user_id, source)
+        db.close_connection()
+        return jsonify(filters), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@user_settings_bp.route('/user/quick_filters', methods=['POST'])
+@require_auth
+def create_quick_filter():
+    payload = request.get_json(silent=True)
+    if not payload or not isinstance(payload, dict):
+        return jsonify({'error': 'Request body must be a JSON object'}), 400
+    id_ = payload.get('id')
+    source = (payload.get('source') or '').upper()
+    name = payload.get('name')
+    filters = payload.get('filters')
+    if not all([id_, source, name, isinstance(filters, dict)]):
+        return jsonify({'error': 'id, source, name, and filters are required'}), 400
+    try:
+        db = PostgresDB()
+        db.create_user_quick_filter(g.user_id, id_, source, name, filters)
+        db.close_connection()
+        return jsonify({'success': True}), 201
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@user_settings_bp.route('/user/quick_filters/<filter_id>', methods=['PATCH'])
+@require_auth
+def update_quick_filter(filter_id: str):
+    payload = request.get_json(silent=True)
+    if not payload or not isinstance(payload, dict):
+        return jsonify({'error': 'Request body must be a JSON object'}), 400
+    name = payload.get('name')
+    filters = payload.get('filters')
+    if name is not None and not isinstance(name, str):
+        return jsonify({'error': 'name must be a string'}), 400
+    if filters is not None and not isinstance(filters, dict):
+        return jsonify({'error': 'filters must be an object'}), 400
+    if name is None and filters is None:
+        return jsonify({'error': 'name or filters is required'}), 400
+    try:
+        db = PostgresDB()
+        updated = db.update_user_quick_filter(g.user_id, filter_id, name=name, filters=filters)
+        db.close_connection()
+        if not updated:
+            return jsonify({'error': 'Not found'}), 404
+        return jsonify({'success': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@user_settings_bp.route('/user/quick_filters/<filter_id>', methods=['DELETE'])
+@require_auth
+def delete_quick_filter(filter_id: str):
+    try:
+        db = PostgresDB()
+        deleted = db.delete_user_quick_filter(g.user_id, filter_id)
+        db.close_connection()
+        if not deleted:
+            return jsonify({'error': 'Not found'}), 404
+        return jsonify({'success': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500

@@ -12,11 +12,13 @@ interface WhatsNewBannerProps {
     storageKey: string;
     features: WhatsNewFeature[];
     onLoginClick?: () => void;
+    textSize?: 'xs' | 'sm' | 'base';
 }
 
-export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, features, onLoginClick }) => {
+export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, features, onLoginClick, textSize = 'sm' }) => {
     const { user } = useAuth();
     const [isVisible, setIsVisible] = useState(() => localStorage.getItem(storageKey) !== 'true');
+    const calculatedWidth = textSize === 'xs' ? 'w-48' : textSize === 'sm' ? 'w-64' : 'w-72';
 
     if (!isVisible) return null;
 
@@ -26,9 +28,9 @@ export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, feat
     };
 
     return (
-        <div className="fixed top-12 right-3 z-50 w-56 rounded-xl bg-linear-to-br from-blue-500 via-blue-700 to-red-700 text-white shadow-xl shadow-blue-900/40 overflow-hidden">
+        <div className={`fixed top-12 right-3 z-50 ${calculatedWidth} rounded-xl bg-linear-to-br from-blue-500 via-blue-700 to-red-700 text-white shadow-xl shadow-blue-900/40 overflow-hidden`}>
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <span className="text-xs font-bold tracking-wide uppercase text-blue-100">What's New</span>
+                <span className={`text-${textSize} font-bold tracking-wide uppercase text-blue-100`}>What's New</span>
                 <button onClick={dismiss} aria-label="Dismiss" className="text-blue-300 hover:text-white transition-colors cursor-pointer -mr-0.5">
                     <FaXmark size={13} />
                 </button>
@@ -36,7 +38,7 @@ export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, feat
 
             <div className="px-3 pb-2 flex flex-col gap-1">
                 {features.map(({ icon, text }) => (
-                    <span key={text} className="flex items-center gap-1.5 text-xs text-blue-100">
+                    <span key={text} className={`flex items-center gap-1.5 text-${textSize} text-blue-100`}>
                         <span className="opacity-75">{icon}</span> {text}
                     </span>
                 ))}

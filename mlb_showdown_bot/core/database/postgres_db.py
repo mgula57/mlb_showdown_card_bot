@@ -3351,6 +3351,95 @@ class PostgresDB:
         with self.connection.cursor() as cur:
             cur.execute(upsert_sql, [user_id] + values)
 
+    def build_user_quick_filters_table(self) -> None:
+        """Create the user_quick_filters table and index if they do not exist."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_quick_filters (
+                    id         TEXT NOT NULL PRIMARY KEY,
+                    user_id    TEXT NOT NULL,
+                    source     VARCHAR(20) NOT NULL,
+                    name       TEXT NOT NULL,
+                    filters    JSONB NOT NULL,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_quick_filters_user_source
+                    ON internal.user_quick_filters (user_id, source);
+            """)
+
+    def get_user_quick_filters(self, user_id: str, source: str) -> list[dict]:
+        """Return all quick filters for the given user and card source."""
+        if not self.connection:
+            return []
+        query = """
+            SELECT id, name, filters, created_at
+            FROM internal.user_quick_filters
+            WHERE user_id = %s AND source = %s
+            ORDER BY created_at ASC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id, source))
+            rows = cur.fetchall()
+            return [
+                {
+                    'id': row['id'],
+                    'name': row['name'],
+                    'filters': row['filters'],
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                }
+                for row in rows
+            ]
+
+    def create_user_quick_filter(self, user_id: str, id: str, source: str, name: str, filters: dict) -> None:
+        """Insert a new quick filter row."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.user_quick_filters (id, user_id, source, name, filters)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (id, user_id, source, name, extras.Json(filters)),
+            )
+
+    def update_user_quick_filter(self, user_id: str, id: str, name: str | None = None, filters: dict | None = None) -> bool:
+        """Update name and/or filters on a quick filter row owned by user_id. Returns True if updated."""
+        if not self.connection or (name is None and filters is None):
+            return False
+        fields: list[str] = []
+        values: list = []
+        if name is not None:
+            fields.append("name = %s")
+            values.append(name)
+        if filters is not None:
+            fields.append("filters = %s")
+            values.append(extras.Json(filters))
+        values.extend([id, user_id])
+        with self.connection.cursor() as cur:
+            cur.execute(
+                f"UPDATE internal.user_quick_filters SET {', '.join(fields)} WHERE id = %s AND user_id = %s",
+                values,
+            )
+            return cur.rowcount > 0
+
+    def delete_user_quick_filter(self, user_id: str, id: str) -> bool:
+        """Delete a quick filter, ensuring ownership. Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.user_quick_filters WHERE id = %s AND user_id = %s",
+                (id, user_id),
+            )
+            return cur.rowcount > 0
+
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""
 

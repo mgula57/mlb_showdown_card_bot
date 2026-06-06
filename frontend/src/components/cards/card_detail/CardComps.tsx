@@ -30,8 +30,7 @@ function CompCardItem({ comp }: { comp: WotcCompCard }) {
         <div className="relative">
             {/* Similarity badge overlaid on the card */}
             <div
-                className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 backdrop-blur-sm"
-                style={{ backgroundColor: 'color-mix(in srgb, var(--background-secondary) 80%, transparent)' }}
+                className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 opacity-80 backdrop-blur-lg"
             >
                 <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: barColor }} />
                 <span className="text-[10px] font-black tabular-nums" style={{ color: barColor }}>{pct}%</span>

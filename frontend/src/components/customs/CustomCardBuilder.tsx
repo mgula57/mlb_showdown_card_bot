@@ -1032,7 +1032,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             {/* Feature announcement banner — floating top-right */}
             <WhatsNewBanner
-                storageKey="featureBanner_v3_2_dismissed"
+                storageKey="customCardWhatsNew_v4.2"
                 features={[
                     { icon: <FaImage />, text: 'Gallery View (login required)' },
                     { icon: <FaDatabase />, text: 'Image Storage (login required)' },
@@ -1225,7 +1225,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                                                 <label className="text-xs font-semibold text-secondary">Showdown Style</label>
                                                 <div className="text-[10px] text-(--tertiary) opacity-75 text-right">
-                                                    Manage default in the top right corner
+                                                    Manage default via top right corner
                                                 </div>
                                             </div>
                                             <CustomSelect
