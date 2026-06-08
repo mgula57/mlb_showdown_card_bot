@@ -179,6 +179,9 @@ class ExploreDataRecord(BaseModel):
     edition: Optional[Edition] = Field(None, description="Card edition (e.g., 'WBC', 'CC')")
     expansion: Optional[Expansion] = Field(None, description="Special edition (e.g., 'BS', 'TD)")
     
+    # IN SEASON
+    points_change: Optional[int] = None
+
     # Metadata
     updated_at: datetime = Field(description="When record was last updated")
         
@@ -2197,6 +2200,7 @@ class PostgresDB:
                 cast(dim_card.card_data->>'points' as int) as points,
                 cast(dim_card.card_data->>'points_estimated' as int) as points_estimated,
                 cast(dim_card.card_data->>'points_diff_estimated_vs_actual' as int) as points_diff_estimated_vs_actual,
+                cast(dim_card.card_data->>'points_change' as int) as points_change,
 
                 -- TEAM
                 dim_card.card_data->>'nationality' as nationality,
@@ -2394,6 +2398,7 @@ class PostgresDB:
                     points integer,
                     points_estimated integer,
                     points_diff_estimated_vs_actual integer,
+                    points_change integer,
                     nationality text,
                     organization text,
                     league text,
@@ -2489,6 +2494,7 @@ class PostgresDB:
                         points integer,
                         points_estimated integer,
                         points_diff_estimated_vs_actual integer,
+                        points_change integer,
                         nationality text,
                         organization text,
                         league text,
@@ -2585,7 +2591,8 @@ class PostgresDB:
                     primary_positions, secondary_positions, g, gs, pa, real_ip, lg_id, team_id,
                     team_id_list, team_games_played_dict, team_override, stats_modified_date, card_modified_date,
                     card_id, card_year, showdown_set, showdown_bot_version, expansion, edition, set_number,
-                    points, points_estimated, points_diff_estimated_vs_actual, nationality, organization,
+                    points, points_estimated, points_diff_estimated_vs_actual, points_change,
+                    nationality, organization,
                     league, team, color_primary, color_secondary, positions_and_defense,
                     positions_and_defense_string, positions_list, ip, speed, hand, speed_letter, speed_full,
                     speed_or_ip, icons_list, awards_list, is_hof, stat_highlights_list, is_small_sample_size,
@@ -2628,6 +2635,7 @@ class PostgresDB:
                     points = EXCLUDED.points,
                     points_estimated = EXCLUDED.points_estimated,
                     points_diff_estimated_vs_actual = EXCLUDED.points_diff_estimated_vs_actual,
+                    points_change = EXCLUDED.points_change,
                     nationality = EXCLUDED.nationality,
                     organization = EXCLUDED.organization,
                     league = EXCLUDED.league,

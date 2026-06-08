@@ -818,6 +818,11 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
                     )
                     if in_season_trends_data:
                         final_data["in_season_trends"] = in_season_trends_data if keep_as_py_objects else in_season_trends_data.as_json()
+                        if keep_as_py_objects:
+                            card.points_change = in_season_trends_data.pts_change
+                        else:
+                            # If not keeping as py objects, we still want to inject the points_change into the card data for easy access, so we'll add it to the final_data dict
+                            final_data["card"]["points_change"] = in_season_trends_data.pts_change
                     else:
                         print(f"No in-season trends data for {player_data.full_name} in {years[0]}.")
 

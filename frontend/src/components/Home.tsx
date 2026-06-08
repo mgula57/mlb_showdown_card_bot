@@ -513,6 +513,7 @@ export default function Home() {
                                                     card={card}
                                                     className={`max-w-full w-full ${card ? 'cursor-pointer' : 'pointer-events-none'} ${!entry ? 'animate-pulse opacity-50' : ''}`}
                                                     onClick={card ? () => setSelectedModalCard(card) : undefined}
+                                                    ptsChange={card?.points_change?.week || undefined}
                                                 />
                                             </div>
                                         );

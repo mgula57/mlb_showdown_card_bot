@@ -131,6 +131,9 @@ class ShowdownPlayerCard(BaseModel):
     command_out_accuracy_breakdowns: dict[str, dict[Stat, ChartAccuracyBreakdown]] = {}
     notes: Optional[str] = None
 
+    # TRENDS
+    points_change: Optional[dict[str, int]] = None
+
     # STATS FOR WOTC CONVERTED CARDS
     points_estimated_breakdown: Optional[Points] = None
     points_estimated: Optional[int] = None

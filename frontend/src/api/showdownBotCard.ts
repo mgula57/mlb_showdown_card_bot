@@ -385,6 +385,13 @@ export type ShowdownBotCard = {
     
     /** Total point value for draft/gameplay */
     points: number;
+
+    /** Recent point value changes by time period */
+    points_change?: {
+        day?: number;
+        week?: number;
+        month?: number;
+    } | null;
     
     /** Innings pitched (pitchers only) */
     ip: number | null;
