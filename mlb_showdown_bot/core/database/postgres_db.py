@@ -4969,6 +4969,268 @@ class PostgresDB:
                                         pitcher_card.update_with_mlb_api_team(tl.team.abbreviation)
                                         break
                             game.linescore.defense.pitcher.card = pitcher_card
-        
+
         return schedule
-        
+
+
+# ----------------------------------------------------------------
+# MARK: - TEAM BUILDER
+# ----------------------------------------------------------------
+
+    def create_team_builder_tables(self) -> None:
+        """Create team_builder_teams and team_builder_slots tables if they do not exist."""
+        if not self.connection:
+            return
+
+        schema_sql = "CREATE SCHEMA IF NOT EXISTS internal;"
+        teams_sql = """
+            CREATE TABLE IF NOT EXISTS internal.team_builder_teams (
+                id               SERIAL PRIMARY KEY,
+                user_id          TEXT NOT NULL,
+                name             VARCHAR(128) NOT NULL,
+                team_type        TEXT NOT NULL DEFAULT 'custom',
+                showdown_set     VARCHAR(32) NOT NULL DEFAULT '2005',
+                roster_size      INTEGER NOT NULL DEFAULT 25,
+                bullpen_size     INTEGER NOT NULL DEFAULT 7,
+                bench_multiplier NUMERIC(5,4) NOT NULL DEFAULT 0.2,
+                metadata         JSONB,
+                created_at       TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                updated_at       TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        """
+        teams_idx_user = """
+            CREATE INDEX IF NOT EXISTS idx_team_builder_teams_user_id
+            ON internal.team_builder_teams (user_id);
+        """
+        teams_idx_type = """
+            CREATE INDEX IF NOT EXISTS idx_team_builder_teams_type
+            ON internal.team_builder_teams (team_type);
+        """
+        slots_sql = """
+            CREATE TABLE IF NOT EXISTS internal.team_builder_slots (
+                id            SERIAL PRIMARY KEY,
+                team_id       INTEGER NOT NULL
+                              REFERENCES internal.team_builder_teams(id) ON DELETE CASCADE,
+                slot_key      TEXT NOT NULL,
+                card_source   TEXT NOT NULL,
+                card_id       TEXT NOT NULL,
+                card_snapshot JSONB,
+                created_at    TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                UNIQUE (team_id, slot_key)
+            );
+        """
+        slots_idx = """
+            CREATE INDEX IF NOT EXISTS idx_team_builder_slots_team_id
+            ON internal.team_builder_slots (team_id);
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(schema_sql)
+                cur.execute(teams_sql)
+                cur.execute(teams_idx_user)
+                cur.execute(teams_idx_type)
+                cur.execute(slots_sql)
+                cur.execute(slots_idx)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating team_builder tables: {error}")
+            self.connection.rollback()
+
+    def create_team(
+        self,
+        user_id: str,
+        name: str,
+        showdown_set: str,
+        team_type: str = 'custom',
+        roster_size: int = 25,
+        bullpen_size: int = 7,
+        bench_multiplier: float = 0.2,
+        metadata: Optional[dict] = None,
+    ) -> Optional[dict]:
+        """Insert a new team and return the created row."""
+        if not self.connection:
+            return None
+        sql = """
+            INSERT INTO internal.team_builder_teams
+                (user_id, name, team_type, showdown_set, roster_size, bullpen_size, bench_multiplier, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, user_id, name, team_type, showdown_set, roster_size,
+                      bullpen_size, bench_multiplier, metadata, created_at, updated_at;
+        """
+        try:
+            with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, (user_id, name, team_type, showdown_set, roster_size, bullpen_size, bench_multiplier, metadata))
+                row = cur.fetchone()
+                self.connection.commit()
+                return dict(row) if row else None
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating team: {error}")
+            self.connection.rollback()
+            return None
+
+    def list_teams_for_user(self, user_id: str, team_type: Optional[str] = None) -> list[dict]:
+        """Fetch all teams for a user, ordered by updated_at DESC. No slots included."""
+        if not self.connection:
+            return []
+        sql = """
+            SELECT id, user_id, name, team_type, showdown_set, roster_size,
+                   bullpen_size, bench_multiplier, metadata, created_at, updated_at
+            FROM internal.team_builder_teams
+            WHERE user_id = %s
+        """
+        params: list = [user_id]
+        if team_type is not None:
+            sql += " AND team_type = %s"
+            params.append(team_type)
+        sql += " ORDER BY updated_at DESC;"
+        try:
+            with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, params)
+                return [dict(r) for r in cur.fetchall()]
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error listing teams for user {user_id}: {error}")
+            return []
+
+    def get_team_with_slots(self, team_id: int, user_id: str) -> Optional[dict]:
+        """Fetch a single team plus all its slots. user_id guard prevents cross-user reads."""
+        if not self.connection:
+            return None
+        team_sql = """
+            SELECT id, user_id, name, team_type, showdown_set, roster_size,
+                   bullpen_size, bench_multiplier, metadata, created_at, updated_at
+            FROM internal.team_builder_teams
+            WHERE id = %s AND user_id = %s;
+        """
+        slots_sql = """
+            SELECT id, team_id, slot_key, card_source, card_id, card_snapshot, created_at
+            FROM internal.team_builder_slots
+            WHERE team_id = %s
+            ORDER BY slot_key;
+        """
+        try:
+            with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(team_sql, (team_id, user_id))
+                row = cur.fetchone()
+                if not row:
+                    return None
+                team = dict(row)
+                cur.execute(slots_sql, (team_id,))
+                team['slots'] = [dict(s) for s in cur.fetchall()]
+                return team
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error fetching team {team_id}: {error}")
+            return None
+
+    def update_team(self, team_id: int, user_id: str, **fields) -> bool:
+        """Update whitelisted team fields and bump updated_at. Returns True on success."""
+        if not self.connection:
+            return False
+        allowed = {'name', 'team_type', 'showdown_set', 'roster_size', 'bullpen_size', 'bench_multiplier', 'metadata'}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return False
+        set_clause = ', '.join(f"{k} = %s" for k in updates)
+        values = list(updates.values()) + [team_id, user_id]
+        sql = f"""
+            UPDATE internal.team_builder_teams
+            SET {set_clause}, updated_at = NOW()
+            WHERE id = %s AND user_id = %s;
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, values)
+                updated = cur.rowcount > 0
+                self.connection.commit()
+                return updated
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error updating team {team_id}: {error}")
+            self.connection.rollback()
+            return False
+
+    def delete_team(self, team_id: int, user_id: str) -> bool:
+        """Delete a team and its slots (cascade). Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        sql = "DELETE FROM internal.team_builder_teams WHERE id = %s AND user_id = %s;"
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (team_id, user_id))
+                deleted = cur.rowcount > 0
+                self.connection.commit()
+                return deleted
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error deleting team {team_id}: {error}")
+            self.connection.rollback()
+            return False
+
+    def upsert_team_slot(
+        self,
+        team_id: int,
+        user_id: str,
+        slot_key: str,
+        card_source: str,
+        card_id: str,
+        card_snapshot: dict,
+    ) -> bool:
+        """Insert or replace a slot, with ownership guard. Bumps team updated_at."""
+        if not self.connection:
+            return False
+        ownership_check_sql = """
+            SELECT id FROM internal.team_builder_teams WHERE id = %s AND user_id = %s;
+        """
+        upsert_sql = """
+            INSERT INTO internal.team_builder_slots (team_id, slot_key, card_source, card_id, card_snapshot)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (team_id, slot_key)
+            DO UPDATE SET card_source    = EXCLUDED.card_source,
+                          card_id        = EXCLUDED.card_id,
+                          card_snapshot  = EXCLUDED.card_snapshot;
+        """
+        bump_sql = "UPDATE internal.team_builder_teams SET updated_at = NOW() WHERE id = %s;"
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(ownership_check_sql, (team_id, user_id))
+                if not cur.fetchone():
+                    return False
+                cur.execute(upsert_sql, (team_id, slot_key, card_source, card_id, card_snapshot))
+                cur.execute(bump_sql, (team_id,))
+                self.connection.commit()
+                return True
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error upserting slot {slot_key} on team {team_id}: {error}")
+            self.connection.rollback()
+            return False
+
+    def delete_team_slot(self, team_id: int, user_id: str, slot_key: str) -> bool:
+        """Remove a single slot with ownership guard. Returns True if deleted."""
+        if not self.connection:
+            return False
+        sql = """
+            DELETE FROM internal.team_builder_slots
+            WHERE team_id = %s
+              AND slot_key = %s
+              AND team_id IN (
+                  SELECT id FROM internal.team_builder_teams WHERE id = %s AND user_id = %s
+              );
+        """
+        bump_sql = "UPDATE internal.team_builder_teams SET updated_at = NOW() WHERE id = %s AND user_id = %s;"
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (team_id, slot_key, team_id, user_id))
+                deleted = cur.rowcount > 0
+                if deleted:
+                    cur.execute(bump_sql, (team_id, user_id))
+                self.connection.commit()
+                return deleted
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error deleting slot {slot_key} on team {team_id}: {error}")
+            self.connection.rollback()
+            return False

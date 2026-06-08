@@ -29,6 +29,7 @@ from mlb_showdown_bot.api.feature_status import feature_status_bp
 from mlb_showdown_bot.api.seasons import seasons_bp
 from mlb_showdown_bot.api.schedule import schedule_bp
 from mlb_showdown_bot.api.metadata import metadata_bp
+from mlb_showdown_bot.api.team_builder import team_builder_bp
 
 app.register_blueprint(cards_bp, url_prefix='/api')
 app.register_blueprint(search_bp, url_prefix='/api')
@@ -37,12 +38,21 @@ app.register_blueprint(feature_status_bp, url_prefix='/api')
 app.register_blueprint(seasons_bp, url_prefix='/api')
 app.register_blueprint(schedule_bp, url_prefix='/api')
 app.register_blueprint(metadata_bp, url_prefix='/api')
+app.register_blueprint(team_builder_bp, url_prefix='/api')
 
 # Warm up DB connection pools at startup so the first request doesn't
 # pay the TCP + SSL handshake cost.
-from mlb_showdown_bot.core.database.postgres_db import _get_pool
+from mlb_showdown_bot.core.database.postgres_db import _get_pool, PostgresDB
 _get_pool('DATABASE_URL_LOGS')
 _get_pool('DATABASE_URL_ARCHIVE')
+
+# Ensure team builder tables exist
+try:
+    _db = PostgresDB()
+    _db.create_team_builder_tables()
+    _db.close_connection()
+except Exception:
+    pass
 
 @app.route('/static/card_of_the_day/<path:filename>')
 def serve_card_of_the_day_files(filename):

@@ -60,6 +60,8 @@ type ShowdownCardSearchProps = {
     defaultFilters?: Partial<FilterSelections>;
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
+    /** When provided, renders a Select button on each card instead of opening the detail view */
+    onCardSelect?: (card: CardDatabaseRecord, source: CardSource) => void;
 };
 
 // =============================================================================
@@ -502,7 +504,7 @@ const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSel
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='24', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='24', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false, onCardSelect }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -771,9 +773,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
 
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
-        
+        if (onCardSelect) {
+            onCardSelect(card, source);
+            return;
+        }
+
         const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
-        
+
         console.log("Card clicked:", card);
         if (card.id === selectedCard?.id) {
             // If clicking the same card, close the side menu (if applicable)

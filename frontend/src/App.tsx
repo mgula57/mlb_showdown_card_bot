@@ -41,6 +41,7 @@ import Home from "./components/Home";
 import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
 import Privacy from "./components/Privacy";
+import TeamBuilder from "./components/team_builder/TeamBuilder";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -147,15 +148,22 @@ const AppContent = () => {
             {/* Seasons - Mount when first visited */}
             {mountedRoutes.has('/seasons') && (
                 <div className={isActive('/seasons') ? 'block' : 'hidden'}>
-                    <Seasons 
-                        type="mlb" 
-                        title="Seasons" 
+                    <Seasons
+                        type="mlb"
+                        title="Seasons"
                         subtitle="Browse season standings, teams, and players with Showdown context"
                         staticSports={[{ id: 1, name: 'MLB' }]}
                         staticSeasons={[
                             { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
                         ]}
                     />
+                </div>
+            )}
+
+            {/* Team Builder - Mount when first visited */}
+            {mountedRoutes.has('/teams') && (
+                <div className={isActive('/teams') ? 'block' : 'hidden'}>
+                    <TeamBuilder />
                 </div>
             )}
         </AppLayout>
