@@ -516,7 +516,8 @@ const AccountPage: React.FC = () => {
                             <span>Delete Account</span>
                         </button>
                         <p className="text-xs text-gray-500">
-                            Account deletion will be available in a future update
+                            Account deletion will be available in a future update. 
+                            If you need account assistance please email <a href="mailto:mlbshowdownbot@gmail.com" className="text-tertiary hover:underline">mlbshowdownbot@gmail.com</a>.
                         </p>
                     </div>
                 </div>

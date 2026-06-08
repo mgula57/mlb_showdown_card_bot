@@ -1011,8 +1011,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             />
 
             {/* Search Bar and Filters */}
-            <div className="sticky top-0 z-10 flex flex-col gap-2 w-full
-                            bg-background-secondary/95 backdrop-blur p-3">
+            <div
+                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur p-3 transition-[width] duration-300 ease-in-out"
+                style={{ width: `calc(100% - ${showPlayerDetailSidebar ? sidebarWidth : 0}px)` }}
+            >
 
                 <div className="flex items-center space-x-2">
 
@@ -1024,7 +1026,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             value={searchText || ''}
                             placeholder="Search for a Player..."
                             onChange={(value) => setSearchText(value || '')}
-                            className="w-full sm:w-1/3 font-bold"
+                            className="w-full @2xl:w-1/3 font-bold"
                             isClearable={true}
                             isTitleCase={true}
                             showSearchIcon={true}
@@ -1049,7 +1051,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 hover:bg-(--background-secondary-hover)
                             ">
                             <FaFilter className="text-primary" />
-                            <span className="hidden sm:inline">Filter</span>
+                            <span className="hidden @2xl:inline">Filter</span>
                         </button>
                     </div>
                     
@@ -1060,7 +1062,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         className={`
                             items-center gap-2
                             hover:bg-(--background-secondary-hover)
-                            hidden lg:flex
+                            ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
                         `}>
                         <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
                         <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
@@ -1111,10 +1113,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div
-                            className="transition-all duration-300 ease-in-out"
-                            style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
-                        >
+                        <div>
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}
