@@ -52,7 +52,7 @@ import {
     FaImages, FaDatabase
 } from 'react-icons/fa';
 import { 
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaEye, FaClockRotateLeft,
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaAddressCard, FaClockRotateLeft,
     FaSquarePollVertical, FaChartBar, FaRobot, FaGaugeHigh
 } from 'react-icons/fa6';
 
@@ -1051,7 +1051,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
-                    { tab: 'preview' as PreviewTab, icon: <FaEye />, label: 'Card' },
+                    { tab: 'preview' as PreviewTab, icon: <FaAddressCard />, label: 'Card' },
                     { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
                 ]).map(({ tab, icon, label }) => (
                     <button
@@ -1522,7 +1522,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     ref={previewSectionRef}
                     className={`
                         w-full @2xl:grow
-                        ${activePreviewTab === 'gallery' ? 'pb-0' : 'pb-64'} @2xl:pb-0
+                        ${activePreviewTab === 'gallery' ? 'pb-0 min-h-[calc(100dvh-2.75rem)]' : 'pb-64'} @2xl:pb-0 @2xl:min-h-0
                         scroll-mt-12
                         @2xl:scroll-mt-0
                         gradient-page
@@ -1533,7 +1533,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {/* Tab bar — desktop only */}
                         <div className="hidden @2xl:flex shrink-0 border-b border-form-element bg-background-secondary/80 backdrop-blur sticky top-0 z-10">
                             {([
-                                { tab: 'preview' as PreviewTab, icon: <FaEye />, label: 'Preview' },
+                                { tab: 'preview' as PreviewTab, icon: <FaAddressCard />, label: 'Preview' },
                                 { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
                             ]).map(({ tab, icon, label }) => (
                                 <button
@@ -1560,7 +1560,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     isLoading={isProcessingCard}
                                 />
                             </div>
-                            <div className={activePreviewTab === 'gallery' ? 'block' : 'hidden'}>
+                            <div className={activePreviewTab === 'gallery' ? 'block h-full' : 'hidden'}>
                                 <GalleryTabContent
                                     user={user}
                                     token={session?.access_token ?? null}

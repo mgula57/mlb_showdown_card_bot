@@ -262,7 +262,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                 icon={<FaImages size={28} />}
                 title="Your Gallery"
                 message="Sign in to save and browse your cards."
-                className="h-48 mt-12"
+                className="h-full mt-12"
             />
         );
     }
