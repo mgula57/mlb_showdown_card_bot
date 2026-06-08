@@ -54,7 +54,7 @@ def snapshot_rosters(
         player_ids = [roster['player_id'] for roster in rosters]
         player_id_chunks = [player_ids[i:i + 10] for i in range(0, len(player_ids), 10)]
         
-        for idx, chunk in enumerate(player_id_chunks):
+        for idx, chunk in enumerate(player_id_chunks[:5]):
             print(f"Processing chunk {idx + 1}/{len(player_id_chunks)} with player IDs: {chunk}")
             # In a real implementation, you would call the card generation function here
             card_settings = {

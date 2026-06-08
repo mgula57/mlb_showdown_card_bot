@@ -2200,7 +2200,7 @@ class PostgresDB:
                 cast(dim_card.card_data->>'points' as int) as points,
                 cast(dim_card.card_data->>'points_estimated' as int) as points_estimated,
                 cast(dim_card.card_data->>'points_diff_estimated_vs_actual' as int) as points_diff_estimated_vs_actual,
-                cast(dim_card.card_data->>'points_change' as int) as points_change,
+                cast(dim_card.card_data->'points_change'->>'week' as int) as points_change,
 
                 -- TEAM
                 dim_card.card_data->>'nationality' as nationality,

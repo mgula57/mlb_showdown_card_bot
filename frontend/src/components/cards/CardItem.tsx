@@ -489,6 +489,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardPoints={card?.points}
             cardPointsEstimated={card?.points_estimated || undefined}
             cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
+            cardPtsChange={card?.points_change || undefined}
             cardSpeed={card?.speed || undefined}
             cardHand={card?.hand || undefined}
             cardIp={card?.ip || undefined}
