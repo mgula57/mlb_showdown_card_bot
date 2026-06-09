@@ -13,6 +13,7 @@ class SimulationRuleset(BaseModel):
     # even though the pitcher won the command check.
     mistake_pitch: bool = False
     stolen_base_cap: int | None = None  # max SB per player per game; None = no cap
+    starter_fatigue_outs: int | None = 18  # hook starter after this many outs (18 = 6 IP); None = no limit
     use_strategy_cards: bool = False    # Phase 2 placeholder, not yet implemented
 
     @classmethod

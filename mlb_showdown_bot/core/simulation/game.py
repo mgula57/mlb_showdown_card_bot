@@ -43,9 +43,11 @@ class ShowdownGame:
         state = GameState.model_construct(
             ruleset=ruleset,
             away_batting_order=away_lineup.batting_order,
-            away_pitcher=away_lineup.pitcher,
+            away_pitcher=away_lineup.pitchers[0],
+            away_pitchers_remaining=list(away_lineup.pitchers[1:]),
             home_batting_order=home_lineup.batting_order,
-            home_pitcher=home_lineup.pitcher,
+            home_pitcher=home_lineup.pitchers[0],
+            home_pitchers_remaining=list(home_lineup.pitchers[1:]),
             away_cursor=0,
             home_cursor=0,
             completed_half_innings=[],
@@ -202,6 +204,8 @@ class ShowdownGame:
         state.runners = {}
         state.outs = 0
 
+        self._maybe_rotate_pitcher()
+
         if state.is_top_half:
             # Top half done — switch to bottom
             state.is_top_half = False
@@ -215,6 +219,31 @@ class ShowdownGame:
                     return
             state.current_inning += 1
             state.is_top_half = True
+
+    def _maybe_rotate_pitcher(self) -> None:
+        """Substitute the current pitcher if they've hit the fatigue threshold."""
+        state = self.state
+        fatigue_outs = state.ruleset.starter_fatigue_outs
+        if fatigue_outs is None:
+            return
+
+        # Which team is fielding during the current half?
+        if state.is_top_half:
+            pit_box = state.home_box
+            active_name = state.home_pitcher.name
+            remaining = state.home_pitchers_remaining
+            def _swap(p: ShowdownPlayerCard) -> None:
+                state.home_pitcher = p
+        else:
+            pit_box = state.away_box
+            active_name = state.away_pitcher.name
+            remaining = state.away_pitchers_remaining
+            def _swap(p: ShowdownPlayerCard) -> None:
+                state.away_pitcher = p
+
+        entry = pit_box.get(active_name)
+        if entry and (entry.outs_recorded or 0) >= fatigue_outs and remaining:
+            _swap(remaining.pop(0))
 
     def _update_box_scores(self, ab: AtBatResult, is_out: bool) -> None:
         """Update batting and pitching box score entries for this at-bat."""

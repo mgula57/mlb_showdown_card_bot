@@ -23,6 +23,7 @@ def simulate(
     innings: int = typer.Option(9, "--innings", "-i", help="Innings per game."),
     mistake_pitch: bool = typer.Option(False, "--mistake-pitch", "-mp", help="Enable mistake pitch rule (d24 chart roll)."),
     stolen_base_cap: Optional[int] = typer.Option(None, "--sb-cap", help="Max stolen bases per player per game."),
+    fatigue_outs: Optional[int] = typer.Option(18, "--fatigue", "-f", help="Hook starter after this many outs (default 18 = 6 IP). 0 = no limit."),
 
     # Output
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show per-inning line score for each game."),
@@ -62,6 +63,7 @@ def simulate(
         innings=innings,
         mistake_pitch=mistake_pitch,
         stolen_base_cap=stolen_base_cap,
+        starter_fatigue_outs=fatigue_outs if fatigue_outs else None,
     )
 
     # --- Build teams ---
@@ -218,6 +220,8 @@ def _print_run_distribution(label: str, run_list: list[int], div: str):
 
 def _print_ruleset_line(ruleset):
     parts = [f"Set: {ruleset.game_set.value}", f"Innings: {ruleset.innings}"]
+    if ruleset.starter_fatigue_outs is not None:
+        parts.append(f"Fatigue: {ruleset.starter_fatigue_outs} outs")
     if ruleset.mistake_pitch:
         parts.append("Mistake Pitch: ON")
     if ruleset.stolen_base_cap is not None:
@@ -235,32 +239,96 @@ def _build_demo_teams():
     from ...core.card.showdown_player_card import ShowdownPlayerCard
     from ...core.shared.player_position import PlayerSubType, PlayerType
 
-    def _chart(command, is_pitcher):
-        if is_pitcher:
-            results = {
-                1: ChartCategory.PU,
-                2: ChartCategory.SO, 3: ChartCategory.SO, 4: ChartCategory.SO,
-                5: ChartCategory.GB, 6: ChartCategory.GB, 7: ChartCategory.GB,
-                8: ChartCategory.GB, 9: ChartCategory.GB,
-                10: ChartCategory.FB, 11: ChartCategory.FB, 12: ChartCategory.FB,
-                13: ChartCategory.FB,
-                14: ChartCategory.BB, 15: ChartCategory.BB,
-                16: ChartCategory._1B, 17: ChartCategory._1B, 18: ChartCategory._1B,
-                19: ChartCategory._2B,
-                20: ChartCategory.HR,
-            }
-        else:
-            results = {
-                1: ChartCategory.SO, 2: ChartCategory.SO, 3: ChartCategory.GB,
-                4: ChartCategory.GB, 5: ChartCategory.FB,
-                6: ChartCategory.BB, 7: ChartCategory.BB,
-                8: ChartCategory._1B, 9: ChartCategory._1B, 10: ChartCategory._1B,
-                11: ChartCategory._1B, 12: ChartCategory._1B_PLUS,
-                13: ChartCategory._2B, 14: ChartCategory._2B,
-                15: ChartCategory._3B,
-                16: ChartCategory.HR, 17: ChartCategory.HR, 18: ChartCategory.HR,
-                19: ChartCategory.HR, 20: ChartCategory.HR,
-            }
+    CC = ChartCategory
+
+    # ---------------------------------------------------------------
+    # Chart templates — all 20 slots filled, tuned for realistic
+    # EXPANDED-set scoring (~6-10 runs/team/game).
+    # Pitcher charts: ~80% outs; hitter charts vary by profile.
+    # ---------------------------------------------------------------
+
+    def _starter_chart(command):
+        """Good starter: 80% outs, 1 BB, 3 hits (no HR)."""
+        results = {
+            1: CC.PU,
+            2: CC.SO, 3: CC.SO, 4: CC.SO, 5: CC.SO,
+            6: CC.GB, 7: CC.GB, 8: CC.GB, 9: CC.GB, 10: CC.GB, 11: CC.GB,
+            12: CC.FB, 13: CC.FB, 14: CC.FB, 15: CC.FB, 16: CC.FB,
+            17: CC.BB,
+            18: CC._1B, 19: CC._1B,
+            20: CC._2B,
+        }  # outs=16, BB=1, hits=3
+        return _build_chart(command, is_pitcher=True, results=results)
+
+    def _reliever_chart(command):
+        """Closer: 80% outs, heavier on Ks, 1 BB, 3 hits."""
+        results = {
+            1: CC.SO, 2: CC.SO, 3: CC.SO, 4: CC.SO, 5: CC.SO, 6: CC.SO,
+            7: CC.GB, 8: CC.GB, 9: CC.GB, 10: CC.GB, 11: CC.GB,
+            12: CC.FB, 13: CC.FB, 14: CC.FB, 15: CC.FB,
+            16: CC.BB,
+            17: CC._1B, 18: CC._1B, 19: CC._1B,
+            20: CC._2B,
+        }  # outs=16, BB=1, hits=4
+        return _build_chart(command, is_pitcher=True, results=results)
+
+    def _contact_chart(command):
+        """Contact hitter: high 1B, 1 HR, few strikeouts."""
+        results = {
+            1: CC.SO, 2: CC.SO, 3: CC.SO,
+            4: CC.GB, 5: CC.GB,
+            6: CC.FB, 7: CC.FB,
+            8: CC.BB, 9: CC.BB, 10: CC.BB,
+            11: CC._1B, 12: CC._1B, 13: CC._1B, 14: CC._1B, 15: CC._1B, 16: CC._1B,
+            17: CC._2B, 18: CC._2B,
+            19: CC._3B,
+            20: CC.HR,
+        }  # outs=7, BB=3, hits=10
+        return _build_chart(command, is_pitcher=False, results=results)
+
+    def _balanced_chart(command):
+        """Average hitter: balanced mix, 1 HR."""
+        results = {
+            1: CC.SO, 2: CC.SO, 3: CC.SO, 4: CC.SO,
+            5: CC.GB, 6: CC.GB,
+            7: CC.FB, 8: CC.FB, 9: CC.FB,
+            10: CC.BB, 11: CC.BB,
+            12: CC._1B, 13: CC._1B, 14: CC._1B, 15: CC._1B, 16: CC._1B,
+            17: CC._1B_PLUS,
+            18: CC._2B, 19: CC._2B,
+            20: CC.HR,
+        }  # outs=9, BB=2, hits=9
+        return _build_chart(command, is_pitcher=False, results=results)
+
+    def _power_chart(command):
+        """Power hitter: more extra bases, 2 HR."""
+        results = {
+            1: CC.SO, 2: CC.SO, 3: CC.SO,
+            4: CC.GB, 5: CC.GB,
+            6: CC.FB, 7: CC.FB,
+            8: CC.BB, 9: CC.BB, 10: CC.BB,
+            11: CC._1B, 12: CC._1B, 13: CC._1B, 14: CC._1B,
+            15: CC._1B_PLUS,
+            16: CC._2B, 17: CC._2B, 18: CC._2B,
+            19: CC.HR, 20: CC.HR,
+        }  # outs=7, BB=3, hits=10
+        return _build_chart(command, is_pitcher=False, results=results)
+
+    def _slugger_chart(command):
+        """Cleanup slugger: fewer 1B, 3 HR, lots of XBH."""
+        results = {
+            1: CC.SO, 2: CC.SO, 3: CC.SO,
+            4: CC.GB,
+            5: CC.FB, 6: CC.FB,
+            7: CC.BB, 8: CC.BB, 9: CC.BB,
+            10: CC._1B, 11: CC._1B, 12: CC._1B,
+            13: CC._1B_PLUS,
+            14: CC._2B, 15: CC._2B, 16: CC._2B, 17: CC._2B,
+            18: CC.HR, 19: CC.HR, 20: CC.HR,
+        }  # outs=6, BB=3, hits=11
+        return _build_chart(command, is_pitcher=False, results=results)
+
+    def _build_chart(command, is_pitcher, results):
         c = object.__new__(Chart)
         c.__dict__.update({'command': command, 'is_pitcher': is_pitcher, 'results': results})
         c.__pydantic_fields_set__ = frozenset({'command', 'is_pitcher', 'results'})
@@ -268,13 +336,9 @@ def _build_demo_teams():
         c.__pydantic_private__ = None
         return c
 
-    def _card(name, ptype, subtype, command):
+    def _card(name, ptype, subtype, chart):
         card = object.__new__(ShowdownPlayerCard)
-        card.__dict__.update({
-            'name': name, 'player_type': ptype,
-            'player_sub_type': subtype,
-            'chart': _chart(command, ptype == PlayerType.PITCHER),
-        })
+        card.__dict__.update({'name': name, 'player_type': ptype, 'player_sub_type': subtype, 'chart': chart})
         card.__pydantic_fields_set__ = frozenset({'name', 'player_type', 'player_sub_type', 'chart'})
         card.__pydantic_extra__ = None
         card.__pydantic_private__ = None
@@ -284,18 +348,32 @@ def _build_demo_teams():
     SP, RP, POS = PlayerSubType.STARTING_PITCHER, PlayerSubType.RELIEF_PITCHER, PlayerSubType.POSITION_PLAYER
 
     away = [
-        _card("G. Cole",       P, SP,  4), _card("D. Jeter",    H, POS, 10),
-        _card("B. Ruth",       H, POS, 8), _card("L. Gehrig",   H, POS, 11),
-        _card("A. Rodriguez",  H, POS, 12), _card("M. Mantle",  H, POS, 13),
-        _card("Y. Berra",      H, POS, 9), _card("R. Jackson",  H, POS, 9),
-        _card("W. Ford",       H, POS, 7), _card("P. O'Neill",  H, POS, 10),
+        # Pitchers first: starter, then reliever
+        _card("G. Cole",       P, SP,  _starter_chart(5)),
+        _card("A. Holmes",     P, RP,  _reliever_chart(5)),
+        # Batting order
+        _card("D. Jeter",      H, POS, _contact_chart(9)),
+        _card("B. Ruth",       H, POS, _slugger_chart(10)),
+        _card("L. Gehrig",     H, POS, _slugger_chart(10)),
+        _card("A. Rodriguez",  H, POS, _power_chart(10)),
+        _card("M. Mantle",     H, POS, _power_chart(9)),
+        _card("Y. Berra",      H, POS, _balanced_chart(8)),
+        _card("R. Jackson",    H, POS, _power_chart(9)),
+        _card("P. O'Neill",    H, POS, _contact_chart(9)),
+        _card("W. Ford",       H, POS, _balanced_chart(7)),
     ]
     home = [
-        _card("P. Martinez",   P, SP,  5), _card("T. Williams", H, POS, 14),
-        _card("D. Ortiz",      H, POS, 11), _card("C. Yastrzemski", H, POS, 10),
-        _card("R. Clemens",    H, POS, 8), _card("J. Ramirez",  H, POS, 12),
-        _card("K. Foulke",     H, POS, 9), _card("N. Garciaparra", H, POS, 11),
-        _card("M. Ramirez",    H, POS, 12), _card("J. Varitek", H, POS, 9),
+        _card("P. Martinez",   P, SP,  _starter_chart(6)),
+        _card("K. Foulke",     P, RP,  _reliever_chart(5)),
+        _card("T. Williams",   H, POS, _slugger_chart(11)),
+        _card("D. Ortiz",      H, POS, _slugger_chart(10)),
+        _card("C. Yastrzemski",H, POS, _power_chart(9)),
+        _card("M. Ramirez",    H, POS, _power_chart(10)),
+        _card("J. Ramirez",    H, POS, _balanced_chart(9)),
+        _card("N. Garciaparra",H, POS, _contact_chart(9)),
+        _card("J. Damon",      H, POS, _contact_chart(8)),
+        _card("J. Varitek",    H, POS, _balanced_chart(8)),
+        _card("R. Clemens",    H, POS, _balanced_chart(7)),
     ]
     return away, home
 

@@ -20,8 +20,10 @@ class GameState(BaseModel):
     # Lineups — embedded for full serialization portability
     away_batting_order: list[ShowdownPlayerCard]
     away_pitcher: ShowdownPlayerCard
+    away_pitchers_remaining: list[ShowdownPlayerCard] = []
     home_batting_order: list[ShowdownPlayerCard]
     home_pitcher: ShowdownPlayerCard
+    home_pitchers_remaining: list[ShowdownPlayerCard] = []
 
     # Batting cursors (persist across innings)
     away_cursor: int = 0
