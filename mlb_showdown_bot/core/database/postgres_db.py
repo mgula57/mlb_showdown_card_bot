@@ -4089,99 +4089,17 @@ class PostgresDB:
         cursor = self.connection.cursor()
         try:
             query = """
-                with
-
-                year_thresholds as (
-
-                    select
-                        year,
-                        max(g) as max_games,
-                        round(max(g) * 2.1) as min_pa_hitter,
-                        round(max(g) * 1.25 / 4.16) as min_ip_pitcher
-                    from player_season_stats
-                    where year = %s
-                    group by 1
-
-                ),
-
-                eligible as (
-
-                    select
-                        st.year,
-                        st.player_type,
-                        th.min_ip_pitcher,
-                        th.min_pa_hitter,
-                        st.g,
-                        st.gs,
-                        st.pa,
-                        st.ip,
-                        st.war,
-                        st.stats
-                    from player_season_stats as st
-                    join year_thresholds as th
-                        on th.year = st.year
-                    where
-                        case
-                            when st.player_type = 'PITCHER' then st.ip >= th.min_ip_pitcher
-                            else st.pa >= th.min_pa_hitter
-                        end
-                        and st.player_type = %s
-                        and (
-                            %s IS NULL
-                            or case when st.gs::float / nullif(st.g, 0) >= 0.5 then 'SP' else 'RP' end = %s
-                        )
-
-                ),
-                json_stat_rows as (
-                    select
-                        e.year,
-                        e.player_type,
-                        j.key as stat_name,
-                        j.value::numeric as stat_value
-                    from eligible e
-                    cross join lateral jsonb_each_text(coalesce(e.stats, '{}'::jsonb)) as j(key, value)
-                    where
-                        j.value ~ '^[-+]?(\\d+\\.?\\d*|\\.\\d+)$'
-                        and j.key in (
-                            'batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging','onbase_plus_slugging_plus','wRcPlus',
-
-                            'G','GS','IP','PA','AB','1B','2B','3B','HR','BB','SO','GB','FB','PU','SF',
-
-                            'SB','sprint_speed','dWAR','bWAR','fWAR','earned_run_avg','whip'
-                        )
-                        and
-                            case
-                                when e.player_type = 'PITCHER' then j.key not in (
-                                    'SB'
-                                )
-                                else true
-                            end
-
-                    union all
-
-                    -- position-level defensive stats: keys like "C__drs", "1B__tzr"
-                    select
-                        e.year,
-                        e.player_type,
-                        upper(pstat.key) || '-' || pos.key as stat_name,
-                        round(pstat.value::numeric, 4) as stat_value
-                    from eligible e
-                    cross join lateral jsonb_each(coalesce(e.stats->'positions', '{}'::jsonb)) as pos(key, val)
-                    cross join lateral jsonb_each_text(coalesce(pos.val, '{}'::jsonb)) as pstat(key, value)
-                    where
-                        pstat.value ~ '^[-+]?(\\d+\\.?\\d*|\\.\\d+)$'
-                        and pstat.key in ('g', 'drs', 'tzr', 'oaa')
-
-                )
                 select
-                    r.year,
-                    r.player_type,
-                    r.stat_name,
-                    percentile_cont(0.02) within group (order by r.stat_value) as stat_min,
-                    percentile_cont(0.98) within group (order by r.stat_value) as stat_max,
-                    count(*) as sample_size
-                from json_stat_rows r
-                group by r.year, r.player_type, r.stat_name
+                    year,
+                    player_type,
+                    stat_name,
+                    stat_min,
+                    stat_max,
+                    sample_size
+                from internal.dim_season_stat_ranges
+                where year = %s
+                    and player_type = %s
+                    and (pitcher_role = %s or %s is null)
             """
             cursor.execute(query, (season, player_type, pitcher_role, pitcher_role))
             results = cursor.fetchall()
