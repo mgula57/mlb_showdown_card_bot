@@ -32,8 +32,9 @@ import { getReadableTextColor } from '../functions/colors';
 
 // API
 import { fetchCardById, buildCardsFromIds } from '../api/showdownBotCard';
-import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay, fetchCustomCardLogs } from '../api/card_db/cardDatabase';
-import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord, CustomCardLogRecord } from '../api/card_db/cardDatabase';
+import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
+import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
+import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
 
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
@@ -77,11 +78,11 @@ export default function Home() {
     const [cardOfTheDay, setCardOfTheDay] = useState<CardOfTheDayRecord | null>(null);
 
     // Auth
-    const { user } = useAuth();
+    const { user, session, loading: authLoading } = useAuth();
 
     // What's New banner
     const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
-    type RecentCardItem = { record: CustomCardLogRecord; thumbUrl: string; fullUrl: string };
+    type RecentCardItem = { record: GalleryImageRecord; thumbUrl: string; fullUrl: string };
     const [recentCards, setRecentCards] = useState<RecentCardItem[]>([]);
     const [isLoadingRecentCards, setIsLoadingRecentCards] = useState<boolean>(false);
     const [recentCardModal, setRecentCardModal] = useState<string | null>(null);
@@ -198,33 +199,28 @@ export default function Home() {
     }, [userShowdownSet]);
 
     useEffect(() => {
+        if (authLoading) return;
         if (!user) { setRecentCards([]); lastFetchedUserId.current = null; return; }
-        if (user.id === lastFetchedUserId.current) {
-            console.log('User ID has not changed since last fetch, skipping recent cards fetch');
-            return;
-        } 
+        if (user.id === lastFetchedUserId.current) return;
         lastFetchedUserId.current = user.id;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const storageBase = `${supabaseUrl}/storage/v1/object/public/card_images/`;
+        const token = session?.access_token;
+        if (!token) return;
         setIsLoadingRecentCards(true);
-        fetchCustomCardLogs(user.id).then(logs => {
+        fetchUserGallery(token, 20).then(({ gallery }) => {
             const seen = new Set<string>();
             const items: RecentCardItem[] = [];
-            for (const r of logs) {
-                const thumbUrl = r.thumbnail_storage_path ? storageBase + r.thumbnail_storage_path
-                    : r.storage_path ? storageBase + r.storage_path : null;
-                const fullUrl = r.storage_path ? storageBase + r.storage_path
-                    : r.thumbnail_storage_path ? storageBase + r.thumbnail_storage_path : null;
+            for (const r of gallery) {
+                const thumbUrl = r.thumbnail_public_url ?? r.public_url;
+                const fullUrl = r.public_url ?? r.thumbnail_public_url;
                 if (!thumbUrl || !fullUrl) continue;
-                const key = `${r.name}-${r.year}-${r.set}`;
+                const key = `${r.player_name}-${r.year}-${r.set_name}`;
                 if (seen.has(key)) continue;
                 seen.add(key);
                 items.push({ record: r, thumbUrl, fullUrl });
-                if (items.length === 20) break;
             }
             setRecentCards(items);
         }).catch(() => setRecentCards([])).finally(() => setIsLoadingRecentCards(false));
-    }, [user]);
+    }, [user, authLoading]);
 
     useEffect(() => {
         if (!recentCardModal) return;
@@ -563,13 +559,13 @@ export default function Home() {
                                     >
                                         <img
                                             src={item.thumbUrl}
-                                            alt={`${item.record.name} card`}
+                                            alt={`${item.record.player_name} card`}
                                             loading="lazy"
                                             className="w-full h-full object-center transition-transform duration-200 group-hover/card:scale-105"
                                         />
                                     </div>
                                     <div className="mt-1.5 px-0.5">
-                                        <div className="text-xs font-semibold truncate">{item.record.name}</div>
+                                        <div className="text-xs font-semibold truncate">{item.record.player_name}</div>
                                         <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{item.record.year}</div>
                                     </div>
                                 </button>
