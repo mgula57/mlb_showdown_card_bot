@@ -206,7 +206,7 @@ export default function Home() {
         const token = session?.access_token;
         if (!token) return;
         setIsLoadingRecentCards(true);
-        fetchUserGallery(token, 20).then(({ gallery }) => {
+        fetchUserGallery(token, 15).then(({ gallery }) => {
             const seen = new Set<string>();
             const items: RecentCardItem[] = [];
             for (const r of gallery) {
