@@ -176,6 +176,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
     const [yearInput, setYearInput] = useState('');
     const [filters, setFilters] = useState<GalleryFilters>({});
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const filterTextClassName = "h-11 text-xs md:text-sm w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer";
 
     const hasActiveFilters = !!(filters.set_name || filters.player_name || filters.year || filters.player_type || filters.edition || filters.expansion || filters.team);
 
@@ -324,7 +325,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         options={[{ value: '', label: 'All Sets', image: undefined, textColor: 'text-secondary' }, ...showdownSets]}
                         value={filters.set_name ?? ''}
                         onChange={handleSetChange}
-                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName={filterTextClassName}
                         imageClassName="max-w-18 object-contain object-center"
                     />
                     <CustomSelect
@@ -336,7 +337,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         ]}
                         value={filters.expansion ?? ''}
                         onChange={handleExpansionChange}
-                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName={filterTextClassName}
                     />
                     <CustomSelect
                         options={[
@@ -350,13 +351,13 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         ]}
                         value={filters.edition ?? ''}
                         onChange={handleEditionChange}
-                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName={filterTextClassName}
                     />
                     <CustomSelect
                         options={teamOptions}
                         value={filters.team ?? ''}
                         onChange={handleTeamChange}
-                        buttonClassName="h-11 w-full leading-tight border-2 border-form-element rounded-xl px-3 bg-(--background-secondary) text-primary focus:outline-none cursor-pointer"
+                        buttonClassName={filterTextClassName}
                     />
                     <div className="w-24 shrink-0">
                         <FormInput
