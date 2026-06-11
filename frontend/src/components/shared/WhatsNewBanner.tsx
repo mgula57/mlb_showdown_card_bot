@@ -36,9 +36,9 @@ export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, feat
                 </button>
             </div>
 
-            <div className="px-3 pb-2 flex flex-col gap-1">
+            <div className="px-3 pb-2 flex flex-col gap-2">
                 {features.map(({ icon, text }) => (
-                    <span key={text} className={`flex items-center gap-1.5 text-${textSize} text-blue-100`}>
+                    <span key={text} className={`flex items-center gap-1.5 text-${textSize} leading-tight text-blue-100`}>
                         <span className="opacity-75">{icon}</span> {text}
                     </span>
                 ))}

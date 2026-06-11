@@ -1036,6 +1036,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 features={[
                     { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
                     { icon: <FaChartLine />,   text: "See who's trending WoW in PTS" },
+                    { icon: <FaSort />,        text: 'Easier access to sorting options and direction' },
                     { icon: <FaFilter />,      text: 'Save filter presets (login required)' },
                 ]}
             />
