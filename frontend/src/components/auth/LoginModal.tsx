@@ -174,7 +174,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                             <div>
                                 <label htmlFor="email" className="block text-sm font-medium text-secondary mb-1">Email</label>
                                 <input
-                                    id="email" type="email" value={email} autoFocus
+                                    id="email" type="email" value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required disabled={loading}
                                     className={inputCls}
@@ -203,7 +203,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                     </button>
                                 </div>
                                 <input
-                                    id="password" type="password" value={password} autoFocus
+                                    id="password" type="password" value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required disabled={loading} minLength={6}
                                     className={inputCls}
@@ -245,7 +245,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                     <div>
                                         <label htmlFor="reset-email" className="block text-sm font-medium text-secondary mb-1">Email</label>
                                         <input
-                                            id="reset-email" type="email" value={email} autoFocus
+                                            id="reset-email" type="email" value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             required disabled={loading}
                                             className={inputCls}
@@ -274,7 +274,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                             <div>
                                 <label htmlFor="username" className="block text-sm font-medium text-secondary mb-1">Username</label>
                                 <input
-                                    id="username" type="text" value={username} autoFocus
+                                    id="username" type="text" value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     required disabled={loading} minLength={3}
                                     className={`${inputCls} ${usernameError ? 'border-red-500' : ''}`}
