@@ -42,6 +42,7 @@ import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 
 import { TeamHierarchy } from "./TeamHierarchy";
+import SortButton from "./SortButton";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import { WhatsNewBanner } from '../shared/WhatsNewBanner';
@@ -329,9 +330,18 @@ const CHART_VALUES_SORT_OPTIONS: SelectOption[] = [
 ];
 
 /**
+ * Trend-based sort options (available for Bot source)
+ * 
+ */
+const TREND_SORT_OPTIONS: SelectOption[] = [
+    { value: 'points_change', label: 'Points Trend', icon: <FaChartLine /> },
+];
+
+/**
  * Real stats sort options (BOT only)
  */
 const REAL_STATS_SORT_OPTIONS: SelectOption[] = [
+
     { value: 'real_stats_pa', label: 'Real Stats (PA)', icon: <FaHashtag /> },
     { value: 'real_stats_ip', label: 'Real Stats (IP)', icon: <FaHashtag /> },
     { value: 'real_stats_G', label: 'Real Stats (G)', icon: <FaHashtag /> },
@@ -382,6 +392,7 @@ const getSortOptions = (source: CardSource): SelectOption[] => {
         case CardSource.BOT:
             return [
                 ...baseOptions,
+                ...TREND_SORT_OPTIONS,
                 ...REAL_STATS_SORT_OPTIONS,
             ];
         case CardSource.WOTC:
@@ -612,6 +623,23 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const sortOptions = getSortOptions(source);
     const selectedSortOption = sortOptions.find(option => option.value === filters.sort_by) || null;
     const selectedSortOptionForEditing = sortOptions.find(option => option.value === filtersForEditing.sort_by) || null;
+
+    const sortOptionGroups = useMemo(() => {
+        const groups: { label: string; options: SelectOption[] }[] = [];
+        if (source === CardSource.WOTC) {
+            groups.push({ label: 'WOTC', options: WOTC_SPECIFIC_SORT_OPTIONS });
+        }
+        groups.push(
+            { label: 'Basic', options: BASE_SORT_OPTIONS },
+            { label: 'Trends', options: TREND_SORT_OPTIONS },
+            { label: 'Defense', options: DEFENSE_SORT_OPTIONS },
+            { label: 'Chart Values', options: CHART_VALUES_SORT_OPTIONS },
+        );
+        if (source === CardSource.BOT) {
+            groups.push({ label: 'Real Stats', options: REAL_STATS_SORT_OPTIONS });
+        }
+        return groups;
+    }, [source]);
 
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
@@ -1077,21 +1105,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
                         {/* Sorting Summary */}
-                        {selectedSortOption && (
-                            <button
-                                className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
-                                disabled={isFilterLocked('sort_direction')}
-                                onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
-                            >
-                                <div className="flex flex-row gap-1 items-center">
-                                    Sort:
-                                    {selectedSortOption.icon && <span className="text-primary">{selectedSortOption.icon}</span>}
-                                    <span>
-                                        {selectedSortOption.label || "N/A"} {filters.sort_direction === 'asc' ? '↑' : '↓'}
-                                    </span>
-                                </div>
-                            </button>
-                        )}
+                        <SortButton
+                            selectedOption={selectedSortOption}
+                            sortDirection={filters.sort_direction ?? 'desc'}
+                            sortOptionGroups={sortOptionGroups}
+                            onSortByChange={(value) => setFilters(prev => ({ ...prev, sort_by: value }))}
+                            onSortDirectionChange={(dir) => setFilters(prev => ({ ...prev, sort_direction: dir }))}
+                            disableSortBy={isFilterLocked('sort_by')}
+                            disableSortDirection={isFilterLocked('sort_direction')}
+                        />
 
                         {/* Selected Filters */}
                         {/* The last element should add lots of padding */}
