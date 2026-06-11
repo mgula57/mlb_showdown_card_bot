@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Auto Image Update
         run: |
-          showdown_bot database run --auto_im
+          showdown_bot database run -auto_im
 
       - name: Refresh Explore Materialized Views
         run: |
