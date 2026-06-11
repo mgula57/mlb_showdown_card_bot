@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
     FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
-    FaHammer, FaCompass, FaCalendar, FaUser, FaImages
+    FaHammer, FaCompass, FaCalendar, FaUser, FaImages,
+    FaChartBar
 } from 'react-icons/fa';
 import { FaXmark, FaCloudArrowUp, FaArrowsRotate } from 'react-icons/fa6';
 import { useState, useEffect, useRef } from 'react';
@@ -308,7 +309,8 @@ export default function Home() {
                     { icon: <FaCloudArrowUp />, text: 'Store your card creations' },
                     { icon: <FaArrowsRotate />, text: 'Sync settings across devices' },
                     { icon: <FaImages />,       text: 'Gallery to browse past builds' },
-                    { icon: <FaCompass />,         text: '2026 cards in Explore' },
+                    { icon: <FaChartBar/>,      text: 'Redesigned breakdowns in Card Builder'},
+                    { icon: <FaCompass />,      text: '2026 cards in Explore' },
                 ]}
                 onLoginClick={() => setShowBannerLoginModal(true)}
                 textSize="sm"

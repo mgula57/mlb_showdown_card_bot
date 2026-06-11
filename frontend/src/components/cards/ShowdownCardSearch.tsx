@@ -24,7 +24,8 @@ import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
-    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical,
+    FaChartLine
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -1006,7 +1007,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 storageKey="exploreWhatsNew_v1"
                 features={[
                     { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
-                    { icon: <FaFilter />, text: 'Save filter presets (login required)' },
+                    { icon: <FaChartLine />,   text: "See who's trending WoW in PTS" },
+                    { icon: <FaFilter />,      text: 'Save filter presets (login required)' },
                 ]}
             />
 
