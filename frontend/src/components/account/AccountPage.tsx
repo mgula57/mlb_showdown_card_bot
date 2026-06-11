@@ -221,78 +221,77 @@ const AccountPage: React.FC = () => {
                     <div className="flex items-start space-x-4">
                         {/* Avatar */}
                         <div className="shrink-0">
-                            <div className="relative group w-20 h-20">
-                                {/* Avatar display */}
-                                {/* <button
-                                    type="button"
-                                    onClick={() => avatarInputRef.current?.click()}
-                                    disabled={isUploadingAvatar}
-                                    className="w-20 h-20 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-accent"
-                                    title="Change profile photo"
-                                >
-                                    {userSettings?.avatar_url ? (
-                                        <img
-                                            src={userSettings.avatar_url}
-                                            alt="Profile"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full bg-accent text-primary flex items-center justify-center text-2xl font-bold border-2 border-accent-dark">
-                                            {getUserInitials()}
-                                        </div>
-                                    )}
-                                </button> */}
-
-                                <AccountAvatar 
+                            <button
+                                type="button"
+                                onClick={() => avatarInputRef.current?.click()}
+                                disabled={isUploadingAvatar}
+                                className="relative group block w-20 h-20 focus:outline-none focus:ring-2 focus:ring-accent rounded-full"
+                                title="Change profile photo"
+                            >
+                                <AccountAvatar
                                     showStatus={false}
                                     size={20}
                                 />
 
                                 {/* Hover overlay */}
-                                <button
-                                    type="button"
-                                    onClick={() => avatarInputRef.current?.click()}
-                                    disabled={isUploadingAvatar}
-                                    className="
-                                        absolute inset-0 rounded-full
-                                        bg-black/50
-                                        flex flex-col items-center justify-center gap-1
-                                        opacity-0 group-hover:opacity-100
-                                        transition-opacity duration-200
-                                        cursor-pointer
-                                    "
-                                    title="Change profile photo"
-                                >
+                                <span className="
+                                    absolute inset-0 rounded-full
+                                    bg-black/50
+                                    flex items-center justify-center
+                                    opacity-0 group-hover:opacity-100
+                                    transition-opacity duration-200
+                                ">
                                     {isUploadingAvatar
                                         ? <FaSpinner className="w-5 h-5 text-white animate-spin" />
                                         : <FaCamera className="w-5 h-5 text-white" />
                                     }
-                                </button>
+                                </span>
 
-                                <input
-                                    ref={avatarInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={handleAvatarFileChange}
-                                />
-                            </div>
-
-                            {/* Remove / error below avatar */}
-                            <div className="mt-1 text-center">
-                                {avatarError && (
-                                    <p className="text-xs text-red-500">{avatarError}</p>
+                                {/* Persistent camera badge */}
+                                {!isUploadingAvatar && (
+                                    <span className="
+                                        absolute bottom-0 right-0
+                                        w-6 h-6 rounded-full
+                                        bg-accent border-2 border-background-secondary
+                                        flex items-center justify-center
+                                        group-hover:opacity-0 transition-opacity duration-200
+                                    ">
+                                        <FaCamera className="w-2.5 h-2.5 text-primary" />
+                                    </span>
                                 )}
+                            </button>
+
+                            {/* Change photo / remove / error below avatar */}
+                            <div className="mt-1.5 text-center space-y-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => avatarInputRef.current?.click()}
+                                    disabled={isUploadingAvatar}
+                                    className="text-xs text-tertiary hover:underline block w-full"
+                                >
+                                    {isUploadingAvatar ? 'Uploading…' : 'Change photo'}
+                                </button>
                                 {userSettings?.avatar_url && !isUploadingAvatar && (
                                     <button
                                         type="button"
                                         onClick={handleRemoveAvatar}
-                                        className="text-xs text-tertiary hover:underline"
+                                        className="text-xs text-tertiary hover:underline block w-full"
                                     >
                                         Remove
                                     </button>
                                 )}
+                                {avatarError && (
+                                    <p className="text-xs text-red-500">{avatarError}</p>
+                                )}
                             </div>
+
+                            <input
+                                ref={avatarInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleAvatarFileChange}
+                            />
                         </div>
 
                         {/* User Info */}
