@@ -444,6 +444,7 @@ def search_players():
                         'is_hof': is_hof,
                         'award_summary': award_summary,
                         'war': round(career_war, 1),
+                        'war_type': 'WAR',
                         'team': team,
                         'player_type_override': player_type_override,
                     })
