@@ -123,7 +123,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
      */
     useEffect(() => {
         const fetchRanges = (card: NonNullable<ShowdownBotCardAPIResponse['card']>) => {
-            const maxYear = Math.max(...(card.stats_period.year_list || []));
+            const yearList = card.stats_period.year_list || [];
             const playerType = card.player_type.toUpperCase() as "HITTER" | "PITCHER";
             const subType: string | undefined = card.player_sub_type;
             const pitcherRole: 'SP' | 'RP' | undefined =
@@ -132,7 +132,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     : undefined;
             setIsRangesLoading(true);
             setSeasonStatRanges(null);
-            fetchSeasonStatRanges(maxYear, playerType, pitcherRole)
+            fetchSeasonStatRanges(yearList, playerType, pitcherRole)
                 .then((response) => {
                     console.log("Fetched season stat ranges:", response);
                     setSeasonStatRanges(response?.ranges ?? null);

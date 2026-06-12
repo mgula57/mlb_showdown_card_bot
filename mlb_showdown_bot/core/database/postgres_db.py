@@ -4077,8 +4077,19 @@ class PostgresDB:
         finally:
             cursor.close()
 
-    def get_season_stat_ranges(self, season:int, player_type:str, pitcher_role:str|None=None) -> dict[str, dict[str, float]]:
-        """Fetch min and max values for key stats in a given season and player type. Used for percentiles in the frontend.
+    # Rate stats: averaged across years (rates don't compound). Everything else is a counting stat and is summed.
+    _RATE_STAT_NAMES = [
+        'batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging',
+        'onbase_plus_slugging_plus', 'wRcPlus', 'earned_run_avg', 'whip', 'K/9', 'sprint_speed',
+    ]
+
+    def get_season_stat_ranges(self, seasons: int | list[int], player_type: str, pitcher_role: str | None = None) -> dict[str, dict[str, float]]:
+        """Fetch min and max values for key stats for given season(s) and player type. Used for percentiles in the frontend.
+
+        For a single season, returns the pre-computed per-year ranges directly.
+        For multiple seasons, aggregates across years:
+          - Rate stats (BA, OBP, SLG, ERA, etc.): weighted average by sample_size
+          - Counting stats (HR, BB, SO, etc.): sum of min/max, matching how multi-year cards sum stats
 
         pitcher_role: 'SP' or 'RP' (only applies when player_type='PITCHER'). None returns all pitchers combined.
         """
@@ -4086,31 +4097,51 @@ class PostgresDB:
             print("ERROR: NO CONNECTION TO DB")
             return {}
 
+        if isinstance(seasons, int):
+            seasons = [seasons]
+
         cursor = self.connection.cursor()
         try:
-            query = """
-                select
-                    year,
-                    player_type,
-                    stat_name,
-                    stat_min,
-                    stat_max,
-                    sample_size
-                from internal.dim_season_stat_ranges
-                where year = %s
-                    and player_type = %s
-                    and (pitcher_role = %s or %s is null)
-            """
-            cursor.execute(query, (season, player_type, pitcher_role, pitcher_role))
+            if len(seasons) == 1:
+                query = """
+                    SELECT stat_name, stat_min, stat_max
+                    FROM internal.dim_season_stat_ranges
+                    WHERE year = %s
+                        AND player_type = %s
+                        AND (pitcher_role = %s OR %s IS NULL)
+                """
+                cursor.execute(query, (seasons[0], player_type, pitcher_role, pitcher_role))
+            else:
+                query = """
+                    SELECT
+                        stat_name,
+                        CASE WHEN stat_name = ANY(%s)
+                             THEN SUM(stat_min * sample_size) / NULLIF(SUM(sample_size), 0)
+                             ELSE SUM(stat_min)
+                        END AS stat_min,
+                        CASE WHEN stat_name = ANY(%s)
+                             THEN SUM(stat_max * sample_size) / NULLIF(SUM(sample_size), 0)
+                             ELSE SUM(stat_max)
+                        END AS stat_max
+                    FROM internal.dim_season_stat_ranges
+                    WHERE year = ANY(%s)
+                        AND player_type = %s
+                        AND (pitcher_role = %s OR %s IS NULL)
+                    GROUP BY stat_name
+                """
+                cursor.execute(query, (
+                    self._RATE_STAT_NAMES, self._RATE_STAT_NAMES,
+                    seasons, player_type, pitcher_role, pitcher_role,
+                ))
+
             results = cursor.fetchall()
-            stat_ranges = {
-                row[2]: {
-                    'min': float(row[3]) if row[3] is not None else None,
-                    'max': float(row[4]) if row[4] is not None else None
+            return {
+                row[0]: {
+                    'min': float(row[1]) if row[1] is not None else None,
+                    'max': float(row[2]) if row[2] is not None else None,
                 }
                 for row in results
             }
-            return stat_ranges
         except Exception as e:
             print(f"ERROR fetching season stat ranges: {e}")
             return {}

@@ -201,9 +201,11 @@ export async function buildCardsFromIds(cardIds: string[], season: number | stri
     return res.json();
 }
 
-export async function fetchSeasonStatRanges(season: number, playerType: 'HITTER' | 'PITCHER', pitcherRole?: 'SP' | 'RP'): Promise<any> {
+export async function fetchSeasonStatRanges(years: number | number[], playerType: 'HITTER' | 'PITCHER', pitcherRole?: 'SP' | 'RP'): Promise<any> {
+    const yearList = Array.isArray(years) ? years : [years];
+    const yearsParam = `season=${yearList.join(',')}`;
     const roleParam = pitcherRole ? `&pitcher_role=${pitcherRole}` : '';
-    const res = await fetch(`${API_BASE}/stats/ranges?season=${season}&player_type=${playerType}${roleParam}`, {
+    const res = await fetch(`${API_BASE}/stats/ranges?${yearsParam}&player_type=${playerType}${roleParam}`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
