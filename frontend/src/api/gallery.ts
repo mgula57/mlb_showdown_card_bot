@@ -35,6 +35,7 @@ export async function fetchUserGallery(
     limit = 50,
     offset = 0,
     filters: GalleryFilters = {},
+    showHidden = false,
 ): Promise<GalleryResponse> {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (filters.set_name) params.set('set_name', filters.set_name);
@@ -44,6 +45,7 @@ export async function fetchUserGallery(
     if (filters.edition) params.set('edition', filters.edition);
     if (filters.expansion) params.set('expansion', filters.expansion);
     if (filters.team) params.set('team', filters.team);
+    if (showHidden) params.set('show_hidden', 'true');
     const res = await fetch(`${API_BASE}/user/gallery?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
@@ -60,4 +62,15 @@ export async function deleteGalleryCard(
         headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error(`Gallery delete failed: ${res.status}`);
+}
+
+export async function unhideGalleryCard(
+    token: string,
+    galleryId: number,
+): Promise<void> {
+    const res = await fetch(`${API_BASE}/user/gallery/${galleryId}/unhide`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Gallery unhide failed: ${res.status}`);
 }

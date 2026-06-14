@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaImages, FaSpinner, FaExpand, FaStar } from 'react-icons/fa';
+import { FaImages, FaSpinner, FaExpand, FaEyeSlash, FaEye } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { FaPencil } from 'react-icons/fa6';
-import { fetchUserGallery, deleteGalleryCard, type GalleryImageRecord, type GalleryFilters } from '../../api/gallery';
+import { fetchUserGallery, deleteGalleryCard, unhideGalleryCard, type GalleryImageRecord, type GalleryFilters } from '../../api/gallery';
 import { fetchTeamHierarchy } from '../../api/card_db/cardDatabase';
 import { Modal } from '../shared/Modal';
 import FormInput from '../customs/FormInput';
@@ -62,10 +62,12 @@ const STATS_PERIOD_LABELS: Record<string, string> = {
 const GalleryCard: React.FC<{
     item: GalleryImageRecord;
     onDeleteRequest: (id: number) => void;
+    onUnhideRequest: (id: number) => void;
     onPreview: (cardResult: ShowdownBotCard) => void;
     onReload?: (userInputs: Record<string, unknown>, cardResult: ShowdownBotCard) => void;
     isDeleting: boolean;
-}> = ({ item, onDeleteRequest, onPreview, onReload, isDeleting }) => {
+    showingHidden: boolean;
+}> = ({ item, onDeleteRequest, onUnhideRequest, onPreview, onReload, isDeleting, showingHidden }) => {
     const [isHovered, setIsHovered] = useState(false);
     const fullUrl = item.public_url ?? item.storage_path;
     const thumbUrl = item.thumbnail_public_url ?? fullUrl;
@@ -79,7 +81,7 @@ const GalleryCard: React.FC<{
         inputs.chart_version !== '1' ? `v${inputs.chart_version}` : undefined,
         inputs.set_number ? `#${inputs.set_number}` : undefined,
     ].filter(Boolean) as string[];
-    
+
     return (
         <div
             className="flex flex-col gap-1"
@@ -99,21 +101,14 @@ const GalleryCard: React.FC<{
                 {isHovered && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 pb-3">
                         <button
-                            onClick={
-                                () => {
-                                    if (item.card_result) {
-                                        onPreview(item.card_result);
-                                    }
-                                    console.log("Preview card result:", item.card_result);
-                                }
-                            }
+                            onClick={() => { if (item.card_result) onPreview(item.card_result); }}
                             className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors"
                             title="View"
                         >
                             <FaExpand size={16} />
                         </button>
 
-                        {onReload && item.user_inputs && (
+                        {!showingHidden && onReload && item.user_inputs && (
                             <button
                                 onClick={() => onReload(item.user_inputs!, item.card_result!)}
                                 className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors"
@@ -123,6 +118,25 @@ const GalleryCard: React.FC<{
                             </button>
                         )}
 
+                        {showingHidden ? (
+                            <button
+                                onClick={() => onUnhideRequest(item.id)}
+                                disabled={isDeleting}
+                                className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors disabled:opacity-40"
+                                title="Restore to gallery"
+                            >
+                                <FaEye size={16} />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => onDeleteRequest(item.id)}
+                                disabled={isDeleting}
+                                className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors disabled:opacity-40"
+                                title="Hide from gallery"
+                            >
+                                <FaEyeSlash size={16} />
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -156,6 +170,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
+    const [showingHidden, setShowingHidden] = useState(false);
 
     // Team options for dropdown
     const [teamOptions, setTeamOptions] = useState<{ value: string; label: string }[]>([]);
@@ -180,11 +195,14 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
 
     const hasActiveFilters = !!(filters.set_name || filters.player_name || filters.year || filters.player_type || filters.edition || filters.expansion || filters.team);
 
-    const loadGallery = useCallback(async (pageOffset: number, activeFilters: GalleryFilters) => {
-        if (!token) return;
+    const loadGallery = useCallback(async (pageOffset: number, activeFilters: GalleryFilters, showHidden: boolean = false) => {
+        if (!token) {
+            console.warn('Attempted to load gallery without token');
+            return;
+        }
         setIsLoading(true);
         try {
-            const data = await fetchUserGallery(token, PAGE_SIZE, pageOffset, activeFilters);
+            const data = await fetchUserGallery(token, PAGE_SIZE, pageOffset, activeFilters, showHidden);
             setGallery(data.gallery);
             setOffset(pageOffset);
             setHasMore(data.has_more);
@@ -205,7 +223,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
 
     const applyFilters = (next: GalleryFilters) => {
         setFilters(next);
-        loadGallery(0, next);
+        loadGallery(0, next, showingHidden);
     };
 
     const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
@@ -257,6 +275,25 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
         }
     };
 
+    const handleUnhide = async (id: number) => {
+        if (!token) return;
+        setDeletingId(id);
+        try {
+            await unhideGalleryCard(token, id);
+            setGallery(prev => prev.filter(item => item.id !== id));
+        } catch (err) {
+            console.error('Failed to unhide gallery card:', err);
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
+    const handleToggleHidden = () => {
+        const next = !showingHidden;
+        setShowingHidden(next);
+        loadGallery(0, filters, next);
+    };
+
     if (!user) {
         return (
             <SignInPrompt
@@ -276,7 +313,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     <div className="p-6 flex flex-col gap-5">
                         <div className="flex flex-col gap-1">
                             <h2 className="text-lg font-semibold text-primary">Remove card?</h2>
-                            <p className="text-sm text-secondary">This card will be hidden from your gallery.</p>
+                            <p className="text-sm text-secondary">This card will be hidden from your gallery. You can unhide it later if you change your mind by using the "Active/Hidden" toggle.</p>
                         </div>
                         <div className="flex gap-3 justify-end">
                             <button
@@ -319,7 +356,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     isClearable={true}
                 />
 
-                {/* Row 2: Set + Expansion + Edition + Team + Year */}
+                {/* Row 2: Set + Expansion + Edition + Team + Year + Hidden toggle */}
                 <div className="flex items-end gap-1.5 w-full overflow-x-scroll">
                     <CustomSelect
                         options={[{ value: '', label: 'All Sets', image: undefined, textColor: 'text-secondary' }, ...showdownSets]}
@@ -368,6 +405,14 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                             onChange={value => handleYearChange((value ?? '').slice(0, 4))}
                         />
                     </div>
+                    <button
+                        onClick={handleToggleHidden}
+                        className={`shrink-0 flex items-center gap-1.5 px-3 h-11 rounded-xl border-2 text-xs font-medium transition-colors ${showingHidden ? 'border-primary text-primary' : 'border-form-element text-secondary hover:text-primary'} bg-(--background-secondary)`}
+                        title={showingHidden ? 'Show active cards' : 'Show hidden cards'}
+                    >
+                        <FaEyeSlash size={13} />
+                        {showingHidden ? 'Hidden Only' : 'Active Only'}
+                    </button>
                 </div>
             </div>
 
@@ -381,9 +426,9 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-secondary">
                         <FaImages size={36} className="opacity-30" />
                         <p className="text-sm font-medium">
-                            {hasActiveFilters ? 'No cards match these filters' : 'No cards yet'}
+                            {hasActiveFilters ? 'No cards match these filters' : showingHidden ? 'No hidden cards' : 'No cards yet'}
                         </p>
-                        {!hasActiveFilters && (
+                        {!hasActiveFilters && !showingHidden && (
                             <p className="text-xs text-center max-w-xs">Cards you generate while signed in will appear here.</p>
                         )}
                     </div>
@@ -395,9 +440,11 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                                     key={item.id}
                                     item={item}
                                     onDeleteRequest={setPendingDeleteId}
+                                    onUnhideRequest={handleUnhide}
                                     onPreview={(cardResult) => setSelectedCard(cardResult)}
                                     onReload={onReload}
                                     isDeleting={deletingId === item.id}
+                                    showingHidden={showingHidden}
                                 />
                             ))}
                         </div>
@@ -405,7 +452,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         {(currentPage > 1 || hasMore) && (
                             <div className="flex items-center justify-center gap-3 mt-4">
                                 <button
-                                    onClick={() => loadGallery(offset - PAGE_SIZE, filters)}
+                                    onClick={() => loadGallery(offset - PAGE_SIZE, filters, showingHidden)}
                                     disabled={isLoading || currentPage === 1}
                                     className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
                                 >
@@ -415,7 +462,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                                     {isLoading ? <FaSpinner className="animate-spin inline" size={12} /> : `Page ${currentPage}`}
                                 </span>
                                 <button
-                                    onClick={() => loadGallery(offset + PAGE_SIZE, filters)}
+                                    onClick={() => loadGallery(offset + PAGE_SIZE, filters, showingHidden)}
                                     disabled={isLoading || !hasMore}
                                     className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
                                 >

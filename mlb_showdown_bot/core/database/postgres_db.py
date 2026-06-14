@@ -3255,11 +3255,12 @@ class PostgresDB:
                          set_name: str | None = None, player_name: str | None = None,
                          year: str | None = None, player_type: str | None = None,
                          edition: str | None = None, expansion: str | None = None,
-                         team: str | None = None) -> list[dict]:
+                         team: str | None = None, show_hidden: bool = False) -> list[dict]:
         """Return successful card generations for user from the log table, newest first."""
         if not self.connection:
             return []
-        conditions = ["user_id = %s", "thumbnail_storage_path IS NOT NULL", "error IS NULL", "is_hidden IS NOT TRUE"]
+        hidden_filter = "is_hidden IS TRUE" if show_hidden else "is_hidden IS NOT TRUE"
+        conditions = ["user_id = %s", "thumbnail_storage_path IS NOT NULL", "error IS NULL", hidden_filter]
         params: list = [user_id]
         if set_name:
             conditions.append("set = %s")
@@ -3337,6 +3338,24 @@ class PostgresDB:
         except Exception as e:
             self.connection.rollback()
             print(f"Error hiding gallery card: {e}")
+            return False
+
+    def unhide_user_gallery_card(self, user_id: str, gallery_id: int) -> bool:
+        """Restore a soft-hidden log row owned by user_id. Returns True if a row was updated."""
+        if not self.connection:
+            return False
+        sql = """
+            UPDATE internal.log_custom_card_bot
+            SET is_hidden = FALSE
+            WHERE id = %s AND user_id = %s
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (gallery_id, user_id))
+                return cur.rowcount > 0
+        except Exception as e:
+            self.connection.rollback()
+            print(f"Error unhiding gallery card: {e}")
             return False
 
     def upsert_user_settings(self, user_id: str, settings_dict: dict) -> None:

@@ -19,12 +19,14 @@ def get_gallery():
         edition = request.args.get('edition') or None
         expansion = request.args.get('expansion') or None
         team = request.args.get('team') or None
+        show_hidden = request.args.get('show_hidden', 'false').lower() == 'true'
         db = PostgresDB()
         gallery = db.get_user_gallery(
             g.user_id, limit=limit, offset=offset,
             set_name=set_name, player_name=player_name,
             year=year, player_type=player_type,
             edition=edition, expansion=expansion, team=team,
+            show_hidden=show_hidden,
         )
         db.close_connection()
         return jsonify({'gallery': gallery, 'has_more': len(gallery) == limit}), 200
@@ -41,6 +43,21 @@ def delete_gallery_card(gallery_id: int):
         deleted = db.delete_user_gallery_card(g.user_id, gallery_id)
         db.close_connection()
         if deleted:
+            return jsonify({'success': True}), 200
+        return jsonify({'error': 'Card not found or access denied'}), 404
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@gallery_bp.route('/user/gallery/<int:gallery_id>/unhide', methods=['POST'])
+@require_auth
+def unhide_gallery_card(gallery_id: int):
+    try:
+        db = PostgresDB()
+        updated = db.unhide_user_gallery_card(g.user_id, gallery_id)
+        db.close_connection()
+        if updated:
             return jsonify({'success': True}), 200
         return jsonify({'error': 'Card not found or access denied'}), 404
     except Exception as exc:
