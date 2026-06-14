@@ -418,11 +418,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
 
             {/* Grid */}
             <div className="p-3">
-                {isLoading && gallery.length === 0 ? (
-                    <div className="flex items-center justify-center py-16">
-                        <FaSpinner className="animate-spin text-secondary" size={24} />
-                    </div>
-                ) : gallery.length === 0 ? (
+                {gallery.length === 0 && !isLoading ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-secondary">
                         <FaImages size={36} className="opacity-30" />
                         <p className="text-sm font-medium">
@@ -434,42 +430,49 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     </div>
                 ) : (
                     <>
-                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))' }}>
-                            {gallery.map(item => (
-                                <GalleryCard
-                                    key={item.id}
-                                    item={item}
-                                    onDeleteRequest={setPendingDeleteId}
-                                    onUnhideRequest={handleUnhide}
-                                    onPreview={(cardResult) => setSelectedCard(cardResult)}
-                                    onReload={onReload}
-                                    isDeleting={deletingId === item.id}
-                                    showingHidden={showingHidden}
-                                />
-                            ))}
-                        </div>
-
-                        {(currentPage > 1 || hasMore) && (
-                            <div className="flex items-center justify-center gap-3 mt-4">
-                                <button
-                                    onClick={() => loadGallery(offset - PAGE_SIZE, filters, showingHidden)}
-                                    disabled={isLoading || currentPage === 1}
-                                    className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
-                                >
-                                    ← Prev
-                                </button>
-                                <span className="text-sm text-secondary min-w-16 text-center">
-                                    {isLoading ? <FaSpinner className="animate-spin inline" size={12} /> : `Page ${currentPage}`}
-                                </span>
-                                <button
-                                    onClick={() => loadGallery(offset + PAGE_SIZE, filters, showingHidden)}
-                                    disabled={isLoading || !hasMore}
-                                    className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
-                                >
-                                    Next →
-                                </button>
+                        <div className="relative">
+                            {isLoading && (
+                                <div className="absolute inset-10 z-50 flex items-center justify-center bg-(--background-primary)/60 backdrop-blur-[2px] rounded-xl">
+                                    <FaSpinner className="animate-spin text-secondary" size={24} />
+                                </div>
+                            )}
+                            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))' }}>
+                                {gallery.map(item => (
+                                    <GalleryCard
+                                        key={item.id}
+                                        item={item}
+                                        onDeleteRequest={setPendingDeleteId}
+                                        onUnhideRequest={handleUnhide}
+                                        onPreview={(cardResult) => setSelectedCard(cardResult)}
+                                        onReload={onReload}
+                                        isDeleting={deletingId === item.id}
+                                        showingHidden={showingHidden}
+                                    />
+                                ))}
                             </div>
-                        )}
+
+                            {(currentPage > 1 || hasMore) && (
+                                <div className="flex items-center justify-center gap-3 mt-4">
+                                    <button
+                                        onClick={() => loadGallery(offset - PAGE_SIZE, filters, showingHidden)}
+                                        disabled={isLoading || currentPage === 1}
+                                        className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
+                                    >
+                                        ← Prev
+                                    </button>
+                                    <span className="text-sm text-secondary min-w-16 text-center">
+                                        {isLoading ? <FaSpinner className="animate-spin inline" size={12} /> : `Page ${currentPage}`}
+                                    </span>
+                                    <button
+                                        onClick={() => loadGallery(offset + PAGE_SIZE, filters, showingHidden)}
+                                        disabled={isLoading || !hasMore}
+                                        className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </>
                 )}
             </div>
