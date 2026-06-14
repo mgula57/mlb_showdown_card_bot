@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaImages, FaSpinner, FaExpand, FaEyeSlash, FaEye } from 'react-icons/fa';
+import { FaImages, FaSpinner, FaExpand, FaEyeSlash, FaEye, FaChevronUp } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { FaPencil } from 'react-icons/fa6';
 import { fetchUserGallery, deleteGalleryCard, unhideGalleryCard, type GalleryImageRecord, type GalleryFilters } from '../../api/gallery';
@@ -23,6 +23,32 @@ interface GalleryTabContentProps {
 }
 
 const PAGE_SIZE = 50;
+
+// ----------------------------------------------------------------
+// Stack grouping — consecutive items with same player/year/set
+// ----------------------------------------------------------------
+interface GalleryStack {
+    stackId: number; // first item's id — stable key for expanded state
+    items: GalleryImageRecord[];
+}
+
+function groupIntoStacks(gallery: GalleryImageRecord[]): GalleryStack[] {
+    const stacks: GalleryStack[] = [];
+    for (const item of gallery) {
+        const last = stacks[stacks.length - 1];
+        const sameGroup =
+            last &&
+            last.items[0].player_name === item.player_name &&
+            last.items[0].year === item.year &&
+            last.items[0].set_name === item.set_name;
+        if (sameGroup) {
+            last.items.push(item);
+        } else {
+            stacks.push({ stackId: item.id, items: [item] });
+        }
+    }
+    return stacks;
+}
 
 const EDITION_LABELS: Record<string, string> = {
     CC: 'Cooperstown',
@@ -57,6 +83,116 @@ const STATS_PERIOD_LABELS: Record<string, string> = {
 };
 
 // ----------------------------------------------------------------
+// GalleryStackCell — collapsed multi-card stack with expand toggle
+// ----------------------------------------------------------------
+const GalleryStackCell: React.FC<{
+    stack: GalleryStack;
+    isExpanded: boolean;
+    onToggle: () => void;
+    onDeleteRequest: (id: number) => void;
+    onUnhideRequest: (id: number) => void;
+    onPreview: (cardResult: ShowdownBotCard) => void;
+    onReload?: (userInputs: Record<string, unknown>, cardResult: ShowdownBotCard) => void;
+    deletingId: number | null;
+    showingHidden: boolean;
+    isDimmed?: boolean;
+}> = ({ stack, isExpanded, onToggle, onDeleteRequest, onUnhideRequest, onPreview, onReload, deletingId, showingHidden, isDimmed }) => {
+    const { items } = stack;
+    const top = items[0];
+    const count = items.length;
+    const thumbUrl = top.thumbnail_public_url ?? top.public_url ?? top.storage_path;
+    const label = [top.player_name, top.year, top.set_name].filter(Boolean).join(' · ');
+
+    if (isExpanded) {
+        return (
+            <>
+                {items.map(item => (
+                    <GalleryCard
+                        key={item.id}
+                        item={item}
+                        onDeleteRequest={onDeleteRequest}
+                        onUnhideRequest={onUnhideRequest}
+                        onPreview={onPreview}
+                        onReload={onReload}
+                        isDeleting={deletingId === item.id}
+                        showingHidden={showingHidden}
+                    />
+                ))}
+                {/* Collapse button spanning the whole row width */}
+                <div className="col-span-full flex justify-center mt-1 mb-2">
+                    <button
+                        onClick={onToggle}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-(--background-secondary) hover:bg-(--background-tertiary) text-secondary hover:text-primary text-xs font-medium transition-colors border border-form-element"
+                    >
+                        <FaChevronUp size={10} />
+                        Collapse {label}
+                    </button>
+                </div>
+            </>
+        );
+    }
+
+    const [isHovered, setIsHovered] = useState(false);
+    const thumb2 = items[1] ? (items[1].thumbnail_public_url ?? items[1].public_url ?? items[1].storage_path) : null;
+
+    const t = 'transform 0.2s ease';
+    const topT = isHovered ? 'translateY(-6px)' : 'none';
+    const ghost2T = isHovered ? 'translate(9px, 12px) rotate(3deg)' : 'translate(5px, 7px) rotate(1.2deg)';
+
+    return (
+        <div className={`flex flex-col gap-2 transition-all duration-200 ${isDimmed ? 'opacity-30 grayscale pointer-events-none' : ''}`} style={{ paddingBottom: count >= 3 ? '14px' : count >= 2 ? '8px' : '0' }}>
+            <button
+                onClick={onToggle}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className="relative rounded-md overflow-visible bg-transparent text-left"
+                style={{ aspectRatio: '2.5 / 3.5' }}
+                title={`${count} versions — click to expand`}
+            >
+
+                {/* Ghost card 2 — middle of pile */}
+                {count >= 2 && (
+                    <div
+                        className="absolute inset-0 rounded-md overflow-hidden shadow-sm"
+                        style={{ transform: ghost2T, transition: t, zIndex: 1, transformOrigin: 'top left' }}
+                    >
+                        {thumb2 ? (
+                            <img src={thumb2} alt="" loading="lazy" className="w-full h-full object-cover grayscale-60 brightness-75" />
+                        ) : (
+                            <div className="w-full h-full bg-(--background-tertiary) border border-form-element rounded-md" />
+                        )}
+                        <div className="absolute inset-0 bg-black/25" />
+                    </div>
+                )}
+                {/* Top card */}
+                <div
+                    className="absolute inset-0 rounded-md overflow-hidden shadow-md"
+                    style={{ transform: topT, transition: t, zIndex: 2 }}
+                >
+                    {thumbUrl ? (
+                        <img src={thumbUrl} alt={label} loading="lazy" className={`w-full h-full object-cover transition-transform duration-200 ${isHovered ? 'scale-105' : 'scale-100'}`} />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-secondary text-xs bg-(--background-secondary)">No image</div>
+                    )}
+                </div>
+                {/* Count badge */}
+                <div
+                    className="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none shadow"
+                    style={{ zIndex: 3 }}
+                >
+                    {count}
+                </div>
+            </button>
+            <div className="flex flex-col space-y-0.5">
+                {label && (
+                    <p className="text-[10px] font-bold text-secondary text-center truncate px-1">{label}</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ----------------------------------------------------------------
 // GalleryCard
 // ----------------------------------------------------------------
 const GalleryCard: React.FC<{
@@ -67,7 +203,8 @@ const GalleryCard: React.FC<{
     onReload?: (userInputs: Record<string, unknown>, cardResult: ShowdownBotCard) => void;
     isDeleting: boolean;
     showingHidden: boolean;
-}> = ({ item, onDeleteRequest, onUnhideRequest, onPreview, onReload, isDeleting, showingHidden }) => {
+    isDimmed?: boolean;
+}> = ({ item, onDeleteRequest, onUnhideRequest, onPreview, onReload, isDeleting, showingHidden, isDimmed }) => {
     const [isHovered, setIsHovered] = useState(false);
     const fullUrl = item.public_url ?? item.storage_path;
     const thumbUrl = item.thumbnail_public_url ?? fullUrl;
@@ -84,7 +221,7 @@ const GalleryCard: React.FC<{
 
     return (
         <div
-            className="flex flex-col gap-1"
+            className={`flex flex-col gap-2 transition-all duration-200 ${isDimmed ? 'opacity-30 grayscale pointer-events-none' : ''}`}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -93,7 +230,7 @@ const GalleryCard: React.FC<{
                 style={{ aspectRatio: '2.5 / 3.5' }}
             >
                 {thumbUrl ? (
-                    <img src={thumbUrl} alt={label} loading="lazy" className="w-full h-full object-cover" />
+                    <img src={thumbUrl} alt={label} loading="lazy" className={`w-full h-full object-cover transition-transform duration-200 ${isHovered ? 'scale-105' : 'scale-100'}`} />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-secondary text-xs">No image</div>
                 )}
@@ -142,7 +279,7 @@ const GalleryCard: React.FC<{
             </div>
             <div className='flex flex-col space-y-0.5'>
                 {label && (
-                    <p className="text-xs font-bold text-secondary text-center truncate px-1">{label}</p>
+                    <p className="text-[10px] font-bold text-secondary text-center truncate px-1">{label}</p>
                 )}
                 {badges.length > 0 && (
                     <div className="flex flex-wrap justify-center">
@@ -171,6 +308,16 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
     const [showingHidden, setShowingHidden] = useState(false);
+    const [expandedStacks, setExpandedStacks] = useState<Set<number>>(new Set());
+
+    const toggleStack = (stackId: number) => {
+        setExpandedStacks(prev => {
+            const next = new Set(prev);
+            if (next.has(stackId)) next.delete(stackId);
+            else next.add(stackId);
+            return next;
+        });
+    };
 
     // Team options for dropdown
     const [teamOptions, setTeamOptions] = useState<{ value: string; label: string }[]>([]);
@@ -407,7 +554,15 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     </div>
                     <button
                         onClick={handleToggleHidden}
-                        className={`shrink-0 flex items-center gap-1.5 px-3 h-11 rounded-xl border-2 text-xs font-medium transition-colors ${showingHidden ? 'border-primary text-primary' : 'border-form-element text-secondary hover:text-primary'} bg-(--background-secondary)`}
+                        className={`
+                            shrink-0 flex items-center gap-1.5 px-3 h-11 
+                            rounded-xl border-2 
+                            text-xs font-medium 
+                            transition-colors 
+                            ${showingHidden ? 'border-primary text-primary' : 'border-form-element text-secondary hover:text-primary'} 
+                            bg-(--background-secondary)
+                            cursor-pointer
+                        `}
                         title={showingHidden ? 'Show active cards' : 'Show hidden cards'}
                     >
                         <FaEyeSlash size={13} />
@@ -436,19 +591,42 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                                     <FaSpinner className="animate-spin text-secondary" size={24} />
                                 </div>
                             )}
-                            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))' }}>
-                                {gallery.map(item => (
-                                    <GalleryCard
-                                        key={item.id}
-                                        item={item}
-                                        onDeleteRequest={setPendingDeleteId}
-                                        onUnhideRequest={handleUnhide}
-                                        onPreview={(cardResult) => setSelectedCard(cardResult)}
-                                        onReload={onReload}
-                                        isDeleting={deletingId === item.id}
-                                        showingHidden={showingHidden}
-                                    />
-                                ))}
+                            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))' }}>
+                                {(() => {
+                                    const stacks = groupIntoStacks(gallery);
+                                    const anyExpanded = expandedStacks.size > 0;
+                                    return stacks.map(stack => {
+                                        const isExpanded = expandedStacks.has(stack.stackId);
+                                        const isDimmed = anyExpanded && !isExpanded;
+                                        return stack.items.length === 1 ? (
+                                            <GalleryCard
+                                                key={stack.stackId}
+                                                item={stack.items[0]}
+                                                onDeleteRequest={setPendingDeleteId}
+                                                onUnhideRequest={handleUnhide}
+                                                onPreview={setSelectedCard}
+                                                onReload={onReload}
+                                                isDeleting={deletingId === stack.items[0].id}
+                                                showingHidden={showingHidden}
+                                                isDimmed={isDimmed}
+                                            />
+                                        ) : (
+                                            <GalleryStackCell
+                                                key={stack.stackId}
+                                                stack={stack}
+                                                isExpanded={isExpanded}
+                                                onToggle={() => toggleStack(stack.stackId)}
+                                                onDeleteRequest={setPendingDeleteId}
+                                                onUnhideRequest={handleUnhide}
+                                                onPreview={setSelectedCard}
+                                                onReload={onReload}
+                                                deletingId={deletingId}
+                                                showingHidden={showingHidden}
+                                                isDimmed={isDimmed}
+                                            />
+                                        );
+                                    });
+                                })()}
                             </div>
 
                             {(currentPage > 1 || hasMore) && (

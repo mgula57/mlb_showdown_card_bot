@@ -221,11 +221,9 @@ const AccountPage: React.FC = () => {
                     <div className="flex items-start space-x-4">
                         {/* Avatar */}
                         <div className="shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => avatarInputRef.current?.click()}
-                                disabled={isUploadingAvatar}
-                                className="relative group block w-20 h-20 focus:outline-none focus:ring-2 focus:ring-accent rounded-full"
+                            <label
+                                htmlFor="avatar-upload"
+                                className={`relative group block w-20 h-20 rounded-full focus-within:ring-2 focus-within:ring-accent ${isUploadingAvatar ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                                 title="Change profile photo"
                             >
                                 <AccountAvatar
@@ -259,18 +257,16 @@ const AccountPage: React.FC = () => {
                                         <FaCamera className="w-2.5 h-2.5 text-primary" />
                                     </span>
                                 )}
-                            </button>
+                            </label>
 
                             {/* Change photo / remove / error below avatar */}
                             <div className="mt-1.5 text-center space-y-0.5">
-                                <button
-                                    type="button"
-                                    onClick={() => avatarInputRef.current?.click()}
-                                    disabled={isUploadingAvatar}
-                                    className="text-xs text-tertiary hover:underline block w-full"
+                                <label
+                                    htmlFor="avatar-upload"
+                                    className={`text-xs text-tertiary block w-full ${isUploadingAvatar ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:underline'}`}
                                 >
                                     {isUploadingAvatar ? 'Uploading…' : 'Change photo'}
-                                </button>
+                                </label>
                                 {userSettings?.avatar_url && !isUploadingAvatar && (
                                     <button
                                         type="button"
@@ -287,8 +283,10 @@ const AccountPage: React.FC = () => {
 
                             <input
                                 ref={avatarInputRef}
+                                id="avatar-upload"
                                 type="file"
                                 accept="image/*"
+                                disabled={isUploadingAvatar}
                                 className="hidden"
                                 onChange={handleAvatarFileChange}
                             />
