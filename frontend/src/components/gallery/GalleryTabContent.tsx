@@ -7,7 +7,7 @@ import { fetchTeamHierarchy } from '../../api/card_db/cardDatabase';
 import { Modal } from '../shared/Modal';
 import FormInput from '../customs/FormInput';
 import CustomSelect from '../shared/CustomSelect';
-import { showdownSets } from '../shared/SiteSettingsContext';
+import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
 
 const cardImagePath = (name: string) => `/images/card/${name}.png`;
 import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -102,6 +102,8 @@ const GalleryStackCell: React.FC<{
     const count = items.length;
     const thumbUrl = top.thumbnail_public_url ?? top.public_url ?? top.storage_path;
     const label = [top.player_name, top.year, top.set_name].filter(Boolean).join(' · ');
+    const stackTextLabel = [top.player_name, top.year].filter(Boolean).join(' · ');
+    const stackSetImage = imageForSet(top.set_name ?? '');
 
     if (isExpanded) {
         return (
@@ -183,9 +185,12 @@ const GalleryStackCell: React.FC<{
                     {count}
                 </div>
             </button>
-            <div className="flex flex-col space-y-0.5">
-                {label && (
-                    <p className="text-[10px] font-bold text-secondary text-center truncate px-1">{label}</p>
+            <div className="flex flex-col items-center gap-0.5">
+                {stackTextLabel && (
+                    <p className="text-[10px] font-bold text-secondary text-center truncate px-1 w-full">{stackTextLabel}</p>
+                )}
+                {stackSetImage && (
+                    <img src={stackSetImage} alt={top.set_name ?? ''} className="h-3.5 object-contain object-center" />
                 )}
             </div>
         </div>
@@ -209,6 +214,8 @@ const GalleryCard: React.FC<{
     const fullUrl = item.public_url ?? item.storage_path;
     const thumbUrl = item.thumbnail_public_url ?? fullUrl;
     const label = [item.player_name, item.year, item.set_name].filter(Boolean).join(' · ');
+    const textLabel = [item.player_name, item.year].filter(Boolean).join(' · ');
+    const setImage = imageForSet(item.set_name ?? '');
 
     const inputs = item.user_inputs ?? {};
     const badges = [
@@ -277,9 +284,12 @@ const GalleryCard: React.FC<{
                     </div>
                 )}
             </div>
-            <div className='flex flex-col space-y-0.5'>
-                {label && (
-                    <p className="text-[10px] font-bold text-secondary text-center truncate px-1">{label}</p>
+            <div className='flex flex-col items-center gap-0.5'>
+                {textLabel && (
+                    <p className="text-[10px] font-bold text-secondary text-center truncate px-1 w-full">{textLabel}</p>
+                )}
+                {setImage && (
+                    <img src={setImage} alt={item.set_name ?? ''} className="h-3.5 object-contain object-center" />
                 )}
                 {badges.length > 0 && (
                     <div className="flex flex-wrap justify-center">
@@ -510,7 +520,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         value={filters.set_name ?? ''}
                         onChange={handleSetChange}
                         buttonClassName={filterTextClassName}
-                        imageClassName="max-w-18 object-contain object-center"
+                        imageClassName="object-contain object-center w-18 mr-2"
                     />
                     <CustomSelect
                         options={[
