@@ -230,7 +230,7 @@ const GalleryCard: React.FC<{
                 style={{ aspectRatio: '2.5 / 3.5' }}
             >
                 {thumbUrl ? (
-                    <img src={thumbUrl} alt={label} loading="lazy" className={`w-full h-full object-cover transition-transform duration-200 ${isHovered ? 'scale-105' : 'scale-100'}`} />
+                    <img src={thumbUrl} alt={label} loading="lazy" className={`w-full h-full object-cover transition-transform duration-200`} />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-secondary text-xs">No image</div>
                 )}
