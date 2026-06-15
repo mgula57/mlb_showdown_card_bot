@@ -313,7 +313,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             value={userShowdownSet}
                             onChange={setUserShowdownSet}
                             options={showdownSets}
-                            showDropdownArrow={false}
+                            showDropdownArrow={true}
                         />
 
                         <AccountIcon size={8} onLoginClick={() => setShowLoginModal(true)} />
