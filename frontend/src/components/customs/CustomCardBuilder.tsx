@@ -605,7 +605,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
                 user_id: user?.id,
-            });
+            }, session?.access_token);
             
             // Handle Errors
             setErrorMessage(cardData.error_for_user);

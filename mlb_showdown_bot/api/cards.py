@@ -59,8 +59,8 @@ def build_custom_card():
     # Random
     is_random = kwargs.get('name', '').upper() == '((RANDOM))'
 
-    # Upload to supabase
-    if kwargs.get('user_id'):
+    # Upload to supabase — only if client-supplied user_id matches the JWT-verified identity
+    if kwargs.get('user_id') and kwargs.get('user_id') == optional_user_id():
         payload['upload_to_supabase'] = True
 
     try:

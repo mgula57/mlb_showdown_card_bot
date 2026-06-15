@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, memo, type CSSProperties } from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { FaBaseballBall } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -93,6 +94,8 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * ```
  */
 export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent }: CardDetailProps) {
+
+    const { session } = useAuth();
 
     // =============================================================================
     // MARK: STATES
@@ -279,7 +282,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
         console.log("Starting image generation...", parent);
         setIsGeneratingImage(true);
         
-        generateCardImage(data)
+        generateCardImage(data, session?.access_token)
             .then((data) => {
                 console.log("Received card data with image:", data);
                 if (data) {

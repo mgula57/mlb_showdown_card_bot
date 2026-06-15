@@ -59,7 +59,9 @@ type Primitive = string | number | boolean | File | null | undefined;
  * });
  * ```
  */
-export async function buildCustomCard(payload: Record<string, Primitive>): Promise<ShowdownBotCardAPIResponse> {
+export async function buildCustomCard(payload: Record<string, Primitive>, token?: string): Promise<ShowdownBotCardAPIResponse> {
+
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
     // Detect file upload and use appropriate request format
     const hasFileUpload = payload.image_upload instanceof File;
@@ -83,6 +85,7 @@ export async function buildCustomCard(payload: Record<string, Primitive>): Promi
         const res = await fetch(`${API_BASE}/build_custom_card`, {
             method: "POST",
             // Let browser set Content-Type header for FormData (includes boundary)
+            headers: { ...authHeader },
             body: formData,
         });
 
@@ -99,6 +102,7 @@ export async function buildCustomCard(payload: Record<string, Primitive>): Promi
             method: "POST",
             headers: {
                 'Content-Type': 'application/json',
+                ...authHeader,
             },
             body: JSON.stringify(cleanedData),
         });
@@ -137,11 +141,13 @@ export async function buildCustomCard(payload: Record<string, Primitive>): Promi
  * });
  * ```
  */
-export async function generateCardImage(card: ShowdownBotCardAPIResponse): Promise<ShowdownBotCardAPIResponse> {
+export async function generateCardImage(card: ShowdownBotCardAPIResponse, token?: string): Promise<ShowdownBotCardAPIResponse> {
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const res = await fetch(`${API_BASE}/build_image_for_card`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
+            ...authHeader,
         },
         body: JSON.stringify(card),
     });
