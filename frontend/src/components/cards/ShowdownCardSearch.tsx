@@ -643,6 +643,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
+    const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
     // Sidebar resize
     const [sidebarWidth, setSidebarWidth] = useState(384); // matches w-96
@@ -671,6 +672,19 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     };
+
+    // Auto-close sidebar when container shrinks below @2xl (672px)
+    useEffect(() => {
+        const el = sidebarContainerRef.current;
+        if (!el) return;
+        const observer = new ResizeObserver(([entry]) => {
+            if (entry.contentRect.width < 672) {
+                setShowPlayerDetailSidebar(false);
+            }
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
@@ -1147,7 +1161,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             </div>
 
             {/* Flex between main content and side menu */}
-            <div className="flex flex-1">
+            <div ref={sidebarContainerRef} className="@container flex flex-1">
 
                 {/* Main Content Area */}
                 <div
@@ -1221,7 +1235,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     bg-primary border-l-2 border-form-element
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
-                    hidden lg:block
+                    hidden @2xl:block
                     shadow-xl
                 `}>
                     {/* Drag-to-resize handle */}
