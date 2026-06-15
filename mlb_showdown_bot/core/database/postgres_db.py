@@ -1065,7 +1065,7 @@ class PostgresDB:
             # Weights and normalizers for each scoring dimension
             _WEIGHTS = {
                 'command': 4.0, 
-                'outs': 3.0, 
+                'outs': 4.0 if player_type == 'PITCHER' else 3.0, 
                 'ip': 2.0 if player_type == 'PITCHER' else 0.0,
                 'speed': 1.5 if player_type == 'HITTER' else 0.0, 
                 'defense': 1.0 if player_type == 'HITTER' else 0.0,
