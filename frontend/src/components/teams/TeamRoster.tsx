@@ -197,7 +197,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
     }), 1);
     const topPlayers = [...rosterSlots]
         .filter((slot) => getResponseForSlot(slot) != null)
-        .filter(slot => getResponseForSlot(slot)?.card?.stats.G > (maxGamesPlayedInTeam * 0.12)) // Filter out players who haven't played at least 12% of the team's games
+        .filter(slot => (getResponseForSlot(slot)?.card?.stats?.G ?? 0) > (maxGamesPlayedInTeam * 0.12)) // Filter out players who haven't played at least 12% of the team's games
         .sort((a, b) => (getResponseForSlot(b)?.card?.stats_period?.type === "REPLACEMENT" ? -1 : 0) - (getResponseForSlot(a)?.card?.stats_period?.type === "REPLACEMENT" ? -1 : 0))
         .sort((a, b) => (getResponseForSlot(b)?.card?.points || 0) - (getResponseForSlot(a)?.card?.points || 0))
         .slice(0, topPlayerLimit);

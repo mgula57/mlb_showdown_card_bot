@@ -62,6 +62,8 @@ def build_custom_card():
     # Upload to supabase — only if client-supplied user_id matches the JWT-verified identity
     if kwargs.get('user_id') and kwargs.get('user_id') == optional_user_id():
         payload['upload_to_supabase'] = True
+    else:
+        payload.pop('user_id', None)
 
     try:
         # Normal card generation

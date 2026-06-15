@@ -70,6 +70,7 @@ const FormDropdown = ({ label, options, selectedOption, onChange, className="", 
                 options={options}
                 disabled={disabled}
                 placeholder={placeholder}
+                showDropdownArrow={true}
             />
         </div>
     );

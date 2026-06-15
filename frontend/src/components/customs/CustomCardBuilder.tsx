@@ -1237,6 +1237,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                     { value: '', label: ` (Your Default)`, image: userDefaultSetImage },
                                                     ...showdownSets,
                                                 ]}
+                                                showDropdownArrow={true}
                                             />
                                         </div>
 
