@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaImages, FaSpinner, FaExpand, FaEyeSlash, FaEye, FaChevronUp } from 'react-icons/fa';
+import { FaImages, FaSpinner, FaExpand, FaEyeSlash, FaEye, FaChevronUp, FaBaseballBall } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { FaPencil } from 'react-icons/fa6';
 import { fetchUserGallery, deleteGalleryCard, unhideGalleryCard, type GalleryImageRecord, type GalleryFilters } from '../../api/gallery';
@@ -314,6 +314,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
     const [offset, setOffset] = useState(0);
     const [hasMore, setHasMore] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
@@ -352,23 +353,40 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
 
     const hasActiveFilters = !!(filters.set_name || filters.player_name || filters.year || filters.player_type || filters.edition || filters.expansion || filters.team);
 
-    const loadGallery = useCallback(async (pageOffset: number, activeFilters: GalleryFilters, showHidden: boolean = false) => {
+    const loadGallery = useCallback(async (pageOffset: number, activeFilters: GalleryFilters, showHidden: boolean = false, append: boolean = false) => {
         if (!token) {
             console.warn('Attempted to load gallery without token');
             return;
         }
-        setIsLoading(true);
+        if (append) {
+            setIsLoadingMore(true);
+        } else {
+            setIsLoading(true);
+        }
         try {
             const data = await fetchUserGallery(token, PAGE_SIZE, pageOffset, activeFilters, showHidden);
-            setGallery(data.gallery);
+            setGallery(prev => append ? [...prev, ...data.gallery] : data.gallery);
             setOffset(pageOffset);
             setHasMore(data.has_more);
         } catch (err) {
             console.error('Failed to load gallery:', err);
         } finally {
             setIsLoading(false);
+            setIsLoadingMore(false);
         }
     }, [token]);
+
+    const observerRef = useRef<IntersectionObserver | null>(null);
+    const lastItemRef = useCallback((node: HTMLDivElement | null) => {
+        if (observerRef.current) observerRef.current.disconnect();
+        if (!node) return;
+        observerRef.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isLoading) {
+                loadGallery(offset + PAGE_SIZE, filters, showingHidden, true);
+            }
+        });
+        observerRef.current.observe(node);
+    }, [hasMore, isLoadingMore, isLoading, offset, filters, showingHidden, loadGallery]);
 
     // Initial load when user/token become available; re-runs when refreshKey changes
     useEffect(() => {
@@ -382,8 +400,6 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
         setFilters(next);
         loadGallery(0, next, showingHidden);
     };
-
-    const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
 
     const handleNameInputChange = (value: string) => {
         setNameInput(value);
@@ -511,6 +527,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     placeholder="Search for player…"
                     onChange={value => handleNameInputChange(value || '')}
                     isClearable={true}
+                    showSearchIcon={true}
                 />
 
                 {/* Row 2: Set + Expansion + Edition + Team + Year + Hidden toggle */}
@@ -639,25 +656,22 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                                 })()}
                             </div>
 
-                            {(currentPage > 1 || hasMore) && (
-                                <div className="flex items-center justify-center gap-3 mt-4">
-                                    <button
-                                        onClick={() => loadGallery(offset - PAGE_SIZE, filters, showingHidden)}
-                                        disabled={isLoading || currentPage === 1}
-                                        className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
-                                    >
-                                        ← Prev
-                                    </button>
-                                    <span className="text-sm text-secondary min-w-16 text-center">
-                                        {isLoading ? <FaSpinner className="animate-spin inline" size={12} /> : `Page ${currentPage}`}
-                                    </span>
-                                    <button
-                                        onClick={() => loadGallery(offset + PAGE_SIZE, filters, showingHidden)}
-                                        disabled={isLoading || !hasMore}
-                                        className="px-4 py-2 rounded-md bg-(--background-secondary) hover:bg-(--background-tertiary) text-primary text-sm font-medium transition-colors disabled:opacity-40"
-                                    >
-                                        Next →
-                                    </button>
+                            {/* Infinite scroll sentinel */}
+                            <div ref={lastItemRef} />
+
+                            {isLoadingMore && (
+                                <div className="flex justify-center py-4">
+                                    <FaBaseballBall
+                                        className="text-secondary animate-bounce"
+                                        style={{ animationDuration: '0.7s' }}
+                                        size={24}
+                                    />
+                                </div>
+                            )}
+
+                            {!hasMore && gallery.length > PAGE_SIZE && (
+                                <div className="flex justify-center p-6 text-secondary">
+                                    <span className="text-sm">No more cards to load</span>
                                 </div>
                             )}
                         </div>
