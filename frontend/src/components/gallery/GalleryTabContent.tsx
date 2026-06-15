@@ -614,8 +614,8 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                     <>
                         <div className="relative">
                             {isLoading && (
-                                <div className="absolute inset-10 z-50 flex items-center justify-center bg-(--background-primary)/60 backdrop-blur-[2px] rounded-xl">
-                                    <FaSpinner className="animate-spin text-secondary" size={24} />
+                                <div className="absolute z-50 flex items-center justify-center w-full h-full backdrop-blur-[2px] rounded-xl">
+                                    <FaSpinner className="inset-10 animate-spin text-secondary" size={24} />
                                 </div>
                             )}
                             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))' }}>
