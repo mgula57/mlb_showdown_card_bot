@@ -6,10 +6,10 @@
  * displaying detailed performance metrics for each data point.
  */
 
-import { type TrendDatapoint } from '../../api/showdownBotCard';
+import { type TrendDatapoint } from '../../../api/showdownBotCard';
 import { ResponsiveContainer, AreaChart, XAxis, YAxis, Tooltip, Area, CartesianGrid } from 'recharts';
 import { useMemo } from 'react';
-import { enhanceColorVisibility } from '../../functions/colors';
+import { enhanceColorVisibility } from '../../../functions/colors';
 
 /**
  * Props for the ChartPlayerPointsTrend component
@@ -162,19 +162,13 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
     // MARK: RENDER
     return (
         <div 
-            className="
+            className={`
                 flex flex-col
-                w-full p-4 
-                font-bold text-sm
-                rounded-xl bg-secondary
-                border-2 border-form-element
-                space-y-2
-                relative
                 select-none
-            "
+                relative
+                ${isPlaceholderData ? 'pointer-events-none opacity-25' : ''}
+            `}
         >
-            {/* Chart title */}
-            <h2>{title}</h2>
 
             {/* No data overlay - shown when using placeholder data */}
             {isPlaceholderData && (
@@ -182,7 +176,7 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                     absolute inset-0 
                     flex items-center justify-center 
                     rounded-xl
-                    pointer-events-none
+                    pointer-events-none opacity-75
                     z-10
                 ">
                     <div className="

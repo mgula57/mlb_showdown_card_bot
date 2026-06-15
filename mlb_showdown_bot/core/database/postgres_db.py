@@ -59,7 +59,8 @@ from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings
 class PlayerArchive(BaseModel):
     id: str
     year: int
-    bref_id: str
+    bref_id: Optional[str] = None
+    mlb_id: Optional[int] = None
     historical_date: Optional[str]
     name: str
     player_type: str
@@ -178,6 +179,9 @@ class ExploreDataRecord(BaseModel):
     edition: Optional[Edition] = Field(None, description="Card edition (e.g., 'WBC', 'CC')")
     expansion: Optional[Expansion] = Field(None, description="Special edition (e.g., 'BS', 'TD)")
     
+    # IN SEASON
+    points_change: Optional[int] = None
+
     # Metadata
     updated_at: datetime = Field(description="When record was last updated")
         
@@ -994,8 +998,168 @@ class PostgresDB:
             traceback.print_exc()
             return []
 
+    def fetch_similar_wotc_cards(self, card_attrs: dict, limit: int = 3) -> list[dict]:
+        """Return the top N most similar WOTC cards for a given card's attributes."""
+
+        if not self.connection:
+            return []
+
+        try:
+            showdown_set = card_attrs.get('showdown_set', '2000')
+            player_type = (card_attrs.get('player_type') or 'HITTER').upper()
+            positions_list = card_attrs.get('positions_list') or []
+            exclude_id = card_attrs.get('exclude_id')
+
+            # Map bot-only sets to the nearest WOTC sets
+            match showdown_set:
+                case 'CLASSIC':
+                    sets_to_query = ['2000', '2001']
+                case 'EXPANDED':
+                    sets_to_query = ['2002', '2003', '2004', '2005']
+                case '2004' | '2005':
+                    sets_to_query = ['2004', '2005']
+                case _:
+                    sets_to_query = [showdown_set]
+
+            # Require at least one position to overlap; fall back to player_type only if empty
+            position_filter = sql.SQL("AND positions_list && %s") if positions_list else sql.SQL("")
+            exclude_filter = sql.SQL("AND id != %s") if exclude_id else sql.SQL("")
+
+            query = sql.SQL("""
+                SELECT
+                    id, name, year, team, showdown_set, command, outs, ip, speed, speed_letter,
+                    hand, positions_and_defense, positions_and_defense_string, positions_list,
+                    player_type, points, points_estimated, points_diff_estimated_vs_actual,
+                    is_errata, notes, icons_list, awards_list,
+                    card_data->'image'->>'color_primary'       AS color_primary,
+                    card_data->'image'->>'color_secondary'     AS color_secondary,
+                    card_data->'image'->>'edition'             AS edition,
+                    card_data->'image'->>'expansion'           AS expansion,
+                    card_data->'image'->>'set_number'          AS set_number,
+                    card_data->'image'->'stat_highlights_list' AS stat_highlights_list,
+                    card_data->'chart'->'ranges'               AS chart_ranges,
+                    COALESCE((card_data->'chart'->'values'->>'SO')::float,  0) AS cv_so,
+                    COALESCE((card_data->'chart'->'values'->>'BB')::float,  0) AS cv_bb,
+                    COALESCE((card_data->'chart'->'values'->>'1B')::float,  0) AS cv_1b,
+                    COALESCE((card_data->'chart'->'values'->>'2B')::float,  0) AS cv_2b,
+                    COALESCE((card_data->'chart'->'values'->>'HR')::float,  0) AS cv_hr,
+                    COALESCE((card_data->'chart'->'values'->>'GB')::float,  0) AS cv_gb,
+                    COALESCE((card_data->'chart'->'values'->>'FB')::float,  0) AS cv_fb
+                FROM card_wotc
+                WHERE showdown_set = ANY(%s)
+                  AND player_type = %s
+                  {position_filter}
+                  {exclude_filter}
+            """).format(position_filter=position_filter, exclude_filter=exclude_filter)
+
+            filter_values: list = [sets_to_query, player_type]
+            if positions_list:
+                filter_values.append(positions_list)
+            if exclude_id:
+                filter_values.append(exclude_id)
+
+            rows = self.execute_query(query=query, filter_values=tuple(filter_values))
+            if not rows:
+                return []
+
+            # Weights and normalizers for each scoring dimension
+            _WEIGHTS = {
+                'command': 4.0, 
+                'outs': 4.0 if player_type == 'PITCHER' else 3.0, 
+                'ip': 2.0 if player_type == 'PITCHER' else 0.0,
+                'speed': 1.5 if player_type == 'HITTER' else 0.0, 
+                'defense': 1.0 if player_type == 'HITTER' else 0.0,
+                'SO': 0.5 if player_type == 'HITTER' else 1.5, 
+                'BB': 1.5, 
+                '1B': 1.0, 
+                '2B': 2.0 if player_type == 'HITTER' else 2.0, 
+                'HR': 3.0 if player_type == 'HITTER' else 1.0, 
+                'GB': 0.8, 
+                'FB': 0.8,
+            }
+            _NORMALIZERS = {
+                'command': 5, 'outs': 7, 'ip': 5, 'speed': 12, 'defense': 4,
+                'SO': 6, 'BB': 4, '1B': 5, '2B': 3, 'HR': 4, 'GB': 5, 'FB': 5,
+            }
+
+            def _score(a, b, w, n):
+                if a is None or b is None:
+                    return 0.0, 0.0
+                return w * max(0.0, 1.0 - abs(a - b) / n), w
+
+            ref_command = card_attrs.get('command')
+            ref_outs = card_attrs.get('outs')
+            ref_ip = card_attrs.get('ip')
+            ref_speed = card_attrs.get('speed')
+            ref_defense = card_attrs.get('positions_and_defense') or {}
+            ref_chart = card_attrs.get('chart_values') or {}
+            is_pitcher = player_type == 'PITCHER'
+
+            _CHART_COL_MAP = {
+                'SO': 'cv_so', 'BB': 'cv_bb', '1B': 'cv_1b',
+                '2B': 'cv_2b', 'HR': 'cv_hr', 'GB': 'cv_gb', 'FB': 'cv_fb',
+            }
+
+            scored = []
+            for row in rows:
+                total_score = 0.0
+                total_weight = 0.0
+
+                for key in ('command', 'outs'):
+                    ref_val = ref_command if key == 'command' else ref_outs
+                    s, w = _score(ref_val, row.get(key), _WEIGHTS[key], _NORMALIZERS[key])
+                    total_score += s
+                    total_weight += w
+
+                if is_pitcher:
+                    s, w = _score(ref_ip, row.get('ip'), _WEIGHTS['ip'], _NORMALIZERS['ip'])
+                else:
+                    s, w = _score(ref_speed, row.get('speed'), _WEIGHTS['speed'], _NORMALIZERS['speed'])
+                total_score += s
+                total_weight += w
+
+                # Defense: score the best-matching shared position
+                cand_defense = row.get('positions_and_defense') or {}
+                shared = set(ref_defense.keys()) & set(cand_defense.keys())
+                if shared:
+                    best_ref = max(ref_defense[p] for p in shared)
+                    best_cand = max(cand_defense[p] for p in shared)
+                    s, w = _score(best_ref, best_cand, _WEIGHTS['defense'], _NORMALIZERS['defense'])
+                    total_score += s
+                    total_weight += w
+
+                for chart_key, db_col in _CHART_COL_MAP.items():
+                    ref_val = ref_chart.get(chart_key)
+                    s, w = _score(ref_val, row.get(db_col), _WEIGHTS[chart_key], _NORMALIZERS[chart_key])
+                    total_score += s
+                    total_weight += w
+
+                similarity = round(total_score / total_weight, 4) if total_weight > 0 else 0.0
+
+                # Reconstruct chart_values dict from flattened cv_* columns
+                chart_values = {
+                    'SO': row.get('cv_so', 0), 'BB': row.get('cv_bb', 0),
+                    '1B': row.get('cv_1b', 0), '2B': row.get('cv_2b', 0),
+                    'HR': row.get('cv_hr', 0), 'GB': row.get('cv_gb', 0),
+                    'FB': row.get('cv_fb', 0),
+                }
+
+                result = {k: v for k, v in row.items() if not k.startswith('cv_')}
+                result['chart_values'] = chart_values
+                result['is_pitcher'] = player_type == 'PITCHER'
+                result['similarity_score'] = similarity
+                scored.append(result)
+
+            scored.sort(key=lambda r: r['similarity_score'], reverse=True)
+            return scored[:limit]
+
+        except Exception as e:
+            print("Error fetching similar WOTC cards:", e)
+            traceback.print_exc()
+            return []
+
     def fetch_team_data(self) -> list[dict]:
-        """Fetch team data hierarchyfrom the database"""
+        """Fetch team data hierarchy from the database"""
 
         if not self.connection:
             return None
@@ -1729,7 +1893,17 @@ class PostgresDB:
         finally:
             if cursor:
                 cursor.close()
-                 
+
+    def fetch_bref_ids_from_mlb_ids(self, mlb_ids: List[int]) -> Dict[int, str]:
+        """Returns {mlb_id: bref_id} for all matched rows in dim_player_id_map."""
+        if not mlb_ids or self.connection is None:
+            return {}
+        query = sql.SQL(
+            "SELECT mlb_id, bref_id FROM internal.dim_player_id_map WHERE mlb_id = ANY(%s)"
+        )
+        results = self.execute_query(query=query, filter_values=(mlb_ids,))
+        return {row['mlb_id']: row['bref_id'] for row in results if row.get('bref_id')}
+
 # ------------------------------------------------------------------------
 # MATERIALIZED VIEWS
 # ------------------------------------------------------------------------
@@ -1863,14 +2037,23 @@ class PostgresDB:
             player_season_stats as (
             
                 select
-                unaccent(replace(lower(name), '.', '')) as name,
-                year,
-                bref_id,
-                team_id as team,
-                player_type_override,
-                jsonb_extract_path(stats, 'is_hof')::boolean as is_hof,
-                case when length(stats->>'award_summary') = 0 then null else stats->>'award_summary'::text end as award_summary,
-                case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end as bwar
+                    unaccent(replace(lower(name), '.', '')) as name,
+                    year,
+                    bref_id,
+                    mlb_id,
+                    team_id as team,
+                    player_type_override,
+                    jsonb_extract_path(stats, 'is_hof')::boolean as is_hof,
+                    case when length(stats->>'award_summary') = 0 then null else stats->>'award_summary'::text end as award_summary,
+                    case 
+                        when year >= 2026 and length((stats->>'fWAR')) > 0 then (stats->>'fWAR')::float
+                        when length((stats->>'bWAR')) = 0 then 0.0 
+                        else (stats->>'bWAR')::float 
+                    end as war,
+                    case
+                        when year >= 2026 then 'fWAR'
+                        else 'bWAR'
+                    end as war_type
                 from player_season_stats
                 
             )
@@ -1979,7 +2162,7 @@ class PostgresDB:
                 player_season_stats.id,
                 player_season_stats.year,
                 player_season_stats.bref_id,
-                cast(dim_card.card_data->>'mlb_id' as int) as mlb_id,
+                player_season_stats.mlb_id,
                 unaccent(player_season_stats.name) as name,
                 player_season_stats.player_type,
                 player_season_stats.player_type_override,
@@ -2017,6 +2200,7 @@ class PostgresDB:
                 cast(dim_card.card_data->>'points' as int) as points,
                 cast(dim_card.card_data->>'points_estimated' as int) as points_estimated,
                 cast(dim_card.card_data->>'points_diff_estimated_vs_actual' as int) as points_diff_estimated_vs_actual,
+                cast(dim_card.card_data->'points_change'->>'week' as int) as points_change,
 
                 -- TEAM
                 dim_card.card_data->>'nationality' as nationality,
@@ -2054,20 +2238,24 @@ class PostgresDB:
                 coalesce((stats->>'is_hof')::boolean, false) as is_hof,
                 card_data->'image'->'stat_highlights_list' as stat_highlights_list,
 
-                -- SMALL SAMPLE
-                case 
-                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['STARTER'] 
-                        then player_season_stats.ip < 75 
-                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['RELIEVER', 'CLOSER'] 
-                        then player_season_stats.ip < 30 
-                    else player_season_stats.pa < 250 
+                -- SMALL SAMPLE (thresholds scale linearly for in-progress seasons)
+                case
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['STARTER']
+                        then player_season_stats.ip < round(75.0 * season_calc.season_progress)
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['RELIEVER', 'CLOSER']
+                        then player_season_stats.ip < round(30.0 * season_calc.season_progress)
+                    else player_season_stats.pa < round(250.0 * season_calc.season_progress)
                 end as is_small_sample_size,
 
                 -- REAL STATS
                 case when length((stats->>'PA')) = 0 then null else round((stats->>'PA')::float)::int end as real_pa,
                 case when length((stats->>'G')) = 0 then null else (stats->>'G')::int end as real_g,
                 case when length((stats->>'GS')) = 0 then null else (stats->>'GS')::int end as real_gs,
-                case when length((stats->>'bWAR')) = 0 then null else (stats->>'bWAR')::float end as real_bwar,
+                case 
+                    when player_season_stats.year >= 2026 and length((stats->>'fWAR')) > 0 then (stats->>'fWAR')::float 
+                    when length((stats->>'bWAR')) = 0 then null 
+                    else (stats->>'bWAR')::float 
+                end as real_bwar,
                 case when length((stats->>'dWAR')) = 0 then null else (stats->>'dWAR')::float end as real_dwar,
                 case when length((stats->>'batting_avg')) = 0 then null else (stats->>'batting_avg')::float end as real_batting_avg,
                 case when length((stats->>'onbase_perc')) = 0 then null else (stats->>'onbase_perc')::float end as real_onbase_perc,
@@ -2144,11 +2332,21 @@ class PostgresDB:
                 and team_years.team = player_season_stats.team_id
             left join internal.dim_auto_image as exact_img_match
                 on player_season_stats.year::text = exact_img_match.year
-                and player_season_stats.bref_id = exact_img_match.player_id
+                and (
+                    player_season_stats.bref_id = exact_img_match.player_id
+                    or player_season_stats.mlb_id::text = exact_img_match.player_id
+                )
                 and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
                 and exact_img_match.is_wbc = FALSE
+            cross join lateral (
+                select
+                    case
+                        when player_season_stats.year < extract(year from now())::int then 1.0
+                        else least(1.0, greatest(0.1, (now()::date - make_date(player_season_stats.year, 4, 1))::float / 183.0))
+                    end as season_progress
+            ) as season_calc
         '''
         
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
@@ -2172,6 +2370,7 @@ class PostgresDB:
                     id text NOT NULL,
                     year integer,
                     bref_id text,
+                    mlb_id integer,
                     name text,
                     player_type text,
                     player_type_override text,
@@ -2199,6 +2398,7 @@ class PostgresDB:
                     points integer,
                     points_estimated integer,
                     points_diff_estimated_vs_actual integer,
+                    points_change integer,
                     nationality text,
                     organization text,
                     league text,
@@ -2294,6 +2494,7 @@ class PostgresDB:
                         points integer,
                         points_estimated integer,
                         points_diff_estimated_vs_actual integer,
+                        points_change integer,
                         nationality text,
                         organization text,
                         league text,
@@ -2385,9 +2586,24 @@ class PostgresDB:
             
             # UPSERT into card_bot
             upsert_query = f"""
-                INSERT INTO card_bot
+                INSERT INTO card_bot (
+                    id, year, bref_id, mlb_id, name, player_type, player_type_override, is_two_way,
+                    primary_positions, secondary_positions, g, gs, pa, real_ip, lg_id, team_id,
+                    team_id_list, team_games_played_dict, team_override, stats_modified_date, card_modified_date,
+                    card_id, card_year, showdown_set, showdown_bot_version, expansion, edition, set_number,
+                    points, points_estimated, points_diff_estimated_vs_actual, points_change,
+                    nationality, organization,
+                    league, team, color_primary, color_secondary, positions_and_defense,
+                    positions_and_defense_string, positions_list, ip, speed, hand, speed_letter, speed_full,
+                    speed_or_ip, icons_list, awards_list, is_hof, stat_highlights_list, is_small_sample_size,
+                    real_pa, real_g, real_gs, real_bwar, real_dwar, real_batting_avg, real_onbase_perc,
+                    real_slugging_perc, real_onbase_plus_slugging, real_onbase_plus_slugging_plus,
+                    real_earned_run_avg, real_whip, real_h, real_1b, real_2b, real_3b, real_hr, real_sb,
+                    real_so, real_bb, real_w, real_sv, command, outs, is_pitcher, is_chart_outlier,
+                    chart_ranges, chart_values, is_errata, notes, image_match_type, image_ids, updated_at
+                )
                 SELECT * FROM ({full_query}) as source_data
-                ON CONFLICT (id, showdown_set, showdown_bot_version) 
+                ON CONFLICT (id, showdown_set, showdown_bot_version)
                 DO UPDATE SET
                     year = EXCLUDED.year,
                     bref_id = EXCLUDED.bref_id,
@@ -2419,6 +2635,7 @@ class PostgresDB:
                     points = EXCLUDED.points,
                     points_estimated = EXCLUDED.points_estimated,
                     points_diff_estimated_vs_actual = EXCLUDED.points_diff_estimated_vs_actual,
+                    points_change = EXCLUDED.points_change,
                     nationality = EXCLUDED.nationality,
                     organization = EXCLUDED.organization,
                     league = EXCLUDED.league,
@@ -2602,7 +2819,8 @@ class PostgresDB:
             CREATE TABLE IF NOT EXISTS player_season_stats{table_suffix}(
                 id varchar(100) PRIMARY KEY,
                 year int NOT NULL,
-                bref_id VARCHAR(10) NOT NULL,
+                bref_id VARCHAR(10),
+                mlb_id INT,
                 historical_date TEXT,
                 name VARCHAR(48) NOT NULL,
                 player_type VARCHAR(10),
@@ -2826,6 +3044,162 @@ class PostgresDB:
         if refresh_explore:
             self.refresh_explore_views()
 
+    def build_season_stat_range_table(self, drop_existing:bool = False) -> None:
+        """
+        Build the table and indexes needed to support season stat ranges. Used for percentiles in custom card builder
+        
+        Args:
+            drop_existing: If True, drop the existing table before creating a new one.
+        
+        Returns:
+            None
+        """
+        if not self.connection:
+            print("No database connection available for building season stat range table.")
+            return
+        
+        if drop_existing:
+            drop_table_sql = '''
+                DROP TABLE IF EXISTS internal.dim_season_stat_ranges CASCADE;
+            '''
+            with self.connection.cursor() as cur:
+                cur.execute(drop_table_sql)
+        
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS internal.dim_season_stat_ranges AS (
+                with
+
+                year_thresholds as (
+
+                    select
+                        year,
+                        max(g) as max_games,
+                        round(max(g) * 2.1) as min_pa_hitter,
+                        round(max(g) * 1.25 / 4.16) as min_ip_pitcher
+                    from player_season_stats
+                    group by 1
+
+                ),
+
+                eligible as (
+
+                    select
+                        st.year,
+                        st.player_type,
+                        case
+                            when st.player_type = 'PITCHER' then
+                                case when st.gs::float / nullif(st.g, 0) >= 0.5 then 'SP' else 'RP' end
+                            else null
+                        end as pitcher_role,
+                        th.min_ip_pitcher,
+                        th.min_pa_hitter,
+                        st.g,
+                        st.gs,
+                        st.pa,
+                        st.ip,
+                        st.war,
+                        st.stats
+                    from player_season_stats as st
+                    join year_thresholds as th
+                        on th.year = st.year
+                    where
+                        case
+                            when st.player_type = 'PITCHER' then st.ip >= th.min_ip_pitcher
+                            else st.pa >= th.min_pa_hitter
+                        end
+
+                ),
+                json_stat_rows as (
+                    select
+                        e.year,
+                        e.player_type,
+                        e.pitcher_role,
+                        j.key as stat_name,
+                        j.value::numeric as stat_value
+                    from eligible e
+                    cross join lateral jsonb_each_text(coalesce(e.stats, '{}'::jsonb)) as j(key, value)
+                    where
+                        j.value ~ '^[-+]?(\\d+\\.?\\d*|\\.\\d+)$'
+                        and j.key in (
+                            'batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging','onbase_plus_slugging_plus','wRcPlus',
+
+                            'G','GS','IP','PA','AB','1B','2B','3B','HR','BB','SO','GB','FB','PU','SF',
+
+                            'SB','sprint_speed','dWAR','bWAR','fWAR','earned_run_avg','whip'
+                        )
+                        and
+                            case
+                                when e.player_type = 'PITCHER' then j.key not in (
+                                    'SB'
+                                )
+                                else true
+                            end
+
+                    union all
+
+                    -- position-level defensive stats: keys like "C__drs", "1B__tzr"
+                    select
+                        e.year,
+                        e.player_type,
+                        e.pitcher_role,
+                        upper(pstat.key) || '-' || pos.key as stat_name,
+                        round(pstat.value::numeric, 4) as stat_value
+                    from eligible e
+                    cross join lateral jsonb_each(coalesce(e.stats->'positions', '{}'::jsonb)) as pos(key, val)
+                    cross join lateral jsonb_each_text(coalesce(pos.val, '{}'::jsonb)) as pstat(key, value)
+                    where
+                        pstat.value ~ '^[-+]?(\\d+\\.?\\d*|\\.\\d+)$'
+                        and pstat.key in ('g', 'drs', 'tzr', 'oaa')
+
+                    -- add K/9 for pitchers
+                    -- not included in stored stats
+                    union all
+                    select
+                        year,
+                        player_type,
+                        pitcher_role,
+                        'K/9' as stat_name,
+                        case
+                            when (stats->>'IP')::decimal = 0 then null
+                            else round(
+                                (stats->>'SO')::decimal * 9 / (
+                                    floor((stats->>'IP')::decimal) +
+                                    case round((stats->>'IP')::decimal % 1, 1)
+                                        when 0.1 then 1.0/3.0
+                                        when 0.2 then 2.0/3.0
+                                        else 0
+                                    end
+                                ),
+                                2
+                            )
+                        end as stat_value
+                    from eligible
+                    where
+                        length((stats->>'SO')) > 0
+                        and length((stats->>'IP')) > 0
+
+                )
+                select
+                    r.year,
+                    r.player_type,
+                    r.pitcher_role,
+                    r.stat_name,
+                    percentile_cont(0.02) within group (order by r.stat_value) as stat_min,
+                    percentile_cont(0.98) within group (order by r.stat_value) as stat_max,
+                    count(*) as sample_size
+                from json_stat_rows r
+                group by r.year, r.player_type, r.pitcher_role, r.stat_name
+            );
+        '''
+        create_index_sql = '''
+            CREATE INDEX IF NOT EXISTS idx_season_stat_ranges_year_player_type ON internal.dim_season_stat_ranges (year, player_type, pitcher_role);
+        '''
+        with self.connection.cursor() as cur:
+            cur.execute(create_table_sql)
+            cur.execute(create_index_sql)
+        
+        cur.close()
+
 # ------------------------------------------------------------------------
 # LOGGING
 # ------------------------------------------------------------------------
@@ -2836,6 +3210,262 @@ class PostgresDB:
         self.create_log_player_search_table()
         self.create_log_card_image_generation_table()
         self.create_log_card_id_lookup_table()
+
+# ------------------------------------------------------------------------
+# USER SETTINGS
+# ------------------------------------------------------------------------
+
+    def build_user_settings_table(self) -> None:
+        """Create the user settings table if it does not exist."""
+        if not self.connection:
+            print("No database connection available.")
+            return
+        schema_sql = "CREATE SCHEMA IF NOT EXISTS internal;"
+        table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.user_settings (
+                user_id TEXT NOT NULL PRIMARY KEY,
+                theme VARCHAR(10) DEFAULT 'system',
+                showdown_set VARCHAR(20) DEFAULT '2001',
+                custom_card_form_settings JSONB,
+                starred_teams JSONB,
+                avatar_url TEXT,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        """
+        with self.connection.cursor() as cur:
+            cur.execute(schema_sql)
+            cur.execute(table_sql)
+
+    def get_user_settings(self, user_id: str) -> dict | None:
+        """Fetch settings for the given Supabase user UUID. Returns None if no row exists."""
+        if not self.connection:
+            return None
+        query = """
+            SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url
+            FROM internal.user_settings
+            WHERE user_id = %s
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def get_user_gallery(self, user_id: str, limit: int = 50, offset: int = 0,
+                         set_name: str | None = None, player_name: str | None = None,
+                         year: str | None = None, player_type: str | None = None,
+                         edition: str | None = None, expansion: str | None = None,
+                         team: str | None = None, show_hidden: bool = False) -> list[dict]:
+        """Return successful card generations for user from the log table, newest first."""
+        if not self.connection:
+            return []
+        hidden_filter = "is_hidden IS TRUE" if show_hidden else "is_hidden IS NOT TRUE"
+        conditions = ["user_id = %s", "thumbnail_storage_path IS NOT NULL", "error IS NULL", hidden_filter]
+        params: list = [user_id]
+        if set_name:
+            conditions.append("set = %s")
+            params.append(set_name)
+        if player_name:
+            conditions.append("name ILIKE %s")
+            params.append(f"%{player_name}%")
+        if year:
+            conditions.append("year = %s")
+            params.append(year)
+        if player_type:
+            conditions.append("user_inputs->>'player_type' ILIKE %s")
+            params.append(player_type)
+        if edition:
+            conditions.append("user_inputs->>'edition' = %s")
+            params.append(edition)
+        if expansion:
+            conditions.append("user_inputs->>'expansion' = %s")
+            params.append(expansion)
+        if team:
+            conditions.append("team ILIKE %s")
+            params.append(team)
+        params.extend([limit, offset])
+        query = f"""
+            SELECT id, name, year, set, img_url, storage_path, thumbnail_storage_path, created_on, user_inputs, card_result
+            FROM internal.log_custom_card_bot
+            WHERE {' AND '.join(conditions)}
+            ORDER BY created_on DESC
+            LIMIT %s OFFSET %s
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                supabase_url = os.getenv('SUPABASE_URL', '').rstrip('/')
+
+                def _storage_public_url(path):
+                    if not path or not supabase_url:
+                        return None
+                    return f"{supabase_url}/storage/v1/object/public/card_images/{path}"
+
+                return [
+                    {
+                        'id': row[0],
+                        'player_name': row[1],
+                        'year': row[2],
+                        'set_name': row[3],
+                        'public_url': _storage_public_url(row[5]),
+                        'thumbnail_public_url': _storage_public_url(row[6]),
+                        'storage_path': row[5],
+                        'thumbnail_storage_path': row[6],
+                        'created_at': row[7].isoformat() if row[7] else None,
+                        'user_inputs': row[8],
+                        'card_result': row[9],
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            print(f"Error fetching user gallery: {e}")
+            return []
+
+    def delete_user_gallery_card(self, user_id: str, gallery_id: int) -> bool:
+        """Soft-hide a log row owned by user_id. Returns True if a row was updated."""
+        if not self.connection:
+            return False
+        hide_sql = """
+            UPDATE internal.log_custom_card_bot
+            SET is_hidden = TRUE
+            WHERE id = %s AND user_id = %s
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(hide_sql, (gallery_id, user_id))
+                return cur.rowcount > 0
+        except Exception as e:
+            self.connection.rollback()
+            print(f"Error hiding gallery card: {e}")
+            return False
+
+    def unhide_user_gallery_card(self, user_id: str, gallery_id: int) -> bool:
+        """Restore a soft-hidden log row owned by user_id. Returns True if a row was updated."""
+        if not self.connection:
+            return False
+        sql = """
+            UPDATE internal.log_custom_card_bot
+            SET is_hidden = FALSE
+            WHERE id = %s AND user_id = %s
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (gallery_id, user_id))
+                return cur.rowcount > 0
+        except Exception as e:
+            self.connection.rollback()
+            print(f"Error unhiding gallery card: {e}")
+            return False
+
+    def upsert_user_settings(self, user_id: str, settings_dict: dict) -> None:
+        """Insert or update user settings. Only keys present in settings_dict are written."""
+        if not self.connection or not settings_dict:
+            return
+        ALLOWED = {'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url'}
+        fields = {k: v for k, v in settings_dict.items() if k in ALLOWED}
+        if not fields:
+            return
+        cols = ', '.join(fields.keys())
+        placeholders = ', '.join(['%s'] * len(fields))
+        updates = ', '.join([f"{k} = EXCLUDED.{k}" for k in fields])
+        upsert_sql = f"""
+            INSERT INTO internal.user_settings (user_id, {cols})
+            VALUES (%s, {placeholders})
+            ON CONFLICT (user_id) DO UPDATE SET {updates}, updated_at = NOW()
+        """
+        values = [extras.Json(v) if isinstance(v, (dict, list)) else v for v in fields.values()]
+        with self.connection.cursor() as cur:
+            cur.execute(upsert_sql, [user_id] + values)
+
+    def build_user_quick_filters_table(self) -> None:
+        """Create the user_quick_filters table and index if they do not exist."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_quick_filters (
+                    id         TEXT NOT NULL PRIMARY KEY,
+                    user_id    TEXT NOT NULL,
+                    source     VARCHAR(20) NOT NULL,
+                    name       TEXT NOT NULL,
+                    filters    JSONB NOT NULL,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_quick_filters_user_source
+                    ON internal.user_quick_filters (user_id, source);
+            """)
+
+    def get_user_quick_filters(self, user_id: str, source: str) -> list[dict]:
+        """Return all quick filters for the given user and card source."""
+        if not self.connection:
+            return []
+        query = """
+            SELECT id, name, filters, created_at
+            FROM internal.user_quick_filters
+            WHERE user_id = %s AND source = %s
+            ORDER BY created_at ASC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id, source))
+            rows = cur.fetchall()
+            return [
+                {
+                    'id': row['id'],
+                    'name': row['name'],
+                    'filters': row['filters'],
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                }
+                for row in rows
+            ]
+
+    def create_user_quick_filter(self, user_id: str, id: str, source: str, name: str, filters: dict) -> None:
+        """Insert a new quick filter row."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.user_quick_filters (id, user_id, source, name, filters)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (id, user_id, source, name, extras.Json(filters)),
+            )
+
+    def update_user_quick_filter(self, user_id: str, id: str, name: str | None = None, filters: dict | None = None) -> bool:
+        """Update name and/or filters on a quick filter row owned by user_id. Returns True if updated."""
+        if not self.connection or (name is None and filters is None):
+            return False
+        fields: list[str] = []
+        values: list = []
+        if name is not None:
+            fields.append("name = %s")
+            values.append(name)
+        if filters is not None:
+            fields.append("filters = %s")
+            values.append(extras.Json(filters))
+        values.extend([id, user_id])
+        with self.connection.cursor() as cur:
+            cur.execute(
+                f"UPDATE internal.user_quick_filters SET {', '.join(fields)} WHERE id = %s AND user_id = %s",
+                values,
+            )
+            return cur.rowcount > 0
+
+    def delete_user_quick_filter(self, user_id: str, id: str) -> bool:
+        """Delete a quick filter, ensuring ownership. Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.user_quick_filters WHERE id = %s AND user_id = %s",
+                (id, user_id),
+            )
+            return cur.rowcount > 0
 
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""
@@ -2903,7 +3533,10 @@ class PostgresDB:
                 version text,
                 in_season_trends jsonb,
                 storage_path text,
-                user_id text
+                thumbnail_storage_path text,
+                user_id text,
+                is_hidden boolean NOT NULL DEFAULT FALSE,
+                card_result jsonb
             );
         """
 
@@ -2914,12 +3547,17 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_custom_card_bot_user_id
             ON internal.log_custom_card_bot (user_id);
         """
+        migrate_is_hidden_sql = """
+            ALTER TABLE internal.log_custom_card_bot
+                ADD COLUMN IF NOT EXISTS is_hidden boolean NOT NULL DEFAULT FALSE;
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(schema_check_sql)
                 cur.execute(create_table_sql)
                 cur.execute(index_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(migrate_is_hidden_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -2939,13 +3577,24 @@ class PostgresDB:
                 timestamp timestamp without time zone DEFAULT now(),
                 filters jsonb,
                 result_count integer,
-                error text
+                error text,
+                user_id text
             );
+        """
+        migrate_user_id_sql = """
+            ALTER TABLE internal.log_player_search
+                ADD COLUMN IF NOT EXISTS user_id text;
+        """
+        user_id_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_player_search_user_id_idx
+            ON internal.log_player_search (user_id);
         """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
+                cur.execute(migrate_user_id_sql)
+                cur.execute(user_id_index_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -2964,13 +3613,24 @@ class PostgresDB:
                 id SERIAL PRIMARY KEY,
                 timestamp timestamp without time zone DEFAULT now(),
                 card_id character varying(32),
-                error text
+                error text,
+                user_id text
             );
+        """
+        migrate_user_id_sql = """
+            ALTER TABLE internal.log_card_image_generation
+                ADD COLUMN IF NOT EXISTS user_id text;
+        """
+        user_id_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_image_generation_user_id_idx
+            ON internal.log_card_image_generation (user_id);
         """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
+                cur.execute(migrate_user_id_sql)
+                cur.execute(user_id_index_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -2990,18 +3650,37 @@ class PostgresDB:
                 timestamp timestamp without time zone DEFAULT now(),
                 card_id character varying(32),
                 source character varying(128),
-                error text
+                error text,
+                user_id text
             );
+        """
+        migrate_user_id_sql = """
+            ALTER TABLE internal.log_card_id_lookup
+                ADD COLUMN IF NOT EXISTS user_id text;
+        """
+        user_id_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_id_lookup_user_id_idx
+            ON internal.log_card_id_lookup (user_id);
         """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
+                cur.execute(migrate_user_id_sql)
+                cur.execute(user_id_index_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
             print(f"Error creating internal.log_card_id_lookup table: {error}")
             self.connection.rollback()
+
+    def _serialize_card_result(self, card: ShowdownPlayerCard) -> dict:
+        data = card.as_json(exclude={'realtime_game_logs': True})
+        data.get('stats', {}).pop('game_logs', None)
+        data.get('stats', {}).pop('postseason_game_logs', None)
+        data.get('stats_period', {}).get('stats', {}).pop('game_logs', None)
+        data.get('stats_period', {}).get('stats', {}).pop('postseason_game_logs', None)
+        return data
 
     def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
         """
@@ -3084,7 +3763,9 @@ class PostgresDB:
                 'stat_highlights_type': card.image.stat_highlights_type.value if card.image else None,
                 'glow_multiplier': card.image.glow_multiplier if card.image else None,
                 'storage_path': card.image.storage_path if card.image else None,
-                'user_id': card.user_id if card.user_id else None
+                'thumbnail_storage_path': card.image.thumbnail_storage_path if card.image else None,
+                'user_id': card.user_id if card.user_id else None,
+                'card_result': self._serialize_card_result(card),
             }
         else:
             # NO CARD GENERATED
@@ -3120,7 +3801,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_player_search(self, filters: dict, result_count: int, error: str = None) -> None:
+    def log_player_search(self, filters: dict, result_count: int, error: str = None, user_id: str = None) -> None:
         """
         Store player search data in the log_player_search table.
 
@@ -3128,19 +3809,20 @@ class PostgresDB:
             filters: Search filters used.
             result_count: Number of results returned.
             error: Error message if any.
+            user_id: Verified user ID from JWT, if authenticated.
         """
-        
+
         if not self.connection:
             print("No database connection available for logging.")
-            return 
-        
+            return
+
         sql = """
-            INSERT INTO internal.log_player_search (filters, result_count, error) 
-            VALUES (%s, %s, %s)
+            INSERT INTO internal.log_player_search (filters, result_count, error, user_id)
+            VALUES (%s, %s, %s, %s)
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (json.dumps(filters), result_count, error))
+                cur.execute(sql, (json.dumps(filters), result_count, error, user_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3148,26 +3830,27 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_image_generation(self, card_id: str, error: str = None) -> None:
+    def log_card_image_generation(self, card_id: str, error: str = None, user_id: str = None) -> None:
         """
         Store card image generation data in the log_card_image_generation table.
 
         Args:
             card_id: ID of the card.
             error: Error message if any.
+            user_id: Verified user ID from JWT, if authenticated.
         """
-        
+
         if not self.connection:
             print("No database connection available for logging.")
-            return 
-        
+            return
+
         sql = """
-            INSERT INTO internal.log_card_image_generation (card_id, error) 
-            VALUES (%s, %s)
+            INSERT INTO internal.log_card_image_generation (card_id, error, user_id)
+            VALUES (%s, %s, %s)
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (card_id, error))
+                cur.execute(sql, (card_id, error, user_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3175,7 +3858,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_id_lookup(self, card_id: str, source: str, error: str = None) -> None:
+    def log_card_id_lookup(self, card_id: str, source: str, error: str = None, user_id: str = None) -> None:
         """
         Store card ID lookup data in the log_card_id_lookup table.
 
@@ -3183,19 +3866,20 @@ class PostgresDB:
             card_id: ID of the card.
             source: Source of the lookup.
             error: Error message if any.
+            user_id: Verified user ID from JWT, if authenticated.
         """
-        
+
         if not self.connection:
             print("No database connection available for logging.")
-            return 
-        
+            return
+
         sql = """
-            INSERT INTO internal.log_card_id_lookup (card_id, source, error) 
-            VALUES (%s, %s, %s)
+            INSERT INTO internal.log_card_id_lookup (card_id, source, error, user_id)
+            VALUES (%s, %s, %s, %s)
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (card_id, source, error))
+                cur.execute(sql, (card_id, source, error, user_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -3220,7 +3904,8 @@ class PostgresDB:
             return []
         
         sql = """
-            SELECT id, name, year, set, created_on, user_id, user_inputs, error_for_user
+            SELECT id, name, year, set, created_on, user_id, user_inputs, error_for_user,
+                   storage_path, img_url, img_name, thumbnail_storage_path
             FROM internal.log_custom_card_bot
         """
         params = []
@@ -3244,7 +3929,11 @@ class PostgresDB:
                         'created_on': row[4].isoformat(),
                         'user_id': row[5],
                         'user_inputs': row[6],
-                        'error_for_user': row[7]
+                        'error_for_user': row[7],
+                        'storage_path': row[8],
+                        'img_url': row[9],
+                        'img_name': row[10],
+                        'thumbnail_storage_path': row[11]
                     })
                 return history
         except Exception as error:
@@ -3281,19 +3970,19 @@ class PostgresDB:
                     INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
-                        year, historical_date, name, 
-                        player_type, player_type_override, is_two_way, 
-                        primary_positions, secondary_positions, 
+                        year, historical_date, name, bref_id, mlb_id,
+                        player_type, player_type_override, is_two_way,
+                        primary_positions, secondary_positions,
                         g, gs, pa, ip, war,
-                        lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        lg_id, team_id, team_id_list, team_games_played_dict, team_override,
                         modified_date, stats, stats_modified_date
                     ) =
                     (
-                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
-                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
-                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
+                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, EXCLUDED.bref_id, EXCLUDED.mlb_id,
+                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way,
+                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions,
                         EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.war,
-                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override,
                         NOW(), EXCLUDED.stats, NOW()
                     )
                 '''
@@ -3302,19 +3991,19 @@ class PostgresDB:
                     INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
-                        year, historical_date, name, 
-                        player_type, player_type_override, is_two_way, 
-                        primary_positions, secondary_positions, 
+                        year, historical_date, name, bref_id, mlb_id,
+                        player_type, player_type_override, is_two_way,
+                        primary_positions, secondary_positions,
                         g, gs, pa, ip, war,
-                        lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        lg_id, team_id, team_id_list, team_games_played_dict, team_override,
                         modified_date
                     ) =
                     (
-                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
-                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
-                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
+                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, EXCLUDED.bref_id, EXCLUDED.mlb_id,
+                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way,
+                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions,
                         EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.war,
-                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override,
                         NOW()
                     )
                 '''
@@ -3368,7 +4057,8 @@ class PostgresDB:
                     card_data = showdown.as_json()
                     
                     # Clean up the data for JSON storage
-                    id_fields = [field for field in [showdown.year, showdown.bref_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
+                    bref_or_mlb_id = str(showdown.mlb_id) if showdown.mlb_id else showdown.bref_id
+                    id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
                     player_id = "-".join(id_fields).lower()
                     card_data['player_id'] = player_id
                     card_data['name'] = unidecode(card_data['name'])
@@ -3403,6 +4093,77 @@ class PostgresDB:
             print(f"ERROR uploading to database: {e}")
             self.connection.rollback()
             raise
+        finally:
+            cursor.close()
+
+    # Rate stats: averaged across years (rates don't compound). Everything else is a counting stat and is summed.
+    _RATE_STAT_NAMES = [
+        'batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging',
+        'onbase_plus_slugging_plus', 'wRcPlus', 'earned_run_avg', 'whip', 'K/9', 'sprint_speed',
+    ]
+
+    def get_season_stat_ranges(self, seasons: int | list[int], player_type: str, pitcher_role: str | None = None) -> dict[str, dict[str, float]]:
+        """Fetch min and max values for key stats for given season(s) and player type. Used for percentiles in the frontend.
+
+        For a single season, returns the pre-computed per-year ranges directly.
+        For multiple seasons, aggregates across years:
+          - Rate stats (BA, OBP, SLG, ERA, etc.): weighted average by sample_size
+          - Counting stats (HR, BB, SO, etc.): sum of min/max, matching how multi-year cards sum stats
+
+        pitcher_role: 'SP' or 'RP' (only applies when player_type='PITCHER'). None returns all pitchers combined.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return {}
+
+        if isinstance(seasons, int):
+            seasons = [seasons]
+
+        cursor = self.connection.cursor()
+        try:
+            if len(seasons) == 1:
+                query = """
+                    SELECT stat_name, stat_min, stat_max
+                    FROM internal.dim_season_stat_ranges
+                    WHERE year = %s
+                        AND player_type = %s
+                        AND (pitcher_role = %s OR %s IS NULL)
+                """
+                cursor.execute(query, (seasons[0], player_type, pitcher_role, pitcher_role))
+            else:
+                query = """
+                    SELECT
+                        stat_name,
+                        CASE WHEN stat_name = ANY(%s)
+                             THEN SUM(stat_min * sample_size) / NULLIF(SUM(sample_size), 0)
+                             ELSE SUM(stat_min)
+                        END AS stat_min,
+                        CASE WHEN stat_name = ANY(%s)
+                             THEN SUM(stat_max * sample_size) / NULLIF(SUM(sample_size), 0)
+                             ELSE SUM(stat_max)
+                        END AS stat_max
+                    FROM internal.dim_season_stat_ranges
+                    WHERE year = ANY(%s)
+                        AND player_type = %s
+                        AND (pitcher_role = %s OR %s IS NULL)
+                    GROUP BY stat_name
+                """
+                cursor.execute(query, (
+                    self._RATE_STAT_NAMES, self._RATE_STAT_NAMES,
+                    seasons, player_type, pitcher_role, pitcher_role,
+                ))
+
+            results = cursor.fetchall()
+            return {
+                row[0]: {
+                    'min': float(row[1]) if row[1] is not None else None,
+                    'max': float(row[2]) if row[2] is not None else None,
+                }
+                for row in results
+            }
+        except Exception as e:
+            print(f"ERROR fetching season stat ranges: {e}")
+            return {}
         finally:
             cursor.close()
 

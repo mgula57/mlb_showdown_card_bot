@@ -38,7 +38,7 @@ class PlayerSubType(Enum):
             case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER:
                 categories = [
                     StatHighlightsCategory.G if self == PlayerSubType.RELIEF_PITCHER else StatHighlightsCategory.GS,
-                ]
+                ] if type != StatHighlightsType.NONE else []
                 match type:
                     case StatHighlightsType.CLASSIC: categories += [
                         StatHighlightsCategory.W if self == PlayerSubType.STARTING_PITCHER else StatHighlightsCategory.SV,

@@ -17,12 +17,16 @@
  * @component
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useSiteSettings, useTheme, showdownSets } from '../shared/SiteSettingsContext';
-import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser } from 'react-icons/fa';
+import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
+import { SignInPrompt } from '../shared/SignInPrompt';
 import CustomSelect from '../shared/CustomSelect';
+import { uploadAvatar, removeAvatar, validateAvatarFile } from '../../api/userAvatar';
+import AvatarCropModal from './AvatarCropModal';
+import { AccountAvatar } from '../auth/AccountIcon';
 
 /**
  * Account Page Component
@@ -36,7 +40,7 @@ import CustomSelect from '../shared/CustomSelect';
  * @returns Account page with user information and settings
  */
 const AccountPage: React.FC = () => {
-    const { user, signOut, loading, username, updateUsername, checkUsernameAvailability } = useAuth();
+    const { user, signOut, loading, username, updateUsername, checkUsernameAvailability, userSettings, syncSetting } = useAuth();
     const navigate = useNavigate();
     const { isDark, setTheme, theme } = useTheme();
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
@@ -46,13 +50,10 @@ const AccountPage: React.FC = () => {
     const [usernameError, setUsernameError] = useState<string | null>(null);
     const [isCheckingUsername, setIsCheckingUsername] = useState(false);
     const [isSavingUsername, setIsSavingUsername] = useState(false);
-
-    // Redirect to home if not authenticated
-    useEffect(() => {
-        if (!loading && !user) {
-            navigate('/');
-        }
-    }, [user, loading, navigate]);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [avatarError, setAvatarError] = useState<string | null>(null);
+    const [cropSrc, setCropSrc] = useState<string | null>(null);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!isEditingUsername) {
@@ -70,9 +71,14 @@ const AccountPage: React.FC = () => {
         );
     }
 
-    // Not authenticated (shouldn't reach here due to useEffect redirect)
     if (!user) {
-        return null;
+        return (
+            <SignInPrompt
+                title="Sign in to view your account"
+                message="Create an account to save cards, track your gallery, and manage settings."
+                className="min-h-screen"
+            />
+        );
     }
 
     /**
@@ -158,6 +164,48 @@ const AccountPage: React.FC = () => {
         setIsEditingUsername(false);
     };
 
+    const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const validationError = validateAvatarFile(file);
+        if (validationError) {
+            setAvatarError(validationError);
+            if (avatarInputRef.current) avatarInputRef.current.value = '';
+            return;
+        }
+        setAvatarError(null);
+        const objectUrl = URL.createObjectURL(file);
+        setCropSrc(objectUrl);
+        if (avatarInputRef.current) avatarInputRef.current.value = '';
+    };
+
+    const handleCropApply = async (blob: Blob) => {
+        if (!user) return;
+        setIsUploadingAvatar(true);
+        const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+        const url = await uploadAvatar(file, user.id);
+        setIsUploadingAvatar(false);
+        if (url) {
+            syncSetting({ avatar_url: url });
+        } else {
+            setAvatarError('Upload failed. Please try again.');
+        }
+        setCropSrc(null);
+    };
+
+    const handleCropCancel = () => {
+        if (cropSrc) URL.revokeObjectURL(cropSrc);
+        setCropSrc(null);
+    };
+
+    const handleRemoveAvatar = async () => {
+        if (!user) return;
+        setIsUploadingAvatar(true);
+        await removeAvatar(user.id);
+        setIsUploadingAvatar(false);
+        syncSetting({ avatar_url: '' });
+    };
+
     return (
         <div className="min-h-screen bg-primary p-4 md:p-8">
             <div className="max-w-4xl mx-auto space-y-6">
@@ -173,15 +221,75 @@ const AccountPage: React.FC = () => {
                     <div className="flex items-start space-x-4">
                         {/* Avatar */}
                         <div className="shrink-0">
-                            <div className="
-                                w-20 h-20 rounded-full
-                                bg-accent text-primary
-                                flex items-center justify-center
-                                text-2xl font-bold
-                                border-2 border-accent-dark
-                            ">
-                                {getUserInitials()}
+                            <label
+                                htmlFor="avatar-upload"
+                                className={`relative group block w-20 h-20 rounded-full focus-within:ring-2 focus-within:ring-accent ${isUploadingAvatar ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                title="Change profile photo"
+                            >
+                                <AccountAvatar
+                                    showStatus={false}
+                                    size={20}
+                                />
+
+                                {/* Hover overlay */}
+                                <span className="
+                                    absolute inset-0 rounded-full
+                                    bg-black/50
+                                    flex items-center justify-center
+                                    opacity-0 group-hover:opacity-100
+                                    transition-opacity duration-200
+                                ">
+                                    {isUploadingAvatar
+                                        ? <FaSpinner className="w-5 h-5 text-white animate-spin" />
+                                        : <FaCamera className="w-5 h-5 text-white" />
+                                    }
+                                </span>
+
+                                {/* Persistent camera badge */}
+                                {!isUploadingAvatar && (
+                                    <span className="
+                                        absolute bottom-0 right-0
+                                        w-6 h-6 rounded-full
+                                        bg-accent border-2 border-background-secondary
+                                        flex items-center justify-center
+                                        group-hover:opacity-0 transition-opacity duration-200
+                                    ">
+                                        <FaCamera className="w-2.5 h-2.5 text-primary" />
+                                    </span>
+                                )}
+                            </label>
+
+                            {/* Change photo / remove / error below avatar */}
+                            <div className="mt-1.5 text-center space-y-0.5">
+                                <label
+                                    htmlFor="avatar-upload"
+                                    className={`text-xs text-tertiary block w-full ${isUploadingAvatar ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:underline'}`}
+                                >
+                                    {isUploadingAvatar ? 'Uploading…' : 'Change photo'}
+                                </label>
+                                {userSettings?.avatar_url && !isUploadingAvatar && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRemoveAvatar}
+                                        className="text-xs text-tertiary hover:underline block w-full"
+                                    >
+                                        Remove
+                                    </button>
+                                )}
+                                {avatarError && (
+                                    <p className="text-xs text-red-500">{avatarError}</p>
+                                )}
                             </div>
+
+                            <input
+                                ref={avatarInputRef}
+                                id="avatar-upload"
+                                type="file"
+                                accept="image/*"
+                                disabled={isUploadingAvatar}
+                                className="hidden"
+                                onChange={handleAvatarFileChange}
+                            />
                         </div>
 
                         {/* User Info */}
@@ -345,12 +453,13 @@ const AccountPage: React.FC = () => {
                         {/* Default Showdown Set */}
                         <div>
                             <CustomSelect
-                                className="font-showdown-set-italic w-20 text-xl"
+                                className="font-showdown-set-italic w-26 text-xl"
                                 buttonClassName="flex justify-center cursor-pointer select-none p-2 rounded-lg border"
-                                imageClassName="object-contain object-center"
+                                imageClassName="object-contain object-center w-18"
                                 value={userShowdownSet}
                                 onChange={setUserShowdownSet}
                                 options={showdownSets}
+                                showDropdownArrow={true}
                             />
                             
                             <p className="text-xs text-gray-500 mt-2">
@@ -404,7 +513,8 @@ const AccountPage: React.FC = () => {
                             <span>Delete Account</span>
                         </button>
                         <p className="text-xs text-gray-500">
-                            Account deletion will be available in a future update
+                            Account deletion will be available in a future update. 
+                            If you need account assistance please email <a href="mailto:mlbshowdownbot@gmail.com" className="text-tertiary hover:underline">mlbshowdownbot@gmail.com</a>.
                         </p>
                     </div>
                 </div>
@@ -414,6 +524,15 @@ const AccountPage: React.FC = () => {
                     <p>Your data is securely stored and managed through Supabase</p>
                 </div>
             </div>
+
+            {cropSrc && (
+                <AvatarCropModal
+                    imageSrc={cropSrc}
+                    onApply={handleCropApply}
+                    onCancel={handleCropCancel}
+                    isUploading={isUploadingAvatar}
+                />
+            )}
         </div>
     );
 };

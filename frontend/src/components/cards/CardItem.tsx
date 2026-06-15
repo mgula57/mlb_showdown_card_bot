@@ -1,6 +1,6 @@
 import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
-import CardChart from "./card_elements/CardChart";
+import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
@@ -134,10 +134,14 @@ export const CardItem = ({
     // Determine whether the stats have been estimated
     const isStatsEstimate = cardIsStatsEstimate || (cardLeague && cardEdition === 'WBC' && !['AL', 'NL', 'MLB'].includes(cardLeague)); // WBC cards for MLB players are often estimates
     
+    const isClickable = onClick !== undefined;
+
     // Dynamic border styling based on selection state and theme
-    const borderSettings = isSelected 
-        ? (isDark ? 'border-3' : 'border-3 shadow-xl hover:shadow-2xl') 
-        : (isDark ? 'border-white/10 hover:border-white/50' : 'shadow-xl hover:shadow-2xl border-gray-200 hover:border-black/40');
+    const borderSettings = isSelected
+        ? (isDark ? 'border-3' : `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`)
+        : (isDark
+            ? `border-white/10${isClickable ? ' hover:border-white/50' : ''}`
+            : `shadow-xl border-gray-200${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     /**
      * Player-type specific metadata display
@@ -147,13 +151,13 @@ export const CardItem = ({
      */
     const metadataArray: (string | undefined)[] = cardIsPitcher ? [
         cardPositionsAndDefenseString,
-        `${cardHand}HP`, // HP = Handed Pitcher
-        `IP ${cardIp}`,
+        cardHand ? `${cardHand}HP` : undefined, // HP = Handed Pitcher
+        cardIp ? `IP ${cardIp}` : undefined,
     ] : [
-        `SPD ${cardSpeed}`,
-        `BATS ${cardHand}`,
+        cardSpeed ? `SPD ${cardSpeed}` : undefined,
+        cardHand ? `BATS ${cardHand}` : undefined,
         cardPositionsAndDefenseString,
-    ];
+    ].filter(Boolean); // Remove undefined values
 
     const renderPointsComparison = (estPoints:number, diffPoints:number) => {
         const absoluteDifference = Math.abs(diffPoints);
@@ -179,7 +183,7 @@ export const CardItem = ({
                 bg-secondary
                 rounded-xl
                 border-3
-                ${onClick ? 'cursor-pointer' : ''}
+                ${isClickable ? 'cursor-pointer' : ''}
                 ${borderSettings}
             `}
             onClick={onClick}
@@ -485,6 +489,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardPoints={card?.points}
             cardPointsEstimated={card?.points_estimated || undefined}
             cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
+            cardPtsChange={card?.points_change || undefined}
             cardSpeed={card?.speed || undefined}
             cardHand={card?.hand || undefined}
             cardIp={card?.ip || undefined}
@@ -506,5 +511,26 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             className={className}
             isSelected={isSelected}
         />
+    );
+}
+
+export function CardItemSkeleton({ className }: { className?: string }) {
+    return (
+        <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-xl border border-(--divider) animate-pulse`}>
+            <div className="flex flex-row gap-2 items-center">
+                <div className="w-9 h-9 rounded-full bg-(--background-quaternary) shrink-0" />
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                    <div className="h-3 w-20 rounded bg-(--background-quaternary)" />
+                    <div className="h-2.5 w-14 rounded bg-(--background-quaternary)" />
+                </div>
+            </div>
+            <div className="h-8 w-full rounded bg-(--background-quaternary)" />
+            <div className="h-2.5 w-full rounded bg-(--background-quaternary)" />
+            <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-(--background-secondary)/60 backdrop-blur-[1px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:300ms]" />
+            </div>
+        </div>
     );
 }

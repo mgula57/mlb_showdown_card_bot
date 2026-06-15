@@ -28,6 +28,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { FaCaretDown } from 'react-icons/fa';
 import { createPortal } from 'react-dom';
 
 /**
@@ -82,6 +83,8 @@ type CustomSelectProps = {
     disabled?: boolean;
     /** Placeholder text shown in muted style when no option is selected */
     placeholder?: string;
+    /** Optionally include visual dropdown arrow */
+    showDropdownArrow?: boolean;
 };
 
 /**
@@ -98,7 +101,7 @@ type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -277,7 +280,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 onClick={handleToggle}
                 disabled={disabled}
             >
-                <div className="flex overflow-clip">
+                <div className="flex items-center overflow-clip">
                     { renderImage(options.find(option => option.value === value)?.image) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
                     { renderIcon(options.find(option => option.value === value)?.icon) }
@@ -286,6 +289,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         : <span className={`${labelClassName} text-tertiary`}>{placeholder}</span>
                     }
                     {suffix && <span className='ml-1'>{suffix}</span>}
+                    {showDropdownArrow && <FaCaretDown className={`ml-1 ${isOpen ? 'rotate-180' : ''} opacity-75`} size={20} />}
                 </div>
             </button>
 

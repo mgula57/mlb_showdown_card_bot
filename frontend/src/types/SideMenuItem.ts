@@ -10,4 +10,6 @@ export interface SideMenuItem {
   icon: IconType;
   /** The text to display for the menu item. */
   text: string;
+  /** If true, shows a NEW badge on the item. */
+  isNew?: boolean;
 }

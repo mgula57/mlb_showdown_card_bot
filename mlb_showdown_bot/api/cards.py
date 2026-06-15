@@ -1,10 +1,12 @@
 import pprint
 import hashlib
 import json
+import traceback
 from datetime import datetime, timedelta, timezone
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.data_conversion import convert_form_data_types
+from .user_settings import optional_user_id
 from ..core.card.card_generation import generate_card, generate_cards
 from ..core.card.showdown_player_card import ShowdownPlayerCard
 
@@ -12,6 +14,7 @@ cards_bp = Blueprint('cards', __name__)
 
 CARDS_CACHE_TTL = timedelta(hours=8)
 _cards_cache: dict[str, tuple[dict, datetime]] = {}
+
 
 
 @cards_bp.route('/build_custom_card', methods=["POST", "GET"])
@@ -56,6 +59,12 @@ def build_custom_card():
     # Random
     is_random = kwargs.get('name', '').upper() == '((RANDOM))'
 
+    # Upload to supabase — only if client-supplied user_id matches the JWT-verified identity
+    if kwargs.get('user_id') and kwargs.get('user_id') == optional_user_id():
+        payload['upload_to_supabase'] = True
+    else:
+        payload.pop('user_id', None)
+
     try:
         # Normal card generation
         card_data = generate_card(randomize=is_random, store_in_logs=True, **payload)
@@ -99,10 +108,11 @@ def build_image_for_card():
 
         # PRODUCE IMAGE AND UPDATE DATASET
         card.generate_card_image()
+
         payload['card'] = card.as_json()
 
         # LOGGING
-        db.log_card_image_generation(card_id=card.id)
+        db.log_card_image_generation(card_id=card.id, user_id=optional_user_id())
 
         return jsonify(payload)
 

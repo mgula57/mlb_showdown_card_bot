@@ -32,7 +32,7 @@ from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
 from .utils import showdown_constants as sc, colors
-from .utils.shared_functions import convert_to_date, convert_number_to_ordinal
+from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, total_ip_for_calculations
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
@@ -130,6 +130,9 @@ class ShowdownPlayerCard(BaseModel):
     real_vs_projected_stats: list[RealVsProjectedStat] = []
     command_out_accuracy_breakdowns: dict[str, dict[Stat, ChartAccuracyBreakdown]] = {}
     notes: Optional[str] = None
+
+    # TRENDS
+    points_change: Optional[dict[str, int]] = None
 
     # STATS FOR WOTC CONVERTED CARDS
     points_estimated_breakdown: Optional[Points] = None
@@ -1947,7 +1950,7 @@ class ShowdownPlayerCard(BaseModel):
             
         # ADD K/9 FOR PITCHERS
         if self.is_pitcher and 'strikeouts_per_nine' not in stats.keys():
-            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
+            k_per_9 = stats.get('SO', 0) * 9 / total_ip_for_calculations(stats.get('IP', 1))
             stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         # CLEAN SLASHLINE
@@ -2058,9 +2061,13 @@ class ShowdownPlayerCard(BaseModel):
         if has_slg_and_obp:
             stats_for_real_pa['onbase_plus_slugging'] = round(stats_for_real_pa['onbase_perc'] + stats_for_real_pa['slugging_perc'], 4)
 
-        # ADD shOPS+ (SHOWDOWN OPS+ EQUIVALENT)
+        # ADD shOPS+ (SHOWDOWN OPS+/wRC+ EQUIVALENT)
+        # wRC+ IS USED FOR 2026+
         try:
-            stats_for_real_pa['onbase_plus_slugging_plus'] = self.calculate_shOPS_plus(command=command, proj_obp=stats_for_real_pa['onbase_perc'], proj_slg=stats_for_real_pa['slugging_perc'])
+            shops_plus = self.calculate_shOPS_plus(command=command, proj_obp=stats_for_real_pa['onbase_perc'], proj_slg=stats_for_real_pa['slugging_perc'])
+            stats_for_real_pa['onbase_plus_slugging_plus'] = shops_plus
+            if self.stats_period.first_year >= 2026:
+                stats_for_real_pa['wRcPlus'] = shops_plus
         except:
             stats_for_real_pa['onbase_plus_slugging_plus'] = None
         
@@ -2082,9 +2089,14 @@ class ShowdownPlayerCard(BaseModel):
             return None
 
         categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
+        
+        # STILL PROCESS STAT HIGHLIGHTS IF `NONE` IS SELECTED, JUST WONT BE SHOWN ON THE IMAGE
+        # USE CLASSIC STAT HIGHLIGHTS IN THAT CASE
+        if len(categories) == 0:
+            categories = self.player_sub_type.stat_highlight_categories(type=StatHighlightsType.ALL)
+        
         stat_and_sort_rank: dict[str, float] = {}
         ignore_dwar = False
-
         for category in categories:
             stat_keys = category.stat_key_list
             category_multiplier = category.sort_rating_multiplier
@@ -2574,6 +2586,8 @@ class ShowdownPlayerCard(BaseModel):
             stat_categories_dict.pop('OPS+', None)
         else:
             stat_categories_dict['SB'] = 'SB'
+            if self.stats_period.first_year >= 2026:
+                stat_categories_dict.pop('OPS+', None)
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
         final_dict = {
             'projected': [],
@@ -2639,10 +2653,44 @@ class ShowdownPlayerCard(BaseModel):
 
         final_player_data: list[RealVsProjectedStat] = []
 
+        # ERA / WHIP (pitchers only) — added first so they appear at the top
+        projected_by_alias: dict[str, float | None] = {}
+        if self.is_pitcher and self.projected:
+            _pa   = float(self.projected.get('PA') or 650.0)
+            _so   = float(self.projected.get('SO') or 0)
+            _pu   = float(self.projected.get('PU') or 0)
+            _gb   = float(self.projected.get('GB') or 0)
+            _fb   = float(self.projected.get('FB') or 0)
+            _bb   = float(self.projected.get('BB') or 0)
+            _h1b  = float(self.projected.get('1B') or 0)  # includes 1B+
+            _h2b  = float(self.projected.get('2B') or 0)
+            _h3b  = float(self.projected.get('3B') or 0)
+            _hr   = float(self.projected.get('HR') or 0)
+            _h    = _h1b + _h2b + _h3b + _hr
+            _outs = _so + _pu + _gb + _fb
+            if _outs > 0 and _pa > 0:
+                _bf_per_9    = 27.0 * _pa / _outs
+                _runs_per_pa = (_bb * 0.30 + _h1b * 0.46 + _h2b * 0.76 + _h3b * 1.04 + _hr * 1.42 - _outs * 0.09) / _pa
+                projected_by_alias['ERA']  = round(max(0.0, _runs_per_pa * _bf_per_9), 2)
+                projected_by_alias['WHIP'] = round((_h + _bb) / _pa * _bf_per_9 / 9, 2)
+                projected_by_alias['K/9']  = round(_so / _pa * _bf_per_9, 2)
+
+            for alias, stat_key in [('ERA', 'earned_run_avg'), ('WHIP', 'whip'), ('K/9', 'strikeouts_per_nine')]:
+                stat_raw = self.stats_for_card.get(stat_key, None)
+                if stat_raw is None or str(stat_raw) == '':
+                    continue
+                proj = projected_by_alias.get(alias)
+                diff = round(proj - float(stat_raw), 2) if proj is not None else None
+                final_player_data.append(RealVsProjectedStat(stat=alias, real=stat_raw, projected=proj, diff=diff, precision=2 if proj is not None else None))
+
         # SLASH LINE
         slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS'), ('onbase_plus_slugging_plus', 'OPS+'), ('wRcPlus', 'wRC+')]
         for key, cleaned_category in slash_categories:
             if self.is_pitcher and cleaned_category in ['OPS+', 'wRC+']:
+                continue
+            if self.is_hitter and cleaned_category in ['wRC+'] and self.stats_period.first_year < 2026:
+                continue
+            if self.is_hitter and cleaned_category in ['OPS+'] and self.stats_period.first_year >= 2026:
                 continue
             precision = None if cleaned_category == 'OPS+' else 3
             actual_raw = self.stats_for_card.get(key, None)
@@ -2689,9 +2737,11 @@ class ShowdownPlayerCard(BaseModel):
             )
         
         # NON COMPARABLE STATS
-        category_dict = {'ERA': 'earned_run_avg', 'WHIP': 'whip', 'bWAR': 'bWAR', 'fWAR': 'fWAR'} if self.is_pitcher else {'SB': 'SB', 'dWAR': 'dWAR', 'bWAR': 'bWAR', 'fWAR': 'fWAR'}
+        category_dict = {'bWAR': 'bWAR', 'fWAR': 'fWAR'} if self.is_pitcher else {'SB': 'SB', 'SPRINT SPEED': 'sprint_speed', 'dWAR': 'dWAR', 'bWAR': 'bWAR', 'fWAR': 'fWAR'}
         rounded_metrics_list = ['SB']
         for alias, key in category_dict.items():
+            if alias in projected_by_alias:  # ERA/WHIP already added at top
+                continue
             if key not in self.stats_for_card.keys():
                 continue
 
@@ -6581,10 +6631,11 @@ class ShowdownPlayerCard(BaseModel):
           None
         """
 
+        name_safe = unidecode.unidecode(self.name).replace(" ", "_").replace("/", "_")
         if self.image.output_file_name is None:
-            self.image.output_file_name = f'{self.name}-{str(datetime.now())}.png'
+            self.image.output_file_name = f'{name_safe}-{str(datetime.now())}.png'
         if self.image.set_name:
-            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {self.name}{img_name_suffix}.png'            
+            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {name_safe}{img_name_suffix}.png'            
         
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')
@@ -6612,7 +6663,7 @@ class ShowdownPlayerCard(BaseModel):
         self.load_time = round((end_time - start_time).total_seconds(),2)
 
     def upload_image_to_supabase(self) -> None:
-        """Uploads current image to Supabase storage.
+        """Uploads current image and thumbnail to Supabase storage.
 
         Args:
           None
@@ -6624,25 +6675,60 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.output_file_name is None:
             print("Image output file name is not set. Skipping upload.")
             return
-        
-        # UPLOAD IMAGE
+
+        # GET IMAGE PATH
         if self.is_running_on_website:
-            img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
+            img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
         else:
             img_path = os.path.join(os.path.dirname(__file__), 'image_output', self.image.output_file_name)
-        
+
         card_bucket = 'card_images'
         card_folder_destination = f'users/{self.user_id}' if self.user_id else f'public/{self.set.name}'
-        full_path = f'{card_folder_destination}/{self.image.output_file_name}'
 
+        # UPLOAD FULL-SIZE IMAGE
+        full_path = f'{card_folder_destination}/{self.image.output_file_name}'
         upload_result_data:dict = upload_to_supabase(
             bucket_name=card_bucket,
             file_path=img_path,
             destination_path=full_path
         )
         self.image.storage_path = upload_result_data.get('path', None)
+        print("Full image uploaded to Supabase storage with path: ", self.image.storage_path)
 
-        print("Image uploaded to Supabase storage with path: ", self.image.storage_path)
+        # CREATE AND UPLOAD THUMBNAIL
+        try:
+            from PIL import Image
+            # Load the saved image
+            with Image.open(img_path) as img:
+                # Create thumbnail (200px wide, maintains aspect ratio)
+                thumbnail = img.copy()
+                thumbnail.thumbnail((200, 280), Image.Resampling.LANCZOS)
+
+                # Save thumbnail to temp file
+                thumb_filename = self.image.output_file_name.replace('.png', '-thumb.png')
+                if self.is_running_on_website:
+                    thumb_path = os.path.join(self.image.output_folder_path, thumb_filename)
+                else:
+                    thumb_path = os.path.join(os.path.dirname(__file__), 'image_output', thumb_filename)
+                thumbnail.save(thumb_path, dpi=(72, 72), quality=85, optimize=True)
+
+                # Upload thumbnail
+                thumb_dest_path = f'{card_folder_destination}/{thumb_filename}'
+                thumb_upload_result = upload_to_supabase(
+                    bucket_name=card_bucket,
+                    file_path=thumb_path,
+                    destination_path=thumb_dest_path
+                )
+                self.image.thumbnail_storage_path = thumb_upload_result.get('path', None)
+
+                # Clean up temp thumbnail file
+                if os.path.exists(thumb_path):
+                    os.remove(thumb_path)
+        except Exception as e:
+            print(f"Failed to create/upload thumbnail: {e}")
+            # Don't fail the whole upload if thumbnail fails
+            import traceback
+            traceback.print_exc()
 
     def _clean_images_directory(self) -> None:
         """Removes all images from output folder that are not the current card. Leaves

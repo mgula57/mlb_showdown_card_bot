@@ -18,6 +18,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "../auth/AuthContext";
 
 // Images
 // Import images at the top of the file
@@ -92,6 +93,8 @@ const SiteSettingsContext = createContext<SiteSettings | undefined>(undefined);
  */
 export const SiteSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
+    const { userSettings, settingsLoaded, syncSetting } = useAuth();
+
     // MLB Showdown set preference state (defaults to 2001 set)
     const [userShowdownSet, setUserShowdownSetState] = useState("2001");
 
@@ -118,6 +121,17 @@ export const SiteSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (stored) setUserShowdownSetState(stored);
     }, []);
 
+    // Apply DB settings when user logs in (DB takes precedence for cross-device sync)
+    useEffect(() => {
+        if (!settingsLoaded || !userSettings) return;
+        if (userSettings.theme) setThemeState(userSettings.theme as Theme);
+        if (userSettings.showdown_set) {
+            setUserShowdownSetState(userSettings.showdown_set);
+            localStorage.setItem('userShowdownSet', userSettings.showdown_set);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [settingsLoaded]);
+
     /**
      * Updates the selected Showdown set and persists it to localStorage
      * @param v - The new Showdown set identifier
@@ -125,6 +139,7 @@ export const SiteSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const setUserShowdownSet = (v: string) => {
         setUserShowdownSetState(v);
         localStorage.setItem("userShowdownSet", v);
+        syncSetting({ showdown_set: v });
     };
 
     /**
@@ -194,6 +209,7 @@ export const SiteSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
      */
     const setTheme = (newTheme: Theme) => {
         setThemeState(newTheme);
+        syncSetting({ theme: newTheme });
     };
 
     return (

@@ -513,6 +513,14 @@ LEAGUE_AVG_PROJ_OBP = {
             "Hitter": 0.312,
             "Pitcher": 0.307
         },
+        "2025": {
+            "Hitter": 0.312,
+            "Pitcher": 0.307
+        },
+        "2026": {
+            "Hitter": 0.312,
+            "Pitcher": 0.307
+        },
     },
     'EXPANDED': {
         "1900": {
@@ -1012,6 +1020,14 @@ LEAGUE_AVG_PROJ_OBP = {
             "Pitcher": 0.311
         },
         "2024": {
+            "Hitter": 0.313,
+            "Pitcher": 0.309
+        },
+        "2025": {
+            "Hitter": 0.313,
+            "Pitcher": 0.309
+        },
+        "2026": {
             "Hitter": 0.313,
             "Pitcher": 0.309
         },
@@ -1520,6 +1536,14 @@ LEAGUE_AVG_PROJ_SLG = {
             "Hitter": 0.395,
             "Pitcher": 0.366
         },
+        "2025": {
+            "Hitter": 0.395,
+            "Pitcher": 0.366
+        },
+        "2026": {
+            "Hitter": 0.395,
+            "Pitcher": 0.366
+        },
     },
     'EXPANDED': {
         "1900": {
@@ -2019,6 +2043,14 @@ LEAGUE_AVG_PROJ_SLG = {
             "Pitcher": 0.375
         },
         "2024": {
+            "Hitter": 0.403,
+            "Pitcher": 0.370
+        },
+        "2025": {
+            "Hitter": 0.403,
+            "Pitcher": 0.370
+        },
+        "2026": {
             "Hitter": 0.403,
             "Pitcher": 0.370
         },
@@ -2527,6 +2559,14 @@ LEAGUE_AVG_COMMAND = {
             "Hitter": 7.000,
             "Pitcher": 3.210
         },
+        "2025": {
+            "Hitter": 7.000,
+            "Pitcher": 3.210
+        },
+        "2026": {
+            "Hitter": 7.000,
+            "Pitcher": 3.210
+        },
     },
     'EXPANDED': {
         "1900": {
@@ -3029,10 +3069,19 @@ LEAGUE_AVG_COMMAND = {
             "Hitter": 9.290,
             "Pitcher": 3.150
         },
+        "2025": {
+            "Hitter": 9.290,
+            "Pitcher": 3.150
+        },
+        "2026": {
+            "Hitter": 9.290,
+            "Pitcher": 3.150
+        },
     }
 }
 
 FIP_CONSTANT = {
+    2026: 3.135, # TEMPORARY VALUE
     2025: 3.135,
     2024: 3.166,
     2023: 3.255,

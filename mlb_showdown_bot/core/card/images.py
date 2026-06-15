@@ -558,6 +558,7 @@ class ShowdownImage(BaseModel):
     # ONLINE STORAGE
     upload_to_supabase: Optional[bool] = None
     storage_path: Optional[str] = None
+    thumbnail_storage_path: Optional[str] = None
 
     def update_special_edition(self, has_nationality: bool = False, has_wbc_info: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
