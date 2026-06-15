@@ -672,12 +672,15 @@ def generate_random_player(**kwargs) -> PlayerArchive:
 # TODO: replace hard-coded IDs with a general two-way player detection strategy.
 _TWO_WAY_PLAYER_IDS: set[int] = {660271}  # Ohtani
 
-def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[dict[str, Any]]:
+def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:bool=False, sets: list[str] = None, inject_bref_ids: bool = False, **kwargs) -> list[dict[str, Any]]:
     """Generate multiple cards for a list of player ids and a year. Only works with MLB API datasource.
 
     Args:
         player_ids: List of player ids to generate cards for
         years: List of years to generate cards for
+        keep_as_py_objects: Whether to keep the generated cards as Python objects instead of converting to JSON-serializable dicts
+        sets: Optional list of sets to generate cards for. If provided, will generate a card for each set specified for each player and year combination. Ex: ["2000", "EXPANDED"]
+        inject_bref_ids: When True, does a single batch lookup against dim_player_id_map to enrich each NormalizedPlayerStats with its bref_id before building the stats row.
         **kwargs: Keyword arguments to pass to card generation function
 
     Returns:
@@ -693,6 +696,10 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[di
     if 'stats' in kwargs:
         kwargs.pop('stats')
 
+    if sets:
+        # If sets are provided, remove set from kwargs to avoid issues with ShowdownPlayerCard initialization, and we'll loop through sets separately
+        kwargs.pop('set', None)
+
     # Pull stats across player ids
     mlb_api = MLBStatsAPI_V2()
     player_stats = mlb_api.build_players_from_id_list(
@@ -703,22 +710,38 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[di
         print("No players found for the provided player ids and years.")
         return []
 
+    # Optionally batch-lookup bref_ids for all players before the per-player loop
+    mlb_id_to_bref: dict[int, str] = {}
+    if inject_bref_ids:
+        try:
+            _id_db = PostgresDB(is_archive=True)
+            all_mlb_ids = [p.id for p in player_stats.players if p.id]
+            mlb_id_to_bref = _id_db.fetch_bref_ids_from_mlb_ids(all_mlb_ids)
+            _id_db.close_connection()
+        except Exception:
+            pass
+
     # Get statcast sprint speed data for all players if applicable
     statcast_api_client = StatcastAPIClient()
     sprint_speed_data = statcast_api_client.fetch_sprint_speed_leaderboard(years[0])
 
     # Get Fangraphs defensive stats for all players if applicable
-    fangraphs_api = FangraphsAPIClient()
-    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
-        stat_type="fld",
-        season_start=years[0],
-        season_end=years[-1],
-        position="all",
-        fangraphs_player_ids=player_stats.fangraphs_ids,
-    )
+    try:
+        fangraphs_api = FangraphsAPIClient()
+        fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+            stat_type="fld",
+            season_start=years[0],
+            season_end=years[-1],
+            position="all",
+            fangraphs_player_ids=player_stats.fangraphs_ids,
+        )
+    except Exception as e:
+        print("Error fetching Fangraphs defensive stats: ", e)
+        fielding_stats_list = []
 
     # Generate cards for each player
     final_cards: list[dict] = []
+    errors: list[tuple[str, str]] = []
     for player_data in player_stats.players:
         # Two-way players (e.g. Ohtani) get one card per type; all others get a single card.
         player_type_overrides: list[PlayerType | None] = (
@@ -726,61 +749,92 @@ def generate_cards(player_ids: list[str], years: list[int], **kwargs) -> list[di
             if player_data.id in _TWO_WAY_PLAYER_IDS
             else [None]
         )
-        for player_type_override in player_type_overrides:
-            try:
-                stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
-                stats_period = StatsPeriod(
-                    type=stats_period_type,
-                    player_type_override=player_type_override.value if player_type_override else None,
-                    **kwargs
-                )
-                normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(
-                    player=player_data,
-                    stats_period=stats_period,
-                )
+        skip_player = False
+        for set in (sets or [None]):
+            if skip_player:
+                break
+            for player_type_override in player_type_overrides:
+                card_kwargs = kwargs.copy()
 
-                # Inject sprint speed if available
-                if sprint_speed_data and normalized_player_stats.type == PlayerType.HITTER:
-                    player_sprint_speed_data = next((s for s in sprint_speed_data if s.player_id == player_data.id), None)
-                    if player_sprint_speed_data:
-                        normalized_player_stats.sprint_speed = player_sprint_speed_data.sprint_speed
+                # Remove potentially conflicting attributes from kwargs
+                card_kwargs.pop('name', None)
+                card_kwargs.pop('player_type_override', None)
+                
+                if set:
+                    card_kwargs['set'] = set
+                try:
+                    stats_period_type = card_kwargs.get('stats_period_type', 'REGULAR')
+                    stats_period = StatsPeriod(
+                        type=stats_period_type,
+                        player_type_override=player_type_override.value if player_type_override else None,
+                        **card_kwargs
+                    )
+                    normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(
+                        player=player_data,
+                        stats_period=stats_period,
+                    )
 
-                # Inject defensive stats if available
-                position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list if pos_stats.get('xMLBAMID', None) == player_data.id]
-                if position_stats and normalized_player_stats.type == PlayerType.HITTER:
-                    normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+                    # Inject sprint speed if available
+                    if sprint_speed_data and normalized_player_stats.type == PlayerType.HITTER:
+                        player_sprint_speed_data = next((s for s in sprint_speed_data if s.player_id == player_data.id), None)
+                        if player_sprint_speed_data:
+                            normalized_player_stats.sprint_speed = player_sprint_speed_data.sprint_speed
 
-                if normalized_player_stats.is_missing_stats:
-                    print(f"Skipping card generation for {player_data.full_name} ({normalized_player_stats.type}) in {years[0]} due to missing stats.")
+                    # Inject defensive stats if available
+                    position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list if pos_stats.get('xMLBAMID', None) == player_data.id]
+                    if position_stats and normalized_player_stats.type == PlayerType.HITTER:
+                        normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+
+                    # Inject bref_id from pre-fetched lookup if enabled
+                    if inject_bref_ids and not normalized_player_stats.bref_id:
+                        normalized_player_stats.add_bref_id(mlb_id_to_bref.get(player_data.id))
+
+                    if normalized_player_stats.is_missing_stats:
+                        print(f"Skipping card generation for {player_data.full_name} ({normalized_player_stats.type.value}) in {years[0]} due to missing stats.")
+                        skip_player = True
+                        break
+
+                    card = ShowdownPlayerCard(
+                        name=player_data.full_name,
+                        stats_period=stats_period,
+                        stats=normalized_player_stats.as_dict(),
+                        image=ShowdownImage(**card_kwargs),
+                        **card_kwargs
+                    )
+                    final_data: dict[str, Any] = {
+                        "card": card if keep_as_py_objects else card.as_json(),
+                    }
+                    # Add normalized player stats in case we want to see the original stats
+                    # Used for workflows like storing cards to the database where we want to be able to query the original stats separately from the card data
+                    if keep_as_py_objects:
+                        final_data['normalized_player_stats'] = normalized_player_stats
+
+                    in_season_trends_data = generate_in_season_trends_for_player(
+                        actual_card=card,
+                        date_aggregation="week",
+                        include_day_over_day=True,
+                        name=player_data.full_name,
+                        **card_kwargs
+                    )
+                    if in_season_trends_data:
+                        final_data["in_season_trends"] = in_season_trends_data if keep_as_py_objects else in_season_trends_data.as_json()
+                        if keep_as_py_objects:
+                            card.points_change = in_season_trends_data.pts_change
+                        else:
+                            # If not keeping as py objects, we still want to inject the points_change into the card data for easy access, so we'll add it to the final_data dict
+                            final_data["card"]["points_change"] = in_season_trends_data.pts_change
+                    else:
+                        print(f"No in-season trends data for {player_data.full_name} in {years[0]}.")
+
+                    final_cards.append(final_data)
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    errors.append((player_data.full_name, str(e)))
                     continue
 
-                card = ShowdownPlayerCard(
-                    name=player_data.full_name,
-                    stats_period=stats_period,
-                    stats=normalized_player_stats.as_dict(),
-                    image=ShowdownImage(**kwargs),
-                    **kwargs
-                )
-                final_data: dict[str, Any] = {
-                    "card": card.as_json(),
-                }
 
-                in_season_trends_data = generate_in_season_trends_for_player(
-                    actual_card=card,
-                    date_aggregation="week",
-                    include_day_over_day=True,
-                    name=player_data.full_name,
-                    **kwargs
-                )
-                if in_season_trends_data:
-                    final_data["in_season_trends"] = in_season_trends_data.as_json()
-                else:
-                    print(f"No in-season trends data for {player_data.full_name} in {years[0]}.")
-
-                final_cards.append(final_data)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                continue
-
+    for error in errors:
+        print(f"Error generating card for {error[0]}: {error[1]}")
+        
     return final_cards

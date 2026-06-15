@@ -1,7 +1,7 @@
 
 from pprint import pprint
 from ..base_client import BaseMLBClient
-from ..models.leagues.league import League, SportEnum
+from ..models.leagues.league import League, SportEnum, LeagueEnum
 from ..models.leagues.standings import StandingsType, Standings
 from typing import Optional, List
 

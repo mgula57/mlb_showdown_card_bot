@@ -8,6 +8,7 @@ env.bak/
 venv.bak/
 env*
 pythonenv*
+.secrets
 
 # Distribution / packaging
 .Python

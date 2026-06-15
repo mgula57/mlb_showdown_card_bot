@@ -21,9 +21,12 @@
  * ```
  */
 
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { supabase } from '../../api/supabase';
 import type { User, Session } from '@supabase/supabase-js';
+import { getUserSettings, updateUserSettings, type UserSettingsDB } from '../../api/userSettings';
+
+export type { UserSettingsDB };
 
 /**
  * Authentication context interface
@@ -49,10 +52,22 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     /** Check if username is available */
     checkUsernameAvailability: (username: string) => Promise<boolean>;
-    /** Sign in with OAuth provider (Google, GitHub, etc.) */
-    signInWithProvider: (provider: 'google') => Promise<{ error: Error | null }>;
+    /** Check if an email is already registered */
+    checkEmailExists: (email: string) => Promise<boolean>;
+    /** Send a password reset email */
+    resetPassword: (email: string) => Promise<{ error: Error | null }>;
+    /** Update the current user's password (call from reset-password page after PASSWORD_RECOVERY event) */
+    updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+    /** Sign in with OAuth provider (Google, Discord, etc.) */
+    signInWithProvider: (provider: 'google' | 'discord') => Promise<{ error: Error | null }>;
     /** Refresh username check (call after username is set) */
     refreshProfile: () => Promise<void>;
+    /** Settings loaded from DB after login (null when logged out or not yet loaded) */
+    userSettings: UserSettingsDB | null;
+    /** True once the first settings fetch completes after login */
+    settingsLoaded: boolean;
+    /** Persist a partial settings update; optimistic local update + debounced API write */
+    syncSetting: (partial: Partial<UserSettingsDB>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,6 +106,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [needsUsername, setNeedsUsername] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
+    const [userSettings, setUserSettings] = useState<UserSettingsDB | null>(null);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+    const sessionRef = useRef<Session | null>(null);
+    const pendingSettings = useRef<Partial<UserSettingsDB>>({});
+    const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastSettingsFetch = useRef<number>(0);
+    const SETTINGS_REFETCH_MS = 5 * 60 * 1000;
 
     /**
      * Check if user has a username in their profile
@@ -103,7 +126,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 .eq('id', userId)
                 .single();
 
-            if (error || !data || !data.username) {
+            if (error) {
+                // PGRST116 = no row found — user genuinely has no profile/username
+                if (error.code === 'PGRST116') {
+                    setNeedsUsername(true);
+                    setUsername(null);
+                }
+                // any other error (network, timeout, auth) — leave needsUsername unchanged
+                return;
+            }
+
+            if (!data?.username) {
                 setNeedsUsername(true);
                 setUsername(null);
             } else {
@@ -111,9 +144,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setUsername(data.username);
             }
         } catch (err) {
+            // network-level failure — don't prompt for username
             console.error('Error checking profile:', err);
-            setNeedsUsername(true);
-            setUsername(null);
         }
     };
 
@@ -133,9 +165,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
             setSession(session);
-            setUser(session?.user ?? null);
+            setUser(prev => { const next = session?.user ?? null; return prev?.id === next?.id ? prev : next; });
             if (session?.user) {
                 checkUserProfile(session.user.id);
+                loadUserSettings(session.access_token);
             }
             setLoading(false);
         });
@@ -145,17 +178,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
             setSession(session);
-            setUser(session?.user ?? null);
+            setUser(prev => { const next = session?.user ?? null; return prev?.id === next?.id ? prev : next; });
             if (session?.user) {
                 checkUserProfile(session.user.id);
+                if (_event === 'SIGNED_IN' || Date.now() - lastSettingsFetch.current > SETTINGS_REFETCH_MS) {
+                    loadUserSettings(session.access_token);
+                }
             } else {
                 setNeedsUsername(false);
                 setUsername(null);
+                setUserSettings(null);
+                setSettingsLoaded(false);
             }
             setLoading(false);
         });
 
         return () => subscription.unsubscribe();
+    }, []);
+
+    // Keep sessionRef current so the syncSetting debounce callback always has a fresh token
+    useEffect(() => { sessionRef.current = session; }, [session]);
+
+    const loadUserSettings = async (accessToken: string) => {
+        lastSettingsFetch.current = Date.now();
+        const settings = await getUserSettings(accessToken);
+        setUserSettings(settings);
+        setSettingsLoaded(true);
+    };
+
+    const syncSetting = useCallback((partial: Partial<UserSettingsDB>) => {
+        setUserSettings(prev => prev ? { ...prev, ...partial } : { ...partial });
+        Object.assign(pendingSettings.current, partial);
+        if (syncTimeout.current) clearTimeout(syncTimeout.current);
+        syncTimeout.current = setTimeout(async () => {
+            const token = sessionRef.current?.access_token;
+            if (token && Object.keys(pendingSettings.current).length > 0) {
+                await updateUserSettings(token, { ...pendingSettings.current });
+            }
+            pendingSettings.current = {};
+        }, 1500);
     }, []);
 
     /**
@@ -203,7 +264,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     /**
      * Sign in with OAuth provider
      */
-    const signInWithProvider = async (provider: 'google') => {
+    const signInWithProvider = async (provider: 'google' | 'discord') => {
         try {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider,
@@ -234,6 +295,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     /**
+     * Check if an email address is already registered
+     */
+    const checkEmailExists = async (email: string): Promise<boolean> => {
+        try {
+            const { data, error } = await supabase.rpc('is_email_registered', {
+                email_to_check: email
+            });
+            if (error) throw error;
+            return data as boolean;
+        } catch (error) {
+            console.error('Error checking email:', error);
+            return false;
+        }
+    };
+
+    /**
      * Update username in profile
      */
     const updateUsername = async (newUsername: string) => {
@@ -259,19 +336,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    const updatePassword = async (newPassword: string) => {
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            return { error: error as Error | null };
+        } catch (error) {
+            return { error: error as Error };
+        }
+    };
+
+    const resetPassword = async (email: string) => {
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            });
+            return { error: error as Error | null };
+        } catch (error) {
+            return { error: error as Error };
+        }
+    };
+
     const value = {
         user,
         session,
         loading,
         needsUsername,
         username,
+        userSettings,
+        settingsLoaded,
+        syncSetting,
         signIn,
         signUp,
         signOut,
         signInWithProvider,
         checkUsernameAvailability,
+        checkEmailExists,
         updateUsername,
         refreshProfile,
+        resetPassword,
+        updatePassword,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

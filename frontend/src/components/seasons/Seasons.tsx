@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import * as Tabs from '@radix-ui/react-tabs';
@@ -103,7 +104,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         window.localStorage.setItem(key, value);
     };
 
+    const getTeamsCacheKey = (seasonId: string) => `${type}.seasons.teams.${seasonId}`;
+
     const { userShowdownSet } = useSiteSettings();
+    const { userSettings, settingsLoaded, syncSetting } = useAuth();
     const hasStaticSeasons = staticSeasons !== undefined;
     const hasStaticSports = staticSports !== undefined;
 
@@ -179,6 +183,17 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     });
     const [isTeamsNavOpen, setIsTeamsNavOpen] = useState<boolean>(true);
+
+    // Apply DB starred teams when user logs in (DB takes precedence for cross-device sync)
+    useEffect(() => {
+        if (!settingsLoaded || !userSettings?.starred_teams) return;
+        const dbStarred = userSettings.starred_teams as { mlb?: string[]; wbc?: string[] };
+        const typeKey = type as 'mlb' | 'wbc';
+        if (Array.isArray(dbStarred[typeKey]) && dbStarred[typeKey]!.length > 0) {
+            setStarredTeamKeys(dbStarred[typeKey]!);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [settingsLoaded]);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
     const pendingRequestsRef = useRef(0);
@@ -399,6 +414,28 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         isRunningLoadAllRef.current = true;
         beginLoading();
+
+        // Apply cached teams immediately so the list renders before network completes
+        const teamsCacheKey = getTeamsCacheKey(selectedSeason.season_id.toString());
+        const cachedTeamsRaw = getStoredValue(teamsCacheKey);
+        if (cachedTeamsRaw) {
+            try {
+                const cachedTeams = JSON.parse(cachedTeamsRaw) as Team[];
+                if (Array.isArray(cachedTeams) && cachedTeams.length > 0) {
+                    setTeams(cachedTeams);
+                    setSelectedTeam(prevTeam => {
+                        if (prevTeam && cachedTeams.some(t => `${t.id}-${t.season}` === `${prevTeam.id}-${prevTeam.season}`)) return prevTeam;
+                        return cachedTeams.sort((a, b) => {
+                            const aStarred = starredTeamKeys.includes(`${a.id}-${a.season}`);
+                            const bStarred = starredTeamKeys.includes(`${b.id}-${b.season}`);
+                            if (aStarred !== bStarred) return aStarred ? -1 : 1;
+                            return (a.abbreviation || "").localeCompare(b.abbreviation || "");
+                        })[0] ?? null;
+                    });
+                }
+            } catch { /* ignore malformed cache */ }
+        }
+
         try {
             // 1. Resolve sport (without waiting for state to settle)
             let resolvedSport: Sport | null = null;
@@ -491,6 +528,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             }
 
             allTeams.sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || ""));
+            setStoredValue(teamsCacheKey, JSON.stringify(allTeams));
             setTeams(allTeams);
             setSelectedTeam(prevTeam => {
                 if (prevTeam && allTeams.some(t => `${t.id}-${t.season}` === `${prevTeam.id}-${prevTeam.season}`)) {
@@ -611,6 +649,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.starredTeams, JSON.stringify(starredTeamKeys));
+        const currentStarred = (userSettings?.starred_teams ?? {}) as { mlb?: string[]; wbc?: string[] };
+        syncSetting({ starred_teams: { ...currentStarred, [type]: starredTeamKeys } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [starredTeamKeys]);
 
     useEffect(() => {
@@ -630,11 +671,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [activeTab]);
 
     useEffect(() => {
-        if (selectedTeam === null || selectedTeam.id === undefined) {
-            return;
-        }
+        if (activeTab !== "teams") return;
+        if (selectedTeam === null || selectedTeam.id === undefined) return;
         loadTeamRoster(selectedTeam);
-    }, [selectedTeam, userShowdownSet]);
+    }, [selectedTeam, userShowdownSet, activeTab]);
 
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const isSelectedTeamStarred = selectedTeamKey ? starredTeamKeys.includes(selectedTeamKey) : false;
@@ -834,7 +874,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     return (
         <div className="w-full bg-(--background-primary)">
-            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-3rem)] lg:overflow-hidden">
+            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
@@ -892,7 +932,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     )}
                                 </div>
 
-                                <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
+                                <div className="min-w-0 order-2 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
                                     <div className="lg:hidden mb-4 rounded-2xl space-y-4">
                                         <div className="space-y-2">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (

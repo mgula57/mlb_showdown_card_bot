@@ -41,6 +41,7 @@ import Home from "./components/Home";
 import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
 import Privacy from "./components/Privacy";
+import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -144,12 +145,19 @@ const AppContent = () => {
                 </div>
             )}
 
+            {/* Reset Password - shown when user arrives via password reset email */}
+            {mountedRoutes.has('/reset-password') && (
+                <div className={isActive('/reset-password') ? 'block' : 'hidden'}>
+                    <ResetPasswordPage />
+                </div>
+            )}
+
             {/* Seasons - Mount when first visited */}
             {mountedRoutes.has('/seasons') && (
                 <div className={isActive('/seasons') ? 'block' : 'hidden'}>
-                    <Seasons 
-                        type="mlb" 
-                        title="Seasons" 
+                    <Seasons
+                        type="mlb"
+                        title="Seasons"
                         subtitle="Browse season standings, teams, and players with Showdown context"
                         staticSports={[{ id: 1, name: 'MLB' }]}
                         staticSeasons={[
@@ -158,6 +166,7 @@ const AppContent = () => {
                     />
                 </div>
             )}
+
         </AppLayout>
     );
 };

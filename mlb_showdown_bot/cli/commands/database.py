@@ -9,6 +9,9 @@ from prettytable import PrettyTable
 from ...core.mlb_stats_api import MLBStatsAPI
 from ...core.mlb_stats_api.models.leagues.league import LeagueListEnum, LeagueEnum
 
+# Scripts
+from ...scripts.season.rosters import snapshot_rosters as _snapshot_rosters
+
 # Import business logic
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
 from ...core.database.classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord
@@ -415,28 +418,22 @@ def refresh_player_id_table(
     print("✅ player_id_master table refreshed.")
 
 
-@app.command("snapshot_active_rosters")
-def snapshot_active_rosters(
+@app.command("snapshot_rosters")
+def snapshot_rosters(
+    publish_to_database: bool = typer.Option(False, "--publish_to_database", "-db", help="Whether to publish the fetched roster data to the database"),
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
-    seasons: str = typer.Option(None, "--seasons", "-s", help="Which season(s) to include when fetching roster data, comma-separated (e.g. '2023,2024').")
+    seasons: str = typer.Option(None, "--seasons", "-s", help="Which season(s) to include when fetching roster data, comma-separated (e.g. '2023,2024')."),
+    generate_cards: bool = typer.Option(False, "--generate-cards", "-cards", help="Whether to generate and save cards for the fetched rosters."),
+    showdown_sets: str = typer.Option(None, "--showdown-sets", "-sets", help="Comma-separated list of showdown sets to generate cards for.")
 ):
-    """Fetch active roster data and snapshot in Postgres DB"""
-    from ...core.database.postgres_db import PostgresDB
-    is_production = env.lower() == "prod"
-
-    print("Fetching active roster data from MLB API...")
-    season_list = [int(season.strip()) for season in seasons.split(',')] if seasons else None
-    if season_list is None:
-        print("Required: Please specify at least one season using the --seasons option (e.g. --seasons 2023,2024)")
-        return
-    
-    active_rosters = _mlb_api.fetch_rosters_by_season(seasons=season_list, league_ids=[LeagueEnum.AL.value, LeagueEnum.NL.value])
-    print(f"Fetched active roster data for {len(active_rosters)} players.")
-
-    print("Snapshotting active roster data in Postgres DB...")
-    db = PostgresDB(is_archive=is_production)
-    db.store_rosters(active_rosters)
-    print("✅ Active rosters snapshot completed.")
+    showdown_sets = [s.strip() for s in showdown_sets.split(",")] if showdown_sets else None
+    _snapshot_rosters(
+        seasons=seasons,
+        publish_to_database=publish_to_database, 
+        env=env, 
+        generate_cards=generate_cards, 
+        showdown_sets=showdown_sets
+    )
 
 # -------------------------------
 # MARK: - HOME PAGE CONTENT
@@ -444,7 +441,7 @@ def snapshot_active_rosters(
 @app.command("spotlight")
 def publish_spotlight_cards(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
-    player_ids: str = typer.Option(..., "--player_ids", "-p", help="Comma-separated list of player IDs to spotlight."),
+    player_ids: str = typer.Option(..., "--player_ids", "-p", help="Comma-separated list of player IDs to spotlight. Ex: '1980-brettge01,1981-johndoe02'"),
     message: str = typer.Option("Featured by the MLB Showdown Bot team", "--message", "-m", help="Message or reason for spotlighting the cards.")
 ):
     """Publish spotlight cards to the database"""
@@ -481,6 +478,46 @@ def build_logging_tables(
     db = PostgresDB(is_archive=is_production)
     db.build_logging_tables()
     print("✅ Logging tables built.")
+
+@app.command("build_user_settings_table")
+def build_user_settings_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")
+):
+    """Build the user settings table in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building user settings table...")
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
+    db.build_user_settings_table()
+    print("✅ User settings table built.")
+
+@app.command("build_user_quick_filters_table")
+def build_user_quick_filters_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")
+):
+    """Build the user quick filters table in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building user quick filters table...")
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
+    db.build_user_quick_filters_table()
+    print("✅ User quick filters table built.")
+
+@app.command("build_season_stat_range_table")
+def build_season_stat_range_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    drop_existing: bool = typer.Option(False, "--drop_existing", "-drop", help="Drop existing table, full reload"),
+):
+    """Build the season stat range table in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building season stat range table...")
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
+    db.build_season_stat_range_table(drop_existing=drop_existing)
+    print("✅ Season stat range table built.")
 
 # Make database the default command
 @app.callback(invoke_without_command=True)

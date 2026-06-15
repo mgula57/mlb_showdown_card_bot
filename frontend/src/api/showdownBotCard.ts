@@ -59,15 +59,17 @@ type Primitive = string | number | boolean | File | null | undefined;
  * });
  * ```
  */
-export async function buildCustomCard(payload: Record<string, Primitive>): Promise<ShowdownBotCardAPIResponse> {
-    
+export async function buildCustomCard(payload: Record<string, Primitive>, token?: string): Promise<ShowdownBotCardAPIResponse> {
+
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
     // Detect file upload and use appropriate request format
     const hasFileUpload = payload.image_upload instanceof File;
-    
+
     if (hasFileUpload) {
         // Use FormData for file uploads
         const formData = new FormData();
-        
+
         // Add all non-null values to FormData
         Object.keys(payload).forEach(key => {
             const value = payload[key];
@@ -79,26 +81,28 @@ export async function buildCustomCard(payload: Record<string, Primitive>): Promi
                 }
             }
         });
-        
+
         const res = await fetch(`${API_BASE}/build_custom_card`, {
             method: "POST",
             // Let browser set Content-Type header for FormData (includes boundary)
+            headers: { ...authHeader },
             body: formData,
         });
-        
+
         if (!res.ok) {
             throw new Error(`Card build failed: ${res.status} ${res.statusText}`);
         }
         return res.json();
-        
+
     } else {
         // Use JSON for text-only requests (remove unused image fields)
         const { image_upload, image_source, ...cleanedData } = payload;
-        
+
         const res = await fetch(`${API_BASE}/build_custom_card`, {
             method: "POST",
             headers: {
                 'Content-Type': 'application/json',
+                ...authHeader,
             },
             body: JSON.stringify(cleanedData),
         });
@@ -137,11 +141,13 @@ export async function buildCustomCard(payload: Record<string, Primitive>): Promi
  * });
  * ```
  */
-export async function generateCardImage(card: ShowdownBotCardAPIResponse): Promise<ShowdownBotCardAPIResponse> {
+export async function generateCardImage(card: ShowdownBotCardAPIResponse, token?: string): Promise<ShowdownBotCardAPIResponse> {
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const res = await fetch(`${API_BASE}/build_image_for_card`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
+            ...authHeader,
         },
         body: JSON.stringify(card),
     });
@@ -196,6 +202,24 @@ export async function buildCardsFromIds(cardIds: string[], season: number | stri
 
     if (!res.ok) {
         throw new Error(`Fetch cards failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
+export async function fetchSeasonStatRanges(years: number | number[], playerType: 'HITTER' | 'PITCHER', pitcherRole?: 'SP' | 'RP'): Promise<any> {
+    const yearList = Array.isArray(years) ? years : [years];
+    const yearsParam = `season=${yearList.join(',')}`;
+    const roleParam = pitcherRole ? `&pitcher_role=${pitcherRole}` : '';
+    const res = await fetch(`${API_BASE}/stats/ranges?${yearsParam}&player_type=${playerType}${roleParam}`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch stat ranges failed: ${res.status} ${res.statusText}`);
     }
 
     return res.json();
@@ -337,6 +361,7 @@ export type GameBoxscoreTeam = {
  * including statistics, chart data, accuracy breakdowns, and visual metadata.
  */
 export type ShowdownBotCard = {
+
     /** Player's display name */
     name: string;
     
@@ -368,6 +393,13 @@ export type ShowdownBotCard = {
     
     /** Total point value for draft/gameplay */
     points: number;
+
+    /** Recent point value changes by time period */
+    points_change?: {
+        day?: number;
+        week?: number;
+        month?: number;
+    } | null;
     
     /** Innings pitched (pitchers only) */
     ip: number | null;
@@ -386,7 +418,10 @@ export type ShowdownBotCard = {
 
     // Positional information
     /** "HITTER" or "PITCHER" */
-    player_type: string;
+    player_type: "Hitter" | "Pitcher";
+
+    /** Pitcher role: 'starting_pitcher' | 'relief_pitcher', or 'position_player' for hitters */
+    player_sub_type?: 'starting_pitcher' | 'relief_pitcher' | 'position_player';
     
     /** Formatted positions with defensive ratings */
     positions_and_defense_string: string;
@@ -405,6 +440,7 @@ export type ShowdownBotCard = {
     real_vs_projected_stats: RealVsProjectedStat[];
     
     /** Detailed accuracy analysis by command/outs combination */
+    command_out_accuracies?: Record<string, number>;
     command_out_accuracy_breakdowns: Record<string, Record<string, ChartAccuracyCategoryBreakdown>>;
     
     /** Point value calculation breakdown */
@@ -485,6 +521,10 @@ export type ShowdownBotCardImage = {
 
     /** Set number within the expansion */
     set_number?: number | null;
+
+    /** Supabase storage path for the card image */
+    storage_path?: string | null;
+    thumbnail_storage_path?: string | null;
 };
 
 // =============================================================================
@@ -499,6 +539,7 @@ export type StatsPeriod = {
 
     /** Year or range of years */
     year: string;
+    year_list?: number[] | null;
 
     /** Summary of the stats period */
     display_text?: string | null;
@@ -533,8 +574,14 @@ export type ShowdownBotCardChart = {
     /** Probability values for each outcome type */
     values: Record<string, number>;
 
+    /** Results dict maps dice roll number to outcome */
+    results?: Record<number, string>;
+
     /** Opponent's chart data (for accuracy calculations) */
     opponent?: ShowdownBotCardChart;
+
+    /** Set */
+    set: string;
 };
 
 // =============================================================================
@@ -656,6 +703,9 @@ export type ChartAccuracyCategoryBreakdown = {
     
     /** Accuracy percentage (0-100) */
     accuracy: number;
+
+    /** Weighted accuracy percentage (0-100) */
+    weighted_accuracy?: number | null;
     
     /** Actual player value */
     actual: number;

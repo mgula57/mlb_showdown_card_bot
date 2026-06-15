@@ -2,7 +2,7 @@
 
 from .clients.teams_client import TeamsClient, Team, Roster, RosterTypeEnum
 from .clients.people_client import PeopleClient
-from .clients.leagues_client import LeaguesClient, Standings
+from .clients.leagues_client import LeaguesClient, Standings, LeagueEnum
 from .clients.seasons_client import SeasonsClient
 from .clients.sports_client import SportsClient, SportEnum
 from .clients.games_client import GamesClient, Schedule
@@ -147,12 +147,17 @@ class MLBStatsAPI:
         all_players = self.fetch_rosters_by_season(seasons=wbc_seasons, league_ids=[wbc_league.id])
         return all_players
 
-    def fetch_rosters_by_season(self, seasons: list[int] = None, league_ids: list[int] = None) -> list[dict]:
-        """Fetches all players who participated in the WBC for a given year"""
-        
-        # Get the WBC league
-        
+    def fetch_rosters_by_season(self, seasons: list[int] = None, league_ids: list[int] = None, roster_type: str = "active") -> list[dict]:
+        """Fetches all players for a season + league(s) for a given year"""
+                
         all_players: list[dict] = []
+
+        # PARSE ROSTER TYPE
+        try:
+            roster_type_enum = RosterTypeEnum(roster_type) if roster_type else RosterTypeEnum.ACTIVE
+        except ValueError:
+            print(f"Invalid roster type: {roster_type}. Defaulting to 'active'.")
+            roster_type_enum = RosterTypeEnum.ACTIVE
 
         season_progress: dict[int, dict[str, int | str]] = {
             season: {"teams": 0, "players_added": 0, "status": "PENDING", "teams_source": "-"}
@@ -242,7 +247,7 @@ class MLBStatsAPI:
             for team in teams:
                 last_source = None
                 try:
-                    roster = self.teams.get_team_roster(team_id=team.id, season=season, roster_type=RosterTypeEnum.ACTIVE)
+                    roster = self.teams.get_team_roster(team_id=team.id, season=season, roster_type=roster_type_enum)
                     players_added_for_team = 0
                     for player in roster.roster:
                         player_info = {
@@ -299,5 +304,6 @@ __all__ = [
     'RosterTypeEnum',
     'SportEnum',
     'Standings',
-    'Schedule'
+    'Schedule',
+    'LeagueEnum'
 ]

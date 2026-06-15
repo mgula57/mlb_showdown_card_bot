@@ -58,6 +58,7 @@ export type CardDatabaseRecord = {
     points: number;
     points_estimated: number;
     points_diff_estimated_vs_actual: number;
+    points_change?: number | null;
 
     // Team
     nationality: string;
@@ -441,15 +442,19 @@ export type CustomCardLogRecord = CardDatabaseRecord & {
     created_on: string; // Timestamp of when the custom card was created
     error_for_user?: string | null; // Error message if card creation failed
     user_inputs?: CustomCardFormState | null; // Original user inputs for the card creation, if available
+    storage_path?: string | null; // Supabase storage URL for the card image
+    img_url?: string | null; // Image URL (if available)
+    img_name?: string | null; // Local image file name
+    thumbnail_storage_path?: string | null; // Supabase storage path for thumbnail (200px wide)
 };
 
-export async function fetchCustomCardLogs(userId?: string): Promise<CustomCardLogRecord[]> {
+export async function fetchCustomCardLogs(userId?: string, limit?: number): Promise<CustomCardLogRecord[]> {
     const res = await fetch(`${API_BASE}/cards/customs/history`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ user_id: userId }),
+        body: JSON.stringify({ user_id: userId, limit: limit ?? 20 }),
     });
     if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
@@ -458,4 +463,65 @@ export async function fetchCustomCardLogs(userId?: string): Promise<CustomCardLo
     const data: CustomCardLogRecord[] = response.custom_card_history || [];
     console.log('Fetched custom card logs:', data);
     return data;
+}
+
+// =============================================================================
+// MARK: - CARD COMPS
+// =============================================================================
+
+export type WotcCompCard = {
+    id: string;
+    name: string;
+    year: string;
+    team: string;
+    showdown_set: string;
+    command: number;
+    outs: number;
+    ip: number | null;
+    speed: number | null;
+    speed_letter: string | null;
+    hand: string | null;
+    points: number;
+    is_pitcher: boolean;
+    positions_and_defense: Record<string, number>;
+    positions_and_defense_string: string | null;
+    positions_list: string[];
+    player_type: string;
+    points_estimated: number | null;
+    points_diff_estimated_vs_actual: number | null;
+    is_errata: boolean | null;
+    notes: string | null;
+    icons_list: string[] | null;
+    awards_list: string[] | null;
+    color_primary: string | null;
+    color_secondary: string | null;
+    edition: string | null;
+    expansion: string | null;
+    set_number: string | null;
+    stat_highlights_list: string[] | null;
+    chart_ranges: Record<string, string> | null;
+    chart_values: Record<string, number>;
+    similarity_score: number;
+};
+
+export async function fetchCardComps(payload: {
+    showdown_set: string;
+    player_type: string;
+    positions_list: string[];
+    command: number;
+    outs: number;
+    ip: number | null;
+    speed: number | null;
+    positions_and_defense: Record<string, number>;
+    chart_values: Record<string, number>;
+    exclude_id?: string;
+    limit?: number;
+}): Promise<WotcCompCard[]> {
+    const res = await fetch(`${API_BASE}/cards/comps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) return [];
+    return (await res.json())?.comps ?? [];
 }

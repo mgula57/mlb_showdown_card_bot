@@ -22,14 +22,16 @@ interface PlayerSearchOption {
     year: number | string;
     /** Formatted year display (e.g., "2020-2024" for multi-year) */
     year_display?: string | null;
-    /** Baseball Reference player ID */
+    /** Baseball Reference player ID or MLB player ID */
     player_id: string;
     /** Whether player is in Hall of Fame */
     is_hof: boolean;
     /** Summary of major awards (MVP, Cy Young, etc.) */
     award_summary?: string | null;
-    /** Baseball WAR (Wins Above Replacement) value */
-    bwar: number;
+    /** Either bWAR or fWAR depending on the source */
+    war: number;
+    /** Type of WAR (bWAR or fWAR) */
+    war_type?: string | null;
     /** Team abbreviation for the season */
     team?: string | null;
     /** Override for player type (Hitter/Pitcher) if ambiguous */
@@ -465,7 +467,7 @@ export function PlayerSearchInput({
                                     <div className="text-xs text-gray-500">
                                         {option.player_type_override && <div className='font-bold'>{option.player_type_override.toUpperCase()}</div>}
                                         {option.award_summary && <div>Awards: {option.award_summary}</div>}
-                                        {option.bwar !== undefined && option.bwar !== null && <div>bWAR: {option.bwar.toFixed(1)}</div>}
+                                        {option.war !== undefined && option.war !== null && <div>{option.war_type}: {option.war.toFixed(1)}</div>}
                                     </div>
                                 </div>
                             </div>

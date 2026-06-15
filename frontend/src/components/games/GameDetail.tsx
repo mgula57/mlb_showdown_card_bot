@@ -17,7 +17,7 @@ import {
 } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import CardCommand from "../cards/card_elements/CardCommand";
-import { CardItemFromCard } from "../cards/CardItem";
+import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { getContrastColor } from "../shared/Color";
 import {
@@ -50,7 +50,12 @@ const cardDefenseForPosition = (card: ShowdownBotCard | undefined, position: str
     if (!card) return null;
     if (!position) return null;
     if (position === "DH") return null; // DH has no defensive value
-    
+
+    // Remove PH- prefix if present, since Showdown cards use the same defensive ratings for PH and regular players
+    if (position.startsWith("PH-")) {
+        position = position.substring(3);
+    }
+
     // Check for exact position match first
     const exactMatch = card.positions_and_defense[position];
     if (exactMatch != null) return exactMatch;
@@ -632,7 +637,7 @@ function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap,
                 </div>
 
                 {/* Center: Count + Diamond + Outs */}
-                <div className="flex flex-row md:flex-col items-center justify-center gap-1.5 px-2 shrink-0 py-2 space-x-4 md:space-x-0">
+                <div className="flex flex-row sm:flex-col items-center justify-center gap-1.5 px-2 shrink-0 py-2 space-x-4 sm:space-x-0">
                     {linescore.balls != null && linescore.strikes != null ? (
                         <div className="space-y-1 items-center">
                             <div className="text-[10px] uppercase text-(--secondary) tracking-wide">Count</div>
@@ -866,11 +871,12 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
         ? sortedBatters.filter((b) => b.is_in_lineup).reduce(
             (acc, b) => {
                 const card = cardMap[cardKey(b.id, 'batting')]?.card ?? undefined;
-                const val = cardDefenseForPosition(card, b.position ?? null);
+                const pos = b.position.replaceAll('PH-', '');
+                const val = cardDefenseForPosition(card, pos ?? null);
                 if (val == null) return acc;
-                if (b.position === 'C')                  acc.catcher += val;
-                else if (INFIELD.has(b.position ?? ''))  acc.infield += val;
-                else if (OUTFIELD.has(b.position ?? '')) acc.outfield += val;
+                if (pos === 'C')                  acc.catcher += val;
+                else if (INFIELD.has(pos ?? ''))  acc.infield += val;
+                else if (OUTFIELD.has(pos ?? '')) acc.outfield += val;
                 return acc;
             },
             { infield: 0, outfield: 0, catcher: 0 }
@@ -910,7 +916,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
                             <th className="px-2 py-2 text-right">H</th>
                             <th className="px-2 py-2 text-right">RBI</th>
                             <th className="px-2 py-2 text-right">BB</th>
-                            <th className="px-2 py-2 text-right">K</th>
+                            <th className="px-2 py-2 text-right">HR</th>
                             <th className="px-2 py-2 text-right">AVG</th>
                             <th className="px-2 py-2 text-right pr-3">OPS</th>
                         </tr>
@@ -933,7 +939,7 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
                             <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.hits}</td>
                             <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.rbi}</td>
                             <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.strike_outs}</td>
+                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.home_runs}</td>
                             <td className="px-2 py-2 text-right text-(--primary)" />
                             <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
                         </tr>
@@ -944,8 +950,20 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
     );
 }
 
+function useIsSmallScreen() {
+    const [isSmall, setIsSmall] = useState(() => window.matchMedia("(max-width: 639px)").matches);
+    useEffect(() => {
+        const mq = window.matchMedia("(max-width: 639px)");
+        const handler = (e: MediaQueryListEvent) => setIsSmall(e.matches);
+        mq.addEventListener("change", handler);
+        return () => mq.removeEventListener("change", handler);
+    }, []);
+    return isSmall;
+}
+
 function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
+    const isSmallScreen = useIsSmallScreen();
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
         onOpenChange: setIsOpen,
@@ -986,10 +1004,10 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
             <td className={`px-2 py-1.5 text-right font-semibold ${hasHit ? 'text-(--primary)' : 'text-(--secondary)'}`}>{batter.stats.hits}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.rbi}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.strike_outs}</td>
+            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.home_runs}</td>
             <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
-            {isOpen && card && !isShowingModal && (
+            {isOpen && card && !isShowingModal && !isSmallScreen && (
                 <FloatingPortal>
                     <div
                         ref={refs.setFloating}
@@ -1085,8 +1103,9 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, i
 }
 
 function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { pitcher: BoxscorePitcher; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
-    
+
     const [isOpen, setIsOpen] = useState(false);
+    const isSmallScreen = useIsSmallScreen();
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
         onOpenChange: setIsOpen,
@@ -1117,7 +1136,7 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoa
                 {pitcher.stats.pitches_thrown}-{pitcher.stats.strikes}
             </td>
             <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{pitcher.season_stats.era}</td>
-            {isOpen && card && !isShowingModal && (
+            {isOpen && card && !isShowingModal && !isSmallScreen && (
                 <FloatingPortal>
                     <div
                         ref={refs.setFloating}
@@ -1130,28 +1149,6 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoa
                 </FloatingPortal>
             )}
         </tr>
-    );
-}
-
-
-function CardItemSkeleton({ className }: { className?: string }) {
-    return (
-        <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-xl border border-(--divider) animate-pulse`}>
-            <div className="flex flex-row gap-2 items-center">
-                <div className="w-9 h-9 rounded-full bg-(--background-quaternary) shrink-0" />
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                    <div className="h-3 w-20 rounded bg-(--background-quaternary)" />
-                    <div className="h-2.5 w-14 rounded bg-(--background-quaternary)" />
-                </div>
-            </div>
-            <div className="h-5 w-full rounded bg-(--background-quaternary)" />
-            <div className="h-2.5 w-full rounded bg-(--background-quaternary)" />
-            <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-(--background-secondary)/60 backdrop-blur-[1px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:300ms]" />
-            </div>
-        </div>
     );
 }
 

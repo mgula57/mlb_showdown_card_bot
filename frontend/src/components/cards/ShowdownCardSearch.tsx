@@ -24,7 +24,8 @@ import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
-    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical,
+    FaChartLine
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -41,8 +42,12 @@ import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 
 import { TeamHierarchy } from "./TeamHierarchy";
+import SortButton from "./SortButton";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
+import { QuickFiltersDropdown } from './QuickFiltersDropdown';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * Props for the ShowdownCardSearch component
@@ -325,9 +330,18 @@ const CHART_VALUES_SORT_OPTIONS: SelectOption[] = [
 ];
 
 /**
+ * Trend-based sort options (available for Bot source)
+ * 
+ */
+const TREND_SORT_OPTIONS: SelectOption[] = [
+    { value: 'points_change', label: 'Points Trend', icon: <FaChartLine /> },
+];
+
+/**
  * Real stats sort options (BOT only)
  */
 const REAL_STATS_SORT_OPTIONS: SelectOption[] = [
+
     { value: 'real_stats_pa', label: 'Real Stats (PA)', icon: <FaHashtag /> },
     { value: 'real_stats_ip', label: 'Real Stats (IP)', icon: <FaHashtag /> },
     { value: 'real_stats_G', label: 'Real Stats (G)', icon: <FaHashtag /> },
@@ -378,6 +392,7 @@ const getSortOptions = (source: CardSource): SelectOption[] => {
         case CardSource.BOT:
             return [
                 ...baseOptions,
+                ...TREND_SORT_OPTIONS,
                 ...REAL_STATS_SORT_OPTIONS,
             ];
         case CardSource.WOTC:
@@ -478,6 +493,32 @@ const saveFilters = (filters: FilterSelections, source: CardSource, disableLocal
 const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSelections> = {}, disableLocalStorage = false): FilterSelections =>
     loadSavedFilters(source, defaultFilters, disableLocalStorage) ?? ({ ...getDefaultFilterSelections(source), ...defaultFilters });
 
+// =============================================================================
+// MARK: - QUICK FILTER PRESETS
+// =============================================================================
+
+/**
+ * Hardcoded presets shown to all users regardless of login state.
+ * Keys must match FilterSelections exactly so they can be spread directly.
+ */
+const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filters: Partial<FilterSelections> }[]> = {
+    [CardSource.BOT]: [
+        { id: 'preset-current-season', name: 'Current Season', filters: { min_year: 2026, max_year: 2026, organization: ['MLB'] } },
+        { id: 'preset-mvp', name: 'MVP Winners', filters: { awards: ['MVP-1'], include_small_sample_size: [] } },
+        { id: 'preset-rookie-of-the-year', name: 'RoY Winners', filters: { awards: ['ROY-1'], include_small_sample_size: [] } },
+        { id: 'preset-cy-young', name: 'Cy Young Winners', filters: { awards: ['CYA-1'], include_small_sample_size: [] } },
+        { id: 'preset-hof', name: 'Hall of Famers', filters: { is_hof: ['true'], organization: [] } },
+    ],
+    [CardSource.WOTC]: [
+        { id: 'preset-00-01', name: '2000/2001 Sets', filters: { showdown_set: ['2000', '2001'] } },
+        { id: 'preset-02-03', name: '2002/2003 Sets', filters: { showdown_set: ['2002', '2003'] } },
+        { id: 'preset-04-05', name: '2004/2005 Sets', filters: { showdown_set: ['2004', '2005'] } },
+        { id: 'preset-cooperstown', name: 'Cooperstown Collection', filters: { edition: ['CC'] } },
+        { id: 'preset-super-season', name: 'Super Season', filters: { edition: ['SS'] } },
+    ],
+    [CardSource.WBC]: [],
+};
+
 // --------------------------------------------
 // MARK: - Component
 // --------------------------------------------
@@ -502,7 +543,7 @@ const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSel
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='24', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -537,6 +578,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
     // Global application state
     /** Current user's selected Showdown set */
     const { userShowdownSet } = useSiteSettings();
+    const { session } = useAuth();
 
     // Separate search from filters
     const [searchText, setSearchText] = useState('');
@@ -582,8 +624,67 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
     const selectedSortOption = sortOptions.find(option => option.value === filters.sort_by) || null;
     const selectedSortOptionForEditing = sortOptions.find(option => option.value === filtersForEditing.sort_by) || null;
 
+    const sortOptionGroups = useMemo(() => {
+        const groups: { label: string; options: SelectOption[] }[] = [];
+        if (source === CardSource.WOTC) {
+            groups.push({ label: 'WOTC', options: WOTC_SPECIFIC_SORT_OPTIONS });
+        }
+        groups.push(
+            { label: 'Basic', options: BASE_SORT_OPTIONS },
+            { label: 'Trends', options: TREND_SORT_OPTIONS },
+            { label: 'Defense', options: DEFENSE_SORT_OPTIONS },
+            { label: 'Chart Values', options: CHART_VALUES_SORT_OPTIONS },
+        );
+        if (source === CardSource.BOT) {
+            groups.push({ label: 'Real Stats', options: REAL_STATS_SORT_OPTIONS });
+        }
+        return groups;
+    }, [source]);
+
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
+    const sidebarContainerRef = useRef<HTMLDivElement>(null);
+
+    // Sidebar resize
+    const [sidebarWidth, setSidebarWidth] = useState(384); // matches w-96
+    const isResizing = useRef(false);
+
+    const handleSidebarResizeStart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        isResizing.current = true;
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+
+        const onMouseMove = (ev: MouseEvent) => {
+            if (!isResizing.current) return;
+            const newWidth = Math.min(Math.max(startWidth + (startX - ev.clientX), 280), 720);
+            setSidebarWidth(newWidth);
+        };
+        const onMouseUp = () => {
+            isResizing.current = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    // Auto-close sidebar when container shrinks below @2xl (672px)
+    useEffect(() => {
+        const el = sidebarContainerRef.current;
+        if (!el) return;
+        const observer = new ResizeObserver(([entry]) => {
+            if (entry.contentRect.width < 672) {
+                setShowPlayerDetailSidebar(false);
+            }
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
@@ -829,6 +930,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
         setShowFiltersModal(true);
     }
 
+    const handleApplyQuickFilter = (rawFilters: Record<string, unknown>) => {
+        const next = applyLockedFilters({
+            ...getDefaultFilterSelections(source),
+            ...(rawFilters as Partial<FilterSelections>),
+        });
+        setFilters(next);
+        setFiltersForEditing(next);
+    };
+
     const hasFiltersChanged = JSON.stringify(filters) !== JSON.stringify(filtersForEditing);
 
     // Remove the getCardsData call from handleFilterApply
@@ -876,6 +986,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
             return `Small Sample Sizes?: ${finalValue}`;
+        }
+
+        if (key === 'is_hof') {
+            const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
+            const finalValue = finalValues.join(',');
+            return `HOF?: ${finalValue}`;
         }
 
         if (key === 'showdown_set') {
@@ -929,9 +1045,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
             `}
         >
 
+            <WhatsNewBanner
+                storageKey="exploreWhatsNew_v1"
+                features={[
+                    { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
+                    { icon: <FaChartLine />,   text: "See who's trending WoW in PTS" },
+                    { icon: <FaSort />,        text: 'Easier access to sorting options and direction' },
+                    { icon: <FaFilter />,      text: 'Save filter presets (login required)' },
+                ]}
+            />
+
             {/* Search Bar and Filters */}
-            <div className="sticky top-0 z-10 flex flex-col gap-2 w-full 
-                            bg-background-secondary/95 backdrop-blur p-3">
+            <div
+                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur p-3 transition-[width] duration-300 ease-in-out"
+                style={{ width: `calc(100% - ${showPlayerDetailSidebar ? sidebarWidth : 0}px)` }}
+            >
 
                 <div className="flex items-center space-x-2">
 
@@ -943,9 +1071,19 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
                             value={searchText || ''}
                             placeholder="Search for a Player..."
                             onChange={(value) => setSearchText(value || '')}
-                            className="w-full sm:w-1/3 font-bold"
+                            className="w-full @2xl:w-1/3 font-bold"
                             isClearable={true}
                             isTitleCase={true}
+                            showSearchIcon={true}
+                        />
+
+                        {/* Quick Filters */}
+                        <QuickFiltersDropdown
+                            source={source}
+                            defaultPresets={DEFAULT_QUICK_FILTERS[source]}
+                            currentFilters={filtersWithoutSorting as Record<string, unknown>}
+                            onApply={handleApplyQuickFilter}
+                            token={session?.access_token ?? null}
                         />
 
                         {/* Filters */}
@@ -953,12 +1091,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
                             onClick={handleOpenFilters}
                             className="
                                 px-3 h-11
-                                rounded-xl bg-(--background-secondary) border-2 border-form-element 
+                                rounded-xl bg-(--background-secondary) border-2 border-form-element
                                 flex items-center gap-2
                                 hover:bg-(--background-secondary-hover)
                             ">
                             <FaFilter className="text-primary" />
-                            <span className="hidden sm:inline">Filter</span>
+                            <span className="hidden @2xl:inline">Filter</span>
                         </button>
                     </div>
                     
@@ -969,7 +1107,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
                         className={`
                             items-center gap-2
                             hover:bg-(--background-secondary-hover)
-                            hidden lg:flex
+                            ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
                         `}>
                         <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
                         <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
@@ -982,21 +1120,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
 
                     <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
                         {/* Sorting Summary */}
-                        {selectedSortOption && (
-                            <button
-                                className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
-                                disabled={isFilterLocked('sort_direction')}
-                                onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
-                            >
-                                <div className="flex flex-row gap-1 items-center">
-                                    Sort:
-                                    {selectedSortOption.icon && <span className="text-primary">{selectedSortOption.icon}</span>}
-                                    <span>
-                                        {selectedSortOption.label || "N/A"} {filters.sort_direction === 'asc' ? '↑' : '↓'}
-                                    </span>
-                                </div>
-                            </button>
-                        )}
+                        <SortButton
+                            selectedOption={selectedSortOption}
+                            sortDirection={filters.sort_direction ?? 'desc'}
+                            sortOptionGroups={sortOptionGroups}
+                            onSortByChange={(value) => setFilters(prev => ({ ...prev, sort_by: value }))}
+                            onSortDirectionChange={(dir) => setFilters(prev => ({ ...prev, sort_direction: dir }))}
+                            disableSortBy={isFilterLocked('sort_by')}
+                            disableSortDirection={isFilterLocked('sort_direction')}
+                        />
 
                         {/* Selected Filters */}
                         {/* The last element should add lots of padding */}
@@ -1020,7 +1152,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div className={`transition-all duration-300 ease-in-out ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}`}>
+                        <div>
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}
@@ -1029,17 +1161,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
             </div>
 
             {/* Flex between main content and side menu */}
-            <div className="flex flex-1">
+            <div ref={sidebarContainerRef} className="@container flex flex-1">
 
                 {/* Main Content Area */}
-                <div 
+                <div
                     ref={cardScrollParentRef}
-                    className={`
-                        relative flex-1 min-w-0
-                        ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}
-                        transition-all duration-300 ease-in-out
-                        md:overflow-y-auto
-                    `}>
+                    className="relative flex-1 min-w-0 transition-all duration-300 ease-in-out md:overflow-y-auto"
+                    style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
+                >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
                         {/* Iterate through showdownCards and display each card */}
                         {showdownCards?.map((cardRecord, index) => (
@@ -1100,15 +1229,22 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div
-                    style={{ top: `calc(${verticalOffset} * 0.25rem)` }}
+                    style={{ top: `calc(${verticalOffset} * 0.25rem)`, width: sidebarWidth }}
                     className={`
-                    fixed right-0 bottom-0 w-96 z-30
+                    fixed right-0 bottom-0 z-30
                     bg-primary border-l-2 border-form-element
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
-                    hidden lg:block
+                    hidden @2xl:block
                     shadow-xl
                 `}>
+                    {/* Drag-to-resize handle */}
+                    <div
+                        onMouseDown={handleSidebarResizeStart}
+                        className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize flex items-center justify-center z-10 group"
+                    >
+                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-tertiary transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-md`} />
+                    </div>
 
                     {/* Sidebar Content */}
                     <div className="h-full flex flex-col">

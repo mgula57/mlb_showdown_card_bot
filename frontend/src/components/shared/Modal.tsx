@@ -198,7 +198,7 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
                         <h2 className="text-xl font-semibold text-(--text-primary)">
                             {title}
                         </h2>
-                        {closeButton()}
+                        {!disableCloseButton && closeButton()}
                     </div>
                 ) : (
                     !disableCloseButton &&

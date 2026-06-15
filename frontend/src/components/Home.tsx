@@ -1,16 +1,23 @@
 import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
-    FaUsers, FaFire, FaDiceD20, FaStar
+    FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
+    FaHammer, FaCompass, FaCalendar, FaUser, FaImages,
+    FaChartBar
 } from 'react-icons/fa';
+import { FaXmark, FaCloudArrowUp, FaArrowsRotate } from 'react-icons/fa6';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
 import { useSiteSettings } from './shared/SiteSettingsContext';
+import { useAuth } from './auth/AuthContext';
 import { fetchTodaysSchedule, fetchSeasons, fetchSeasonLeaders } from '../api/mlbAPI';
 import type { GameScheduled, Season, LeadersGroup } from '../api/mlbAPI';
 
 // Modal
 import { Modal } from './shared/Modal';
+import { LoginModal } from './auth/LoginModal';
+import { WhatsNewBanner } from './shared/WhatsNewBanner';
 
 // Create Card Sampler
 import { PlayerSearchInput } from './customs/PlayerSearchInput';
@@ -19,7 +26,7 @@ import type { PlayerSearchSelection } from './customs/PlayerSearchInput';
 // Card Components
 import { CardItemFromCard } from './cards/CardItem';
 import CardCommand from './cards/card_elements/CardCommand';
-import CardChart from './cards/card_elements/CardChart';
+import { CardChart } from './cards/card_elements/CardChart';
 import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
 import { CardDetail } from './cards/CardDetail';
 import { getReadableTextColor } from '../functions/colors';
@@ -28,6 +35,7 @@ import { getReadableTextColor } from '../functions/colors';
 import { fetchCardById, buildCardsFromIds } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
+import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
 
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
@@ -70,12 +78,23 @@ export default function Home() {
     const [spotlightCards, setSpotlightCards] = useState<SpotlightCardRecord[]>([]);
     const [cardOfTheDay, setCardOfTheDay] = useState<CardOfTheDayRecord | null>(null);
 
+    // Auth
+    const { user, session, loading: authLoading } = useAuth();
+
+    // What's New banner
+    const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
+    type RecentCardItem = { record: GalleryImageRecord; thumbUrl: string; fullUrl: string };
+    const [recentCards, setRecentCards] = useState<RecentCardItem[]>([]);
+    const [isLoadingRecentCards, setIsLoadingRecentCards] = useState<boolean>(false);
+    const [recentCardModal, setRecentCardModal] = useState<string | null>(null);
+
     // Theme & Settings
     const { isDark } = useTheme();
     const { userShowdownSet } = useSiteSettings();
 
     // Track if we've loaded settings from localStorage
     const hasLoadedSettings = useRef(false);
+    const lastFetchedUserId = useRef<string | null>(null);
 
     // Styling
     const gradientBlueBg = isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'
@@ -180,6 +199,37 @@ export default function Home() {
         return () => clearTimeout(timer);
     }, [userShowdownSet]);
 
+    useEffect(() => {
+        if (authLoading) return;
+        if (!user) { setRecentCards([]); lastFetchedUserId.current = null; return; }
+        if (user.id === lastFetchedUserId.current) return;
+        lastFetchedUserId.current = user.id;
+        const token = session?.access_token;
+        if (!token) return;
+        setIsLoadingRecentCards(true);
+        fetchUserGallery(token, 15).then(({ gallery }) => {
+            const seen = new Set<string>();
+            const items: RecentCardItem[] = [];
+            for (const r of gallery) {
+                const thumbUrl = r.thumbnail_public_url ?? r.public_url;
+                const fullUrl = r.public_url ?? r.thumbnail_public_url;
+                if (!thumbUrl || !fullUrl) continue;
+                const key = `${r.player_name}-${r.year}-${r.set_name}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                items.push({ record: r, thumbUrl, fullUrl });
+            }
+            setRecentCards(items);
+        }).catch(() => setRecentCards([])).finally(() => setIsLoadingRecentCards(false));
+    }, [user, authLoading]);
+
+    useEffect(() => {
+        if (!recentCardModal) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setRecentCardModal(null); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [recentCardModal]);
+
     const refreshPlayerTrends = () => {
         setIsRefreshingTrends(true);
         // Fetch card of the day
@@ -251,9 +301,49 @@ export default function Home() {
                 pt-8
             `}>
 
+            {/* What's New Banner */}
+            <WhatsNewBanner
+                storageKey="featureBanner_home_v1_dismissed"
+                features={[
+                    { icon: <FaUser />,         text: 'User accounts are now live!' },
+                    { icon: <FaCloudArrowUp />, text: 'Store your card creations' },
+                    { icon: <FaArrowsRotate />, text: 'Sync settings across devices' },
+                    { icon: <FaImages />,       text: 'Gallery to browse past builds' },
+                    { icon: <FaChartBar/>,      text: 'Redesigned breakdowns in Card Builder'},
+                    { icon: <FaCompass />,      text: '2026 cards in Explore' },
+                ]}
+                onLoginClick={() => setShowBannerLoginModal(true)}
+                textSize="sm"
+            />
+            {showBannerLoginModal && (
+                <LoginModal onClose={() => setShowBannerLoginModal(false)} />
+            )}
+
+            {/* Quick Nav */}
+            <div className="max-w-7xl mx-auto w-full py-4 block sm:hidden">
+                <div className="grid grid-cols-3 gap-3">
+                    {([
+                        { label: 'Card Builder', desc: 'Build and customize your own cards', Icon: FaHammer,   to: '/customs', iconColor: 'text-red-500' },
+                        { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
+                        { label: 'Seasons',       desc: 'Follow the 2026 season live',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500' },
+                    ] as const).map(({ label, desc, Icon, to, iconColor }) => (
+                        <Link
+                            key={to}
+                            to={to}
+                            className={`relative overflow-hidden rounded-2xl p-4 flex flex-col gap-1 shadow-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-neutral-900 border-neutral-700 hover:bg-neutral-800' : 'bg-white border-neutral-200 hover:bg-neutral-50'}`}
+                        >
+                            <Icon className={`absolute -bottom-2 -right-2 text-7xl opacity-5`} />
+                            <Icon className={`text-3xl mb-1 ${iconColor}`} />
+                            <span className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{label}</span>
+                            <span className={`text-xs leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{desc}</span>
+                        </Link>
+                    ))}
+                </div>
+            </div>
+
             {/* Game Ticker */}
             <div
-                className={`rounded-2xl border-2 overflow-hidden ${isDark ? 'bg-neutral-900/80 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
+                className={`rounded-2xl border-2 overflow-hidden max-w-7xl mx-auto ${isDark ? 'bg-neutral-900/80 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
             >
                 {/* Ticker header */}
                 <div
@@ -421,6 +511,7 @@ export default function Home() {
                                                     card={card}
                                                     className={`max-w-full w-full ${card ? 'cursor-pointer' : 'pointer-events-none'} ${!entry ? 'animate-pulse opacity-50' : ''}`}
                                                     onClick={card ? () => setSelectedModalCard(card) : undefined}
+                                                    ptsChange={card?.points_change?.week || undefined}
                                                 />
                                             </div>
                                         );
@@ -432,8 +523,84 @@ export default function Home() {
                 </div>
             </div>
 
+            {/* Your Recent Cards - logged in users only */}
+            {user && (isLoadingRecentCards || recentCards.length > 0) && (
+                <div className="max-w-7xl mx-auto border-y py-4 border-form-element">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold flex items-center gap-2">
+                            <FaClock className="text-primary" /> Your Recent Custom Cards
+                        </h2>
+                        <Link
+                            to="/customs"
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}
+                        >
+                            Build More <FaChevronRight />
+                        </Link>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                        {isLoadingRecentCards
+                            ? Array.from({ length: 8 }).map((_, i) => (
+                                <div key={i} className="shrink-0 w-32 animate-pulse">
+                                    <div
+                                        className={`w-full rounded-lg ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}
+                                        style={{ aspectRatio: '2.5 / 3.5' }}
+                                    />
+                                    <div className={`mt-1.5 h-3 w-3/4 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
+                                    <div className={`mt-1 h-2.5 w-1/2 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
+                                </div>
+                            ))
+                            : recentCards.map((item, index) => (
+                                <button
+                                    key={index}
+                                    className="shrink-0 w-40 text-left group/card cursor-zoom-in"
+                                    onClick={() => setRecentCardModal(item.fullUrl)}
+                                >
+                                    <div
+                                        className="w-full rounded-lg overflow-hidden bg-neutral-800 relative"
+                                        style={{ aspectRatio: '2.5 / 3.5' }}
+                                    >
+                                        <img
+                                            src={item.thumbUrl}
+                                            alt={`${item.record.player_name} card`}
+                                            loading="lazy"
+                                            className="w-full h-full object-center transition-transform duration-200 group-hover/card:scale-105"
+                                        />
+                                    </div>
+                                    <div className="mt-1.5 px-0.5">
+                                        <div className="text-xs font-semibold truncate">{item.record.player_name}</div>
+                                        <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{item.record.year}</div>
+                                    </div>
+                                </button>
+                            ))
+                        }
+                    </div>
+                </div>
+            )}
+
+            {/* Recent card lightbox */}
+            {recentCardModal && createPortal(
+                <div
+                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                    onClick={() => setRecentCardModal(null)}
+                >
+                    <button
+                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl"
+                        onClick={() => setRecentCardModal(null)}
+                    >
+                        <FaXmark />
+                    </button>
+                    <img
+                        src={recentCardModal}
+                        alt="Card full view"
+                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>,
+                document.body
+            )}
+
             {/* Hero Section */}
-            <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-10">
+            <div className="max-w-7xl mx-auto py-4 flex flex-col md:flex-row items-center justify-between gap-10">
 
                 {/* Left: Text and Actions */}
                 <div className="w-full md:w-1/2 3xl:flex-[0.6] flex flex-col gap-4 items-start">

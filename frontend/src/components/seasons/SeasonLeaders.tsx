@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { FaTrophy } from "react-icons/fa6";
 import { fetchSeasonLeaders, type LeadersGroup, type PlayerLeader } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { CardItemFromCard } from "../cards/CardItem";
+import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
 import { useTheme } from "../shared/SiteSettingsContext";
@@ -195,16 +195,20 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                 </div>
 
                 {/* Card */}
-                <CardItemFromCard
-                    card={card}
-                    className={[
-                        'max-w-full w-full',
-                        card ? 'cursor-pointer' : 'pointer-events-none',
-                        isPlaceholder ? 'animate-pulse opacity-40' : '',
-                        !card && isLoadingCards ? 'animate-pulse opacity-60' : '',
-                    ].join(' ')}
-                    onClick={card ? () => setSelectedModalCard(cardResponse!) : undefined}
-                />
+                {!card && isLoadingCards ? (
+                    <CardItemSkeleton className="max-w-full min-w-72" />
+                ) : (
+                    <CardItemFromCard
+                        card={card}
+                        className={[
+                            'max-w-full w-full',
+                            card ? 'cursor-pointer' : 'pointer-events-none',
+                            isPlaceholder ? 'animate-pulse opacity-40' : '',
+                            !card && isLoadingCards ? 'animate-pulse opacity-60' : '',
+                        ].join(' ')}
+                        onClick={card ? () => setSelectedModalCard(cardResponse!) : undefined}
+                    />
+                )}
             </div>
         );
     };

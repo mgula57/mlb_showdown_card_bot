@@ -48,6 +48,13 @@ GOOGLE_CREDENTIALS      # JSON string for Google service account (Drive image up
 FRONTEND_ORIGIN         # CORS allowed origin (default: http://localhost:5173)
 ```
 
+## Code Style Principles
+
+**DRY is a top priority.** Before adding new code, check whether existing abstractions already handle it. Duplication is a bug.
+
+- **Frontend (React/TypeScript):** Extract repeated JSX patterns into components. If the same visual structure or behavior appears more than once, it belongs in a component in `frontend/src/components/`. Prefer composing existing primitives (`FormDropdown`, `FormInput`, `FormSection`, `FormEnabler`) over inline repetition.
+- **Backend (Python):** Prefer classes over standalone functions for anything stateful or logically grouped. Use dataclasses, Pydantic models, or plain classes to encapsulate related data and behavior. Standalone utility functions are fine for pure transformations, but grouping via a class is preferred when there are multiple related operations.
+
 ## Architecture
 
 ### The card generation pipeline

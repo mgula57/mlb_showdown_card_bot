@@ -16,7 +16,7 @@
     --background-tertiary: #e8ebed;
     --background-quaternary: #dfdede;
     --divider: #e0e0e0;
-    --background-gradient: linear-gradient(to bottom right, rgb(216, 217, 220), rgb(255 255 255), rgb(226, 222, 222));
+    --background-gradient: linear-gradient(to bottom right, rgb(232, 232, 234), rgb(255 255 255), rgb(226, 222, 222));
 
     --table-header: #dbdbdb;
     --table-banding: #eeecec;
@@ -103,6 +103,10 @@
 
     .border-form-element {
         border-color: var(--divider);
+    }
+
+    .text-form-element {
+        color: var(--divider);
     }
 
     .font-showdown-set-italic {
@@ -209,6 +213,27 @@
 
 .slide-out {
     animation: slideOutToRight 0.3s ease-in forwards;
+}
+
+@keyframes card-glow-pulse {
+    0%, 100% {
+        box-shadow:
+            0 0 10px var(--card-glow-lo),
+            0 0 20px var(--card-glow-lo),
+            0 0 40px var(--card-glow-md),
+            0 0 80px var(--card-glow-lo);
+    }
+    50% {
+        box-shadow:
+            0 0 15px var(--card-glow-md),
+            0 0 35px var(--card-glow-md),
+            0 0 60px var(--card-glow-hi),
+            0 0 120px var(--card-glow-md);
+    }
+}
+
+.card-glow-pulse {
+    animation: card-glow-pulse 3s ease-in-out infinite;
 }
 
 body {

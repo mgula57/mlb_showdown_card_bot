@@ -33,7 +33,7 @@ type CardChartProps = {
  * />
  * ```
  */
-export default function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className }: CardChartProps) {
+export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className }: CardChartProps) {
     // Extract chart data with fallback to empty object
     const chartData = chartRanges || {};
     const showdownSetValue = showdownSet || '2001';
@@ -139,3 +139,65 @@ export default function CardChart({ chartRanges, showdownSet, primaryColor, seco
         </div>
     );
 };
+
+// ----------------------------
+// MARK: - Helper Functions
+// ----------------------------
+
+export function buildChartRangesFromValues(values: Record<string, number>, set: string, isPitcher: boolean): Record<string, string> {
+    const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
+    const OUTCOME_ORDER_2000 = ['SO', 'PU', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
+    const order = set === '2000' ? OUTCOME_ORDER_2000 : OUTCOME_ORDER;
+    const sorted = Object.entries(values).sort(([a], [b]) => {
+        const ia = order.indexOf(a.toUpperCase());
+        const ib = order.indexOf(b.toUpperCase());
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    const ranges: Record<string, string> = {};
+    const isExpandedSet = !['2000', '2001', 'CLASSIC'].includes(set);
+    const totalOuts: number = Object.entries(values).filter(([key, _]) => {
+        const lowerKey = key.toLowerCase();
+        return lowerKey.includes('so') || lowerKey.includes('gb') || lowerKey.includes('fb') || lowerKey.includes('pu');
+    }).reduce((sum, [_, count]) => sum + count, 0);
+
+    // Iterate through sorted outcomes and assign dice roll ranges based on their counts
+    let cursor = 1;
+    for (const [key, count] of sorted) {
+        if (count <= 0) continue;
+        if (isPitcher && key.toUpperCase() === '3B') continue; // Pitchers don't have 3B outcomes on their charts
+        if (cursor > 20) {
+            ranges[key] = '---';
+            continue;
+        }; // Just in case, to prevent infinite loops on bad data
+
+        // DEFINE THE END OF A CARD
+        let end = cursor + Math.floor(count + 0.53) - 1;
+        if (key === 'FB' && end > (totalOuts + 0.53)) {
+            // For FB outcomes, if the calculated end exceeds total outs, cap it at total outs to prevent overlap with positive outcomes
+            end = Math.round(totalOuts);
+        }
+
+        if (end < cursor) {
+            ranges[key] = '---';
+            continue;
+        }
+        if (end > 20) {
+            if (cursor === 20) {
+                ranges[key] = '20';
+            } else {
+                ranges[key] = `${cursor}-20`;
+            }
+            cursor = 21; // Move cursor past 20 to prevent further assignments
+            continue;
+        }
+        if (key == "HR" && end < 20) {
+            // HRs that don't end at 20 should show the full range to 20, since HRs are the best outcome and players will want to know if they can get them on a roll of 20
+            ranges[key] = isExpandedSet ? `${cursor}+` : `${cursor}-20`;
+            cursor = 21; // Move cursor past 20 to prevent further assignments
+            continue;
+        }
+        ranges[key] = cursor === end ? String(cursor) : `${cursor}-${end}`;
+        cursor = end + 1;
+    }
+    return ranges;
+}
