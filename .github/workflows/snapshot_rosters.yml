@@ -16,6 +16,7 @@ jobs:
       DATABASE_URL_ARCHIVE: ${{ secrets.DATABASE_URL_ARCHIVE }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
     steps:
       - uses: actions/checkout@v4

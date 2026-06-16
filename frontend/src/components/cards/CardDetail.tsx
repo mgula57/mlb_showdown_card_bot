@@ -52,6 +52,7 @@ type CardDetailProps = {
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
     context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail';
     parent?: string;
+    showdownSetForPlaceholder?: string; // Used to determine placeholder image when card image is not available
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
@@ -93,7 +94,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder }: CardDetailProps) {
 
     const { session } = useAuth();
 
@@ -322,7 +323,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     const mechSecondaryColor = ['NYM', 'SDP'].includes(team || '') ? rawPrimary : rawSecondary;
 
     const getBlankPlayerImageName = (): string => {
-        const setName = userShowdownSet.toLowerCase() || '2001';
+        const setName = (showdownSetForPlaceholder || userShowdownSet || '2001').toLowerCase();
         const appearance = isDark ? 'dark' : 'light';
         return `/images/blank_players/blankplayer-${setName}-${appearance}.png`;
     };
