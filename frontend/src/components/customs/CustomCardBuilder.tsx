@@ -1558,6 +1558,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             <div className={activePreviewTab === 'preview' ? 'block' : 'hidden'}>
                                 <CardDetail
                                     showdownBotCardData={showdownBotCardData}
+                                    showdownSetForPlaceholder={showdownSetOverride || undefined}
                                     isLoading={isProcessingCard}
                                 />
                             </div>
