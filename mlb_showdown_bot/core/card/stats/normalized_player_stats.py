@@ -905,7 +905,10 @@ class PlayerStatsNormalizer:
         )
         for split in standard_stat_splits or []:
             team = split.team
-            if team and team.abbreviation == primary_team_id:
+            if not team or not team.abbreviation:
+                continue
+            team_bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation)
+            if team_bref_id == primary_team_id:
                 if team.league and team.league.abbreviation:
                     return team.league.abbreviation
                 
