@@ -42,6 +42,7 @@ import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
 import Privacy from "./components/Privacy";
 import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
+import TeamBuilder from "./components/team_builder/TeamBuilder";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -77,6 +78,7 @@ const AppContent = () => {
     const normalizePath = (path: string) => {
         if (path === '/home') return '/';
         if (path === '/explore') return '/cards';
+        if (path.startsWith('/teams/')) return '/teams';
         return path;
     };
     
@@ -105,7 +107,7 @@ const AppContent = () => {
         if (path === '/cards') {
             return location.pathname === '/cards' || location.pathname === '/explore';
         }
-        return location.pathname === path;
+        return location.pathname === path || location.pathname.startsWith(path + '/');
     };
 
     return (
@@ -149,6 +151,13 @@ const AppContent = () => {
             {mountedRoutes.has('/reset-password') && (
                 <div className={isActive('/reset-password') ? 'block' : 'hidden'}>
                     <ResetPasswordPage />
+                </div>
+            )}
+
+            {/* Teams - Mount when first visited */}
+            {mountedRoutes.has('/teams') && (
+                <div className={isActive('/teams') ? 'block' : 'hidden'}>
+                    <TeamBuilder />
                 </div>
             )}
 

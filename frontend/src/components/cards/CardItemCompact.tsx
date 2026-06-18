@@ -5,13 +5,31 @@ import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
 
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export type CardItemActionButton = {
+    icon: React.ReactNode;
+    onClick: () => void;
+    /** aria-label for the action button */
+    label?: string;
+    bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-red-500")
+};
+
 type CardItemCompactProps = {
     card?: ShowdownBotCardCompact | null;
     className?: string;
     isSelected?: boolean;
     isLoading?: boolean;
     onClick?: () => void;
+    /** Optional action button shown in the top-right corner */
+    actionButton?: CardItemActionButton;
 };
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
 
 export const CardItemCompact = ({
     card,
@@ -19,10 +37,11 @@ export const CardItemCompact = ({
     isSelected,
     isLoading,
     onClick,
+    actionButton,
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
-    const containerRef = useRef<HTMLButtonElement | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const [hidePoints, setHidePoints] = useState(false);
     const [showExtraDetails, setShowExtraDetails] = useState(false);
 
@@ -39,58 +58,36 @@ export const CardItemCompact = ({
         color: getContrastColor(secondaryColor),
     };
 
-    const borderSettings = isSelected 
-        ? (isDark ? 'border-2' : 'border-2') 
+    const borderSettings = isSelected
+        ? (isDark ? 'border-2' : 'border-2')
         : (isDark ? 'border-2 border-white/10' : 'border-2 border-gray-200');
 
     const getLastName = (name?: string): string => {
-        if (!name) {
-            return 'Unknown Player';
-        }
-
+        if (!name) return 'Unknown Player';
         const trimmed = name.trim();
-        if (!trimmed) {
-            return 'Unknown Player';
-        }
-
+        if (!trimmed) return 'Unknown Player';
         const parts = trimmed.split(/\s+/);
-        if (parts.length === 1) {
-            return parts[0];
-        }
-
+        if (parts.length === 1) return parts[0];
         const last = parts[parts.length - 1].replace('.', '').toUpperCase();
         if (['JR', 'SR', 'II', 'III', 'IV', 'V'].includes(last) && parts.length > 1) {
             return `${parts[parts.length - 2]} ${parts[parts.length - 1]}`;
         }
-
         return parts[parts.length - 1];
     };
 
     const getFirstInitial = (name?: string): string => {
-        if (!name) {
-            return '';
-        }
-
+        if (!name) return '';
         const trimmed = name.trim();
-        if (!trimmed) {
-            return '';
-        }
-
-        const parts = trimmed.split(/\s+/);
-        if (parts.length === 1) {
-            return parts[0][0].toUpperCase();
-        }
-
-        return parts[0][0].toUpperCase();
+        if (!trimmed) return '';
+        return trimmed.split(/\s+/)[0][0].toUpperCase();
     };
 
     const displayName = `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
     useEffect(() => {
         const element = containerRef.current;
-        if (!element) {
-            return;
-        }
+        if (!element) return;
+
         const updateHidePoints = () => {
             const width = element.getBoundingClientRect().width || element.clientWidth;
             setHidePoints(width < 100);
@@ -100,7 +97,6 @@ export const CardItemCompact = ({
         updateHidePoints();
 
         const observers: ResizeObserver[] = [];
-
         if (typeof ResizeObserver !== 'undefined') {
             const elementObserver = new ResizeObserver(() => updateHidePoints());
             elementObserver.observe(element);
@@ -120,22 +116,24 @@ export const CardItemCompact = ({
         return () => {
             cancelAnimationFrame(rafId);
             window.removeEventListener('resize', updateHidePoints);
-            observers.forEach((observer) => observer.disconnect());
+            observers.forEach(o => o.disconnect());
         };
     }, []);
 
-
     return (
-        <button
+        <div
             ref={containerRef}
-            type="button"
+            role={onClick ? 'button' : undefined}
+            tabIndex={onClick ? 0 : undefined}
             onClick={onClick}
+            onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
             className={`
                 ${className || ''}
                 relative
                 w-full min-w-0
                 flex items-center gap-2
-                rounded-lg px-2 py-1.5 
+                rounded-lg px-2 py-1.5
+                bg-secondary
                 ${borderSettings}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
             `}
@@ -174,6 +172,25 @@ export const CardItemCompact = ({
                 </div>
             )}
 
+            {/* Optional action button — top-right corner */}
+            {actionButton && (
+                <button
+                    type="button"
+                    aria-label={actionButton.label}
+                    onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
+                    className="
+                        absolute top-0.5 right-0.5
+                        flex items-center justify-center
+                        w-5 h-5 rounded
+                        text-(--text-tertiary)
+                        hover:bg-(--background-quaternary) hover:text-(--text-primary)
+                        transition-colors
+                    "
+                >
+                    {actionButton.icon}
+                </button>
+            )}
+
             {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-(--background-secondary)/70 backdrop-blur-[1px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -181,18 +198,23 @@ export const CardItemCompact = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
             )}
-        </button>
+        </div>
     );
 };
+
+// =============================================================================
+// WRAPPER VARIANTS
+// =============================================================================
 
 type CardItemCompactFromCardProps = {
     card?: ShowdownBotCard | null;
     className?: string;
     isSelected?: boolean;
     onClick?: () => void;
+    actionButton?: CardItemActionButton;
 };
 
-export const CardItemCompactFromCard = ({ card, className, isSelected, onClick }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -220,6 +242,7 @@ export const CardItemCompactFromCard = ({ card, className, isSelected, onClick }
             className={className}
             isSelected={isSelected}
             onClick={onClick}
+            actionButton={actionButton}
         />
     );
 };
@@ -229,9 +252,10 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     className?: string;
     isSelected?: boolean;
     onClick?: () => void;
+    actionButton?: CardItemActionButton;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, onClick }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, onClick, actionButton }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -259,6 +283,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             className={className}
             isSelected={isSelected}
             onClick={onClick}
+            actionButton={actionButton}
         />
     );
 };

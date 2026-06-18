@@ -38,6 +38,7 @@ import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import type { SelectOption } from '../shared/CustomSelect';
 import { CardItemFromCardDatabaseRecord, CardItemFromCard } from "./CardItem";
+import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 
@@ -65,6 +66,22 @@ type ShowdownCardSearchProps = {
     defaultFilters?: Partial<FilterSelections>;
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
+    /**
+     * Compact mode: hides the WhatsNew banner and sidebar toggle, removes the
+     * fixed-height container so the component fills its parent. Use when
+     * embedding inside a panel or bottom sheet.
+     */
+    compact?: boolean;
+    /**
+     * Optional action button shown on each card. The `onClick` receives the
+     * card record so callers can act on it (e.g. add to team, open confirm modal).
+     */
+    actionButton?: {
+        icon: React.ReactNode;
+        label?: string;
+        bgColorClass?: string;
+        onClick: (card: CardDatabaseRecord) => void;
+    };
 };
 
 // =============================================================================
@@ -517,6 +534,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
         { id: 'preset-super-season', name: 'Super Season', filters: { edition: ['SS'] } },
     ],
     [CardSource.WBC]: [],
+    [CardSource.CUSTOM]: [],
 };
 
 // --------------------------------------------
@@ -543,7 +561,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false, compact = false, actionButton }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -872,9 +890,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
-        
-        const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
-        
+
+        const isLargeScreen = window.innerWidth >= 1000 && !compact; // 2xl breakpoint
+
         console.log("Card clicked:", card);
         if (card.id === selectedCard?.id) {
             // If clicking the same card, close the side menu (if applicable)
@@ -1045,7 +1063,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             `}
         >
 
-            <WhatsNewBanner
+            {!compact && <WhatsNewBanner
                 storageKey="exploreWhatsNew_v1"
                 features={[
                     { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
@@ -1053,7 +1071,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     { icon: <FaSort />,        text: 'Easier access to sorting options and direction' },
                     { icon: <FaFilter />,      text: 'Save filter presets (login required)' },
                 ]}
-            />
+            />}
 
             {/* Search Bar and Filters */}
             <div
@@ -1102,16 +1120,18 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     
 
                     {/* If lg screen, show open button for side menu */}
-                    <button
-                        onClick={() => setShowPlayerDetailSidebar(true)}
-                        className={`
-                            items-center gap-2
-                            hover:bg-(--background-secondary-hover)
-                            ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
-                        `}>
-                        <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
-                        <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
-                    </button>
+                    {!compact && (
+                        <button
+                            onClick={() => setShowPlayerDetailSidebar(true)}
+                            className={`
+                                items-center gap-2
+                                hover:bg-(--background-secondary-hover)
+                                ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
+                            `}>
+                            <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
+                            <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
+                        </button>
+                    )}
 
                 </div>
 
@@ -1171,36 +1191,43 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
                         {/* Iterate through showdownCards and display each card */}
-                        {showdownCards?.map((cardRecord, index) => (
-                            <div
-                                key={cardRecord.id}
-                                data-card-id={cardRecord.id}
-                                ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
-                            >
-                                {source === CardSource.WOTC && (
-                                    <CardItemFromCard
-                                        card={cardRecord.card_data}
-                                        onClick={() => handleRowClick(cardRecord)}
-                                        isSelected={selectedCard?.id === cardRecord.id}
-                                    />
-                                )}
-                                {source === CardSource.BOT && (
-                                    <CardItemFromCardDatabaseRecord
-                                        card={cardRecord}
-                                        onClick={() => handleRowClick(cardRecord)}
-                                        isSelected={selectedCard?.id === cardRecord.id}
-                                    />
-                                )}
-                                {source === CardSource.WBC && (
-                                    <CardItemFromCardDatabaseRecord
-                                        card={cardRecord}
-                                        onClick={() => handleRowClick(cardRecord)}
-                                        isSelected={selectedCard?.id === cardRecord.id}
-                                    />
-                                )}
-                            </div>
-
-                        ))}
+                        {showdownCards?.map((cardRecord, index) => {
+                            const resolvedAction: CardItemActionButton | undefined = actionButton
+                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, onClick: () => actionButton.onClick(cardRecord) }
+                                : undefined;
+                            return (
+                                <div
+                                    key={cardRecord.id}
+                                    data-card-id={cardRecord.id}
+                                    ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
+                                >
+                                    {source === CardSource.WOTC && (
+                                        <CardItemFromCard
+                                            card={cardRecord.card_data}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                        />
+                                    )}
+                                    {source === CardSource.BOT && (
+                                        <CardItemFromCardDatabaseRecord
+                                            card={cardRecord}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                        />
+                                    )}
+                                    {source === CardSource.WBC && (
+                                        <CardItemFromCardDatabaseRecord
+                                            card={cardRecord}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* No results found message */}

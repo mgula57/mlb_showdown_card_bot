@@ -3467,6 +3467,217 @@ class PostgresDB:
             )
             return cur.rowcount > 0
 
+# ------------------------------------------------------------------------
+# USER TEAMS
+# ------------------------------------------------------------------------
+
+    def build_user_teams_table(self) -> None:
+        """Create the user_teams table and indexes if they do not exist."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_teams (
+                    team_id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id              TEXT,
+                    name                 VARCHAR(255) NOT NULL,
+                    abbreviation         VARCHAR(10)  NOT NULL,
+                    primary_color        VARCHAR(50)  DEFAULT 'rgb(0,0,0)',
+                    secondary_color      VARCHAR(50)  DEFAULT 'rgb(255,255,255)',
+                    showdown_set         VARCHAR(20)  DEFAULT '2001',
+                    is_public            BOOLEAN      DEFAULT FALSE,
+                    source               VARCHAR(20)  DEFAULT 'user',
+                    pts_limit            INT,
+                    roster_size          INT          DEFAULT 25,
+                    min_bench            INT          DEFAULT 4,
+                    min_bullpen          INT          DEFAULT 5,
+                    bench_pts_multiplier FLOAT        DEFAULT 1.0,
+                    roster               JSONB        DEFAULT '[]',
+                    lineups              JSONB        DEFAULT '[]',
+                    rotation             JSONB        DEFAULT '[]',
+                    created_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_teams_user_id
+                    ON internal.user_teams (user_id);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_teams_public_source
+                    ON internal.user_teams (source)
+                    WHERE is_public = TRUE;
+            """)
+
+    def get_user_teams(self, user_id: str) -> list[dict]:
+        """Return all teams belonging to user_id, newest first."""
+        if not self.connection:
+            return []
+        query = """
+            SELECT team_id, user_id, name, abbreviation, primary_color, secondary_color,
+                   showdown_set, is_public, source,
+                   pts_limit, roster_size, min_bench, min_bullpen, bench_pts_multiplier,
+                   roster, lineups, rotation, created_at, updated_at
+            FROM internal.user_teams
+            WHERE user_id = %s
+            ORDER BY updated_at DESC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id,))
+            rows = cur.fetchall()
+            return [self._serialize_team_row(dict(r)) for r in rows]
+
+    def get_public_teams(self, source: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Return public teams, optionally filtered by source ('official', 'asg', 'user')."""
+        if not self.connection:
+            return []
+        conditions = ["is_public = TRUE"]
+        params: list = []
+        if source:
+            conditions.append("source = %s")
+            params.append(source)
+        where = " AND ".join(conditions)
+        query = f"""
+            SELECT team_id, user_id, name, abbreviation, primary_color, secondary_color,
+                   showdown_set, is_public, source,
+                   pts_limit, roster_size, min_bench, min_bullpen, bench_pts_multiplier,
+                   roster, lineups, rotation, created_at, updated_at
+            FROM internal.user_teams
+            WHERE {where}
+            ORDER BY source ASC, name ASC
+            LIMIT %s OFFSET %s
+        """
+        params += [limit, offset]
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            return [self._serialize_team_row(dict(r)) for r in rows]
+
+    def get_team(self, team_id: str, user_id: str | None = None) -> dict | None:
+        """Return a single team by team_id. Enforces ownership unless is_public or user_id is None."""
+        if not self.connection:
+            return None
+        query = """
+            SELECT team_id, user_id, name, abbreviation, primary_color, secondary_color,
+                   showdown_set, is_public, source,
+                   pts_limit, roster_size, min_bench, min_bullpen, bench_pts_multiplier,
+                   roster, lineups, rotation, created_at, updated_at
+            FROM internal.user_teams
+            WHERE team_id = %s
+              AND (is_public = TRUE OR user_id IS NULL OR user_id = %s)
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (team_id, user_id))
+            row = cur.fetchone()
+            return self._serialize_team_row(dict(row)) if row else None
+
+    def create_team(self, user_id: str | None, payload: dict) -> str:
+        """Insert a new team row and return the generated team_id UUID string."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        fields = self._team_payload_fields(payload)
+        cols = ', '.join(['user_id'] + list(fields.keys()))
+        placeholders = ', '.join(['%s'] * (1 + len(fields)))
+        values = [user_id] + [
+            extras.Json(v) if isinstance(v, (dict, list)) else v
+            for v in fields.values()
+        ]
+        query = f"""
+            INSERT INTO internal.user_teams ({cols})
+            VALUES ({placeholders})
+            RETURNING team_id
+        """
+        with self.connection.cursor() as cur:
+            cur.execute(query, values)
+            row = cur.fetchone()
+            return str(row[0])
+
+    def update_team(self, team_id: str, user_id: str, payload: dict) -> bool:
+        """Update an existing team. Only the owner may update. Returns True if a row was updated."""
+        if not self.connection:
+            return False
+        fields = self._team_payload_fields(payload)
+        if not fields:
+            return False
+        set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+        values = [
+            extras.Json(v) if isinstance(v, (dict, list)) else v
+            for v in fields.values()
+        ]
+        query = f"""
+            UPDATE internal.user_teams
+            SET {set_clause}, updated_at = NOW()
+            WHERE team_id = %s AND user_id = %s
+        """
+        with self.connection.cursor() as cur:
+            cur.execute(query, values + [team_id, user_id])
+            return cur.rowcount > 0
+
+    def delete_team(self, team_id: str, user_id: str) -> bool:
+        """Delete a team owned by user_id. Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
+                (team_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    def admin_upsert_team(self, payload: dict) -> str:
+        """Insert or update a team with no user_id ownership check (admin/CLI use only).
+        If team_id is present in payload, attempts UPDATE first, then INSERT on miss.
+        Returns team_id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        team_id = payload.get('team_id')
+        fields = self._team_payload_fields(payload)
+        if team_id:
+            set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+            values = [
+                extras.Json(v) if isinstance(v, (dict, list)) else v
+                for v in fields.values()
+            ]
+            with self.connection.cursor() as cur:
+                cur.execute(
+                    f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s",
+                    values + [team_id],
+                )
+                if cur.rowcount > 0:
+                    return team_id
+        cols = ', '.join(['user_id'] + list(fields.keys()))
+        placeholders = ', '.join(['%s'] * (1 + len(fields)))
+        values = [None] + [
+            extras.Json(v) if isinstance(v, (dict, list)) else v
+            for v in fields.values()
+        ]
+        with self.connection.cursor() as cur:
+            cur.execute(
+                f"INSERT INTO internal.user_teams ({cols}) VALUES ({placeholders}) RETURNING team_id",
+                values,
+            )
+            return str(cur.fetchone()[0])
+
+    @staticmethod
+    def _team_payload_fields(payload: dict) -> dict:
+        ALLOWED = {
+            'name', 'abbreviation', 'primary_color', 'secondary_color',
+            'showdown_set', 'is_public', 'source',
+            'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'bench_pts_multiplier',
+            'roster', 'lineups', 'rotation',
+        }
+        return {k: v for k, v in payload.items() if k in ALLOWED}
+
+    @staticmethod
+    def _serialize_team_row(row: dict) -> dict:
+        row['team_id'] = str(row['team_id'])
+        if row.get('created_at'):
+            row['created_at'] = row['created_at'].isoformat()
+        if row.get('updated_at'):
+            row['updated_at'] = row['updated_at'].isoformat()
+        return row
+
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""
 

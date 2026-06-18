@@ -69,7 +69,7 @@ export type CardDatabaseRecord = {
     color_secondary?: string | null;
 
     // Metadata
-    positions_and_defense: any; // JSON object
+    positions_and_defense: Record<string, any>; // JSON object
     positions_and_defense_string: string;
     positions_list: string[];
     ip?: number | null;
