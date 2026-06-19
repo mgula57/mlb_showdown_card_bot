@@ -1067,7 +1067,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         <div
             style={{ ['--sidebar-offset' as string]: `calc(${verticalOffset} * 0.25rem)` }}
             className={`
-                flex flex-col ${className}
+                relative flex flex-col ${className}
                 md:h-[calc(100vh-var(--sidebar-offset))]
                 md:supports-[height:100dvh]:h-[calc(100dvh-var(--sidebar-offset))]
                 md:overflow-y-auto
@@ -1317,10 +1317,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             {/* Add Loading Indicator in the middle of the screen */}
             {isLoading && (
                 <div className="
-                    fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-(--primary)/10 backdrop-blur 
+                    absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+                    bg-(--primary)/10 backdrop-blur
                     p-4 rounded-2xl
                     flex items-center space-x-2
+                    z-10
                 ">
                     {renderLoadingIndicator()}
                 </div>

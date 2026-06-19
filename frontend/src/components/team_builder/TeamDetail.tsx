@@ -7,17 +7,18 @@ import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
-
+import { getContrastColor } from "../shared/Color";
 import { FieldView } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
-import { FaSpinner, FaArrowLeft, FaPlus, FaXmark } from 'react-icons/fa6';
+import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompact } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
+import { ToastMessage } from '../shared/ToastMessage';
 
 type PendingSlot =
     | { kind: 'field'; position: string; current: LineupSlot | null }
@@ -84,9 +85,25 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [stale, setStale] = useState(false);
     const [draftSource, setDraftSource] = useState<CardSourceType>(CardSource.BOT);
+    const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(null);
+    const [draftToastExiting, setDraftToastExiting] = useState(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); }, [team]);
+
+    useEffect(() => {
+        if (!draftToast) return;
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => {
+            setDraftToastExiting(true);
+            toastTimerRef.current = setTimeout(() => {
+                setDraftToast(null);
+                setDraftToastExiting(false);
+            }, 300);
+        }, 2500);
+        return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
+    }, [draftToast]);
 
     // Stale check: on mount, compare local updated_at against server
     useEffect(() => {
@@ -209,6 +226,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             update({ lineups, roster });
         }
 
+        setDraftToast({ name: confirmCard.name, position });
         setConfirmCard(null);
         setPendingSlot(null);
     }
@@ -320,6 +338,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 <button type="button" onClick={onBack} className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors shrink-0 mt-0.5">
                     <FaArrowLeft />
                 </button>
+
+                {/* Team Header */}
                 <div className="flex-1 min-w-0">
                     {/* Name + total pts */}
                     <div className="flex items-baseline gap-2 min-w-0">
@@ -338,7 +358,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             { label: 'ROTATION', value: pointsBreakdown.rotation },
                             { label: 'BULLPEN', value: pointsBreakdown.bullpen },
                         ] as const).map(({ label, value }) => (
-                            <span key={label} className="text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color }}>
+                            <span key={label} className="text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastColor(team.secondary_color) }}>
                                 {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
                             </span>
                         ))}
@@ -471,6 +491,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </BottomSheet>
             )}
 
+            <ToastMessage
+                loadingStatus={draftToast ? {
+                    message: draftToast.name,
+                    subMessage: draftToast.position,
+                    icon: <FaCircleCheck />,
+                    backgroundColor: 'rgb(34, 197, 94)',
+                } : null}
+                isExiting={draftToastExiting}
+            />
+
             {/* Confirmation modal: choose which position to assign the picked card */}
             {confirmCard && (
                 <div
@@ -543,7 +573,7 @@ function PositionButton({ label, onClick }: { label: string; onClick: () => void
         <button
             type="button"
             onClick={onClick}
-            className="px-3 py-1.5 rounded-lg text-[12px] font-bold
+            className="px-3 py-2 rounded-lg text-[12px] font-bold
                 bg-(--background-secondary) border border-(--divider)
                 text-(--text-primary) hover:border-(--secondary) hover:text-(--secondary)
                 transition-colors"
