@@ -101,6 +101,36 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
                 type="number"
                 onChange={v => onChange({ bench_pts_multiplier: Number(v) || 1.0 })}
             />
+
+            {/* Allowed Sets */}
+            <div className="text-[11px] font-semibold text-(--text-secondary) uppercase tracking-wide pt-1">
+                Allowed Sets
+            </div>
+            <div className="flex flex-wrap gap-2">
+                {showdownSets.map(s => {
+                    const active = (team.allowed_sets ?? []).includes(s.value);
+                    return (
+                        <button
+                            key={s.value}
+                            type="button"
+                            onClick={() => {
+                                const current = team.allowed_sets ?? [];
+                                const next = active
+                                    ? current.filter(v => v !== s.value)
+                                    : [...current, s.value];
+                                onChange({ allowed_sets: next });
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors
+                                ${active
+                                    ? 'border-(--secondary) text-(--secondary) bg-(--secondary)/10'
+                                    : 'border-(--divider) text-(--text-secondary) hover:border-(--secondary)/50'
+                                }`}
+                        >
+                            {s.value}
+                        </button>
+                    );
+                })}
+            </div>
         </div>
     );
 }

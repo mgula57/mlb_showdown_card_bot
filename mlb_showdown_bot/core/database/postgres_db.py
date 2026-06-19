@@ -3478,7 +3478,7 @@ class PostgresDB:
             t.primary_color, t.secondary_color, t.showdown_set,
             t.is_public, t.source,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.bench_pts_multiplier,
-            t.lineups, t.rotation, t.created_at, t.updated_at,
+            t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -3586,6 +3586,10 @@ class PostgresDB:
                     END IF;
                 END $$;
             """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS allowed_sets TEXT[] DEFAULT '{}';
+            """)
 
     def get_user_teams(self, user_id: str) -> list[dict]:
         """Return all teams belonging to user_id, newest first."""
@@ -3644,8 +3648,8 @@ class PostgresDB:
         cols = ', '.join(['user_id'] + list(fields.keys()))
         placeholders = ', '.join(['%s'] * (1 + len(fields)))
         values = [user_id] + [
-            extras.Json(v) if isinstance(v, (dict, list)) else v
-            for v in fields.values()
+            PostgresDB._serialize_team_field(k, v)
+            for k, v in fields.items()
         ]
         with self.connection.cursor() as cur:
             cur.execute(
@@ -3668,8 +3672,8 @@ class PostgresDB:
             if fields:
                 set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
                 values = [
-                    extras.Json(v) if isinstance(v, (dict, list)) else v
-                    for v in fields.values()
+                    PostgresDB._serialize_team_field(k, v)
+                    for k, v in fields.items()
                 ]
                 cur.execute(
                     f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s AND user_id = %s",
@@ -3713,8 +3717,8 @@ class PostgresDB:
             if team_id:
                 set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
                 values = [
-                    extras.Json(v) if isinstance(v, (dict, list)) else v
-                    for v in fields.values()
+                    PostgresDB._serialize_team_field(k, v)
+                    for k, v in fields.items()
                 ]
                 cur.execute(
                     f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s",
@@ -3726,8 +3730,8 @@ class PostgresDB:
             cols = ', '.join(['user_id'] + list(fields.keys()))
             placeholders = ', '.join(['%s'] * (1 + len(fields)))
             values = [None] + [
-                extras.Json(v) if isinstance(v, (dict, list)) else v
-                for v in fields.values()
+                PostgresDB._serialize_team_field(k, v)
+                for k, v in fields.items()
             ]
             cur.execute(
                 f"INSERT INTO internal.user_teams ({cols}) VALUES ({placeholders}) RETURNING team_id",
@@ -3753,13 +3757,22 @@ class PostgresDB:
             VALUES %s
         """, batch)
 
+    _TEAM_JSONB_FIELDS = frozenset({'lineups', 'rotation'})
+
+    @staticmethod
+    def _serialize_team_field(key: str, value) -> object:
+        """Serialize a team payload value for psycopg2. JSONB fields get extras.Json; TEXT[] stays as a list."""
+        if key in PostgresDB._TEAM_JSONB_FIELDS and isinstance(value, (dict, list)):
+            return extras.Json(value)
+        return value
+
     @staticmethod
     def _team_payload_fields(payload: dict) -> dict:
         ALLOWED = {
             'name', 'abbreviation', 'primary_color', 'secondary_color',
             'showdown_set', 'is_public', 'source',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'bench_pts_multiplier',
-            'lineups', 'rotation',
+            'lineups', 'rotation', 'allowed_sets',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}
 

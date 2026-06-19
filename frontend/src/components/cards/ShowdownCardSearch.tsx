@@ -82,6 +82,8 @@ type ShowdownCardSearchProps = {
         bgColorClass?: string;
         onClick: (card: CardDatabaseRecord) => void;
     };
+    /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
+    excludeIds?: string[];
 };
 
 // =============================================================================
@@ -561,7 +563,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false, compact = false, actionButton }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false, compact = false, actionButton, excludeIds }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -658,6 +660,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
         return groups;
     }, [source]);
+
+    const excludeSet = useMemo(
+        () => (excludeIds && excludeIds.length > 0 ? new Set(excludeIds) : null),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [excludeIds?.join(',')]
+    );
+    const displayedCards = useMemo(
+        () => (excludeSet && showdownCards ? showdownCards.filter(c => !excludeSet.has(c.id)) : showdownCards),
+        [showdownCards, excludeSet]
+    );
 
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
@@ -1191,7 +1203,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
                         {/* Iterate through showdownCards and display each card */}
-                        {showdownCards?.map((cardRecord, index) => {
+                        {displayedCards?.map((cardRecord, index) => {
                             const resolvedAction: CardItemActionButton | undefined = actionButton
                                 ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, onClick: () => actionButton.onClick(cardRecord) }
                                 : undefined;
@@ -1199,7 +1211,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 <div
                                     key={cardRecord.id}
                                     data-card-id={cardRecord.id}
-                                    ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
+                                    ref={displayedCards.length === (index + 1) ? lastCardElementRef : null}
                                 >
                                     {source === CardSource.WOTC && (
                                         <CardItemFromCard
@@ -1245,7 +1257,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     )}
 
                     {/* No more results indicator */}
-                    {!hasMore && showdownCards && showdownCards.length > 50 && (
+                    {!hasMore && displayedCards && displayedCards.length > 50 && (
                         <div className="flex justify-center p-6 text-secondary">
                             <span className="text-sm">No more cards to load</span>
                         </div>

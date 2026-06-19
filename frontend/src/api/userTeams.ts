@@ -48,6 +48,7 @@ export type Team = {
     min_bench: number;
     min_bullpen: number;
     bench_pts_multiplier: number;
+    allowed_sets: string[] | null;
     roster: TeamRosterSlot[];
     lineups: Lineup[];
     rotation: PitcherAssignment[];

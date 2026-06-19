@@ -29,6 +29,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
 
     // Drag state — all mutable, no re-renders during gesture
     const isDragging        = useRef(false);
+    const touchMoved        = useRef(false); // true once finger moves >8px (distinguishes tap from drag)
     const startY            = useRef(0);
     const startTranslatePx  = useRef(0);
     const lastY             = useRef(0);
@@ -46,7 +47,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     function snapPx(point: SnapPoint): number {
         const h = sheetH();
         switch (point) {
-            case 'expanded': return 0;
+            case 'expanded': return h * 0.1; // leave ~10% visible above the sheet
             // dismissible=false: only show the handle + a small peek (~18% of screen)
             // dismissible=true:  show ~40% of the sheet
             case 'peek':     return dismissible ? h * 0.58 : h * 0.82;
@@ -96,69 +97,92 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     }, [snapState]);
 
     // ----------------------------------------------------------------
-    // Touch handlers (only wired to the drag handle)
+    // Shared drag logic (used by both touch and mouse handlers)
     // ----------------------------------------------------------------
 
-    const handleTouchStart = (e: React.TouchEvent) => {
+    function startDrag(clientY: number) {
         isDragging.current       = true;
-        startY.current           = e.touches[0].clientY;
-        lastY.current            = startY.current;
+        touchMoved.current       = false;
+        startY.current           = clientY;
+        lastY.current            = clientY;
         lastTime.current         = Date.now();
         velocity.current         = 0;
         startTranslatePx.current = currentTranslatePx();
         if (sheetRef.current) sheetRef.current.style.transition = 'none';
-    };
+    }
 
-    const handleTouchMove = (e: React.TouchEvent) => {
+    function moveDrag(clientY: number) {
         if (!isDragging.current || !sheetRef.current) return;
-        const y     = e.touches[0].clientY;
-        const delta = y - startY.current;
-        // Allow slight overscroll past expanded (rubber-band feel)
+        const delta = clientY - startY.current;
+        if (Math.abs(delta) > 8) touchMoved.current = true;
         const clamped = Math.max(-24, startTranslatePx.current + delta);
         sheetRef.current.style.transform = `translateY(${clamped}px)`;
 
         const now = Date.now();
         const dt  = now - lastTime.current;
-        if (dt > 0) velocity.current = (y - lastY.current) / dt;
-        lastY.current   = y;
+        if (dt > 0) velocity.current = (clientY - lastY.current) / dt;
+        lastY.current    = clientY;
         lastTime.current = now;
-    };
+    }
 
-    const handleTouchEnd = () => {
+    function endDrag() {
         if (!isDragging.current) return;
         isDragging.current = false;
 
+        // Tap/click on handle: toggle between expanded and peek
+        if (!touchMoved.current) {
+            if (sheetRef.current) sheetRef.current.style.transition = '';
+            snapTo(snapRef.current === 'expanded' ? 'peek' : 'expanded');
+            return;
+        }
+
         const current = currentTranslatePx();
         const h       = sheetH();
-        const pct     = current / h;          // 0 = fully expanded, 1 = fully hidden
-        const vel     = velocity.current;     // px/ms
+        const pct     = current / h;
+        const vel     = velocity.current;
         const isFlick = Math.abs(vel) > 0.3;
 
         let target: SnapPoint;
         if (isFlick) {
-            // Honour flick direction regardless of position
-            if (vel < 0) {
-                target = 'expanded';
-            } else {
-                target = snapRef.current === 'expanded' ? 'peek' : 'closed';
-            }
+            target = vel < 0 ? 'expanded' : (snapRef.current === 'expanded' ? 'peek' : 'closed');
         } else {
-            // Snap to nearest zone
             if (pct < 0.3)      target = 'expanded';
             else if (pct < 0.8) target = 'peek';
             else                target = 'closed';
         }
 
         if (target === 'closed') {
-            if (dismissible) {
-                snapTo('closed');
-                onClose();
-            } else {
-                snapTo('peek'); // bounce back — sheet is always present
-            }
+            if (dismissible) { snapTo('closed'); onClose(); }
+            else              { snapTo('peek'); }
         } else {
             snapTo(target);
         }
+    }
+
+    // ----------------------------------------------------------------
+    // Touch handlers (wired to the drag handle)
+    // ----------------------------------------------------------------
+
+    const handleTouchStart = (e: React.TouchEvent) => startDrag(e.touches[0].clientY);
+    const handleTouchMove  = (e: React.TouchEvent) => moveDrag(e.touches[0].clientY);
+    const handleTouchEnd   = () => endDrag();
+
+    // ----------------------------------------------------------------
+    // Mouse handlers — mousedown on handle, move/up on document
+    // ----------------------------------------------------------------
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        startDrag(e.clientY);
+
+        const onMove = (ev: MouseEvent) => moveDrag(ev.clientY);
+        const onUp   = () => {
+            endDrag();
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
     };
 
     // ----------------------------------------------------------------
@@ -191,7 +215,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
             {/* Sheet — starts off-screen; JS drives all position changes */}
             <div
                 ref={sheetRef}
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)]"
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
                 style={{ height: '90vh', transform: 'translateY(100%)', willChange: 'transform' }}
             >
                 {/* Drag handle */}
@@ -200,6 +224,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
+                    onMouseDown={handleMouseDown}
                 >
                     <div className="w-10 h-1 rounded-full bg-(--divider)" />
                     {title && (
@@ -207,8 +232,8 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                     )}
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 min-h-0 overflow-hidden">
+                {/* Content — scrollable only when expanded so drag doesn't fight scroll */}
+                <div className={`flex-1 min-h-0 ${snapState === 'expanded' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
                     {children}
                 </div>
             </div>
