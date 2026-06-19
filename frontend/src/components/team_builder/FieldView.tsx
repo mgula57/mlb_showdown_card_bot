@@ -2,6 +2,7 @@ import type { Lineup, LineupSlot } from '../../api/userTeams';
 import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
 import { CardItemCompact } from '../cards/CardItemCompact';
 import { FaPlus } from 'react-icons/fa6';
+import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 const POSITION_COORDS: Record<string, [number, number]> = {
@@ -26,10 +27,25 @@ type FieldViewProps = {
     activePosition?: string | null;
 };
 
+function sumGroupDefense(positions: readonly string[], slotByPosition: Record<string, LineupSlot>, cardMap: Record<string, ShowdownBotCardCompact | null>): number | null {
+    let total = 0;
+    let anyFilled = false;
+    for (const pos of positions) {
+        const slot = slotByPosition[pos];
+        const card = slot ? cardMap[slot.card_id] : null;
+        const val = defenseAtPosition(card?.positions_and_defense, pos);
+        if (val !== null) { total += val ?? 0; anyFilled = true; }
+    }
+    return anyFilled ? total : null;
+}
+
 export function FieldView({ lineup, cardMap, onSlotClick, readOnly = false, activePosition }: FieldViewProps) {
     const slotByPosition = Object.fromEntries(
         lineup.slots.map(s => [s.field_position, s])
     );
+
+    const totalOF = sumGroupDefense(OF_POSITIONS, slotByPosition, cardMap);
+    const totalIF = sumGroupDefense(IF_POSITIONS, slotByPosition, cardMap);
 
     return (
         <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
@@ -39,6 +55,22 @@ export function FieldView({ lineup, cardMap, onSlotClick, readOnly = false, acti
                 className="w-full h-full select-none pointer-events-none"
                 draggable={false}
             />
+
+            {([
+                { label: 'Total OF', value: totalOF, top: 25 },
+                { label: 'Total IF', value: totalIF, top: 53 },
+            ] as const).map(({ label, value, top }) => value !== null && (
+                <div
+                    key={label}
+                    className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none select-none"
+                    style={{ top: `${top}%` }}
+                >
+                    <span className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">{label}</span>
+                    <span className={`text-xs font-black ${value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-white/80'}`}>
+                        {value > 0 ? `+${value}` : value}
+                    </span>
+                </div>
+            ))}
 
             {FIELD_POSITIONS.map(pos => {
                 const [left, top] = POSITION_COORDS[pos];
@@ -57,6 +89,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, readOnly = false, acti
                             width: '25%',
                             minWidth: 70,
                         }}
+                        onClick={e => e.stopPropagation()}
                     >
                         <div className={isActive
                             ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse'
@@ -99,7 +132,7 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             onClick={onClick}
             className={`
                 w-full flex items-center justify-between gap-1
-                rounded-lg px-2 py-1.5
+                rounded-lg px-2 h-12
                 border-2 border-dashed
                 backdrop-blur-[2px]
                 ${isActive

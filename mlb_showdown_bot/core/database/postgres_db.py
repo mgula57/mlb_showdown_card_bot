@@ -713,6 +713,7 @@ class PostgresDB:
                 color_secondary,
                 {team_field} as team,
                 positions_and_defense_string,
+                positions_and_defense,
                 ip
             FROM {source_table}
             WHERE 

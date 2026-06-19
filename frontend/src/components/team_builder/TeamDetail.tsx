@@ -197,6 +197,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             color_primary: confirmCard.color_primary ?? null,
             color_secondary: confirmCard.color_secondary ?? null,
             positions_and_defense_string: confirmCard.positions_and_defense_string ?? null,
+            positions_and_defense: confirmCard.positions_and_defense ?? {},
             ip: confirmCard.ip ?? null,
         };
         setCardMap(prev => ({ ...prev, [confirmCard.id]: compact }));
@@ -414,7 +415,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <Tabs.Trigger value="settings" className={tabTriggerClass}>Settings</Tabs.Trigger>
                     </Tabs.List>
 
-                    <Tabs.Content value="field" className="flex-1 overflow-auto focus:outline-none ">
+                    <Tabs.Content value="field" className="flex-1 overflow-auto focus:outline-none" onClick={() => setPendingSlot(null)}>
                         <FieldView
                             lineup={defaultLineup}
                             cardMap={cardMap}
@@ -427,7 +428,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         />
                     </Tabs.Content>
 
-                    <Tabs.Content value="depth" className="flex-1 min-h-0 overflow-y-auto focus:outline-none">
+                    <Tabs.Content value="depth" className="flex-1 min-h-0 overflow-y-auto focus:outline-none" onClick={() => setPendingSlot(null)}>
                         <DepthChartPanel
                             team={draft}
                             cardMap={cardMap}

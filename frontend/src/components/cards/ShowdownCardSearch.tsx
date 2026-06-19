@@ -990,20 +990,29 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
     }
 
-    const removeFilterForEditing = (key: string) => {
+    const makeRemoveFilter = (
+        state: FilterSelections,
+        setter: React.Dispatch<React.SetStateAction<FilterSelections>>,
+    ) => (key: string) => {
         const correspondingKey = key.startsWith('min_')
             ? `max_${key.slice(4)}`
             : key.startsWith('max_')
             ? `min_${key.slice(4)}`
             : null;
-        setFiltersForEditing((prev) => {
+        const currentValue = state[key as keyof FilterSelections];
+        const correspondingValue = correspondingKey ? state[correspondingKey as keyof FilterSelections] : null;
+        const isMatchingMinMax = correspondingKey && correspondingValue !== undefined && correspondingValue !== null && correspondingValue === currentValue;
+        setter((prev) => {
             const next = { ...prev, [key]: undefined };
-            if (correspondingKey && prev[correspondingKey as keyof FilterSelections] === prev[key as keyof FilterSelections]) {
+            if (isMatchingMinMax) {
                 next[correspondingKey as keyof FilterSelections] = undefined;
             }
             return next;
         });
     };
+
+    const removeFilter = makeRemoveFilter(filters, setFilters);
+    const removeFilterForEditing = makeRemoveFilter(filtersForEditing, setFiltersForEditing);
 
     const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>) => {
         if (key.startsWith('min_') || key.startsWith('max_')) {
@@ -1014,7 +1023,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             // Check if there's a max with the same value. If so just display the min and show as `= value` instead of `>= value`
             const correspondingKey = key.startsWith('min_') ? `max_${shortKey}` : `min_${shortKey}`;
             if (overallList[correspondingKey] === value) {
-                return `${snakeToTitleCase(shortKey)}: ${value}`;
+                return key.startsWith('min_') ? `${snakeToTitleCase(shortKey)}: ${value}` : undefined; // Don't show the max if it's the same as min, it will be redundant. Just show the min as `= value`
             }
 
             if (shortKey.length == 2) {
@@ -1189,16 +1198,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {Object.entries(filtersWithoutSorting)
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                             .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
-                            .map(([key, value]) => (
-                                <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                    <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSorting)}</span>
-                                    {!isFilterLocked(key as keyof FilterSelections) && (
-                                        <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
-                                            <FaTimes />
-                                        </button>
-                                    )}
-                                </div>
-                        ))}
+                            .map(([key, value]) => {
+                                const displayText = filterDisplayText(key, value, filtersWithoutSorting);
+                                if (!displayText) return null;
+                                return (
+                                    <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
+                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSorting)}</span>
+                                        {!isFilterLocked(key as keyof FilterSelections) && (
+                                            <button onClick={() => removeFilter(key)} className="ml-1 cursor-pointer">
+                                                <FaTimes />
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            }
+                        )}
 
                         {/* Add Blank element with width of 32 */}
                         <div className="shrink-0 w-16"></div>
@@ -1427,16 +1441,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 {Object.entries(filtersWithoutSortingForEditing)
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                                     .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
-                                    .map(([key, value]) => (
-                                        <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSortingForEditing)}</span>
-                                            {!isFilterLocked(key as keyof FilterSelections) && (
-                                                <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
-                                                    <FaTimes />
-                                                </button>
-                                            )}
-                                        </div>
-                                ))}
+                                    .map(([key, value]) => {
+                                        const displayText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
+                                        if (!displayText) return null;
+                                        return (
+                                            <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
+                                                <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
+                                                {!isFilterLocked(key as keyof FilterSelections) && (
+                                                    <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
+                                                        <FaTimes />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )
+                                    }
+                                )}
                             </div>
                         </div>
 

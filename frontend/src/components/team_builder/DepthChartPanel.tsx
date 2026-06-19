@@ -31,7 +31,7 @@ function PositionRow({
     isActive?: boolean;
 }) {
     return (
-        <div className={`flex items-center gap-3 min-h-9 rounded-lg transition-all duration-200 ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`}>
+        <div className={`flex items-center gap-3 min-h-9 rounded-lg transition-all duration-200 ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`} onClick={e => e.stopPropagation()}>
             <span className={`text-[11px] font-bold w-10 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
                 <div className="flex-1 min-w-0" onClick={readOnly ? undefined : onClick}>

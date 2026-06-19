@@ -74,6 +74,11 @@ export const CardItemCompact = ({
         color: getContrastColor(secondaryColor),
     };
 
+    const teamStyle = {
+        backgroundColor: primaryColor,
+        color: getContrastColor(primaryColor),
+    };
+
     const borderSettings = isSelected
         ? (isDark ? 'border-2' : 'border-2')
         : (isDark ? 'border-2 border-white/10' : 'border-2 border-gray-200');
@@ -169,8 +174,12 @@ export const CardItemCompact = ({
                     {displayName}
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
-                    <div className="text-[9px] shrink-0 font-semibold text-(--text-secondary) truncate">
+                    <div 
+                        className="text-[9px] leading-none shrink-0 font-semibold rounded px-0.5 py-0.5"
+                        style={teamStyle}
+                    >
                         {card?.team || 'N/A'}
+                        {size !== 'sm' && card?.year ? ` ${card.year}` : ''}
                     </div>
                     {size !== 'sm' && !hidePoints && (
                         <div
@@ -232,12 +241,14 @@ export const CardItemCompact = ({
 type CardItemCompactFromCardProps = {
     card?: ShowdownBotCard | null;
     className?: string;
+    size?: 'sm' | 'md' | 'lg';
+    fieldPosition?: string;
     isSelected?: boolean;
     onClick?: () => void;
     actionButton?: CardItemActionButton;
 };
 
-export const CardItemCompactFromCard = ({ card, className, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPosition, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -260,10 +271,13 @@ export const CardItemCompactFromCard = ({ card, className, isSelected, onClick, 
                 color_primary: primaryColor,
                 color_secondary: secondaryColor,
                 positions_and_defense_string: card?.positions_and_defense_string || '',
+                positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
             }}
             className={className}
             isSelected={isSelected}
+            size={size}
+            fieldPosition={fieldPosition}
             onClick={onClick}
             actionButton={actionButton}
         />
@@ -301,6 +315,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 color_primary: primaryColor,
                 color_secondary: secondaryColor,
                 positions_and_defense_string: card?.positions_and_defense_string || '',
+                positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
             }}
             className={className}
