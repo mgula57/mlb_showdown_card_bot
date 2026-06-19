@@ -10,6 +10,7 @@ export type TeamRosterSlot = {
     card_id: string;
     card_source: CardSource;
     roster_position: string;
+    draft_order: number | null;
 };
 
 export type LineupSlot = {
@@ -52,6 +53,7 @@ export type Team = {
     rotation: PitcherAssignment[];
     created_at: string | null;
     updated_at: string | null;
+    total_points: number;
 };
 
 export type TeamCreatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at'>> & {

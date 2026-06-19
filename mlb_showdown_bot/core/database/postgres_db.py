@@ -3471,8 +3471,40 @@ class PostgresDB:
 # USER TEAMS
 # ------------------------------------------------------------------------
 
+    # roster slots live in user_team_roster; lineups/rotation stay as JSONB
+    _TEAM_BASE_SELECT = """
+        SELECT
+            t.team_id, t.user_id, t.name, t.abbreviation,
+            t.primary_color, t.secondary_color, t.showdown_set,
+            t.is_public, t.source,
+            t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.bench_pts_multiplier,
+            t.lineups, t.rotation, t.created_at, t.updated_at,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'card_id',         r.card_id,
+                        'card_source',     r.card_source,
+                        'roster_position', r.roster_position,
+                        'draft_order',     r.draft_order
+                    ) ORDER BY r.sort_order, r.id
+                ) FILTER (WHERE r.card_id IS NOT NULL),
+                '[]'::json
+            ) AS roster,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position IN ('BENCH', 'BULLPEN')
+                    THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
+                    ELSE COALESCE(cb.points, cw.points, 0)
+                END
+            ), 0)::int AS total_points
+        FROM internal.user_teams t
+        LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
+        LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
+        LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
+    """
+
     def build_user_teams_table(self) -> None:
-        """Create the user_teams table and indexes if they do not exist."""
+        """Create the user_teams and user_team_roster tables. Migrates legacy roster JSONB if present."""
         if not self.connection:
             return
         with self.connection.cursor() as cur:
@@ -3493,7 +3525,6 @@ class PostgresDB:
                     min_bench            INT          DEFAULT 4,
                     min_bullpen          INT          DEFAULT 5,
                     bench_pts_multiplier FLOAT        DEFAULT 1.0,
-                    roster               JSONB        DEFAULT '[]',
                     lineups              JSONB        DEFAULT '[]',
                     rotation             JSONB        DEFAULT '[]',
                     created_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
@@ -3509,63 +3540,95 @@ class PostgresDB:
                     ON internal.user_teams (source)
                     WHERE is_public = TRUE;
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_team_roster (
+                    id              BIGSERIAL PRIMARY KEY,
+                    team_id         UUID NOT NULL REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    card_id         TEXT NOT NULL,
+                    card_source     TEXT NOT NULL DEFAULT 'BOT',
+                    roster_position TEXT NOT NULL,
+                    sort_order      INT  NOT NULL DEFAULT 0,
+                    draft_order     INT
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_roster_team_id
+                    ON internal.user_team_roster (team_id);
+            """)
+            # One-time migration: move legacy roster JSONB into the bridge table then drop the column
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'internal'
+                          AND table_name   = 'user_teams'
+                          AND column_name  = 'roster'
+                    ) THEN
+                        INSERT INTO internal.user_team_roster
+                            (team_id, card_id, card_source, roster_position, sort_order)
+                        SELECT
+                            t.team_id,
+                            slot->>'card_id',
+                            COALESCE(slot->>'card_source', 'BOT'),
+                            slot->>'roster_position',
+                            (ordinality - 1)::int
+                        FROM internal.user_teams t
+                        CROSS JOIN LATERAL
+                            jsonb_array_elements(COALESCE(t.roster, '[]'::jsonb))
+                            WITH ORDINALITY AS elem(slot, ordinality)
+                        WHERE jsonb_array_length(COALESCE(t.roster, '[]'::jsonb)) > 0
+                          AND NOT EXISTS (
+                              SELECT 1 FROM internal.user_team_roster r
+                              WHERE r.team_id = t.team_id
+                          );
+                        ALTER TABLE internal.user_teams DROP COLUMN roster;
+                    END IF;
+                END $$;
+            """)
 
     def get_user_teams(self, user_id: str) -> list[dict]:
         """Return all teams belonging to user_id, newest first."""
         if not self.connection:
             return []
-        query = """
-            SELECT team_id, user_id, name, abbreviation, primary_color, secondary_color,
-                   showdown_set, is_public, source,
-                   pts_limit, roster_size, min_bench, min_bullpen, bench_pts_multiplier,
-                   roster, lineups, rotation, created_at, updated_at
-            FROM internal.user_teams
-            WHERE user_id = %s
-            ORDER BY updated_at DESC
+        query = self._TEAM_BASE_SELECT + """
+            WHERE t.user_id = %s
+            GROUP BY t.team_id
+            ORDER BY t.updated_at DESC
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (user_id,))
-            rows = cur.fetchall()
-            return [self._serialize_team_row(dict(r)) for r in rows]
+            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
 
     def get_public_teams(self, source: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
         """Return public teams, optionally filtered by source ('official', 'asg', 'user')."""
         if not self.connection:
             return []
-        conditions = ["is_public = TRUE"]
+        conditions = ["t.is_public = TRUE"]
         params: list = []
         if source:
-            conditions.append("source = %s")
+            conditions.append("t.source = %s")
             params.append(source)
         where = " AND ".join(conditions)
-        query = f"""
-            SELECT team_id, user_id, name, abbreviation, primary_color, secondary_color,
-                   showdown_set, is_public, source,
-                   pts_limit, roster_size, min_bench, min_bullpen, bench_pts_multiplier,
-                   roster, lineups, rotation, created_at, updated_at
-            FROM internal.user_teams
+        query = self._TEAM_BASE_SELECT + f"""
             WHERE {where}
-            ORDER BY source ASC, name ASC
+            GROUP BY t.team_id
+            ORDER BY t.source ASC, t.name ASC
             LIMIT %s OFFSET %s
         """
         params += [limit, offset]
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
-            rows = cur.fetchall()
-            return [self._serialize_team_row(dict(r)) for r in rows]
+            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
 
     def get_team(self, team_id: str, user_id: str | None = None) -> dict | None:
         """Return a single team by team_id. Enforces ownership unless is_public or user_id is None."""
         if not self.connection:
             return None
-        query = """
-            SELECT team_id, user_id, name, abbreviation, primary_color, secondary_color,
-                   showdown_set, is_public, source,
-                   pts_limit, roster_size, min_bench, min_bullpen, bench_pts_multiplier,
-                   roster, lineups, rotation, created_at, updated_at
-            FROM internal.user_teams
-            WHERE team_id = %s
-              AND (is_public = TRUE OR user_id IS NULL OR user_id = %s)
+        query = self._TEAM_BASE_SELECT + """
+            WHERE t.team_id = %s
+              AND (t.is_public = TRUE OR t.user_id IS NULL OR t.user_id = %s)
+            GROUP BY t.team_id
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (team_id, user_id))
@@ -3576,6 +3639,7 @@ class PostgresDB:
         """Insert a new team row and return the generated team_id UUID string."""
         if not self.connection:
             raise RuntimeError("No database connection")
+        roster = payload.get('roster', [])
         fields = self._team_payload_fields(payload)
         cols = ', '.join(['user_id'] + list(fields.keys()))
         placeholders = ', '.join(['%s'] * (1 + len(fields)))
@@ -3583,36 +3647,47 @@ class PostgresDB:
             extras.Json(v) if isinstance(v, (dict, list)) else v
             for v in fields.values()
         ]
-        query = f"""
-            INSERT INTO internal.user_teams ({cols})
-            VALUES ({placeholders})
-            RETURNING team_id
-        """
         with self.connection.cursor() as cur:
-            cur.execute(query, values)
-            row = cur.fetchone()
-            return str(row[0])
+            cur.execute(
+                f"INSERT INTO internal.user_teams ({cols}) VALUES ({placeholders}) RETURNING team_id",
+                values,
+            )
+            team_id = str(cur.fetchone()[0])
+            self._upsert_roster(cur, team_id, roster)
+        return team_id
 
     def update_team(self, team_id: str, user_id: str, payload: dict) -> bool:
         """Update an existing team. Only the owner may update. Returns True if a row was updated."""
         if not self.connection:
             return False
+        roster = payload.get('roster')
         fields = self._team_payload_fields(payload)
-        if not fields:
+        if not fields and roster is None:
             return False
-        set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
-        values = [
-            extras.Json(v) if isinstance(v, (dict, list)) else v
-            for v in fields.values()
-        ]
-        query = f"""
-            UPDATE internal.user_teams
-            SET {set_clause}, updated_at = NOW()
-            WHERE team_id = %s AND user_id = %s
-        """
         with self.connection.cursor() as cur:
-            cur.execute(query, values + [team_id, user_id])
-            return cur.rowcount > 0
+            if fields:
+                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                values = [
+                    extras.Json(v) if isinstance(v, (dict, list)) else v
+                    for v in fields.values()
+                ]
+                cur.execute(
+                    f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s AND user_id = %s",
+                    values + [team_id, user_id],
+                )
+                if cur.rowcount == 0:
+                    return False
+            if roster is not None:
+                if not fields:
+                    # Verify ownership when only the roster is changing
+                    cur.execute(
+                        "SELECT 1 FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
+                        (team_id, user_id),
+                    )
+                    if not cur.fetchone():
+                        return False
+                self._upsert_roster(cur, team_id, roster)
+        return True
 
     def delete_team(self, team_id: str, user_id: str) -> bool:
         """Delete a team owned by user_id. Returns True if a row was deleted."""
@@ -3631,33 +3706,52 @@ class PostgresDB:
         Returns team_id."""
         if not self.connection:
             raise RuntimeError("No database connection")
+        roster = payload.get('roster', [])
         team_id = payload.get('team_id')
         fields = self._team_payload_fields(payload)
-        if team_id:
-            set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
-            values = [
-                extras.Json(v) if isinstance(v, (dict, list)) else v
-                for v in fields.values()
-            ]
-            with self.connection.cursor() as cur:
+        with self.connection.cursor() as cur:
+            if team_id:
+                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                values = [
+                    extras.Json(v) if isinstance(v, (dict, list)) else v
+                    for v in fields.values()
+                ]
                 cur.execute(
                     f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s",
                     values + [team_id],
                 )
                 if cur.rowcount > 0:
+                    self._upsert_roster(cur, team_id, roster)
                     return team_id
-        cols = ', '.join(['user_id'] + list(fields.keys()))
-        placeholders = ', '.join(['%s'] * (1 + len(fields)))
-        values = [None] + [
-            extras.Json(v) if isinstance(v, (dict, list)) else v
-            for v in fields.values()
-        ]
-        with self.connection.cursor() as cur:
+            cols = ', '.join(['user_id'] + list(fields.keys()))
+            placeholders = ', '.join(['%s'] * (1 + len(fields)))
+            values = [None] + [
+                extras.Json(v) if isinstance(v, (dict, list)) else v
+                for v in fields.values()
+            ]
             cur.execute(
                 f"INSERT INTO internal.user_teams ({cols}) VALUES ({placeholders}) RETURNING team_id",
                 values,
             )
-            return str(cur.fetchone()[0])
+            team_id = str(cur.fetchone()[0])
+            self._upsert_roster(cur, team_id, roster)
+            return team_id
+
+    @staticmethod
+    def _upsert_roster(cur, team_id: str, roster: list) -> None:
+        """Replace all roster slots for a team in user_team_roster."""
+        cur.execute("DELETE FROM internal.user_team_roster WHERE team_id = %s", (team_id,))
+        if not roster:
+            return
+        batch = [
+            (team_id, slot['card_id'], slot['card_source'], slot['roster_position'], i, slot.get('draft_order'))
+            for i, slot in enumerate(roster)
+        ]
+        execute_values(cur, """
+            INSERT INTO internal.user_team_roster
+                (team_id, card_id, card_source, roster_position, sort_order, draft_order)
+            VALUES %s
+        """, batch)
 
     @staticmethod
     def _team_payload_fields(payload: dict) -> dict:
@@ -3665,7 +3759,7 @@ class PostgresDB:
             'name', 'abbreviation', 'primary_color', 'secondary_color',
             'showdown_set', 'is_public', 'source',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'bench_pts_multiplier',
-            'roster', 'lineups', 'rotation',
+            'lineups', 'rotation',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}
 

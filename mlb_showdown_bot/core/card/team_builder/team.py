@@ -21,6 +21,7 @@ class TeamRosterSlot(BaseModel):
     card_id: str
     card_source: CardSource
     roster_position: str  # "C","1B","2B","3B","SS","LF","CF","RF","SP","RP","DH","BENCH","BULLPEN"
+    draft_order: Optional[int] = None
 
 
 class LineupSlot(BaseModel):

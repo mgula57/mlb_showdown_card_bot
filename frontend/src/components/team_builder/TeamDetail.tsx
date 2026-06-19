@@ -172,6 +172,7 @@ export function TeamDetail({ team, onSave, onBack, readOnly = false }: TeamDetai
                 card_id: confirmCard.id,
                 card_source: draftSource,
                 roster_position: 'BENCH',
+                draft_order: null,
             };
             update({ roster: [...draft.roster, slot] });
         } else {
@@ -287,7 +288,7 @@ export function TeamDetail({ team, onSave, onBack, readOnly = false }: TeamDetai
                     className="
                         flex flex-col shrink-0 
                         min-h-0 min-w-0 overflow-hidden 
-                        w-full sm:w-80 md:w-96 lg:w-118 xl:w-lg 2xl:w-xl
+                        w-full sm:w-80 md:w-108 lg:w-124 xl:w-136
                     "
                 >
                     <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 shrink-0 py-1">
