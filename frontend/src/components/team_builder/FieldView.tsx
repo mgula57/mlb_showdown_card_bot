@@ -1,6 +1,6 @@
 import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../../api/userTeams';
-import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
-import { CardItemCompact } from '../cards/CardItemCompact';
+import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
+import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 
@@ -14,10 +14,10 @@ const POSITION_COORDS: Record<string, [number, number]> = {
     '3B': [18, 63],
     '1B': [82, 63],
     C:   [50, 85],
-    DH:  [88, 15],
+    DH:  [84, 85],
 };
 
-const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C'] as const;
+const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 const BULLPEN_ROLES  = ['RP', 'CL'] as const;
 
@@ -27,11 +27,12 @@ export type FieldViewRosterData = {
     benchPtsMultiplier: number;
     minBench: number;
     minBullpen: number;
+    maxRotation: number;
 };
 
 type FieldViewProps = {
     lineup: Lineup;
-    cardMap: Record<string, ShowdownBotCardCompact | null>;
+    cardMap: Record<string, CardDatabaseRecord | null>;
     onSlotClick: (position: string, currentSlot: LineupSlot | null) => void;
     onBenchClick?: (role: string, current: TeamRosterSlot | null) => void;
     onRoleClick?: (role: string, current: PitcherAssignment | null) => void;
@@ -40,7 +41,7 @@ type FieldViewProps = {
     rosterData?: FieldViewRosterData;
 };
 
-function sumGroupDefense(positions: readonly string[], slotByPosition: Record<string, LineupSlot>, cardMap: Record<string, ShowdownBotCardCompact | null>): number | null {
+function sumGroupDefense(positions: readonly string[], slotByPosition: Record<string, LineupSlot>, cardMap: Record<string, CardDatabaseRecord | null>): number | null {
     let total = 0;
     for (const pos of positions) {
         const slot = slotByPosition[pos];
@@ -51,13 +52,40 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
     return total;
 }
 
+function FieldViewSectionHeader({ label, filledCount, maxPlayers, total }: { label: string; filledCount: number; maxPlayers?: number; total: number }) {
+    return (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 opacity-75">
+            <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{label}</span>
+            <span className="text-[10px] text-(--text-tertiary)">{filledCount}{maxPlayers !== undefined ? `/${maxPlayers}` : ''}</span>
+            {total > 0 && (
+                <span className="ml-auto text-[11px] font-semibold text-(--text-tertiary)">{total} pts</span>
+            )}
+        </div>
+    );
+}
+
 export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData }: FieldViewProps) {
     const slotByPosition = Object.fromEntries(
         lineup.slots.map(s => [s.field_position, s])
     );
 
-    const totalOF = sumGroupDefense(OF_POSITIONS, slotByPosition, cardMap);
-    const totalIF = sumGroupDefense(IF_POSITIONS, slotByPosition, cardMap);
+    // Outfield Defense
+    const totalDefOF = sumGroupDefense(OF_POSITIONS, slotByPosition, cardMap);
+    const totalCountOfFilledOF = OF_POSITIONS.filter(pos => slotByPosition[pos]).length;
+    const avgDefOF = totalCountOfFilledOF > 0 ? (totalDefOF! / totalCountOfFilledOF) : null;
+    const colorDefOF = avgDefOF !== null ? (avgDefOF > 1.75 ? 'text-(--green)' : avgDefOF > 1 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
+    
+    // Infield Defense
+    const totalDefIF = sumGroupDefense(IF_POSITIONS, slotByPosition, cardMap);
+    const totalCountOfFilledIF = IF_POSITIONS.filter(pos => slotByPosition[pos]).length;
+    const avgDefIF = totalCountOfFilledIF > 0 ? (totalDefIF! / totalCountOfFilledIF) : null;
+    const colorDefIF = avgDefIF !== null ? (avgDefIF > 3 ? 'text-(--green)' : avgDefIF >= 2 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
+
+    // Catcher Arm
+    const cSlot = slotByPosition['C'];
+    const cCard = cSlot ? cardMap[cSlot.card_id] : null;
+    const armC = defenseAtPosition(cCard?.positions_and_defense, 'C');
+    const colorArmC = armC ? (armC > 7 ? 'text-(--green)' : armC > 3 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
 
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
 
@@ -68,20 +96,22 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
     const bullByRole    = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (BULLPEN_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
 
+    const lineupPts = lineup.slots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
     const benchPts    = benchRoles.reduce((sum, role) => { const s = benchByRole[role]; return s ? sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)) : sum; }, 0);
     const rotationPts = (ROTATION_ROLES as readonly string[]).reduce((sum, role) => { const r = rotByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
     const bullpenPts  = bullpenRoles.reduce((sum, role) => { const r = bullByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
 
     const sections = rosterData ? [
         {
-            label: 'Bench', total: benchPts,
+            label: 'Bench', 
+            total: benchPts,
             roles: benchRoles,
             getCard:    (role: string) => { const s = benchByRole[role]; return s ? cardMap[s.card_id] : null; },
             onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(role, benchByRole[role] ?? null) : undefined,
         },
         {
-            label: 'Rotation', total: rotationPts,
-            roles: [...ROTATION_ROLES] as string[],
+            label: 'Rotation', total: rotationPts, maxPlayers: rosterData.maxRotation,
+            roles: [...ROTATION_ROLES].slice(0, rosterData?.maxRotation) as string[],
             getCard:    (role: string) => { const r = rotByRole[role]; return r ? cardMap[r.card_id] : null; },
             onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, rotByRole[role] ?? null) : undefined,
         },
@@ -104,20 +134,25 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                 />
 
                 {([
-                    { label: 'OF', value: totalOF, top: 25 },
-                    { label: 'IF', value: totalIF, top: 53 },
-                ] as const).map(({ label, value, top }) => value !== null && (
+                    { label: 'OF', value: totalDefOF, color: colorDefOF, top: 25, left: 50 },
+                    { label: 'IF', value: totalDefIF, color: colorDefIF, top: 53, left: 50 },
+                    { label: 'C Arm', value: armC, color: colorArmC, top: 83, left: 25 },
+                ] as const).map(({ label, value, color, top, left }) => value !== null && (
                     <div
                         key={label}
-                        className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none select-none"
-                        style={{ top: `${top}%` }}
+                        className="absolute -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none select-none"
+                        style={{ top: `${top}%`, left: `${left}%` }}
                     >
                         <span className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">{label}</span>
-                        <span className={`text-xs font-black ${value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-white/80'}`}>
+                        <span className={`text-xs font-black ${color}`}>
                             {value > 0 ? `+${value}` : value}
                         </span>
                     </div>
                 ))}
+
+                <div className="absolute inset-0" >
+                    <FieldViewSectionHeader label="Starting Lineup" filledCount={lineup.slots.length} maxPlayers={9} total={lineupPts} />
+                </div>
 
                 {FIELD_POSITIONS.map(pos => {
                     const [left, top] = POSITION_COORDS[pos];
@@ -143,7 +178,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                 : ''
                             }>
                                 {card ? (
-                                    <CardItemCompact
+                                    <CardItemCompactFromCardDatabaseRecord
                                         card={card}
                                         size="lg"
                                         fieldPosition={pos}
@@ -163,22 +198,16 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                 })}
             </div>
 
-            {sections.map(({ label, roles, total, getCard, onItemClick }) => {
+            {sections.map(({ label, roles, total, getCard, onItemClick, maxPlayers }) => {
                 const filledCount = roles.filter(r => getCard(r)).length;
                 return (
                     <div key={label} className="border-t border-(--divider)" onClick={onItemClick ? e => e.stopPropagation() : undefined}>
-                        <div className="flex items-center gap-1.5 px-3 py-1.5">
-                            <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{label}</span>
-                            <span className="text-[10px] text-(--text-tertiary)">{filledCount}</span>
-                            {total > 0 && (
-                                <span className="ml-auto text-[11px] font-semibold text-(--text-tertiary)">{total} pts</span>
-                            )}
-                        </div>
+                        <FieldViewSectionHeader label={label} filledCount={filledCount} maxPlayers={maxPlayers} total={total} />
                         <div className="grid grid-cols-2 gap-1.5 px-3 pb-3">
                             {roles.map(role => {
                                 const card = getCard(role);
                                 return card ? (
-                                    <CardItemCompact
+                                    <CardItemCompactFromCardDatabaseRecord
                                         key={role}
                                         card={card}
                                         size="lg"

@@ -47,6 +47,7 @@ export type Team = {
     roster_size: number;
     min_bench: number;
     min_bullpen: number;
+    num_starters: number;
     bench_pts_multiplier: number;
     allowed_sets: string[] | null;
     roster: TeamRosterSlot[];

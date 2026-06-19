@@ -3,7 +3,6 @@ import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
 import { fetchTeam } from '../../api/userTeams';
-import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
@@ -17,7 +16,7 @@ import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
 import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
-import { CardItemCompact } from '../cards/CardItemCompact';
+import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { ToastMessage } from '../shared/ToastMessage';
 
@@ -83,7 +82,7 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
 
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
-    const [cardMap, setCardMap] = useState<Record<string, ShowdownBotCardCompact | null>>({});
+    const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord | null>>({});
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
     const [dirty, setDirty] = useState(false);
@@ -152,24 +151,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         (async () => {
             try {
                 const cards = await fetchCardData(CardSource.BOT as any, { card_id: missing, limit: missing.length });
-                const newEntries = Object.fromEntries(
-                    cards.map(c => [c.card_id, {
-                        id: c.card_id,
-                        name: c.name,
-                        year: String(c.year),
-                        set: c.showdown_set,
-                        team: c.team_id,
-                        points: c.points,
-                        command: c.command,
-                        is_pitcher: c.is_pitcher,
-                        color_primary: c.color_primary ?? null,
-                        color_secondary: c.color_secondary ?? null,
-                        positions_and_defense_string: c.positions_and_defense_string ?? null,
-                        positions_and_defense: c.positions_and_defense ?? {},
-                        ip: c.ip ?? null,
-                    } as ShowdownBotCardCompact])
-                );
-                console.log('Fetched card data for team:', newEntries);
+                const newEntries = Object.fromEntries(cards.map(c => [c.card_id, c]));
                 setCardMap(prev => ({ ...prev, ...newEntries }));
             } catch { 
                 console.error('Failed to fetch card data for team:', team.team_id);
@@ -196,22 +178,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
         if (!card) return;
 
-        const compact: ShowdownBotCardCompact = {
-            id: card.card_id,
-            name: card.name,
-            year: String(card.year),
-            set: card.showdown_set,
-            team: card.team_id,
-            points: card.points,
-            command: card.command,
-            is_pitcher: card.is_pitcher,
-            color_primary: card.color_primary ?? null,
-            color_secondary: card.color_secondary ?? null,
-            positions_and_defense_string: card.positions_and_defense_string ?? null,
-            positions_and_defense: card.positions_and_defense ?? {},
-            ip: card.ip ?? null,
-        };
-        setCardMap(prev => ({ ...prev, [card.card_id]: compact }));
+        setCardMap(prev => ({ ...prev, [card.card_id]: card }));
 
         const nextDraftOrder = Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
         const rosterSlot: TeamRosterSlot = {
@@ -280,7 +247,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         benchPtsMultiplier: draft.bench_pts_multiplier,
         minBench: draft.min_bench,
         minBullpen: draft.min_bullpen,
-    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, draft.min_bench, draft.min_bullpen]);
+        maxRotation: draft.num_starters,
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, draft.min_bench, draft.min_bullpen, draft.num_starters]);
 
     const draftedCardIds = useMemo(() => {
         const ids = new Set<string>();
@@ -299,35 +267,29 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const tabTriggerClass =
         'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors ' +
-        'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold data-[state=active]:text-(--showdown-blue) ' +
+        'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
         'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
 
     const draftPanel = (
-        <div className="flex flex-col h-full min-h-0">
-            <div className="flex items-center gap-1 px-3 pt-2 pb-1 shrink-0 border-b border-(--divider)">
+        <Tabs.Root
+            value={draftSource}
+            onValueChange={v => setDraftSource(v as CardSourceType)}
+            className="flex flex-col h-full min-h-0"
+        >
+            <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
                 {CARD_SOURCES.map(s => (
-                    <button
-                        key={s.key}
-                        type="button"
-                        onClick={() => setDraftSource(s.key)}
-                        className={`text-[11px] font-semibold px-2.5 py-1 rounded border transition-colors
-                            ${draftSource === s.key
-                                ? 'border-(--secondary) text-(--secondary)'
-                                : 'border-(--divider) text-(--text-secondary) hover:border-(--secondary)/50'
-                            }`}
-                    >
+                    <Tabs.Trigger key={s.key} value={s.key} className={tabTriggerClass}>
                         {s.label}
-                    </button>
+                    </Tabs.Trigger>
                 ))}
                 {pendingLabel && (
                     <span className="ml-auto text-[11px] text-(--secondary) font-semibold truncate pl-2">
                         {pendingLabel}
                     </span>
                 )}
-            </div>
-
+            </Tabs.List>
             {CARD_SOURCES.map(s => (
-                <div key={s.key} className={`flex-1 min-h-0 ${draftSource === s.key ? 'flex flex-col' : 'hidden'}`}>
+                <Tabs.Content key={s.key} value={s.key} className="flex-1 min-h-0 flex flex-col focus:outline-none">
                     <ShowdownCardSearch
                         source={s.key}
                         compact={true}
@@ -342,9 +304,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             onClick: handleCardPicked,
                         }}
                     />
-                </div>
+                </Tabs.Content>
             ))}
-        </div>
+        </Tabs.Root>
     );
 
     // Eligible positions split into groups for the confirmation modal
@@ -552,7 +514,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         </span>
                                         <div className="flex-1 min-w-0">
                                             {card
-                                                ? <CardItemCompact card={card} />
+                                                ? <CardItemCompactFromCardDatabaseRecord card={card} />
                                                 : <span className="text-[11px] text-(--text-tertiary)">{slot.card_id}</span>
                                             }
                                         </div>

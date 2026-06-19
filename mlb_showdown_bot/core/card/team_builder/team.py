@@ -57,6 +57,7 @@ class Team(BaseModel):
     roster_size: int = 25
     min_bench: int = 4
     min_bullpen: int = 5
+    num_starters: int = 5
     bench_pts_multiplier: float = 1.0
     # JSONB columns
     roster: list[TeamRosterSlot] = []
@@ -97,6 +98,7 @@ class Team(BaseModel):
             'roster_size': self.roster_size,
             'min_bench': self.min_bench,
             'min_bullpen': self.min_bullpen,
+            'num_starters': self.num_starters,
             'bench_pts_multiplier': self.bench_pts_multiplier,
             'roster': [s.model_dump() for s in self.roster],
             'lineups': [
@@ -123,6 +125,7 @@ class Team(BaseModel):
             roster_size=row.get('roster_size', 25),
             min_bench=row.get('min_bench', 4),
             min_bullpen=row.get('min_bullpen', 5),
+            num_starters=row.get('num_starters', 5),
             bench_pts_multiplier=row.get('bench_pts_multiplier', 1.0),
             roster=[TeamRosterSlot(**s) for s in (row.get('roster') or [])],
             lineups=[

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import type { Lineup, LineupSlot } from '../../api/userTeams';
-import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
-import { CardItemCompact } from '../cards/CardItemCompact';
+import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
+import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus, FaTrash, FaPencil, FaCheck } from 'react-icons/fa6';
 
 type LineupPanelProps = {
     lineups: Lineup[];
-    cardMap: Record<string, ShowdownBotCardCompact | null>;
+    cardMap: Record<string, CardDatabaseRecord | null>;
     onLineupsChange: (lineups: Lineup[]) => void;
     onSlotClick: (lineupIndex: number, position: string, currentSlot: LineupSlot | null) => void;
     readOnly?: boolean;
@@ -131,7 +131,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, onSlotClick, re
                                     {order ?? pos}
                                 </div>
                                 {card ? (
-                                    <CardItemCompact
+                                    <CardItemCompactFromCardDatabaseRecord
                                         card={card}
                                         className="flex-1"
                                         onClick={readOnly ? undefined : () => onSlotClick(activeIndex, pos, slot)}

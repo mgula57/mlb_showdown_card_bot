@@ -3484,7 +3484,7 @@ class PostgresDB:
             t.team_id, t.user_id, t.name, t.abbreviation,
             t.primary_color, t.secondary_color, t.showdown_set,
             t.is_public, t.source,
-            t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.bench_pts_multiplier,
+            t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets,
             COALESCE(
                 json_agg(
@@ -3596,6 +3596,10 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS allowed_sets TEXT[] DEFAULT '{}';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS num_starters INT DEFAULT 5;
             """)
             cur.execute("""
                 ALTER TABLE internal.user_team_roster
@@ -3786,7 +3790,7 @@ class PostgresDB:
         ALLOWED = {
             'name', 'abbreviation', 'primary_color', 'secondary_color',
             'showdown_set', 'is_public', 'source',
-            'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'bench_pts_multiplier',
+            'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
             'lineups', 'rotation', 'allowed_sets',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}

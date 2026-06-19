@@ -1,6 +1,6 @@
 import type { PitcherAssignment } from '../../api/userTeams';
-import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
-import { CardItemCompact } from '../cards/CardItemCompact';
+import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
+import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus } from 'react-icons/fa6';
 
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
@@ -20,7 +20,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 type RotationPanelProps = {
     rotation: PitcherAssignment[];
-    cardMap: Record<string, ShowdownBotCardCompact | null>;
+    cardMap: Record<string, CardDatabaseRecord | null>;
     onRoleClick: (role: string, current: PitcherAssignment | null) => void;
     readOnly?: boolean;
 };
@@ -39,7 +39,7 @@ export function RotationPanel({ rotation, cardMap, onRoleClick, readOnly = false
                     <div className="text-[10px] text-(--text-tertiary)">{ROLE_LABELS[role]}</div>
                 </div>
                 {card ? (
-                    <CardItemCompact
+                    <CardItemCompactFromCardDatabaseRecord
                         card={card}
                         className="flex-1"
                         onClick={readOnly ? undefined : () => onRoleClick(role, assignment)}

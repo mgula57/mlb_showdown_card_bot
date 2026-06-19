@@ -1,6 +1,6 @@
 import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
-import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
-import { CardItemCompact } from '../cards/CardItemCompact';
+import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
+import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { FaPlus } from 'react-icons/fa6';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
@@ -8,7 +8,7 @@ const ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 
 type DepthChartPanelProps = {
     team: Team;
-    cardMap: Record<string, ShowdownBotCardCompact | null>;
+    cardMap: Record<string, CardDatabaseRecord | null>;
     onSlotClick: (position: string, slot: LineupSlot | null) => void;
     onRoleClick: (role: string, current: PitcherAssignment | null) => void;
     onBenchClick: (role: string, current: TeamRosterSlot | null) => void;
@@ -25,7 +25,7 @@ function PositionRow({
     isActive,
 }: {
     label: string;
-    card: ShowdownBotCardCompact | null | undefined;
+    card: CardDatabaseRecord | null | undefined;
     onClick: () => void;
     readOnly: boolean;
     isActive?: boolean;
@@ -35,14 +35,14 @@ function PositionRow({
             <span className={`text-[11px] font-bold w-10 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
                 <div className="flex-1 min-w-0" onClick={readOnly ? undefined : onClick}>
-                    <CardItemCompact card={card} isSelected={isActive} />
+                    <CardItemFromCardDatabaseRecord card={card} isSelected={isActive} />
                 </div>
             ) : (
                 <button
                     type="button"
                     onClick={onClick}
                     disabled={readOnly}
-                    className={`flex-1 flex items-center gap-1.5 px-3 h-9 rounded-lg border border-dashed
+                    className={`flex-1 flex items-center gap-1.5 px-3 h-18 rounded-lg border border-dashed
                         text-[11px] disabled:pointer-events-none disabled:opacity-40 transition-colors
                         ${isActive
                             ? 'border-(--secondary)/70 text-(--secondary) hover:border-(--secondary) hover:text-(--secondary)'
@@ -87,6 +87,7 @@ export function DepthChartPanel({
     );
 
     const BULLPEN_ROLES = ["RP1", "RP2", "RP3", "RP4", "RP5",].slice(0, team.min_bullpen);
+    const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
 
     return (
         <div className="flex flex-col gap-0.5 p-4">
@@ -124,7 +125,7 @@ export function DepthChartPanel({
 
             {/* Rotation */}
             <SectionHeader label="Rotation" />
-            {ROTATION_ROLES.map(role => {
+            {ACTIVE_ROTATION_ROLES.map(role => {
                 const assignment = roleByKey[role] ?? null;
                 return (
                     <PositionRow

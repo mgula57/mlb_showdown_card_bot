@@ -94,6 +94,12 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
                     type="number"
                     onChange={v => onChange({ min_bullpen: Number(v) || 5 })}
                 />
+                <FormInput
+                    label="Starting Pitchers"
+                    value={team.num_starters ?? 5}
+                    type="number"
+                    onChange={v => onChange({ num_starters: Number(v) || 5 })}
+                />
             </div>
             <FormInput
                 label="Bench PTS Multiplier"
