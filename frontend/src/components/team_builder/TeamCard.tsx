@@ -50,7 +50,11 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                     }
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] text-(--text-secondary)">{team.showdown_set}</span>
+                    {(team.allowed_sets ?? []).length > 0 && (
+                        <span className="text-[11px] text-(--text-secondary)">
+                            {(team.allowed_sets ?? []).join(', ')}
+                        </span>
+                    )}
                     <span
                         className="text-[9px] font-black rounded px-1 py-0.5 leading-none"
                         style={{ backgroundColor: secondary, color: getContrastColor(secondary) }}

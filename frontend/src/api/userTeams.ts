@@ -40,7 +40,6 @@ export type Team = {
     abbreviation: string;
     primary_color: string;
     secondary_color: string;
-    showdown_set: string;
     is_public: boolean;
     source: TeamSource;
     pts_limit: number | null;

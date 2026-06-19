@@ -12,8 +12,9 @@ import {
 } from '../../api/userTeams';
 import { TeamCard } from './TeamCard';
 import { TeamDetail } from './TeamDetail';
+import { NewTeamModal } from './NewTeamModal';
 import { FaPlus, FaSpinner } from 'react-icons/fa6';
-import { useSiteSettings } from '../shared/SiteSettingsContext';
+import type { TeamCreatePayload } from '../../api/userTeams';
 
 type ViewState =
     | { mode: 'list' }
@@ -21,7 +22,6 @@ type ViewState =
 
 export default function TeamBuilder() {
     const { session } = useAuth();
-    const { userShowdownSet } = useSiteSettings();
     const location = useLocation();
     const navigate = useNavigate();
     const token = session?.access_token;
@@ -31,6 +31,7 @@ export default function TeamBuilder() {
     const [view, setView] = useState<ViewState>({ mode: 'list' });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     // Extract teamId from URL: /teams/:teamId
     const teamIdFromUrl = location.pathname.split('/')[2] ?? null;
@@ -84,13 +85,11 @@ export default function TeamBuilder() {
         setView({ mode: 'list' });
     }
 
-    async function handleCreate() {
+    async function handleCreate(payload: TeamCreatePayload) {
         if (!token) return;
-        const newTeam = await createTeam(
-            { name: 'New Team', abbreviation: 'NEW', showdown_set: userShowdownSet },
-            token,
-        );
+        const newTeam = await createTeam(payload, token);
         setUserTeams(prev => [newTeam, ...prev]);
+        setShowCreateModal(false);
         navigate('/teams/' + newTeam.team_id);
         setView({ mode: 'editor', team: newTeam, readOnly: false });
     }
@@ -134,13 +133,20 @@ export default function TeamBuilder() {
                 {token && (
                     <button
                         type="button"
-                        onClick={handleCreate}
+                        onClick={() => setShowCreateModal(true)}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity"
                     >
                         <FaPlus className="text-[10px]" /> New Team
                     </button>
                 )}
             </div>
+
+            {showCreateModal && (
+                <NewTeamModal
+                    onConfirm={handleCreate}
+                    onCancel={() => setShowCreateModal(false)}
+                />
+            )}
 
             {error && (
                 <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">

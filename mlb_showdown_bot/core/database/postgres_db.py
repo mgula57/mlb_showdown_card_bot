@@ -3482,7 +3482,7 @@ class PostgresDB:
     _TEAM_BASE_SELECT = """
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
-            t.primary_color, t.secondary_color, t.showdown_set,
+            t.primary_color, t.secondary_color,
             t.is_public, t.source,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets,
@@ -3789,7 +3789,7 @@ class PostgresDB:
     def _team_payload_fields(payload: dict) -> dict:
         ALLOWED = {
             'name', 'abbreviation', 'primary_color', 'secondary_color',
-            'showdown_set', 'is_public', 'source',
+            'is_public', 'source',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
             'lineups', 'rotation', 'allowed_sets',
         }

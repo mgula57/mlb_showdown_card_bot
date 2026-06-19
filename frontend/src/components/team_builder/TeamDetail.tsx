@@ -159,7 +159,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         })();
     }, [draft]);
 
-    const searchFilters = useMemo(() => getSearchFiltersForSlot(pendingSlot), [pendingSlot]);
+    const searchFilters = useMemo(() => ({
+        ...getSearchFiltersForSlot(pendingSlot),
+        ...(draft.allowed_sets?.length ? { showdown_set: draft.allowed_sets } : {}),
+    }), [pendingSlot, draft.allowed_sets]);
 
     function update(updates: TeamUpdatePayload) {
         setDraft(prev => ({ ...prev, ...updates } as Team));

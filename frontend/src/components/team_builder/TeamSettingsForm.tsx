@@ -2,27 +2,72 @@ import React, { useState } from 'react';
 import type { Team, TeamUpdatePayload } from '../../api/userTeams';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
-import { showdownSets } from '../shared/SiteSettingsContext';
-import FormDropdown from '../customs/FormDropdown';
+import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
+import FormSection from '../customs/FormSection';
+import { FaUser, FaLayerGroup, FaGears } from 'react-icons/fa6';
 
 type TeamSettingsFormProps = {
     team: Partial<Team>;
     onChange: (updates: TeamUpdatePayload) => void;
+    /** Which sections start collapsed. Default: all open. */
+    collapsedSections?: Array<'identity' | 'set' | 'rules'>;
 };
 
-export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
-    const setOptions = showdownSets.map(s => ({
-        value: s.value,
-        label: s.value,
-        image: s.image,
-    }));
+export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: TeamSettingsFormProps) {
+    const isOpen = (section: 'identity' | 'set' | 'rules') =>
+        !collapsedSections.includes(section);
+    const AllowedSetsToggle = (
+        <div className="flex flex-wrap gap-2 col-span-full">
+            {showdownSets.map(s => {
+                const active = (team.allowed_sets ?? []).includes(s.value);
+                return (
+                    <button
+                        key={s.value}
+                        type="button"
+                        onClick={() => {
+                            const current = team.allowed_sets ?? [];
+                            const next = active
+                                ? current.filter(v => v !== s.value)
+                                : [...current, s.value];
+                            onChange({ allowed_sets: next });
+                        }}
+                        className={`p-1 rounded-lg border-2 transition-colors
+                            ${active
+                                ? 'border-(--secondary) bg-(--secondary)/10'
+                                : 'border-(--divider) opacity-40 hover:opacity-70'
+                            }`}
+                    >
+                        {imageForSet(s.value)
+                            ? <img src={imageForSet(s.value)} alt={s.value} className="h-5 w-auto object-contain" />
+                            : <span className="text-[11px] font-bold px-1">{s.value}</span>
+                        }
+                    </button>
+                );
+            })}
+        </div>
+    );
+
+    const LINEUP_SLOTS = 9;
+    const rosterSize   = team.roster_size    ?? 25;
+    const minBench     = team.min_bench      ?? 4;
+    const minBullpen   = team.min_bullpen    ?? 5;
+    const numStarters  = team.num_starters   ?? 5;
+    const rosterUsed   = LINEUP_SLOTS + minBench + minBullpen + numStarters;
+    const rosterError  = rosterUsed > rosterSize
+        ? `Minimum roster needs ${rosterUsed} slots (9 lineup + ${numStarters} SP + ${minBullpen} bullpen + ${minBench} bench) but roster size is ${rosterSize}.`
+        : null;
+    const minPtsLimit  = rosterSize * 10;
+    const ptsLimit     = team.pts_limit ?? null;
+    const ptsError     = ptsLimit !== null && ptsLimit < minPtsLimit
+        ? `PTS limit (${ptsLimit}) must be at least roster size × 10 (${minPtsLimit}).`
+        : null;
 
     return (
         <div className="flex flex-col gap-3 p-4">
-            {/* Identity */}
-            <div className="grid grid-cols-2 gap-3">
+            <FormSection title="Identity" icon={<FaUser />} isOpenByDefault={isOpen('identity')}>
                 <FormInput
                     label="Team Name"
+                    className="col-span-full"
                     value={team.name ?? ''}
                     onChange={v => onChange({ name: v ?? '' })}
                     isTitleCase
@@ -33,10 +78,11 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
                     onChange={v => onChange({ abbreviation: (v ?? '').toUpperCase().slice(0, 5) })}
                     placeholder="e.g. NYY"
                 />
-            </div>
-
-            {/* Colors */}
-            <div className="grid grid-cols-2 gap-3">
+                <FormEnabler
+                    label="Public"
+                    isEnabled={team.is_public ?? false}
+                    onChange={v => onChange({ is_public: v })}
+                />
                 <ColorPicker
                     label="Primary Color"
                     value={team.primary_color ?? 'rgb(0,0,0)'}
@@ -47,46 +93,42 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
                     value={team.secondary_color ?? 'rgb(255,255,255)'}
                     onChange={v => onChange({ secondary_color: v })}
                 />
-            </div>
+            </FormSection>
 
-            {/* Set */}
-            <FormDropdown
-                label="Showdown Set"
-                options={setOptions}
-                selectedOption={team.showdown_set ?? 'EXPANDED'}
-                onChange={v => onChange({ showdown_set: v })}
-            />
+            <FormSection title="Allowed Sets" icon={<FaLayerGroup />} isOpenByDefault={isOpen('set')}>
+                {AllowedSetsToggle}
+                {(team.allowed_sets ?? []).length === 0 && (
+                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                        At least one set must be selected.
+                    </div>
+                )}
+            </FormSection>
 
-            {/* Visibility */}
-            <FormEnabler
-                label="Public (visible to others)"
-                isEnabled={team.is_public ?? false}
-                onChange={v => onChange({ is_public: v })}
-            />
-
-            {/* Roster constraints */}
-            <div className="text-[11px] font-semibold text-(--text-secondary) uppercase tracking-wide pt-1">
-                Roster Constraints
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <FormSection title="Rules" icon={<FaGears />} isOpenByDefault={isOpen('rules')}>
                 <FormInput
                     label="PTS Limit"
                     value={team.pts_limit ?? ''}
                     type="number"
                     placeholder="None"
                     onChange={v => onChange({ pts_limit: v ? Number(v) : null })}
+                    step={10}
                 />
+                {ptsError && (
+                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {ptsError}
+                    </div>
+                )}
                 <FormInput
                     label="Roster Size"
-                    value={team.roster_size ?? 25}
+                    value={team.roster_size ?? 20}
                     type="number"
-                    onChange={v => onChange({ roster_size: Number(v) || 25 })}
+                    onChange={v => onChange({ roster_size: Number(v) || 20 })}
                 />
                 <FormInput
-                    label="Min Bench"
-                    value={team.min_bench ?? 4}
+                    label="Starting Pitchers"
+                    value={team.num_starters ?? 4}
                     type="number"
-                    onChange={v => onChange({ min_bench: Number(v) || 4 })}
+                    onChange={v => onChange({ num_starters: Number(v) || 4 })}
                 />
                 <FormInput
                     label="Min Bullpen"
@@ -94,49 +136,27 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
                     type="number"
                     onChange={v => onChange({ min_bullpen: Number(v) || 5 })}
                 />
-                <FormInput
-                    label="Starting Pitchers"
-                    value={team.num_starters ?? 5}
-                    type="number"
-                    onChange={v => onChange({ num_starters: Number(v) || 5 })}
-                />
-            </div>
-            <FormInput
-                label="Bench PTS Multiplier"
-                value={team.bench_pts_multiplier ?? 1.0}
-                type="number"
-                onChange={v => onChange({ bench_pts_multiplier: Number(v) || 1.0 })}
-            />
 
-            {/* Allowed Sets */}
-            <div className="text-[11px] font-semibold text-(--text-secondary) uppercase tracking-wide pt-1">
-                Allowed Sets
-            </div>
-            <div className="flex flex-wrap gap-2">
-                {showdownSets.map(s => {
-                    const active = (team.allowed_sets ?? []).includes(s.value);
-                    return (
-                        <button
-                            key={s.value}
-                            type="button"
-                            onClick={() => {
-                                const current = team.allowed_sets ?? [];
-                                const next = active
-                                    ? current.filter(v => v !== s.value)
-                                    : [...current, s.value];
-                                onChange({ allowed_sets: next });
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors
-                                ${active
-                                    ? 'border-(--secondary) text-(--secondary) bg-(--secondary)/10'
-                                    : 'border-(--divider) text-(--text-secondary) hover:border-(--secondary)/50'
-                                }`}
-                        >
-                            {s.value}
-                        </button>
-                    );
-                })}
-            </div>
+                <FormInput
+                    label="Min Bench"
+                    value={team.min_bench ?? 4}
+                    type="number"
+                    onChange={v => onChange({ min_bench: Number(v) || 4 })}
+                />
+
+                <FormInput
+                    label="Bench PTS Multiplier"
+                    value={team.bench_pts_multiplier ?? 0.2}
+                    type="number"
+                    step={0.1}
+                    onChange={v => onChange({ bench_pts_multiplier: Number(v) || 0.2 })}
+                />
+                {rosterError && (
+                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {rosterError}
+                    </div>
+                )}
+            </FormSection>
         </div>
     );
 }
