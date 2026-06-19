@@ -114,6 +114,7 @@ export default function TeamBuilder() {
                     readOnly={readOnly}
                     onSave={updates => handleSave(team.team_id, updates)}
                     onBack={goBack}
+                    token={token}
                 />
             </div>
         );

@@ -9,6 +9,7 @@ import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { getContrastColor } from "../shared/Color";
 import { FieldView } from './FieldView';
+import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
@@ -23,6 +24,7 @@ import { ToastMessage } from '../shared/ToastMessage';
 type PendingSlot =
     | { kind: 'field'; position: string; current: LineupSlot | null }
     | { kind: 'rotation'; role: string; current: PitcherAssignment | null }
+    | { kind: 'bench'; role: string; current: TeamRosterSlot | null }
     | { kind: 'roster' };
 
 type TeamDetailProps = {
@@ -58,6 +60,9 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
         if (slot.role.startsWith('SP')) return { positions: ['STARTER'], player_type: ['PITCHER'] };
         return { positions: ['RELIEVER', 'STARTER'], player_type: ['PITCHER'] };
     }
+    if (slot.kind === 'bench') {
+        return { player_type: ['HITTER'] };
+    }
     return {};
 }
 
@@ -73,7 +78,7 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
         if (pos === 'OF') return ['LF', 'CF', 'RF'];
         return [pos];
     });
-    return [...new Set([...expanded, 'DH', 'BENCH'])];
+    return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false }: TeamDetailProps) {
@@ -139,8 +144,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     useEffect(() => {
         const ids = new Set<string>();
         draft.roster.forEach(s => ids.add(s.card_id));
-        draft.lineups.forEach(ln => ln.slots.forEach(s => ids.add(s.card_id)));
-        draft.rotation.forEach(r => ids.add(r.card_id));
 
         if (ids.size === 0) return;
         const missing = [...ids].filter(id => !(id in cardMap));
@@ -148,10 +151,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
         (async () => {
             try {
-                const cards = await fetchCardData(CardSource.BOT as any, { id: missing, limit: missing.length });
+                const cards = await fetchCardData(CardSource.BOT as any, { card_id: missing, limit: missing.length });
                 const newEntries = Object.fromEntries(
-                    cards.map(c => [c.id, {
-                        id: c.id,
+                    cards.map(c => [c.card_id, {
+                        id: c.card_id,
                         name: c.name,
                         year: String(c.year),
                         set: c.showdown_set,
@@ -162,11 +165,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         color_primary: c.color_primary ?? null,
                         color_secondary: c.color_secondary ?? null,
                         positions_and_defense_string: c.positions_and_defense_string ?? null,
+                        positions_and_defense: c.positions_and_defense ?? {},
                         ip: c.ip ?? null,
                     } as ShowdownBotCardCompact])
                 );
+                console.log('Fetched card data for team:', newEntries);
                 setCardMap(prev => ({ ...prev, ...newEntries }));
-            } catch { /* silent */ }
+            } catch { 
+                console.error('Failed to fetch card data for team:', team.team_id);
+             }
         })();
     }, [draft]);
 
@@ -179,32 +186,36 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
 
     function handleCardPicked(card: CardDatabaseRecord) {
+        if (pendingSlot?.kind === 'bench') {
+            handleConfirmPosition(pendingSlot.role, card);
+            return;
+        }
         setConfirmCard(card);
     }
 
-    function handleConfirmPosition(position: string) {
-        if (!confirmCard) return;
+    function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
+        if (!card) return;
 
         const compact: ShowdownBotCardCompact = {
-            id: confirmCard.id,
-            name: confirmCard.name,
-            year: String(confirmCard.year),
-            set: confirmCard.showdown_set,
-            team: confirmCard.team_id,
-            points: confirmCard.points,
-            command: confirmCard.command,
-            is_pitcher: confirmCard.is_pitcher,
-            color_primary: confirmCard.color_primary ?? null,
-            color_secondary: confirmCard.color_secondary ?? null,
-            positions_and_defense_string: confirmCard.positions_and_defense_string ?? null,
-            positions_and_defense: confirmCard.positions_and_defense ?? {},
-            ip: confirmCard.ip ?? null,
+            id: card.card_id,
+            name: card.name,
+            year: String(card.year),
+            set: card.showdown_set,
+            team: card.team_id,
+            points: card.points,
+            command: card.command,
+            is_pitcher: card.is_pitcher,
+            color_primary: card.color_primary ?? null,
+            color_secondary: card.color_secondary ?? null,
+            positions_and_defense_string: card.positions_and_defense_string ?? null,
+            positions_and_defense: card.positions_and_defense ?? {},
+            ip: card.ip ?? null,
         };
-        setCardMap(prev => ({ ...prev, [confirmCard.id]: compact }));
+        setCardMap(prev => ({ ...prev, [card.card_id]: compact }));
 
         const nextDraftOrder = Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
         const rosterSlot: TeamRosterSlot = {
-            card_id: confirmCard.id,
+            card_id: card.card_id,
             card_source: draftSource,
             roster_position: position,
             draft_order: nextDraftOrder,
@@ -213,21 +224,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         const pitcherSlots = [...ROTATION_ROLES, ...BULLPEN_ROLES] as string[];
         if (pitcherSlots.includes(position)) {
             const rotation = draft.rotation.filter(r => r.role !== position);
-            rotation.push({ card_id: confirmCard.id, card_source: draftSource, role: position });
+            rotation.push({ card_id: card.card_id, card_source: draftSource, role: position });
             const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
             update({ rotation, roster });
-        } else if (position === 'BENCH') {
+        } else if (/^BE\d+$/.test(position)) {
+            const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
+            update({ roster });
+        } else if (position === 'BE') {
             update({ roster: [...draft.roster, rosterSlot] });
         } else {
             const lineups = draft.lineups.length > 0 ? [...draft.lineups] : [{ name: 'Default', slots: [] }];
             const slots = lineups[0].slots.filter(s => s.field_position !== position);
-            slots.push({ card_id: confirmCard.id, card_source: draftSource, field_position: position, batting_order: null });
+            slots.push({ card_id: card.card_id, card_source: draftSource, field_position: position, batting_order: null });
             lineups[0] = { ...lineups[0], slots };
             const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
             update({ lineups, roster });
         }
 
-        setDraftToast({ name: confirmCard.name, position });
+        setDraftToast({ name: card.name, position });
         setConfirmCard(null);
         setPendingSlot(null);
     }
@@ -236,13 +250,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const primary = draft.primary_color || 'rgb(0,0,0)';
 
     const activeFieldPosition = pendingSlot?.kind === 'field' ? pendingSlot.position : null;
-    const activeRole = pendingSlot?.kind === 'rotation' ? pendingSlot.role : null;
+    const activeRole = (pendingSlot?.kind === 'rotation' || pendingSlot?.kind === 'bench') ? pendingSlot.role : null;
 
     const pointsBreakdown = useMemo(() => {
         const pts = (id: string) => cardMap[id]?.points ?? 0;
         const lineup = defaultLineup.slots.reduce((sum, s) => sum + pts(s.card_id), 0);
         const bench  = draft.roster
-            .filter(s => s.roster_position === 'BENCH')
+            .filter(s => s.roster_position === 'BE')
             .reduce((sum, s) => sum + Math.round(pts(s.card_id) * draft.bench_pts_multiplier), 0);
         const rotation = draft.rotation
             .filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role))
@@ -260,6 +274,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         [draft.roster]
     );
 
+    const rosterData: FieldViewRosterData = useMemo(() => ({
+        roster: draft.roster,
+        rotation: draft.rotation,
+        benchPtsMultiplier: draft.bench_pts_multiplier,
+        minBench: draft.min_bench,
+        minBullpen: draft.min_bullpen,
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, draft.min_bench, draft.min_bullpen]);
+
     const draftedCardIds = useMemo(() => {
         const ids = new Set<string>();
         draft.roster.forEach(s => ids.add(s.card_id));
@@ -271,6 +293,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const pendingLabel = pendingSlot
         ? pendingSlot.kind === 'field'    ? `Filter: ${pendingSlot.position}`
         : pendingSlot.kind === 'rotation' ? `Filter: ${pendingSlot.role}`
+        : pendingSlot.kind === 'bench'    ? `Filter: ${pendingSlot.role}`
         : 'Adding to roster'
         : null;
 
@@ -331,28 +354,40 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));
 
     return (
-        <div className="flex flex-col min-h-0 flex-1">
+        <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden">
             <div
                 className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider) shrink-0"
-                style={{ borderLeftWidth: 4, borderLeftColor: primary }}
             >
-                <button type="button" onClick={onBack} className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors shrink-0 mt-0.5">
+                <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
                     <FaArrowLeft />
                 </button>
 
                 {/* Team Header */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 space-y-1">
                     {/* Name + total pts */}
-                    <div className="flex items-baseline gap-2 min-w-0">
-                        <div className="text-[15px] font-black text-(--text-primary) truncate">{draft.name || 'Untitled Team'}</div>
-                        <span className={`text-[12px] font-bold shrink-0 ${draft.pts_limit != null && pointsBreakdown.total > draft.pts_limit ? 'text-red-500' : 'text-(--text-secondary)'}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
+                        
+                        {/* Showdown Sets */}
+                        <div className="flex items-center gap-0.5 flex-wrap">
+                            {(draft.allowed_sets ?? [])
+                            .sort((a, b) => a.localeCompare(b))
+                                .map(s => {
+                                    const img = imageForSet(s);
+                                    return (
+                                        <span key={s} className="flex items-center">
+                                            {img && <img src={img} alt={s} className="h-4.5 w-auto object-fill" />}
+                                        </span>
+                                    );
+                                })
+                            }
+                        </div>
+                    </div>
+                    {/* Subtitle row: PTS Breakdown */}
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-0.5">
+                        <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastColor(primary) }}>
                             {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
                         </span>
-                    </div>
-                    {/* Subtitle row: abbrev · set · breakdown · allowed sets */}
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-0.5">
-                        <span className="text-[11px] text-(--text-tertiary)">{draft.abbreviation} · {draft.showdown_set}</span>
-                        <span className="text-(--divider)">·</span>
                         {([
                             { label: 'LINEUP', value: pointsBreakdown.lineup },
                             { label: 'BENCH', value: pointsBreakdown.bench },
@@ -363,15 +398,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
                             </span>
                         ))}
-                        {(draft.allowed_sets ?? []).map(s => {
-                            const img = imageForSet(s);
-                            return (
-                                <span key={s} className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-(--background-tertiary) text-(--text-secondary)">
-                                    {img && <img src={img} alt={s} className="h-2.5 w-auto" />}
-                                    {s}
-                                </span>
-                            );
-                        })}
+                        
                     </div>
                 </div>
                 {!readOnly && (
@@ -399,36 +426,98 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </div>
             )}
 
+            {/* Team Roster Content */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
                 <Tabs.Root
                     defaultValue="field"
                     className="
+                        @container
                         flex flex-col shrink-0
-                        min-h-0 min-w-0 overflow-hidden
-                        w-full sm:w-80 md:w-108 lg:w-124 xl:w-136
+                        overflow-y-auto
+                        w-full sm:w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-190 3xl:w-256
                     "
                 >
-                    <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 shrink-0 py-1">
-                        <Tabs.Trigger value="field"    className={tabTriggerClass}>Field View</Tabs.Trigger>
-                        <Tabs.Trigger value="depth"    className={tabTriggerClass}>Depth Chart</Tabs.Trigger>
+                    <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
+                        <Tabs.Trigger value="field" className={tabTriggerClass}>
+                            <span className="@field-split:hidden">Field View</span>
+                            <span className="hidden @field-split:inline">Field & Depth</span>
+                        </Tabs.Trigger>
+                        <Tabs.Trigger value="depth"    className={`${tabTriggerClass} @field-split:hidden`}>Depth Chart</Tabs.Trigger>
                         <Tabs.Trigger value="draft"    className={tabTriggerClass}>Draft</Tabs.Trigger>
                         <Tabs.Trigger value="settings" className={tabTriggerClass}>Settings</Tabs.Trigger>
                     </Tabs.List>
 
-                    <Tabs.Content value="field" className="flex-1 overflow-auto focus:outline-none" onClick={() => setPendingSlot(null)}>
-                        <FieldView
-                            lineup={defaultLineup}
-                            cardMap={cardMap}
-                            onSlotClick={(pos, slot) => {
-                                if (readOnly) return;
-                                setPendingSlot({ kind: 'field', position: pos, current: slot });
-                            }}
-                            readOnly={readOnly}
-                            activePosition={activeFieldPosition}
-                        />
+                    <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
+                        {/* Narrow: FieldView only */}
+                        <div className="@field-split:hidden">
+                            <FieldView
+                                lineup={defaultLineup}
+                                cardMap={cardMap}
+                                onSlotClick={(pos, slot) => {
+                                    if (readOnly) return;
+                                    setPendingSlot({ kind: 'field', position: pos, current: slot });
+                                }}
+                                onBenchClick={(role, current) => {
+                                    if (readOnly) return;
+                                    setPendingSlot({ kind: 'bench', role, current });
+                                }}
+                                onRoleClick={(role, current) => {
+                                    if (readOnly) return;
+                                    setPendingSlot({ kind: 'rotation', role, current });
+                                }}
+                                readOnly={readOnly}
+                                activePosition={activeFieldPosition}
+                                rosterData={rosterData}
+                            />
+                        </div>
+                        {/* Wide: FieldView + DepthChart side by side */}
+                        <div className="hidden @field-split:flex flex-row items-start">
+                            <div className="flex-1 min-w-0">
+                                <FieldView
+                                    lineup={defaultLineup}
+                                    cardMap={cardMap}
+                                    onSlotClick={(pos, slot) => {
+                                        if (readOnly) return;
+                                        setPendingSlot({ kind: 'field', position: pos, current: slot });
+                                    }}
+                                    onBenchClick={(role, current) => {
+                                        if (readOnly) return;
+                                        setPendingSlot({ kind: 'bench', role, current });
+                                    }}
+                                    onRoleClick={(role, current) => {
+                                        if (readOnly) return;
+                                        setPendingSlot({ kind: 'rotation', role, current });
+                                    }}
+                                    readOnly={readOnly}
+                                    activePosition={activeFieldPosition}
+                                />
+                            </div>
+                            <div className="w-px shrink-0 bg-(--divider)" />
+                            <div className="flex-1 min-w-0">
+                                <DepthChartPanel
+                                    team={draft}
+                                    cardMap={cardMap}
+                                    onSlotClick={(pos, slot) => {
+                                        if (readOnly) return;
+                                        setPendingSlot({ kind: 'field', position: pos, current: slot });
+                                    }}
+                                    onRoleClick={(role, current) => {
+                                        if (readOnly) return;
+                                        setPendingSlot({ kind: 'rotation', role, current });
+                                    }}
+                                    onBenchClick={(role, current) => {
+                                        if (readOnly) return;
+                                        setPendingSlot({ kind: 'bench', role, current });
+                                    }}
+                                    readOnly={readOnly}
+                                    activePosition={activeFieldPosition}
+                                    activeRole={activeRole}
+                                />
+                            </div>
+                        </div>
                     </Tabs.Content>
 
-                    <Tabs.Content value="depth" className="flex-1 min-h-0 overflow-y-auto focus:outline-none" onClick={() => setPendingSlot(null)}>
+                    <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
                         <DepthChartPanel
                             team={draft}
                             cardMap={cardMap}
@@ -440,13 +529,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 if (readOnly) return;
                                 setPendingSlot({ kind: 'rotation', role, current });
                             }}
+                            onBenchClick={(role, current) => {
+                                if (readOnly) return;
+                                setPendingSlot({ kind: 'bench', role, current });
+                            }}
                             readOnly={readOnly}
                             activePosition={activeFieldPosition}
                             activeRole={activeRole}
                         />
                     </Tabs.Content>
 
-                    <Tabs.Content value="draft" className="flex-1 min-h-0 overflow-y-auto focus:outline-none">
+                    <Tabs.Content value="draft" className="focus:outline-none">
                         <div className="flex flex-col gap-0.5 p-4">
                             {draftHistory.length === 0 ? (
                                 <p className="text-[12px] text-(--text-tertiary) py-4 text-center">No draft history yet.</p>
@@ -469,7 +562,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                     </Tabs.Content>
 
-                    <Tabs.Content value="settings" className="flex-1 overflow-auto focus:outline-none">
+                    <Tabs.Content value="settings" className="focus:outline-none">
                         <TeamSettingsForm team={draft} onChange={updates => update(updates)} />
                     </Tabs.Content>
                 </Tabs.Root>

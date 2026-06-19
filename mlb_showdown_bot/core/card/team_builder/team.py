@@ -20,7 +20,7 @@ class TeamSource(str, Enum):
 class TeamRosterSlot(BaseModel):
     card_id: str
     card_source: CardSource
-    roster_position: str  # "C","1B","2B","3B","SS","LF","CF","RF","SP","RP","DH","BENCH","BULLPEN"
+    roster_position: str  # "C","1B","2B","3B","SS","LF","CF","RF","SP","RP","DH","BE"
     draft_order: Optional[int] = None
 
 
@@ -72,16 +72,16 @@ class Team(BaseModel):
 
     @property
     def starters(self) -> list[TeamRosterSlot]:
-        bench_positions = {"BENCH", "BULLPEN"}
+        bench_positions = {"BE", "RP"}
         return [s for s in self.roster if s.roster_position.upper() not in bench_positions]
 
     @property
     def bench(self) -> list[TeamRosterSlot]:
-        return [s for s in self.roster if s.roster_position.upper() == "BENCH"]
+        return [s for s in self.roster if s.roster_position.upper() == "BE"]
 
     @property
     def bullpen(self) -> list[TeamRosterSlot]:
-        return [s for s in self.roster if s.roster_position.upper() == "BULLPEN"]
+        return [s for s in self.roster if s.roster_position.upper() == "RP"]
 
     def to_db_dict(self) -> dict:
         """Serialize to a flat dict suitable for DB insertion/update."""

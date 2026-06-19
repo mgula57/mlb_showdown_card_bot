@@ -3499,15 +3499,15 @@ class PostgresDB:
             ) AS roster,
             COALESCE(SUM(
                 CASE
-                    WHEN r.roster_position IN ('BENCH', 'BULLPEN')
+                    WHEN r.roster_position IN ('BE', 'RP')
                     THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
                     ELSE COALESCE(cb.points, cw.points, 0)
                 END
             ), 0)::int AS total_points
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
-        LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
-        LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
+        LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
+        LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
     """
 
     def build_user_teams_table(self) -> None:
@@ -3597,6 +3597,10 @@ class PostgresDB:
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS allowed_sets TEXT[] DEFAULT '{}';
             """)
+            cur.execute("""
+                ALTER TABLE internal.user_team_roster
+                    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+            """)
 
     def get_user_teams(self, user_id: str) -> list[dict]:
         """Return all teams belonging to user_id, newest first."""
@@ -3644,8 +3648,11 @@ class PostgresDB:
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (team_id, user_id))
             row = cur.fetchone()
-            return self._serialize_team_row(dict(row)) if row else None
-
+            if not row:
+                print(f"Team {team_id} not found or access denied for user {user_id}.")
+                return None
+            return self._serialize_team_row(dict(row))
+        
     def create_team(self, user_id: str | None, payload: dict) -> str:
         """Insert a new team row and return the generated team_id UUID string."""
         if not self.connection:
@@ -3754,13 +3761,14 @@ class PostgresDB:
         cur.execute("DELETE FROM internal.user_team_roster WHERE team_id = %s", (team_id,))
         if not roster:
             return
+        now = datetime.now(tz=timezone.utc)
         batch = [
-            (team_id, slot['card_id'], slot['card_source'], slot['roster_position'], i, slot.get('draft_order'))
+            (team_id, slot['card_id'], slot['card_source'], slot['roster_position'], i, slot.get('draft_order'), now)
             for i, slot in enumerate(roster)
         ]
         execute_values(cur, """
             INSERT INTO internal.user_team_roster
-                (team_id, card_id, card_source, roster_position, sort_order, draft_order)
+                (team_id, card_id, card_source, roster_position, sort_order, draft_order, updated_at)
             VALUES %s
         """, batch)
 

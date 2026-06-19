@@ -1,17 +1,17 @@
-import type { Team, LineupSlot, PitcherAssignment } from '../../api/userTeams';
+import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
 import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
 import { CardItemCompact } from '../cards/CardItemCompact';
 import { FaPlus } from 'react-icons/fa6';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 const ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
-const BULLPEN_ROLES   = ['CP', 'SU', 'MR', 'LONG'] as const;
 
 type DepthChartPanelProps = {
     team: Team;
     cardMap: Record<string, ShowdownBotCardCompact | null>;
     onSlotClick: (position: string, slot: LineupSlot | null) => void;
     onRoleClick: (role: string, current: PitcherAssignment | null) => void;
+    onBenchClick: (role: string, current: TeamRosterSlot | null) => void;
     readOnly?: boolean;
     activePosition?: string | null;
     activeRole?: string | null;
@@ -70,6 +70,7 @@ export function DepthChartPanel({
     cardMap,
     onSlotClick,
     onRoleClick,
+    onBenchClick,
     readOnly = false,
     activePosition,
     activeRole,
@@ -78,7 +79,14 @@ export function DepthChartPanel({
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
     const roleByKey = Object.fromEntries(team.rotation.map(r => [r.role, r]));
 
-    const benchSlots = team.roster.filter(s => s.roster_position === 'BENCH');
+    const BENCH_ROLES = ["BE1", "BE2", "BE3", "BE4", "BE5",].slice(0, team.min_bench);
+    const benchByRole = Object.fromEntries(
+        team.roster
+            .filter(s => BENCH_ROLES.includes(s.roster_position.toUpperCase()))
+            .map(s => [s.roster_position.toUpperCase(), s])
+    );
+
+    const BULLPEN_ROLES = ["RP1", "RP2", "RP3", "RP4", "RP5",].slice(0, team.min_bullpen);
 
     return (
         <div className="flex flex-col gap-0.5 p-4">
@@ -100,17 +108,18 @@ export function DepthChartPanel({
 
             {/* Bench */}
             <SectionHeader label="Bench" />
-            {benchSlots.length === 0 && readOnly && (
-                <p className="text-[11px] text-(--text-tertiary) pl-12">No bench players.</p>
-            )}
-            {benchSlots.map((s, i) => {
-                const card = cardMap[s.card_id];
-                return card ? (
-                    <div key={i} className="flex items-center gap-3">
-                        <span className="w-10 shrink-0" />
-                        <div className="flex-1 min-w-0"><CardItemCompact card={card} /></div>
-                    </div>
-                ) : null;
+            {BENCH_ROLES.map(pos => {
+                const slot = benchByRole[pos] ?? null;
+                return (
+                    <PositionRow
+                        key={pos}
+                        label={pos}
+                        card={slot ? cardMap[slot.card_id] : null}
+                        onClick={() => onBenchClick(pos, slot)}
+                        readOnly={readOnly}
+                        isActive={activeRole === pos}
+                    />
+                );
             })}
 
             {/* Rotation */}
