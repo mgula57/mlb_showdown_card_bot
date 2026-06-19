@@ -8,10 +8,10 @@ const POSITION_COORDS: Record<string, [number, number]> = {
     CF:  [50, 15],
     LF:  [20, 24],
     RF:  [80, 24],
-    SS:  [35, 43],
-    '2B': [65, 43],
-    '3B': [18, 60],
-    '1B': [82, 60],
+    SS:  [32, 43],
+    '2B': [68, 43],
+    '3B': [18, 63],
+    '1B': [82, 63],
     C:   [50, 85],
     DH:  [88, 15],
 };
@@ -54,7 +54,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, readOnly = false, acti
                             left: `${left}%`,
                             top: `${top}%`,
                             transform: 'translate(-50%, -50%)',
-                            width: '22%',
+                            width: '25%',
                             minWidth: 70,
                         }}
                     >
@@ -65,6 +65,8 @@ export function FieldView({ lineup, cardMap, onSlotClick, readOnly = false, acti
                             {card ? (
                                 <CardItemCompact
                                     card={card}
+                                    size="lg"
+                                    fieldPosition={pos}
                                     onClick={readOnly ? undefined : () => onSlotClick(pos, slot)}
                                     isSelected={isActive}
                                 />
