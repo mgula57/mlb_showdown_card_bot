@@ -990,11 +990,33 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
     }
 
-    const filterDisplayText = (key: string, value: any) => {
+    const removeFilterForEditing = (key: string) => {
+        const correspondingKey = key.startsWith('min_')
+            ? `max_${key.slice(4)}`
+            : key.startsWith('max_')
+            ? `min_${key.slice(4)}`
+            : null;
+        setFiltersForEditing((prev) => {
+            const next = { ...prev, [key]: undefined };
+            if (correspondingKey && prev[correspondingKey as keyof FilterSelections] === prev[key as keyof FilterSelections]) {
+                next[correspondingKey as keyof FilterSelections] = undefined;
+            }
+            return next;
+        });
+    };
+
+    const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>) => {
         if (key.startsWith('min_') || key.startsWith('max_')) {
-            
+
             const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
             var shortKey = key.replace('min_', '').replace('max_', '');
+
+            // Check if there's a max with the same value. If so just display the min and show as `= value` instead of `>= value`
+            const correspondingKey = key.startsWith('min_') ? `max_${shortKey}` : `min_${shortKey}`;
+            if (overallList[correspondingKey] === value) {
+                return `${snakeToTitleCase(shortKey)}: ${value}`;
+            }
+
             if (shortKey.length == 2) {
                 shortKey = shortKey.toUpperCase();
             } else {
@@ -1015,7 +1037,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         if (key === 'include_small_sample_size') {
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
-            return `Small Sample Sizes?: ${finalValue}`;
+            return `Small Samples?: ${finalValue}`;
         }
 
         if (key === 'is_hof') {
@@ -1169,7 +1191,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
                             .map(([key, value]) => (
                                 <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                    <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
+                                    <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSorting)}</span>
                                     {!isFilterLocked(key as keyof FilterSelections) && (
                                         <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
                                             <FaTimes />
@@ -1407,9 +1429,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
                                     .map(([key, value]) => (
                                         <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
+                                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSortingForEditing)}</span>
                                             {!isFilterLocked(key as keyof FilterSelections) && (
-                                                <button onClick={() => setFiltersForEditing((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
+                                                <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
                                                     <FaTimes />
                                                 </button>
                                             )}

@@ -25,11 +25,25 @@ type CardItemCompactProps = {
     onClick?: () => void;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    /**
+     * sm: minimal (no pts, no extra details)
+     * md: auto-size via ResizeObserver (default)
+     * lg: always show a second row with defense/IP
+     */
+    size?: 'sm' | 'md' | 'lg';
+    /** When size='lg', show defense only for this position (e.g. 'SS', 'CF'). Falls back to full string. */
+    fieldPosition?: string;
 };
 
 // =============================================================================
 // COMPONENT
 // =============================================================================
+
+function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fieldPosition?: string): string {
+    if (!card) return 'N/A';
+    if (card.is_pitcher) return `IP ${card.ip ?? 0}`;
+    return card.positions_and_defense_string?.replaceAll(' +', '+') || '-';
+}
 
 export const CardItemCompact = ({
     card,
@@ -38,6 +52,8 @@ export const CardItemCompact = ({
     isLoading,
     onClick,
     actionButton,
+    size = 'md',
+    fieldPosition,
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
@@ -85,6 +101,7 @@ export const CardItemCompact = ({
     const displayName = `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
     useEffect(() => {
+        if (size !== 'md') return;
         const element = containerRef.current;
         if (!element) return;
 
@@ -118,7 +135,7 @@ export const CardItemCompact = ({
             window.removeEventListener('resize', updateHidePoints);
             observers.forEach(o => o.disconnect());
         };
-    }, []);
+    }, [size]);
 
     return (
         <div
@@ -152,10 +169,10 @@ export const CardItemCompact = ({
                     {displayName}
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
-                    <div className="text-[10px] font-semibold text-(--text-secondary) truncate">
+                    <div className="text-[9px] shrink-0 font-semibold text-(--text-secondary) truncate">
                         {card?.team || 'N/A'}
                     </div>
-                    {!hidePoints && (
+                    {size !== 'sm' && !hidePoints && (
                         <div
                             className="shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
                             style={pointsBadgeStyle}
@@ -163,10 +180,16 @@ export const CardItemCompact = ({
                             {card?.points != null ? `${card.points} PTS` : '-- PTS'}
                         </div>
                     )}
+                    
                 </div>
+                {size === 'lg' && (
+                    <div className="text-[10px] font-bold text-(--text-tertiary) truncate text-wrap">
+                        {getDefenseDisplay(card, fieldPosition)}
+                    </div>
+                )}
             </div>
 
-            {showExtraDetails && (
+            {size === 'md' && showExtraDetails && (
                 <div className="shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
                     {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
                 </div>
