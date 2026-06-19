@@ -33,6 +33,7 @@ def search_players():
     if query.isdigit() and len(query) < 4:
         return jsonify([])
 
+    _db = None
     try:
 
         # LOOK FOR `{YEAR}` PATTERN FOR CURRENT YEAR
@@ -64,8 +65,8 @@ def search_players():
 
         from mlb_showdown_bot.core.database.postgres_db import PostgresDB
 
-        # CONNECT TO DB
-        conn = PostgresDB().connection
+        _db = PostgresDB()
+        conn = _db.connection
         cursor = conn.cursor()
 
         # Check query type
@@ -314,9 +315,10 @@ def search_players():
                         'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
                     } for player in active_players]
 
+                    _db.close_connection()
                     return jsonify(displays)
 
-                
+
                 cursor.execute("""
                     SELECT 
                         name,
@@ -532,14 +534,15 @@ def search_players():
                 ), reverse=True)
 
 
-        # CLOSE THE CONNECTION
-        conn.close()
+        _db.close_connection()
 
         return jsonify(displays)
-        
+
     except Exception as e:
         import traceback
         print(f"Error searching players: {e}")
         print("Full traceback:")
         traceback.print_exc()
+        if _db is not None:
+            _db.close_connection()
         return jsonify([]), 500

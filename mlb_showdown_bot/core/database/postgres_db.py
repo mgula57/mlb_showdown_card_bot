@@ -332,6 +332,12 @@ class PostgresDB:
                 self.connection.close()
             self.connection = None
 
+    def __enter__(self) -> 'PostgresDB':
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close_connection()
+
     def __del__(self) -> None:
         """Safety net: return connection to pool if caller forgot to call close_connection()."""
         self.close_connection()

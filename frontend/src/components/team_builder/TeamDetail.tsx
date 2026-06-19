@@ -333,12 +333,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <span className="text-[11px] text-(--text-tertiary)">{draft.abbreviation} · {draft.showdown_set}</span>
                         <span className="text-(--divider)">·</span>
                         {([
-                            { label: 'LU', value: pointsBreakdown.lineup },
-                            { label: 'BN', value: pointsBreakdown.bench },
-                            { label: 'SP', value: pointsBreakdown.rotation },
-                            { label: 'BP', value: pointsBreakdown.bullpen },
+                            { label: 'LINEUP', value: pointsBreakdown.lineup },
+                            { label: 'BENCH', value: pointsBreakdown.bench },
+                            { label: 'ROTATION', value: pointsBreakdown.rotation },
+                            { label: 'BULLPEN', value: pointsBreakdown.bullpen },
                         ] as const).map(({ label, value }) => (
-                            <span key={label} className="text-[10px] text-(--text-tertiary)">
+                            <span key={label} className="text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color }}>
                                 {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
                             </span>
                         ))}
