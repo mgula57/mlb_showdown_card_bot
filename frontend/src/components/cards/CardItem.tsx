@@ -186,7 +186,7 @@ export const CardItem = ({
                     aria-label={actionButton.label}
                     onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
                     className={`
-                        absolute -top-1.5 -right-1.5 z-10
+                        absolute -top-1.5 -right-1.5 z-5
                         flex items-center justify-center
                         p-1 ${actionButton.label ? 'rounded-lg' : 'rounded-full'}
                         ${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'}
