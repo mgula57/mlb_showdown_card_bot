@@ -3,7 +3,7 @@ import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
 import { CardItemCompact } from '../cards/CardItemCompact';
 import { FaPlus } from 'react-icons/fa6';
 
-const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'SP'] as const;
+const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 const ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 const BULLPEN_ROLES   = ['CP', 'SU', 'MR', 'LONG'] as const;
 

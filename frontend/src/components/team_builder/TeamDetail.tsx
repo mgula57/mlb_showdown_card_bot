@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
+import { fetchTeam } from '../../api/userTeams';
 import type { ShowdownBotCardCompact } from '../../api/showdownBotCard';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
@@ -12,10 +13,9 @@ import { DepthChartPanel } from './DepthChartPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
-import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
-import { FaFloppyDisk, FaSpinner, FaArrowLeft, FaPlus, FaXmark } from 'react-icons/fa6';
-import { getContrastColor } from '../shared/Color';
+import { FaSpinner, FaArrowLeft, FaPlus, FaXmark } from 'react-icons/fa6';
+import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 
 type PendingSlot =
     | { kind: 'field'; position: string; current: LineupSlot | null }
@@ -26,6 +26,8 @@ type TeamDetailProps = {
     team: Team;
     onSave: (updates: TeamUpdatePayload) => Promise<void>;
     onBack: () => void;
+    onReload?: () => void;
+    token?: string;
     readOnly?: boolean;
 };
 
@@ -58,7 +60,7 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
 
 function getEligiblePositions(card: CardDatabaseRecord): string[] {
     if (card.is_pitcher) {
-        if (card.positions_and_defense.STARTER) return [...ROTATION_ROLES];
+        if ('STARTER' in card.positions_and_defense) return [...ROTATION_ROLES];
         return [...BULLPEN_ROLES];
     }
     const positions = Object.keys(card.positions_and_defense);
@@ -71,21 +73,49 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
     return [...new Set([...expanded, 'DH', 'BENCH'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, readOnly = false }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [cardMap, setCardMap] = useState<Record<string, ShowdownBotCardCompact | null>>({});
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
-    const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [stale, setStale] = useState(false);
     const [draftSource, setDraftSource] = useState<CardSourceType>(CardSource.BOT);
-    const [sheetMounted, setSheetMounted] = useState(false);
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    useEffect(() => { setDraft(team); setDirty(false); }, [team]);
+    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); }, [team]);
 
+    // Stale check: on mount, compare local updated_at against server
     useEffect(() => {
-        if (pendingSlot) setSheetMounted(true);
-    }, [pendingSlot]);
+        if (!team.team_id || !team.updated_at) return;
+        fetchTeam(team.team_id, token).then(serverTeam => {
+            if (serverTeam.updated_at && team.updated_at && serverTeam.updated_at > team.updated_at) {
+                setStale(true);
+            }
+        }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Auto-save: debounce 1.5s after any dirty change
+    useEffect(() => {
+        if (!dirty || readOnly) return;
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(async () => {
+            setSaveStatus('saving');
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { team_id, user_id, created_at, updated_at, total_points, ...payload } = draft;
+                await onSave(payload);
+                setDirty(false);
+                setSaveStatus('saved');
+                setTimeout(() => setSaveStatus(s => s === 'saved' ? 'idle' : s), 2000);
+            } catch {
+                setSaveStatus('error');
+            }
+        }, 1500);
+        return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    }, [draft, dirty]);
 
     useEffect(() => {
         const ids = new Set<string>();
@@ -128,16 +158,6 @@ export function TeamDetail({ team, onSave, onBack, readOnly = false }: TeamDetai
         setDirty(true);
     }
 
-    async function handleSave() {
-        setSaving(true);
-        try {
-            const { team_id, user_id, created_at, updated_at, ...payload } = draft;
-            await onSave(payload);
-            setDirty(false);
-        } finally {
-            setSaving(false);
-        }
-    }
 
     function handleCardPicked(card: CardDatabaseRecord) {
         setConfirmCard(card);
@@ -268,19 +288,29 @@ export function TeamDetail({ team, onSave, onBack, readOnly = false }: TeamDetai
                     <div className="text-[11px] text-(--text-secondary)">{draft.abbreviation} · {draft.showdown_set}</div>
                 </div>
                 {!readOnly && (
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={!dirty || saving}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold
-                            bg-(--showdown-red) disabled:opacity-40 transition-opacity"
-                        style={{ color: getContrastColor(primary) }}
-                    >
-                        {saving ? <FaSpinner className="animate-spin text-[11px]" /> : <FaFloppyDisk className="text-[11px]" />}
-                        Save
-                    </button>
+                    <div className="flex items-center gap-1 text-[11px] font-semibold min-w-13 justify-end">
+                        {saveStatus === 'saving' && (
+                            <span className="flex items-center gap-1 text-(--text-tertiary)">
+                                <FaSpinner className="animate-spin text-[10px]" /> Saving
+                            </span>
+                        )}
+                        {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
+                        {saveStatus === 'error' && <span className="text-red-500">Error</span>}
+                        {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
+                    </div>
                 )}
             </div>
+
+            {stale && (
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-amber-500/30 bg-amber-500/10 text-[12px] shrink-0">
+                    <span className="flex-1 text-amber-700 dark:text-amber-400">This team was updated on another device.</span>
+                    {onReload && (
+                        <button type="button" onClick={onReload} className="font-bold text-amber-700 dark:text-amber-400 underline underline-offset-2">
+                            Reload
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div className="flex flex-1 min-h-0 overflow-hidden">
                 <Tabs.Root 
@@ -340,11 +370,12 @@ export function TeamDetail({ team, onSave, onBack, readOnly = false }: TeamDetai
                 )}
             </div>
 
-            {!readOnly && sheetMounted && (
+            {!readOnly && (
                 <BottomSheet
-                    isOpen={!!pendingSlot}
+                    isOpen={true}
                     onClose={() => setPendingSlot(null)}
                     title={pendingLabel ?? undefined}
+                    dismissible={false}
                 >
                     {draftPanel}
                 </BottomSheet>
@@ -377,7 +408,7 @@ export function TeamDetail({ team, onSave, onBack, readOnly = false }: TeamDetai
 
                         {/* Card preview */}
                         <div className="px-4 py-3 border-b border-(--divider)">
-                            <CardItemCompactFromCardDatabaseRecord card={confirmCard} />
+                            <CardItemFromCardDatabaseRecord card={confirmCard} />
                         </div>
 
                         {/* Position buttons */}
