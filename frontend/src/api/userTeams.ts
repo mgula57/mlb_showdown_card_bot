@@ -135,3 +135,86 @@ export async function deleteTeam(teamId: string, token: string): Promise<void> {
         throw new Error(err.error || `Failed to delete team: ${res.status}`);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Autofill
+// ---------------------------------------------------------------------------
+
+export type PtsDistribution = {
+    offense: number;   // fractions summing to 1.0
+    rotation: number;
+    bullpen: number;
+    bench: number;
+};
+
+export type AutofillStrategy = {
+    pts_distribution: PtsDistribution;
+    pitching_strategy: string | null;
+    hitting_strategy: string | null;
+};
+
+export type AutofillResult = {
+    roster: TeamRosterSlot[];
+    lineups: Lineup[];
+    rotation: PitcherAssignment[];
+};
+
+export const DEFAULT_PTS_DISTRIBUTION: PtsDistribution = {
+    offense: 0.50,
+    rotation: 0.27,
+    bullpen: 0.18,
+    bench: 0.05,
+};
+
+export const AUTOFILL_PRESETS: { label: string; distribution: PtsDistribution }[] = [
+    { label: 'Balanced', distribution: { offense: 0.50, rotation: 0.27, bullpen: 0.18, bench: 0.05 } },
+    { label: 'Ace-Heavy', distribution: { offense: 0.40, rotation: 0.38, bullpen: 0.15, bench: 0.07 } },
+    { label: 'Power Lineup', distribution: { offense: 0.55, rotation: 0.25, bullpen: 0.15, bench: 0.05 } },
+    { label: 'Lights-Out Pen', distribution: { offense: 0.45, rotation: 0.25, bullpen: 0.25, bench: 0.05 } },
+];
+
+export const PITCHING_STRATEGY_OPTIONS: { value: string | null; label: string }[] = [
+    { value: null, label: 'Balanced' },
+    { value: 'high_control', label: 'High Control' },
+    { value: 'groundball', label: 'Groundball' },
+    { value: 'no_doubles', label: 'No Doubles' },
+    { value: 'strikeout', label: 'Strikeout Stuff' },
+];
+
+export const HITTING_STRATEGY_OPTIONS: { value: string | null; label: string }[] = [
+    { value: null, label: 'Balanced' },
+    { value: 'high_ob', label: 'High OB' },
+    { value: 'speed', label: 'Speed' },
+    { value: 'slug', label: 'Slug' },
+    { value: 'contact', label: 'Contact' },
+];
+
+export async function autofillTeam(
+    teamId: string,
+    strategy: AutofillStrategy,
+    token: string,
+    activeFilters?: Record<string, unknown>,
+): Promise<AutofillResult> {
+    const res = await fetch(`${API_BASE}/user/teams/${teamId}/autofill`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+            pts_distribution: strategy.pts_distribution,
+            pitching_strategy: strategy.pitching_strategy,
+            hitting_strategy: strategy.hitting_strategy,
+            active_filters: activeFilters ?? {},
+        }),
+    });
+    if (res.status === 422) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Autofill failed');
+    }
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Autofill request failed: ${res.status}`);
+    }
+    return res.json();
+}

@@ -98,7 +98,7 @@ export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
                             onClick={handleCreate}
                             disabled={!canCreate || creating}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white transition-opacity
-                                ${canCreate && !creating ? 'bg-(--secondary) hover:opacity-90 cursor-pointer' : 'bg-(--secondary) opacity-40 cursor-not-allowed'}`}
+                                ${canCreate && !creating ? 'bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 cursor-pointer' : 'bg-(--secondary) opacity-40 cursor-not-allowed'}`}
                         >
                             {creating
                                 ? <><FaSpinner className="animate-spin text-[11px]" /> Creating…</>

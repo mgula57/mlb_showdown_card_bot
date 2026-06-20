@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
-import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
-import { fetchTeam } from '../../api/userTeams';
+import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy } from '../../api/userTeams';
+import { fetchTeam, autofillTeam } from '../../api/userTeams';
+import { AutofillPanel } from './AutofillPanel';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
@@ -14,7 +15,7 @@ import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
-import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck } from 'react-icons/fa6';
+import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
@@ -91,6 +92,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [draftSource, setDraftSource] = useState<CardSourceType>(CardSource.BOT);
     const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(null);
     const [draftToastExiting, setDraftToastExiting] = useState(false);
+    const [showAutofill, setShowAutofill] = useState(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -170,6 +172,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         setDirty(true);
     }
 
+    async function handleAutofill(strategy: AutofillStrategy) {
+        if (!token || !draft.team_id) return;
+        const activeFilters: Record<string, unknown> = {};
+        if (draft.allowed_sets?.length) activeFilters['showdown_set'] = draft.allowed_sets;
+        const result = await autofillTeam(draft.team_id, strategy, token, activeFilters);
+        update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
+    }
 
     function handleCardPicked(card: CardDatabaseRecord) {
         if (pendingSlot?.kind === 'bench') {
@@ -368,7 +377,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     </div>
                 </div>
                 {!readOnly && (
-                    <div className="flex items-center gap-1 text-[11px] font-semibold shrink-0 mt-0.5">
+                    <div className="flex items-center h-full gap-2 text-[11px] font-semibold shrink-0 mt-0.5">
                         {saveStatus === 'saving' && (
                             <span className="flex items-center gap-1 text-(--text-tertiary)">
                                 <FaSpinner className="animate-spin text-[10px]" /> Saving
@@ -377,6 +386,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
                         {saveStatus === 'error' && <span className="text-red-500">Error</span>}
                         {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
+                        {draft.pts_limit != null && token && (
+                            <button
+                                type="button"
+                                onClick={() => setShowAutofill(true)}
+                                className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg bg-linear-to-r from-blue-500 to-red-500 text-white font-bold hover:opacity-90 cursor-pointer transition-opacity"
+                                title="Autofill roster"
+                            >
+                                <FaWandMagicSparkles className="text-[10px]" />
+                                Autofill
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -623,6 +643,20 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showAutofill && draft.pts_limit != null && (
+                <AutofillPanel
+                    ptsLimit={draft.pts_limit}
+                    bucketSizes={{
+                        offense: 9,
+                        rotation: draft.num_starters,
+                        bench: draft.min_bench,
+                        bullpen: draft.min_bullpen,
+                    }}
+                    onConfirm={handleAutofill}
+                    onClose={() => setShowAutofill(false)}
+                />
             )}
         </div>
     );
