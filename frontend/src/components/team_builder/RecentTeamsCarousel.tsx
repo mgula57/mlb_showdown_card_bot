@@ -108,7 +108,7 @@ export function RecentTeamsCarousel({ teams, onClick }: RecentTeamsCarouselProps
             <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
                 Recent Teams
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-hide">
+            <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory p-2 scrollbar-hide">
                 {recentTeams.map(team => (
                     <RecentTeamCard
                         key={team.team_id}

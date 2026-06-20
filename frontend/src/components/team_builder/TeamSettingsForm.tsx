@@ -7,7 +7,7 @@ import FormSection from '../customs/FormSection';
 import RangeFilter from '../customs/RangeFilter';
 import { TeamHierarchy } from '../cards/TeamHierarchy';
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
-import { FaUser, FaLayerGroup, FaGears, FaFilter } from 'react-icons/fa6';
+import { FaUser, FaLayerGroup, FaGears, FaFilter, FaDatabase } from 'react-icons/fa6';
 
 type PlayerFilters = {
     min_year?: number;
@@ -17,15 +17,21 @@ type PlayerFilters = {
     team?: string[];
 };
 
+const CARD_SOURCE_OPTIONS = [
+    { value: 'BOT',  label: 'Bot' },
+    { value: 'WOTC', label: 'WOTC' },
+    { value: 'WBC',  label: 'WBC' },
+] as const;
+
 type TeamSettingsFormProps = {
     team: Partial<Team>;
     onChange: (updates: TeamUpdatePayload) => void;
     /** Which sections start collapsed. Default: all open. */
-    collapsedSections?: Array<'identity' | 'set' | 'rules' | 'player_filters'>;
+    collapsedSections?: Array<'identity' | 'set' | 'sources' | 'rules' | 'player_filters'>;
 };
 
 export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: TeamSettingsFormProps) {
-    const isOpen = (section: 'identity' | 'set' | 'rules' | 'player_filters') =>
+    const isOpen = (section: 'identity' | 'set' | 'sources' | 'rules' | 'player_filters') =>
         !collapsedSections.includes(section);
 
     const [hierarchyData, setHierarchyData] = useState<TeamHierarchyRecord[]>([]);
@@ -126,6 +132,39 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                 {(team.allowed_sets ?? []).length === 0 && (
                     <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
                         At least one set must be selected.
+                    </div>
+                )}
+            </FormSection>
+
+            <FormSection title="Allowed Sources" icon={<FaDatabase />} isOpenByDefault={isOpen('sources')}>
+                <div className="flex flex-wrap gap-2 col-span-full">
+                    {CARD_SOURCE_OPTIONS.map(s => {
+                        const active = (team.allowed_card_sources ?? []).includes(s.value);
+                        return (
+                            <button
+                                key={s.value}
+                                type="button"
+                                onClick={() => {
+                                    const current = team.allowed_card_sources ?? [];
+                                    const next = active
+                                        ? current.filter(v => v !== s.value)
+                                        : [...current, s.value];
+                                    onChange({ allowed_card_sources: next });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors
+                                    ${active
+                                        ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary)'
+                                        : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary)'
+                                    }`}
+                            >
+                                {s.label}
+                            </button>
+                        );
+                    })}
+                </div>
+                {(team.allowed_card_sources ?? []).length === 0 && (
+                    <div className="col-span-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
+                        No restriction — all sources allowed.
                     </div>
                 )}
             </FormSection>

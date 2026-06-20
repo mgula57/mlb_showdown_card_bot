@@ -106,6 +106,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return () => mq.removeEventListener('change', handler);
     }, []);
 
+    // Reset draft source if the current one becomes disallowed
+    useEffect(() => {
+        const allowed = draft.allowed_card_sources ?? [];
+        if (allowed.length > 0 && !allowed.includes(draftSource)) {
+            setDraftSource(allowed[0] as CardSourceType);
+        }
+    }, [draft.allowed_card_sources]);
+
     useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); }, [team]);
 
     useEffect(() => {
@@ -153,21 +161,38 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }, [draft, dirty]);
 
     useEffect(() => {
-        const ids = new Set<string>();
-        draft.roster.forEach(s => ids.add(s.card_id));
+        // Build id→source map for roster slots not yet in cardMap
+        const toFetch = new Map<string, CardSourceType>();
+        for (const s of draft.roster) {
+            if (!(s.card_id in cardMap)) {
+                toFetch.set(s.card_id, s.card_source ?? CardSource.BOT);
+            }
+        }
+        if (toFetch.size === 0) return;
 
-        if (ids.size === 0) return;
-        const missing = [...ids].filter(id => !(id in cardMap));
-        if (missing.length === 0) return;
+        // Group by source so each source gets one request
+        const bySource = new Map<CardSourceType, string[]>();
+        for (const [id, src] of toFetch) {
+            if (!bySource.has(src)) bySource.set(src, []);
+            bySource.get(src)!.push(id);
+        }
 
         (async () => {
             try {
-                const cards = await fetchCardData(CardSource.BOT as any, { card_id: missing, limit: missing.length });
-                const newEntries = Object.fromEntries(cards.map(c => [c.card_id, c]));
-                setCardMap(prev => ({ ...prev, ...newEntries }));
-            } catch { 
+                const results = await Promise.all(
+                    [...bySource].map(([src, ids]) =>
+                        fetchCardData(src, { card_id: ids, limit: ids.length })
+                    )
+                );
+                const found = Object.fromEntries(results.flat().map(c => [c.card_id, c]));
+                // Mark unfound IDs as null to prevent infinite re-fetch
+                const entries = Object.fromEntries(
+                    [...toFetch.keys()].map(id => [id, found[id] ?? null])
+                );
+                setCardMap(prev => ({ ...prev, ...entries }));
+            } catch {
                 console.error('Failed to fetch card data for team:', team.team_id);
-             }
+            }
         })();
     }, [draft]);
 
@@ -186,6 +211,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         if (!token || !draft.team_id) return;
         const activeFilters: Record<string, unknown> = {};
         if (draft.allowed_sets?.length) activeFilters['showdown_set'] = draft.allowed_sets;
+        // Pass single allowed source so autofill fetches from the correct table
+        if (draft.allowed_card_sources?.length === 1) activeFilters['source'] = draft.allowed_card_sources[0];
         const result = await autofillTeam(draft.team_id, strategy, token, activeFilters);
         update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
         const added = result.roster.length - draft.roster.length;
@@ -303,10 +330,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         : 'Adding to roster'
         : null;
 
+    const allowedSources = useMemo(() => {
+        const restricted = draft.allowed_card_sources ?? [];
+        return restricted.length > 0
+            ? CARD_SOURCES.filter(s => restricted.includes(s.key))
+            : [...CARD_SOURCES];
+    }, [draft.allowed_card_sources]);
+
     const draftPanel = (
         <DraftPanel
             draftSource={draftSource}
             onSourceChange={setDraftSource}
+            allowedSources={allowedSources}
             pendingLabel={pendingLabel}
             searchFilters={searchFilters}
             draftedCardIds={draftedCardIds}
@@ -675,13 +710,14 @@ const TAB_TRIGGER_CLASS =
 type DraftPanelProps = {
     draftSource: CardSourceType;
     onSourceChange: (source: CardSourceType) => void;
+    allowedSources: readonly { key: CardSourceType; label: string }[];
     pendingLabel: string | null;
     searchFilters: Record<string, string[]>;
     draftedCardIds: string[];
     onCardPicked: (card: CardDatabaseRecord) => void;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, pendingLabel, searchFilters, draftedCardIds, onCardPicked }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
@@ -689,7 +725,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, pendi
             className="flex flex-col h-full min-h-0"
         >
             <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
-                {CARD_SOURCES.map(s => (
+                {allowedSources.map(s => (
                     <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
                         {s.label}
                     </Tabs.Trigger>
@@ -700,7 +736,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, pendi
                     </span>
                 )}
             </Tabs.List>
-            {CARD_SOURCES.map(s => (
+            {allowedSources.map(s => (
                 <Tabs.Content key={s.key} value={s.key} className="flex-1 min-h-0 flex flex-col focus:outline-none">
                     <ShowdownCardSearch
                         source={s.key}
