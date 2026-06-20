@@ -58,7 +58,10 @@ export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-(--divider) shrink-0">
                     <div>
-                        <div className="text-[14px] font-black text-(--text-primary)">New Team</div>
+                        <div className="text-[14px] font-black text-(--text-primary)">
+                            New 
+                            <span className="hidden sm:inline">Team</span>
+                        </div>
                         <div className="text-[11px] text-(--text-secondary) mt-0.5">Configure your team settings</div>
                     </div>
                     <button

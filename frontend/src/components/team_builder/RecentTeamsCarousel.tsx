@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import type { Team } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { useCardMap } from '../../hooks/useCardMap';
+import { fetchCardData } from '../../api/card_db/cardDatabase';
+import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastColor } from '../shared/Color';
 
@@ -25,25 +26,8 @@ function getRecentTeamIds(): string[] {
     catch { return []; }
 }
 
-// =============================================================================
-// MARK: - Helpers
-// =============================================================================
-
-function getTop3Slots(team: Team): { card_id: string; card_source: Team['roster'][0]['card_source'] }[] {
-    const lineupSlots = (team.lineups[0]?.slots ?? [])
-        .slice()
-        .sort((a, b) => (a.batting_order ?? 99) - (b.batting_order ?? 99));
-    const all = [...lineupSlots, ...team.rotation];
-    const seen = new Set<string>();
-    const result: { card_id: string; card_source: Team['roster'][0]['card_source'] }[] = [];
-    for (const s of all) {
-        if (!seen.has(s.card_id)) {
-            seen.add(s.card_id);
-            result.push({ card_id: s.card_id, card_source: s.card_source });
-        }
-        if (result.length >= 3) break;
-    }
-    return result;
+function toRgba(color: string, alpha: number): string {
+    return color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
 }
 
 // =============================================================================
@@ -83,11 +67,57 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
             .slice(0, 8);
     }, [teams, recentIds]);
 
-    const allSlots = useMemo(
-        () => recentTeams.flatMap(t => getTop3Slots(t)).filter((s, i, arr) => arr.findIndex(x => x.card_id === s.card_id) === i),
-        [recentTeams],
-    );
-    const { cardMap, loading: cardsLoading } = useCardMap(allSlots);
+    // Per team: top 3 cards by points, fetched with order/limit on the query
+    const [teamCardMap, setTeamCardMap] = useState<Record<string, CardDatabaseRecord[]>>({});
+    const [cardsLoading, setCardsLoading] = useState(false);
+
+    const teamIds = recentTeams.map(t => t.team_id).join(',');
+
+    useEffect(() => {
+        if (recentTeams.length === 0) return;
+        let cancelled = false;
+        setCardsLoading(true);
+
+        (async () => {
+            try {
+                const entries = await Promise.all(
+                    recentTeams.map(async team => {
+                        // Group roster slots by source
+                        const bySource = new Map<CardSourceType, string[]>();
+                        for (const s of team.roster) {
+                            if (!bySource.has(s.card_source)) bySource.set(s.card_source, []);
+                            bySource.get(s.card_source)!.push(s.card_id);
+                        }
+                        // Fetch top 3 per source, merge, re-sort, take top 3
+                        const sourceResults = await Promise.all(
+                            [...bySource].map(([src, ids]) =>
+                                fetchCardData(src, {
+                                    card_id: ids,
+                                    sort_by: 'points',
+                                    sort_direction: 'desc',
+                                    limit: 3,
+                                })
+                            )
+                        );
+                        const top3 = sourceResults
+                            .flat()
+                            .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
+                            .slice(0, 3);
+                        return [team.team_id, top3] as const;
+                    })
+                );
+                if (cancelled) return;
+                setTeamCardMap(Object.fromEntries(entries));
+            } catch {
+                // ignore — cards simply won't render
+            } finally {
+                if (!cancelled) setCardsLoading(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [teamIds]);
 
     if (recentTeams.length === 0) return null;
 
@@ -101,7 +131,7 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
                     <RecentTeamCard
                         key={team.team_id}
                         team={team}
-                        playerCards={getTop3Slots(team).map(s => cardMap[s.card_id] ?? null)}
+                        playerCards={teamCardMap[team.team_id] ?? []}
                         cardsLoading={cardsLoading}
                         onClick={() => onClick(team)}
                     />
@@ -134,7 +164,6 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
         playerCards[1] ?? null,
         playerCards[2] ?? null,
     ];
-    const hasAnyCardIds = slots.some(() => true); // will always be true for 3 slots
 
     return (
         <button
@@ -146,7 +175,7 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                 hover:scale-[1.025] active:scale-[0.975]
                 transition-transform duration-150
                 text-left border-2
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
+                cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
             "
             style={{
                 aspectRatio: '3/4',
@@ -166,7 +195,7 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
             <div
                 className="absolute inset-0"
                 style={{
-                    background: `linear-gradient(to bottom, ${primary}EE 0%, ${primary}AA 50%, transparent 70%)`,
+                    background: `linear-gradient(to bottom, ${toRgba(primary, 0.30)} 0%, ${toRgba(primary, 0.15)} 55%, transparent 75%)`,
                 }}
             />
 
@@ -196,7 +225,7 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                     </div>
                     {team.total_points > 0 && (
                         <div
-                            className="text-[8px] font-black mt-1.5 rounded px-1.5 py-0.5 self-start leading-none"
+                            className="text-[10px] font-black mt-0.5 rounded px-1.5 py-0.5 self-start leading-none"
                             style={{ backgroundColor: secondary, color: onSecondary }}
                         >
                             {team.total_points} PTS
@@ -206,25 +235,14 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
 
                 {/* Player cards — bottom section */}
                 <div className="flex flex-col gap-0.5">
-                    {slots.map((card, i) => {
-                        const isSlotLoading = cardsLoading && card === null;
-                        if (!cardsLoading && card === null && !hasAnyCardIds) {
-                            return (
-                                <div
-                                    key={i}
-                                    className="h-8 rounded-lg bg-white/10 border border-white/10"
-                                />
-                            );
-                        }
-                        return (
-                            <CardItemCompactFromCardDatabaseRecord
-                                key={i}
-                                card={card ?? undefined}
-                                size="sm"
-                                isLoading={isSlotLoading}
-                            />
-                        );
-                    })}
+                    {slots.map((card, i) => (
+                        <CardItemCompactFromCardDatabaseRecord
+                            key={i}
+                            card={card ?? undefined}
+                            size="sm"
+                            isLoading={cardsLoading && card === null}
+                        />
+                    ))}
                 </div>
             </div>
         </button>
