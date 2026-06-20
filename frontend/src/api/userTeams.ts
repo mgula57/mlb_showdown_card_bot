@@ -49,6 +49,7 @@ export type Team = {
     num_starters: number;
     bench_pts_multiplier: number;
     allowed_sets: string[] | null;
+    player_filters: Record<string, unknown> | null;
     roster: TeamRosterSlot[];
     lineups: Lineup[];
     rotation: PitcherAssignment[];

@@ -1,21 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Team, TeamUpdatePayload } from '../../api/userTeams';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
 import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
 import FormSection from '../customs/FormSection';
-import { FaUser, FaLayerGroup, FaGears } from 'react-icons/fa6';
+import RangeFilter from '../customs/RangeFilter';
+import { TeamHierarchy } from '../cards/TeamHierarchy';
+import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
+import { FaUser, FaLayerGroup, FaGears, FaFilter } from 'react-icons/fa6';
+
+type PlayerFilters = {
+    min_year?: number;
+    max_year?: number;
+    organization?: string[];
+    league?: string[];
+    team?: string[];
+};
 
 type TeamSettingsFormProps = {
     team: Partial<Team>;
     onChange: (updates: TeamUpdatePayload) => void;
     /** Which sections start collapsed. Default: all open. */
-    collapsedSections?: Array<'identity' | 'set' | 'rules'>;
+    collapsedSections?: Array<'identity' | 'set' | 'rules' | 'player_filters'>;
 };
 
 export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: TeamSettingsFormProps) {
-    const isOpen = (section: 'identity' | 'set' | 'rules') =>
+    const isOpen = (section: 'identity' | 'set' | 'rules' | 'player_filters') =>
         !collapsedSections.includes(section);
+
+    const [hierarchyData, setHierarchyData] = useState<TeamHierarchyRecord[]>([]);
+    useEffect(() => {
+        fetchTeamHierarchy().then(setHierarchyData).catch(() => {});
+    }, []);
+
+    const pf = (team.player_filters ?? {}) as PlayerFilters;
+    const updatePlayerFilters = (patch: Partial<PlayerFilters>) => {
+        const next = { ...pf, ...patch };
+        // strip undefined/empty values so the JSONB stays clean
+        const cleaned = Object.fromEntries(
+            Object.entries(next).filter(([, v]) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0))
+        );
+        onChange({ player_filters: Object.keys(cleaned).length ? cleaned : null });
+    };
     const AllowedSetsToggle = (
         <div className="flex flex-wrap gap-2 col-span-full">
             {showdownSets.map(s => {
@@ -81,7 +107,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                 <FormEnabler
                     label="Public"
                     isEnabled={team.is_public ?? false}
-                    onChange={v => onChange({ is_public: v })}
+                    onChange={v => onChange({ is_public: !v })}
                 />
                 <ColorPicker
                     label="Primary Color"
@@ -102,6 +128,25 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                         At least one set must be selected.
                     </div>
                 )}
+            </FormSection>
+
+            <FormSection title="Player Filters" icon={<FaFilter />} isOpenByDefault={isOpen('player_filters')}>
+                <RangeFilter
+                    label="Year"
+                    minValue={pf.min_year}
+                    maxValue={pf.max_year}
+                    onMinChange={n => updatePlayerFilters({ min_year: n })}
+                    onMaxChange={n => updatePlayerFilters({ max_year: n })}
+                />
+                <TeamHierarchy
+                    hierarchyData={hierarchyData}
+                    selectedOrganizations={pf.organization}
+                    selectedLeagues={pf.league}
+                    selectedTeams={pf.team}
+                    onOrganizationChange={values => updatePlayerFilters({ organization: values })}
+                    onLeagueChange={values => updatePlayerFilters({ league: values })}
+                    onTeamChange={values => updatePlayerFilters({ team: values })}
+                />
             </FormSection>
 
             <FormSection title="Rules" icon={<FaGears />} isOpenByDefault={isOpen('rules')}>

@@ -52,7 +52,7 @@ export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
             onClick={onCancel}
         >
             <div
-                className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden flex flex-col max-h-[90dvh]"
+                className="bg-(--background-primary) rounded-2xl w-full max-w-lg shadow-2xl border border-(--divider) overflow-hidden flex flex-col max-h-[90dvh]"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}

@@ -3485,7 +3485,7 @@ class PostgresDB:
             t.primary_color, t.secondary_color,
             t.is_public, t.source,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
-            t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets,
+            t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets, t.player_filters,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -3604,6 +3604,10 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.user_team_roster
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS player_filters JSONB DEFAULT '{}';
             """)
 
     def get_user_teams(self, user_id: str) -> list[dict]:
@@ -3776,7 +3780,7 @@ class PostgresDB:
             VALUES %s
         """, batch)
 
-    _TEAM_JSONB_FIELDS = frozenset({'lineups', 'rotation'})
+    _TEAM_JSONB_FIELDS = frozenset({'lineups', 'rotation', 'player_filters'})
 
     @staticmethod
     def _serialize_team_field(key: str, value) -> object:
@@ -3791,7 +3795,7 @@ class PostgresDB:
             'name', 'abbreviation', 'primary_color', 'secondary_color',
             'is_public', 'source',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
-            'lineups', 'rotation', 'allowed_sets',
+            'lineups', 'rotation', 'allowed_sets', 'player_filters',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}
 
