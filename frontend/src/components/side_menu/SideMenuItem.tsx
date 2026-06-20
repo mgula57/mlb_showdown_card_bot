@@ -157,12 +157,12 @@ export const sideMenuItems: SideMenuItemType[] = [
         path: "/cards"
     },
     {
-        text: "Seasons",
+        text: "Live Seasons",
         icon: FaCalendar,      // Calendar icon representing seasons/schedules
         path: "/seasons"
     },
     {
-        text: "Teams",
+        text: "Team Builder",
         icon: FaPeopleGroup,      // Group icon representing teams/rosters
         path: "/teams",
     },
