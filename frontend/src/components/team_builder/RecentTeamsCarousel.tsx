@@ -1,8 +1,7 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import type { Team } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { fetchCardData } from '../../api/card_db/cardDatabase';
-import { CardSource } from '../../types/cardSource';
+import { useCardMap } from '../../hooks/useCardMap';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastColor } from '../shared/Color';
 
@@ -30,17 +29,18 @@ function getRecentTeamIds(): string[] {
 // MARK: - Helpers
 // =============================================================================
 
-function getTop3CardIds(team: Team): string[] {
-    const lineupIds = (team.lineups[0]?.slots ?? [])
+function getTop3Slots(team: Team): { card_id: string; card_source: Team['roster'][0]['card_source'] }[] {
+    const lineupSlots = (team.lineups[0]?.slots ?? [])
         .slice()
-        .sort((a, b) => (a.batting_order ?? 99) - (b.batting_order ?? 99))
-        .map(s => s.card_id);
-    const rotationIds = team.rotation.map(r => r.card_id);
-    const all = [...lineupIds, ...rotationIds];
+        .sort((a, b) => (a.batting_order ?? 99) - (b.batting_order ?? 99));
+    const all = [...lineupSlots, ...team.rotation];
     const seen = new Set<string>();
-    const result: string[] = [];
-    for (const id of all) {
-        if (!seen.has(id)) { seen.add(id); result.push(id); }
+    const result: { card_id: string; card_source: Team['roster'][0]['card_source'] }[] = [];
+    for (const s of all) {
+        if (!seen.has(s.card_id)) {
+            seen.add(s.card_id);
+            result.push({ card_id: s.card_id, card_source: s.card_source });
+        }
         if (result.length >= 3) break;
     }
     return result;
@@ -52,10 +52,11 @@ function getTop3CardIds(team: Team): string[] {
 
 type RecentTeamsCarouselProps = {
     teams: Team[];
+    className?: string;
     onClick: (team: Team) => void;
 };
 
-export function RecentTeamsCarousel({ teams, onClick }: RecentTeamsCarouselProps) {
+export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCarouselProps) {
     const recentIds = useMemo(getRecentTeamIds, []);
 
     const recentTeams = useMemo(() => {
@@ -82,38 +83,25 @@ export function RecentTeamsCarousel({ teams, onClick }: RecentTeamsCarouselProps
             .slice(0, 8);
     }, [teams, recentIds]);
 
-    const allCardIds = useMemo(() => {
-        const ids = new Set<string>();
-        recentTeams.forEach(t => getTop3CardIds(t).forEach(id => ids.add(id)));
-        return [...ids];
-    }, [recentTeams]);
-
-    const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord>>({});
-    const [cardsLoading, setCardsLoading] = useState(false);
-
-    useEffect(() => {
-        if (allCardIds.length === 0) return;
-        setCardsLoading(true);
-        fetchCardData(CardSource.BOT as any, { card_id: allCardIds, limit: allCardIds.length })
-            .then(cards => setCardMap(Object.fromEntries(cards.map(c => [c.card_id, c]))))
-            .catch(() => {})
-            .finally(() => setCardsLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [allCardIds.join(',')]);
+    const allSlots = useMemo(
+        () => recentTeams.flatMap(t => getTop3Slots(t)).filter((s, i, arr) => arr.findIndex(x => x.card_id === s.card_id) === i),
+        [recentTeams],
+    );
+    const { cardMap, loading: cardsLoading } = useCardMap(allSlots);
 
     if (recentTeams.length === 0) return null;
 
     return (
-        <section>
-            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
+        <section className={`${className}`}>
+            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide px-4 mb-2">
                 Recent Teams
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory p-2 scrollbar-hide">
+            <div className={`flex gap-3 overflow-x-auto pb-1 py-2 px-2 scrollbar-hide`}>
                 {recentTeams.map(team => (
                     <RecentTeamCard
                         key={team.team_id}
                         team={team}
-                        playerCards={getTop3CardIds(team).map(id => cardMap[id] ?? null)}
+                        playerCards={getTop3Slots(team).map(s => cardMap[s.card_id] ?? null)}
                         cardsLoading={cardsLoading}
                         onClick={() => onClick(team)}
                     />
@@ -154,7 +142,7 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
             onClick={onClick}
             className="
                 snap-start shrink-0 relative
-                w-44 rounded-xl overflow-hidden
+                w-44 md:w-56 xl:w-64 rounded-xl overflow-hidden
                 hover:scale-[1.025] active:scale-[0.975]
                 transition-transform duration-150
                 text-left border-2

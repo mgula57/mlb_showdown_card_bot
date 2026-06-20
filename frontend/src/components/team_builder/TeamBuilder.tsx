@@ -124,9 +124,9 @@ export default function TeamBuilder() {
     }
 
     return (
-        <div className="flex flex-col gap-6 p-4 max-w-4xl mx-auto w-full">
+        <div className="flex flex-col gap-6 py-4 max-w-4xl mx-auto w-full">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center px-4 justify-between">
                 <div>
                     <h1 className="text-[20px] font-black text-(--text-primary)">Teams</h1>
                     <p className="text-[13px] text-(--text-secondary)">
@@ -172,7 +172,7 @@ export default function TeamBuilder() {
                 <>
                     {/* My Teams */}
                     {token && (
-                        <section>
+                        <section className="px-4">
                             <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
                                 My Teams
                             </div>
@@ -196,7 +196,7 @@ export default function TeamBuilder() {
 
                     {/* Official & ASG Teams */}
                     {officialTeams.length > 0 && (
-                        <section>
+                        <section className="px-4">
                             <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
                                 Official &amp; All-Star Teams
                             </div>

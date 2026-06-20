@@ -7,6 +7,7 @@ import { AutofillPanel } from './AutofillPanel';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
+import { useCardMap } from '../../hooks/useCardMap';
 import { getContrastColor } from "../shared/Color";
 import { FieldView } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
@@ -14,7 +15,6 @@ import { DepthChartPanel } from './DepthChartPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
-import { fetchCardData } from '../../api/card_db/cardDatabase';
 import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, FaShuffle } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -83,7 +83,12 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
 
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
-    const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord | null>>({});
+
+    const rosterSlots = useMemo(
+        () => draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source })),
+        [draft.roster],
+    );
+    const { cardMap, addCard } = useCardMap(rosterSlots);
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
     const [dirty, setDirty] = useState(false);
@@ -160,41 +165,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
     }, [draft, dirty]);
 
-    useEffect(() => {
-        // Build id→source map for roster slots not yet in cardMap
-        const toFetch = new Map<string, CardSourceType>();
-        for (const s of draft.roster) {
-            if (!(s.card_id in cardMap)) {
-                toFetch.set(s.card_id, s.card_source ?? CardSource.BOT);
-            }
-        }
-        if (toFetch.size === 0) return;
-
-        // Group by source so each source gets one request
-        const bySource = new Map<CardSourceType, string[]>();
-        for (const [id, src] of toFetch) {
-            if (!bySource.has(src)) bySource.set(src, []);
-            bySource.get(src)!.push(id);
-        }
-
-        (async () => {
-            try {
-                const results = await Promise.all(
-                    [...bySource].map(([src, ids]) =>
-                        fetchCardData(src, { card_id: ids, limit: ids.length })
-                    )
-                );
-                const found = Object.fromEntries(results.flat().map(c => [c.card_id, c]));
-                // Mark unfound IDs as null to prevent infinite re-fetch
-                const entries = Object.fromEntries(
-                    [...toFetch.keys()].map(id => [id, found[id] ?? null])
-                );
-                setCardMap(prev => ({ ...prev, ...entries }));
-            } catch {
-                console.error('Failed to fetch card data for team:', team.team_id);
-            }
-        })();
-    }, [draft]);
 
     const searchFilters = useMemo(() => ({
         ...(draft.player_filters ?? {}),
@@ -242,7 +212,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
         if (!card) return;
 
-        setCardMap(prev => ({ ...prev, [card.card_id]: card }));
+        addCard(card);
 
         const nextDraftOrder = Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
         const rosterSlot: TeamRosterSlot = {
