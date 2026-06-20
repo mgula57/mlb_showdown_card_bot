@@ -1,6 +1,5 @@
 import type { ShowdownBotCard, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
-import { useEffect, useRef, useState } from "react";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
@@ -57,9 +56,6 @@ export const CardItemCompact = ({
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const [hidePoints, setHidePoints] = useState(false);
-    const [showExtraDetails, setShowExtraDetails] = useState(false);
 
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.team || 'N/A')
         ? card?.color_secondary
@@ -105,46 +101,8 @@ export const CardItemCompact = ({
 
     const displayName = `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
-    useEffect(() => {
-        if (size !== 'md') return;
-        const element = containerRef.current;
-        if (!element) return;
-
-        const updateHidePoints = () => {
-            const width = element.getBoundingClientRect().width || element.clientWidth;
-            setHidePoints(width < 100);
-            setShowExtraDetails(width >= 180);
-        };
-
-        updateHidePoints();
-
-        const observers: ResizeObserver[] = [];
-        if (typeof ResizeObserver !== 'undefined') {
-            const elementObserver = new ResizeObserver(() => updateHidePoints());
-            elementObserver.observe(element);
-            observers.push(elementObserver);
-
-            const parentElement = element.parentElement;
-            if (parentElement) {
-                const parentObserver = new ResizeObserver(() => updateHidePoints());
-                parentObserver.observe(parentElement);
-                observers.push(parentObserver);
-            }
-        }
-
-        const rafId = requestAnimationFrame(updateHidePoints);
-        window.addEventListener('resize', updateHidePoints);
-
-        return () => {
-            cancelAnimationFrame(rafId);
-            window.removeEventListener('resize', updateHidePoints);
-            observers.forEach(o => o.disconnect());
-        };
-    }, [size]);
-
     return (
         <div
-            ref={containerRef}
             role={onClick ? 'button' : undefined}
             tabIndex={onClick ? 0 : undefined}
             onClick={onClick}
@@ -181,14 +139,12 @@ export const CardItemCompact = ({
                         {card?.team || 'N/A'}
                         <span className="hidden @[150px]:block ml-0.5"> {card?.year}</span>
                     </div>
-                    {size !== 'sm' && !hidePoints && (
-                        <div
-                            className="shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
-                            style={pointsBadgeStyle}
-                        >
-                            {card?.points != null ? `${card.points} PTS` : '-- PTS'}
-                        </div>
-                    )}
+                    <div
+                        className="hidden @[100px]:flex shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
+                        style={pointsBadgeStyle}
+                    >
+                        {card?.points != null ? `${card.points} PTS` : '-- PTS'}
+                    </div>
                     
                 </div>
                 {size === 'lg' && (
@@ -198,8 +154,8 @@ export const CardItemCompact = ({
                 )}
             </div>
 
-            {size === 'md' && showExtraDetails && (
-                <div className="shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
+            {size === 'md' && (
+                <div className="hidden @[180px]:block shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
                     {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
                 </div>
             )}
