@@ -171,7 +171,7 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
             onClick={onClick}
             className="
                 snap-start shrink-0 relative
-                w-44 md:w-56 xl:w-64 rounded-xl overflow-hidden
+                w-44 md:w-52 rounded-xl overflow-hidden
                 hover:scale-[1.025] active:scale-[0.975]
                 transition-transform duration-150
                 text-left border-2
@@ -231,6 +231,16 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                             {team.total_points} PTS
                         </div>
                     )}
+                    {team.allowed_card_sources && team.allowed_card_sources.length > 0 && (
+                        <div
+                            className="text-[9px] font-bold mt-0.5 rounded px-1.5 py-0.5 self-start leading-none"
+                            style={{ backgroundColor: toRgba(secondary, 0.8), color: onSecondary }}
+                        >
+                                {team.allowed_card_sources.join(', ')}
+                            </div>
+                        )
+                    }
+                        
                 </div>
 
                 {/* Player cards — bottom section */}

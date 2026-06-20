@@ -130,7 +130,7 @@ export default function TeamBuilder() {
                 <div>
                     <h1 className="text-[20px] font-black text-(--text-primary)">Teams</h1>
                     <p className="text-[13px] text-(--text-secondary)">
-                        Build and manage your Showdown rosters
+                        Build and share your own Showdown rosters
                     </p>
                 </div>
                 {token && (
@@ -139,7 +139,9 @@ export default function TeamBuilder() {
                         onClick={() => setShowCreateModal(true)}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity"
                     >
-                        <FaPlus className="text-[10px]" /> New Team
+                        <FaPlus className="text-[10px]" /> 
+                        New
+                        <span className="hidden sm:inline">Team</span>
                     </button>
                 )}
             </div>
