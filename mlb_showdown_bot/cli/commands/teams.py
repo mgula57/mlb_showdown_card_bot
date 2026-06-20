@@ -92,10 +92,10 @@ def list_teams(
 
 
 _AUTOFILL_PRESETS = {
-    'balanced':       {'offense': 0.50, 'rotation': 0.27, 'bullpen': 0.18, 'bench': 0.05},
-    'ace-heavy':      {'offense': 0.40, 'rotation': 0.38, 'bullpen': 0.15, 'bench': 0.07},
-    'power-lineup':   {'offense': 0.55, 'rotation': 0.25, 'bullpen': 0.15, 'bench': 0.05},
-    'lights-out-pen': {'offense': 0.45, 'rotation': 0.25, 'bullpen': 0.25, 'bench': 0.05},
+    'balanced':       {'offense': 0.52, 'rotation': 0.28, 'bullpen': 0.19, 'bench': 0.01},
+    'ace-heavy':      {'offense': 0.42, 'rotation': 0.38, 'bullpen': 0.18, 'bench': 0.02},
+    'power-lineup':   {'offense': 0.57, 'rotation': 0.25, 'bullpen': 0.17, 'bench': 0.01},
+    'lights-out-pen': {'offense': 0.47, 'rotation': 0.25, 'bullpen': 0.27, 'bench': 0.01},
 }
 
 

@@ -163,17 +163,17 @@ export type AutofillResult = {
 };
 
 export const DEFAULT_PTS_DISTRIBUTION: PtsDistribution = {
-    offense: 0.50,
-    rotation: 0.27,
-    bullpen: 0.18,
-    bench: 0.05,
+    offense: 0.52,
+    rotation: 0.28,
+    bullpen: 0.19,
+    bench: 0.01,
 };
 
 export const AUTOFILL_PRESETS: { label: string; distribution: PtsDistribution }[] = [
-    { label: 'Balanced', distribution: { offense: 0.50, rotation: 0.27, bullpen: 0.18, bench: 0.05 } },
-    { label: 'Ace-Heavy', distribution: { offense: 0.40, rotation: 0.38, bullpen: 0.15, bench: 0.07 } },
-    { label: 'Power Lineup', distribution: { offense: 0.55, rotation: 0.25, bullpen: 0.15, bench: 0.05 } },
-    { label: 'Lights-Out Pen', distribution: { offense: 0.45, rotation: 0.25, bullpen: 0.25, bench: 0.05 } },
+    { label: 'Balanced',        distribution: { offense: 0.52, rotation: 0.28, bullpen: 0.19, bench: 0.01 } },
+    { label: 'Ace-Heavy',       distribution: { offense: 0.42, rotation: 0.38, bullpen: 0.18, bench: 0.02 } },
+    { label: 'Power Lineup',    distribution: { offense: 0.57, rotation: 0.25, bullpen: 0.17, bench: 0.01 } },
+    { label: 'Lights-Out Pen',  distribution: { offense: 0.47, rotation: 0.25, bullpen: 0.27, bench: 0.01 } },
 ];
 
 export const PITCHING_STRATEGY_OPTIONS: { value: string | null; label: string }[] = [
