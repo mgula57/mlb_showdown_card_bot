@@ -77,7 +77,7 @@ def list_teams(
         typer.echo("No teams found.")
         return
 
-    table = PrettyTable(["team_id", "name", "abbrev", "source", "set", "roster"])
+    table = PrettyTable(["team_id", "name", "abbrev", "source", "sets", "roster"])
     table.align = "l"
     for t in teams:
         table.add_row([
@@ -85,7 +85,7 @@ def list_teams(
             t['name'][:40],
             t['abbreviation'],
             t['source'],
-            t['showdown_set'],
+            ','.join(t.get('allowed_sets') or []) or '—',
             len(t.get('roster') or []),
         ])
     typer.echo(table)

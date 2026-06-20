@@ -56,7 +56,6 @@ class Team(BaseModel):
     abbreviation: str                # stored uppercase, max 5 chars
     primary_color: str = "rgb(0,0,0)"
     secondary_color: str = "rgb(255,255,255)"
-    showdown_set: str = "EXPANDED"
     is_public: bool = False
     source: TeamSource = TeamSource.USER
     # Roster constraint settings (flat columns in DB)
@@ -66,7 +65,11 @@ class Team(BaseModel):
     min_bullpen: int = 5
     num_starters: int = 5
     bench_pts_multiplier: float = 1.0
+    # Set / source restrictions
+    allowed_sets: list[str] = []
+    allowed_card_sources: list[str] = []
     # JSONB columns
+    player_filters: dict = {}
     roster: list[TeamRosterSlot] = []
     lineups: list[Lineup] = []
     rotation: list[PitcherAssignment] = []
@@ -98,7 +101,6 @@ class Team(BaseModel):
             'abbreviation': self.abbreviation,
             'primary_color': self.primary_color,
             'secondary_color': self.secondary_color,
-            'showdown_set': self.showdown_set,
             'is_public': self.is_public,
             'source': self.source.value,
             'pts_limit': self.pts_limit,
@@ -107,6 +109,9 @@ class Team(BaseModel):
             'min_bullpen': self.min_bullpen,
             'num_starters': self.num_starters,
             'bench_pts_multiplier': self.bench_pts_multiplier,
+            'allowed_sets': self.allowed_sets,
+            'allowed_card_sources': self.allowed_card_sources,
+            'player_filters': self.player_filters,
             'roster': [s.model_dump() for s in self.roster],
             'lineups': [
                 {'name': ln.name, 'slots': [sl.model_dump() for sl in ln.slots]}
@@ -125,7 +130,6 @@ class Team(BaseModel):
             abbreviation=row['abbreviation'],
             primary_color=row.get('primary_color', 'rgb(0,0,0)'),
             secondary_color=row.get('secondary_color', 'rgb(255,255,255)'),
-            showdown_set=row.get('showdown_set', 'EXPANDED'),
             is_public=row.get('is_public', False),
             source=row.get('source', TeamSource.USER),
             pts_limit=row.get('pts_limit'),
@@ -134,6 +138,9 @@ class Team(BaseModel):
             min_bullpen=row.get('min_bullpen', 5),
             num_starters=row.get('num_starters', 5),
             bench_pts_multiplier=row.get('bench_pts_multiplier', 1.0),
+            allowed_sets=row.get('allowed_sets') or [],
+            allowed_card_sources=row.get('allowed_card_sources') or [],
+            player_filters=row.get('player_filters') or {},
             roster=[TeamRosterSlot(**s) for s in (row.get('roster') or [])],
             lineups=[
                 Lineup(name=ln['name'], slots=[LineupSlot(**sl) for sl in ln.get('slots', [])])
