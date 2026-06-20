@@ -50,6 +50,9 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
     };
     const AllowedSetsToggle = (
         <div className="flex flex-wrap gap-2 col-span-full">
+            <div className="text-sm font-semibold text-(--text-secondary) w-full">
+                Allowed Showdown Sets
+            </div>
             {showdownSets.map(s => {
                 const active = (team.allowed_sets ?? []).includes(s.value);
                 return (
@@ -134,10 +137,11 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                         At least one set must be selected.
                     </div>
                 )}
-            </FormSection>
 
-            <FormSection title="Allowed Sources" icon={<FaDatabase />} isOpenByDefault={isOpen('sources')}>
                 <div className="flex flex-wrap gap-2 col-span-full">
+                    <div className="text-sm font-semibold text-(--text-secondary) w-full">
+                        Allowed Card Sources
+                    </div>
                     {CARD_SOURCE_OPTIONS.map(s => {
                         const active = (team.allowed_card_sources ?? []).includes(s.value);
                         return (
@@ -161,12 +165,13 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                             </button>
                         );
                     })}
-                </div>
-                {(team.allowed_card_sources ?? []).length === 0 && (
-                    <div className="col-span-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
+                    {(team.allowed_card_sources ?? []).length === 0 && (
+                    <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
                         No restriction — all sources allowed.
                     </div>
                 )}
+                </div>
+                
             </FormSection>
 
             <FormSection title="Player Filters" icon={<FaFilter />} isOpenByDefault={isOpen('player_filters')}>
