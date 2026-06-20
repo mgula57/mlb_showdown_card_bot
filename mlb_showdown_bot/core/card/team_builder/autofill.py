@@ -326,6 +326,20 @@ def _fill_bullpen(
 # Public entry point
 # ---------------------------------------------------------------------------
 
+def _existing_pts_by_bucket(team: Team, cardmap: dict[str, dict], bench_pts_multiplier: float) -> dict[str, int]:
+    """Return points already spent per bucket by slots already on the team."""
+    def pts(card_id: str) -> int:
+        return cardmap.get(card_id, {}).get('points') or 0
+
+    offense_pos = set(OFFENSE_POSITIONS)
+    return {
+        'offense':  sum(pts(s.card_id) for s in team.roster if s.roster_position in offense_pos),
+        'bench':    sum(round(pts(s.card_id) * bench_pts_multiplier) for s in team.roster if s.roster_position == 'BE'),
+        'rotation': sum(pts(p.card_id) for p in team.rotation if p.role.startswith('SP')),
+        'bullpen':  sum(pts(p.card_id) for p in team.rotation if not p.role.startswith('SP')),
+    }
+
+
 def autofill_team(
     team: Team,
     candidates_by_bucket: dict[str, list[dict]],
@@ -353,10 +367,18 @@ def autofill_team(
     filled_bullpen_roles  = {p.role for p in team.rotation if not p.role.startswith('SP')}
     bench_count = sum(1 for s in team.roster if s.roster_position == 'BE')
 
-    offense_target  = round(pts_limit * pts_distribution.get('offense', 0.50))
-    rotation_target = round(pts_limit * pts_distribution.get('rotation', 0.27))
-    bullpen_target  = round(pts_limit * pts_distribution.get('bullpen', 0.18))
-    bench_target    = round(pts_limit * pts_distribution.get('bench', 0.05))
+    # Build a flat cardmap so we can look up points for existing picks
+    cardmap: dict[str, dict] = {}
+    for cards in candidates_by_bucket.values():
+        for c in cards:
+            cardmap[c['card_id']] = c
+
+    existing_pts = _existing_pts_by_bucket(team, cardmap, team.bench_pts_multiplier)
+
+    offense_target  = max(0, round(pts_limit * pts_distribution.get('offense',  0.50)) - existing_pts['offense'])
+    rotation_target = max(0, round(pts_limit * pts_distribution.get('rotation', 0.27)) - existing_pts['rotation'])
+    bullpen_target  = max(0, round(pts_limit * pts_distribution.get('bullpen',  0.18)) - existing_pts['bullpen'])
+    bench_target    = max(0, round(pts_limit * pts_distribution.get('bench',    0.05)) - existing_pts['bench'])
 
     for _ in range(max_attempts):
         # Fresh sort/shuffle each attempt
