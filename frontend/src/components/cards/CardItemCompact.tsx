@@ -288,13 +288,14 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     card?: CardDatabaseRecord;
     className?: string;
     isSelected?: boolean;
+    isLoading?: boolean;
     onClick?: () => void;
     actionButton?: CardItemActionButton;
     size?: 'sm' | 'md' | 'lg';
     fieldPosition?: string;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, onClick, actionButton, size, fieldPosition }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, size, fieldPosition }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -322,6 +323,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             }}
             className={className}
             isSelected={isSelected}
+            isLoading={isLoading}
             onClick={onClick}
             actionButton={actionButton}
             size={size}

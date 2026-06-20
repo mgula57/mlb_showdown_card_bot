@@ -13,6 +13,7 @@ import {
 import { TeamCard } from './TeamCard';
 import { TeamDetail } from './TeamDetail';
 import { NewTeamModal } from './NewTeamModal';
+import { RecentTeamsCarousel, trackRecentTeam } from './RecentTeamsCarousel';
 import { FaPlus, FaSpinner } from 'react-icons/fa6';
 import type { TeamCreatePayload } from '../../api/userTeams';
 
@@ -76,6 +77,7 @@ export default function TeamBuilder() {
     }
 
     function openTeam(team: Team, readOnly: boolean) {
+        trackRecentTeam(team.team_id);
         navigate('/teams/' + team.team_id);
         setView({ mode: 'editor', team, readOnly });
     }
@@ -90,6 +92,7 @@ export default function TeamBuilder() {
         const newTeam = await createTeam(payload, token);
         setUserTeams(prev => [newTeam, ...prev]);
         setShowCreateModal(false);
+        trackRecentTeam(newTeam.team_id);
         navigate('/teams/' + newTeam.team_id);
         setView({ mode: 'editor', team: newTeam, readOnly: false });
     }
@@ -152,6 +155,13 @@ export default function TeamBuilder() {
                 <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
                     {error}
                 </div>
+            )}
+
+            {!loading && (
+                <RecentTeamsCarousel
+                    teams={[...userTeams, ...officialTeams]}
+                    onClick={team => openTeam(team, !token || team.user_id !== session?.user?.id)}
+                />
             )}
 
             {loading ? (
