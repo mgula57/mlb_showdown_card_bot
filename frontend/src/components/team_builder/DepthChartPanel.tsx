@@ -79,14 +79,13 @@ export function DepthChartPanel({
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
     const roleByKey = Object.fromEntries(team.rotation.map(r => [r.role, r]));
 
-    const BENCH_ROLES = ["BE1", "BE2", "BE3", "BE4", "BE5",].slice(0, team.min_bench);
-    const benchByRole = Object.fromEntries(
-        team.roster
-            .filter(s => BENCH_ROLES.includes(s.roster_position.toUpperCase()))
-            .map(s => [s.roster_position.toUpperCase(), s])
-    );
+    const BENCH_ROLES = Array.from({ length: team.min_bench }, (_, i) => `BE${i + 1}`);
+    const benchSlots  = team.roster.filter(s => s.roster_position.toUpperCase() === 'BE');
+    const benchByRole = Object.fromEntries(BENCH_ROLES.flatMap((role, i) => benchSlots[i] ? [[role, benchSlots[i]]] : []));
 
-    const BULLPEN_ROLES = ["RP1", "RP2", "RP3", "RP4", "RP5",].slice(0, team.min_bullpen);
+    const BULLPEN_ROLES = Array.from({ length: team.min_bullpen }, (_, i) => `RP${i + 1}`);
+    const bullpenSlots  = team.rotation.filter(r => !r.role.startsWith('SP'));
+    const bullpenByRole = Object.fromEntries(BULLPEN_ROLES.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
     const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
 
     return (
@@ -141,16 +140,17 @@ export function DepthChartPanel({
 
             {/* Bullpen */}
             <SectionHeader label="Bullpen" />
-            {BULLPEN_ROLES.map(role => {
-                const assignment = roleByKey[role] ?? null;
+            {BULLPEN_ROLES.map((role, i) => {
+                const assignment = bullpenByRole[role] ?? null;
+                const actualRole = bullpenSlots[i]?.role ?? role;
                 return (
                     <PositionRow
                         key={role}
-                        label={role}
+                        label={actualRole}
                         card={assignment ? cardMap[assignment.card_id] : null}
-                        onClick={() => onRoleClick(role, assignment)}
+                        onClick={() => onRoleClick(actualRole, assignment)}
                         readOnly={readOnly}
-                        isActive={activeRole === role}
+                        isActive={activeRole === actualRole}
                     />
                 );
             })}

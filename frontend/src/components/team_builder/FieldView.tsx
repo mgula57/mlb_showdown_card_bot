@@ -19,7 +19,6 @@ const POSITION_COORDS: Record<string, [number, number]> = {
 
 const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
-const BULLPEN_ROLES  = ['RP', 'CL'] as const;
 
 export type FieldViewRosterData = {
     roster: TeamRosterSlot[];
@@ -91,10 +90,12 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
 
     // Build role-indexed maps so each slot renders in order (filled or placeholder)
     const benchRoles    = rosterData ? Array.from({ length: rosterData.minBench },   (_, i) => `BE${i + 1}`) : [];
-    const bullpenRoles  = rosterData ? (BULLPEN_ROLES as readonly string[]).slice(0, rosterData.minBullpen) : [];
-    const benchByRole   = Object.fromEntries((rosterData?.roster ?? []).filter(s => /^BE\d+$/.test(s.roster_position.toUpperCase())).map(s => [s.roster_position.toUpperCase(), s]));
+    const bullpenRoles  = rosterData ? Array.from({ length: rosterData.minBullpen }, (_, i) => `RP${i + 1}`) : [];
+    const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE');
+    const benchByRole   = Object.fromEntries(benchRoles.flatMap((role, i) => benchSlots[i] ? [[role, benchSlots[i]]] : []));
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
-    const bullByRole    = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (BULLPEN_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
+    const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role));
+    const bullByRole    = Object.fromEntries(bullpenRoles.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
 
     const lineupPts = lineup.slots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
     const benchPts    = benchRoles.reduce((sum, role) => { const s = benchByRole[role]; return s ? sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)) : sum; }, 0);
