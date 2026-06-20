@@ -246,12 +246,16 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                 {/* Player cards — bottom section */}
                 <div className="flex flex-col gap-0.5">
                     {slots.map((card, i) => (
-                        <CardItemCompactFromCardDatabaseRecord
-                            key={i}
-                            card={card ?? undefined}
-                            size="sm"
-                            isLoading={cardsLoading && card === null}
-                        />
+                        card === null && !cardsLoading ? (
+                            <></>
+                        ) : (
+                            <CardItemCompactFromCardDatabaseRecord
+                                key={i}
+                                card={card ?? undefined}
+                                size="sm"
+                                isLoading={cardsLoading && card === null}
+                            />
+                        )
                     ))}
                 </div>
             </div>

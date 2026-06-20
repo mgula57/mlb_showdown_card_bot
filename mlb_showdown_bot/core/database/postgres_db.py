@@ -781,7 +781,7 @@ class PostgresDB:
                     """)
                 case 'wotc':
                     query = sql.SQL("""
-                        SELECT *
+                        SELECT *, id as card_id
                         FROM card_wotc
                         WHERE TRUE
                     """)
