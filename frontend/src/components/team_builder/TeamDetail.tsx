@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy } from '../../api/userTeams';
@@ -97,6 +97,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [reshuffling, setReshuffling] = useState(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [isLg, setIsLg] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+
+    useEffect(() => {
+        const mq = window.matchMedia('(min-width: 1024px)');
+        const handler = (e: MediaQueryListEvent) => setIsLg(e.matches);
+        mq.addEventListener('change', handler);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
 
     useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); }, [team]);
 
@@ -195,13 +203,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }
 
-    function handleCardPicked(card: CardDatabaseRecord) {
+    const handleCardPicked = useCallback((card: CardDatabaseRecord) => {
         if (pendingSlot?.kind === 'bench') {
             handleConfirmPosition(pendingSlot.role, card);
             return;
         }
         setConfirmCard(card);
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingSlot]);
 
     function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
         if (!card) return;
@@ -294,48 +303,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         : 'Adding to roster'
         : null;
 
-    const tabTriggerClass =
-        'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors ' +
-        'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
-        'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
-
     const draftPanel = (
-        <Tabs.Root
-            value={draftSource}
-            onValueChange={v => setDraftSource(v as CardSourceType)}
-            className="flex flex-col h-full min-h-0"
-        >
-            <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
-                {CARD_SOURCES.map(s => (
-                    <Tabs.Trigger key={s.key} value={s.key} className={tabTriggerClass}>
-                        {s.label}
-                    </Tabs.Trigger>
-                ))}
-                {pendingLabel && (
-                    <span className="ml-auto text-[11px] text-(--secondary) font-semibold truncate pl-2">
-                        {pendingLabel}
-                    </span>
-                )}
-            </Tabs.List>
-            {CARD_SOURCES.map(s => (
-                <Tabs.Content key={s.key} value={s.key} className="flex-1 min-h-0 flex flex-col focus:outline-none">
-                    <ShowdownCardSearch
-                        source={s.key}
-                        compact={true}
-                        disableLocalStorage={true}
-                        verticalOffset="36"
-                        defaultFilters={searchFilters}
-                        excludeIds={draftedCardIds}
-                        actionButton={{
-                            icon: <FaPlus />,
-                            label: 'Select',
-                            bgColorClass: 'bg-(--showdown-red) opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
-                            onClick: handleCardPicked,
-                        }}
-                    />
-                </Tabs.Content>
-            ))}
-        </Tabs.Root>
+        <DraftPanel
+            draftSource={draftSource}
+            onSourceChange={setDraftSource}
+            pendingLabel={pendingLabel}
+            searchFilters={searchFilters}
+            draftedCardIds={draftedCardIds}
+            onCardPicked={handleCardPicked}
+        />
     );
 
     // Eligible positions split into groups for the confirmation modal
@@ -453,13 +429,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     "
                 >
                     <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
-                        <Tabs.Trigger value="field" className={tabTriggerClass}>
+                        <Tabs.Trigger value="field" className={TAB_TRIGGER_CLASS}>
                             <span className="@field-split:hidden">Field View</span>
                             <span className="hidden @field-split:inline">Field & Depth</span>
                         </Tabs.Trigger>
-                        <Tabs.Trigger value="depth"    className={`${tabTriggerClass} @field-split:hidden`}>Depth Chart</Tabs.Trigger>
-                        <Tabs.Trigger value="draft"    className={tabTriggerClass}>Draft</Tabs.Trigger>
-                        <Tabs.Trigger value="settings" className={tabTriggerClass}>Settings</Tabs.Trigger>
+                        <Tabs.Trigger value="depth"    className={`${TAB_TRIGGER_CLASS} @field-split:hidden`}>Depth Chart</Tabs.Trigger>
+                        <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
+                        <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
                     </Tabs.List>
 
                     <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
@@ -582,14 +558,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     </Tabs.Content>
                 </Tabs.Root>
 
-                {!readOnly && (
+                {!readOnly && isLg && (
                     <div className="hidden md:flex flex-col flex-1 min-w-0 min-h-0 border-l border-(--divider)">
                         {draftPanel}
                     </div>
                 )}
             </div>
 
-            {!readOnly && (
+            {!readOnly && !isLg && (
                 <BottomSheet
                     isOpen={true}
                     onClose={() => setPendingSlot(null)}
@@ -690,6 +666,61 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         </div>
     );
 }
+
+const TAB_TRIGGER_CLASS =
+    'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors ' +
+    'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
+    'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
+
+type DraftPanelProps = {
+    draftSource: CardSourceType;
+    onSourceChange: (source: CardSourceType) => void;
+    pendingLabel: string | null;
+    searchFilters: Record<string, string[]>;
+    draftedCardIds: string[];
+    onCardPicked: (card: CardDatabaseRecord) => void;
+};
+
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, pendingLabel, searchFilters, draftedCardIds, onCardPicked }: DraftPanelProps) {
+    return (
+        <Tabs.Root
+            value={draftSource}
+            onValueChange={v => onSourceChange(v as CardSourceType)}
+            className="flex flex-col h-full min-h-0"
+        >
+            <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
+                {CARD_SOURCES.map(s => (
+                    <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
+                        {s.label}
+                    </Tabs.Trigger>
+                ))}
+                {pendingLabel && (
+                    <span className="ml-auto text-[11px] text-(--secondary) font-semibold truncate pl-2">
+                        {pendingLabel}
+                    </span>
+                )}
+            </Tabs.List>
+            {CARD_SOURCES.map(s => (
+                <Tabs.Content key={s.key} value={s.key} className="flex-1 min-h-0 flex flex-col focus:outline-none">
+                    <ShowdownCardSearch
+                        source={s.key}
+                        compact={true}
+                        disableLocalStorage={true}
+                        verticalOffset="36"
+                        defaultFilters={searchFilters}
+                        excludeIds={draftedCardIds}
+                        actionButton={{
+                            icon: <FaPlus />,
+                            label: 'Select',
+                            bgColorClass: 'bg-(--showdown-red) opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
+                            onClick: onCardPicked,
+                        }}
+                    />
+                </Tabs.Content>
+            ))}
+        </Tabs.Root>
+    );
+});
 
 function PositionButton({ label, onClick }: { label: string; onClick: () => void }) {
     return (
