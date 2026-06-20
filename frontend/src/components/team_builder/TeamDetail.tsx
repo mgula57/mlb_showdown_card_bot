@@ -15,7 +15,7 @@ import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
-import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, FaArrowsRotate } from 'react-icons/fa6';
+import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, FaShuffle } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
@@ -388,7 +388,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) disabled:opacity-50 cursor-pointer transition-colors"
                                         title="Reshuffle with same strategy"
                                     >
-                                        <FaArrowsRotate className={reshuffling ? 'animate-spin' : ''} />
+                                        <FaShuffle className={reshuffling ? 'animate-spin' : ''} />
                                     </button>
                                 )}
                                 <button

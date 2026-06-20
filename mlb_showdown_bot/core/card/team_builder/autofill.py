@@ -237,7 +237,9 @@ def _fill_rotation(
     used_ids: set[str] = set()
     n_open = len(open_roles)
 
-    for i, role in enumerate(open_roles):
+    # Pick starters without assigning roles yet
+    picked_cards: list[dict] = []
+    for i in range(n_open):
         slots_left = n_open - i
         target_per_slot = pts_remaining / slots_left
 
@@ -248,22 +250,27 @@ def _fill_rotation(
 
         picked = min(affordable, key=lambda c: abs((c.get('points') or 0) - target_per_slot))
 
-        card_id = picked['card_id']
-        pts = picked.get('points') or 0
-        used_ids.add(card_id)
-        pts_remaining -= pts
-        result.pts_used += pts
-
-        result.roster_slots.append(TeamRosterSlot(
-            card_id=card_id, card_source=card_source, roster_position=role,
-            pick_source=PickSource.AUTOFILL,
-        ))
-        result.rotation_slots.append(PitcherAssignment(
-            card_id=card_id, card_source=card_source, role=role,
-        ))
+        used_ids.add(picked['card_id'])
+        pts_remaining -= picked.get('points') or 0
+        result.pts_used += picked.get('points') or 0
+        picked_cards.append(picked)
 
     if abs(result.pts_used - pts_target) > pts_tolerance:
         return None
+
+    # Assign SP1, SP2, … in descending points order (best arm gets the top spot)
+    picked_cards.sort(key=lambda c: c.get('points') or 0, reverse=True)
+    for card, role in zip(picked_cards, open_roles):
+        card_id = card['card_id']
+        card_source_val = card_source
+        result.roster_slots.append(TeamRosterSlot(
+            card_id=card_id, card_source=card_source_val, roster_position=role,
+            pick_source=PickSource.AUTOFILL,
+        ))
+        result.rotation_slots.append(PitcherAssignment(
+            card_id=card_id, card_source=card_source_val, role=role,
+        ))
+
     return result
 
 
