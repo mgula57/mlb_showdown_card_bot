@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass, field
 
-from .team import Team, TeamRosterSlot, LineupSlot, PitcherAssignment, CardSource
+from .team import Team, TeamRosterSlot, LineupSlot, PitcherAssignment, CardSource, PickSource
 
 # ---------------------------------------------------------------------------
 # Bucket definitions
@@ -153,6 +153,7 @@ def _fill_offense(
 
         result.roster_slots.append(TeamRosterSlot(
             card_id=card_id, card_source=card_source, roster_position=position,
+            pick_source=PickSource.AUTOFILL,
         ))
         result.lineup_slots.append(LineupSlot(
             card_id=card_id, card_source=card_source,
@@ -210,6 +211,7 @@ def _fill_bench(
 
         result.roster_slots.append(TeamRosterSlot(
             card_id=card_id, card_source=card_source, roster_position='BE',
+            pick_source=PickSource.AUTOFILL,
         ))
 
     if abs(result.pts_used - pts_target) > pts_tolerance:
@@ -254,6 +256,7 @@ def _fill_rotation(
 
         result.roster_slots.append(TeamRosterSlot(
             card_id=card_id, card_source=card_source, roster_position=role,
+            pick_source=PickSource.AUTOFILL,
         ))
         result.rotation_slots.append(PitcherAssignment(
             card_id=card_id, card_source=card_source, role=role,
@@ -308,6 +311,7 @@ def _fill_bullpen(
 
         result.roster_slots.append(TeamRosterSlot(
             card_id=card_id, card_source=card_source, roster_position=role,
+            pick_source=PickSource.AUTOFILL,
         ))
         result.rotation_slots.append(PitcherAssignment(
             card_id=card_id, card_source=card_source, role=role,

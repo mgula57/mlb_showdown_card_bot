@@ -11,6 +11,12 @@ class CardSource(str, Enum):
     CUSTOM = "CUSTOM"  # internal.log_custom_card (user's own generated cards)
 
 
+class PickSource(str, Enum):
+    MANUAL    = "MANUAL"    # user picked the card themselves
+    AUTOFILL  = "AUTOFILL"  # filled by the autofill algorithm
+    IMPORTED  = "IMPORTED"  # copied from another team (future)
+
+
 class TeamSource(str, Enum):
     USER     = "user"
     OFFICIAL = "official"
@@ -22,6 +28,7 @@ class TeamRosterSlot(BaseModel):
     card_source: CardSource
     roster_position: str  # "C","1B","2B","3B","SS","LF","CF","RF","SP","RP","DH","BE"
     draft_order: Optional[int] = None
+    pick_source: PickSource = PickSource.MANUAL
 
 
 class LineupSlot(BaseModel):

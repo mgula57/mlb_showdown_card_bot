@@ -6,11 +6,14 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // MARK: - TYPES
 // =============================================================================
 
+export type PickSource = 'MANUAL' | 'AUTOFILL' | 'IMPORTED';
+
 export type TeamRosterSlot = {
     card_id: string;
     card_source: CardSource;
     roster_position: string;
     draft_order: number | null;
+    pick_source: PickSource;
 };
 
 export type LineupSlot = {

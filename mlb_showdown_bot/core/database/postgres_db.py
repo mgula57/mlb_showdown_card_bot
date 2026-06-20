@@ -3492,7 +3492,8 @@ class PostgresDB:
                         'card_id',         r.card_id,
                         'card_source',     r.card_source,
                         'roster_position', r.roster_position,
-                        'draft_order',     r.draft_order
+                        'draft_order',     r.draft_order,
+                        'pick_source',     r.pick_source
                     ) ORDER BY r.sort_order, r.id
                 ) FILTER (WHERE r.card_id IS NOT NULL),
                 '[]'::json
@@ -3555,12 +3556,28 @@ class PostgresDB:
                     card_source     TEXT NOT NULL DEFAULT 'BOT',
                     roster_position TEXT NOT NULL,
                     sort_order      INT  NOT NULL DEFAULT 0,
-                    draft_order     INT
+                    draft_order     INT,
+                    pick_source     TEXT NOT NULL DEFAULT 'MANUAL'
                 );
             """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_user_team_roster_team_id
                     ON internal.user_team_roster (team_id);
+            """)
+            # Migration: add pick_source column to existing tables
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'internal'
+                          AND table_name   = 'user_team_roster'
+                          AND column_name  = 'pick_source'
+                    ) THEN
+                        ALTER TABLE internal.user_team_roster
+                            ADD COLUMN pick_source TEXT NOT NULL DEFAULT 'MANUAL';
+                    END IF;
+                END $$;
             """)
             # One-time migration: move legacy roster JSONB into the bridge table then drop the column
             cur.execute("""
@@ -3771,12 +3788,21 @@ class PostgresDB:
             return
         now = datetime.now(tz=timezone.utc)
         batch = [
-            (team_id, slot['card_id'], slot['card_source'], slot['roster_position'], i, slot.get('draft_order'), now)
+            (
+                team_id,
+                slot['card_id'],
+                slot['card_source'],
+                slot['roster_position'],
+                i,
+                slot.get('draft_order'),
+                slot.get('pick_source', 'MANUAL'),
+                now,
+            )
             for i, slot in enumerate(roster)
         ]
         execute_values(cur, """
             INSERT INTO internal.user_team_roster
-                (team_id, card_id, card_source, roster_position, sort_order, draft_order, updated_at)
+                (team_id, card_id, card_source, roster_position, sort_order, draft_order, pick_source, updated_at)
             VALUES %s
         """, batch)
 

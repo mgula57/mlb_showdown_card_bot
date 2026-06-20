@@ -15,7 +15,7 @@ import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
-import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles } from 'react-icons/fa6';
+import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, FaArrowsRotate } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
@@ -93,6 +93,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(null);
     const [draftToastExiting, setDraftToastExiting] = useState(false);
     const [showAutofill, setShowAutofill] = useState(false);
+    const [lastAutofillStrategy, setLastAutofillStrategy] = useState<AutofillStrategy | null>(null);
+    const [reshuffling, setReshuffling] = useState(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -178,6 +180,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         if (draft.allowed_sets?.length) activeFilters['showdown_set'] = draft.allowed_sets;
         const result = await autofillTeam(draft.team_id, strategy, token, activeFilters);
         update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
+        const added = result.roster.length - draft.roster.length;
+        setLastAutofillStrategy(strategy);
+        setDraftToast({ name: 'Roster Autofilled', position: `${added} player${added !== 1 ? 's' : ''} added` });
+    }
+
+    async function handleReshuffle() {
+        if (!lastAutofillStrategy || reshuffling) return;
+        setReshuffling(true);
+        try {
+            await handleAutofill(lastAutofillStrategy);
+        } finally {
+            setReshuffling(false);
+        }
     }
 
     function handleCardPicked(card: CardDatabaseRecord) {
@@ -199,6 +214,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             card_source: draftSource,
             roster_position: position,
             draft_order: nextDraftOrder,
+            pick_source: 'MANUAL',
         };
 
         const pitcherSlots = [...ROTATION_ROLES, ...BULLPEN_ROLES] as string[];
@@ -387,15 +403,28 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {saveStatus === 'error' && <span className="text-red-500">Error</span>}
                         {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
                         {draft.pts_limit != null && token && (
-                            <button
-                                type="button"
-                                onClick={() => setShowAutofill(true)}
-                                className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg bg-linear-to-r from-blue-500 to-red-500 text-white font-bold hover:opacity-90 cursor-pointer transition-opacity"
-                                title="Autofill roster"
-                            >
-                                <FaWandMagicSparkles className="text-[10px]" />
-                                Autofill
-                            </button>
+                            <>
+                                {lastAutofillStrategy && (
+                                    <button
+                                        type="button"
+                                        onClick={handleReshuffle}
+                                        disabled={reshuffling}
+                                        className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) disabled:opacity-50 cursor-pointer transition-colors"
+                                        title="Reshuffle with same strategy"
+                                    >
+                                        <FaArrowsRotate className={reshuffling ? 'animate-spin' : ''} />
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAutofill(true)}
+                                    className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg bg-linear-to-r from-blue-500 to-red-500 text-white font-bold hover:opacity-90 cursor-pointer transition-opacity"
+                                    title="Autofill roster"
+                                >
+                                    <FaWandMagicSparkles className="text-[10px]" />
+                                    Autofill
+                                </button>
+                            </>
                         )}
                     </div>
                 )}
