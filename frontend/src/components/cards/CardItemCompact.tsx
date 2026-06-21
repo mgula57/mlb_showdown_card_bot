@@ -6,6 +6,7 @@ import { useTheme } from "../shared/SiteSettingsContext";
 import { formatYear } from "../../functions/formatters";
 import { FaHatWizard } from "react-icons/fa6";
 import { imageForSet } from '../shared/SiteSettingsContext';
+import { defenseAtPosition } from "../shared/DefenseUtils";
 
 // =============================================================================
 // TYPES
@@ -41,10 +42,14 @@ type CardItemCompactProps = {
 // COMPONENT
 // =============================================================================
 
-function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fieldPosition?: string): string {
+function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fieldPosition?: string): string | number {
     if (!card) return 'N/A';
     if (card.is_pitcher) return `IP ${card.ip ?? 0}`;
-    return card.positions_and_defense_string?.replaceAll(' +', '+') || '-';
+    if (fieldPosition === 'DH') return '-';
+
+    const defAtPos = defenseAtPosition(card.positions_and_defense, fieldPosition || '');
+    if (defAtPos !== null) return `${fieldPosition}${defAtPos >= 0 ? '+' : ''}${defAtPos}`;
+    return defenseAtPosition(card.positions_and_defense, fieldPosition || '') || card.positions_and_defense_string || 'N/A';
 }
 
 export const CardItemCompact = ({
@@ -114,8 +119,8 @@ export const CardItemCompact = ({
                 ${className || ''}
                 relative @container
                 w-full min-w-0
-                flex items-center gap-2
-                rounded-lg px-2 py-1.5
+                flex items-top gap-2
+                rounded-lg px-2 py-1
                 bg-secondary
                 ${borderSettings}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
@@ -127,10 +132,10 @@ export const CardItemCompact = ({
                 secondaryColor={secondaryColor}
                 command={card?.command}
                 team={card?.team || 'N/A'}
-                className="w-6 h-6 shrink-0"
+                className={`w-6.5 h-6.5 shrink-0 ${['md', 'lg'].includes(size) ? 'mt-1.5' : 'mt-1'}`}
             />
 
-            <div className="min-w-0 flex-1 text-left">
+            <div className="min-w-0 flex-1 space-y-0.5 text-left">
                 <div className="text-[12px] font-black text-(--text-primary) truncate">
                     {displayName}
                 </div>
@@ -150,22 +155,20 @@ export const CardItemCompact = ({
                     </div>
                     
                 </div>
-                {size === 'lg' && (
-                    <div className="flex text-[10px] justify-between w-full font-bold text-(--text-tertiary) truncate text-wrap">
+                {size !== 'sm' && (
+                    <div className="flex py-0.5 text-[9px] justify-between w-full font-bold text-(--text-tertiary) truncate text-wrap">
                         {getDefenseDisplay(card, fieldPosition)}
                     </div>
                 )}
+
             </div>
 
-            {size === 'md' && (
-                <div className="hidden @[180px]:block shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
-                    {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
+            {/* Absolute positioned elements */}
+            {size !== 'sm' && (
+                <div className="absolute bottom-1 left-1.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
                 </div>
             )}
-
-            <div className="absolute top-0.5 right-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
-                <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
-            </div>
 
             {card?.source === 'WOTC' && (
                 <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="WOTC Card" />
@@ -234,6 +237,7 @@ export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPos
                 set: card?.set || '---',
                 points: card?.points ?? 0,
                 command: card?.chart.command || 0,
+                outs: card?.chart.outs_full || 0,
                 is_pitcher: card?.chart.is_pitcher || false,
                 color_primary: primaryColor,
                 color_secondary: secondaryColor,
@@ -282,6 +286,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 team: card?.wbc_team || card?.team || 'N/A',
                 points: card?.points ?? 0,
                 command: card?.command || 0,
+                outs: Math.round(card?.outs || 0),
                 is_pitcher: card?.is_pitcher || false,
                 color_primary: primaryColor,
                 color_secondary: secondaryColor,

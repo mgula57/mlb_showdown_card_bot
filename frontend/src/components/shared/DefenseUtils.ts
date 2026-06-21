@@ -2,6 +2,8 @@
 const POSITION_GROUPS: Record<string, string[]> = {
     IF: ['1B', '2B', '3B', 'SS'],
     OF: ['LF', 'CF', 'RF'],
+    C: ['C', 'CA'],
+    CA: ['C', 'CA'],
     'LF/RF': ['LF', 'RF'],
 };
 

@@ -83,6 +83,15 @@ export type CardDatabaseRecord = {
     speed_or_ip?: number | null;
     icons_list: string[];
 
+    // Real stats (player's actual season stats — used as projected targets by the card algorithm)
+    real_batting_avg?: number | null;
+    real_onbase_perc?: number | null;
+    real_slugging_perc?: number | null;
+    real_onbase_plus_slugging?: number | null;
+    real_onbase_plus_slugging_plus?: number | null;
+    real_earned_run_avg?: number | null;
+    real_whip?: number | null;
+
     // Stats
     awards_list: string[];
     is_hof: boolean;

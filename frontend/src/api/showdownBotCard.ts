@@ -471,6 +471,7 @@ export type ShowdownBotCardCompact = {
     set: string;
     points: number;
     command: number;
+    outs: number;
     is_pitcher: boolean;
     color_primary: string | null;
     color_secondary: string | null;

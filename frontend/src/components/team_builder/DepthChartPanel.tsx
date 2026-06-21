@@ -89,7 +89,7 @@ export function DepthChartPanel({
     const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
 
     return (
-        <div className="flex flex-col gap-0.5 p-4">
+        <div className="flex flex-col gap-1.5 p-4">
             {/* Starting Lineup */}
             <SectionHeader label="Starting Lineup" />
             {FIELD_POSITIONS.map(pos => {
