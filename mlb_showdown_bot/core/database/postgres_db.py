@@ -1597,12 +1597,104 @@ class PostgresDB:
                     is_chart_outlier boolean,
                     is_errata boolean DEFAULT FALSE,
                     notes text,
+                    mlb_id integer,
+                    is_two_way boolean,
+                    team_games_played_dict jsonb,
+                    team_override text,
+                    stats_modified_date timestamp without time zone,
+                    card_modified_date timestamp without time zone,
+                    card_id text,
+                    card_year text,
+                    set_number text,
+                    points_change integer,
+                    color_primary text,
+                    color_secondary text,
+                    is_hof boolean,
+                    stat_highlights_list jsonb,
+                    is_small_sample_size boolean,
+                    real_pa integer,
+                    real_g integer,
+                    real_gs integer,
+                    real_bwar numeric,
+                    real_dwar numeric,
+                    real_batting_avg numeric,
+                    real_onbase_perc numeric,
+                    real_slugging_perc numeric,
+                    real_onbase_plus_slugging numeric,
+                    real_onbase_plus_slugging_plus numeric,
+                    real_earned_run_avg numeric,
+                    real_whip numeric,
+                    real_h integer,
+                    real_1b integer,
+                    real_2b integer,
+                    real_3b integer,
+                    real_hr integer,
+                    real_sb integer,
+                    real_so integer,
+                    real_bb integer,
+                    real_w integer,
+                    real_sv integer,
+                    is_pitcher boolean,
+                    chart_ranges jsonb,
+                    chart_values jsonb,
+                    image_match_type text,
+                    image_ids jsonb,
                     created_date timestamp without time zone DEFAULT now(),
-                    modified_date timestamp without time zone DEFAULT now()
+                    modified_date timestamp without time zone DEFAULT now(),
+                    updated_at timestamp without time zone
                 );
             """
             )
             print("  → Ensured card_wotc table exists.")
+
+            # ADD COLUMNS IF NOT EXISTS (for upgrading existing databases)
+            for col_name, col_type in [
+                ("mlb_id", "integer"),
+                ("is_two_way", "boolean"),
+                ("team_games_played_dict", "jsonb"),
+                ("team_override", "text"),
+                ("stats_modified_date", "timestamp without time zone"),
+                ("card_modified_date", "timestamp without time zone"),
+                ("card_id", "text"),
+                ("card_year", "text"),
+                ("set_number", "text"),
+                ("points_change", "integer"),
+                ("color_primary", "text"),
+                ("color_secondary", "text"),
+                ("is_hof", "boolean"),
+                ("stat_highlights_list", "jsonb"),
+                ("is_small_sample_size", "boolean"),
+                ("real_pa", "integer"),
+                ("real_g", "integer"),
+                ("real_gs", "integer"),
+                ("real_bwar", "numeric"),
+                ("real_dwar", "numeric"),
+                ("real_batting_avg", "numeric"),
+                ("real_onbase_perc", "numeric"),
+                ("real_slugging_perc", "numeric"),
+                ("real_onbase_plus_slugging", "numeric"),
+                ("real_onbase_plus_slugging_plus", "numeric"),
+                ("real_earned_run_avg", "numeric"),
+                ("real_whip", "numeric"),
+                ("real_h", "integer"),
+                ("real_1b", "integer"),
+                ("real_2b", "integer"),
+                ("real_3b", "integer"),
+                ("real_hr", "integer"),
+                ("real_sb", "integer"),
+                ("real_so", "integer"),
+                ("real_bb", "integer"),
+                ("real_w", "integer"),
+                ("real_sv", "integer"),
+                ("is_pitcher", "boolean"),
+                ("chart_ranges", "jsonb"),
+                ("chart_values", "jsonb"),
+                ("image_match_type", "text"),
+                ("image_ids", "jsonb"),
+                ("updated_at", "timestamp without time zone"),
+            ]:
+                cursor.execute(f"ALTER TABLE card_wotc ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
+            print("  → Ensured card_wotc columns are up to date.")
 
             # CLEAR EXISTING DATA
             cursor.execute("DELETE FROM card_wotc;")
@@ -1616,7 +1708,11 @@ class PostgresDB:
                     player_id += f"-{card.stats_period.id}"
 
                 stat_source = card.stats_for_card or {}
-                
+
+                def _s(val):
+                    """Return None for empty/None stat values, else the raw value."""
+                    return None if val is None or str(val) in (None, '') else val
+
                 batch_data.append((
                     card.id,
                     player_id,
@@ -1662,7 +1758,50 @@ class PostgresDB:
                     card.chart.is_command_out_anomaly,
                     card.is_errata,
                     card.notes,
-                    datetime.now(),
+                    card.mlb_id,
+                    card.player_type_override is not None,
+                    None,  # team_games_played_dict (not tracked on card object)
+                    card.team_override.value if card.team_override else None,
+                    None,  # stats_modified_date
+                    None,  # card_modified_date
+                    card.id,  # card_id
+                    str(card.year),  # card_year
+                    card.image.set_number,
+                    card.points_change.get('week', None) if card.points_change else None,
+                    card.image.color_primary,
+                    card.image.color_secondary,
+                    bool(stat_source.get("is_hof", False)),
+                    json.dumps(card.image.stat_highlights_list),
+                    None,  # is_small_sample_size (requires season-progress context)
+                    _s(stat_source.get("PA")),
+                    _s(stat_source.get("G")),
+                    _s(stat_source.get("GS")),
+                    _s(stat_source.get("bWAR")),
+                    _s(stat_source.get("dWAR")),
+                    _s(stat_source.get("batting_avg")),
+                    _s(stat_source.get("onbase_perc")),
+                    _s(stat_source.get("slugging_perc")),
+                    _s(stat_source.get("onbase_plus_slugging")),
+                    _s(stat_source.get("onbase_plus_slugging_plus")),
+                    _s(stat_source.get("earned_run_avg")),
+                    _s(stat_source.get("whip")),
+                    _s(stat_source.get("H")),
+                    _s(stat_source.get("1B")),
+                    _s(stat_source.get("2B")),
+                    _s(stat_source.get("3B")),
+                    _s(stat_source.get("HR")),
+                    _s(stat_source.get("SB")),
+                    _s(stat_source.get("SO")),
+                    _s(stat_source.get("BB")),
+                    _s(stat_source.get("W")),
+                    _s(stat_source.get("SV")),
+                    card.is_pitcher,
+                    json.dumps({k.value: v for k, v in card.chart.ranges.items()}),
+                    json.dumps({k.value: v for k, v in card.chart.values.items()}),
+                    None,  # image_match_type
+                    None,  # image_ids
+                    datetime.now(),  # updated_at
+                    datetime.now(),  # modified_date
                 ))
 
             # BATCH INSERT NEW DATA
@@ -1712,6 +1851,49 @@ class PostgresDB:
                     is_chart_outlier,
                     is_errata,
                     notes,
+                    mlb_id,
+                    is_two_way,
+                    team_games_played_dict,
+                    team_override,
+                    stats_modified_date,
+                    card_modified_date,
+                    card_id,
+                    card_year,
+                    set_number,
+                    points_change,
+                    color_primary,
+                    color_secondary,
+                    is_hof,
+                    stat_highlights_list,
+                    is_small_sample_size,
+                    real_pa,
+                    real_g,
+                    real_gs,
+                    real_bwar,
+                    real_dwar,
+                    real_batting_avg,
+                    real_onbase_perc,
+                    real_slugging_perc,
+                    real_onbase_plus_slugging,
+                    real_onbase_plus_slugging_plus,
+                    real_earned_run_avg,
+                    real_whip,
+                    real_h,
+                    real_1b,
+                    real_2b,
+                    real_3b,
+                    real_hr,
+                    real_sb,
+                    real_so,
+                    real_bb,
+                    real_w,
+                    real_sv,
+                    is_pitcher,
+                    chart_ranges,
+                    chart_values,
+                    image_match_type,
+                    image_ids,
+                    updated_at,
                     modified_date
                 )
                 VALUES %s
