@@ -10,6 +10,7 @@
  * @version 4.0
  */
 
+import type { CardSource } from "../types/cardSource";
 import { type GameBoxscoreDetail } from "./mlbAPI";
 
 // =============================================================================
@@ -477,6 +478,7 @@ export type ShowdownBotCardCompact = {
     positions_and_defense_string: string | null;
     positions_and_defense?: Record<string, number> | null;
     ip: number | null;
+    source: CardSource;
 }
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES

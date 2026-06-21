@@ -5,6 +5,7 @@ import { fetchCardData } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastColor } from '../shared/Color';
+import { FaHatWizard } from 'react-icons/fa6';
 
 // =============================================================================
 // MARK: - Recent Team Tracking
@@ -232,14 +233,22 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                         </div>
                     )}
                     {team.allowed_card_sources && team.allowed_card_sources.length > 0 && (
-                        <div
-                            className="text-[9px] font-bold mt-0.5 rounded px-1.5 py-0.5 self-start leading-none"
-                            style={{ backgroundColor: toRgba(secondary, 0.8), color: onSecondary }}
-                        >
-                                {team.allowed_card_sources.join(', ')}
-                            </div>
-                        )
-                    }
+                        <div className="flex items-center gap-0.5 mt-0.5">
+                            {team.allowed_card_sources.map(src => (
+                                <div
+                                    key={src}
+                                    className="flex items-center gap-0.5 text-[8px] font-bold uppercase px-1.5 py-0.5 rounded"
+                                    style={{
+                                        backgroundColor: 'rgba(255,255,255,0.85)',
+                                        color: getContrastColor('rgba(255,255,255,0.85)'),
+                                    }}
+                                >
+                                    {src === 'WOTC' ? <FaHatWizard className="w-2.5 h-2.5" /> : undefined}
+                                    {src}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                         
                 </div>
 

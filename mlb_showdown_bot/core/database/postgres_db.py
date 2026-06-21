@@ -177,10 +177,13 @@ class ExploreDataRecord(BaseModel):
 
     # Editions and Sets Info
     edition: Optional[Edition] = Field(None, description="Card edition (e.g., 'WBC', 'CC')")
-    expansion: Optional[Expansion] = Field(None, description="Special edition (e.g., 'BS', 'TD)")
+    expansion: Optional[Expansion] = Field(None, description="Special edition (e.g., 'BS', 'TD')")
     
     # IN SEASON
     points_change: Optional[int] = None
+
+    # SOURCE
+    source: Optional[str] = Field(None, description="Source of the data (e.g., 'BOT', 'WOTC', 'WBC')")
 
     # Metadata
     updated_at: datetime = Field(description="When record was last updated")
@@ -775,19 +778,19 @@ class PostgresDB:
             match source:
                 case 'bot':
                     query = sql.SQL("""
-                        SELECT *
+                        SELECT *, 'BOT' as source
                         FROM card_bot
                         WHERE TRUE
                     """)
                 case 'wotc':
                     query = sql.SQL("""
-                        SELECT *, id as card_id
+                        SELECT *, 'WOTC' as source
                         FROM card_wotc
                         WHERE TRUE
                     """)
                 case 'wbc':
                     query = sql.SQL("""
-                        select *
+                        select *, 'WBC' as source
                         from card_wbc
                         where true
                     """)

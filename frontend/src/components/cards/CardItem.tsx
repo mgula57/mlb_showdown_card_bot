@@ -4,8 +4,10 @@ import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
-import { FaStar, FaBook, FaScrewdriverWrench } from 'react-icons/fa6';
+import { CardSource } from "../../types/cardSource";
+import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard } from 'react-icons/fa6';
 import type { CardItemActionButton } from './CardItemCompact';
+import { formatYear } from "../../functions/formatters";
 
 /**
  * Props for the CardItem component
@@ -63,6 +65,9 @@ type CardItemProps = {
     cardNotes?: string;
     cardIsStatsEstimate?: boolean;
 
+    // Source
+    cardSource: CardSource | undefined;
+
     /** Click handler for card selection */
     onClick?: () => void | undefined;
     /** Optional CSS classes for styling */
@@ -110,7 +115,7 @@ export const CardItem = ({
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
-    cardChartRanges, cardLeague,
+    cardChartRanges, cardLeague, cardSource,
     onClick, className, isSelected, actionButton
 }: CardItemProps) => {
 
@@ -137,6 +142,7 @@ export const CardItem = ({
     // Determine whether the stats have been estimated
     const isStatsEstimate = cardIsStatsEstimate || (cardLeague && cardEdition === 'WBC' && !['AL', 'NL', 'MLB'].includes(cardLeague)); // WBC cards for MLB players are often estimates
     
+    // Determine if the card is a pitcher for conditional metadata display
     const isClickable = onClick !== undefined;
 
     // Dynamic border styling based on selection state and theme
@@ -145,6 +151,11 @@ export const CardItem = ({
         : (isDark
             ? `border-white/10${isClickable ? ' hover:border-white/50' : ''}`
             : `shadow-xl border-gray-200${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+
+    // Calculate width of the set and expansion display for proper spacing
+    const has_expansion = cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion);
+    const setExpansionWidth = (has_expansion && cardSource === 'WOTC') ? '90px' : 
+        (has_expansion ? '75px' : 'auto');
 
     /**
      * Player-type specific metadata display
@@ -251,7 +262,7 @@ export const CardItem = ({
                             {/* Year and team badge with team colors */}
                             {cardTeam && cardYear && (
                                 <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
-                                    {cardYear} {cardTeam?.toUpperCase()}
+                                    {formatYear(cardYear)} {cardTeam?.toUpperCase()}
                                 </div>
                             )}
 
@@ -382,9 +393,12 @@ export const CardItem = ({
                             px-1 rounded-md font-bold shadow-md
                         "
                         style={{
-                            minWidth: cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion) ? '75px' : undefined
+                            minWidth: setExpansionWidth
                         }}
                     >
+                        {cardSource === 'WOTC' && (
+                            <FaHatWizard className="inline-block w-3 h-3" title="Wizards of the Coast" />
+                        )}
                         {cardSetNumber && (
                             <span className="font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
                         )}
@@ -471,6 +485,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             cardAwardList={card?.image.award_summary_list || []}
             cardStatHighlightsList={card?.image.stat_highlights_list || []}
             cardChartRanges={card?.chart.ranges || {}}
+            cardSource={card?.is_wotc ? 'WOTC' : 'BOT'}
             onClick={onClick}
             className={className}
             isSelected={isSelected}
@@ -518,6 +533,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardPoints={card?.points}
             cardPointsEstimated={card?.points_estimated || undefined}
             cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
+            cardSource={card?.source}
             cardPtsChange={card?.points_change || undefined}
             cardSpeed={card?.speed || undefined}
             cardHand={card?.hand || undefined}

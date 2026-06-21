@@ -19,6 +19,9 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
  */
 export type CardDatabaseRecord = {
 
+    // Source
+    source: CardSource;
+
     // From Stats Archive
     id: string;  // Composite key: {year}-{bref_id}-{(player_type_override)},
     year: number | string;

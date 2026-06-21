@@ -3,6 +3,9 @@ import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
+import { formatYear } from "../../functions/formatters";
+import { FaHatWizard } from "react-icons/fa6";
+import { imageForSet } from '../shared/SiteSettingsContext';
 
 // =============================================================================
 // TYPES
@@ -137,7 +140,7 @@ export const CardItemCompact = ({
                         style={teamStyle}
                     >
                         {card?.team || 'N/A'}
-                        <span className="hidden @[150px]:block ml-0.5"> {card?.year}</span>
+                        <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                     </div>
                     <div
                         className="hidden @[100px]:flex shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
@@ -148,7 +151,7 @@ export const CardItemCompact = ({
                     
                 </div>
                 {size === 'lg' && (
-                    <div className="text-[10px] font-bold text-(--text-tertiary) truncate text-wrap">
+                    <div className="flex text-[10px] justify-between w-full font-bold text-(--text-tertiary) truncate text-wrap">
                         {getDefenseDisplay(card, fieldPosition)}
                     </div>
                 )}
@@ -158,6 +161,14 @@ export const CardItemCompact = ({
                 <div className="hidden @[180px]:block shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
                     {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
                 </div>
+            )}
+
+            <div className="absolute top-0.5 right-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
+            </div>
+
+            {card?.source === 'WOTC' && (
+                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="WOTC Card" />
             )}
 
             {/* Optional action button — top-right corner */}
@@ -229,6 +240,7 @@ export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPos
                 positions_and_defense_string: card?.positions_and_defense_string || '',
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
+                source: card?.is_wotc ? 'WOTC' : 'BOT',
             }}
             className={className}
             isSelected={isSelected}
@@ -276,6 +288,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 positions_and_defense_string: card?.positions_and_defense_string || '',
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
+                source: card?.source || 'BOT',
             }}
             className={className}
             isSelected={isSelected}

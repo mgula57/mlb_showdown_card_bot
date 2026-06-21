@@ -22,28 +22,37 @@ import { useAuth } from "../auth/AuthContext";
 
 // Images
 // Import images at the top of the file
-import set2000 from '/images/sets/set-2000.png';
-import set2001 from '/images/sets/set-2001.png';
-import setClassic from '/images/sets/set-classic.png';
-import set2002 from '/images/sets/set-2002.png';
-import set2003 from '/images/sets/set-2003.png';
-import set2004 from '/images/sets/set-2004.png';
-import set2005 from '/images/sets/set-2005.png';
-import setExpanded from '/images/sets/set-expanded.png';
+import set2000 from '/images/sets/set-2000-v2.png';
+import set2001 from '/images/sets/set-2001-v2.png';
+import setClassic from '/images/sets/set-classic-v2.png';
+import set2002 from '/images/sets/set-2002-v2.png';
+import set2003 from '/images/sets/set-2003-v2.png';
+import set2004 from '/images/sets/set-2004-v2.png';
+import set2005 from '/images/sets/set-2005-v2.png';
+import setExpanded from '/images/sets/set-expanded-v2.png';
+
+import set2000Abbr from '/images/sets/set-2000-sm-v2.png';
+import set2001Abbr from '/images/sets/set-2001-sm-v2.png';
+import setClassicAbbr from '/images/sets/set-classic-sm-v2.png';
+import set2002Abbr from '/images/sets/set-2002-sm-v2.png';
+import set2003Abbr from '/images/sets/set-2003-sm-v2.png';
+import set2004Abbr from '/images/sets/set-2004-sm-v2.png';
+import set2005Abbr from '/images/sets/set-2005-sm-v2.png';
+import setExpandedAbbr from '/images/sets/set-expanded-sm-v2.png';
 
 /**
  * Available MLB Showdown sets with their visual assets and styling
  * Each set includes value identifier, display label, image path, and optional text color
  */
-export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; textColor?: string | undefined; }> = [
-    { value: "2000", label: "", textColor: "text-blue", image: set2000 },
-    { value: "2001", label: "", image: set2001 },
-    { value: "CLASSIC", label: "", image: setClassic },
-    { value: "2002", label: "", image: set2002 },
-    { value: "2003", label: "", image: set2003 },
-    { value: "2004", label: "", image: set2004 },
-    { value: "2005", label: "", image: set2005 },
-    { value: "EXPANDED", label: "", image: setExpanded },
+export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; imageAbbr?: string | undefined; textColor?: string | undefined; }> = [
+    { value: "2000", label: "", textColor: "text-blue", image: set2000, imageAbbr: set2000Abbr },
+    { value: "2001", label: "", image: set2001, imageAbbr: set2001Abbr },
+    { value: "CLASSIC", label: "", image: setClassic, imageAbbr: setClassicAbbr },
+    { value: "2002", label: "", image: set2002, imageAbbr: set2002Abbr },
+    { value: "2003", label: "", image: set2003, imageAbbr: set2003Abbr },
+    { value: "2004", label: "", image: set2004, imageAbbr: set2004Abbr },
+    { value: "2005", label: "", image: set2005, imageAbbr: set2005Abbr },
+    { value: "EXPANDED", label: "", image: setExpanded, imageAbbr: setExpandedAbbr },
 ];
 
 /**
@@ -51,9 +60,9 @@ export const showdownSets: Array<{ value: string; label: string; image?: string 
  * @param set - The set identifier to look up
  * @returns The image path for the set, or undefined if not found
  */
-export const imageForSet = (set: string): string | undefined => {
+export const imageForSet = (set: string, isAbbreviated?: boolean): string | undefined => {
     const found = showdownSets.find(s => s.value === set);
-    return found?.image;
+    return isAbbreviated ? found?.imageAbbr : found?.image;
 }
 
 /** Available theme options for the application */
