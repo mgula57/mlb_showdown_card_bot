@@ -78,7 +78,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
     const totalDefIF = sumGroupDefense(IF_POSITIONS, slotByPosition, cardMap);
     const totalCountOfFilledIF = IF_POSITIONS.filter(pos => slotByPosition[pos]).length;
     const avgDefIF = totalCountOfFilledIF > 0 ? (totalDefIF! / totalCountOfFilledIF) : null;
-    const colorDefIF = avgDefIF !== null ? (avgDefIF > 3 ? 'text-(--green)' : avgDefIF >= 2 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
+    const colorDefIF = avgDefIF !== null ? (avgDefIF > 3 ? 'text-(--green)' : avgDefIF >= 1.75 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
 
     // Catcher Arm
     const cSlot = slotByPosition['C'];
@@ -181,6 +181,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                 {card ? (
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
+                                        className="hover:scale-[1.05] active:scale-[0.975] transition-transform"
                                         size="lg"
                                         fieldPosition={pos}
                                         onClick={readOnly ? undefined : () => onSlotClick(pos, slot)}
@@ -211,6 +212,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                     <CardItemCompactFromCardDatabaseRecord
                                         key={role}
                                         card={card}
+                                        className="hover:scale-[1.025] active:scale-[0.975] transition-transform"
                                         size="lg"
                                         onClick={onItemClick ? () => onItemClick(role) : undefined}
                                     />
