@@ -114,34 +114,64 @@ def autofill_team_route(team_id: str):
             db.close_connection()
             return jsonify({'error': 'Team must have a points limit set to use autofill'}), 400
 
+        # Build the base filter set from the team's stored constraints so that
+        # autofill always respects allowed_sets and player_filters regardless of
+        # what the frontend sends.  Payload active_filters are merged last so
+        # the UI can add session-level overrides (e.g. a one-time set filter).
+        team_filters: dict = {}
+        if team.allowed_sets:
+            team_filters['showdown_set'] = team.allowed_sets
+        if team.player_filters:
+            team_filters.update(team.player_filters)
+        # Payload overrides come last
+        team_filters.update(active_filters)
+        active_filters = team_filters
+
+        # Determine which card sources to query.  Default to BOT; if the team
+        # explicitly allows only WOTC cards use that source instead.
+        card_sources: list[str] = [s.upper() for s in (team.allowed_card_sources or [])]
+        if not card_sources:
+            card_sources = ['BOT']
+
+        def _fetch_bucket(bucket_filters: dict) -> list[dict]:
+            """Fetch candidates for one bucket across all allowed card sources."""
+            merged_all: list[dict] = []
+            seen_ids: set[str] = set()
+
+            for source in card_sources:
+                base = {**bucket_filters, **active_filters, 'source': source}
+
+                main = db.fetch_card_list(filters={
+                    **base,
+                    'limit': 500,
+                    'sort_by': 'points',
+                    'sort_direction': 'desc',
+                }) or []
+
+                budget_floor = db.fetch_card_list(filters={
+                    **base,
+                    'max_points': 150,
+                    'limit': 200,
+                    'sort_by': 'points',
+                    'sort_direction': 'desc',
+                }) or []
+
+                for c in main + budget_floor:
+                    if c['card_id'] not in seen_ids:
+                        c['_card_source'] = source  # tag so autofill knows which table it came from
+                        merged_all.append(c)
+                        seen_ids.add(c['card_id'])
+
+            return merged_all
+
         # Fetch candidate pools for each bucket.
         # Two passes per bucket: main pool (top 500 by points) + a low-point
         # supplement (max 150 pts, 200 cards) so cheap budget-filler options
         # always exist regardless of how the main pool skews high.
-        candidates_by_bucket: dict[str, list[dict]] = {}
-        for bucket, bucket_filters in BUCKET_QUERY_FILTERS.items():
-            base = {**bucket_filters, **active_filters}
-
-            main = db.fetch_card_list(filters={
-                **base,
-                'limit': 500,
-                'sort_by': 'points',
-                'sort_direction': 'desc',
-            }) or []
-
-            budget_floor = db.fetch_card_list(filters={
-                **base,
-                'max_points': 150,
-                'limit': 200,
-                'sort_by': 'points',
-                'sort_direction': 'desc',
-            }) or []
-
-            # Merge, preserving main-pool order; append any budget_floor cards
-            # not already present (dedup by card_id)
-            seen = {c['card_id'] for c in main}
-            merged = main + [c for c in budget_floor if c['card_id'] not in seen]
-            candidates_by_bucket[bucket] = merged
+        candidates_by_bucket: dict[str, list[dict]] = {
+            bucket: _fetch_bucket(bucket_filters)
+            for bucket, bucket_filters in BUCKET_QUERY_FILTERS.items()
+        }
 
         db.close_connection()
 

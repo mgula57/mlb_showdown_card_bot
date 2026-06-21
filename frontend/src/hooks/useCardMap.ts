@@ -43,9 +43,10 @@ export function useCardMap(slots: CardSlotRef[]) {
         (async () => {
             try {
                 const results = await Promise.all(
-                    [...bySource].map(([src, ids]) =>
-                        fetchCardData(src, { card_id: ids, limit: ids.length }),
-                    ),
+                    [...bySource].map(([src, ids]) => {
+                        const key = src === CardSource.BOT ? 'card_id' : 'id';
+                        return fetchCardData(src, { [key]: ids, limit: ids.length });
+                    }),
                 );
                 if (cancelled) return;
                 const found = Object.fromEntries(results.flat().map(c => [c.card_id, c]));

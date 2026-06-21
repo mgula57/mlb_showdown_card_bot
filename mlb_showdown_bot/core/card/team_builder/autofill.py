@@ -109,12 +109,20 @@ class _BucketResult:
     pts_used: int = 0
 
 
+def _card_source(card: dict) -> CardSource:
+    """Derive CardSource from the _card_source tag set by the fetch layer."""
+    raw = (card.get('_card_source') or 'BOT').upper()
+    try:
+        return CardSource(raw)
+    except ValueError:
+        return CardSource.BOT
+
+
 def _fill_offense(
     candidates: list[dict],
     filled_positions: set[str],
     pts_target: int,
     pts_tolerance: int,
-    card_source: CardSource,
 ) -> tuple[_BucketResult | None, set[str]]:
     """Returns (result, picked_ids). picked_ids so bench can exclude them."""
     open_positions = [p for p in OFFENSE_POSITIONS if p not in filled_positions]
@@ -147,16 +155,17 @@ def _fill_offense(
 
         card_id = picked['card_id']
         pts = picked.get('points') or 0
+        src = _card_source(picked)
         used_ids.add(card_id)
         pts_remaining -= pts
         result.pts_used += pts
 
         result.roster_slots.append(TeamRosterSlot(
-            card_id=card_id, card_source=card_source, roster_position=position,
+            card_id=card_id, card_source=src, roster_position=position,
             pick_source=PickSource.AUTOFILL,
         ))
         result.lineup_slots.append(LineupSlot(
-            card_id=card_id, card_source=card_source,
+            card_id=card_id, card_source=src,
             field_position=position, batting_order=None,
         ))
 
@@ -174,7 +183,6 @@ def _fill_bench(
     pts_target: int,
     pts_tolerance: int,
     bench_pts_multiplier: float,
-    card_source: CardSource,
 ) -> _BucketResult | None:
     open_count = max(0, min_bench - bench_count)
     if open_count == 0:
@@ -210,7 +218,7 @@ def _fill_bench(
         result.pts_used += effective_pts
 
         result.roster_slots.append(TeamRosterSlot(
-            card_id=card_id, card_source=card_source, roster_position='BE',
+            card_id=card_id, card_source=_card_source(picked), roster_position='BE',
             pick_source=PickSource.AUTOFILL,
         ))
 
@@ -225,7 +233,6 @@ def _fill_rotation(
     num_starters: int,
     pts_target: int,
     pts_tolerance: int,
-    card_source: CardSource,
 ) -> _BucketResult | None:
     all_roles = [f'SP{i}' for i in range(1, num_starters + 1)]
     open_roles = [r for r in all_roles if r not in filled_roles]
@@ -262,13 +269,13 @@ def _fill_rotation(
     picked_cards.sort(key=lambda c: c.get('points') or 0, reverse=True)
     for card, role in zip(picked_cards, open_roles):
         card_id = card['card_id']
-        card_source_val = card_source
+        src = _card_source(card)
         result.roster_slots.append(TeamRosterSlot(
-            card_id=card_id, card_source=card_source_val, roster_position=role,
+            card_id=card_id, card_source=src, roster_position=role,
             pick_source=PickSource.AUTOFILL,
         ))
         result.rotation_slots.append(PitcherAssignment(
-            card_id=card_id, card_source=card_source_val, role=role,
+            card_id=card_id, card_source=src, role=role,
         ))
 
     return result
@@ -280,7 +287,6 @@ def _fill_bullpen(
     min_bullpen: int,
     pts_target: int,
     pts_tolerance: int,
-    card_source: CardSource,
 ) -> _BucketResult | None:
     # Roles: one CL + remaining as RP
     all_roles = ['CL'] + ['RP'] * (min_bullpen - 1)
@@ -312,16 +318,17 @@ def _fill_bullpen(
 
         card_id = picked['card_id']
         pts = picked.get('points') or 0
+        src = _card_source(picked)
         used_ids.add(card_id)
         pts_remaining -= pts
         result.pts_used += pts
 
         result.roster_slots.append(TeamRosterSlot(
-            card_id=card_id, card_source=card_source, roster_position=role,
+            card_id=card_id, card_source=src, roster_position=role,
             pick_source=PickSource.AUTOFILL,
         ))
         result.rotation_slots.append(PitcherAssignment(
-            card_id=card_id, card_source=card_source, role=role,
+            card_id=card_id, card_source=src, role=role,
         ))
 
     if abs(result.pts_used - pts_target) > pts_tolerance:
@@ -398,7 +405,7 @@ def autofill_team(
 
         offense_result, offense_ids = _fill_offense(
             sorted_candidates['offense'], filled_lineup_pos,
-            offense_target, pts_tolerance, CardSource.BOT,
+            offense_target, pts_tolerance,
         )
         if offense_result is None:
             print("Offense fill failed, retrying...")
@@ -409,7 +416,7 @@ def autofill_team(
             existing_ids | offense_ids,  # exclude all cards already picked
             bench_count, team.min_bench,
             bench_target, pts_tolerance,
-            team.bench_pts_multiplier, CardSource.BOT,
+            team.bench_pts_multiplier,
         )
         if bench_result is None:
             print("Bench fill failed, retrying...")
@@ -417,7 +424,7 @@ def autofill_team(
 
         rotation_result = _fill_rotation(
             sorted_candidates['rotation'], filled_rotation_roles,
-            team.num_starters, rotation_target, pts_tolerance, CardSource.BOT,
+            team.num_starters, rotation_target, pts_tolerance,
         )
         if rotation_result is None:
             print("Rotation fill failed, retrying...")
@@ -425,7 +432,7 @@ def autofill_team(
 
         bullpen_result = _fill_bullpen(
             sorted_candidates['bullpen'], filled_bullpen_roles,
-            team.min_bullpen, bullpen_target, pts_tolerance, CardSource.BOT,
+            team.min_bullpen, bullpen_target, pts_tolerance,
         )
         if bullpen_result is None:
             print("Bullpen fill failed, retrying...")
