@@ -434,19 +434,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     "
                 >
                     <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
-                        <Tabs.Trigger value="field" className={TAB_TRIGGER_CLASS}>
-                            <span className="@field-split:hidden">Field View</span>
-                            <span className="hidden @field-split:inline">Field & Depth</span>
-                        </Tabs.Trigger>
-                        <Tabs.Trigger value="depth"    className={`${TAB_TRIGGER_CLASS} @field-split:hidden`}>Depth Chart</Tabs.Trigger>
+                        <Tabs.Trigger value="field" className={TAB_TRIGGER_CLASS}>Field View</Tabs.Trigger>
+                        <Tabs.Trigger value="depth"    className={`${TAB_TRIGGER_CLASS}`}>Depth Chart</Tabs.Trigger>
                         <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
                         <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
                     </Tabs.List>
 
                     <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
-                        {/* Narrow: FieldView only */}
-                        <div className="@field-split:hidden">
-                            <FieldView
+                        <FieldView
                                 lineup={defaultLineup}
                                 cardMap={cardMap}
                                 onSlotClick={(pos, slot) => {
@@ -465,52 +460,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 activePosition={activeFieldPosition}
                                 rosterData={rosterData}
                             />
-                        </div>
-                        {/* Wide: FieldView + DepthChart side by side */}
-                        <div className="hidden @field-split:flex flex-row items-start">
-                            <div className="flex-1 min-w-0">
-                                <FieldView
-                                    lineup={defaultLineup}
-                                    cardMap={cardMap}
-                                    onSlotClick={(pos, slot) => {
-                                        if (readOnly) return;
-                                        setPendingSlot({ kind: 'field', position: pos, current: slot });
-                                    }}
-                                    onBenchClick={(role, current) => {
-                                        if (readOnly) return;
-                                        setPendingSlot({ kind: 'bench', role, current });
-                                    }}
-                                    onRoleClick={(role, current) => {
-                                        if (readOnly) return;
-                                        setPendingSlot({ kind: 'rotation', role, current });
-                                    }}
-                                    readOnly={readOnly}
-                                    activePosition={activeFieldPosition}
-                                />
-                            </div>
-                            <div className="w-px shrink-0 bg-(--divider)" />
-                            <div className="flex-1 min-w-0">
-                                <DepthChartPanel
-                                    team={draft}
-                                    cardMap={cardMap}
-                                    onSlotClick={(pos, slot) => {
-                                        if (readOnly) return;
-                                        setPendingSlot({ kind: 'field', position: pos, current: slot });
-                                    }}
-                                    onRoleClick={(role, current) => {
-                                        if (readOnly) return;
-                                        setPendingSlot({ kind: 'rotation', role, current });
-                                    }}
-                                    onBenchClick={(role, current) => {
-                                        if (readOnly) return;
-                                        setPendingSlot({ kind: 'bench', role, current });
-                                    }}
-                                    readOnly={readOnly}
-                                    activePosition={activeFieldPosition}
-                                    activeRole={activeRole}
-                                />
-                            </div>
-                        </div>
+                        
                     </Tabs.Content>
 
                     <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
