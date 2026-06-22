@@ -2,6 +2,8 @@ import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { FaPlus } from 'react-icons/fa6';
+import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
+import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 const ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
@@ -31,8 +33,14 @@ function PositionRow({
     isActive?: boolean;
 }) {
     return (
-        <div className={`flex items-center gap-3 min-h-9 rounded-lg transition-all duration-200 ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`} onClick={e => e.stopPropagation()}>
-            <span className={`text-[11px] font-bold w-10 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
+        <div 
+            className={`
+                flex items-center gap-3 min-h-9 rounded-lg 
+                transition-all duration-200 
+                ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`} 
+                onClick={e => e.stopPropagation()}
+            >
+            <span className={`text-[11px] font-bold w-6 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
                 <div className="flex-1 min-w-0" onClick={readOnly ? undefined : onClick}>
                     <CardItemFromCardDatabaseRecord card={card} isSelected={isActive} />
@@ -57,10 +65,31 @@ function PositionRow({
     );
 }
 
-function SectionHeader({ label }: { label: string }) {
+function SectionHeader({ label, filledCount, total, kpis }: {
+    label: string;
+    filledCount: number;
+    total: number;
+    kpis?: KpiTile[];
+}) {
     return (
-        <div className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-widest pt-3 pb-1">
-            {label}
+        <div className="pt-3 pb-1">
+            <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-widest">{label}</span>
+                <span className="text-[10px] text-(--text-tertiary)">{filledCount}</span>
+                {total > 0 && (
+                    <span className="ml-auto text-[10px] font-semibold text-(--text-tertiary)">{total} pts</span>
+                )}
+            </div>
+            {kpis && kpis.length > 0 && (
+                <div className="flex items-center gap-3 mt-1.5 overflow-x-auto pb-0.5">
+                    {kpis.map(({ label: kLabel, value }) => (
+                        <div key={kLabel} className="flex flex-col items-center shrink-0">
+                            <span className="text-[8px] text-(--text-tertiary) uppercase tracking-wider opacity-75">{kLabel}</span>
+                            <span className="text-[11px] font-bold text-(--text-secondary)">{value}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -88,10 +117,54 @@ export function DepthChartPanel({
     const bullpenByRole = Object.fromEntries(BULLPEN_ROLES.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
     const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
 
+    // Defense totals for lineup KPIs
+    const totalDefOF = OF_POSITIONS.reduce((sum, pos) => {
+        const slot = slotByPos[pos];
+        const card = slot ? cardMap[slot.card_id] : null;
+        return sum + (defenseAtPosition(card?.positions_and_defense, pos) ?? 0);
+    }, 0);
+    const totalDefIF = IF_POSITIONS.reduce((sum, pos) => {
+        const slot = slotByPos[pos];
+        const card = slot ? cardMap[slot.card_id] : null;
+        return sum + (defenseAtPosition(card?.positions_and_defense, pos) ?? 0);
+    }, 0);
+
+    // Filled card lists for KPI builders
+    const filledLineupCards = lineup.slots
+        .map(s => cardMap[s.card_id])
+        .filter((c): c is CardDatabaseRecord => !!c);
+    const filledBenchCards = BENCH_ROLES
+        .map(role => benchByRole[role])
+        .filter(Boolean)
+        .map(s => cardMap[s!.card_id])
+        .filter((c): c is CardDatabaseRecord => !!c);
+    const filledRotCards = ACTIVE_ROTATION_ROLES
+        .map(role => roleByKey[role])
+        .filter(Boolean)
+        .map(r => cardMap[r!.card_id])
+        .filter((c): c is CardDatabaseRecord => !!c);
+    const filledBullCards = BULLPEN_ROLES
+        .map(role => bullpenByRole[role])
+        .filter(Boolean)
+        .map(r => cardMap[r!.card_id])
+        .filter((c): c is CardDatabaseRecord => !!c);
+
+    // Point totals
+    const lineupPts   = filledLineupCards.reduce((sum, c) => sum + (c.points ?? 0), 0);
+    const benchPts    = filledBenchCards.reduce((sum, c) => sum + Math.round((c.points ?? 0) * (team.bench_pts_multiplier ?? 1)), 0);
+    const rotationPts = filledRotCards.reduce((sum, c) => sum + (c.points ?? 0), 0);
+    const bullpenPts  = filledBullCards.reduce((sum, c) => sum + (c.points ?? 0), 0);
+
+    // KPI tiles
+    const lineupKpis   = buildLineupKpis(filledLineupCards, lineupPts, totalDefIF, totalDefOF);
+    const benchKpis    = buildBenchKpis(filledBenchCards, team.bench_pts_multiplier ?? 1);
+    const rotationKpis = buildPitcherKpis(filledRotCards, rotationPts);
+    const bullpenKpis  = buildPitcherKpis(filledBullCards, bullpenPts);
+
     return (
-        <div className="flex flex-col gap-1.5 p-4">
+        <div className="flex flex-col gap-1.5 px-4">
             {/* Starting Lineup */}
-            <SectionHeader label="Starting Lineup" />
+            <SectionHeader label="Starting Lineup" filledCount={filledLineupCards.length} total={lineupPts} kpis={lineupKpis} />
             {FIELD_POSITIONS.map(pos => {
                 const slot = slotByPos[pos] ?? null;
                 return (
@@ -107,7 +180,7 @@ export function DepthChartPanel({
             })}
 
             {/* Bench */}
-            <SectionHeader label="Bench" />
+            <SectionHeader label="Bench" filledCount={filledBenchCards.length} total={benchPts} kpis={benchKpis} />
             {BENCH_ROLES.map(pos => {
                 const slot = benchByRole[pos] ?? null;
                 return (
@@ -123,7 +196,7 @@ export function DepthChartPanel({
             })}
 
             {/* Rotation */}
-            <SectionHeader label="Rotation" />
+            <SectionHeader label="Rotation" filledCount={filledRotCards.length} total={rotationPts} kpis={rotationKpis} />
             {ACTIVE_ROTATION_ROLES.map(role => {
                 const assignment = roleByKey[role] ?? null;
                 return (
@@ -139,7 +212,7 @@ export function DepthChartPanel({
             })}
 
             {/* Bullpen */}
-            <SectionHeader label="Bullpen" />
+            <SectionHeader label="Bullpen" filledCount={filledBullCards.length} total={bullpenPts} kpis={bullpenKpis} />
             {BULLPEN_ROLES.map((role, i) => {
                 const assignment = bullpenByRole[role] ?? null;
                 const actualRole = bullpenSlots[i]?.role ?? role;

@@ -3,10 +3,11 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
+import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 const POSITION_COORDS: Record<string, [number, number]> = {
-    CF:  [50, 15],
+    CF:  [50, 16],
     LF:  [20, 24],
     RF:  [80, 24],
     SS:  [32, 43],
@@ -40,29 +41,6 @@ type FieldViewProps = {
     rosterData?: FieldViewRosterData;
 };
 
-// ---- KPI helpers ----
-
-type KpiTile = { label: string; value: string };
-
-function avgOf(nums: (number | null | undefined)[]): number | null {
-    const valid = nums.filter((n): n is number => n != null);
-    return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
-}
-
-// Max defense value for a card across non-DH, non-C positions (excludes catcher arm)
-function cardMaxFieldDefense(card: CardDatabaseRecord): number | null {
-    const pad = card.positions_and_defense;
-    if (!pad) return null;
-    const values = Object.entries(pad)
-        .filter(([pos]) => pos !== 'DH' && pos !== 'C')
-        .map(([, val]) => (typeof val === 'number' ? val : null))
-        .filter((v): v is number => v != null);
-    return values.length > 0 ? Math.max(...values) : null;
-}
-
-const fmtBat = (n: number) => n.toFixed(3).replace('0.', '.');
-const fmtDef = (n: number) => (n > 0 ? `+${n}` : `${n}`);
-const fmtAvg = (n: number) => Math.round(n).toString();
 
 // ---- Section header ----
 
@@ -74,7 +52,7 @@ function FieldViewSectionHeader({ label, filledCount, maxPlayers, total, kpis }:
     kpis?: KpiTile[];
 }) {
     return (
-        <div className="px-3 py-1.5 backdrop-blur-sm bg-(--background)/40">
+        <div className="px-3 py-1.5 backdrop-blur-xs bg-(--background)/40">
             <div className="flex items-center gap-1.5 opacity-75">
                 <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{label}</span>
                 <span className="text-[10px] text-(--text-tertiary)">{filledCount}{maxPlayers !== undefined ? `/${maxPlayers}` : ''}</span>
@@ -148,81 +126,32 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
 
     // ---- KPI computations ----
 
-    // Lineup KPIs
     const filledLineupCards = lineup.slots
         .map(s => cardMap[s.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
-    const lineupFilledCount = filledLineupCards.length;
-    const lineupAvgPts      = lineupFilledCount > 0 ? lineupPts / lineupFilledCount : null;
-    const lineupAvgOps      = avgOf(filledLineupCards.map(c => c.real_onbase_plus_slugging));
-    const lineupAvgObp      = avgOf(filledLineupCards.map(c => c.real_onbase_perc));
-    const lineupAvgSpeed    = avgOf(filledLineupCards.map(c => c.speed));
-    const lineupTotalDef    = (totalDefIF ?? 0) + (totalDefOF ?? 0);
-    const lineupKpis: KpiTile[] = [
-        lineupAvgPts  != null              ? { label: 'Avg PTS',  value: fmtAvg(lineupAvgPts) }       : null,
-        lineupAvgOps  != null              ? { label: 'Exp OPS',  value: fmtBat(lineupAvgOps) }        : null,
-        lineupAvgSpeed != null             ? { label: 'Avg SPD',  value: fmtAvg(lineupAvgSpeed) }      : null,
-        lineupAvgObp  != null              ? { label: 'Avg OB',   value: fmtBat(lineupAvgObp) }        : null,
-        lineupTotalDef !== 0               ? { label: 'DEF',      value: fmtDef(lineupTotalDef) }      : null,
-    ].filter(Boolean) as KpiTile[];
+    const lineupKpis = buildLineupKpis(filledLineupCards, lineupPts, totalDefIF, totalDefOF);
 
-    // Bench KPIs
     const filledBenchCards = benchRoles
         .map(role => benchByRole[role])
         .filter(Boolean)
         .map(s => cardMap[s!.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
-    const benchFilledCount = filledBenchCards.length;
-    const benchRawPts      = filledBenchCards.reduce((sum, c) => sum + (c.points ?? 0), 0);
-    const benchAvgPts      = benchFilledCount > 0 ? benchRawPts / benchFilledCount : null;
-    const benchTotalDef    = filledBenchCards.reduce((sum, c) => sum + (cardMaxFieldDefense(c) ?? 0), 0);
-    const benchMultiplier  = rosterData?.benchPtsMultiplier ?? 1;
-    const benchKpis: KpiTile[] = [
-        benchAvgPts    != null         ? { label: 'Avg PTS',    value: fmtAvg(benchAvgPts) }         : null,
-        benchMultiplier !== 1          ? { label: 'Multiplier', value: `${benchMultiplier}x` }        : null,
-        benchTotalDef  !== 0           ? { label: 'DEF',        value: fmtDef(benchTotalDef) }       : null,
-    ].filter(Boolean) as KpiTile[];
+    const benchKpis = buildBenchKpis(filledBenchCards, rosterData?.benchPtsMultiplier ?? 1);
 
-    // Rotation KPIs
     const filledRotCards = (ROTATION_ROLES as readonly string[])
         .slice(0, rosterData?.maxRotation)
         .map(role => rotByRole[role])
         .filter(Boolean)
         .map(r => cardMap[r!.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
-    const rotFilledCount  = filledRotCards.length;
-    const rotAvgPts       = rotFilledCount > 0 ? rotationPts / rotFilledCount : null;
-    const rotAvgEra       = avgOf(filledRotCards.map(c => c.real_earned_run_avg));
-    const rotAvgWhip      = avgOf(filledRotCards.map(c => c.real_whip));
-    const rotAvgControl   = avgOf(filledRotCards.map(c => c.command));
-    const rotAvgOuts      = avgOf(filledRotCards.map(c => c.outs));
-    const rotationKpis: KpiTile[] = [
-        rotAvgPts     != null ? { label: 'Avg PTS',  value: fmtAvg(rotAvgPts) }        : null,
-        rotAvgEra     != null ? { label: 'Exp ERA',  value: rotAvgEra.toFixed(2) }      : null,
-        rotAvgWhip    != null ? { label: 'Exp WHIP', value: rotAvgWhip.toFixed(2) }     : null,
-        rotAvgControl != null ? { label: 'Avg CTL',  value: rotAvgControl.toFixed(1) }  : null,
-        rotAvgOuts    != null ? { label: 'Avg OUTS', value: rotAvgOuts.toFixed(1) }     : null,
-    ].filter(Boolean) as KpiTile[];
+    const rotationKpis = buildPitcherKpis(filledRotCards, rotationPts);
 
-    // Bullpen KPIs
     const filledBullCards = bullpenRoles
         .map(role => bullByRole[role])
         .filter(Boolean)
         .map(r => cardMap[r!.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
-    const bullFilledCount  = filledBullCards.length;
-    const bullAvgPts       = bullFilledCount > 0 ? bullpenPts / bullFilledCount : null;
-    const bullAvgEra       = avgOf(filledBullCards.map(c => c.real_earned_run_avg));
-    const bullAvgWhip      = avgOf(filledBullCards.map(c => c.real_whip));
-    const bullAvgControl   = avgOf(filledBullCards.map(c => c.command));
-    const bullAvgOuts      = avgOf(filledBullCards.map(c => c.outs));
-    const bullpenKpis: KpiTile[] = [
-        bullAvgPts     != null ? { label: 'Avg PTS',  value: fmtAvg(bullAvgPts) }        : null,
-        bullAvgEra     != null ? { label: 'Exp ERA',  value: bullAvgEra.toFixed(2) }      : null,
-        bullAvgWhip    != null ? { label: 'Exp WHIP', value: bullAvgWhip.toFixed(2) }     : null,
-        bullAvgControl != null ? { label: 'Avg CTL',  value: bullAvgControl.toFixed(1) }  : null,
-        bullAvgOuts    != null ? { label: 'Avg OUTS', value: bullAvgOuts.toFixed(1) }     : null,
-    ].filter(Boolean) as KpiTile[];
+    const bullpenKpis = buildPitcherKpis(filledBullCards, bullpenPts);
 
     const sections = rosterData ? [
         {
@@ -260,9 +189,9 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                 />
 
                 {([
-                    { label: 'OF', value: totalDefOF, color: colorDefOF, top: 25, left: 50 },
-                    { label: 'IF', value: totalDefIF, color: colorDefIF, top: 53, left: 50 },
-                    { label: 'C Arm', value: armC, color: colorArmC, top: 83, left: 25 },
+                    { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF, top: 80, left: 15 },
+                    { label: 'TOTAL IF', value: totalDefIF, color: colorDefIF, top: 84, left: 15 },
+                    { label: 'CA ARM',   value: armC,       color: colorArmC,  top: 88, left: 15 },
                 ] as const).map(({ label, value, color, top, left }) => value !== null && (
                     <div
                         key={label}

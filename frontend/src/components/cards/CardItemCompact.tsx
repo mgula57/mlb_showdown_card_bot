@@ -45,7 +45,7 @@ type CardItemCompactProps = {
 function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fieldPosition?: string): string | number {
     if (!card) return 'N/A';
     if (card.is_pitcher) return `IP ${card.ip ?? 0}`;
-    if (fieldPosition === 'DH') return '-';
+    if (fieldPosition === 'DH') return 'DH';
 
     const defAtPos = defenseAtPosition(card.positions_and_defense, fieldPosition || '');
     if (defAtPos !== null) return `${fieldPosition}${defAtPos >= 0 ? '+' : ''}${defAtPos}`;
@@ -156,8 +156,12 @@ export const CardItemCompact = ({
                     
                 </div>
                 {size !== 'sm' && (
-                    <div className="flex py-0.5 text-[9px] justify-between w-full font-bold text-(--text-tertiary) truncate text-wrap">
+                    <div className="flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-wrap">
                         {getDefenseDisplay(card, fieldPosition)}
+                        <span className="px-0.5 opacity-50">•</span>
+                        {card?.is_pitcher ? 
+                        `${card.outs} OUT` 
+                        : `SPD ${card?.speed || '-'}`}
                     </div>
                 )}
 
@@ -244,6 +248,7 @@ export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPos
                 positions_and_defense_string: card?.positions_and_defense_string || '',
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
+                speed: card?.speed.speed || null,
                 source: card?.is_wotc ? 'WOTC' : 'BOT',
             }}
             className={className}
@@ -293,6 +298,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 positions_and_defense_string: card?.positions_and_defense_string || '',
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
+                speed: card?.speed || null,
                 source: card?.source || 'BOT',
             }}
             className={className}

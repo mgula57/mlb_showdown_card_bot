@@ -479,6 +479,7 @@ export type ShowdownBotCardCompact = {
     positions_and_defense_string: string | null;
     positions_and_defense?: Record<string, number> | null;
     ip: number | null;
+    speed: number | null;
     source: CardSource;
 }
 // =============================================================================
