@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
-import { FaPlus } from 'react-icons/fa6';
+import { FaPlus, FaPencil } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
+import { Modal } from '../shared/Modal';
+import { CardDetail } from '../cards/CardDetail';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 const ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
@@ -23,27 +26,38 @@ function PositionRow({
     label,
     card,
     onClick,
+    onDetailClick,
     readOnly,
     isActive,
 }: {
     label: string;
     card: CardDatabaseRecord | null | undefined;
     onClick: () => void;
+    onDetailClick?: () => void;
     readOnly: boolean;
     isActive?: boolean;
 }) {
     return (
-        <div 
+        <div
             className={`
-                flex items-center gap-3 min-h-9 rounded-lg 
-                transition-all duration-200 
-                ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`} 
+                flex items-center gap-3 min-h-9 rounded-lg
+                transition-all duration-200
+                ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`}
                 onClick={e => e.stopPropagation()}
             >
             <span className={`text-[11px] font-bold w-6 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
-                <div className="flex-1 min-w-0" onClick={readOnly ? undefined : onClick}>
-                    <CardItemFromCardDatabaseRecord card={card} isSelected={isActive} />
+                <div className="flex-1 min-w-0 transition-transform hover:scale-[1.02] active:scale-[0.98]">
+                    <CardItemFromCardDatabaseRecord
+                        card={card}
+                        isSelected={isActive}
+                        onClick={onDetailClick}
+                        actionButton={!readOnly ? {
+                            icon: <FaPencil className="w-2.5 h-2.5" />,
+                            onClick,
+                            label: 'Replace card',
+                        } : undefined}
+                    />
                 </div>
             ) : (
                 <button
@@ -104,6 +118,8 @@ export function DepthChartPanel({
     activePosition,
     activeRole,
 }: DepthChartPanelProps) {
+    const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
+
     const lineup = team.lineups[0] ?? { name: 'Default', slots: [] };
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
     const roleByKey = Object.fromEntries(team.rotation.map(r => [r.role, r]));
@@ -167,12 +183,14 @@ export function DepthChartPanel({
             <SectionHeader label="Starting Lineup" filledCount={filledLineupCards.length} total={lineupPts} kpis={lineupKpis} />
             {FIELD_POSITIONS.map(pos => {
                 const slot = slotByPos[pos] ?? null;
+                const card = slot ? cardMap[slot.card_id] : null;
                 return (
                     <PositionRow
                         key={pos}
                         label={pos}
-                        card={slot ? cardMap[slot.card_id] : null}
+                        card={card}
                         onClick={() => onSlotClick(pos, slot)}
+                        onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activePosition === pos}
                     />
@@ -183,12 +201,14 @@ export function DepthChartPanel({
             <SectionHeader label="Bench" filledCount={filledBenchCards.length} total={benchPts} kpis={benchKpis} />
             {BENCH_ROLES.map(pos => {
                 const slot = benchByRole[pos] ?? null;
+                const card = slot ? cardMap[slot.card_id] : null;
                 return (
                     <PositionRow
                         key={pos}
                         label={pos}
-                        card={slot ? cardMap[slot.card_id] : null}
+                        card={card}
                         onClick={() => onBenchClick(pos, slot)}
+                        onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activeRole === pos}
                     />
@@ -199,12 +219,14 @@ export function DepthChartPanel({
             <SectionHeader label="Rotation" filledCount={filledRotCards.length} total={rotationPts} kpis={rotationKpis} />
             {ACTIVE_ROTATION_ROLES.map(role => {
                 const assignment = roleByKey[role] ?? null;
+                const card = assignment ? cardMap[assignment.card_id] : null;
                 return (
                     <PositionRow
                         key={role}
                         label={role}
-                        card={assignment ? cardMap[assignment.card_id] : null}
+                        card={card}
                         onClick={() => onRoleClick(role, assignment)}
+                        onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activeRole === role}
                     />
@@ -216,17 +238,25 @@ export function DepthChartPanel({
             {BULLPEN_ROLES.map((role, i) => {
                 const assignment = bullpenByRole[role] ?? null;
                 const actualRole = bullpenSlots[i]?.role ?? role;
+                const card = assignment ? cardMap[assignment.card_id] : null;
                 return (
                     <PositionRow
                         key={role}
                         label={actualRole}
-                        card={assignment ? cardMap[assignment.card_id] : null}
+                        card={card}
                         onClick={() => onRoleClick(actualRole, assignment)}
+                        onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activeRole === actualRole}
                     />
                 );
             })}
+
+            {detailCard && (
+                <Modal onClose={() => setDetailCard(null)} size="lg">
+                    <CardDetail cardId={detailCard.card_id} context="roster" />
+                </Modal>
+            )}
         </div>
     );
 }

@@ -107,7 +107,8 @@ export const CardItemCompact = ({
         return trimmed.split(/\s+/)[0][0].toUpperCase();
     };
 
-    const displayName = `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
+    const isRedacted = card?.isEmpty || false;
+    const displayName = isRedacted ? 'REDACTED NAME' : `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
     return (
         <div
@@ -136,39 +137,39 @@ export const CardItemCompact = ({
             />
 
             <div className="min-w-0 flex-1 space-y-0.5 text-left">
-                <div className="text-[12px] font-black text-(--text-primary) truncate">
+                <div className={`text-[12px] font-black text-(--text-primary) truncate ${isRedacted ? 'redacted' : ''}`}>
                     {displayName}
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
-                    <div 
-                        className="text-[9px] flex leading-none shrink-0 font-semibold rounded px-0.5 py-0.5"
-                        style={teamStyle}
+                    <div
+                        className={`text-[9px] flex leading-none shrink-0 font-semibold rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                        style={isRedacted ? undefined : teamStyle}
                     >
                         {card?.team || 'N/A'}
                         <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                     </div>
                     <div
-                        className="hidden @[100px]:flex shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
-                        style={pointsBadgeStyle}
+                        className={`hidden @[100px]:flex shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                        style={isRedacted ? undefined : pointsBadgeStyle}
                     >
                         {card?.points != null ? `${card.points} PTS` : '-- PTS'}
                     </div>
-                    
                 </div>
                 {size !== 'sm' && (
-                    <div className="flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-wrap">
-                        {getDefenseDisplay(card, fieldPosition)}
-                        <span className="px-0.5 opacity-50">•</span>
-                        {card?.is_pitcher ? 
-                        `${card.outs} OUT` 
-                        : `SPD ${card?.speed || '-'}`}
+                    <div className={`flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-wrap ${isRedacted ? 'redacted' : ''}`}>
+                        {isRedacted ? '--- • ---' : (
+                            <>
+                                {getDefenseDisplay(card, fieldPosition)}
+                                <span className="px-0.5 opacity-50">•</span>
+                                {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                            </>
+                        )}
                     </div>
                 )}
-
             </div>
 
             {/* Absolute positioned elements */}
-            {size !== 'sm' && (
+            {size !== 'sm' && !isRedacted && (
                 <div className="absolute bottom-1 left-1.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
                 </div>
@@ -250,6 +251,7 @@ export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPos
                 ip: card?.ip || 0,
                 speed: card?.speed.speed || null,
                 source: card?.is_wotc ? 'WOTC' : 'BOT',
+                isEmpty: card == null || card === undefined,
             }}
             className={className}
             isSelected={isSelected}
@@ -300,6 +302,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 ip: card?.ip || 0,
                 speed: card?.speed || null,
                 source: card?.source || 'BOT',
+                isEmpty: card == null || card === undefined,
             }}
             className={className}
             isSelected={isSelected}

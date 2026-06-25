@@ -481,6 +481,7 @@ export type ShowdownBotCardCompact = {
     ip: number | null;
     speed: number | null;
     source: CardSource;
+    isEmpty?: boolean;
 }
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES

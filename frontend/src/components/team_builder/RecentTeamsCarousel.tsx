@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useState } from 'react';
 import type { Team } from '../../api/userTeams';
+import { isTeamDrafting } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
@@ -224,14 +225,21 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                     >
                         {team.name}
                     </div>
-                    {team.total_points > 0 && (
-                        <div
-                            className="text-[10px] font-black mt-0.5 rounded px-1.5 py-0.5 self-start leading-none"
-                            style={{ backgroundColor: secondary, color: onSecondary }}
-                        >
-                            {team.total_points} PTS
-                        </div>
-                    )}
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {team.total_points > 0 && (
+                            <div
+                                className="text-[10px] font-black rounded px-1.5 py-0.5 self-start leading-none"
+                                style={{ backgroundColor: secondary, color: onSecondary }}
+                            >
+                                {team.total_points} PTS
+                            </div>
+                        )}
+                        {isTeamDrafting(team) && (
+                            <div className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none bg-amber-500/25 text-amber-400">
+                                DRAFTING
+                            </div>
+                        )}
+                    </div>
                     {team.allowed_card_sources && team.allowed_card_sources.length > 0 && (
                         <div className="flex items-center gap-0.5 mt-0.5">
                             {team.allowed_card_sources.map(src => (

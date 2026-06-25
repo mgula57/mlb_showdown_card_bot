@@ -1,4 +1,5 @@
 import type { Team } from '../../api/userTeams';
+import { isTeamDrafting } from '../../api/userTeams';
 import { getContrastColor } from '../shared/Color';
 import { useTheme } from '../shared/SiteSettingsContext';
 import { FaLock, FaGlobe, FaUsers } from 'react-icons/fa6';
@@ -19,6 +20,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
         : (isDark ? 'border-2 border-white/10' : 'border-2 border-gray-200');
 
     const rosterCount = team.roster?.length ?? 0;
+    const drafting = isTeamDrafting(team);
 
     return (
         <button
@@ -61,6 +63,11 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                     >
                         {team.source.toUpperCase()}
                     </span>
+                    {drafting && (
+                        <span className="text-[9px] font-black rounded px-1 py-0.5 leading-none bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                            DRAFTING
+                        </span>
+                    )}
                     <span className="flex items-center gap-0.5 text-[10px] text-(--text-tertiary)">
                         <FaUsers className="text-[9px]" />
                         {rosterCount}

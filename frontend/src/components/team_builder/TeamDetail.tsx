@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy } from '../../api/userTeams';
-import { fetchTeam, autofillTeam } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting } from '../../api/userTeams';
 import { AutofillPanel } from './AutofillPanel';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
@@ -339,6 +339,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     {/* Name + total pts */}
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
+                        {isTeamDrafting(draft) && (
+                            <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                                DRAFTING
+                            </span>
+                        )}
                         
                         {/* Showdown Sets */}
                         <div className="flex items-center gap-0.5 flex-wrap">

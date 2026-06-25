@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
-import { FaPlus } from 'react-icons/fa6';
+import { FaPlus, FaPencil } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
+import { Modal } from '../shared/Modal';
+import { CardDetail } from '../cards/CardDetail';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 const POSITION_COORDS: Record<string, [number, number]> = {
@@ -86,6 +89,8 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 }
 
 export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData }: FieldViewProps) {
+    const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
+
     const slotByPosition = Object.fromEntries(
         lineup.slots.map(s => [s.field_position, s])
     );
@@ -238,8 +243,13 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                         className="hover:scale-[1.05] active:scale-[0.975] transition-transform"
                                         size="lg"
                                         fieldPosition={pos}
-                                        onClick={readOnly ? undefined : () => onSlotClick(pos, slot)}
+                                        onClick={() => setDetailCard(card)}
                                         isSelected={isActive}
+                                        actionButton={!readOnly ? {
+                                            icon: <FaPencil className="w-2.5 h-2.5" />,
+                                            onClick: () => onSlotClick(pos, slot),
+                                            label: 'Replace card',
+                                        } : undefined}
                                     />
                                 ) : (
                                     <PositionSlotPlaceholder
@@ -268,7 +278,12 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                         card={card}
                                         className="hover:scale-[1.025] active:scale-[0.975] transition-transform"
                                         size="lg"
-                                        onClick={onItemClick ? () => onItemClick(role) : undefined}
+                                        onClick={() => setDetailCard(card)}
+                                        actionButton={onItemClick ? {
+                                            icon: <FaPencil className="w-2.5 h-2.5" />,
+                                            onClick: () => onItemClick(role),
+                                            label: 'Replace card',
+                                        } : undefined}
                                     />
                                 ) : (
                                     <button
@@ -289,6 +304,11 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                     </div>
                 );
             })}
+            {detailCard && (
+                <Modal onClose={() => setDetailCard(null)} size="lg">
+                    <CardDetail cardId={detailCard.card_id} context="roster" />
+                </Modal>
+            )}
         </div>
     );
 }

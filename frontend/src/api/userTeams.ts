@@ -62,6 +62,27 @@ export type Team = {
     total_points: number;
 };
 
+const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
+const STARTER_ROLES   = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
+
+export function isTeamDrafting(team: Team): boolean {
+    const slots = team.lineups[0]?.slots ?? [];
+    const filledLineup = FIELD_POSITIONS.filter(pos => slots.some(s => s.field_position === pos)).length;
+    if (filledLineup < 9) return true;
+
+    const starterRoles = STARTER_ROLES.slice(0, team.num_starters);
+    const filledStarters = team.rotation.filter(r => (starterRoles as readonly string[]).includes(r.role)).length;
+    if (filledStarters < team.num_starters) return true;
+
+    const filledBench = team.roster.filter(s => s.roster_position === 'BE').length;
+    if (filledBench < team.min_bench) return true;
+
+    const filledBullpen = team.rotation.filter(r => !(STARTER_ROLES as readonly string[]).includes(r.role)).length;
+    if (filledBullpen < team.min_bullpen) return true;
+
+    return false;
+}
+
 export type TeamCreatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at'>> & {
     name: string;
     abbreviation: string;
