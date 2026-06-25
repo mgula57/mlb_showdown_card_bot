@@ -22,14 +22,14 @@ import { useAuth } from "../auth/AuthContext";
 
 // Images
 // Import images at the top of the file
-import set2000 from '/images/sets/set-2000.png';
-import set2001 from '/images/sets/set-2001.png';
-import setClassic from '/images/sets/set-classic.png';
-import set2002 from '/images/sets/set-2002.png';
-import set2003 from '/images/sets/set-2003.png';
-import set2004 from '/images/sets/set-2004.png';
-import set2005 from '/images/sets/set-2005.png';
-import setExpanded from '/images/sets/set-expanded.png';
+import set2000 from '/images/sets/set-2000-v2.png';
+import set2001 from '/images/sets/set-2001-v2.png';
+import setClassic from '/images/sets/set-classic-v2.png';
+import set2002 from '/images/sets/set-2002-v2.png';
+import set2003 from '/images/sets/set-2003-v2.png';
+import set2004 from '/images/sets/set-2004-v2.png';
+import set2005 from '/images/sets/set-2005-v2.png';
+import setExpanded from '/images/sets/set-expanded-v2.png';
 
 /**
  * Available MLB Showdown sets with their visual assets and styling
