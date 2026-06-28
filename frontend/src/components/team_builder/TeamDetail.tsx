@@ -294,9 +294,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }, [draft.roster, draft.lineups, draft.rotation]);
 
     const pendingLabel = pendingSlot
-        ? pendingSlot.kind === 'field'    ? `Filter: ${pendingSlot.position}`
-        : pendingSlot.kind === 'rotation' ? `Filter: ${pendingSlot.role}`
-        : pendingSlot.kind === 'bench'    ? `Filter: ${pendingSlot.role}`
+        ? pendingSlot.kind === 'field'    ? `Filling: ${pendingSlot.position}`
+        : pendingSlot.kind === 'rotation' ? `Filling: ${pendingSlot.role}`
+        : pendingSlot.kind === 'bench'    ? `Filling: ${pendingSlot.role}`
         : 'Adding to roster'
         : null;
 
@@ -656,8 +656,11 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                     </Tabs.Trigger>
                 ))}
                 {pendingLabel && (
-                    <span className="ml-auto text-[11px] text-(--secondary) font-semibold truncate pl-2">
-                        {pendingLabel}
+                    <span className="ml-auto flex items-center gap-1.5 px-2 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-md text-amber-500 dark:text-amber-400 font-semibold">
+                            {pendingLabel}
+                        </span>
                     </span>
                 )}
             </Tabs.List>
