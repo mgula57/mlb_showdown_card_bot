@@ -6,7 +6,8 @@ import { fetchCardData } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastColor } from '../shared/Color';
-import { FaHatWizard } from 'react-icons/fa6';
+import { FaCircle, FaHatWizard } from 'react-icons/fa6';
+import { FaCircleNotch } from 'react-icons/fa';
 
 // =============================================================================
 // MARK: - Recent Team Tracking
@@ -185,7 +186,14 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
             }}
         >
             {isTeamDrafting(team) && (
-                <span className="absolute top-0 right-0 z-20 text-[8px] font-black rounded px-1 py-0.5 leading-none bg-red-500 text-white">
+                <span 
+                    className="absolute flex items-center top-0 right-0 z-20 text-[9px] font-black rounded px-1 py-0.5 leading-none"
+                    style={{
+                        backgroundColor: secondary,
+                        color: onSecondary,
+                    }}    
+                >
+                    <FaCircle className="animate-pulse w-1.5 h-1.5 inline-block mr-0.5" />
                     DRAFTING
                 </span>
             )}
