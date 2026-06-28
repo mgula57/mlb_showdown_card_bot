@@ -42,6 +42,8 @@ type FieldViewProps = {
     readOnly?: boolean;
     activePosition?: string | null;
     rosterData?: FieldViewRosterData;
+    hoveredCardId?: string | null;
+    onCardHover?: (cardId: string | null) => void;
 };
 
 
@@ -88,7 +90,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
     return total;
 }
 
-export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData }: FieldViewProps) {
+export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData, hoveredCardId, onCardHover }: FieldViewProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
     const slotByPosition = Object.fromEntries(
@@ -219,6 +221,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                     const slot = slotByPosition[pos] ?? null;
                     const card = slot ? cardMap[slot.card_id] : null;
                     const isActive = activePosition === pos;
+                    const isPeerHovered = !isActive && !!card && card.card_id === hoveredCardId;
 
                     return (
                         <div
@@ -232,15 +235,14 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                 minWidth: 70,
                             }}
                             onClick={e => e.stopPropagation()}
+                            onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                            onMouseLeave={() => onCardHover?.(null)}
                         >
-                            <div className={isActive
-                                ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse'
-                                : ''
-                            }>
+                            <div className={isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}>
                                 {card ? (
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
-                                        className="hover:scale-[1.05] active:scale-[0.975] transition-transform"
+                                        className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
                                         size="lg"
                                         fieldPosition={pos}
                                         onClick={() => setDetailCard(card)}
@@ -272,19 +274,25 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                         <div className="grid grid-cols-2 gap-1.5 px-3 pb-3">
                             {roles.map(role => {
                                 const card = getCard(role);
+                                const isPeerHovered = !!card && card.card_id === hoveredCardId;
                                 return card ? (
-                                    <CardItemCompactFromCardDatabaseRecord
+                                    <div
                                         key={role}
-                                        card={card}
-                                        className="hover:scale-[1.025] active:scale-[0.975] transition-transform"
-                                        size="lg"
-                                        onClick={() => setDetailCard(card)}
-                                        actionButton={onItemClick ? {
-                                            icon: <FaPencil className="w-2.5 h-2.5" />,
-                                            onClick: () => onItemClick(role),
-                                            label: 'Replace card',
-                                        } : undefined}
-                                    />
+                                        onMouseEnter={() => onCardHover?.(card.card_id)}
+                                        onMouseLeave={() => onCardHover?.(null)}
+                                    >
+                                        <CardItemCompactFromCardDatabaseRecord
+                                            card={card}
+                                            className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
+                                            size="lg"
+                                            onClick={() => setDetailCard(card)}
+                                            actionButton={onItemClick ? {
+                                                icon: <FaPencil className="w-2.5 h-2.5" />,
+                                                onClick: () => onItemClick(role),
+                                                label: 'Replace card',
+                                            } : undefined}
+                                        />
+                                    </div>
                                 ) : (
                                     <button
                                         key={role}

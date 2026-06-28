@@ -134,6 +134,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [reshuffling, setReshuffling] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
+    const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLg, setIsLg] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
@@ -175,6 +176,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             if (serverTeam.updated_at && team.updated_at && serverTeam.updated_at > team.updated_at) {
                 setStale(true);
             }
+            console.log('Team Loaded:', serverTeam);
         }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -403,6 +405,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             readOnly={!showEditControls}
             activePosition={activeFieldPosition}
             rosterData={rosterData}
+            hoveredCardId={hoveredCardId}
+            onCardHover={setHoveredCardId}
         />
     );
 
@@ -425,6 +429,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             readOnly={!showEditControls}
             activePosition={activeFieldPosition}
             activeRole={activeRole}
+            hoveredCardId={hoveredCardId}
+            onCardHover={setHoveredCardId}
         />
     );
 

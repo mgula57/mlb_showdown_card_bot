@@ -20,6 +20,8 @@ type DepthChartPanelProps = {
     readOnly?: boolean;
     activePosition?: string | null;
     activeRole?: string | null;
+    hoveredCardId?: string | null;
+    onCardHover?: (cardId: string | null) => void;
 };
 
 function PositionRow({
@@ -29,6 +31,9 @@ function PositionRow({
     onDetailClick,
     readOnly,
     isActive,
+    isPeerHovered,
+    onMouseEnter,
+    onMouseLeave,
 }: {
     label: string;
     card: CardDatabaseRecord | null | undefined;
@@ -36,6 +41,9 @@ function PositionRow({
     onDetailClick?: () => void;
     readOnly: boolean;
     isActive?: boolean;
+    isPeerHovered?: boolean;
+    onMouseEnter?: () => void;
+    onMouseLeave?: () => void;
 }) {
     return (
         <div
@@ -44,10 +52,12 @@ function PositionRow({
                 transition-all duration-200
                 ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`}
                 onClick={e => e.stopPropagation()}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
             >
             <span className={`text-[11px] font-bold w-6 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
-                <div className="flex-1 min-w-0 transition-transform hover:scale-[1.02] active:scale-[0.98]">
+                <div className={`flex-1 min-w-0 transition-transform ${isPeerHovered ? 'scale-[1.02]' : 'hover:scale-[1.02]'} active:scale-[0.98]`}>
                     <CardItemFromCardDatabaseRecord
                         card={card}
                         isSelected={isActive}
@@ -117,6 +127,8 @@ export function DepthChartPanel({
     readOnly = false,
     activePosition,
     activeRole,
+    hoveredCardId,
+    onCardHover,
 }: DepthChartPanelProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
@@ -193,6 +205,9 @@ export function DepthChartPanel({
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activePosition === pos}
+                        isPeerHovered={!!card && card.card_id === hoveredCardId}
+                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                        onMouseLeave={() => onCardHover?.(null)}
                     />
                 );
             })}
@@ -211,6 +226,9 @@ export function DepthChartPanel({
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activeRole === pos}
+                        isPeerHovered={!!card && card.card_id === hoveredCardId}
+                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                        onMouseLeave={() => onCardHover?.(null)}
                     />
                 );
             })}
@@ -229,6 +247,9 @@ export function DepthChartPanel({
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activeRole === role}
+                        isPeerHovered={!!card && card.card_id === hoveredCardId}
+                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                        onMouseLeave={() => onCardHover?.(null)}
                     />
                 );
             })}
@@ -248,6 +269,9 @@ export function DepthChartPanel({
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
                         isActive={activeRole === actualRole}
+                        isPeerHovered={!!card && card.card_id === hoveredCardId}
+                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                        onMouseLeave={() => onCardHover?.(null)}
                     />
                 );
             })}
