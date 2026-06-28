@@ -241,7 +241,7 @@ export function DepthChartPanel({
                 const card = assignment ? cardMap[assignment.card_id] : null;
                 return (
                     <PositionRow
-                        key={role}
+                        key={`depth-${actualRole}-${i}`}
                         label={actualRole}
                         card={card}
                         onClick={() => onRoleClick(actualRole, assignment)}
