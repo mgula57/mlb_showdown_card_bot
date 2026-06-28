@@ -252,11 +252,15 @@ export function DepthChartPanel({
                 );
             })}
 
-            {detailCard && (
-                <Modal onClose={() => setDetailCard(null)} size="lg">
-                    <CardDetail cardId={detailCard.card_id} context="roster" />
+            <div className={detailCard ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>
+                    <CardDetail
+                        cardId={detailCard?.card_id}
+                        context="roster"
+                    />
                 </Modal>
-            )}
+            </div>
+
         </div>
     );
 }
