@@ -269,6 +269,7 @@ class SpecialEdition(str, Enum):
     ASG_2023 = "ASG 2023"
     ASG_2024 = "ASG 2024"
     ASG_2025 = "ASG 2025"
+    ASG_2026 = "ASG 2026"
     ASG_LINES = "ASG LINES"
     COOPERSTOWN_COLLECTION = "CC"
     SUPER_SEASON = "SS"
@@ -291,7 +292,7 @@ class SpecialEdition(str, Enum):
             
     @property
     def hide_2000_player_name(self) -> bool:
-        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025, SpecialEdition.WBC]
+        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025, SpecialEdition.ASG_2026, SpecialEdition.WBC]
 
     @property
     def ignore_edition_based_team_logo(self) -> bool:
@@ -299,7 +300,7 @@ class SpecialEdition(str, Enum):
 
     @property
     def has_full_bleed_background(self) -> bool:
-        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
+        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025, SpecialEdition.ASG_2026]
 
     @property
     def image_component_saturation_adjustments_dict(self) -> dict[PlayerImageComponent, float]:
@@ -331,6 +332,9 @@ class SpecialEdition(str, Enum):
                 PlayerImageComponent.CUSTOM_FOREGROUND: primary_color,
                 PlayerImageComponent.CUSTOM_FOREGROUND_2: primary_color,
                 PlayerImageComponent.CUSTOM_FOREGROUND_3: secondary_color,
+            }
+            case SpecialEdition.ASG_2026: return {
+                PlayerImageComponent.CUSTOM_FOREGROUND_1: secondary_color,
             }
         return {}
 
@@ -573,7 +577,11 @@ class ShowdownImage(BaseModel):
             
             if self.edition == Edition.ALL_STAR_GAME and year == '2025':
                 self.special_edition = SpecialEdition.ASG_2025
-                return 
+                return
+            
+            if self.edition == Edition.ALL_STAR_GAME and year == '2026':
+                self.special_edition = SpecialEdition.ASG_2026
+                return
             
             if self.edition == Edition.ALL_STAR_GAME and is_04_05:
                 try:
