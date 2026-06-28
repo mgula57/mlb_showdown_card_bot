@@ -174,25 +174,6 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                 
             </FormSection>
 
-            <FormSection title="Player Filters" icon={<FaFilter />} isOpenByDefault={isOpen('player_filters')}>
-                <RangeFilter
-                    label="Year"
-                    minValue={pf.min_year}
-                    maxValue={pf.max_year}
-                    onMinChange={n => updatePlayerFilters({ min_year: n })}
-                    onMaxChange={n => updatePlayerFilters({ max_year: n })}
-                />
-                <TeamHierarchy
-                    hierarchyData={hierarchyData}
-                    selectedOrganizations={pf.organization}
-                    selectedLeagues={pf.league}
-                    selectedTeams={pf.team}
-                    onOrganizationChange={values => updatePlayerFilters({ organization: values })}
-                    onLeagueChange={values => updatePlayerFilters({ league: values })}
-                    onTeamChange={values => updatePlayerFilters({ team: values })}
-                />
-            </FormSection>
-
             <FormSection title="Rules" icon={<FaGears />} isOpenByDefault={isOpen('rules')}>
                 <FormInput
                     label="PTS Limit"
@@ -245,6 +226,25 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                         {rosterError}
                     </div>
                 )}
+            </FormSection>
+
+            <FormSection title="Player Filters" icon={<FaFilter />} isOpenByDefault={isOpen('player_filters')}>
+                <RangeFilter
+                    label="Year"
+                    minValue={pf.min_year}
+                    maxValue={pf.max_year}
+                    onMinChange={n => updatePlayerFilters({ min_year: n })}
+                    onMaxChange={n => updatePlayerFilters({ max_year: n })}
+                />
+                <TeamHierarchy
+                    hierarchyData={hierarchyData}
+                    selectedOrganizations={pf.organization}
+                    selectedLeagues={pf.league}
+                    selectedTeams={pf.team}
+                    onOrganizationChange={values => updatePlayerFilters({ organization: values })}
+                    onLeagueChange={values => updatePlayerFilters({ league: values })}
+                    onTeamChange={values => updatePlayerFilters({ team: values })}
+                />
             </FormSection>
         </div>
     );

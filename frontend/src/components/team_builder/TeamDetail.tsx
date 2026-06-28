@@ -15,7 +15,10 @@ import { DepthChartPanel } from './DepthChartPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
-import { FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, FaShuffle } from 'react-icons/fa6';
+import { 
+    FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, 
+    FaShuffle, FaPenToSquare
+} from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
@@ -66,6 +69,35 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
     return {};
 }
 
+function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[] {
+    const lines: string[] = [];
+    if ('pts_limit' in pending && pending.pts_limit !== original.pts_limit)
+        lines.push(`PTS limit: ${original.pts_limit ?? 'none'} → ${pending.pts_limit ?? 'none'}`);
+    if ('roster_size' in pending && pending.roster_size !== original.roster_size)
+        lines.push(`Roster size: ${original.roster_size} → ${pending.roster_size}`);
+    if ('num_starters' in pending && pending.num_starters !== original.num_starters)
+        lines.push(`Starting pitchers: ${original.num_starters} → ${pending.num_starters}`);
+    if ('min_bullpen' in pending && pending.min_bullpen !== original.min_bullpen)
+        lines.push(`Min bullpen: ${original.min_bullpen} → ${pending.min_bullpen}`);
+    if ('min_bench' in pending && pending.min_bench !== original.min_bench)
+        lines.push(`Min bench: ${original.min_bench} → ${pending.min_bench}`);
+    if ('bench_pts_multiplier' in pending && pending.bench_pts_multiplier !== original.bench_pts_multiplier)
+        lines.push(`Bench PTS multiplier: ${original.bench_pts_multiplier}× → ${pending.bench_pts_multiplier}×`);
+    if ('allowed_sets' in pending) {
+        const orig = (original.allowed_sets ?? []).sort().join(', ') || 'all';
+        const next = (pending.allowed_sets ?? []).sort().join(', ') || 'all';
+        if (orig !== next) lines.push(`Allowed sets: ${orig} → ${next}`);
+    }
+    if ('allowed_card_sources' in pending) {
+        const orig = (original.allowed_card_sources ?? []).sort().join(', ') || 'all';
+        const next = (pending.allowed_card_sources ?? []).sort().join(', ') || 'all';
+        if (orig !== next) lines.push(`Card sources: ${orig} → ${next}`);
+    }
+    if ('player_filters' in pending)
+        lines.push('Player filters updated');
+    return lines;
+}
+
 function getEligiblePositions(card: CardDatabaseRecord): string[] {
     if (card.is_pitcher) {
         if ('STARTER' in card.positions_and_defense) return [...ROTATION_ROLES];
@@ -100,6 +132,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [showAutofill, setShowAutofill] = useState(false);
     const [lastAutofillStrategy, setLastAutofillStrategy] = useState<AutofillStrategy | null>(null);
     const [reshuffling, setReshuffling] = useState(false);
+    const [editMode, setEditMode] = useState(false);
+    const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLg, setIsLg] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
@@ -119,7 +153,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }, [draft.allowed_card_sources]);
 
-    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); }, [team]);
+    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); }, [team]);
 
     useEffect(() => {
         if (!draftToast) return;
@@ -248,8 +282,28 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         setPendingSlot(null);
     }
 
+    const isDrafting = isTeamDrafting(draft);
+    const teamMode: 'drafting' | 'editing' | 'complete' = isDrafting ? 'drafting' : editMode ? 'editing' : 'complete';
+    const showEditControls = !readOnly && teamMode !== 'complete';
+
+    const settingsDraft = useMemo(
+        () => pendingSettings ? { ...draft, ...pendingSettings } as Team : draft,
+        [draft, pendingSettings],
+    );
+
     const defaultLineup = draft.lineups[0] ?? { name: 'Default', slots: [] };
     const primary = draft.primary_color || 'rgb(0,0,0)';
+    const secondary = draft.secondary_color || 'rgb(100,100,100)';
+
+    const rosterProgress = useMemo(() => {
+        const filledLineup = (draft.lineups[0]?.slots ?? []).length;
+        const filledStarters = draft.rotation.filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).length;
+        const filledBench = draft.roster.filter(s => s.roster_position === 'BE').length;
+        const filledBullpen = draft.rotation.filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).length;
+        const filled = filledLineup + Math.min(filledStarters, draft.num_starters) + Math.min(filledBench, draft.min_bench) + Math.min(filledBullpen, draft.min_bullpen);
+        const total = 9 + draft.num_starters + draft.min_bench + draft.min_bullpen;
+        return { filled, total };
+    }, [draft]);
 
     const activeFieldPosition = pendingSlot?.kind === 'field' ? pendingSlot.position : null;
     const activeRole = (pendingSlot?.kind === 'rotation' || pendingSlot?.kind === 'bench') ? pendingSlot.role : null;
@@ -317,6 +371,114 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             draftedCardIds={draftedCardIds}
             onCardPicked={handleCardPicked}
         />
+    );
+
+    const fieldViewContent = (
+        <FieldView
+            lineup={defaultLineup}
+            cardMap={cardMap}
+            onSlotClick={(pos, slot) => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'field', position: pos, current: slot });
+            }}
+            onBenchClick={(role, current) => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'bench', role, current });
+            }}
+            onRoleClick={(role, current) => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'rotation', role, current });
+            }}
+            readOnly={!showEditControls}
+            activePosition={activeFieldPosition}
+            rosterData={rosterData}
+        />
+    );
+
+    const depthChartContent = (
+        <DepthChartPanel
+            team={draft}
+            cardMap={cardMap}
+            onSlotClick={(pos, slot) => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'field', position: pos, current: slot });
+            }}
+            onRoleClick={(role, current) => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'rotation', role, current });
+            }}
+            onBenchClick={(role, current) => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'bench', role, current });
+            }}
+            readOnly={!showEditControls}
+            activePosition={activeFieldPosition}
+            activeRole={activeRole}
+        />
+    );
+
+    const draftHistoryContent = (
+        <div className="flex flex-col gap-0.5 p-4">
+            {draftHistory.length === 0 ? (
+                <p className="text-[12px] text-(--text-tertiary) py-4 text-center">No draft history yet.</p>
+            ) : draftHistory.map((slot, i) => {
+                const card = cardMap[slot.card_id];
+                return (
+                    <div key={i} className="flex items-center gap-3 min-h-9">
+                        <span className="text-[11px] font-bold w-6 shrink-0 text-right text-(--text-tertiary)">
+                            {slot.draft_order ?? i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                            {card
+                                ? <CardItemCompactFromCardDatabaseRecord card={card} />
+                                : <span className="text-[11px] text-(--text-tertiary)">{slot.card_id}</span>
+                            }
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+
+    const settingsChanges = pendingSettings ? getSettingsChanges(draft, pendingSettings) : [];
+
+    const settingsTabContent = (
+        <div className="relative flex flex-col">
+            <TeamSettingsForm
+                team={settingsDraft}
+                onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
+            />
+            {pendingSettings && (
+                <div className="sticky bottom-0 border-t border-(--divider) bg-(--background-primary) px-4 py-3 flex flex-col gap-2">
+                    {settingsChanges.length > 0 && (
+                        <ul className="flex flex-col gap-0.5">
+                            {settingsChanges.map(line => (
+                                <li key={line} className="text-[11px] text-(--text-secondary) flex items-start gap-1.5">
+                                    <span className="text-amber-500 mt-px shrink-0">→</span>
+                                    {line}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { update(pendingSettings); setPendingSettings(null); }}
+                            className="flex-1 px-3 py-4 rounded-lg text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 cursor-pointer transition-opacity"
+                        >
+                            Apply Changes
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPendingSettings(null)}
+                            className="px-3 py-4 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                        >
+                            Discard
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 
     // Eligible positions split into groups for the confirmation modal
@@ -388,7 +550,25 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
                         {saveStatus === 'error' && <span className="text-red-500">Error</span>}
                         {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
-                        {draft.pts_limit != null && token && (
+                        {teamMode === 'complete' && (
+                            <button
+                                type="button"
+                                onClick={() => setEditMode(true)}
+                                className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                            >
+                                <FaPenToSquare /> Edit
+                            </button>
+                        )}
+                        {teamMode === 'editing' && (
+                            <button
+                                type="button"
+                                onClick={() => setEditMode(false)}
+                                className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-green-500/50 text-green-600 dark:text-green-400 font-bold hover:border-green-500 cursor-pointer transition-colors"
+                            >
+                                <FaCircleCheck /> Done
+                            </button>
+                        )}
+                        {draft.pts_limit != null && token && teamMode !== 'complete' && (
                             <>
                                 {lastAutofillStrategy && (
                                     <button
@@ -427,105 +607,111 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </div>
             )}
 
+            {teamMode === 'drafting' && (() => {
+                const bannerText = getContrastColor(primary);
+                const isLight = bannerText === '#000' || bannerText === 'black';
+                const trackColor = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)';
+                const fillColor  = isLight ? 'rgba(0,0,0,0.7)'  : 'rgba(255,255,255,0.9)';
+                const dotColor   = isLight ? 'rgba(0,0,0,0.5)'  : 'rgba(255,255,255,0.6)';
+                return (
+                    <div
+                        className="flex items-center gap-3 px-4 py-2 shrink-0"
+                        style={{ background: `linear-gradient(to right, ${primary}, ${secondary})`, color: bannerText }}
+                    >
+                        <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: dotColor }} />
+                        <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: fillColor }}>
+                            DRAFTING — fill all required positions to complete your team
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-28 h-1.5 rounded-full overflow-hidden shrink-0" style={{ backgroundColor: trackColor }}>
+                                <div
+                                    className="h-full rounded-full transition-all"
+                                    style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: fillColor }}
+                                />
+                            </div>
+                            <span className="text-[11px] font-black" style={{ color: fillColor }}>
+                                {rosterProgress.filled}/{rosterProgress.total}
+                                {draft.pts_limit != null && ` • ${pointsBreakdown.total}/${draft.pts_limit} pts`}
+                            </span>
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* Team Roster Content */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
-                <Tabs.Root
-                    defaultValue="field"
-                    className="
-                        @container
-                        flex flex-col shrink-0
-                        overflow-y-auto
-                        w-full sm:w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-190 3xl:w-256
-                    "
-                >
-                    <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
-                        <Tabs.Trigger value="field" className={TAB_TRIGGER_CLASS}>Field View</Tabs.Trigger>
-                        <Tabs.Trigger value="depth"    className={`${TAB_TRIGGER_CLASS}`}>Depth Chart</Tabs.Trigger>
-                        <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
-                        <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
-                    </Tabs.List>
-
-                    <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
-                        <FieldView
-                                lineup={defaultLineup}
-                                cardMap={cardMap}
-                                onSlotClick={(pos, slot) => {
-                                    if (readOnly) return;
-                                    setPendingSlot({ kind: 'field', position: pos, current: slot });
-                                }}
-                                onBenchClick={(role, current) => {
-                                    if (readOnly) return;
-                                    setPendingSlot({ kind: 'bench', role, current });
-                                }}
-                                onRoleClick={(role, current) => {
-                                    if (readOnly) return;
-                                    setPendingSlot({ kind: 'rotation', role, current });
-                                }}
-                                readOnly={readOnly}
-                                activePosition={activeFieldPosition}
-                                rosterData={rosterData}
-                            />
-                        
-                    </Tabs.Content>
-
-                    <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
-                        <DepthChartPanel
-                            team={draft}
-                            cardMap={cardMap}
-                            onSlotClick={(pos, slot) => {
-                                if (readOnly) return;
-                                setPendingSlot({ kind: 'field', position: pos, current: slot });
-                            }}
-                            onRoleClick={(role, current) => {
-                                if (readOnly) return;
-                                setPendingSlot({ kind: 'rotation', role, current });
-                            }}
-                            onBenchClick={(role, current) => {
-                                if (readOnly) return;
-                                setPendingSlot({ kind: 'bench', role, current });
-                            }}
-                            readOnly={readOnly}
-                            activePosition={activeFieldPosition}
-                            activeRole={activeRole}
-                        />
-                    </Tabs.Content>
-
-                    <Tabs.Content value="draft" className="focus:outline-none">
-                        <div className="flex flex-col gap-0.5 p-4">
-                            {draftHistory.length === 0 ? (
-                                <p className="text-[12px] text-(--text-tertiary) py-4 text-center">No draft history yet.</p>
-                            ) : draftHistory.map((slot, i) => {
-                                const card = cardMap[slot.card_id];
-                                return (
-                                    <div key={i} className="flex items-center gap-3 min-h-9">
-                                        <span className="text-[11px] font-bold w-6 shrink-0 text-right text-(--text-tertiary)">
-                                            {slot.draft_order ?? i + 1}
-                                        </span>
-                                        <div className="flex-1 min-w-0">
-                                            {card
-                                                ? <CardItemCompactFromCardDatabaseRecord card={card} />
-                                                : <span className="text-[11px] text-(--text-tertiary)">{slot.card_id}</span>
-                                            }
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                {isLg && teamMode === 'complete' ? (
+                    /* Filled + large screen: FieldView fixed on left, Depth/Draft/Settings tabs on right */
+                    <>
+                        <div className="flex flex-col shrink-0 overflow-y-auto w-80 md:w-108 lg:w-124 xl:w-148 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
+                            {fieldViewContent}
                         </div>
-                    </Tabs.Content>
+                        <Tabs.Root
+                            defaultValue="depth"
+                            className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden"
+                        >
+                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
+                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
+                                <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
+                                <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
+                            </Tabs.List>
+                            <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
+                                {depthChartContent}
+                            </Tabs.Content>
+                            <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
+                                {draftHistoryContent}
+                            </Tabs.Content>
+                            <Tabs.Content value="settings" className="focus:outline-none flex-1 overflow-y-auto">
+                                {settingsTabContent}
+                            </Tabs.Content>
+                        </Tabs.Root>
+                    </>
+                ) : (
+                    /* Drafting or small screen: tabbed left panel + DraftPanel on right (large screen) */
+                    <>
+                        <Tabs.Root
+                            defaultValue="field"
+                            className="
+                                @container
+                                flex flex-col shrink-0
+                                overflow-y-auto
+                                w-full sm:w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-190 3xl:w-256
+                            "
+                        >
+                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
+                                <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}>Field View</Tabs.Trigger>
+                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
+                                <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
+                                <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
+                            </Tabs.List>
 
-                    <Tabs.Content value="settings" className="focus:outline-none">
-                        <TeamSettingsForm team={draft} onChange={updates => update(updates)} />
-                    </Tabs.Content>
-                </Tabs.Root>
+                            <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
+                                {fieldViewContent}
+                            </Tabs.Content>
 
-                {!readOnly && isLg && (
-                    <div className="hidden md:flex flex-col flex-1 min-w-0 min-h-0 border-l border-(--divider)">
-                        {draftPanel}
-                    </div>
+                            <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
+                                {depthChartContent}
+                            </Tabs.Content>
+
+                            <Tabs.Content value="draft" className="focus:outline-none">
+                                {draftHistoryContent}
+                            </Tabs.Content>
+
+                            <Tabs.Content value="settings" className="focus:outline-none">
+                                {settingsTabContent}
+                            </Tabs.Content>
+                        </Tabs.Root>
+
+                        {showEditControls && isLg && (
+                            <div className="hidden md:flex flex-col flex-1 min-w-0 min-h-0 border-l border-(--divider)">
+                                {draftPanel}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
-            {!readOnly && !isLg && (
+            {showEditControls && !isLg && (
                 <BottomSheet
                     isOpen={true}
                     onClose={() => setPendingSlot(null)}
