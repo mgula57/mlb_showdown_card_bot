@@ -295,6 +295,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const primary = draft.primary_color || 'rgb(0,0,0)';
     const secondary = draft.secondary_color || 'rgb(100,100,100)';
 
+    // Banner color tokens derived from team colors (shared by drafting + editing banners)
+    const bannerContrastColor = getContrastColor(primary);
+    const bannerIsLight = bannerContrastColor === '#000' || bannerContrastColor === 'black';
+    const bannerFillColor  = bannerIsLight ? 'rgba(0,0,0,0.80)'  : 'rgba(255,255,255,0.92)';
+    const bannerTrackColor = bannerIsLight ? 'rgba(0,0,0,0.15)'  : 'rgba(255,255,255,0.25)';
+    const bannerDotColor   = bannerIsLight ? 'rgba(0,0,0,0.45)'  : 'rgba(255,255,255,0.55)';
+    const bannerStyle      = { background: `linear-gradient(to right, ${primary}, ${secondary})` };
+    const bannerBtnClass   = bannerIsLight
+        ? 'bg-black/10 hover:bg-black/20 border border-black/20 text-black/80'
+        : 'bg-white/15 hover:bg-white/25 border border-white/30 text-white';
+
     const rosterProgress = useMemo(() => {
         const filledLineup = (draft.lineups[0]?.slots ?? []).length;
         const filledStarters = draft.rotation.filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).length;
@@ -559,39 +570,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <FaPenToSquare /> Edit
                             </button>
                         )}
-                        {teamMode === 'editing' && (
-                            <button
-                                type="button"
-                                onClick={() => setEditMode(false)}
-                                className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-green-500/50 text-green-600 dark:text-green-400 font-bold hover:border-green-500 cursor-pointer transition-colors"
-                            >
-                                <FaCircleCheck /> Done
-                            </button>
-                        )}
-                        {draft.pts_limit != null && token && teamMode !== 'complete' && (
-                            <>
-                                {lastAutofillStrategy && (
-                                    <button
-                                        type="button"
-                                        onClick={handleReshuffle}
-                                        disabled={reshuffling}
-                                        className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) disabled:opacity-50 cursor-pointer transition-colors"
-                                        title="Reshuffle with same strategy"
-                                    >
-                                        <FaShuffle className={reshuffling ? 'animate-spin' : ''} />
-                                    </button>
-                                )}
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAutofill(true)}
-                                    className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg bg-linear-to-r from-blue-500 to-red-500 text-white font-bold hover:opacity-90 cursor-pointer transition-opacity"
-                                    title="Autofill roster"
-                                >
-                                    <FaWandMagicSparkles className="text-[10px]" />
-                                    Autofill
-                                </button>
-                            </>
-                        )}
                     </div>
                 )}
             </div>
@@ -607,36 +585,63 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </div>
             )}
 
-            {teamMode === 'drafting' && (() => {
-                const bannerText = getContrastColor(primary);
-                const isLight = bannerText === '#000' || bannerText === 'black';
-                const trackColor = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)';
-                const fillColor  = isLight ? 'rgba(0,0,0,0.7)'  : 'rgba(255,255,255,0.9)';
-                const dotColor   = isLight ? 'rgba(0,0,0,0.5)'  : 'rgba(255,255,255,0.6)';
-                return (
-                    <div
-                        className="flex items-center gap-3 px-4 py-2 shrink-0"
-                        style={{ background: `linear-gradient(to right, ${primary}, ${secondary})`, color: bannerText }}
-                    >
-                        <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: dotColor }} />
-                        <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: fillColor }}>
-                            DRAFTING — fill all required positions to complete your team
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                            <div className="w-28 h-1.5 rounded-full overflow-hidden shrink-0" style={{ backgroundColor: trackColor }}>
-                                <div
-                                    className="h-full rounded-full transition-all"
-                                    style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: fillColor }}
-                                />
-                            </div>
-                            <span className="text-[11px] font-black" style={{ color: fillColor }}>
-                                {rosterProgress.filled}/{rosterProgress.total}
-                                {draft.pts_limit != null && ` • ${pointsBreakdown.total}/${draft.pts_limit} pts`}
-                            </span>
-                        </div>
+            {teamMode !== 'complete' && (
+                <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={bannerStyle}>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerDotColor }} />
+                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: bannerFillColor }}>
+                        {teamMode === 'drafting'
+                            ? 'DRAFTING — fill all required positions to complete your team'
+                            : 'EDITING — changes are saved automatically'}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {teamMode === 'drafting' && (
+                            <>
+                                <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerTrackColor }}>
+                                    <div
+                                        className="h-full rounded-full transition-all"
+                                        style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: bannerFillColor }}
+                                    />
+                                </div>
+                                <span className="text-[11px] font-black" style={{ color: bannerFillColor }}>
+                                    {rosterProgress.filled}/{rosterProgress.total}
+                                    {draft.pts_limit != null && ` • ${pointsBreakdown.total}/${draft.pts_limit} pts`}
+                                </span>
+                            </>
+                        )}
+                        {draft.pts_limit != null && token && (
+                            <>
+                                {lastAutofillStrategy && (
+                                    <button
+                                        type="button"
+                                        onClick={handleReshuffle}
+                                        disabled={reshuffling}
+                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerBtnClass}`}
+                                        title="Reshuffle with same strategy"
+                                    >
+                                        <FaShuffle className={reshuffling ? 'animate-spin' : ''} />
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAutofill(true)}
+                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerBtnClass}`}
+                                >
+                                    <FaWandMagicSparkles className="text-[9px]" /> Autofill
+                                </button>
+                            </>
+                        )}
+                        {teamMode === 'editing' && (
+                            <button
+                                type="button"
+                                onClick={() => setEditMode(false)}
+                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerBtnClass}`}
+                            >
+                                <FaCircleCheck className="text-[9px]" /> Done
+                            </button>
+                        )}
                     </div>
-                );
-            })()}
+                </div>
+            )}
 
             {/* Team Roster Content */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
