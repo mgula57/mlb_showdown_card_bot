@@ -173,7 +173,7 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
             onClick={onClick}
             className="
                 snap-start shrink-0 relative
-                w-44 md:w-52 rounded-xl overflow-hidden
+                w-44 md:w-52 rounded-xl
                 hover:scale-[1.025] active:scale-[0.975]
                 transition-transform duration-150
                 text-left border-2
@@ -184,6 +184,11 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                 borderColor: secondary,
             }}
         >
+            {isTeamDrafting(team) && (
+                <span className="absolute top-0 right-0 z-20 text-[8px] font-black rounded px-1 py-0.5 leading-none bg-red-500 text-white">
+                    DRAFTING
+                </span>
+            )}
             {/* Field background image */}
             <img
                 src="/images/teams/Field.png"
@@ -232,11 +237,6 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                                 style={{ backgroundColor: secondary, color: onSecondary }}
                             >
                                 {team.total_points} PTS
-                            </div>
-                        )}
-                        {isTeamDrafting(team) && (
-                            <div className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none bg-amber-500/25 text-amber-400">
-                                DRAFTING
                             </div>
                         )}
                     </div>

@@ -27,12 +27,17 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             type="button"
             onClick={onClick}
             className={`
-                w-full text-left flex items-center gap-3
+                relative w-full text-left flex items-center gap-3
                 rounded-lg px-3 py-2 ${borderSettings}
                 ${onClick ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}
                 transition-opacity
             `}
         >
+            {drafting && (
+                <span className="absolute top-0 right-0 text-[8px] font-black rounded px-1 py-0.5 leading-none bg-red-500 text-white">
+                    DRAFTING
+                </span>
+            )}
             {/* Color swatch / abbreviation badge */}
             <div
                 className="shrink-0 w-10 h-10 rounded-md flex items-center justify-center text-[11px] font-black"
@@ -63,11 +68,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                     >
                         {team.source.toUpperCase()}
                     </span>
-                    {drafting && (
-                        <span className="text-[9px] font-black rounded px-1 py-0.5 leading-none bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                            DRAFTING
-                        </span>
-                    )}
+
                     <span className="flex items-center gap-0.5 text-[10px] text-(--text-tertiary)">
                         <FaUsers className="text-[9px]" />
                         {rosterCount}
