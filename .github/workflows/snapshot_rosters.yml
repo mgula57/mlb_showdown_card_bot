@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pip install -e .
 
+      # ---------------------------------------------
+      # Mid Season Updates
+      # ---------------------------------------------
       - name: Snapshot 2026 rosters and generate cards
         run: |
           showdown_bot database snapshot_rosters \
@@ -36,10 +39,32 @@ jobs:
             --publish_to_database \
             --generate-cards \
 
+      - name: Refresh Season Stat Range Table
+        run: |
+          showdown_bot database build_season_stat_range_table -drop
+
+      # ---------------------------------------------
+      # Explore
+      # ---------------------------------------------
       - name: Run Auto Image Update
         run: |
           showdown_bot database run -auto_im
 
+      - name: Update Player Id Mapping
+        run: |
+          showdown_bot database refresh_player_id_table
+
       - name: Refresh Explore Materialized Views
         run: |
           showdown_bot database run --refresh_explore
+
+      # ---------------------------------------------
+      # Homepage
+      # ---------------------------------------------
+      - name: Refresh Card of the Day
+        run: |
+          showdown_bot database refresh_card_of_the_day
+
+      - name: Refresh Trends
+        run: |
+          showdown_bot database run --refresh_trends
