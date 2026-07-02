@@ -1,5 +1,6 @@
 from typing import Optional, List
 from time import sleep
+from datetime import date, timedelta
 
 from ...core.mlb_stats_api import MLBStatsAPI, LeagueEnum, RosterTypeEnum
 from ...core.card.card_generation import generate_cards as _generate_cards, NormalizedPlayerStats
@@ -54,7 +55,7 @@ def snapshot_rosters(
         player_ids = [roster['player_id'] for roster in rosters]
         player_id_chunks = [player_ids[i:i + 10] for i in range(0, len(player_ids), 10)]
         
-        for idx, chunk in enumerate(player_id_chunks):
+        for idx, chunk in enumerate(player_id_chunks): 
             print(f"Processing chunk {idx + 1}/{len(player_id_chunks)} with player IDs: {chunk}")
             # In a real implementation, you would call the card generation function here
             card_settings = {
@@ -68,6 +69,7 @@ def snapshot_rosters(
                 sets=showdown_sets,
                 keep_as_py_objects=True,
                 inject_bref_ids=True,
+                points_change_cutoff_date=date.today() - timedelta(days=7),
                 **card_settings
             )
             sleep(2)  # Add a delay between chunks to avoid overwhelming the API
