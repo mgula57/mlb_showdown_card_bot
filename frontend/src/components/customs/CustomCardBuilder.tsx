@@ -49,11 +49,11 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages, FaDatabase
+    FaImages
 } from 'react-icons/fa';
-import { 
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaAddressCard, FaClockRotateLeft,
-    FaSquarePollVertical, FaChartBar, FaRobot, FaGaugeHigh
+import {
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaAddressCard, FaStar,
+    FaClockRotateLeft
 } from 'react-icons/fa6';
 
 // ----------------------------------
@@ -140,6 +140,13 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     era: "DYNAMIC", 
     is_variable_speed_00_01: false
 };
+
+/** Small pill badge used to flag newly added options/fields */
+const NewBadge = () => (
+    <span className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-(--red) text-white uppercase tracking-wide">
+        New
+    </span>
+);
 
 type loadingStatusContent = {
     message: string;
@@ -280,7 +287,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { 'value': 'NONE', 'label': 'None', 'symbol': '―' },
         { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': publicImagePath('edition-cc'), 'borderColor': 'border-amber-800' },
         { 'value': 'SS', 'label': 'Super Season', 'image': publicImagePath('edition-ss'), 'borderColor': 'border-red-500' },
-        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400' },
+        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400', 'trailing': <NewBadge /> },
         { 'value': 'RS', 'label': 'Rookie Season', 'image': publicImagePath('edition-rs'), 'borderColor': 'border-red-800' },
         { 'value': 'HOL', 'label': 'Holiday', 'symbol': '🎄', 'borderColor': 'border-green-600' },
         { 'value': 'NAT', 'label': 'Nationality', 'symbol': '🌍', 'borderColor': 'border-blue-500' },
@@ -1032,15 +1039,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             {/* Feature announcement banner — floating top-right */}
             <WhatsNewBanner
-                storageKey="customCardWhatsNew_v4.2"
+                storageKey="customCardWhatsNew_v4.3"
                 features={[
-                    { icon: <FaImage />, text: 'Gallery View (login required)' },
-                    { icon: <FaDatabase />, text: 'Image Storage (login required)' },
-                    { icon: <FaSquarePollVertical />, text: 'Redesigned Breakdowns' },
-                    { icon: <FaChartBar />, text: 'Savant-Style Percentiles' },
-                    { icon: <FaClockRotateLeft />, text: 'WOTC Comps' },
-                    { icon: <FaRobot />, text: 'Dynamic Outcome Projections' },
-                    { icon: <FaGaugeHigh />, text: 'Faster Search' },
+                    { icon: <FaStar />, text: '2026 All-Star Game designs are live!' },
+                    { icon: <FaImage />, text: 'ASG 2026 works with auto images or your own custom cutouts' },
+                    { icon: <FaClockRotateLeft />, text: 'All historical ASG logos are available in high resolution' },
                 ]}
                 onLoginClick={() => setShowBannerLoginModal(true)}
             />
@@ -1314,7 +1317,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             />
 
                                             <FormDropdown
-                                                label="Edition"
+                                                label={<span className="inline-flex items-center gap-1.5">Edition <NewBadge /></span>}
                                                 options={editionOptions}
                                                 selectedOption={form.edition}
                                                 onChange={(value) => setForm({ ...form, edition: value })}
