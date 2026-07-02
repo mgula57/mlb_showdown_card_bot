@@ -1,7 +1,7 @@
 from pprint import pprint
 from typing import Any
 from prettytable import PrettyTable
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import traceback
 import json
 import ast
@@ -531,8 +531,14 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     # GET ALL HISTORICAL CARDS
     return CareerTrends(yearly_trends=yearly_trends_data)
 
-def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, include_day_over_day: bool = False, **kwargs) -> InSeasonTrends:
-    """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week."""
+def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, include_day_over_day: bool = False, points_change_cutoff_date: date = None, **kwargs) -> InSeasonTrends:
+    """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week.
+
+    Args:
+        points_change_cutoff_date: If provided, the weekly `points_change` value is only populated when the
+            player's most recent game log date is on or after this date. Used to avoid showing a stale weekly
+            trend for players who haven't played recently (e.g. injured, traded, offseason).
+    """
 
     # REMOVE PRINT TO CLI
     kwargs.pop('print_to_cli', None)
@@ -612,8 +618,11 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
             in_season_trends.pts_change['day'] = int(current_card.points - last_card.points)
 
         # WEEK
-        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if include_day_over_day and trends_data_count > 2 else last_card
-        in_season_trends.pts_change['week'] = int(current_card.points - last_weeks_card.points)
+        # ONLY INCLUDE IF THE PLAYER HAS PLAYED A GAME ON OR AFTER THE CUTOFF DATE (IF PROVIDED)
+        has_recent_game = points_change_cutoff_date is None or player_last_date >= points_change_cutoff_date
+        if has_recent_game:
+            last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if include_day_over_day and trends_data_count > 2 else last_card
+            in_season_trends.pts_change['week'] = int(current_card.points - last_weeks_card.points)
 
     # PRINT HISTORICAL POINTS
     if actual_card.print_to_cli and len(in_season_trends.cumulative_trends) > 0:
@@ -672,7 +681,7 @@ def generate_random_player(**kwargs) -> PlayerArchive:
 # TODO: replace hard-coded IDs with a general two-way player detection strategy.
 _TWO_WAY_PLAYER_IDS: set[int] = {660271}  # Ohtani
 
-def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:bool=False, sets: list[str] = None, inject_bref_ids: bool = False, **kwargs) -> list[dict[str, Any]]:
+def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:bool=False, sets: list[str] = None, inject_bref_ids: bool = False, points_change_cutoff_date: date = None, **kwargs) -> list[dict[str, Any]]:
     """Generate multiple cards for a list of player ids and a year. Only works with MLB API datasource.
 
     Args:
@@ -681,6 +690,7 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
         keep_as_py_objects: Whether to keep the generated cards as Python objects instead of converting to JSON-serializable dicts
         sets: Optional list of sets to generate cards for. If provided, will generate a card for each set specified for each player and year combination. Ex: ["2000", "EXPANDED"]
         inject_bref_ids: When True, does a single batch lookup against dim_player_id_map to enrich each NormalizedPlayerStats with its bref_id before building the stats row.
+        points_change_cutoff_date: If provided, passed through to weekly trend generation so `points_change['week']` is only populated for players who have played a game on or after this date.
         **kwargs: Keyword arguments to pass to card generation function
 
     Returns:
@@ -814,6 +824,7 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
                         date_aggregation="week",
                         include_day_over_day=True,
                         name=player_data.full_name,
+                        points_change_cutoff_date=points_change_cutoff_date,
                         **card_kwargs
                     )
                     if in_season_trends_data:
