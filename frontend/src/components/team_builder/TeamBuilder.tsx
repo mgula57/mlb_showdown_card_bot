@@ -34,8 +34,10 @@ export default function TeamBuilder() {
     const [error, setError] = useState<string | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
-    // Extract teamId from URL: /teams/:teamId
-    const teamIdFromUrl = location.pathname.split('/')[2] ?? null;
+    // Extract teamId from URL: /teams/:teamId — only when actually on a /teams/ path
+    const teamIdFromUrl = location.pathname.startsWith('/teams/')
+        ? (location.pathname.split('/')[2] ?? null)
+        : null;
 
     useEffect(() => {
         loadTeams();
