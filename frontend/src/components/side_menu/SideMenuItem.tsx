@@ -31,7 +31,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaHammer, FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
+import { FaIdBadge, FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
 import { FaPeopleGroup } from "react-icons/fa6";
 
 /**
@@ -147,7 +147,7 @@ export const sideMenuItems: SideMenuItemType[] = [
     },
     {
         text: "Card Builder",
-        icon: FaHammer,  // Card/profile icon representing custom card creation
+        icon: FaIdBadge,  // Card/profile icon representing custom card creation
         path: "/customs",
         isNew: true
     },
