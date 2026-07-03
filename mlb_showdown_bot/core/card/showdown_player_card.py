@@ -1827,8 +1827,13 @@ class ShowdownPlayerCard(BaseModel):
 
         charts: list[Chart] = []
 
-        # SET CONSTANTS
+        # DEFINE YEAR LIST FOR CHART
         year_list = self.stats_period.year_list if not self.is_alternate_era else self.era.year_range
+        # STOP AT LAST YEAR OF STATS PERIOD IF ERA WAS UPDATED DURING SHOWDOWN BOT'S EXISTANCE (2023+)
+        if self.stats_period.last_year >= Era.PITCH_CLOCK.year_range[0] and self.stats_period.last_year >= 2026 and self.era.year_range[-1] > self.stats_period.last_year:
+            year_list = [y for y in year_list if y <= self.stats_period.last_year]
+
+        # SET CONSTANTS
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
         pa = self.stats_for_card.get('pa', 400)
         
@@ -1855,6 +1860,7 @@ class ShowdownPlayerCard(BaseModel):
                     opponent=opponent,
                     set=self.set.value,
                     era_year_list=year_list,
+                    year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
                     era=self.era.value,
                     is_expanded=self.set.has_expanded_chart,
                     pa=pa,
@@ -1877,6 +1883,7 @@ class ShowdownPlayerCard(BaseModel):
                 outs=self.command_out_override[1] * chart.sub_21_per_slot_worth,
                 opponent=opponent,
                 set=self.set.value,
+                year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
                 era_year_list=year_list,
                 era=self.era.value,
                 is_expanded=self.set.has_expanded_chart,

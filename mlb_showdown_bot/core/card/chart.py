@@ -301,7 +301,9 @@ class Chart(BaseModel):
 
         # POPULATE ESTIMATED COMMAND
         if self.command_estimated is None and not self.is_baseline and not self.is_wotc_conversion:
-            self.command_estimated = self.calculate_estimated_command()
+            try: year = int(data.get('year', None))
+            except: year = None
+            self.command_estimated = self.calculate_estimated_command(year=year)
 
         # MAKE SURE BOTH OUTS AND OUTS_FULL ARE POPULATED
         if self.outs > 0 and self.outs_full == 0:
@@ -1597,7 +1599,7 @@ class Chart(BaseModel):
                         y_int = -1.90
         return x, y_int
 
-    def calculate_estimated_command(self) -> float:
+    def calculate_estimated_command(self, year: Optional[int] = None) -> float:
         """
         Estimated command based on wotc formulas and real OBP. Store in self. 
         Only applies to 2003+ sets.
@@ -1635,6 +1637,10 @@ class Chart(BaseModel):
         adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
         pct_diff_obp = self.__pct_diff(player_year_avg_obp, wotc_set_year_obp)
         y_int_adjustment_mutliplier = 8.0 if self.is_pitcher else 2.0 # MANUALLY DEFINED MULTIPLE TO ADJUST Y-INTERCEPT. HIGHER MULTIPLIER MEANS STAYING CLOSER TO WOTC SET
+        if year and year >= 2026:
+            # AFTER 2026, REDUCE THE Y-INT ADJUSTMENT. REDUCES COMMAND ON PITCHERS SLIGHTLY ON EXPANDED SETS.
+            y_int_adjustment_mutliplier = 1.0
+
         adjusted_y_int = y_int - (pct_diff_obp * (-1 if self.is_hitter else 1) * y_int_adjustment_mutliplier) 
         command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, adjusted_y_int, real_obp)
         
