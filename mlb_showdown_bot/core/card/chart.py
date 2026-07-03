@@ -251,6 +251,7 @@ class Chart(BaseModel):
 
     # SET METADATA
     set: str
+    year: Optional[int] = None
     era: str
     era_year_list: list[int] = []
     is_expanded: bool
@@ -301,9 +302,7 @@ class Chart(BaseModel):
 
         # POPULATE ESTIMATED COMMAND
         if self.command_estimated is None and not self.is_baseline and not self.is_wotc_conversion:
-            try: year = int(data.get('year', None))
-            except: year = None
-            self.command_estimated = self.calculate_estimated_command(year=year)
+            self.command_estimated = self.calculate_estimated_command(year=self.year)
 
         # MAKE SURE BOTH OUTS AND OUTS_FULL ARE POPULATED
         if self.outs > 0 and self.outs_full == 0:
@@ -1255,6 +1254,12 @@ class Chart(BaseModel):
             # 2003+ BOOST COMMAND ACCURACY FOR OUTLIERS THAT ARE ACCURATE
             accuracy_cutoff = 0.99 if self.is_hitter else 0.99
             accuracy_command_minimum = 0.90 if self.is_hitter else 0.35
+
+            # POST 2026, INCREASE PROBABILITY OF PITCHER COMMAND ACCURACY BOOSTS TO ADD MORE VARIETY TO PITCHER CHARTS
+            if self.year and self.year >= 2026 and self.is_pitcher:
+                accuracy_cutoff = 0.98
+                accuracy_command_minimum = 0.25
+
             is_boosted_command_accuracy = accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > accuracy_command_minimum
             if is_boosted_command_accuracy:
                 command_chart_accuracy.adjustment_pct = round(accuracy_cutoff / accuracy_command, 4)
