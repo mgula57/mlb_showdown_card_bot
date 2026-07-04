@@ -32,7 +32,6 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import { FaIdBadge, FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
-import { FaPeopleGroup } from "react-icons/fa6";
 
 /**
  * Props for the SideMenuItem component
@@ -160,11 +159,6 @@ export const sideMenuItems: SideMenuItemType[] = [
         text: "Live Seasons",
         icon: FaCalendar,      // Calendar icon representing seasons/schedules
         path: "/seasons"
-    },
-    {
-        text: "Team Builder",
-        icon: FaPeopleGroup,      // Group icon representing teams/rosters
-        path: "/teams",
     },
     {
         text: "Account",
