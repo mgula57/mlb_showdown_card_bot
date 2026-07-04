@@ -53,7 +53,7 @@ import {
 } from 'react-icons/fa';
 import {
     FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaAddressCard, FaStar,
-    FaClockRotateLeft
+    FaClockRotateLeft, FaGear
 } from 'react-icons/fa6';
 
 // ----------------------------------
@@ -1044,6 +1044,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     { icon: <FaStar />, text: '2026 All-Star Game designs are live!' },
                     { icon: <FaImage />, text: 'ASG 2026 works with auto images or your own custom cutouts' },
                     { icon: <FaClockRotateLeft />, text: 'All historical ASG logos are available in high resolution' },
+                    { icon: <FaGear />, text: 'Select Set → All-Star Game in Card Settings to get started' },
                 ]}
                 onLoginClick={() => setShowBannerLoginModal(true)}
             />
