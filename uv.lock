@@ -990,7 +990,7 @@ wheels = [
 
 [[package]]
 name = "mlb-showdown-bot"
-version = "4.2"
+version = "4.3"
 source = { editable = "." }
 dependencies = [
     { name = "apiclient" },
