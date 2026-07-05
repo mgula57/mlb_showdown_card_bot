@@ -8,11 +8,8 @@ feature_status_bp = Blueprint('feature_status', __name__)
 def fetch_feature_statuses():
     """Fetch feature statuses from the database"""
     try:
-        db = PostgresDB()
-
-        # Check feature status
-        feature_status = db.get_feature_statuses()
-        
+        with PostgresDB() as db:
+            feature_status = db.get_feature_statuses()
         return jsonify(feature_status or {}), 200
 
     except Exception as e:

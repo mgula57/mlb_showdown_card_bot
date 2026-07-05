@@ -255,7 +255,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     const cardImagePath: string | null = image?.storage_path
         ? `${supabaseUrl}/storage/v1/object/public/card_images/${image.storage_path}`
         : image?.output_folder_path && image?.output_file_name
-            ? `${image.output_folder_path}/${image.output_file_name}`
+            ? `/${image.output_folder_path}/${image.output_file_name}`.replace(/\/\//, '/')
             : null;
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
         points: `${activeCardData.card.points} PTS`,

@@ -88,8 +88,6 @@ def build_image_for_card():
     
 
     try:
-        db = PostgresDB()
-
         payload = request.get_json()
         if not payload or 'card' not in payload:
             return jsonify({'error': 'No card data provided'}), 400
@@ -99,20 +97,21 @@ def build_image_for_card():
 
         card.image.output_folder_path = "static/output"
 
-        # CHECK IF CARD HAS BREF ID
-        # IF NOT LOOK IT UP IN DATABASE BY MATCHING TO MLB ID
-        if not card.bref_id and card.mlb_id:
-            bref_id = db.fetch_bref_id_for_mlb_id(card.mlb_id)
-            if bref_id:
-                card.bref_id = bref_id
+        with PostgresDB() as db:
+            # CHECK IF CARD HAS BREF ID
+            # IF NOT LOOK IT UP IN DATABASE BY MATCHING TO MLB ID
+            if not card.bref_id and card.mlb_id:
+                bref_id = db.fetch_bref_id_for_mlb_id(card.mlb_id)
+                if bref_id:
+                    card.bref_id = bref_id
 
-        # PRODUCE IMAGE AND UPDATE DATASET
-        card.generate_card_image()
+            # PRODUCE IMAGE AND UPDATE DATASET
+            card.generate_card_image()
 
-        payload['card'] = card.as_json()
+            payload['card'] = card.as_json()
 
-        # LOGGING
-        db.log_card_image_generation(card_id=card.id, user_id=optional_user_id())
+            # LOGGING
+            db.log_card_image_generation(card_id=card.id, user_id=optional_user_id())
 
         return jsonify(payload)
 

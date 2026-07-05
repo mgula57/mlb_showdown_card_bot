@@ -519,6 +519,19 @@ def build_season_stat_range_table(
     db.build_season_stat_range_table(drop_existing=drop_existing)
     print("✅ Season stat range table built.")
 
+@app.command("build_user_teams_tables")
+def build_user_teams_tables(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the user teams tables in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building user teams tables...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_user_teams_table()
+    db.close_connection()
+    typer.echo("Done. internal.user_teams table is ready.")
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

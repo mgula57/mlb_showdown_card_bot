@@ -9,7 +9,7 @@ import { useState } from "react";
 import * as Tabs from '@radix-ui/react-tabs';
 import ShowdownBotSearch from "./ShowdownCardSearch";
 import { CardSource, isValidCardSource } from '../../types/cardSource';
-import { FaRobot } from "react-icons/fa6";
+import { FaRobot, FaHatWizard } from "react-icons/fa6";
 
 export default function Cards() {
 
@@ -61,7 +61,7 @@ export default function Cards() {
                                data-[state=inactive]:font-medium 
                                data-[state=inactive]:hover:bg-(--divider)"
                 >
-                    <div className="text-[9px] bg-secondary px-1 rounded-sm shrink-0">OG</div>
+                    <FaHatWizard />
                     WOTC
                 </Tabs.Trigger>
             </Tabs.List>

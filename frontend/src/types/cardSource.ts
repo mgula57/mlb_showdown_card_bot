@@ -11,7 +11,9 @@ export const CardSource = {
     /** Original WOTC cards */
     WOTC: 'WOTC',
     /** World Baseball Classic cards */
-    WBC: 'WBC'
+    WBC: 'WBC',
+    /** User's own custom-generated cards (internal.log_custom_card) */
+    CUSTOM: 'CUSTOM',
 } as const;
 
 /**
@@ -30,7 +32,8 @@ export type CardSourceType = CardSource;
 export const CardSourceLabels = {
     [CardSource.BOT]: 'Showdown Bot Cards',
     [CardSource.WOTC]: 'WOTC Cards',
-    [CardSource.WBC]: 'WBC Cards'
+    [CardSource.WBC]: 'WBC Cards',
+    [CardSource.CUSTOM]: 'My Cards',
 } as const;
 
 /**

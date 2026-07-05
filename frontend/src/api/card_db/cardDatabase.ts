@@ -19,6 +19,9 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
  */
 export type CardDatabaseRecord = {
 
+    // Source
+    source: CardSource;
+
     // From Stats Archive
     id: string;  // Composite key: {year}-{bref_id}-{(player_type_override)},
     year: number | string;
@@ -69,7 +72,7 @@ export type CardDatabaseRecord = {
     color_secondary?: string | null;
 
     // Metadata
-    positions_and_defense: any; // JSON object
+    positions_and_defense: Record<string, any>; // JSON object
     positions_and_defense_string: string;
     positions_list: string[];
     ip?: number | null;
@@ -79,6 +82,15 @@ export type CardDatabaseRecord = {
     speed_full?: string | null;
     speed_or_ip?: number | null;
     icons_list: string[];
+
+    // Real stats (player's actual season stats — used as projected targets by the card algorithm)
+    real_batting_avg?: number | null;
+    real_onbase_perc?: number | null;
+    real_slugging_perc?: number | null;
+    real_onbase_plus_slugging?: number | null;
+    real_onbase_plus_slugging_plus?: number | null;
+    real_earned_run_avg?: number | null;
+    real_whip?: number | null;
 
     // Stats
     awards_list: string[];

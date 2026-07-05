@@ -234,7 +234,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                 </div>
 
                 {/* Navigation Items - Scrollable list with responsive spacing */}
-                <ul className="flex-1 space-y-2 overflow-y-auto px-2 w-full">
+                <ul className="flex-1 space-y-3 overflow-y-auto px-2 w-full">
                     {sideMenuItems.map((item) => (
                         <li key={item.path}>
                             <SideMenuItem

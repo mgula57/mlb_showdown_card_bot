@@ -47,3 +47,10 @@ export function formatStatValue(value: unknown, stat: string, digits = 3): strin
             return String(value);
     }
 }
+
+export function formatYear(year: string | number): string {
+    const displayYear = year && year.toString().includes('-')
+        ? year.toString().split('-').map(y => y.slice(-2)).join('-')
+        : year.toString();
+    return displayYear;
+}

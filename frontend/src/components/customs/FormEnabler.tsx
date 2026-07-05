@@ -57,7 +57,7 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, c
                 cursor-pointer
                 text-base md:text-sm xl:text-base
                 ${isEnabled ? 'text-green-500' : 'text-gray-400 border-gray-200'}
-                ${isEnabled ? 'border-green-500 border-1' : 'border border-form-element'}
+                ${isEnabled ? 'border-green-500 border' : 'border border-form-element'}
                 ${className}
             `} 
             onClick={() => onChange(isEnabled)}

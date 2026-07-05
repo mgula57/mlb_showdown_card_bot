@@ -16,6 +16,7 @@ import {
     type BoxscoreDecisionPerson,
 } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardCommand from "../cards/card_elements/CardCommand";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
@@ -46,35 +47,8 @@ type GameDetailProps = {
     onBack: () => void;
 };
 
-const cardDefenseForPosition = (card: ShowdownBotCard | undefined, position: string | null) => {
-    if (!card) return null;
-    if (!position) return null;
-    if (position === "DH") return null; // DH has no defensive value
-
-    // Remove PH- prefix if present, since Showdown cards use the same defensive ratings for PH and regular players
-    if (position.startsWith("PH-")) {
-        position = position.substring(3);
-    }
-
-    // Check for exact position match first
-    const exactMatch = card.positions_and_defense[position];
-    if (exactMatch != null) return exactMatch;
-
-    // If no exact match, check for these common position groupings
-    const positionGroups: Record<string, string[]> = {
-        'IF': ['1B', '2B', '3B', 'SS'],
-        'OF': ['LF', 'CF', 'RF'],
-        'LF/RF': ['LF', 'RF'],
-    };
-    for (const group in positionGroups) {
-        if (positionGroups[group].includes(position)) {
-            const groupMatch = card.positions_and_defense[group];
-            if (groupMatch != null) return groupMatch;
-        }
-    }
-
-    return null;
-}
+const cardDefenseForPosition = (card: ShowdownBotCard | undefined, position: string | null) =>
+    defenseAtPosition(card?.positions_and_defense, position);
 
 export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, className, onBack }: GameDetailProps) {
     const [boxscore, setBoxscore] = useState<GameBoxscoreDetail | null>(null);

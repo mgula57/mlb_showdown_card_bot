@@ -125,7 +125,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose })
                     {features.map((feature, index) => (
                         <div key={index} className="flex gap-1 p-2 bg-secondary rounded-lg">
                             {/* Feature Icon */}
-                            <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center">
+                            <div className="shrink-0 w-10 h-10 flex items-center justify-center">
                                 {feature.icon}
                             </div>
                             {/* Feature Content */}

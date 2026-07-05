@@ -384,12 +384,12 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     </div>
                     <div className="pt-1 flex gap-2 items-center">
                         {awayProbableCardResponse?.card
-                            ? <CardItemCompactFromCard card={awayProbableCardResponse.card} />
-                            : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} />}
+                            ? <CardItemCompactFromCard card={awayProbableCardResponse.card} size="sm" />
+                            : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} size="sm" />}
                         <span className="text-[12px]">vs</span>
                         {homeProbableCardResponse?.card
-                            ? <CardItemCompactFromCard card={homeProbableCardResponse.card} />
-                            : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} />}
+                            ? <CardItemCompactFromCard card={homeProbableCardResponse.card} size="sm" />
+                            : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} size="sm" />}
                     </div>
                 </>
             )}
@@ -407,11 +407,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     </div>
                     <div className="pt-1 flex gap-2">
                         {liveAtBatCardResponse?.card
-                            ? <CardItemCompactFromCard card={liveAtBatCardResponse.card} />
-                            : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} />}
+                            ? <CardItemCompactFromCard card={liveAtBatCardResponse.card} size="sm" />
+                            : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} size="sm" />}
                         {livePitchingCardResponse?.card
-                            ? <CardItemCompactFromCard card={livePitchingCardResponse.card} />
-                            : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} />}
+                            ? <CardItemCompactFromCard card={livePitchingCardResponse.card} size="sm" />
+                            : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} size="sm" />}
                     </div>
                 </>
             )}
@@ -429,11 +429,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     </div>
                     <div className="pt-1 flex gap-2">
                         {winningPitcherCardResponse?.card
-                            ? <CardItemCompactFromCard card={winningPitcherCardResponse.card} />
-                            : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} />}
+                            ? <CardItemCompactFromCard card={winningPitcherCardResponse.card} size="sm" />
+                            : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} size="sm" />}
                         {losingPitcherCardResponse?.card
-                            ? <CardItemCompactFromCard card={losingPitcherCardResponse.card} />
-                            : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} />}
+                            ? <CardItemCompactFromCard card={losingPitcherCardResponse.card} size="sm" />
+                            : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} size="sm" />}
                     </div>
                 </>
             )}

@@ -16,7 +16,6 @@ def get_stat_ranges():
     player_type = request.args.get('player_type', '').upper()
     pitcher_role_raw = request.args.get('pitcher_role', '').upper() or None
     pitcher_role = pitcher_role_raw if pitcher_role_raw in ('SP', 'RP') else None
-    print(f"Received request for stat ranges with season={season_param} and player_type={player_type} pitcher_role={pitcher_role}")
     if not season_param or player_type not in ('HITTER', 'PITCHER'):
         return jsonify({'error': 'season (int) and player_type (HITTER|PITCHER) are required'}), 400
 
