@@ -1134,7 +1134,7 @@ class Set(str, Enum):
                     case Set._2000 | Set._2001: return (25,-400) # 2025 ASG HAS LOTS OF SPACE TO THE LEFT SIDE
             case SpecialEdition.ASG_2026:
                 match self:
-                    case Set._2000: return (45,-300) # MOVE TO LEFT A BIT
+                    case Set._2000: return (45,-480) # MOVE TO LEFT A BIT
                     case Set._2001: return (35,-460) # MOVE TO LEFT A BIT
                     case Set._2002: return (100,-200) # MOVE LEFT
                     case Set._2003: return (125,-100)
