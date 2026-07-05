@@ -154,7 +154,7 @@ export const CardItem = ({
 
     // Calculate width of the set and expansion display for proper spacing
     const has_expansion = cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion);
-    const setExpansionWidth = (has_expansion && cardSource === 'WOTC') ? '90px' : 
+    const setExpansionWidth = (has_expansion && cardSource === 'WOTC') ? '100px' : 
         (has_expansion ? '75px' : 'auto');
 
     /**
@@ -190,7 +190,7 @@ export const CardItem = ({
     }
 
     return (
-        <div className="relative">
+        <div className={`${className} relative`}>
             {actionButton && (
                 <button
                     type="button"
