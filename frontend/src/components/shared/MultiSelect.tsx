@@ -255,12 +255,15 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                         className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-md"
                                     >
                                         {option?.label || value}
-                                        <button
+                                        <span
+                                            role="button"
+                                            tabIndex={0}
                                             onClick={(e) => removeOption(value, e)}
+                                            onKeyDown={(e) => e.key === 'Enter' && removeOption(value, e as unknown as React.MouseEvent)}
                                             className="ml-1 hover:text-primary-dark"
                                         >
                                             <FaTimes className="h-3 w-3" />
-                                        </button>
+                                        </span>
                                     </span>
                                 );
                             })
@@ -269,13 +272,16 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     
                     <div className="flex items-center space-x-1">
                         {selectedValues.length > 1 && !disabled && (
-                            <button
+                            <span
+                                role="button"
+                                tabIndex={0}
                                 onClick={clearAll}
+                                onKeyDown={(e) => e.key === 'Enter' && clearAll(e as unknown as React.MouseEvent)}
                                 className="text-xs text-(--text-secondary) hover:text-(--text-primary) p-1"
                                 title="Clear all"
                             >
                                 <FaTimes className="h-3 w-3" />
-                            </button>
+                            </span>
                         )}
                         <FaChevronDown 
                             className={`h-4 w-4 transition-transform text-(--text-secondary) ${isOpen ? 'rotate-180' : ''}`} 

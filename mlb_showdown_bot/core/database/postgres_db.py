@@ -177,10 +177,13 @@ class ExploreDataRecord(BaseModel):
 
     # Editions and Sets Info
     edition: Optional[Edition] = Field(None, description="Card edition (e.g., 'WBC', 'CC')")
-    expansion: Optional[Expansion] = Field(None, description="Special edition (e.g., 'BS', 'TD)")
+    expansion: Optional[Expansion] = Field(None, description="Special edition (e.g., 'BS', 'TD')")
     
     # IN SEASON
     points_change: Optional[int] = None
+
+    # SOURCE
+    source: Optional[str] = Field(None, description="Source of the data (e.g., 'BOT', 'WOTC', 'WBC')")
 
     # Metadata
     updated_at: datetime = Field(description="When record was last updated")
@@ -331,6 +334,12 @@ class PostgresDB:
             else:
                 self.connection.close()
             self.connection = None
+
+    def __enter__(self) -> 'PostgresDB':
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close_connection()
 
     def __del__(self) -> None:
         """Safety net: return connection to pool if caller forgot to call close_connection()."""
@@ -707,6 +716,7 @@ class PostgresDB:
                 color_secondary,
                 {team_field} as team,
                 positions_and_defense_string,
+                positions_and_defense,
                 ip
             FROM {source_table}
             WHERE 
@@ -768,19 +778,19 @@ class PostgresDB:
             match source:
                 case 'bot':
                     query = sql.SQL("""
-                        SELECT *
+                        SELECT *, 'BOT' as source
                         FROM card_bot
                         WHERE TRUE
                     """)
                 case 'wotc':
                     query = sql.SQL("""
-                        SELECT *
+                        SELECT *, 'WOTC' as source
                         FROM card_wotc
                         WHERE TRUE
                     """)
                 case 'wbc':
                     query = sql.SQL("""
-                        select *
+                        select *, 'WBC' as source
                         from card_wbc
                         where true
                     """)
@@ -1590,12 +1600,104 @@ class PostgresDB:
                     is_chart_outlier boolean,
                     is_errata boolean DEFAULT FALSE,
                     notes text,
+                    mlb_id integer,
+                    is_two_way boolean,
+                    team_games_played_dict jsonb,
+                    team_override text,
+                    stats_modified_date timestamp without time zone,
+                    card_modified_date timestamp without time zone,
+                    card_id text,
+                    card_year text,
+                    set_number text,
+                    points_change integer,
+                    color_primary text,
+                    color_secondary text,
+                    is_hof boolean,
+                    stat_highlights_list jsonb,
+                    is_small_sample_size boolean,
+                    real_pa integer,
+                    real_g integer,
+                    real_gs integer,
+                    real_bwar numeric,
+                    real_dwar numeric,
+                    real_batting_avg numeric,
+                    real_onbase_perc numeric,
+                    real_slugging_perc numeric,
+                    real_onbase_plus_slugging numeric,
+                    real_onbase_plus_slugging_plus numeric,
+                    real_earned_run_avg numeric,
+                    real_whip numeric,
+                    real_h integer,
+                    real_1b integer,
+                    real_2b integer,
+                    real_3b integer,
+                    real_hr integer,
+                    real_sb integer,
+                    real_so integer,
+                    real_bb integer,
+                    real_w integer,
+                    real_sv integer,
+                    is_pitcher boolean,
+                    chart_ranges jsonb,
+                    chart_values jsonb,
+                    image_match_type text,
+                    image_ids jsonb,
                     created_date timestamp without time zone DEFAULT now(),
-                    modified_date timestamp without time zone DEFAULT now()
+                    modified_date timestamp without time zone DEFAULT now(),
+                    updated_at timestamp without time zone
                 );
             """
             )
             print("  → Ensured card_wotc table exists.")
+
+            # ADD COLUMNS IF NOT EXISTS (for upgrading existing databases)
+            for col_name, col_type in [
+                ("mlb_id", "integer"),
+                ("is_two_way", "boolean"),
+                ("team_games_played_dict", "jsonb"),
+                ("team_override", "text"),
+                ("stats_modified_date", "timestamp without time zone"),
+                ("card_modified_date", "timestamp without time zone"),
+                ("card_id", "text"),
+                ("card_year", "text"),
+                ("set_number", "text"),
+                ("points_change", "integer"),
+                ("color_primary", "text"),
+                ("color_secondary", "text"),
+                ("is_hof", "boolean"),
+                ("stat_highlights_list", "jsonb"),
+                ("is_small_sample_size", "boolean"),
+                ("real_pa", "integer"),
+                ("real_g", "integer"),
+                ("real_gs", "integer"),
+                ("real_bwar", "numeric"),
+                ("real_dwar", "numeric"),
+                ("real_batting_avg", "numeric"),
+                ("real_onbase_perc", "numeric"),
+                ("real_slugging_perc", "numeric"),
+                ("real_onbase_plus_slugging", "numeric"),
+                ("real_onbase_plus_slugging_plus", "numeric"),
+                ("real_earned_run_avg", "numeric"),
+                ("real_whip", "numeric"),
+                ("real_h", "integer"),
+                ("real_1b", "integer"),
+                ("real_2b", "integer"),
+                ("real_3b", "integer"),
+                ("real_hr", "integer"),
+                ("real_sb", "integer"),
+                ("real_so", "integer"),
+                ("real_bb", "integer"),
+                ("real_w", "integer"),
+                ("real_sv", "integer"),
+                ("is_pitcher", "boolean"),
+                ("chart_ranges", "jsonb"),
+                ("chart_values", "jsonb"),
+                ("image_match_type", "text"),
+                ("image_ids", "jsonb"),
+                ("updated_at", "timestamp without time zone"),
+            ]:
+                cursor.execute(f"ALTER TABLE card_wotc ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
+            print("  → Ensured card_wotc columns are up to date.")
 
             # CLEAR EXISTING DATA
             cursor.execute("DELETE FROM card_wotc;")
@@ -1609,7 +1711,11 @@ class PostgresDB:
                     player_id += f"-{card.stats_period.id}"
 
                 stat_source = card.stats_for_card or {}
-                
+
+                def _s(val):
+                    """Return None for empty/None stat values, else the raw value."""
+                    return None if val is None or str(val) in (None, '') else val
+
                 batch_data.append((
                     card.id,
                     player_id,
@@ -1655,7 +1761,50 @@ class PostgresDB:
                     card.chart.is_command_out_anomaly,
                     card.is_errata,
                     card.notes,
-                    datetime.now(),
+                    card.mlb_id,
+                    card.player_type_override is not None,
+                    None,  # team_games_played_dict (not tracked on card object)
+                    card.team_override.value if card.team_override else None,
+                    None,  # stats_modified_date
+                    None,  # card_modified_date
+                    card.id,  # card_id
+                    str(card.year),  # card_year
+                    card.image.set_number,
+                    card.points_change.get('week', None) if card.points_change else None,
+                    card.image.color_primary,
+                    card.image.color_secondary,
+                    bool(stat_source.get("is_hof", False)),
+                    json.dumps(card.image.stat_highlights_list),
+                    None,  # is_small_sample_size (requires season-progress context)
+                    _s(stat_source.get("PA")),
+                    _s(stat_source.get("G")),
+                    _s(stat_source.get("GS")),
+                    _s(stat_source.get("bWAR")),
+                    _s(stat_source.get("dWAR")),
+                    _s(stat_source.get("batting_avg")),
+                    _s(stat_source.get("onbase_perc")),
+                    _s(stat_source.get("slugging_perc")),
+                    _s(stat_source.get("onbase_plus_slugging")),
+                    _s(stat_source.get("onbase_plus_slugging_plus")),
+                    _s(stat_source.get("earned_run_avg")),
+                    _s(stat_source.get("whip")),
+                    _s(stat_source.get("H")),
+                    _s(stat_source.get("1B")),
+                    _s(stat_source.get("2B")),
+                    _s(stat_source.get("3B")),
+                    _s(stat_source.get("HR")),
+                    _s(stat_source.get("SB")),
+                    _s(stat_source.get("SO")),
+                    _s(stat_source.get("BB")),
+                    _s(stat_source.get("W")),
+                    _s(stat_source.get("SV")),
+                    card.is_pitcher,
+                    json.dumps({k.value: v for k, v in card.chart.ranges.items()}),
+                    json.dumps({k.value: v for k, v in card.chart.values.items()}),
+                    None,  # image_match_type
+                    None,  # image_ids
+                    datetime.now(),  # updated_at
+                    datetime.now(),  # modified_date
                 ))
 
             # BATCH INSERT NEW DATA
@@ -1705,6 +1854,49 @@ class PostgresDB:
                     is_chart_outlier,
                     is_errata,
                     notes,
+                    mlb_id,
+                    is_two_way,
+                    team_games_played_dict,
+                    team_override,
+                    stats_modified_date,
+                    card_modified_date,
+                    card_id,
+                    card_year,
+                    set_number,
+                    points_change,
+                    color_primary,
+                    color_secondary,
+                    is_hof,
+                    stat_highlights_list,
+                    is_small_sample_size,
+                    real_pa,
+                    real_g,
+                    real_gs,
+                    real_bwar,
+                    real_dwar,
+                    real_batting_avg,
+                    real_onbase_perc,
+                    real_slugging_perc,
+                    real_onbase_plus_slugging,
+                    real_onbase_plus_slugging_plus,
+                    real_earned_run_avg,
+                    real_whip,
+                    real_h,
+                    real_1b,
+                    real_2b,
+                    real_3b,
+                    real_hr,
+                    real_sb,
+                    real_so,
+                    real_bb,
+                    real_w,
+                    real_sv,
+                    is_pitcher,
+                    chart_ranges,
+                    chart_values,
+                    image_match_type,
+                    image_ids,
+                    updated_at,
                     modified_date
                 )
                 VALUES %s
@@ -3466,6 +3658,370 @@ class PostgresDB:
                 (id, user_id),
             )
             return cur.rowcount > 0
+
+# ------------------------------------------------------------------------
+# USER TEAMS
+# ------------------------------------------------------------------------
+
+    # roster slots live in user_team_roster; lineups/rotation stay as JSONB
+    _TEAM_BASE_SELECT = """
+        SELECT
+            t.team_id, t.user_id, t.name, t.abbreviation,
+            t.primary_color, t.secondary_color,
+            t.is_public, t.source,
+            t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
+            t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets, t.player_filters, t.allowed_card_sources,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'card_id',         r.card_id,
+                        'card_source',     r.card_source,
+                        'roster_position', r.roster_position,
+                        'draft_order',     r.draft_order,
+                        'pick_source',     r.pick_source
+                    ) ORDER BY r.sort_order, r.id
+                ) FILTER (WHERE r.card_id IS NOT NULL),
+                '[]'::json
+            ) AS roster,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position IN ('BE', 'RP')
+                    THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
+                    ELSE COALESCE(cb.points, cw.points, 0)
+                END
+            ), 0)::int AS total_points
+        FROM internal.user_teams t
+        LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
+        LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
+        LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
+    """
+
+    def build_user_teams_table(self) -> None:
+        """Create the user_teams and user_team_roster tables. Migrates legacy roster JSONB if present."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_teams (
+                    team_id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id              TEXT,
+                    name                 VARCHAR(255) NOT NULL,
+                    abbreviation         VARCHAR(10)  NOT NULL,
+                    primary_color        VARCHAR(50)  DEFAULT 'rgb(0,0,0)',
+                    secondary_color      VARCHAR(50)  DEFAULT 'rgb(255,255,255)',
+                    showdown_set         VARCHAR(20)  DEFAULT '2001',
+                    is_public            BOOLEAN      DEFAULT FALSE,
+                    source               VARCHAR(20)  DEFAULT 'user',
+                    pts_limit            INT,
+                    roster_size          INT          DEFAULT 25,
+                    min_bench            INT          DEFAULT 4,
+                    min_bullpen          INT          DEFAULT 5,
+                    bench_pts_multiplier FLOAT        DEFAULT 1.0,
+                    lineups              JSONB        DEFAULT '[]',
+                    rotation             JSONB        DEFAULT '[]',
+                    created_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_teams_user_id
+                    ON internal.user_teams (user_id);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_teams_public_source
+                    ON internal.user_teams (source)
+                    WHERE is_public = TRUE;
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_team_roster (
+                    id              BIGSERIAL PRIMARY KEY,
+                    team_id         UUID NOT NULL REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    card_id         TEXT NOT NULL,
+                    card_source     TEXT NOT NULL DEFAULT 'BOT',
+                    roster_position TEXT NOT NULL,
+                    sort_order      INT  NOT NULL DEFAULT 0,
+                    draft_order     INT,
+                    pick_source     TEXT NOT NULL DEFAULT 'MANUAL'
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_roster_team_id
+                    ON internal.user_team_roster (team_id);
+            """)
+            # Migration: add pick_source column to existing tables
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'internal'
+                          AND table_name   = 'user_team_roster'
+                          AND column_name  = 'pick_source'
+                    ) THEN
+                        ALTER TABLE internal.user_team_roster
+                            ADD COLUMN pick_source TEXT NOT NULL DEFAULT 'MANUAL';
+                    END IF;
+                END $$;
+            """)
+            # One-time migration: move legacy roster JSONB into the bridge table then drop the column
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'internal'
+                          AND table_name   = 'user_teams'
+                          AND column_name  = 'roster'
+                    ) THEN
+                        INSERT INTO internal.user_team_roster
+                            (team_id, card_id, card_source, roster_position, sort_order)
+                        SELECT
+                            t.team_id,
+                            slot->>'card_id',
+                            COALESCE(slot->>'card_source', 'BOT'),
+                            slot->>'roster_position',
+                            (ordinality - 1)::int
+                        FROM internal.user_teams t
+                        CROSS JOIN LATERAL
+                            jsonb_array_elements(COALESCE(t.roster, '[]'::jsonb))
+                            WITH ORDINALITY AS elem(slot, ordinality)
+                        WHERE jsonb_array_length(COALESCE(t.roster, '[]'::jsonb)) > 0
+                          AND NOT EXISTS (
+                              SELECT 1 FROM internal.user_team_roster r
+                              WHERE r.team_id = t.team_id
+                          );
+                        ALTER TABLE internal.user_teams DROP COLUMN roster;
+                    END IF;
+                END $$;
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS allowed_sets TEXT[] DEFAULT '{}';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS num_starters INT DEFAULT 5;
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_team_roster
+                    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS player_filters JSONB DEFAULT '{}';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS allowed_card_sources TEXT[] DEFAULT '{}';
+            """)
+
+    def get_user_teams(self, user_id: str) -> list[dict]:
+        """Return all teams belonging to user_id, newest first."""
+        if not self.connection:
+            return []
+        query = self._TEAM_BASE_SELECT + """
+            WHERE t.user_id = %s
+            GROUP BY t.team_id
+            ORDER BY t.updated_at DESC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id,))
+            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
+
+    def get_public_teams(self, source: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Return public teams, optionally filtered by source ('official', 'asg', 'user')."""
+        if not self.connection:
+            return []
+        conditions = ["t.is_public = TRUE"]
+        params: list = []
+        if source:
+            conditions.append("t.source = %s")
+            params.append(source)
+        where = " AND ".join(conditions)
+        query = self._TEAM_BASE_SELECT + f"""
+            WHERE {where}
+            GROUP BY t.team_id
+            ORDER BY t.source ASC, t.name ASC
+            LIMIT %s OFFSET %s
+        """
+        params += [limit, offset]
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
+
+    def get_team(self, team_id: str, user_id: str | None = None) -> dict | None:
+        """Return a single team by team_id. Enforces ownership unless is_public or user_id is None."""
+        if not self.connection:
+            return None
+        query = self._TEAM_BASE_SELECT + """
+            WHERE t.team_id = %s
+              AND (t.is_public = TRUE OR t.user_id IS NULL OR t.user_id = %s)
+            GROUP BY t.team_id
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (team_id, user_id))
+            row = cur.fetchone()
+            if not row:
+                print(f"Team {team_id} not found or access denied for user {user_id}.")
+                return None
+            return self._serialize_team_row(dict(row))
+        
+    def create_team(self, user_id: str | None, payload: dict) -> str:
+        """Insert a new team row and return the generated team_id UUID string."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        roster = payload.get('roster', [])
+        fields = self._team_payload_fields(payload)
+        cols = ', '.join(['user_id'] + list(fields.keys()))
+        placeholders = ', '.join(['%s'] * (1 + len(fields)))
+        values = [user_id] + [
+            PostgresDB._serialize_team_field(k, v)
+            for k, v in fields.items()
+        ]
+        with self.connection.cursor() as cur:
+            cur.execute(
+                f"INSERT INTO internal.user_teams ({cols}) VALUES ({placeholders}) RETURNING team_id",
+                values,
+            )
+            team_id = str(cur.fetchone()[0])
+            self._upsert_roster(cur, team_id, roster)
+        return team_id
+
+    def update_team(self, team_id: str, user_id: str, payload: dict) -> bool:
+        """Update an existing team. Only the owner may update. Returns True if a row was updated."""
+        if not self.connection:
+            return False
+        roster = payload.get('roster')
+        fields = self._team_payload_fields(payload)
+        if not fields and roster is None:
+            return False
+        with self.connection.cursor() as cur:
+            if fields:
+                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                values = [
+                    PostgresDB._serialize_team_field(k, v)
+                    for k, v in fields.items()
+                ]
+                cur.execute(
+                    f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s AND user_id = %s",
+                    values + [team_id, user_id],
+                )
+                if cur.rowcount == 0:
+                    return False
+            if roster is not None:
+                if not fields:
+                    # Verify ownership when only the roster is changing
+                    cur.execute(
+                        "SELECT 1 FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
+                        (team_id, user_id),
+                    )
+                    if not cur.fetchone():
+                        return False
+                self._upsert_roster(cur, team_id, roster)
+        return True
+
+    def delete_team(self, team_id: str, user_id: str) -> bool:
+        """Delete a team owned by user_id. Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
+                (team_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    def admin_upsert_team(self, payload: dict) -> str:
+        """Insert or update a team with no user_id ownership check (admin/CLI use only).
+        If team_id is present in payload, attempts UPDATE first, then INSERT on miss.
+        Returns team_id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        roster = payload.get('roster', [])
+        team_id = payload.get('team_id')
+        fields = self._team_payload_fields(payload)
+        with self.connection.cursor() as cur:
+            if team_id:
+                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                values = [
+                    PostgresDB._serialize_team_field(k, v)
+                    for k, v in fields.items()
+                ]
+                cur.execute(
+                    f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s",
+                    values + [team_id],
+                )
+                if cur.rowcount > 0:
+                    self._upsert_roster(cur, team_id, roster)
+                    return team_id
+            cols = ', '.join(['user_id'] + list(fields.keys()))
+            placeholders = ', '.join(['%s'] * (1 + len(fields)))
+            values = [None] + [
+                PostgresDB._serialize_team_field(k, v)
+                for k, v in fields.items()
+            ]
+            cur.execute(
+                f"INSERT INTO internal.user_teams ({cols}) VALUES ({placeholders}) RETURNING team_id",
+                values,
+            )
+            team_id = str(cur.fetchone()[0])
+            self._upsert_roster(cur, team_id, roster)
+            return team_id
+
+    @staticmethod
+    def _upsert_roster(cur, team_id: str, roster: list) -> None:
+        """Replace all roster slots for a team in user_team_roster."""
+        cur.execute("DELETE FROM internal.user_team_roster WHERE team_id = %s", (team_id,))
+        if not roster:
+            return
+        now = datetime.now(tz=timezone.utc)
+        batch = [
+            (
+                team_id,
+                slot['card_id'],
+                slot['card_source'],
+                slot['roster_position'],
+                i,
+                slot.get('draft_order'),
+                slot.get('pick_source', 'MANUAL'),
+                now,
+            )
+            for i, slot in enumerate(roster)
+        ]
+        execute_values(cur, """
+            INSERT INTO internal.user_team_roster
+                (team_id, card_id, card_source, roster_position, sort_order, draft_order, pick_source, updated_at)
+            VALUES %s
+        """, batch)
+
+    _TEAM_JSONB_FIELDS = frozenset({'lineups', 'rotation', 'player_filters'})
+
+    @staticmethod
+    def _serialize_team_field(key: str, value) -> object:
+        """Serialize a team payload value for psycopg2. JSONB fields get extras.Json; TEXT[] stays as a list."""
+        if key in PostgresDB._TEAM_JSONB_FIELDS and isinstance(value, (dict, list)):
+            return extras.Json(value)
+        return value
+
+    @staticmethod
+    def _team_payload_fields(payload: dict) -> dict:
+        ALLOWED = {
+            'name', 'abbreviation', 'primary_color', 'secondary_color',
+            'is_public', 'source',
+            'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
+            'lineups', 'rotation', 'allowed_sets', 'player_filters', 'allowed_card_sources',
+        }
+        return {k: v for k, v in payload.items() if k in ALLOWED}
+
+    @staticmethod
+    def _serialize_team_row(row: dict) -> dict:
+        row['team_id'] = str(row['team_id'])
+        if row.get('created_at'):
+            row['created_at'] = row['created_at'].isoformat()
+        if row.get('updated_at'):
+            row['updated_at'] = row['updated_at'].isoformat()
+        return row
 
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""

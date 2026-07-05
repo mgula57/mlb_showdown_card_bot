@@ -1082,7 +1082,7 @@ class Set(str, Enum):
     def is_special_edition_name_styling(self, special_edition:SpecialEdition) -> bool:
         # SPECIAL EDITIONS
         match special_edition:
-            case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
+            case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025 | SpecialEdition.ASG_2026:
                 return self.value in ['2000','2001']
             case SpecialEdition.WBC:
                 return self.value in ['2000', '2001']
@@ -1100,14 +1100,15 @@ class Set(str, Enum):
     def player_image_crop_size(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
 
         # SPECIAL CASES
-        if special_edition in [SpecialEdition.ASG_2024]:
-            match self:
-                case Set._2000: return (1200,1680) # MATCH 01 IF ASG
-                case Set._2004 | Set._2005: return (1350,1890) # MAKE SLIGHTLY LARGER        
-        if special_edition in [SpecialEdition.ASG_2025]:
-            match self:
-                case Set._2000 | Set._2001: return (1350,1890)
-                case Set.CLASSIC | Set.EXPANDED: return (1305,1827)
+        match special_edition:
+            case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2026:
+                match self:
+                    case Set._2000: return (1200,1680) # MATCH 01 IF ASG
+                    case Set._2004 | Set._2005: return (1350,1890) # MAKE SLIGHTLY LARGER        
+            case SpecialEdition.ASG_2025:
+                match self:
+                    case Set._2000 | Set._2001: return (1350,1890)
+                    case Set.CLASSIC | Set.EXPANDED: return (1305,1827)
 
         match self.value:
             case '2000': return (1500,2100)
@@ -1131,6 +1132,13 @@ class Set(str, Enum):
             case SpecialEdition.ASG_2025:
                 match self:
                     case Set._2000 | Set._2001: return (25,-400) # 2025 ASG HAS LOTS OF SPACE TO THE LEFT SIDE
+            case SpecialEdition.ASG_2026:
+                match self:
+                    case Set._2000: return (45,-480) # MOVE TO LEFT A BIT
+                    case Set._2001: return (35,-460) # MOVE TO LEFT A BIT
+                    case Set._2002: return (100,-200) # MOVE LEFT
+                    case Set._2003: return (125,-100)
+                    case Set._2004 | Set._2005: return (0, int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
 
         match self.value:
             case '2000': return (-25,-300)
@@ -1172,7 +1180,28 @@ class Set(str, Enum):
                     case '2000': return (-20, 0)
         
         return None
-    
+
+    def player_image_component_paste_offset(self, component: PlayerImageComponent, special_edition: SpecialEdition) -> tuple[int, int] | None:
+        """Return (x, y) offset to apply to the paste location of a player image component for a given special edition.
+
+        Args:
+            component: PlayerImageComponent
+            special_edition: SpecialEdition
+
+        Returns:
+            tuple[int, int] offset, or None for no adjustment
+        """
+        match special_edition:
+            case SpecialEdition.ASG_2026:
+                # IGNORE THE WHITE DOTS BG
+                if 'CUSTOM_FOREGROUND' in component.name:
+                    match self:
+                        case Set._2004 | Set._2005: return (0, 105)
+                        case Set.CLASSIC | Set.EXPANDED: return (0, 65)
+                        case _: return None
+
+        return None
+
     def player_image_component_size_adjustment(self, component: PlayerImageComponent) -> float:
         match component:
             case PlayerImageComponent.GOLD_FRAME:
@@ -1198,6 +1227,11 @@ class Set(str, Enum):
             case SpecialEdition.ASG_2024:
                 match self:
                     case _:
+                        if 'CUSTOM_FOREGROUND' in component.name:
+                            return PlayerImageComponent.CUSTOM_BACKGROUND.layering_index
+            case SpecialEdition.ASG_2026:
+                match self:
+                    case self._2000 | self._2001 | self._2002 | self._2003:
                         if 'CUSTOM_FOREGROUND' in component.name:
                             return PlayerImageComponent.CUSTOM_BACKGROUND.layering_index
         
@@ -1269,6 +1303,7 @@ class Set(str, Enum):
                     match special_edition:
                         case SpecialEdition.ASG_2024: return (360, 1565)
                         case SpecialEdition.ASG_2025: return (360, 1600)
+                        case SpecialEdition.ASG_2026: return (360, 1575)
                         case SpecialEdition.WBC: return (80, 1600)
                 match self.value:
                     case '2000': return (137,0)

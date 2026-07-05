@@ -86,8 +86,8 @@ def fetch_standings(season_id: str, league_id: str):
         standings_type = StandingsType.SPRING_TRAINING if str(league_id) in ['114', '115'] else StandingsType.BY_DIVISION
         standings = _mlb_stats_api.leagues.get_standings(season=season_id, league_id=league_id, standings_type=standings_type)
         if showdown_set:
-            db = PostgresDB()
-            standings = db.add_points_to_mlb_api_standings(standings, showdown_set=showdown_set)
+            with PostgresDB() as db:
+                standings = db.add_points_to_mlb_api_standings(standings, showdown_set=showdown_set)
 
         standings_data = [standing.model_dump() for standing in standings]
         return jsonify({'standings': standings_data}), 200
@@ -122,8 +122,8 @@ def fetch_roster(season_id: str, team_id: str):
 
         roster = _mlb_stats_api.teams.get_team_roster(team_id=team_id, season=season_id, roster_type=roster_type)
         if showdown_set:
-            db = PostgresDB()
-            roster = db.add_showdown_cards_to_mlb_api_roster(roster=roster, showdown_set=showdown_set_enum.value, season=season_id, sport_id=sport_id, team_abbr=team_abbr)
+            with PostgresDB() as db:
+                roster = db.add_showdown_cards_to_mlb_api_roster(roster=roster, showdown_set=showdown_set_enum.value, season=season_id, sport_id=sport_id, team_abbr=team_abbr)
         roster_data = roster.model_dump(mode='json', exclude_none=True) if roster else None
 
         return jsonify({'roster': roster_data}), 200

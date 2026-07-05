@@ -4,7 +4,10 @@ import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
-import { FaStar, FaBook, FaScrewdriverWrench } from 'react-icons/fa6';
+import { CardSource } from "../../types/cardSource";
+import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard } from 'react-icons/fa6';
+import type { CardItemActionButton } from './CardItemCompact';
+import { formatYear } from "../../functions/formatters";
 
 /**
  * Props for the CardItem component
@@ -62,12 +65,17 @@ type CardItemProps = {
     cardNotes?: string;
     cardIsStatsEstimate?: boolean;
 
+    // Source
+    cardSource: CardSource | undefined;
+
     /** Click handler for card selection */
     onClick?: () => void | undefined;
     /** Optional CSS classes for styling */
     className?: string;
     /** Whether this card is currently selected */
     isSelected?: boolean;
+    /** Optional action button shown in the top-right corner */
+    actionButton?: CardItemActionButton;
 };
 
 /**
@@ -98,7 +106,7 @@ type CardItemProps = {
  * />
  * ```
  */
-export const CardItem = ({ 
+export const CardItem = ({
     cardId, cardTeam, cardName, cardYear, cardStatsPeriod,
     cardCommand, cardIsPitcher,
     cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange,
@@ -107,8 +115,8 @@ export const CardItem = ({
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
-    cardChartRanges, cardLeague,
-    onClick, className, isSelected 
+    cardChartRanges, cardLeague, cardSource,
+    onClick, className, isSelected, actionButton
 }: CardItemProps) => {
 
     const { isDark } = useTheme();
@@ -134,6 +142,7 @@ export const CardItem = ({
     // Determine whether the stats have been estimated
     const isStatsEstimate = cardIsStatsEstimate || (cardLeague && cardEdition === 'WBC' && !['AL', 'NL', 'MLB'].includes(cardLeague)); // WBC cards for MLB players are often estimates
     
+    // Determine if the card is a pitcher for conditional metadata display
     const isClickable = onClick !== undefined;
 
     // Dynamic border styling based on selection state and theme
@@ -142,6 +151,11 @@ export const CardItem = ({
         : (isDark
             ? `border-white/10${isClickable ? ' hover:border-white/50' : ''}`
             : `shadow-xl border-gray-200${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+
+    // Calculate width of the set and expansion display for proper spacing
+    const has_expansion = cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion);
+    const setExpansionWidth = (has_expansion && cardSource === 'WOTC') ? '100px' : 
+        (has_expansion ? '75px' : 'auto');
 
     /**
      * Player-type specific metadata display
@@ -176,211 +190,235 @@ export const CardItem = ({
     }
 
     return (
-        <div
-            className={`
-                ${className}
-                flex flex-col p-2 gap-1
-                bg-secondary
-                rounded-xl
-                border-3
-                ${isClickable ? 'cursor-pointer' : ''}
-                ${borderSettings}
-            `}
-            onClick={onClick}
-        >
-            {/* Header: Command Rating + Player Info */}
-            <div className="flex flex-row gap-2 items-center text-nowrap">
-                {/* Command rating with themed background */}
-                <CardCommand
-                    isPitcher={cardIsPitcher || false}
-                    primaryColor={primaryColor}
-                    secondaryColor={secondaryColor}
-                    command={cardCommand}
-                    team={cardTeam}
-                    className="w-9 h-9 shrink-0" 
-                />
+        <div className={`${className} relative`}>
+            {actionButton && (
+                <button
+                    type="button"
+                    aria-label={actionButton.label}
+                    onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
+                    className={`
+                        absolute -top-1.5 -right-1.5 z-5
+                        flex items-center justify-center
+                        p-1 ${actionButton.label ? 'rounded-lg' : 'rounded-full'}
+                        ${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'}
+                        text-(--text-tertiary)
+                        hover:bg-(--background-quaternary) hover:text-(--text-primary)
+                        transition-colors
+                        cursor-pointer
+                    `}
+                >
+                    {actionButton.icon}
+                </button>
+            )}
+            <div
+                className={`
+                    ${className}
+                    flex flex-col p-2 gap-1
+                    bg-secondary
+                    rounded-xl
+                    border-3
+                    ${isClickable ? 'cursor-pointer' : ''}
+                    ${borderSettings}
+                `}
+                onClick={onClick}
+            >
+                {/* Header: Command Rating + Player Info */}
+                <div className="flex flex-row gap-2 items-center text-nowrap">
+                    {/* Command rating with themed background */}
+                    <CardCommand
+                        isPitcher={cardIsPitcher || false}
+                        primaryColor={primaryColor}
+                        secondaryColor={secondaryColor}
+                        command={cardCommand}
+                        team={cardTeam}
+                        className="w-9 h-9 shrink-0" 
+                    />
 
-                <div className="flex flex-col gap-0.5 overflow-x-scroll scrollbar-hide">
-                    {/* Player name, year/team badge, and special ability icons */}
-                    <div className="flex flex-row gap-1 items-center">
-                        <div className={`font-black ${isRedacted ? 'redacted text-sm' : ''}`}>{cardName?.toUpperCase() || 'REDACTED NAME'}</div>
+                    <div className="flex flex-col gap-0.5 overflow-x-scroll scrollbar-hide">
+                        {/* Player name, year/team badge, and special ability icons */}
+                        <div className="flex flex-row gap-1 items-center">
+                            <div className={`font-black ${isRedacted ? 'redacted text-sm' : ''}`}>{cardName?.toUpperCase() || 'REDACTED NAME'}</div>
 
-                        {cardIsErrata && (
-                            <div 
-                                className="
-                                    text-[9px] flex
-                                    items-center font-bold justify-center
-                                    rounded-lg tracking-tight shrink-0
-                                    border border-white/30 px-1
-                                    bg-(--red) text-white
-                                    " 
-                                title="Errata Card"
-                            >
-                                <FaScrewdriverWrench className="inline-block w-2 h-2 mr-0.5" />
-                                ER
-                            </div>
-                        )}
+                            {cardIsErrata && (
+                                <div 
+                                    className="
+                                        text-[9px] flex
+                                        items-center font-bold justify-center
+                                        rounded-lg tracking-tight shrink-0
+                                        border border-white/30 px-1
+                                        bg-(--red) text-white
+                                        " 
+                                    title="Errata Card"
+                                >
+                                    <FaScrewdriverWrench className="inline-block w-2 h-2 mr-0.5" />
+                                    ER
+                                </div>
+                            )}
 
-                        {cardNotes && (
-                            <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={cardNotes} />
-                        )}
-                        
-                        {/* Year and team badge with team colors */}
-                        {cardTeam && cardYear && (
-                            <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
-                                {cardYear} {cardTeam?.toUpperCase()}
-                            </div>
-                        )}
+                            {cardNotes && (
+                                <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={cardNotes} />
+                            )}
+                            
+                            {/* Year and team badge with team colors */}
+                            {cardTeam && cardYear && (
+                                <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
+                                    {formatYear(cardYear)} {cardTeam?.toUpperCase()}
+                                </div>
+                            )}
 
-                        {/* Edition */}
-                        {(cardEdition && cardEdition !== 'NONE') && (
-                            <>
-                                {cardEdition === 'ASG' ? (
-                                    <FaStar className="inline-block w-4 h-4 text-yellow-400 shrink-0" />
-                                ) : (
-                                    <img src={`/images/card/edition-${cardEdition.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
-                                )}
-                                
-                            </>
-                        )}
-                        
-                        {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
-                        {cardIcons?.map((icon, index) => (
-                            <div 
-                                key={index} 
-                                className="
-                                    text-[9px] flex w-4 h-4 
-                                    items-center font-bold justify-center 
-                                    rounded-full tracking-tight shrink-0
-                                " 
-                                style={colorStylingSecondary} 
-                            >
-                                {icon}
-                            </div>
-                        ))}
-                    </div>
-                    
-                    {/* Point value and player-specific metadata */}
-                    <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight items-center">
-                        <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>
-                            {isRedacted ? (
-                                <span className="text-transparent">REDACTED</span>
-                            ) : ( 
+                            {/* Edition */}
+                            {(cardEdition && cardEdition !== 'NONE') && (
                                 <>
-                                    {`${cardPoints} PTS`}
+                                    {cardEdition === 'ASG' ? (
+                                        <FaStar className="inline-block w-4 h-4 text-yellow-400 shrink-0" />
+                                    ) : (
+                                        <img src={`/images/card/edition-${cardEdition.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
+                                    )}
+                                    
                                 </>
                             )}
+                            
+                            {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
+                            {cardIcons?.map((icon, index) => (
+                                <div 
+                                    key={index} 
+                                    className="
+                                        text-[9px] flex w-4 h-4 
+                                        items-center font-bold justify-center 
+                                        rounded-full tracking-tight shrink-0
+                                    " 
+                                    style={colorStylingSecondary} 
+                                >
+                                    {icon}
+                                </div>
+                            ))}
                         </div>
-                        {cardPtsChange != null && cardPtsChange !== 0 && (
-                            <span className={`text-[9px] font-bold leading-none ${cardPtsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                                {cardPtsChange > 0 ? '▲' : '▼'}{Math.abs(cardPtsChange)}
-                            </span>
-                        )}
-                        {cardPointsEstimated && cardPoints && (
-                            renderPointsComparison(cardPointsEstimated, cardPointsDiffEstimatedVsActual || 0)
-                        )}
-                        {metadataArray.map((meta, index) => (
-                            <div key={index} className={`${isRedacted ? 'redacted' : ''}`}>{meta}</div>
-                        ))}
+                        
+                        {/* Point value and player-specific metadata */}
+                        <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight items-center">
+                            <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>
+                                {isRedacted ? (
+                                    <span className="text-transparent">REDACTED</span>
+                                ) : ( 
+                                    <>
+                                        {`${cardPoints} PTS`}
+                                    </>
+                                )}
+                            </div>
+                            {cardPtsChange != null && cardPtsChange !== 0 && (
+                                <span className={`text-[9px] font-bold leading-none ${cardPtsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                                    {cardPtsChange > 0 ? '▲' : '▼'}{Math.abs(cardPtsChange)}
+                                </span>
+                            )}
+                            {cardPointsEstimated && cardPoints && (
+                                renderPointsComparison(cardPointsEstimated, cardPointsDiffEstimatedVsActual || 0)
+                            )}
+                            {metadataArray.map((meta, index) => (
+                                <div key={index} className={`${isRedacted ? 'redacted' : ''}`}>{meta}</div>
+                            ))}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Interactive chart showing dice roll outcomes */}
-            <CardChart
-                chartRanges={cardChartRanges || {}} 
-                showdownSet={cardSet || '2001'}
-                primaryColor={colorStylingPrimary.backgroundColor}
-                secondaryColor={colorStylingSecondary.backgroundColor}
-                team={cardTeam}
-                cellClassName="min-w-6 md:min-w-8" 
-            />
+                {/* Interactive chart showing dice roll outcomes */}
+                <CardChart
+                    chartRanges={cardChartRanges || {}} 
+                    showdownSet={cardSet || '2001'}
+                    primaryColor={colorStylingPrimary.backgroundColor}
+                    secondaryColor={colorStylingSecondary.backgroundColor}
+                    team={cardTeam}
+                    cellClassName="min-w-6 md:min-w-8" 
+                />
 
-            {/* Bottom bar */}
-            <div className="flex flex-row justify-between items-center gap-x-1">
+                {/* Bottom bar */}
+                <div className="flex flex-row justify-between items-center gap-x-1">
 
-                {/* Statistical highlights ribbon */}
-                <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
-                    
-                    {/* On WBC Cards, show the Stat Source */}
-                    {cardLeague && cardEdition === 'WBC' && (() => {
-                        const leagueGrouped = ['AL', 'NL'].includes(cardLeague) ? 'MLB' : cardLeague;
-                        return (
-                            <div className="font-semibold italic text-(--text-secondary)">
-                                {leagueGrouped}
+                    {/* Statistical highlights ribbon */}
+                    <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
+                        
+                        {/* On WBC Cards, show the Stat Source */}
+                        {cardLeague && cardEdition === 'WBC' && (() => {
+                            const leagueGrouped = ['AL', 'NL'].includes(cardLeague) ? 'MLB' : cardLeague;
+                            return (
+                                <div className="font-semibold italic text-(--text-secondary)">
+                                    {leagueGrouped}
+                                </div>
+                            )
+                        })()}
+
+                        {/* AWARDS: NEW WAY */}
+                        {cardAwardList && cardAwardList.length > 0 && (
+                            <div className="font-semibold underline">
+                                {cardAwardList.map((stat, index) => (
+                                    <span key={index} className="font-semibold underline">
+                                        {stat}{index < (cardAwardList.length || 0) - 1 ? ',' : ''}
+                                    </span>
+                                ))}
                             </div>
-                        )
-                    })()}
-
-                    {/* AWARDS: NEW WAY */}
-                    {cardAwardList && cardAwardList.length > 0 && (
-                        <div className="font-semibold underline">
-                            {cardAwardList.map((stat, index) => (
-                                <span key={index} className="font-semibold underline">
-                                    {stat}{index < (cardAwardList.length || 0) - 1 ? ',' : ''}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-
-                    {isRedacted && (
-                        <div className="space-x-2">
-                            {['-----', '----', '----------', '-----'].map((stat, index) => (
-                                <span key={index} className="font-semibold redacted">
-                                    {stat}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                    {cardStatsPeriod?.type === 'REPLACEMENT' ? (
-                        <div className="font-semibold italic text-(--text-secondary)">
-                            Showing Replacement Level Stats
-                        </div>
-                    ) : (
-                        <>
-                        {isStatsEstimate && (
-                            <span>**</span>
                         )}
-                        {cardStatHighlightsList?.map((stat, index) => (
-                            <div key={index} className="">
-                                {stat}
+
+                        {isRedacted && (
+                            <div className="space-x-2">
+                                {['-----', '----', '----------', '-----'].map((stat, index) => (
+                                    <span key={index} className="font-semibold redacted">
+                                        {stat}
+                                    </span>
+                                ))}
                             </div>
-                        ))}
-                        </>
-                    )}
-                </div>
+                        )}
+                        {cardStatsPeriod?.type === 'REPLACEMENT' ? (
+                            <div className="font-semibold italic text-(--text-secondary)">
+                                Showing Replacement Level Stats
+                            </div>
+                        ) : (
+                            <>
+                            {isStatsEstimate && (
+                                <span>**</span>
+                            )}
+                            {cardStatHighlightsList?.map((stat, index) => (
+                                <div key={index} className="">
+                                    {stat}
+                                </div>
+                            ))}
+                            </>
+                        )}
+                    </div>
 
-                {/* Set and Expansion */}
-                <div 
-                    className="
-                        flex flex-row justify-end items-center gap-x-1
-                        text-[9px] text-nowrap tracking-tight text-primary
-                        bg-(--background-tertiary)
-                        px-1 rounded-md font-bold shadow-md
-                    "
-                    style={{
-                        minWidth: cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion) ? '75px' : undefined
-                    }}
-                >
-                    {cardSetNumber && (
-                        <span className="font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
-                    )}
-                    {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
-                        <img 
-                            src={`/images/card/expansion-${cardExpansion.toLowerCase()}.png`} 
-                            className="inline-block w-5 h-4 object-contain object-center shrink-0"
-                            alt="Expansion"
-                        />
-                    )}
-                    {cardExpansion && cardExpansion === 'ASG' && (
-                        <FaStar className="inline-block w-4 h-3 text-yellow-400" />
-                    )}
-                    {['PM'].includes(cardExpansion || '') && (
-                        <span>PROMO</span>
-                    )}
-                    <span className={`${cardSet ? '' : 'redacted'}`}>{cardSet || '2005'}</span>
-                </div>
+                    {/* Set and Expansion */}
+                    <div 
+                        className="
+                            flex flex-row justify-end items-center gap-x-1
+                            text-[9px] text-nowrap tracking-tight text-primary
+                            bg-(--background-tertiary)
+                            px-1 rounded-md font-bold shadow-md
+                        "
+                        style={{
+                            minWidth: setExpansionWidth
+                        }}
+                    >
+                        {cardSource === 'WOTC' && (
+                            <FaHatWizard className="inline-block w-3 h-3" title="Wizards of the Coast" />
+                        )}
+                        {cardSetNumber && (
+                            <span className="font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
+                        )}
+                        {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
+                            <img 
+                                src={`/images/card/expansion-${cardExpansion.toLowerCase()}.png`} 
+                                className="inline-block w-5 h-4 object-contain object-center shrink-0"
+                                alt="Expansion"
+                            />
+                        )}
+                        {cardExpansion && cardExpansion === 'ASG' && (
+                            <FaStar className="inline-block w-4 h-3 text-yellow-400" />
+                        )}
+                        {['PM'].includes(cardExpansion || '') && (
+                            <span>PROMO</span>
+                        )}
+                        <span className={`${cardSet ? '' : 'redacted'}`}>{cardSet || '2005'}</span>
+                    </div>
 
+                </div>
             </div>
         </div>
     );
@@ -403,9 +441,11 @@ type CardItemFromCardProps = {
     hideYear?: boolean;
     /** Optional weekly pts change from in_season_trends */
     ptsChange?: number | null;
+    /** Optional action button shown in the top-right corner */
+    actionButton?: CardItemActionButton;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -445,9 +485,11 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             cardAwardList={card?.image.award_summary_list || []}
             cardStatHighlightsList={card?.image.stat_highlights_list || []}
             cardChartRanges={card?.chart.ranges || {}}
+            cardSource={card?.is_wotc ? 'WOTC' : 'BOT'}
             onClick={onClick}
             className={className}
             isSelected={isSelected}
+            actionButton={actionButton}
         />
     );
 }
@@ -467,9 +509,11 @@ type CardItemFromCardDatabaseRecordProps = {
     isSelected?: boolean;
     /** Optionally hide the year */
     hideYear?: boolean;
+    /** Optional action button shown in the top-right corner */
+    actionButton?: CardItemActionButton;
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, actionButton }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -489,6 +533,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardPoints={card?.points}
             cardPointsEstimated={card?.points_estimated || undefined}
             cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
+            cardSource={card?.source}
             cardPtsChange={card?.points_change || undefined}
             cardSpeed={card?.speed || undefined}
             cardHand={card?.hand || undefined}
@@ -510,6 +555,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             onClick={onClick}
             className={className}
             isSelected={isSelected}
+            actionButton={actionButton}
         />
     );
 }

@@ -38,6 +38,7 @@ import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import type { SelectOption } from '../shared/CustomSelect';
 import { CardItemFromCardDatabaseRecord, CardItemFromCard } from "./CardItem";
+import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 
@@ -65,6 +66,24 @@ type ShowdownCardSearchProps = {
     defaultFilters?: Partial<FilterSelections>;
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
+    /**
+     * Compact mode: hides the WhatsNew banner and sidebar toggle, removes the
+     * fixed-height container so the component fills its parent. Use when
+     * embedding inside a panel or bottom sheet.
+     */
+    compact?: boolean;
+    /**
+     * Optional action button shown on each card. The `onClick` receives the
+     * card record so callers can act on it (e.g. add to team, open confirm modal).
+     */
+    actionButton?: {
+        icon: React.ReactNode;
+        label?: string;
+        bgColorClass?: string;
+        onClick: (card: CardDatabaseRecord) => void;
+    };
+    /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
+    excludeIds?: string[];
 };
 
 // =============================================================================
@@ -517,6 +536,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
         { id: 'preset-super-season', name: 'Super Season', filters: { edition: ['SS'] } },
     ],
     [CardSource.WBC]: [],
+    [CardSource.CUSTOM]: [],
 };
 
 // --------------------------------------------
@@ -543,7 +563,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false, compact = false, actionButton, excludeIds }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -640,6 +660,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
         return groups;
     }, [source]);
+
+    const excludeSet = useMemo(
+        () => (excludeIds && excludeIds.length > 0 ? new Set(excludeIds) : null),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [excludeIds?.join(',')]
+    );
+    const displayedCards = useMemo(
+        () => (excludeSet && showdownCards ? showdownCards.filter(c => !excludeSet.has(c.id)) : showdownCards),
+        [showdownCards, excludeSet]
+    );
 
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
@@ -872,9 +902,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
-        
-        const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
-        
+
+        const isLargeScreen = window.innerWidth >= 1000 && !compact; // 2xl breakpoint
+
         console.log("Card clicked:", card);
         if (card.id === selectedCard?.id) {
             // If clicking the same card, close the side menu (if applicable)
@@ -960,11 +990,42 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
     }
 
-    const filterDisplayText = (key: string, value: any) => {
+    const makeRemoveFilter = (
+        state: FilterSelections,
+        setter: React.Dispatch<React.SetStateAction<FilterSelections>>,
+    ) => (key: string) => {
+        const correspondingKey = key.startsWith('min_')
+            ? `max_${key.slice(4)}`
+            : key.startsWith('max_')
+            ? `min_${key.slice(4)}`
+            : null;
+        const currentValue = state[key as keyof FilterSelections];
+        const correspondingValue = correspondingKey ? state[correspondingKey as keyof FilterSelections] : null;
+        const isMatchingMinMax = correspondingKey && correspondingValue !== undefined && correspondingValue !== null && correspondingValue === currentValue;
+        setter((prev) => {
+            const next = { ...prev, [key]: undefined };
+            if (isMatchingMinMax) {
+                next[correspondingKey as keyof FilterSelections] = undefined;
+            }
+            return next;
+        });
+    };
+
+    const removeFilter = makeRemoveFilter(filters, setFilters);
+    const removeFilterForEditing = makeRemoveFilter(filtersForEditing, setFiltersForEditing);
+
+    const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>) => {
         if (key.startsWith('min_') || key.startsWith('max_')) {
-            
+
             const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
             var shortKey = key.replace('min_', '').replace('max_', '');
+
+            // Check if there's a max with the same value. If so just display the min and show as `= value` instead of `>= value`
+            const correspondingKey = key.startsWith('min_') ? `max_${shortKey}` : `min_${shortKey}`;
+            if (overallList[correspondingKey] === value) {
+                return key.startsWith('min_') ? `${snakeToTitleCase(shortKey)}: ${value}` : undefined; // Don't show the max if it's the same as min, it will be redundant. Just show the min as `= value`
+            }
+
             if (shortKey.length == 2) {
                 shortKey = shortKey.toUpperCase();
             } else {
@@ -985,7 +1046,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         if (key === 'include_small_sample_size') {
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
-            return `Small Sample Sizes?: ${finalValue}`;
+            return `Small Samples?: ${finalValue}`;
         }
 
         if (key === 'is_hof') {
@@ -1037,7 +1098,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         <div
             style={{ ['--sidebar-offset' as string]: `calc(${verticalOffset} * 0.25rem)` }}
             className={`
-                flex flex-col ${className}
+                relative flex flex-col ${className}
                 md:h-[calc(100vh-var(--sidebar-offset))]
                 md:supports-[height:100dvh]:h-[calc(100dvh-var(--sidebar-offset))]
                 md:overflow-y-auto
@@ -1045,7 +1106,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             `}
         >
 
-            <WhatsNewBanner
+            {!compact && <WhatsNewBanner
                 storageKey="exploreWhatsNew_v1"
                 features={[
                     { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
@@ -1053,7 +1114,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     { icon: <FaSort />,        text: 'Easier access to sorting options and direction' },
                     { icon: <FaFilter />,      text: 'Save filter presets (login required)' },
                 ]}
-            />
+            />}
 
             {/* Search Bar and Filters */}
             <div
@@ -1102,16 +1163,18 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     
 
                     {/* If lg screen, show open button for side menu */}
-                    <button
-                        onClick={() => setShowPlayerDetailSidebar(true)}
-                        className={`
-                            items-center gap-2
-                            hover:bg-(--background-secondary-hover)
-                            ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
-                        `}>
-                        <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
-                        <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
-                    </button>
+                    {!compact && (
+                        <button
+                            onClick={() => setShowPlayerDetailSidebar(true)}
+                            className={`
+                                items-center gap-2
+                                hover:bg-(--background-secondary-hover)
+                                ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
+                            `}>
+                            <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
+                            <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
+                        </button>
+                    )}
 
                 </div>
 
@@ -1135,16 +1198,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {Object.entries(filtersWithoutSorting)
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                             .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
-                            .map(([key, value]) => (
-                                <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                    <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
-                                    {!isFilterLocked(key as keyof FilterSelections) && (
-                                        <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
-                                            <FaTimes />
-                                        </button>
-                                    )}
-                                </div>
-                        ))}
+                            .map(([key, value]) => {
+                                const displayText = filterDisplayText(key, value, filtersWithoutSorting);
+                                if (!displayText) return null;
+                                return (
+                                    <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
+                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSorting)}</span>
+                                        {!isFilterLocked(key as keyof FilterSelections) && (
+                                            <button onClick={() => removeFilter(key)} className="ml-1 cursor-pointer">
+                                                <FaTimes />
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            }
+                        )}
 
                         {/* Add Blank element with width of 32 */}
                         <div className="shrink-0 w-16"></div>
@@ -1171,36 +1239,43 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
                         {/* Iterate through showdownCards and display each card */}
-                        {showdownCards?.map((cardRecord, index) => (
-                            <div
-                                key={cardRecord.id}
-                                data-card-id={cardRecord.id}
-                                ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
-                            >
-                                {source === CardSource.WOTC && (
-                                    <CardItemFromCard
-                                        card={cardRecord.card_data}
-                                        onClick={() => handleRowClick(cardRecord)}
-                                        isSelected={selectedCard?.id === cardRecord.id}
-                                    />
-                                )}
-                                {source === CardSource.BOT && (
-                                    <CardItemFromCardDatabaseRecord
-                                        card={cardRecord}
-                                        onClick={() => handleRowClick(cardRecord)}
-                                        isSelected={selectedCard?.id === cardRecord.id}
-                                    />
-                                )}
-                                {source === CardSource.WBC && (
-                                    <CardItemFromCardDatabaseRecord
-                                        card={cardRecord}
-                                        onClick={() => handleRowClick(cardRecord)}
-                                        isSelected={selectedCard?.id === cardRecord.id}
-                                    />
-                                )}
-                            </div>
-
-                        ))}
+                        {displayedCards?.map((cardRecord, index) => {
+                            const resolvedAction: CardItemActionButton | undefined = actionButton
+                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, onClick: () => actionButton.onClick(cardRecord) }
+                                : undefined;
+                            return (
+                                <div
+                                    key={cardRecord.id}
+                                    data-card-id={cardRecord.id}
+                                    ref={displayedCards.length === (index + 1) ? lastCardElementRef : null}
+                                >
+                                    {source === CardSource.WOTC && (
+                                        <CardItemFromCard
+                                            card={cardRecord.card_data}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                        />
+                                    )}
+                                    {source === CardSource.BOT && (
+                                        <CardItemFromCardDatabaseRecord
+                                            card={cardRecord}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                        />
+                                    )}
+                                    {source === CardSource.WBC && (
+                                        <CardItemFromCardDatabaseRecord
+                                            card={cardRecord}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* No results found message */}
@@ -1218,7 +1293,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     )}
 
                     {/* No more results indicator */}
-                    {!hasMore && showdownCards && showdownCards.length > 50 && (
+                    {!hasMore && displayedCards && displayedCards.length > 50 && (
                         <div className="flex justify-center p-6 text-secondary">
                             <span className="text-sm">No more cards to load</span>
                         </div>
@@ -1278,10 +1353,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             {/* Add Loading Indicator in the middle of the screen */}
             {isLoading && (
                 <div className="
-                    fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-(--primary)/10 backdrop-blur 
+                    absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+                    bg-(--primary)/10 backdrop-blur
                     p-4 rounded-2xl
                     flex items-center space-x-2
+                    z-10
                 ">
                     {renderLoadingIndicator()}
                 </div>
@@ -1365,16 +1441,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 {Object.entries(filtersWithoutSortingForEditing)
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                                     .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
-                                    .map(([key, value]) => (
-                                        <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
-                                            {!isFilterLocked(key as keyof FilterSelections) && (
-                                                <button onClick={() => setFiltersForEditing((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
-                                                    <FaTimes />
-                                                </button>
-                                            )}
-                                        </div>
-                                ))}
+                                    .map(([key, value]) => {
+                                        const displayText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
+                                        if (!displayText) return null;
+                                        return (
+                                            <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
+                                                <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
+                                                {!isFilterLocked(key as keyof FilterSelections) && (
+                                                    <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
+                                                        <FaTimes />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )
+                                    }
+                                )}
                             </div>
                         </div>
 

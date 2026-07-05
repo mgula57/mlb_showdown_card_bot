@@ -10,6 +10,7 @@
  * @version 4.0
  */
 
+import type { CardSource } from "../types/cardSource";
 import { type GameBoxscoreDetail } from "./mlbAPI";
 
 // =============================================================================
@@ -470,13 +471,17 @@ export type ShowdownBotCardCompact = {
     set: string;
     points: number;
     command: number;
+    outs: number;
     is_pitcher: boolean;
     color_primary: string | null;
     color_secondary: string | null;
     team: string | null;
     positions_and_defense_string: string | null;
+    positions_and_defense?: Record<string, number> | null;
     ip: number | null;
-
+    speed: number | null;
+    source: CardSource;
+    isEmpty?: boolean;
 }
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES

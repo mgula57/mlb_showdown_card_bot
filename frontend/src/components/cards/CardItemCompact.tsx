@@ -1,9 +1,24 @@
 import type { ShowdownBotCard, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
-import { useEffect, useRef, useState } from "react";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
+import { formatYear } from "../../functions/formatters";
+import { FaHatWizard } from "react-icons/fa6";
+import { imageForSet } from '../shared/SiteSettingsContext';
+import { defenseAtPosition } from "../shared/DefenseUtils";
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export type CardItemActionButton = {
+    icon: React.ReactNode;
+    onClick: () => void;
+    /** aria-label for the action button */
+    label?: string;
+    bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-red-500")
+};
 
 type CardItemCompactProps = {
     card?: ShowdownBotCardCompact | null;
@@ -11,7 +26,31 @@ type CardItemCompactProps = {
     isSelected?: boolean;
     isLoading?: boolean;
     onClick?: () => void;
+    /** Optional action button shown in the top-right corner */
+    actionButton?: CardItemActionButton;
+    /**
+     * sm: minimal (no pts, no extra details)
+     * md: auto-size via ResizeObserver (default)
+     * lg: always show a second row with defense/IP
+     */
+    size?: 'sm' | 'md' | 'lg';
+    /** When size='lg', show defense only for this position (e.g. 'SS', 'CF'). Falls back to full string. */
+    fieldPosition?: string;
 };
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
+
+function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fieldPosition?: string): string | number {
+    if (!card) return 'N/A';
+    if (card.is_pitcher) return `IP ${card.ip ?? 0}`;
+    if (fieldPosition === 'DH') return 'DH';
+
+    const defAtPos = defenseAtPosition(card.positions_and_defense, fieldPosition || '');
+    if (defAtPos !== null) return `${fieldPosition}${defAtPos >= 0 ? '+' : ''}${defAtPos}`;
+    return defenseAtPosition(card.positions_and_defense, fieldPosition || '') || card.positions_and_defense_string || 'N/A';
+}
 
 export const CardItemCompact = ({
     card,
@@ -19,12 +58,12 @@ export const CardItemCompact = ({
     isSelected,
     isLoading,
     onClick,
+    actionButton,
+    size = 'md',
+    fieldPosition,
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
-    const containerRef = useRef<HTMLButtonElement | null>(null);
-    const [hidePoints, setHidePoints] = useState(false);
-    const [showExtraDetails, setShowExtraDetails] = useState(false);
 
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.team || 'N/A')
         ? card?.color_secondary
@@ -39,103 +78,51 @@ export const CardItemCompact = ({
         color: getContrastColor(secondaryColor),
     };
 
-    const borderSettings = isSelected 
-        ? (isDark ? 'border-2' : 'border-2') 
+    const teamStyle = {
+        backgroundColor: primaryColor,
+        color: getContrastColor(primaryColor),
+    };
+
+    const borderSettings = isSelected
+        ? (isDark ? 'border-2' : 'border-2')
         : (isDark ? 'border-2 border-white/10' : 'border-2 border-gray-200');
 
     const getLastName = (name?: string): string => {
-        if (!name) {
-            return 'Unknown Player';
-        }
-
+        if (!name) return 'Unknown Player';
         const trimmed = name.trim();
-        if (!trimmed) {
-            return 'Unknown Player';
-        }
-
+        if (!trimmed) return 'Unknown Player';
         const parts = trimmed.split(/\s+/);
-        if (parts.length === 1) {
-            return parts[0];
-        }
-
+        if (parts.length === 1) return parts[0];
         const last = parts[parts.length - 1].replace('.', '').toUpperCase();
         if (['JR', 'SR', 'II', 'III', 'IV', 'V'].includes(last) && parts.length > 1) {
             return `${parts[parts.length - 2]} ${parts[parts.length - 1]}`;
         }
-
         return parts[parts.length - 1];
     };
 
     const getFirstInitial = (name?: string): string => {
-        if (!name) {
-            return '';
-        }
-
+        if (!name) return '';
         const trimmed = name.trim();
-        if (!trimmed) {
-            return '';
-        }
-
-        const parts = trimmed.split(/\s+/);
-        if (parts.length === 1) {
-            return parts[0][0].toUpperCase();
-        }
-
-        return parts[0][0].toUpperCase();
+        if (!trimmed) return '';
+        return trimmed.split(/\s+/)[0][0].toUpperCase();
     };
 
-    const displayName = `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
-
-    useEffect(() => {
-        const element = containerRef.current;
-        if (!element) {
-            return;
-        }
-        const updateHidePoints = () => {
-            const width = element.getBoundingClientRect().width || element.clientWidth;
-            setHidePoints(width < 100);
-            setShowExtraDetails(width >= 180);
-        };
-
-        updateHidePoints();
-
-        const observers: ResizeObserver[] = [];
-
-        if (typeof ResizeObserver !== 'undefined') {
-            const elementObserver = new ResizeObserver(() => updateHidePoints());
-            elementObserver.observe(element);
-            observers.push(elementObserver);
-
-            const parentElement = element.parentElement;
-            if (parentElement) {
-                const parentObserver = new ResizeObserver(() => updateHidePoints());
-                parentObserver.observe(parentElement);
-                observers.push(parentObserver);
-            }
-        }
-
-        const rafId = requestAnimationFrame(updateHidePoints);
-        window.addEventListener('resize', updateHidePoints);
-
-        return () => {
-            cancelAnimationFrame(rafId);
-            window.removeEventListener('resize', updateHidePoints);
-            observers.forEach((observer) => observer.disconnect());
-        };
-    }, []);
-
+    const isRedacted = card?.isEmpty || false;
+    const displayName = isRedacted ? 'REDACTED NAME' : `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
     return (
-        <button
-            ref={containerRef}
-            type="button"
+        <div
+            role={onClick ? 'button' : undefined}
+            tabIndex={onClick ? 0 : undefined}
             onClick={onClick}
+            onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
             className={`
                 ${className || ''}
-                relative
+                relative @container
                 w-full min-w-0
-                flex items-center gap-2
-                rounded-lg px-2 py-1.5 
+                flex items-top gap-2
+                rounded-lg px-2 py-1
+                bg-secondary
                 ${borderSettings}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
             `}
@@ -146,32 +133,69 @@ export const CardItemCompact = ({
                 secondaryColor={secondaryColor}
                 command={card?.command}
                 team={card?.team || 'N/A'}
-                className="w-6 h-6 shrink-0"
+                className={`w-6.5 h-6.5 shrink-0 ${['md', 'lg'].includes(size) ? 'mt-1.5' : 'mt-1'}`}
             />
 
-            <div className="min-w-0 flex-1 text-left">
-                <div className="text-[12px] font-black text-(--text-primary) truncate">
+            <div className="min-w-0 flex-1 space-y-0.5 text-left">
+                <div className={`text-[12px] font-black text-(--text-primary) truncate ${isRedacted ? 'redacted' : ''}`}>
                     {displayName}
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
-                    <div className="text-[10px] font-semibold text-(--text-secondary) truncate">
+                    <div
+                        className={`text-[9px] flex leading-none shrink-0 font-semibold rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                        style={isRedacted ? undefined : teamStyle}
+                    >
                         {card?.team || 'N/A'}
+                        <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                     </div>
-                    {!hidePoints && (
-                        <div
-                            className="shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
-                            style={pointsBadgeStyle}
-                        >
-                            {card?.points != null ? `${card.points} PTS` : '-- PTS'}
-                        </div>
-                    )}
+                    <div
+                        className={`hidden @[100px]:flex shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                        style={isRedacted ? undefined : pointsBadgeStyle}
+                    >
+                        {card?.points != null ? `${card.points} PTS` : '-- PTS'}
+                    </div>
                 </div>
+                {size !== 'sm' && (
+                    <div className={`flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-wrap ${isRedacted ? 'redacted' : ''}`}>
+                        {isRedacted ? '--- • ---' : (
+                            <>
+                                {getDefenseDisplay(card, fieldPosition)}
+                                <span className="px-0.5 opacity-50">•</span>
+                                {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
 
-            {showExtraDetails && (
-                <div className="shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
-                    {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'N/A')}
+            {/* Absolute positioned elements */}
+            {size !== 'sm' && !isRedacted && (
+                <div className="absolute bottom-1 left-1.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
                 </div>
+            )}
+
+            {card?.source === 'WOTC' && (
+                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="WOTC Card" />
+            )}
+
+            {/* Optional action button — top-right corner */}
+            {actionButton && (
+                <button
+                    type="button"
+                    aria-label={actionButton.label}
+                    onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
+                    className="
+                        absolute top-0.5 right-0.5
+                        flex items-center justify-center
+                        w-5 h-5 rounded
+                        text-(--text-tertiary)
+                        hover:bg-(--background-quaternary) hover:text-(--text-primary)
+                        transition-colors
+                    "
+                >
+                    {actionButton.icon}
+                </button>
             )}
 
             {isLoading && (
@@ -181,18 +205,25 @@ export const CardItemCompact = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
             )}
-        </button>
+        </div>
     );
 };
+
+// =============================================================================
+// WRAPPER VARIANTS
+// =============================================================================
 
 type CardItemCompactFromCardProps = {
     card?: ShowdownBotCard | null;
     className?: string;
+    size?: 'sm' | 'md' | 'lg';
+    fieldPosition?: string;
     isSelected?: boolean;
     onClick?: () => void;
+    actionButton?: CardItemActionButton;
 };
 
-export const CardItemCompactFromCard = ({ card, className, isSelected, onClick }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPosition, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -211,15 +242,23 @@ export const CardItemCompactFromCard = ({ card, className, isSelected, onClick }
                 set: card?.set || '---',
                 points: card?.points ?? 0,
                 command: card?.chart.command || 0,
+                outs: card?.chart.outs_full || 0,
                 is_pitcher: card?.chart.is_pitcher || false,
                 color_primary: primaryColor,
                 color_secondary: secondaryColor,
                 positions_and_defense_string: card?.positions_and_defense_string || '',
+                positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
+                speed: card?.speed.speed || null,
+                source: card?.is_wotc ? 'WOTC' : 'BOT',
+                isEmpty: card == null || card === undefined,
             }}
             className={className}
             isSelected={isSelected}
+            size={size}
+            fieldPosition={fieldPosition}
             onClick={onClick}
+            actionButton={actionButton}
         />
     );
 };
@@ -228,10 +267,14 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     card?: CardDatabaseRecord;
     className?: string;
     isSelected?: boolean;
+    isLoading?: boolean;
     onClick?: () => void;
+    actionButton?: CardItemActionButton;
+    size?: 'sm' | 'md' | 'lg';
+    fieldPosition?: string;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, onClick }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, size, fieldPosition }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -250,15 +293,24 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 team: card?.wbc_team || card?.team || 'N/A',
                 points: card?.points ?? 0,
                 command: card?.command || 0,
+                outs: Math.round(card?.outs || 0),
                 is_pitcher: card?.is_pitcher || false,
                 color_primary: primaryColor,
                 color_secondary: secondaryColor,
                 positions_and_defense_string: card?.positions_and_defense_string || '',
+                positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
+                speed: card?.speed || null,
+                source: card?.source || 'BOT',
+                isEmpty: card == null || card === undefined,
             }}
             className={className}
             isSelected={isSelected}
+            isLoading={isLoading}
             onClick={onClick}
+            actionButton={actionButton}
+            size={size}
+            fieldPosition={fieldPosition}
         />
     );
 };

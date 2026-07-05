@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+    --container-field-split: 600px;
+}
+
 :root {
     --primary: #000000;
     --secondary: #292929;

@@ -25,7 +25,8 @@ class ShowdownBotCardCompact(BaseModel):
     color_primary: Optional[str] = None
     color_secondary: Optional[str] = None
     team: Optional[str] = None
-    position_and_defense: Optional[str] = None
+    positions_and_defense_string: Optional[str] = None
+    positions_and_defense: Optional[dict] = None
     ip: Optional[int] = None
 
     def update_with_mlb_api_team(self, mlb_api_team_name: str):
