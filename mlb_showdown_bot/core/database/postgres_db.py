@@ -109,7 +109,7 @@ class ExploreDataRecord(BaseModel):
     id: str
     year: int
     bref_id: Optional[str] = None
-    mlb_api: Optional[int] = None
+    mlb_id: Optional[int] = None
     name: str
     
     # Player type information

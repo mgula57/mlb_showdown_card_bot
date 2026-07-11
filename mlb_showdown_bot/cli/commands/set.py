@@ -9,6 +9,7 @@ app = typer.Typer()
 @app.command("build")
 def set_builder(
     years: str = typer.Option(None, "--years", "-y", help="Which year(s) to archive."),
+    set_name: str = typer.Option(None, "--set_name", "-n", help="Optional name for the set."),
     showdown_sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-s", help="Showdown Set(s) to use, comma-separated."),
     set_size: int = typer.Option(100, "--set_size", "-ss", help="Number of cards to include in the set."),
     all_star_game: bool = typer.Option(False, "--all_star_game", "-asg", help="Build the full All-Star Game roster set for the given year(s)."),
@@ -67,7 +68,8 @@ def set_builder(
         if build_images or export_data:
             showdown_bot_set.generate_showdown_cards_for_final_players(
                 export_data=export_data,
-                skip_images=not build_images
+                skip_images=not build_images,
+                set_name=set_name,
             )
 
     except Exception as e:

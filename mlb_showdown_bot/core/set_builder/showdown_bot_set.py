@@ -312,11 +312,13 @@ class ShowdownBotSet(BaseModel):
         """
         print(f"Generating {player.name} live with year override '{year_override}'...")
         payload = generate_card(
-            name=player.bref_id,
+            name=player.name,
+            player_id=str(player.mlb_id),
             year=year_override,
             set=player.showdown_set,
             player_type_override=player.player_type_override,
             team_selection=self.team_selection,
+            datasource = 'MLB_API'
         )
         error = payload.get('error')
         card_data = payload.get('card')
@@ -351,13 +353,10 @@ class ShowdownBotSet(BaseModel):
         if not self.final_players or len(self.final_players) == 0:
             return
 
-        if self.is_all_star_game and not set_name:
-            set_name = 'All Star Game'
-
         if not output_folder_path:
             # Set a default output path based on set name or timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            default_set_name = set_name or f"showdown_set_{timestamp}"
+            default_set_name = f"{set_name or 'showdown_set'}_{timestamp}"
             this_folder = os.path.dirname(os.path.abspath(__file__))
             output_folder_path = os.path.join(this_folder, "output", default_set_name)
 
@@ -425,6 +424,7 @@ class ShowdownBotSet(BaseModel):
             card.image.output_folder_path = os.path.join(output_folder_path, "images")
             card.image.is_bordered = True
             card.image.set_year = 2026
+            card.stats_period.disable_display_text_on_card = True
             if self.is_all_star_game:
                 card.image.edition = Edition.ALL_STAR_GAME
                 if year_override:
