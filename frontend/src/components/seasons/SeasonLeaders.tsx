@@ -51,6 +51,15 @@ const ALL_CATEGORIES: CategoryDef[] = [...BATTING_CATEGORIES, ...PITCHING_CATEGO
 
 type FilterGroup = 'all' | 'hitting' | 'pitching';
 
+// TODO: replace hard-coded IDs with a general two-way player detection strategy
+const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
+
+/** Returns the CardMap key for a player in a given category group. */
+const cardKey = (id: string, group: 'hitting' | 'pitching'): string => {
+    if (TWO_WAY_PLAYER_IDS.has(Number(id))) return `${id}-${group === 'hitting' ? 'H' : 'P'}`;
+    return id;
+};
+
 // =============================================================================
 // MARK: - Props
 // =============================================================================
@@ -144,8 +153,13 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                 if (!res.cards) return;
                 const map: Record<string, ShowdownBotCardAPIResponse> = {};
                 res.cards.forEach(cardRes => {
-                    if (cardRes.card?.mlb_id) {
-                        map[String(cardRes.card.mlb_id)] = cardRes;
+                    const id = cardRes.card?.mlb_id;
+                    if (!id) return;
+                    if (TWO_WAY_PLAYER_IDS.has(id)) {
+                        const suffix = cardRes.card?.player_type === 'Pitcher' ? 'P' : 'H';
+                        map[`${id}-${suffix}`] = cardRes;
+                    } else {
+                        map[String(id)] = cardRes;
                     }
                 });
                 console.log('Built leader cards:', map);
@@ -160,7 +174,9 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
     // ==========================================================================
 
     const renderLeaderCard = (entry: PlayerLeader | null, categoryDef: CategoryDef | undefined, i: number) => {
-        const cardResponse = entry?.person?.id ? cardMap[String(entry.person.id)] : undefined;
+        const cardResponse = entry?.person?.id && categoryDef
+            ? cardMap[cardKey(String(entry.person.id), categoryDef.group)]
+            : undefined;
         const card = cardResponse?.card ?? undefined;
         const isPlaceholder = !entry;
         const statValue = entry?.value ?? '';
