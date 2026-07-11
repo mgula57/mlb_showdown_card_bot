@@ -255,13 +255,13 @@ class ShowdownBotSet(BaseModel):
 
         return expansion_cards
 
-    def build_set_player_list(self, show_team_breakdown: Optional[str] = None) -> None:
+    def build_set_player_list(self, show_team_breakdown: Optional[str] = None, source_env: str = "dev") -> None:
         """Build a complete set (base + expansions) based on configuration"""
         
         print(f"Building {self.set_size} card base set for {', '.join(map(str, self.years))}...")
         
         # 1. Get player pool
-        player_pool = self._get_qualified_player_pool()
+        player_pool = self._get_qualified_player_pool(source_env=source_env)
         print(f"Found {len(player_pool)} qualified players")
 
         if self.is_all_star_game:
@@ -473,10 +473,10 @@ class ShowdownBotSet(BaseModel):
 
         return
     
-    def _get_qualified_player_pool(self) -> List[ExploreDataRecord]:
+    def _get_qualified_player_pool(self, source_env: str = "dev") -> List[ExploreDataRecord]:
         """Get all qualified players for the season"""
 
-        db = PostgresDB(is_archive=False)
+        db = PostgresDB(is_archive=(source_env == "prod"))
 
         # Get all players from the season
         filters = {'year': [str(y) for y in self.years], 'showdown_set': self.showdown_sets, 'limit': 2000}

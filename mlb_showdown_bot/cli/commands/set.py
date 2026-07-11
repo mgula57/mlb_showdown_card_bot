@@ -20,7 +20,8 @@ def set_builder(
     team_selection: str = typer.Option("GAMES_PLAYED", "--team_selection", "-tsel", help="For year-override cards, how to choose the card's team. Options: GAMES_PLAYED, LAST_TEAM, FIRST_TEAM."),
     csv_file_path: str = typer.Option(None, "--csv_file", "-csv", help="Path to CSV file with bref_id and year columns (relative to core/set_builder folder)."),
     build_images: bool = typer.Option(False, "--build_images", "-img", help="Optionally build card images for the set after building."),
-    export_data: bool = typer.Option(False, "--export_data", "-data", help="Optionally export card data to JSON after building the set.")
+    export_data: bool = typer.Option(False, "--export_data", "-data", help="Optionally export card data to JSON after building the set."),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to use, e.g., development, production."),
 ):
     """Archive player stats to Postgres"""
 
@@ -62,7 +63,7 @@ def set_builder(
             team_selection=team_selection,
             csv_file_path=csv_file_path
         )
-        showdown_bot_set.build_set_player_list(show_team_breakdown=team_breakdown)
+        showdown_bot_set.build_set_player_list(show_team_breakdown=team_breakdown, source_env=env)
         if build_images or export_data:
             showdown_bot_set.generate_showdown_cards_for_final_players(
                 export_data=export_data,
