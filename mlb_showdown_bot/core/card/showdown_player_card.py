@@ -4810,7 +4810,7 @@ class ShowdownPlayerCard(BaseModel):
         # ADD LOGO
         match self.image.edition:
             case Edition.ALL_STAR_GAME:
-                logo_name = f'ASG-{self.year}'
+                logo_name = f'ASG-{self.stats_period.last_year}'
                 logo_size_x, logo_size_y = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
                 logo_path = self._team_logo_path(name=logo_name)
 

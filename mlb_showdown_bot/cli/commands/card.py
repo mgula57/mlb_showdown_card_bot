@@ -45,6 +45,7 @@ def card_main(
     start_date: Optional[str] = typer.Option(None, "--start_date", "-start", help="Optional Start Date for stats. Only available post-1900."),
     end_date: Optional[str] = typer.Option(None, "--end_date", "-end", help="Optional End Date for stats. Only available post-1900."),
     split: Optional[str] = typer.Option(None, "--split", "-spl", help="Create a card using the splits page on baseball reference/MLB API. Examples of splits include 'Home' or 'Away' or 'vs LHP'"),
+    team_selection: str = typer.Option("GAMES_PLAYED", "--team_selection", "-tsel", help="For multi-year stats periods, how to choose the card's team. Options: GAMES_PLAYED, LAST_TEAM, FIRST_TEAM."),
     league: str = typer.Option("MLB", "--league", "-lg", help="League to pull stats from, either MLB or MILB"),
 
     # CHART

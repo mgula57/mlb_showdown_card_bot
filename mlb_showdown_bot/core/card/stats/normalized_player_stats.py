@@ -10,7 +10,7 @@ from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
-from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague
+from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague, TeamSelection
 from .datasource import Datasource
 
 # -------------------------------
@@ -365,7 +365,7 @@ class PlayerStatsNormalizer:
 
             'name': player.full_name,
             'year_ID': stats_period.year,
-            'team_ID': max(team_gpd, key=team_gpd.get) if team_gpd else None,
+            'team_ID': PlayerStatsNormalizer._select_team_id(team_gpd, stats_period),
             'team_games_played_dict': team_gpd,
             'team_id_list': sorted(team_gpd, key=team_gpd.get) if team_gpd else [],
             'lg_ID': PlayerStatsNormalizer._extract_league_id(player, stats_period),
@@ -856,6 +856,24 @@ class PlayerStatsNormalizer:
         return team_games_played
 
     @staticmethod
+    def _select_team_id(team_games_played: Dict[str, int], stats_period: Optional[StatsPeriod]) -> Optional[str]:
+        """Pick the card's team from a {team_id: games_played} dict.
+
+        Dict insertion order reflects chronological order (stat splits are returned in season order),
+        so the first/last keys represent the player's first/most recent team in the period.
+        """
+        if not team_games_played:
+            return None
+        team_selection = stats_period.team_selection if stats_period else TeamSelection.GAMES_PLAYED
+        match team_selection:
+            case TeamSelection.LAST_TEAM:
+                return list(team_games_played.keys())[-1]
+            case TeamSelection.FIRST_TEAM:
+                return list(team_games_played.keys())[0]
+            case _:
+                return max(team_games_played, key=team_games_played.get)
+
+    @staticmethod
     def extract_team_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
         """Extracts the team ID for the player in the given stats period"""
 
@@ -868,7 +886,7 @@ class PlayerStatsNormalizer:
             print("No team games played data available.")
             return None
 
-        return max(team_games_played, key=team_games_played.get)
+        return PlayerStatsNormalizer._select_team_id(team_games_played, stats_period)
 
     @staticmethod
     def _convert_to_bref_team_id(team_id: str) -> str:
@@ -1299,12 +1317,20 @@ class PlayerStatsNormalizer:
         combined_data['year_ID'] = "CAREER" if stats_period.is_full_career else "-".join(str(s.year_id) for s in stats_list)
         combined_data['primary_datasource'] = base_stats.primary_datasource.value  # Serialize enum
 
-        # USE TEAM WITH THE MOST GAMES PLAYED
-        team_games_played: Dict[str, int] = {}
-        for stats in stats_list:
-            if stats.team_id and stats.G:
-                team_games_played[stats.team_id] = team_games_played.get(stats.team_id, 0) + stats.G
-        combined_data['team_ID'] = max(team_games_played, key=team_games_played.get) if team_games_played else None
+        # SELECT TEAM ACROSS YEARS BASED ON team_selection
+        team_selection = stats_period.team_selection
+        if team_selection in (TeamSelection.LAST_TEAM, TeamSelection.FIRST_TEAM):
+            stats_with_team = [s for s in stats_list if s.team_id]
+            year_stats = (max if team_selection == TeamSelection.LAST_TEAM else min)(
+                stats_with_team, key=lambda s: int(s.year_id) if str(s.year_id).isdigit() else 0, default=None
+            )
+            combined_data['team_ID'] = year_stats.team_id if year_stats else None
+        else:
+            team_games_played: Dict[str, int] = {}
+            for stats in stats_list:
+                if stats.team_id and stats.G:
+                    team_games_played[stats.team_id] = team_games_played.get(stats.team_id, 0) + stats.G
+            combined_data['team_ID'] = max(team_games_played, key=team_games_played.get) if team_games_played else None
         
         # Define aggregation strategies - USE ALIASES for fields that have them
         counting_stats = {
