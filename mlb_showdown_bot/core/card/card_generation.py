@@ -677,11 +677,7 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     if random_player:
         return random_player
 
-# Players that should generate two separate cards (one Hitter, one Pitcher).
-# TODO: replace hard-coded IDs with a general two-way player detection strategy.
-_TWO_WAY_PLAYER_IDS: set[int] = {660271}  # Ohtani
-
-def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:bool=False, sets: list[str] = None, inject_bref_ids: bool = False, points_change_cutoff_date: date = None, **kwargs) -> list[dict[str, Any]]:
+def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:bool=False, sets: list[str] = None, inject_bref_ids: bool = False, points_change_cutoff_date: date = None, two_way_ids: list[str] = None, **kwargs) -> list[dict[str, Any]]:
     """Generate multiple cards for a list of player ids and a year. Only works with MLB API datasource.
 
     Args:
@@ -754,9 +750,10 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
     errors: list[tuple[str, str]] = []
     for player_data in player_stats.players:
         # Two-way players (e.g. Ohtani) get one card per type; all others get a single card.
+        is_two_way = two_way_ids and player_data.id in two_way_ids
         player_type_overrides: list[PlayerType | None] = (
             [PlayerType.HITTER, PlayerType.PITCHER]
-            if player_data.id in _TWO_WAY_PLAYER_IDS
+            if is_two_way
             else [None]
         )
         skip_player = False
@@ -811,6 +808,12 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
                         image=ShowdownImage(**card_kwargs),
                         **card_kwargs
                     )
+
+                    # Remove player type override for the hitter side if this is a two-way player
+                    # This will allow proper joining to the player_season_stats table via ID
+                    if is_two_way and card.player_type == PlayerType.HITTER:
+                        card.player_type_override = None
+
                     final_data: dict[str, Any] = {
                         "card": card if keep_as_py_objects else card.as_json(),
                     }
