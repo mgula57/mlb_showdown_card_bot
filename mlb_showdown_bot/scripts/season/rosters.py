@@ -54,7 +54,8 @@ def snapshot_rosters(
         print("Generating cards for rostered players...")
         player_ids = [roster['player_id'] for roster in rosters]
         player_id_chunks = [player_ids[i:i + 10] for i in range(0, len(player_ids), 10)]
-        
+        two_way_ids = [roster['player_id'] for roster in rosters if roster.get('position', 'N/A') == 'TWP']
+
         for idx, chunk in enumerate(player_id_chunks): 
             print(f"Processing chunk {idx + 1}/{len(player_id_chunks)} with player IDs: {chunk}")
             # In a real implementation, you would call the card generation function here
@@ -70,6 +71,7 @@ def snapshot_rosters(
                 keep_as_py_objects=True,
                 inject_bref_ids=True,
                 points_change_cutoff_date=date.today() - timedelta(days=7),
+                two_way_ids=two_way_ids,
                 **card_settings
             )
             sleep(2)  # Add a delay between chunks to avoid overwhelming the API
