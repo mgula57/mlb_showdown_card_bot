@@ -1439,6 +1439,9 @@ class PostgresDB:
                                 where 
                                     snapshot_date = (select max(snapshot_date) from internal.dim_roster_history where season = %s)
                                     and season = %s
+                                    and status in (
+                                        'Active'
+                                    )
 
                             )
                             select 

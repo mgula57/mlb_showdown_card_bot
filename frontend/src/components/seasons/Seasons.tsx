@@ -493,6 +493,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             const [standingsData] = await Promise.all([
                 fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet)
                     .then(data => {
+                        console.log(`Fetched standings for season ${selectedSeason.season_id}:`, data);
                         setStandings(data);
                         return data;
                     })
