@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { FaTrophy } from "react-icons/fa6";
 import { fetchSeasonLeaders, type LeadersGroup, type PlayerLeader } from "../../api/mlbAPI";
-import { buildCardsFromIds, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
+import { fetchCardById, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { fetchCardData, type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
+import { CardSource } from "../../types/cardSource";
+import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
 import { useTheme } from "../shared/SiteSettingsContext";
@@ -80,11 +82,12 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
     const { isDark } = useTheme();
 
     const [leaderGroups, setLeaderGroups] = useState<LeadersGroup[]>([]);
-    const [cardMap, setCardMap] = useState<Record<string, ShowdownBotCardAPIResponse>>({});
+    const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord>>({});
     const [isLoadingLeaders, setIsLoadingLeaders] = useState(false);
     const [isLoadingCards, setIsLoadingCards] = useState(false);
     const [filterGroup, setFilterGroup] = useState<FilterGroup>('hitting');
     const [selectedModalCard, setSelectedModalCard] = useState<ShowdownBotCardAPIResponse | null>(null);
+    const [isLoadingModalCard, setIsLoadingModalCard] = useState(false);
 
     const hasLoadedRef = useRef(false);
     const lastSeasonIdRef = useRef<string | null>(null);
@@ -141,43 +144,48 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
         );
         if (uniqueIds.length === 0) return;
 
-        const cardSettings = {
-            year: season,
-            set: showdownSet,
-            stat_highlights_type: 'ALL',
-        };
-
         setIsLoadingCards(true);
-        buildCardsFromIds(uniqueIds, season, cardSettings, true)
-            .then(res => {
-                if (!res.cards) return;
-                const map: Record<string, ShowdownBotCardAPIResponse> = {};
-                res.cards.forEach(cardRes => {
-                    const id = cardRes.card?.mlb_id;
+        fetchCardData(CardSource.BOT, {
+            mlb_id: uniqueIds,
+            year: season,
+            showdown_set: showdownSet,
+        })
+            .then(records => {
+                const map: Record<string, CardDatabaseRecord> = {};
+                records.forEach(record => {
+                    const id = record.mlb_id;
                     if (!id) return;
-                    if (TWO_WAY_PLAYER_IDS.has(id)) {
-                        const suffix = cardRes.card?.player_type === 'Pitcher' ? 'P' : 'H';
-                        map[`${id}-${suffix}`] = cardRes;
+                    if (TWO_WAY_PLAYER_IDS.has(Number(id))) {
+                        map[`${id}-${record.is_pitcher ? 'P' : 'H'}`] = record;
                     } else {
-                        map[String(id)] = cardRes;
+                        map[String(id)] = record;
                     }
                 });
-                console.log('Built leader cards:', map);
+                console.log('Fetched leader cards from card_bot:', map);
                 setCardMap(map);
             })
-            .catch(err => console.error('Failed to build leader cards:', err))
+            .catch(err => console.error('Failed to fetch leader cards:', err))
             .finally(() => setIsLoadingCards(false));
-    }, [leaderGroups, showdownSet]);
+    }, [leaderGroups, season, showdownSet]);
+
+    // Lazily fetch the full nested card for the detail modal (card_bot rows are flat/summary only)
+    const handleCardClick = (record: CardDatabaseRecord) => {
+        if (isLoadingModalCard) return;
+        setIsLoadingModalCard(true);
+        fetchCardById(record.id, CardSource.BOT)
+            .then(res => setSelectedModalCard(res))
+            .catch(err => console.error('Failed to fetch full card:', err))
+            .finally(() => setIsLoadingModalCard(false));
+    };
 
     // ==========================================================================
     // MARK: - Render Helpers
     // ==========================================================================
 
     const renderLeaderCard = (entry: PlayerLeader | null, categoryDef: CategoryDef | undefined, i: number) => {
-        const cardResponse = entry?.person?.id && categoryDef
+        const card = entry?.person?.id && categoryDef
             ? cardMap[cardKey(String(entry.person.id), categoryDef.group)]
             : undefined;
-        const card = cardResponse?.card ?? undefined;
         const isPlaceholder = !entry;
         const statValue = entry?.value ?? '';
         const rank = entry?.rank;
@@ -185,7 +193,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
         const teamAbbr = entry?.team?.abbreviation ?? '';
         
         return (
-            <div key={entry?.rank ?? i} className="flex flex-col gap-1.5 shrink-0 w-80 lg:w-auto">
+            <div key={`${entry?.value ?? i}-${entry?.person?.id ?? ''}`} className="flex flex-col gap-1.5 shrink-0 w-80 lg:w-auto">
                 {/* Rank / stat row */}
                 <div className="flex items-center px-1.5 space-x-1.5">
                     <span className={`text-xs font-bold tabular-nums ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
@@ -214,7 +222,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                 {!card && isLoadingCards ? (
                     <CardItemSkeleton className="max-w-full min-w-72" />
                 ) : (
-                    <CardItemFromCard
+                    <CardItemFromCardDatabaseRecord
                         card={card}
                         className={[
                             'max-w-full w-full',
@@ -222,7 +230,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                             isPlaceholder ? 'animate-pulse opacity-40' : '',
                             !card && isLoadingCards ? 'animate-pulse opacity-60' : '',
                         ].join(' ')}
-                        onClick={card ? () => setSelectedModalCard(cardResponse!) : undefined}
+                        onClick={card ? () => handleCardClick(card) : undefined}
                     />
                 )}
             </div>
