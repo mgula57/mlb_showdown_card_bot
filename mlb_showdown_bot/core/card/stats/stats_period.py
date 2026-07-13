@@ -452,7 +452,8 @@ class StatsPeriod(BaseModel):
     
     @property
     def show_text_on_card_image(self) -> bool:
-        return self.type not in [StatsPeriodType.REGULAR_SEASON] or not self.is_mlb
+        return (self.type not in [StatsPeriodType.REGULAR_SEASON] or not self.is_mlb) \
+                and not self.disable_display_text_on_card
     
     @property
     def has_game_logs(self) -> bool:

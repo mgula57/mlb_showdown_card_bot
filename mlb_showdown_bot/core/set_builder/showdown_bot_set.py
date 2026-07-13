@@ -186,7 +186,7 @@ class ShowdownBotSet(BaseModel):
         
         return expansion_players
 
-    def _load_expansion_cards_from_db(self, expansion_players: List[Dict]) -> List[ShowdownPlayerCard]:
+    def _load_expansion_cards_from_db(self, expansion_players: List[Dict], source_env: str = 'dev') -> List[ShowdownPlayerCard]:
         """Query database for expansion player cards and apply CSV attributes.
         
         Args:
@@ -198,7 +198,7 @@ class ShowdownBotSet(BaseModel):
         if not expansion_players:
             return []
         
-        db = PostgresDB(is_archive=False)
+        db = PostgresDB(is_archive=(source_env == 'prod'))
         expansion_cards: List[ShowdownPlayerCard] = []
         
         player_ids = [player['player_id'] for player in expansion_players]
@@ -296,7 +296,7 @@ class ShowdownBotSet(BaseModel):
         # 6. Load and add expansion players from CSV (if provided)
         expansion_player_tuples = self._load_expansion_players_from_csv()
         if expansion_player_tuples:
-            expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples)
+            expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples, source_env=source_env)
             self.expansion_cards = expansion_cards
         
         self.final_players = final_players
@@ -334,7 +334,8 @@ class ShowdownBotSet(BaseModel):
         img_name_suffix: str = '',
         show: bool = False,
         skip_images: bool = False,
-        export_data: bool = False
+        export_data: bool = False,
+        source_env: str = 'dev'
     ) -> None:
         """Generate card images for each item in final_players.
 
@@ -345,6 +346,7 @@ class ShowdownBotSet(BaseModel):
             show: Whether to open images after creation.
             skip_images: Whether to skip image generation.
             export_data: Whether to export player data to JSON file in output folder.
+            source_env: Environment to use for database access, e.g., 'dev' or 'prod'.
 
         Returns:
             None
@@ -392,7 +394,7 @@ class ShowdownBotSet(BaseModel):
         """
         filter_values = tuple([value for pair in unique_pairs for value in pair])
 
-        db = PostgresDB(is_archive=False)
+        db = PostgresDB(is_archive=(source_env == 'prod'))
         raw_cards = db.execute_query(query=sql.SQL(query_str), filter_values=filter_values)
 
         card_lookup: Dict[Tuple[str, str], ShowdownPlayerCard] = {}
@@ -420,11 +422,12 @@ class ShowdownBotSet(BaseModel):
             card.image.set_number = str(set_number).zfill(digits)
             card.image.set_name = set_name or player.showdown_set
             card.image.show_year_text = False
-            card.image.stat_highlights_type = StatHighlightsType.NONE
+            card.image.stat_highlights_type = StatHighlightsType.ALL if showdown_set in ['EXPANDED', 'CLASSIC'] else StatHighlightsType.NONE
             card.image.output_folder_path = os.path.join(output_folder_path, "images")
             card.image.is_bordered = True
             card.image.set_year = 2026
             card.stats_period.disable_display_text_on_card = True
+            card.stats_period.team_selection = self.team_selection
             if self.is_all_star_game:
                 card.image.edition = Edition.ALL_STAR_GAME
                 if year_override:

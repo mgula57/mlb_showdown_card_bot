@@ -70,6 +70,7 @@ def set_builder(
                 export_data=export_data,
                 skip_images=not build_images,
                 set_name=set_name,
+                source_env=env
             )
 
     except Exception as e:

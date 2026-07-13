@@ -36,7 +36,7 @@ from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, 
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
-from .stats.stats_period import StatsPeriod, StatsPeriodType
+from .stats.stats_period import StatsPeriod, StatsPeriodType, TeamSelection
 from .stats.real_vs_projected_stat import RealVsProjectedStat
 from .stats.datasource import Datasource
 
@@ -714,12 +714,6 @@ class ShowdownPlayerCard(BaseModel):
             return unidecode.unidecode(self.nicknames[self.image.nickname_index - 1])
         
         return unidecode.unidecode(self.name)
-
-    @property
-    def name_length(self) -> int | float:
-        """Length of the name and icons combined. Count icons only for CLASSIC/EXPANDED."""
-        icons_len = len(self.icons) * 1.5 if self.set.is_showdown_bot else 0
-        return len(self.name_for_visuals) + icons_len
 
     @property
     def last_name(self) -> str:
@@ -3074,14 +3068,14 @@ class ShowdownPlayerCard(BaseModel):
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
 
             # ADJUST IF THERE'S STATS PERIOD TEXT
-            if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card and self.set == Set._2003:
+            if self.stats_period.show_text_on_card_image and self.set == Set._2003:
                 paste_location = (paste_location[0], paste_location[1] - 65)
 
             year_container_img = self._year_container_add_on()
             card_image.paste(year_container_img, self._coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
         # SPLIT/DATE RANGE
-        if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
+        if self.stats_period.show_text_on_card_image:
             split_image = self._stats_period_type_text_img()
             paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career)
             card_image.paste(split_image, self._coordinates_adjusted_for_bordering(paste_coordinates), split_image)
@@ -3285,10 +3279,9 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         def adjusted_paste_coords(coords: tuple[int,int]) -> tuple[int,int]:
-            
-            # ADJUST Y COORDINATES IF CLASSIC/EXPANDED AND LONG NAME
-            name_plus_icons = self.name_length + (len(self.icons) * 1.5)
-            if name_plus_icons > 21 and self.set.is_showdown_bot:
+
+            # MOVE LOGO UP IF CLASSIC/EXPANDED AND NAME TEXT + ICONS WOULD OVERLAP IT
+            if self.set.is_showdown_bot and self._name_and_icons_end_x() >= coords[0]:
                 
                 match self.image.edition:
                     case Edition.ROOKIE_SEASON: adjustment = (0, -70)
@@ -3427,7 +3420,8 @@ class ShowdownPlayerCard(BaseModel):
                 border_color = year_text_border_color
             )
             year_coords = (0,195) if is_cooperstown else (-10, int(120 * logo_size_multiplier))
-            adjustment_for_movement = adjusted_paste_coords((0,0))
+            coords_adjusted = adjusted_paste_coords(logo_paste_coordinates)
+            adjustment_for_movement = (coords_adjusted[0] - logo_paste_coordinates[0], coords_adjusted[1] - logo_paste_coordinates[1])
             year_coords = (year_coords[0], year_coords[1] - adjustment_for_movement[1])
             if is_cooperstown:
                 year_text_blurred = self._text_image(
@@ -3569,6 +3563,8 @@ class ShowdownPlayerCard(BaseModel):
                         edition_extension = '-RED'
                     case 'NL':
                         edition_extension = '-DARK_BLUE'
+                    case _:
+                        edition_extension = f'-{default_template_color}'
             elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
                 edition_extension = f'-{team_color_name}'
             elif self.image.parallel.template_color_04_05:
@@ -3585,7 +3581,7 @@ class ShowdownPlayerCard(BaseModel):
             if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-HIGHLIGHTS{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
-            elif self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
+            elif self.stats_period.show_text_on_card_image:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-PERIOD-HOLDER{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
         elif self.is_2002_asg_tan_template:
@@ -3743,6 +3739,58 @@ class ShowdownPlayerCard(BaseModel):
         """
         return Image.open(self._template_img_path("2000-Set-Box"))
 
+    def _fitted_name_font_and_width(self, name:str, font_path:str, base_size:int, padding:int=0) -> tuple[ImageFont.ImageFont, int]:
+        """Loads the player name font, reducing its size until the name (plus icons for CLASSIC/EXPANDED) fits the name container.
+
+        Args:
+          name: Name text to render.
+          font_path: Path to the font file.
+          base_size: Starting font size.
+          padding: Horizontal padding applied when rendering the name.
+
+        Returns:
+          Tuple
+            - Fitted PIL font object.
+            - Rendered pixel width of the name text with the fitted font.
+        """
+
+        name_font = ImageFont.truetype(font_path, size=base_size)
+        name_font_x, _ = self._font_getsize(name_font, name)
+
+        name_container_x = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME)[0]
+        x_buffer = 1.0 - (self.set.name_text_x_buffer_pct)
+        if self.set.is_04_05 and not self.stats_period.is_multi_year and (self.image.edition == Edition.COOPERSTOWN_COLLECTION or self.image.show_year_text):
+            x_buffer *= 0.85
+        size_reduction = 0
+        increments = 5
+        icon_addition = ( len(self.icons) * 65 ) if self.set.is_showdown_bot else 0
+        while (name_font_x + padding + icon_addition) > (name_container_x * x_buffer) and size_reduction < 75:
+            size_reduction += increments
+            name_font = ImageFont.truetype(font_path, size=base_size - size_reduction)
+            name_font_x, _ = self._font_getsize(name_font, name)
+
+        return name_font, name_font_x
+
+    def _name_and_icons_end_x(self) -> int:
+        """Absolute x coordinate on the card where the rendered name text and icons end.
+
+        Mirrors the CLASSIC/EXPANDED name styling in _player_name_text_image().
+        Used to detect whether the name would overlap the team logo.
+
+        Returns:
+          X coordinate of the right edge of the name text + icons.
+        """
+
+        name = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
+        font_path = self._font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        _, name_width = self._fitted_name_font_and_width(name=name, font_path=font_path, base_size=96, padding=3)
+
+        # ICONS ARE PASTED 15px AFTER THE NAME TEXT AND ARE 75px WIDE
+        icons_width = ( self.set.icon_paste_coordinates(len(self.icons))[0] + 15 + 75 ) if len(self.icons) > 0 else 0
+
+        name_paste_x = self.set.template_component_paste_coordinates(component=TemplateImageComponent.PLAYER_NAME, special_edition=self.image.special_edition)[0]
+        return name_paste_x + name_width + icons_width
+
     def _player_name_text_image(self) -> tuple[Image.Image, str]:
         """Creates Player name to match showdown context.
 
@@ -3822,23 +3870,9 @@ class ShowdownPlayerCard(BaseModel):
                 has_border = False
                 is_y_centered = True
 
-        # LOAD FONT
-        name_font = ImageFont.truetype(name_font_path, size=name_size)
-        name_font_x, _ = self._font_getsize(name_font, name)
-
-        # CALCULATE SIZING
+        # LOAD FONT, REDUCING SIZE UNTIL THE NAME FITS THE CONTAINER
+        name_font, name_font_x = self._fitted_name_font_and_width(name=name, font_path=name_font_path, base_size=name_size, padding=padding)
         name_container_size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME)
-        name_container_x = name_container_size[0]
-        x_buffer = 1.0 - (self.set.name_text_x_buffer_pct)
-        if self.set.is_04_05 and not self.stats_period.is_multi_year and (self.image.edition == Edition.COOPERSTOWN_COLLECTION or self.image.show_year_text):
-            x_buffer *= 0.85
-        size_reduction = 0
-        increments = 5
-        icon_addition = ( len(self.icons) * 65 ) if self.set.is_showdown_bot else 0
-        while (name_font_x + padding + icon_addition) > (name_container_x * x_buffer) and size_reduction < 75:
-            size_reduction += increments
-            name_font = ImageFont.truetype(name_font_path, size=name_size - size_reduction)
-            name_font_x, _ = self._font_getsize(name_font, name)
 
         # CENTER TEXT VERTICALLY
         padding_y = 0
@@ -5058,7 +5092,7 @@ class ShowdownPlayerCard(BaseModel):
         # BACKGROUND IMAGE
         match self.set:
             case Set._2002:
-                x_size = 528 if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 784
+                x_size = 528 if self.stats_period.show_text_on_card_image else 784
                 bg_image = Image.new('RGBA', (x_size, 38), color=colors.BLACK)
                 y_text_offset = 2
             case Set._2003:
@@ -5066,7 +5100,7 @@ class ShowdownPlayerCard(BaseModel):
                 bg_image = Image.new('RGBA', (x_size, 45), color="#E2E2E2")
                 y_text_offset = 0
             case Set._2004 | Set._2005:
-                x_size = 680 if self.stats_period.show_text_on_card_image and not self.stats_period.disable_display_text_on_card else 1000
+                x_size = 680 if self.stats_period.show_text_on_card_image else 1000
                 if not self.image.expansion.has_image:
                     x_size += 100
                 bg_image = Image.new('RGBA', (x_size, 46))
@@ -5683,7 +5717,10 @@ class ShowdownPlayerCard(BaseModel):
             match_score += 1
         elif is_img_multi_year == False:
             year_img = float(year_from_img_name)
-            year_self = float(self.median_year)
+            match self.stats_period.team_selection:
+                case TeamSelection.LAST_TEAM: year_self = float(self.stats_period.last_year)
+                case TeamSelection.FIRST_TEAM: year_self = float(self.stats_period.first_year)
+                case _: year_self = float(self.median_year)
             pct_diff = 1 - (abs(year_img - year_self) / year_self)
             match_score += pct_diff
 
