@@ -5,13 +5,12 @@
 import { useEffect, useState } from "react";
 
 import { type Roster, type RosterSlot, type Team } from "../../api/mlbAPI";
-import { buildCardsFromIds, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { fetchCardById, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { fetchCardData, type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
+import { CardSource } from "../../types/cardSource";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 
-// TODO: replace hard-coded IDs with a general two-way player detection strategy
-const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
-
-import { CardItemFromCard } from "../cards/CardItem";
+import { CardItemFromCardDatabaseRecord } from "../cards/CardItem";
 import TeamRosterPositionTable from "./TeamRosterPositionTable";
 import { Modal } from "../shared/Modal";
 import { CardDetail } from "../cards/CardDetail";
@@ -52,7 +51,7 @@ const getPositionLabel = (slot: RosterSlot): string => {
 };
 
 export default function TeamRoster({ team, sportId, roster, isStarred = false, onToggleStar, season, loadShowdownCards = false }: TeamRosterProps) {
-    const [cardMap, setCardMap] = useState<Record<string, ShowdownBotCardAPIResponse>>({});
+    const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord>>({});
     const [twoWayPitcherSlots, setTwoWayPitcherSlots] = useState<RosterSlot[]>([]);
     const [isLoadingCards, setIsLoadingCards] = useState(false);
     const { userShowdownSet, isDark } = useSiteSettings();
@@ -73,33 +72,24 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
         if (ids.length === 0) return;
 
         setIsLoadingCards(true);
-        const todayDate = new Date();
-        const today = todayDate.toISOString().split("T")[0];
-        const cardSettings = {
-            year: season,
-            set: userShowdownSet,
-            stat_highlights_type: "ALL",
-            in_season_trends_end_date: today,
-        }
-        buildCardsFromIds(ids, season, cardSettings)
-            .then((response) => {
-                const newCardMap: Record<string, ShowdownBotCardAPIResponse> = {};
-                for (const entry of response.cards ?? []) {
-                    if (entry.card?.mlb_id != null) {
-                        const id = entry.card.mlb_id;
-                        if (TWO_WAY_PLAYER_IDS.has(id)) {
-                            const suffix = entry.card.player_type === "Pitcher" ? "-P" : "";
-                            newCardMap[`${id}${suffix}`] = entry;
-                        } else {
-                            newCardMap[String(id)] = entry;
-                        }
-                    }
+        fetchCardData(CardSource.BOT, {
+            mlb_id: ids,
+            year: String(season),
+            showdown_set: userShowdownSet,
+            limit: ids.length * 2, // Two-way players return both a hitter and pitcher record
+        })
+            .then((records) => {
+                const newCardMap: Record<string, CardDatabaseRecord> = {};
+                for (const record of records) {
+                    if (record.mlb_id == null) continue;
+                    const suffix = record.is_two_way && record.is_pitcher ? "-P" : "";
+                    newCardMap[`${record.mlb_id}${suffix}`] = record;
                 }
 
                 // Build extra pitcher slots for two-way players
                 const newTwoWayPitcherSlots: RosterSlot[] = [];
                 for (const slot of roster.roster ?? []) {
-                    if (TWO_WAY_PLAYER_IDS.has(slot.person.id) && newCardMap[`${slot.person.id}-P`]) {
+                    if (newCardMap[`${slot.person.id}-P`]) {
                         newTwoWayPitcherSlots.push({
                             ...slot,
                             is_pitcher_slot: true,
@@ -117,7 +107,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
 
     const rosterSlots = [...(roster?.roster ?? []), ...twoWayPitcherSlots];
 
-    const getResponseForSlot = (slot: RosterSlot): ShowdownBotCardAPIResponse | undefined => {
+    const getRecordForSlot = (slot: RosterSlot): CardDatabaseRecord | undefined => {
         const key = slot.is_pitcher_slot ? `${slot.person.id}-P` : String(slot.person.id);
         return cardMap[key];
     };
@@ -133,28 +123,28 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
 
     // Calculate team points summary
     const teamShowdownPointsTotal = rosterSlots.reduce((total, slot) => {
-        const card = getResponseForSlot(slot)?.card;
-        const playerPoints = card?.stats_period?.type !== "REPLACEMENT" ? card?.points ?? 0 : 0;
-        return total + playerPoints;
+        return total + (getRecordForSlot(slot)?.points ?? 0);
     }, 0);
     const teamPlayersWithShowdownCards = rosterSlots.filter((slot) => {
-        const card = getResponseForSlot(slot)?.card;
-        return (card?.points !== undefined || slot.person.points !== undefined) && card?.stats_period?.type !== "REPLACEMENT";
+        return getRecordForSlot(slot)?.points !== undefined || slot.person.points !== undefined;
     }).length;
     const teamAvgPointsPerPlayer = rosterSlots.length > 0 ? teamShowdownPointsTotal / rosterSlots.length : 0;
     const teamPtsChangeWeek = rosterSlots.reduce((total, slot) => {
-        const change = getResponseForSlot(slot)?.in_season_trends?.pts_change.week ?? 0;
-        return total + change;
+        return total + (getRecordForSlot(slot)?.points_change ?? 0);
     }, 0);
 
-    // Handle selection of players
+    // Handle selection of players — card_bot rows are flat/summary only, so lazily fetch the full nested card for the detail modal
     const handleRowClick = (slot: RosterSlot) => {
-        const response = getResponseForSlot(slot);
-        if (!response) {
+        const record = getRecordForSlot(slot);
+        if (!record) {
             return;
         }
-        setSelectedCard(response);
-        setIsModalOpen(true);
+        fetchCardById(record.id, CardSource.BOT)
+            .then((response) => {
+                setSelectedCard(response);
+                setIsModalOpen(true);
+            })
+            .catch((err) => console.error("Failed to fetch full card:", err));
     }
 
     const handleCloseModal = () => {
@@ -191,15 +181,11 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
             if (b === 'Two-Way Player') return 1;
             return a.localeCompare(b);
         });
-    const maxGamesPlayedInTeam = Math.max(...rosterSlots.map(slot => {
-        const card = getResponseForSlot(slot)?.card;
-        return card?.stats?.G ?? 0;
-    }), 1);
+    const maxGamesPlayedInTeam = Math.max(...rosterSlots.map(slot => getRecordForSlot(slot)?.g ?? 0), 1);
     const topPlayers = [...rosterSlots]
-        .filter((slot) => getResponseForSlot(slot) != null)
-        .filter(slot => (getResponseForSlot(slot)?.card?.stats?.G ?? 0) > (maxGamesPlayedInTeam * 0.12)) // Filter out players who haven't played at least 12% of the team's games
-        .sort((a, b) => (getResponseForSlot(b)?.card?.stats_period?.type === "REPLACEMENT" ? -1 : 0) - (getResponseForSlot(a)?.card?.stats_period?.type === "REPLACEMENT" ? -1 : 0))
-        .sort((a, b) => (getResponseForSlot(b)?.card?.points || 0) - (getResponseForSlot(a)?.card?.points || 0))
+        .filter((slot) => getRecordForSlot(slot) != null)
+        .filter(slot => (getRecordForSlot(slot)?.g ?? 0) > (maxGamesPlayedInTeam * 0.12)) // Filter out players who haven't played at least 12% of the team's games
+        .sort((a, b) => (getRecordForSlot(b)?.points || 0) - (getRecordForSlot(a)?.points || 0))
         .slice(0, topPlayerLimit);
 
     const loadingOverlay = (
@@ -302,10 +288,9 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                     ) : (
                         <div className="p-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-2">
                             {topPlayers.map((slot) => (
-                                    <CardItemFromCard
+                                    <CardItemFromCardDatabaseRecord
                                         key={`${slot.person.id}-${slot.position.type ?? slot.position.code}`}
-                                        card={getResponseForSlot(slot)?.card}
-                                        ptsChange={getResponseForSlot(slot)?.in_season_trends?.pts_change.week}
+                                        card={getRecordForSlot(slot)}
                                         className="w-full"
                                         hideYear={true}
                                         onClick={() => handleRowClick(slot)}
@@ -339,6 +324,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                     <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
                         <CardDetail
                             showdownBotCardData={selectedCard!}
+                            hideTrendGraphs={true}
                             context="home"
                             parent='home'
                         />
