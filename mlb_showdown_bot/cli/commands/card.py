@@ -50,7 +50,7 @@ def card_main(
 
     # CHART
     co_override: Optional[str] = typer.Option(None, "--co_override", "-co", help="Manually select a command/out combination"),
-    variable_spd: bool = typer.Option(False, "--variable_spd", "-vs", help="Optionally toggle variable speed (2000 + 2001 sets only)"),
+    is_variable_speed_00_01: bool = typer.Option(False, "--variable_spd", "-vs", help="Optionally toggle variable speed (2000 + 2001 sets only)"),
     chart_version: int = typer.Option(1, "--chart_version", "-cv", help="Get alternate chart n away from most accurate"),
     show_year_text: bool = typer.Option(False, "--show_year_text", "-yrt", help="Optionally add separate year text to the image. Applies to 2000-2005 only."),
     nickname_index: Optional[int] = typer.Option(None, "--nickname_index", "-nick", help="Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3"),
