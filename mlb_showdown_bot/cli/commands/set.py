@@ -21,6 +21,7 @@ def set_builder(
     team_selection: str = typer.Option("GAMES_PLAYED", "--team_selection", "-tsel", help="For year-override cards, how to choose the card's team. Options: GAMES_PLAYED, LAST_TEAM, FIRST_TEAM."),
     csv_file_path: str = typer.Option(None, "--csv_file", "-csv", help="Path to CSV file with bref_id and year columns (relative to core/set_builder folder)."),
     build_images: bool = typer.Option(False, "--build_images", "-img", help="Optionally build card images for the set after building."),
+    dark_mode: bool = typer.Option(False, "--dark_mode", "-dark", help="Render card images in dark mode."),
     export_data: bool = typer.Option(False, "--export_data", "-data", help="Optionally export card data to JSON after building the set."),
     env: str = typer.Option("dev", "--env", "-e", help="Environment to use, e.g., development, production."),
 ):
@@ -70,6 +71,7 @@ def set_builder(
                 export_data=export_data,
                 skip_images=not build_images,
                 set_name=set_name,
+                dark_mode=dark_mode,
                 source_env=env
             )
 

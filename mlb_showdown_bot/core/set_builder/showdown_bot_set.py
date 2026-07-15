@@ -335,6 +335,7 @@ class ShowdownBotSet(BaseModel):
         show: bool = False,
         skip_images: bool = False,
         export_data: bool = False,
+        dark_mode: bool = False,
         source_env: str = 'dev'
     ) -> None:
         """Generate card images for each item in final_players.
@@ -346,6 +347,7 @@ class ShowdownBotSet(BaseModel):
             show: Whether to open images after creation.
             skip_images: Whether to skip image generation.
             export_data: Whether to export player data to JSON file in output folder.
+            dark_mode: Whether to render card images in dark mode.
             source_env: Environment to use for database access, e.g., 'dev' or 'prod'.
 
         Returns:
@@ -426,6 +428,7 @@ class ShowdownBotSet(BaseModel):
             card.image.output_folder_path = os.path.join(output_folder_path, "images")
             card.image.is_bordered = True
             card.image.set_year = 2026
+            card.image.is_dark_mode = dark_mode
             card.stats_period.disable_display_text_on_card = True
             card.stats_period.team_selection = self.team_selection
             if self.is_all_star_game:
@@ -454,6 +457,7 @@ class ShowdownBotSet(BaseModel):
                 card.image.output_folder_path = os.path.join(output_folder_path, "images")
                 card.image.is_bordered = True
                 card.image.set_year = 2026
+                card.image.is_dark_mode = dark_mode
                 card.image.set_name = f"{card.image.edition.value} Expansion"
                 if not skip_images:
                     card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
