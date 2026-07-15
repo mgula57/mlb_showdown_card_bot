@@ -263,10 +263,7 @@ class ShowdownPlayerCard(BaseModel):
         self.ip: int = self._innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
         hand_raw = self.stats_for_card.get('hand', None) if self.player_type == PlayerType.HITTER else ( self.stats_for_card.get('hand_throw', None) or self.stats_for_card.get('hand', None) )
         self.hand: Hand = self._handedness(hand_raw=hand_raw)
-        sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
-        pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
-        sb_per_650_pa = sb_safe / (pa_safe / 650.0) if pa_safe > 0 else 0
-        self.speed: Speed = self._speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_per_650_pa, is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
+        self.speed: Speed = self.calculate_speed()
         self.accolades: list[str] = self.parse_accolades()
         self.icons: list[Icon] = self._icons(awards=self.stats_for_card.get('award_summary',''))
 
@@ -277,16 +274,7 @@ class ShowdownPlayerCard(BaseModel):
         self.chart: Chart = self._most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
         self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
 
-        # FOR PTS, USE STEROID ERA OPPONENT
-        chart_for_pts = self.chart.model_copy()
-        chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
-        projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
-        projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
-
-        self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
-                                        positions_and_defense=self.positions_and_defense,
-                                        speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
-        self.points: int = self.points_breakdown.total_points
+        self.recalculate_points()
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
@@ -1326,6 +1314,33 @@ class ShowdownPlayerCard(BaseModel):
         
         return ip
 
+    def calculate_speed(self) -> Speed:
+        """Calculate in-game speed from the card's current stats.
+
+        Returns:
+          Speed object with in-game speed and letter.
+        """
+        sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
+        pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
+        sb_per_650_pa = sb_safe / (pa_safe / 650.0) if pa_safe > 0 else 0
+        return self._speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_per_650_pa, is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
+
+    def apply_variable_speed_00_01(self, enabled: bool) -> None:
+        """Toggle variable speed on an already-built card, recomputing speed and points.
+        Only applies to 2000/2001 sets, where speed is otherwise bucketed to 10/15/20.
+
+        Args:
+          enabled: Whether variable speed should be enabled.
+
+        Returns:
+          None
+        """
+        if not self.set.is_00_01 or enabled == self.is_variable_speed_00_01:
+            return
+        self.is_variable_speed_00_01 = enabled
+        self.speed = self.calculate_speed()
+        self.recalculate_points()
+
     def _speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool, games:int = 0) -> Speed:
         """In game speed for a position player. Will use pure sprint speed
            if year is >= 2015, otherwise uses stolen bases. Pitcher defaults to 10.
@@ -2270,6 +2285,24 @@ class ShowdownPlayerCard(BaseModel):
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
 # ------------------------------------------------------------------------
+
+    def recalculate_points(self) -> None:
+        """Calculate and store points breakdown and total from the card's current chart, defense, and speed/IP.
+
+        Returns:
+          None
+        """
+
+        # FOR PTS, USE STEROID ERA OPPONENT
+        chart_for_pts = self.chart.model_copy()
+        chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
+        projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
+        projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
+
+        self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
+                                        positions_and_defense=self.positions_and_defense,
+                                        speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
+        self.points: int = self.points_breakdown.total_points
 
     def calculate_points(self, projected:dict, positions_and_defense:dict[Position, int], speed_or_ip:int) -> Points:
         """Derive player's value. Uses constants to compare against other cards in set.
