@@ -156,7 +156,7 @@ export const sideMenuItems: SideMenuItemType[] = [
         path: "/cards"
     },
     {
-        text: "Live Seasons",
+        text: "MLB Season",
         icon: FaCalendar,      // Calendar icon representing seasons/schedules
         path: "/seasons"
     },

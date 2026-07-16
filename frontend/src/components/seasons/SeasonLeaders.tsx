@@ -225,7 +225,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                     <CardItemFromCardDatabaseRecord
                         card={card}
                         className={[
-                            'max-w-full w-full',
+                            'max-w-96 w-full',
                             card ? 'cursor-pointer' : 'pointer-events-none',
                             isPlaceholder ? 'animate-pulse opacity-40' : '',
                             !card && isLoadingCards ? 'animate-pulse opacity-60' : '',

@@ -61,6 +61,15 @@ const formatDateForApi = (date: Date): string => {
     return `${year}-${month}-${day}`;
 };
 
+/** A season is over once its end date has passed — schedule browsing only applies to ongoing seasons. */
+const isSeasonOver = (season: Season | null): boolean => {
+    if (!season?.season_end_date) {
+        return false;
+    }
+    const endDate = new Date(`${season.season_end_date}T23:59:59`);
+    return !Number.isNaN(endDate.getTime()) && endDate < new Date();
+};
+
 const isSameCalendarDay = (a: Date, b: Date): boolean => {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 };
@@ -313,8 +322,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         return (a.abbreviation || a.name || "").localeCompare(b.abbreviation || b.name || "");
     });
 
+    // Schedule browsing only applies while the selected season is ongoing
+    const isSelectedSeasonOver = isSeasonOver(selectedSeason);
+
     const tabs = [
-        { id: "schedule", label: "Schedule", icon: <FaCalendarDays /> },
+        ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
@@ -534,7 +546,17 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
             const selectedDate = formatDateForApi(gamesDate);
 
-            // 4. Parallel: standings + todaysSchedule + gamesSchedule
+            // 4. Parallel: standings + gamesSchedule (schedule only applies to ongoing seasons)
+            const schedulePromise = isSeasonOver(selectedSeason)
+                ? Promise.resolve(setGamesSchedule(null))
+                : fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
+                    .then(data => {
+                        setGamesSchedule(data);
+                        console.log(`Fetched games schedule for season ${selectedSeason.season_id} on date ${selectedDate}:`, data);
+                        return data;
+                    })
+                    .catch(() => setGamesSchedule(null));
+
             const [standingsData] = await Promise.all([
                 fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet)
                     .then(data => {
@@ -546,13 +568,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
                         return {} as { [leagueAbbreviation: string]: Standings[] };
                     }),
-                fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
-                    .then(data => {
-                        setGamesSchedule(data);
-                        console.log(`Fetched games schedule for season ${selectedSeason.season_id} on date ${selectedDate}:`, data);
-                        return data;
-                    })
-                    .catch(() => setGamesSchedule(null)),
+                schedulePromise,
             ]);
 
             // 5. Populate teams from standings, or fetch separately if standings failed
@@ -621,7 +637,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     };
 
     const loadGamesSchedule = async () => {
-        if (!selectedSeason || leagues.length === 0) {
+        if (!selectedSeason || leagues.length === 0 || isSeasonOver(selectedSeason)) {
             setGamesSchedule(null);
             return;
         }
@@ -793,7 +809,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const sidebarSections: SidebarSection[] = [
         {
             id: "context",
-            title: "Season/League",
+            title: "Season",
             collapsible: false,
             isHidden: hasStaticSeasons && seasonOptions.length <= 1 && hasStaticSports && sportOptions.length <= 1 && leagueGroups.length <= 1,
             content: (

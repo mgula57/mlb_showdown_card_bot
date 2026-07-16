@@ -44,6 +44,20 @@ import Privacy from "./components/Privacy";
 import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
 import TeamBuilder from "./components/team_builder/TeamBuilder";
 
+// MLB seasons selectable on the Seasons page: current season first, then prior years.
+const MLB_SEASONS_EARLIEST_YEAR = 2000;
+const mlbSeasons = [
+    { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
+    ...Array.from({ length: 2025 - MLB_SEASONS_EARLIEST_YEAR + 1 }, (_, index) => {
+        const year = 2025 - index;
+        return {
+            regular_season_start_date: `${year}-03-20`,
+            season_end_date: `${year}-11-15`,
+            season_id: `${year}`,
+        };
+    }),
+];
+
 /**
  * Inner application content component that handles route-based visibility
  * 
@@ -170,12 +184,10 @@ const AppContent = () => {
                 <div className={isActive('/seasons') ? 'block' : 'hidden'}>
                     <Seasons
                         type="mlb"
-                        title="Seasons"
+                        title="MLB Season"
                         subtitle="Browse season standings, teams, and players with Showdown context"
                         staticSports={[{ id: 1, name: 'MLB' }]}
-                        staticSeasons={[
-                            { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
-                        ]}
+                        staticSeasons={mlbSeasons}
                     />
                 </div>
             )}
