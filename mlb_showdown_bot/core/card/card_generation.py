@@ -187,12 +187,12 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 mlb_stats_api = MLBStatsAPI_V2()
                 league = kwargs.get('league', 'MLB')
                 # Strip all extra overrides from the search name (ex: "Shohei Ohtani (Pitching)" -> "Shohei Ohtani") to improve MLB API search results. MLB API is very bad at handling extra characters in the search query.
-                search_name = kwargs.get('name', '')
+                search_name = kwargs.get('name_original', '') if stats_period.is_multi_year else kwargs.get('name', '')
                 if search_name:
                     search_name = search_name.split('(')[0].strip()
                 player_data = mlb_stats_api.build_full_player_from_search(search_name=search_name, stats_period=stats_period, league=league)
                 if player_data is None:
-                    raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')} in the {league}. Check spelling or try using the player's MLB ID from the URL on MLB.com as the name instead. Ex: https://www.mlb.com/player/aaron-judge-592450 would have a player ID of 592450.")
+                    raise Exception(f"Player not found in MLB API with name: {search_name} and year: {kwargs.get('year', '')} in the {league}. Check spelling or try using the player's MLB ID from the URL on MLB.com as the name instead. Ex: https://www.mlb.com/player/aaron-judge-592450 would have a player ID of 592450.")
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 if normalized_player_stats is None or normalized_player_stats.PA is None or normalized_player_stats.PA == 0:
