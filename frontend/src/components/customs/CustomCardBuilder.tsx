@@ -72,6 +72,7 @@ export interface CustomCardFormState {
     end_date?: string | null; // e.g. "2023-10-01"
     split?: string | null; // e.g. "First Half"
     league: string; // e.g. "MLB" or "MILB"
+    team_selection?: string; // e.g. "GAMES_PLAYED". Only applies to multi-year stats periods (CAREER, ranges, combos)
 
     // Set
     expansion: string; // e.g. "BS"
@@ -116,6 +117,7 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     end_date: null, 
     split: null,
     league: 'MLB',
+    team_selection: 'GAMES_PLAYED',
 
     expansion: "BS", 
     set_number: null, 
@@ -139,6 +141,13 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     chart_version: "1", 
     era: "DYNAMIC", 
     is_variable_speed_00_01: false
+};
+
+/** Whether a year string spans multiple seasons (CAREER, ranges like "2000-2004", or combos like "2006+2014") */
+const isMultiYearInput = (year: string): boolean => {
+    const trimmed = year.trim();
+    if (!trimmed) return false;
+    return trimmed.toUpperCase() === 'CAREER' || trimmed.includes('-') || trimmed.includes('+');
 };
 
 /** Small pill badge used to flag newly added options/fields */
@@ -235,11 +244,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>(loadFormSettings());
     const disableBuildButton = (
-        !form.name.trim() 
-        || form.year.trim().length < 4 
+        !form.name.trim()
+        || form.year.trim().length < 4
         || (form.stats_period_type === "SPLIT" && !form.split)
         || isProcessingCard
     )
+    const isMultiYear = isMultiYearInput(form.year);
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
     const getImagePreview = (): string | null => {
@@ -280,6 +290,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const leagueOptions: SelectOption[] = [
         { 'value': 'MLB', 'label': 'MLB' },
         { 'value': 'MILB', 'label': 'MiLB' }
+    ]
+
+    // Team Selection Options (only shown for multi-year stats periods)
+    const teamSelectionOptions: SelectOption[] = [
+        { 'value': 'GAMES_PLAYED', 'label': 'Most Games Played' },
+        { 'value': 'LAST_TEAM', 'label': 'Last Team' },
+        { 'value': 'FIRST_TEAM', 'label': 'First Team' },
     ]
 
     // Edition Options
@@ -437,8 +454,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     const leagueOption = leagueOptions.find(opt => opt.value === form.league);
                     summaries.push(leagueOption || { label: 'League', value: form.league });
                 }
+                if (isMultiYearInput(form.year) && form.team_selection && form.team_selection !== FORM_DEFAULTS.team_selection) {
+                    const teamSelectionOption = teamSelectionOptions.find(opt => opt.value === form.team_selection);
+                    summaries.push({ ...(teamSelectionOption || { value: form.team_selection }), label: 'Team' });
+                }
                 break;
-                
+
             case 'set':
                 if (form.expansion !== FORM_DEFAULTS.expansion) {
                     const expansionOption = expansionOptions.find(opt => opt.value === form.expansion);
@@ -569,7 +590,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             // Prepare payload based on image source
             let finalPayload = { ...card_payload };
-            
+
+            // Team selection only applies to multi-year stats periods; force the default otherwise
+            // so a stale preference from a prior multi-year search can't affect a single-year card.
+            if (!isMultiYearInput(finalPayload.year || '')) {
+                finalPayload.team_selection = FORM_DEFAULTS.team_selection;
+            }
+
             // Handle image source logic
             if (card_payload.image_source === 'UPLOAD' && card_payload.image_upload) {
                 // Keep the file for upload
@@ -1270,6 +1297,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 onChange={(value) => setForm({ ...form, year: value || '' })}
                                                 isClearable={true}
                                             />
+
+                                            {isMultiYear && (
+                                                <FormDropdown
+                                                    label="Team Selection"
+                                                    options={teamSelectionOptions}
+                                                    selectedOption={form.team_selection || 'GAMES_PLAYED'}
+                                                    onChange={(value) => setForm({ ...form, team_selection: value })}
+                                                    className='col-span-full'
+                                                />
+                                            )}
 
                                             <FormDropdown
                                                 label="Period"

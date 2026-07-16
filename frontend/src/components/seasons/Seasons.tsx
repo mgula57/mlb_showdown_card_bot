@@ -27,7 +27,7 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate, FaTrophy
+    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark
 } from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -123,6 +123,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
     const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
+
+    // Team selected from the standings table — shows an inline roster below the standings
+    const [standingsTeam, setStandingsTeam] = useState<Team | null>(null);
+    const [standingsRoster, setStandingsRoster] = useState<Roster | null>(null);
+    const standingsRosterRef = useRef<HTMLDivElement>(null);
 
     const [gamesSchedule, setGamesSchedule] = useState<Schedule | null>(null);
     const [gamesDate, setGamesDate] = useState<Date>(() => {
@@ -493,6 +498,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             const [standingsData] = await Promise.all([
                 fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet)
                     .then(data => {
+                        console.log(`Fetched standings for season ${selectedSeason.season_id}:`, data);
                         setStandings(data);
                         return data;
                     })
@@ -550,9 +556,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     };
 
-    const loadTeamRoster = async (team: Team) => {
+    const loadTeamRoster = async (team: Team): Promise<Roster | null> => {
         if (!selectedSeason || !selectedSport || !team) {
-            return;
+            return null;
         }
 
         beginLoading();
@@ -560,9 +566,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             const rosterType = "active";
             const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, selectedSport.id, team.abbreviation || team.name);
             console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
-            setSelectedRoster(rosterData);
+            return rosterData;
         } catch (error) {
             console.error(`Error fetching roster for team ${team.name} in season ${selectedSeason.season_id}:`, error);
+            return null;
         } finally {
             endLoading();
         }
@@ -673,8 +680,29 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         if (activeTab !== "teams") return;
         if (selectedTeam === null || selectedTeam.id === undefined) return;
-        loadTeamRoster(selectedTeam);
+        loadTeamRoster(selectedTeam).then(setSelectedRoster);
     }, [selectedTeam, userShowdownSet, activeTab]);
+
+    // Load the inline roster shown below the standings table
+    useEffect(() => {
+        if (activeTab !== "standings" || standingsTeam === null) return;
+        setStandingsRoster(null);
+        loadTeamRoster(standingsTeam).then(setStandingsRoster);
+    }, [standingsTeam, userShowdownSet, activeTab]);
+
+    // Scroll the inline roster into view so it's clear the selection did something
+    useEffect(() => {
+        if (standingsTeam === null) return;
+        requestAnimationFrame(() => {
+            standingsRosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    }, [standingsTeam]);
+
+    // Clear the inline standings roster when the season/sport/league context changes
+    useEffect(() => {
+        setStandingsTeam(null);
+        setStandingsRoster(null);
+    }, [selectedSeason, selectedSport, selectedLeagueGroup]);
 
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const isSelectedTeamStarred = selectedTeamKey ? starredTeamKeys.includes(selectedTeamKey) : false;
@@ -689,6 +717,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const gamesHeaderTopText = isGamesDateToday ? "TODAY" : new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(gamesDate).toUpperCase();
     const gamesHeaderBottomText = formatGamesHeaderDate(gamesDate);
 
+    // Show the team's roster inline below the standings table instead of navigating to the Teams tab
     const handleStandingsTeamSelect = (team: Team) => {
         const matchedTeam = teams.find((existingTeam) => {
             const sameId = existingTeam.id === team.id;
@@ -698,8 +727,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             ?? teams.find((existingTeam) => existingTeam.id === team.id)
             ?? team;
 
-        setSelectedTeam(matchedTeam);
-        setActiveTab("teams");
+        setStandingsTeam(matchedTeam);
+    };
+
+    const handleCloseStandingsRoster = () => {
+        setStandingsTeam(null);
+        setStandingsRoster(null);
     };
 
     const toggleStarTeam = (team: Team) => {
@@ -1012,12 +1045,48 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         forceMount
                                     >
                                         <div className="space-y-2 pb-24 lg:pt-6 lg:pr-6">
+                                            <div className="space-y-2 flex justify-between items-center">
+                                                <span className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                    Standings
+                                                </span>
+                                                <p className="px-1 text-xs text-(--text-secondary)">
+                                                    Select a team to view its Showdown roster below.
+                                                </p>
+                                            </div>
                                             <StandingsTab
                                                 standingsEntries={standingsEntries}
                                                 selectedSportId={selectedSport?.id}
+                                                selectedTeamId={standingsTeam?.id ?? null}
                                                 onTeamSelect={handleStandingsTeamSelect}
                                             />
                                             
+                                            {standingsTeam && (
+                                                <div ref={standingsRosterRef} className="pt-4 scroll-mt-4 space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <h2 className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                            {standingsTeam.name || standingsTeam.abbreviation} Roster
+                                                        </h2>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleCloseStandingsRoster}
+                                                            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                                            aria-label="Close team roster"
+                                                        >
+                                                            <FaXmark className="h-3.5 w-3.5" />
+                                                            Close
+                                                        </button>
+                                                    </div>
+                                                    <TeamRoster
+                                                        team={standingsTeam}
+                                                        sportId={selectedSport?.id || null}
+                                                        roster={standingsRoster}
+                                                        isStarred={starredTeamKeys.includes(`${standingsTeam.id}-${standingsTeam.season}`)}
+                                                        season={Number(selectedSeason.season_id)}
+                                                        loadShowdownCards={true}
+                                                        onToggleStar={() => toggleStarTeam(standingsTeam)}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     </Tabs.Content>
 

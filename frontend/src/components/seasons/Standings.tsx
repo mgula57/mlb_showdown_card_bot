@@ -1,142 +1,105 @@
-import { useEffect, useRef, useState } from "react";
 import ReactCountryFlag from "react-country-flag";
 
 import { type Standings, type Team } from '../../api/mlbAPI';
 import { countryCodeForTeam } from "../../functions/flags";
 import { getContrastColor } from "../shared/Color";
-import { useTheme } from "../shared/SiteSettingsContext";
 
 type StandingsProps = {
 	standingsEntries: [string, Standings[]][];
 	selectedSportId?: number;
+	selectedTeamId?: number | null;
 	onTeamSelect?: (team: Team) => void;
 };
 
-export default function Standings({ standingsEntries, selectedSportId, onTeamSelect }: StandingsProps) {
-	const { isDark } = useTheme();
-	const [compactCells, setCompactCells] = useState<Record<string, boolean>>({});
-	const observersRef = useRef<Map<string, ResizeObserver>>(new Map());
+const formatGamesBack = (gamesBack?: string): string => {
+	if (!gamesBack || gamesBack === '-') {
+		return '--';
+	}
+	return gamesBack;
+};
 
-	useEffect(() => {
-		return () => {
-			observersRef.current.forEach((observer) => observer.disconnect());
-			observersRef.current.clear();
-		};
-	}, []);
+export default function Standings({ standingsEntries, selectedSportId, selectedTeamId, onTeamSelect }: StandingsProps) {
 
-	const setCellRef = (cellId: string) => (node: HTMLDivElement | null) => {
-		const existingObserver = observersRef.current.get(cellId);
-		if (existingObserver) {
-			existingObserver.disconnect();
-			observersRef.current.delete(cellId);
-		}
-
-		if (!node) {
-			return;
-		}
-
-		const observer = new ResizeObserver(([entry]) => {
-			const cellWidth = entry.contentRect.width;
-			const isCompact = cellWidth < 380;
-			setCompactCells((prev) => {
-				if (prev[cellId] === isCompact) {
-					return prev;
-				}
-				return { ...prev, [cellId]: isCompact };
-			});
-		});
-
-		observer.observe(node);
-		observersRef.current.set(cellId, observer);
-	};
+	// Flatten leagues into a single list of divisions, each rendered as its own card
+	const divisionStandings = standingsEntries.flatMap(([leagueAbbreviation, leagueStandings]) =>
+		leagueStandings.map((standing) => ({ leagueAbbreviation, standing }))
+	);
 
 	return (
-			<div className="sm:mt-0">
-				<div className={`
-					grid grid-cols-1 ${standingsEntries.length > 1 ? "xl:grid-cols-2" : ""} 
-					gap-5`
-				}>
-					{standingsEntries.map(([leagueAbbreviation, leagueStandings]) => (
-						<div key={leagueAbbreviation} className="bg-(--background-secondary) rounded-xl overflow-hidden border border-(--divider)">
-							<h2 className="text-lg sm:text-xl font-semibold text-(--text-primary) bg-(--background-quaternary) px-4 py-2">
-								{leagueAbbreviation}
-							</h2>
+		<div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 sm:mt-0">
+			{divisionStandings.map(({ leagueAbbreviation, standing }, index) => {
+				const showPoints = standing.team_records?.[0]?.showdown_points !== undefined;
+				const title = standing.division?.name_short || standing.division?.name || leagueAbbreviation;
+				const rowTemplate = showPoints
+					? "grid-cols-[minmax(0,1fr)_4.5rem_3rem_3.5rem]"
+					: "grid-cols-[minmax(0,1fr)_4.5rem_3rem]";
+				return (
+					<div key={`${leagueAbbreviation}-${index}`} className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
+						<h3 className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-(--text-primary)">
+							{title}
+						</h3>
 
-							<div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
-								{leagueStandings.map((leagueStanding, index) => (
-									<div
-										key={index}
-										ref={setCellRef(`${leagueAbbreviation}-${index}`)}
-										className="border-t border-(--divider) last:pb-1"
-									>
-										{leagueStanding.division && (
-											<h3 className="px-4 py-2.5 text-xs sm:text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
-												{leagueStanding?.division?.name_short || leagueStanding?.division?.name}
-											</h3>
-										)}
-										{(() => {
-											const isCompact = compactCells[`${leagueAbbreviation}-${index}`] ?? false;
-											return (
-										<table className="w-full text-left">
-											<thead>
-												<tr className="text-(--text-secondary) text-xs sm:text-sm uppercase">
-													<th className="px-4 py-2.5">Team</th>
-													<th className="px-4 py-2.5">{isCompact ? 'W' : 'Wins'}</th>
-													<th className="px-4 py-2.5">{isCompact ? 'L' : 'Losses'}</th>
-													<th className="px-4 py-2.5">{isCompact ? 'Pct' : 'Win %'}</th>
-													{/* {leagueStanding.team_records?.[0]?.showdown_points !== undefined && (
-														<th className="px-4 py-2.5">{isCompact ? 'Pts' : 'Points'}</th>
-													)} */}
-												</tr>
-											</thead>
-											<tbody>
-												{leagueStanding.team_records?.map((record) => {
-													const isoCountryCode = countryCodeForTeam(selectedSportId || 0, record.team.abbreviation || record.team.name);
-													const darkeningMultiplier = isDark ? '70%' : '95%';
-													return (
-														<tr key={record.team.id} onClick={() => onTeamSelect?.(record.team)} className="border-t border-(--divider) hover:bg-(--divider) cursor-pointer">
-															<td
-																className="px-4 py-2.5 flex"
-																style={{
-																	backgroundColor: `color-mix(in srgb, ${record.team.primary_color || "var(--background-quaternary)"} ${darkeningMultiplier}, black)`,
-																	color: getContrastColor(record.team.primary_color || "var(--background-quaternary)"),
-																}}
-																title="View team roster"
-															>
-																{isoCountryCode && (
-																	<span className="mr-2">
-																		<ReactCountryFlag
-																			countryCode={isoCountryCode}
-																			svg
-																			style={{
-																				width: '1em',
-																				height: '1em',
-																				marginRight: '0.25em',
-																			}}
-																		/>
-																	</span>
-																)}
-																{record.team.abbreviation}
-															</td>
-															<td className="px-4 py-2.5">{record.league_record.wins}</td>
-															<td className="px-4 py-2.5">{record.league_record.losses}</td>
-															<td className="px-4 py-2.5">{record.league_record.percentage || '-'}</td>
-															{/* {record.showdown_points !== undefined && record.showdown_points !== null && (
-																<td className="px-4 py-2.5">{record.showdown_points.toLocaleString()}</td>
-															)} */}
-														</tr>
-													);
-												})}
-											</tbody>
-										</table>
-											);
-										})()}
-									</div>
-								))}
-							</div>
+						{/* Column headers */}
+						<div className={`grid ${rowTemplate} gap-x-2 px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-(--text-secondary)`}>
+							<span>Team</span>
+							<span className="text-center">Record</span>
+							<span className="text-right">GB</span>
+							{showPoints && <span className="text-right">Pts</span>}
 						</div>
-					))}
-				</div>
-			</div>
+
+						{/* Team bars */}
+						<div className="space-y-1.5">
+							{standing.team_records?.map((record) => {
+								const isoCountryCode = countryCodeForTeam(selectedSportId || 0, record.team.abbreviation || record.team.name);
+								const backgroundColor = record.team.primary_color || "var(--background-quaternary)";
+								const isSelected = selectedTeamId != null && record.team.id === selectedTeamId;
+								return (
+									<div
+										key={record.team.id}
+										onClick={() => onTeamSelect?.(record.team)}
+										title="View team roster below"
+										className={`
+											grid ${rowTemplate} gap-x-2 items-center
+											rounded-lg border border-black/70 px-3 py-2
+											cursor-pointer transition-[filter] hover:brightness-60
+											${isSelected ? 'ring-2 ring-(--text-primary)' : ''}
+										`}
+										style={{
+											backgroundColor,
+											color: getContrastColor(backgroundColor),
+										}}
+									>
+										<span className="flex items-center gap-1.5 font-black tracking-wide truncate">
+											{isoCountryCode && (
+												<ReactCountryFlag
+													countryCode={isoCountryCode}
+													svg
+													style={{
+														width: '1.1em',
+														height: '1.1em',
+													}}
+												/>
+											)}
+											{record.team.abbreviation || record.team.name}
+										</span>
+										<span className="text-center font-bold tabular-nums">
+											{record.league_record.wins}-{record.league_record.losses}
+										</span>
+										<span className="text-right font-bold tabular-nums">
+											{formatGamesBack(record.games_back)}
+										</span>
+										{showPoints && (
+											<span className="text-right font-bold tabular-nums">
+												{record.showdown_points != null ? record.showdown_points : '-'}
+											</span>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					</div>
+				);
+			})}
+		</div>
 	);
 }

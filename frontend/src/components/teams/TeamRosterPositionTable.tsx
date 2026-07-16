@@ -3,7 +3,9 @@ import { type RosterSlot } from "../../api/mlbAPI";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import { BasicDataTable } from "../shared/BasicDataTable";
 import { CardDetail } from "../cards/CardDetail";
-import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { fetchCardById, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
+import { CardSource } from "../../types/cardSource";
 import { Modal } from "../shared/Modal";
 import { CardChart } from "../cards/card_elements/CardChart";
 import CardCommand from "../cards/card_elements/CardCommand";
@@ -18,7 +20,7 @@ const getCardMapKey = (slot: RosterSlot): string =>
 type TeamRosterPositionTableProps = {
     position: string;
     slots: RosterSlot[];
-    cardMap: Record<string, ShowdownBotCardAPIResponse>;
+    cardMap: Record<string, CardDatabaseRecord>;
     className?: string;
     tableClassName?: string;
 };
@@ -28,18 +30,23 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // Card_bot rows are flat/summary only, so lazily fetch the full nested card for the detail modal
     const handleRowClick = (slot: RosterSlot) => {
-        const response = cardMap[getCardMapKey(slot)];
-        if (!response) {
+        const record = cardMap[getCardMapKey(slot)];
+        if (!record) {
             return;
         }
-        setSelectedCard(response);
-        setIsModalOpen(true);
+        fetchCardById(record.id, CardSource.BOT)
+            .then((response) => {
+                setSelectedCard(response);
+                setIsModalOpen(true);
+            })
+            .catch((err) => console.error("Failed to fetch full card:", err));
     };
 
     const showdownCardColumns = useMemo((): ColumnDef<RosterSlot, any>[] => {
-        const getCard = (slot: RosterSlot): ShowdownBotCard | undefined =>
-            cardMap[getCardMapKey(slot)]?.card ?? undefined;
+        const getCard = (slot: RosterSlot): CardDatabaseRecord | undefined =>
+            cardMap[getCardMapKey(slot)];
 
         return [
     h.accessor((slot) => getCard(slot)?.name || slot.person.full_name || "-", {
@@ -47,30 +54,28 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
         header: "Name",
         cell: ({ row, getValue }) => {
             const card = getCard(row.original);
-            const response = cardMap[getCardMapKey(row.original)];
-            const ptsChange = response?.in_season_trends?.pts_change.week;
+            const ptsChange = card?.points_change;
             const name = getValue();
-            const year = card?.year || "-";
-            const isWbc = card?.image.edition === 'WBC';
+            const year = card?.card_year || "-";
+            const isWbc = card?.edition === 'WBC';
             const useLeague = isWbc && card.league && !['AL', 'NL', 'MLB'].includes(card.league);
             const team = (useLeague ? card?.league : card?.team) || "-";
-            const secondaryColor = (['NYM', 'SDP'].includes(team) && !isWbc ? card?.image.color_secondary : card?.image.color_primary) || "#000000";
-            const isReplacement = card?.stats_period?.type === "REPLACEMENT";
+            const secondaryColor = (['NYM', 'SDP'].includes(team) && !isWbc ? card?.color_secondary : card?.color_primary) || "#000000";
             return (
                 <div className="flex flex-col gap-0 max-w-28 sm:max-w-40">
                     <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-scroll scrollbar-hide">
                         {name}
                     </div>
                     <div className="flex flex-row italic text-[11px] gap-1 items-center">
-                        {isReplacement ? "-" : `${year} ${team}`}
+                        {`${year} ${team}`}
                         {ptsChange != null && ptsChange !== 0 && (
                             <span className={`not-italic text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                                 {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}
                             </span>
                         )}
-                        {card?.icons && (
+                        {card?.icons_list && (
                             <>
-                                {card.icons.map((icon, index) => (
+                                {card.icons_list.map((icon, index) => (
                                     <div 
                                         key={index} 
                                         className="
@@ -102,7 +107,7 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
         id: "points",
         header: "PTS",
     }),
-    h.accessor((slot) => getCard(slot)?.speed.speed ?? "-", {
+    h.accessor((slot) => getCard(slot)?.speed ?? "-", {
         id: "speed_or_ip",
         header: "SPD/IP",
         meta: {
@@ -110,14 +115,14 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
         },
         cell: ({ row, getValue }) => {
             const card = getCard(row.original);
-            const isPitcher = card?.chart.is_pitcher;
+            const isPitcher = card?.is_pitcher;
 
             if (isPitcher) {
                 const inningsPitched = card?.ip || "-";
                 return `${inningsPitched} IP`;
             } else {
                 const speed = getValue();
-                const speedLetter = card?.speed?.letter || "";
+                const speedLetter = card?.speed_letter || "";
                 const fullSpeed = `${speedLetter}(${speed})`;
                 return fullSpeed;
             }
@@ -126,7 +131,7 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
     
     h.accessor((slot) => {
         return (
-            getCard(slot)?.positions_and_defense_string.replace(" +", "+") ||
+            getCard(slot)?.positions_and_defense_string?.replace(" +", "+") ||
             slot.position.abbreviation ||
             slot.position.code ||
             slot.position.name ||
@@ -138,7 +143,7 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
         header: "Def"
     }),
 
-    h.accessor((slot) => getCard(slot)?.chart?.command, {
+    h.accessor((slot) => getCard(slot)?.command, {
         id: "command",
         header: "Ctrl/OB",
         cell: ({ row }) => {
@@ -148,17 +153,17 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
             }
             return (
                 <CardCommand
-                    isPitcher={card.chart.is_pitcher}
-                    primaryColor={card.image.color_primary}
-                    secondaryColor={card.image.color_secondary}
-                    command={card.chart.command}
+                    isPitcher={card.is_pitcher}
+                    primaryColor={card.color_primary || "#000000"}
+                    secondaryColor={card.color_secondary || "#000000"}
+                    command={card.command}
                     team={card.wbc_team || card.team}
                     className="w-10 h-10"
                 />
             );
         },
     }),
-    h.accessor((slot) => getCard(slot)?.chart?.ranges, {
+    h.accessor((slot) => getCard(slot)?.chart_ranges, {
         id: "chart",
         header: "Chart",
         cell: ({ row }) => {
@@ -168,10 +173,10 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
             }
             return (
                 <CardChart
-                    chartRanges={card.chart.ranges}
-                    showdownSet={card.set}
-                    primaryColor={card.image.color_primary}
-                    secondaryColor={card.image.color_secondary}
+                    chartRanges={card.chart_ranges}
+                    showdownSet={card.showdown_set}
+                    primaryColor={card.color_primary || "#000000"}
+                    secondaryColor={card.color_secondary || "#000000"}
                     team={card.wbc_team || card.team}
                     cellClassName="min-w-8 max-w-11"
                     className="max-w-xl"
@@ -179,7 +184,7 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
             );
         },
     }),
-    h.accessor((slot) => getCard(slot)?.set, {
+    h.accessor((slot) => getCard(slot)?.showdown_set, {
         header: "Set",
         cell: ({ getValue }) => {
             const set = getValue();
@@ -227,6 +232,7 @@ export default function TeamRosterPositionTable({ position, slots, cardMap, clas
                 <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
                     <CardDetail
                         showdownBotCardData={selectedCard!}
+                        hideTrendGraphs={true}
                         context="home"
                         parent='home'
                     />

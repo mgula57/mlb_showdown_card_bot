@@ -144,6 +144,13 @@ class StatsPeriodLeague(str, Enum):
     NPB = "NPB"
     KBO = "KBO"
 
+class TeamSelection(str, Enum):
+    """How to choose which team a card displays when a player's stats span multiple teams (multi-year or trade)."""
+
+    GAMES_PLAYED = "GAMES_PLAYED"
+    LAST_TEAM = "LAST_TEAM"
+    FIRST_TEAM = "FIRST_TEAM"
+
 class StatsPeriod(BaseModel):
 
     # ATTRIBUTES
@@ -167,6 +174,7 @@ class StatsPeriod(BaseModel):
     # OVERRIDES
     team_override: Optional[Team] = None
     player_type_override: Optional[PlayerType] = None
+    team_selection: TeamSelection = TeamSelection.GAMES_PLAYED  # How to choose the card's team when stats span multiple teams
 
     # SOURCE
     source: str = 'Unknown'
@@ -444,7 +452,8 @@ class StatsPeriod(BaseModel):
     
     @property
     def show_text_on_card_image(self) -> bool:
-        return self.type not in [StatsPeriodType.REGULAR_SEASON] or not self.is_mlb
+        return (self.type not in [StatsPeriodType.REGULAR_SEASON] or not self.is_mlb) \
+                and not self.disable_display_text_on_card
     
     @property
     def has_game_logs(self) -> bool:

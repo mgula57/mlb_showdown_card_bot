@@ -109,7 +109,7 @@ class ExploreDataRecord(BaseModel):
     id: str
     year: int
     bref_id: Optional[str] = None
-    mlb_api: Optional[int] = None
+    mlb_id: Optional[int] = None
     name: str
     
     # Player type information
@@ -1439,6 +1439,9 @@ class PostgresDB:
                                 where 
                                     snapshot_date = (select max(snapshot_date) from internal.dim_roster_history where season = %s)
                                     and season = %s
+                                    and status in (
+                                        'Active'
+                                    )
 
                             )
                             select 
@@ -6123,10 +6126,15 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS idx_roster_history_season_snapshot_date
             ON internal.dim_roster_history (season, snapshot_date);
         '''
+        alter_sql = '''
+            ALTER TABLE internal.dim_roster_history
+                ADD COLUMN IF NOT EXISTS status VARCHAR(50);
+        '''
         try:
             cursor.execute(create_table_sql)
             cursor.execute(index_sql)
             cursor.execute(index_sql_2)
+            cursor.execute(alter_sql)
             self.connection.commit()
         except Exception as e:
             import traceback
@@ -6136,8 +6144,8 @@ class PostgresDB:
 
         # UPSERT PLAYERS
         upsert_sql = '''
-            INSERT INTO internal.dim_roster_history (id, player_id, full_name, position, team_id, team, season, snapshot_date, modified_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            INSERT INTO internal.dim_roster_history (id, player_id, full_name, position, team_id, team, season, status, snapshot_date, modified_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
         '''
         try:
             snapshot_timestamp = datetime.now()
@@ -6150,6 +6158,7 @@ class PostgresDB:
                     player['team_id'],
                     player['team'],
                     player['season'],
+                    player.get('status'),
                     snapshot_timestamp
                 )
                 for player in rosters

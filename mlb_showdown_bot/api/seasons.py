@@ -14,6 +14,9 @@ seasons_bp = Blueprint('seasons', __name__)
 SEASONS_CACHE_TTL = timedelta(hours=1)
 _mlb_stats_api = MLBStatsAPI(cache_ttl=int(SEASONS_CACHE_TTL.total_seconds()))
 
+STANDINGS_CACHE_TTL = timedelta(hours=12)
+_standings_cache: dict[str, tuple[list, datetime]] = {}
+
 @seasons_bp.route('/seasons/list', methods=["GET"])
 def fetch_season_list():
     """Fetch list of seasons from the database"""
@@ -81,15 +84,22 @@ def fetch_standings(season_id: str, league_id: str):
         
         # Showdown Set is passed in for PTS context
         showdown_set = request.args.get('showdown_set', None)  # Default to 2000
-        
+
+        cache_key = f"{season_id}:{league_id}:{showdown_set}"
+        cached = _standings_cache.get(cache_key)
+        if cached and datetime.now() - cached[1] < STANDINGS_CACHE_TTL:
+            return jsonify({'standings': cached[0]}), 200
+
         # IF LEAGUE ID IS CL OR GL, USE SPRING_TRAINING STANDINGS TYPE, OTHERWISE USE BY_DIVISION
         standings_type = StandingsType.SPRING_TRAINING if str(league_id) in ['114', '115'] else StandingsType.BY_DIVISION
         standings = _mlb_stats_api.leagues.get_standings(season=season_id, league_id=league_id, standings_type=standings_type)
         if showdown_set:
             with PostgresDB() as db:
                 standings = db.add_points_to_mlb_api_standings(standings, showdown_set=showdown_set)
+                db.close_connection()
 
         standings_data = [standing.model_dump() for standing in standings]
+        _standings_cache[cache_key] = (standings_data, datetime.now())
         return jsonify({'standings': standings_data}), 200
 
     except Exception as e:

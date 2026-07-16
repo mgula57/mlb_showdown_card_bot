@@ -9,24 +9,47 @@ app = typer.Typer()
 @app.command("build")
 def set_builder(
     years: str = typer.Option(None, "--years", "-y", help="Which year(s) to archive."),
+    set_name: str = typer.Option(None, "--set_name", "-n", help="Optional name for the set."),
     showdown_sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-s", help="Showdown Set(s) to use, comma-separated."),
     set_size: int = typer.Option(100, "--set_size", "-ss", help="Number of cards to include in the set."),
+    all_star_game: bool = typer.Option(False, "--all_star_game", "-asg", help="Build the full All-Star Game roster set for the given year(s)."),
     team_breakdown: str = typer.Option(None, "--team_breakdown", "-tb", help="Show team breakdown for a specific team."),
     ideal_low_point_percentage: float = typer.Option(None, "--ideal_low_point_percentage", "-ilpp", help="Ideal percentage of low-point cards in the set."),
     manually_included_ids: str = typer.Option(None, "--manually_included_ids", "-inc", help="Specific player IDs to include in the set, comma-separated."),
     manually_excluded_ids: str = typer.Option(None, "--manually_excluded_ids", "-exc", help="Specific player IDs to exclude from the set, comma-separated."),
+    year_overrides: str = typer.Option(None, "--year_overrides", "-yo", help="Per-player year overrides as 'bref_id:years' pairs, comma-separated. Ex: 'verlaju01:2025-2026'. Cards are generated live instead of pulled from the DB."),
+    team_selection: str = typer.Option("GAMES_PLAYED", "--team_selection", "-tsel", help="For year-override cards, how to choose the card's team. Options: GAMES_PLAYED, LAST_TEAM, FIRST_TEAM."),
     csv_file_path: str = typer.Option(None, "--csv_file", "-csv", help="Path to CSV file with bref_id and year columns (relative to core/set_builder folder)."),
     build_images: bool = typer.Option(False, "--build_images", "-img", help="Optionally build card images for the set after building."),
-    export_data: bool = typer.Option(False, "--export_data", "-data", help="Optionally export card data to JSON after building the set.")
+    dark_mode: bool = typer.Option(False, "--dark_mode", "-dark", help="Render card images in dark mode."),
+    variable_spd: bool = typer.Option(False, "--variable_spd", "-vs", help="Enable variable speed for 2000/2001 set cards."),
+    export_data: bool = typer.Option(False, "--export_data", "-data", help="Optionally export card data to JSON after building the set."),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to use, e.g., development, production."),
 ):
     """Archive player stats to Postgres"""
 
-    start_time = time.time()
-    
-    try:
-        # Parse showdown sets
-        showdown_set_list = [s.strip() for s in showdown_sets.split(',') if s.strip()]
+    # Parse showdown sets
+    showdown_set_list = [s.strip() for s in showdown_sets.split(',') if s.strip()]
 
+    if all_star_game and len(showdown_set_list) > 1:
+        raise typer.BadParameter("All-Star Game mode requires a single --showdown_sets value, e.g. -s EXPANDED")
+
+    # Parse year overrides ("bref_id:years" pairs)
+    year_overrides_dict = None
+    if year_overrides:
+        year_overrides_dict = {}
+        for pair in year_overrides.split(','):
+            pair = pair.strip()
+            if not pair:
+                continue
+            if ':' not in pair:
+                raise typer.BadParameter(f"Invalid --year_overrides entry '{pair}'. Expected 'bref_id:years', e.g. 'verlaju01:2025-2026'")
+            player_id, override_years = pair.split(':', 1)
+            year_overrides_dict[player_id.strip()] = override_years.strip()
+
+    start_time = time.time()
+
+    try:
         # Parse years
         year_list = [int(y.strip()) for y in years.split(',')] if years else []
 
@@ -35,16 +58,23 @@ def set_builder(
             years=year_list,
             showdown_sets=showdown_set_list,
             set_size=set_size,
+            is_all_star_game=all_star_game,
             ideal_low_point_percentage=ideal_low_point_percentage,
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
             manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None,
+            year_overrides=year_overrides_dict,
+            team_selection=team_selection,
             csv_file_path=csv_file_path
         )
-        showdown_bot_set.build_set_player_list(show_team_breakdown=team_breakdown)
+        showdown_bot_set.build_set_player_list(show_team_breakdown=team_breakdown, source_env=env)
         if build_images or export_data:
             showdown_bot_set.generate_showdown_cards_for_final_players(
                 export_data=export_data,
-                skip_images=not build_images
+                skip_images=not build_images,
+                set_name=set_name,
+                dark_mode=dark_mode,
+                variable_speed=variable_spd,
+                source_env=env
             )
 
     except Exception as e:
