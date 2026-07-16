@@ -35,6 +35,7 @@ class TeamRecords(BaseModel):
     season: Optional[int] = None
 
     league_record: Optional[Record] = Field(None, alias='leagueRecord')
+    games_back: Optional[str] = Field(None, alias='gamesBack')
 
     showdown_points: Optional[int] = None
 

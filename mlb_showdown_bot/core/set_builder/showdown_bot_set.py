@@ -16,7 +16,9 @@ from prettytable import PrettyTable
 # SHOWDOWN BOT
 from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRecord, ImageMatchType
 from ..shared.player_position import Position
-from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel
+from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel, StatHighlightsType, SpecialEdition
+from ..card.card_generation import generate_card
+from ..card.stats.stats_period import TeamSelection
 
 # ANSI color codes
 class Colors:
@@ -88,6 +90,9 @@ class ShowdownBotSet(BaseModel):
     include_all_stars: bool = Field(True, description="Include All-Star players")
     include_award_winners: bool = Field(True, description="Include Award-winning players")
 
+    # All-Star Game mode
+    is_all_star_game: bool = Field(False, description="Build the set as the full All-Star roster (ignores set_size, allocations, and quality selection)")
+
     # Construction results
     final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
     
@@ -107,6 +112,14 @@ class ShowdownBotSet(BaseModel):
     manually_excluded_ids: Optional[List[str]] = Field(
         None,
         description="Specific player IDs to always exclude from the set"
+    )
+    year_overrides: Optional[Dict[str, str]] = Field(
+        None,
+        description="Per-player year overrides keyed by bref_id (w/ type override). Cards for these players are generated live instead of pulled from dim_card. Ex: {'verlaju01': '2025-2026'}"
+    )
+    team_selection: TeamSelection = Field(
+        TeamSelection.GAMES_PLAYED,
+        description="For year-override cards, how to choose the card's team (GAMES_PLAYED, LAST_TEAM, FIRST_TEAM)"
     )
     csv_file_path: Optional[str] = Field(
         None,
@@ -173,7 +186,7 @@ class ShowdownBotSet(BaseModel):
         
         return expansion_players
 
-    def _load_expansion_cards_from_db(self, expansion_players: List[Dict]) -> List[ShowdownPlayerCard]:
+    def _load_expansion_cards_from_db(self, expansion_players: List[Dict], source_env: str = 'dev') -> List[ShowdownPlayerCard]:
         """Query database for expansion player cards and apply CSV attributes.
         
         Args:
@@ -185,7 +198,7 @@ class ShowdownBotSet(BaseModel):
         if not expansion_players:
             return []
         
-        db = PostgresDB(is_archive=False)
+        db = PostgresDB(is_archive=(source_env == 'prod'))
         expansion_cards: List[ShowdownPlayerCard] = []
         
         player_ids = [player['player_id'] for player in expansion_players]
@@ -242,43 +255,77 @@ class ShowdownBotSet(BaseModel):
 
         return expansion_cards
 
-    def build_set_player_list(self, show_team_breakdown: Optional[str] = None) -> None:
+    def build_set_player_list(self, show_team_breakdown: Optional[str] = None, source_env: str = "dev") -> None:
         """Build a complete set (base + expansions) based on configuration"""
         
         print(f"Building {self.set_size} card base set for {', '.join(map(str, self.years))}...")
         
         # 1. Get player pool
-        player_pool = self._get_qualified_player_pool()
+        player_pool = self._get_qualified_player_pool(source_env=source_env)
         print(f"Found {len(player_pool)} qualified players")
-        
-        if len(player_pool) < self.set_size:
-            print(f"Warning: Only {len(player_pool)} qualified players available for {self.set_size} card set")
-        
-        # 2. Calculate quality thresholds
-        self._calculate_quality_thresholds(player_pool)
-        
-        # # 3. Get team allocations
-        team_allocations = self._calculate_team_allocations(player_pool)
-        
-        # 4. Select players by team and type
-        selected_players = self._select_players(player_pool, team_allocations)
 
-        # 5. Redistribute unused slots
-        final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
-        
-        self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
+        if self.is_all_star_game:
+            # All-Star Game mode: the entire roster makes the set, no allocations or quality selection
+            if len(player_pool) == 0:
+                print(f"No All-Star players found for {', '.join(map(str, self.years))}")
+                return
+
+            final_players = [ShowdownBotSetPlayer(**p.model_dump()) for p in player_pool]
+            self.set_size = len(final_players)
+            self._print_set_summary(final_players, {}, show_team_breakdown, player_pool)
+        else:
+            if len(player_pool) < self.set_size:
+                print(f"Warning: Only {len(player_pool)} qualified players available for {self.set_size} card set")
+
+            # 2. Calculate quality thresholds
+            self._calculate_quality_thresholds(player_pool)
+
+            # # 3. Get team allocations
+            team_allocations = self._calculate_team_allocations(player_pool)
+
+            # 4. Select players by team and type
+            selected_players = self._select_players(player_pool, team_allocations)
+
+            # 5. Redistribute unused slots
+            final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
+
+            self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
 
         final_players = self._sort_and_number_players(final_players)
         
         # 6. Load and add expansion players from CSV (if provided)
         expansion_player_tuples = self._load_expansion_players_from_csv()
         if expansion_player_tuples:
-            expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples)
+            expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples, source_env=source_env)
             self.expansion_cards = expansion_cards
         
         self.final_players = final_players
         
         return
+
+    def _generate_card_with_year_override(self, player: ShowdownBotSetPlayer, year_override: str) -> Optional[ShowdownPlayerCard]:
+        """Generate a card live for a player whose stats should come from a different year combo (ex: '2025-2026').
+
+        Multi-year cards don't exist in dim_card, so these are built through the full card
+        generation pipeline. Returns None on failure so the caller can fall back to the
+        single-year dim_card card.
+        """
+        print(f"Generating {player.name} live with year override '{year_override}'...")
+        payload = generate_card(
+            name=player.name,
+            player_id=str(player.mlb_id),
+            year=year_override,
+            set=player.showdown_set,
+            player_type_override=player.player_type_override,
+            team_selection=self.team_selection,
+            datasource = 'MLB_API'
+        )
+        error = payload.get('error')
+        card_data = payload.get('card')
+        if error or not card_data:
+            print(f"Warning: year override failed for {player.name} ({error}). Falling back to {player.year} card.")
+            return None
+        return ShowdownPlayerCard(**card_data)
 
     def generate_showdown_cards_for_final_players(
         self,
@@ -287,7 +334,10 @@ class ShowdownBotSet(BaseModel):
         img_name_suffix: str = '',
         show: bool = False,
         skip_images: bool = False,
-        export_data: bool = False
+        export_data: bool = False,
+        dark_mode: bool = False,
+        variable_speed: bool = False,
+        source_env: str = 'dev'
     ) -> None:
         """Generate card images for each item in final_players.
 
@@ -298,6 +348,9 @@ class ShowdownBotSet(BaseModel):
             show: Whether to open images after creation.
             skip_images: Whether to skip image generation.
             export_data: Whether to export player data to JSON file in output folder.
+            dark_mode: Whether to render card images in dark mode.
+            variable_speed: Whether to enable variable speed for 2000/2001 set cards. Recalculates speed and points.
+            source_env: Environment to use for database access, e.g., 'dev' or 'prod'.
 
         Returns:
             None
@@ -309,11 +362,13 @@ class ShowdownBotSet(BaseModel):
         if not output_folder_path:
             # Set a default output path based on set name or timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            default_set_name = set_name or f"showdown_set_{timestamp}"
+            default_set_name = f"{set_name or 'showdown_set'}_{timestamp}"
             this_folder = os.path.dirname(os.path.abspath(__file__))
             output_folder_path = os.path.join(this_folder, "output", default_set_name)
 
         os.makedirs(output_folder_path, exist_ok=True)
+        if not skip_images:
+            os.makedirs(os.path.join(output_folder_path, "images"), exist_ok=True)
 
         player_pairs: List[Tuple[str, str]] = []
         for player in self.final_players:
@@ -343,7 +398,7 @@ class ShowdownBotSet(BaseModel):
         """
         filter_values = tuple([value for pair in unique_pairs for value in pair])
 
-        db = PostgresDB(is_archive=False)
+        db = PostgresDB(is_archive=(source_env == 'prod'))
         raw_cards = db.execute_query(query=sql.SQL(query_str), filter_values=filter_values)
 
         card_lookup: Dict[Tuple[str, str], ShowdownPlayerCard] = {}
@@ -356,20 +411,37 @@ class ShowdownBotSet(BaseModel):
 
         all_cards: list[ShowdownPlayerCard] = []
         total_cards = len(self.final_players)
-        digits = max(1, len(str(total_cards)))
+        digits = max(3 if self.is_all_star_game else 1, len(str(total_cards)))
 
         for player in self.final_players:
             player_id = player.id
             showdown_set = player.showdown_set
-            card = card_lookup.get((player_id, showdown_set))
+            year_override = (self.year_overrides or {}).get(player.bref_id_w_type_override)
+            card = self._generate_card_with_year_override(player, year_override) if year_override else None
+            if not card:
+                card = card_lookup.get((player_id, showdown_set))
             if not card:
                 continue
             set_number = player.set_number or 0
             card.image.set_number = str(set_number).zfill(digits)
             card.image.set_name = set_name or player.showdown_set
+            card.image.show_year_text = False
+            card.image.stat_highlights_type = StatHighlightsType.ALL if showdown_set in ['EXPANDED', 'CLASSIC'] else StatHighlightsType.NONE
             card.image.output_folder_path = os.path.join(output_folder_path, "images")
             card.image.is_bordered = True
             card.image.set_year = 2026
+            card.image.is_dark_mode = dark_mode
+            card.apply_variable_speed_00_01(variable_speed)
+            card.stats_period.disable_display_text_on_card = True
+            card.stats_period.team_selection = self.team_selection
+            if self.is_all_star_game:
+                card.image.edition = Edition.ALL_STAR_GAME
+                if year_override:
+                    # Multi-year year strings don't match the exact-year checks in update_special_edition
+                    try:
+                        card.image.special_edition = SpecialEdition[f"ASG_{max(self.years)}"]
+                    except KeyError:
+                        pass
             if not skip_images:
                 card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
             
@@ -388,6 +460,8 @@ class ShowdownBotSet(BaseModel):
                 card.image.output_folder_path = os.path.join(output_folder_path, "images")
                 card.image.is_bordered = True
                 card.image.set_year = 2026
+                card.image.is_dark_mode = dark_mode
+                card.apply_variable_speed_00_01(variable_speed)
                 card.image.set_name = f"{card.image.edition.value} Expansion"
                 if not skip_images:
                     card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
@@ -410,18 +484,23 @@ class ShowdownBotSet(BaseModel):
 
         return
     
-    def _get_qualified_player_pool(self) -> List[ExploreDataRecord]:
+    def _get_qualified_player_pool(self, source_env: str = "dev") -> List[ExploreDataRecord]:
         """Get all qualified players for the season"""
 
-        db = PostgresDB(is_archive=False)
-        
+        db = PostgresDB(is_archive=(source_env == "prod"))
+
         # Get all players from the season
-        all_players = db.fetch_cards_bot(
-            {'year': [str(y) for y in self.years], 'showdown_set': self.showdown_sets, 'limit': 2000},
-        )
+        filters = {'year': [str(y) for y in self.years], 'showdown_set': self.showdown_sets, 'limit': 2000}
+        if self.is_all_star_game:
+            filters['awards'] = ['AS']
+        all_players = db.fetch_cards_bot(filters)
 
         print(f"Total players found in DB for years {self.years}: {len(all_players)}")
-        
+
+        # All-Star Game mode includes the entire roster, regardless of games/IP thresholds
+        if self.is_all_star_game:
+            return [p for p in all_players if p.bref_id_w_type_override not in (self.manually_excluded_ids or [])]
+
         qualified_players = []
         
         for player in all_players:
@@ -916,19 +995,38 @@ class ShowdownBotSet(BaseModel):
             if not full_name:
                 return ""
             parts = full_name.strip().replace(',', '').split()
+            # Skip generational suffixes so "Bobby Witt Jr." sorts under "Witt"
+            suffixes = {'jr', 'sr', 'ii', 'iii', 'iv', 'v'}
+            while len(parts) > 1 and parts[-1].lower().rstrip('.') in suffixes:
+                parts.pop()
             if len(parts) == 0:
                 return ""
             return parts[-1].lower()
 
-        sorted_players = sorted(
-            players,
-            key=lambda p: (
-                (p.team_id or "").lower(),
-                (p.bref_id_w_type_override or "").lower(),
-                last_name_key(p.name),
-                (p.name or "").lower()
+        if self.is_all_star_game:
+            # AL players first, then NL, each sorted by last name
+            league_order = {'AL': 0, 'NL': 1}
+            for player in players:
+                if (player.lg_id or '').upper() not in league_order:
+                    print(f"Warning: {player.name} has league '{player.lg_id}', sorting after AL/NL")
+            sorted_players = sorted(
+                players,
+                key=lambda p: (
+                    league_order.get((p.lg_id or '').upper(), 2),
+                    last_name_key(p.name),
+                    (p.name or "").lower()
+                )
             )
-        )
+        else:
+            sorted_players = sorted(
+                players,
+                key=lambda p: (
+                    (p.team_id or "").lower(),
+                    (p.bref_id_w_type_override or "").lower(),
+                    last_name_key(p.name),
+                    (p.name or "").lower()
+                )
+            )
 
         for index, player in enumerate(sorted_players, start=1):
             player.set_number = index

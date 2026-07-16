@@ -4,8 +4,9 @@ import { FaStar } from "react-icons/fa6";
 import { countryCodeForTeam } from "../../functions/flags";
 import { getReadableTextColor } from "../../functions/colors";
 import { type GameScheduled, type GameBoxscoreDetail } from "../../api/mlbAPI";
-import { type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "../../api/showdownBotCard";
-import { CardItemCompact, CardItemCompactFromCard } from "../cards/CardItemCompact";
+import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
+import { type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
+import { CardItemCompact, CardItemCompactFromCardDatabaseRecord } from "../cards/CardItemCompact";
 
 type GameItemProps = {
     game: GameScheduled | GameBoxscoreDetail;
@@ -13,7 +14,7 @@ type GameItemProps = {
     isStarred?: boolean;
     showMatchupDetails?: boolean;
     playerIdForLinescoreHighlight?: number;
-    cardMap?: Record<string | number, ShowdownBotCardAPIResponse>;
+    cardMap?: Record<string | number, CardDatabaseRecord>;
     isLoadingCards?: boolean;
     onSelect?: (gamePk: number) => void;
 };
@@ -173,13 +174,13 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const winnerId = game.decisions?.winner?.id;
     const loserId = game.decisions?.loser?.id;
 
-    // Card responses from map — two-way players use a role suffix to pick the correct card.
-    const awayProbableCardResponse = awayProbableId ? cardMap?.[cardKey(awayProbableId, 'P')] : undefined;
-    const homeProbableCardResponse = homeProbableId ? cardMap?.[cardKey(homeProbableId, 'P')] : undefined;
-    const liveAtBatCardResponse = liveBatterId ? cardMap?.[cardKey(liveBatterId, 'H')] : undefined;
-    const livePitchingCardResponse = livePitcherId ? cardMap?.[cardKey(livePitcherId, 'P')] : undefined;
-    const winningPitcherCardResponse = winnerId ? cardMap?.[cardKey(winnerId, 'P')] : undefined;
-    const losingPitcherCardResponse = loserId ? cardMap?.[cardKey(loserId, 'P')] : undefined;
+    // Card records from map — two-way players use a role suffix to pick the correct card.
+    const awayProbableCardRecord = awayProbableId ? cardMap?.[cardKey(awayProbableId, 'P')] : undefined;
+    const homeProbableCardRecord = homeProbableId ? cardMap?.[cardKey(homeProbableId, 'P')] : undefined;
+    const liveAtBatCardRecord = liveBatterId ? cardMap?.[cardKey(liveBatterId, 'H')] : undefined;
+    const livePitchingCardRecord = livePitcherId ? cardMap?.[cardKey(livePitcherId, 'P')] : undefined;
+    const winningPitcherCardRecord = winnerId ? cardMap?.[cardKey(winnerId, 'P')] : undefined;
+    const losingPitcherCardRecord = loserId ? cardMap?.[cardKey(loserId, 'P')] : undefined;
 
     const inningHalf = (game.linescore?.inning_half || game.linescore?.inning_state || '').toUpperCase();
     const inningNumber = game.linescore?.current_inning_ordinal || game.linescore?.current_inning || '';
@@ -242,6 +243,9 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
         team: team || 'N/A',
         positions_and_defense_string: detail,
         ip: null,
+        outs: 0,
+        speed: null,
+        source: 'BOT',
     });
 
     const liveAtBatCardFallback = createPlaceholderCard(
@@ -383,12 +387,12 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2 items-center">
-                        {awayProbableCardResponse?.card
-                            ? <CardItemCompactFromCard card={awayProbableCardResponse.card} size="sm" />
+                        {awayProbableCardRecord
+                            ? <CardItemCompactFromCardDatabaseRecord card={awayProbableCardRecord} size="sm" />
                             : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} size="sm" />}
                         <span className="text-[12px]">vs</span>
-                        {homeProbableCardResponse?.card
-                            ? <CardItemCompactFromCard card={homeProbableCardResponse.card} size="sm" />
+                        {homeProbableCardRecord
+                            ? <CardItemCompactFromCardDatabaseRecord card={homeProbableCardRecord} size="sm" />
                             : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} size="sm" />}
                     </div>
                 </>
@@ -406,11 +410,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">
-                        {liveAtBatCardResponse?.card
-                            ? <CardItemCompactFromCard card={liveAtBatCardResponse.card} size="sm" />
+                        {liveAtBatCardRecord
+                            ? <CardItemCompactFromCardDatabaseRecord card={liveAtBatCardRecord} size="sm" />
                             : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} size="sm" />}
-                        {livePitchingCardResponse?.card
-                            ? <CardItemCompactFromCard card={livePitchingCardResponse.card} size="sm" />
+                        {livePitchingCardRecord
+                            ? <CardItemCompactFromCardDatabaseRecord card={livePitchingCardRecord} size="sm" />
                             : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} size="sm" />}
                     </div>
                 </>
@@ -428,11 +432,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                         </div>
                     </div>
                     <div className="pt-1 flex gap-2">
-                        {winningPitcherCardResponse?.card
-                            ? <CardItemCompactFromCard card={winningPitcherCardResponse.card} size="sm" />
+                        {winningPitcherCardRecord
+                            ? <CardItemCompactFromCardDatabaseRecord card={winningPitcherCardRecord} size="sm" />
                             : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} size="sm" />}
-                        {losingPitcherCardResponse?.card
-                            ? <CardItemCompactFromCard card={losingPitcherCardResponse.card} size="sm" />
+                        {losingPitcherCardRecord
+                            ? <CardItemCompactFromCardDatabaseRecord card={losingPitcherCardRecord} size="sm" />
                             : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} size="sm" />}
                     </div>
                 </>

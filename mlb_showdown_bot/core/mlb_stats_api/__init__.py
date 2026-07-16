@@ -257,6 +257,7 @@ class MLBStatsAPI:
                             'team_id': team.id,
                             'team': team.abbreviation,
                             'season': season,
+                            'status': player.status.description if player.status else None
                         }
                         all_players.append(player_info)
                         players_added_for_team += 1
