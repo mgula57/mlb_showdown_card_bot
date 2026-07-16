@@ -7,7 +7,8 @@ from pydantic import BaseModel, field_validator
 
 class CardSource(str, Enum):
     BOT    = "BOT"     # card_bot archive (official Showdown Bot cards)
-    WOTC   = "WOTC"    # card_wotc table (WOTC + WBC cards)
+    WOTC   = "WOTC"    # card_wotc table (WOTC cards)
+    WBC    = "WBC"     # card_wbc table (World Baseball Classic cards)
     CUSTOM = "CUSTOM"  # internal.log_custom_card (user's own generated cards)
 
 
@@ -21,6 +22,7 @@ class TeamSource(str, Enum):
     USER     = "user"
     OFFICIAL = "official"
     ASG      = "asg"
+    MLB      = "mlb"  # synthesized on-the-fly from a real MLB/WBC roster + card archive, never persisted
 
 
 class TeamRosterSlot(BaseModel):

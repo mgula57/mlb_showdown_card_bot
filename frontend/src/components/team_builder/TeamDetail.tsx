@@ -15,9 +15,9 @@ import { DepthChartPanel } from './DepthChartPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
-import { 
-    FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, 
-    FaShuffle, FaPenToSquare
+import {
+    FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar
 } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -33,10 +33,14 @@ type PendingSlot =
 type TeamDetailProps = {
     team: Team;
     onSave: (updates: TeamUpdatePayload) => Promise<void>;
-    onBack: () => void;
+    onBack?: () => void;
     onReload?: () => void;
     token?: string;
     readOnly?: boolean;
+    /** When true, don't cap the root to the viewport height — let the page scroll instead of an inner region. Used when embedding a read-only team view inside another screen. */
+    embedded?: boolean;
+    isStarred?: boolean;
+    onToggleStar?: () => void;
 };
 
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
@@ -113,7 +117,7 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
 
     const rosterSlots = useMemo(
@@ -285,8 +289,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     const isDrafting = isTeamDrafting(draft);
-    const teamMode: 'drafting' | 'editing' | 'complete' = isDrafting ? 'drafting' : editMode ? 'editing' : 'complete';
+    const teamMode: 'drafting' | 'editing' | 'complete' = readOnly ? 'complete' : isDrafting ? 'drafting' : editMode ? 'editing' : 'complete';
     const showEditControls = !readOnly && teamMode !== 'complete';
+    // Real MLB/WBC rosters are synthesized read-only from the card archive — there's no draft history or editable settings to show
+    const isMlbTeam = team.source === 'mlb';
 
     const settingsDraft = useMemo(
         () => pendingSettings ? { ...draft, ...pendingSettings } as Team : draft,
@@ -505,13 +511,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));
 
     return (
-        <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden">
+        <div className={`flex flex-col ${embedded ? '' : 'h-[calc(100dvh-2.5rem)] overflow-hidden'}`}>
             <div
                 className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider) shrink-0"
             >
-                <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
-                    <FaArrowLeft />
-                </button>
+                {onBack && (
+                    <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
+                        <FaArrowLeft />
+                    </button>
+                )}
 
                 {/* Team Header */}
                 <div className="flex-1 min-w-0 space-y-1">
@@ -557,6 +565,21 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         
                     </div>
                 </div>
+                {onToggleStar && (
+                    <button
+                        type="button"
+                        onClick={onToggleStar}
+                        className="flex items-center gap-1 rounded-md px-1.5 py-1 mt-0.5 text-[11px] font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer shrink-0"
+                        aria-label={isStarred ? `Unstar ${draft.name}` : `Star ${draft.name}`}
+                    >
+                        {isStarred ? (
+                            <FaStar className="h-3.5 w-3.5 text-yellow-300" />
+                        ) : (
+                            <FaRegStar className="h-3.5 w-3.5" />
+                        )}
+                        {isStarred ? "Starred" : "Star"}
+                    </button>
+                )}
                 {!readOnly && (
                     <div className="flex items-center h-full gap-2 text-[11px] font-semibold shrink-0 mt-0.5">
                         {saveStatus === 'saving' && (
@@ -650,7 +673,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {/* Team Roster Content */}
-            <div className="flex flex-1 min-h-0 overflow-hidden">
+            <div className={`flex flex-1 ${embedded ? '' : 'min-h-0 overflow-hidden'}`}>
                 {isLg && teamMode === 'complete' ? (
                     /* Filled + large screen: FieldView fixed on left, Depth/Draft/Settings tabs on right */
                     <>
@@ -659,22 +682,28 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                         <Tabs.Root
                             defaultValue="depth"
-                            className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden"
+                            className={`flex flex-col flex-1 min-w-0 ${embedded ? '' : 'min-h-0 overflow-hidden'}`}
                         >
-                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
-                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
-                                <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
-                                <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
-                            </Tabs.List>
+                            {!isMlbTeam && (
+                                <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
+                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
+                                    <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
+                                    <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
+                                </Tabs.List>
+                            )}
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
                             </Tabs.Content>
-                            <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
-                                {draftHistoryContent}
-                            </Tabs.Content>
-                            <Tabs.Content value="settings" className="focus:outline-none flex-1 overflow-y-auto">
-                                {settingsTabContent}
-                            </Tabs.Content>
+                            {!isMlbTeam && (
+                                <>
+                                    <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
+                                        {draftHistoryContent}
+                                    </Tabs.Content>
+                                    <Tabs.Content value="settings" className="focus:outline-none flex-1 overflow-y-auto">
+                                        {settingsTabContent}
+                                    </Tabs.Content>
+                                </>
+                            )}
                         </Tabs.Root>
                     </>
                 ) : (
@@ -686,14 +715,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 @container
                                 flex flex-col shrink-0
                                 overflow-y-auto
-                                w-full sm:w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-190 3xl:w-256
+                                w-full lg:w-124 xl:w-148 2xl:w-190 3xl:w-256
                             "
                         >
                             <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
                                 <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}>Field View</Tabs.Trigger>
                                 <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
-                                <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
-                                <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
+                                {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>}
+                                {!isMlbTeam && <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>}
                             </Tabs.List>
 
                             <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
@@ -704,13 +733,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {depthChartContent}
                             </Tabs.Content>
 
-                            <Tabs.Content value="draft" className="focus:outline-none">
-                                {draftHistoryContent}
-                            </Tabs.Content>
+                            {!isMlbTeam && (
+                                <>
+                                    <Tabs.Content value="draft" className="focus:outline-none">
+                                        {draftHistoryContent}
+                                    </Tabs.Content>
 
-                            <Tabs.Content value="settings" className="focus:outline-none">
-                                {settingsTabContent}
-                            </Tabs.Content>
+                                    <Tabs.Content value="settings" className="focus:outline-none">
+                                        {settingsTabContent}
+                                    </Tabs.Content>
+                                </>
+                            )}
                         </Tabs.Root>
 
                         {showEditControls && isLg && (

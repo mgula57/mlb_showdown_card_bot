@@ -34,7 +34,7 @@ export type PitcherAssignment = {
     role: string;
 };
 
-export type TeamSource = 'user' | 'official' | 'asg';
+export type TeamSource = 'user' | 'official' | 'asg' | 'mlb';
 
 export type Team = {
     team_id: string;
@@ -66,6 +66,8 @@ const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as
 const STARTER_ROLES   = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 
 export function isTeamDrafting(team: Team): boolean {
+    if (team.source === 'mlb') return false;
+
     const slots = team.lineups[0]?.slots ?? [];
     const filledLineup = FIELD_POSITIONS.filter(pos => slots.some(s => s.field_position === pos)).length;
     if (filledLineup < 9) return true;

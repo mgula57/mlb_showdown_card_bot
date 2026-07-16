@@ -10,7 +10,7 @@ import { CardDetail } from '../cards/CardDetail';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 const POSITION_COORDS: Record<string, [number, number]> = {
-    CF:  [50, 16],
+    CF:  [50, 18],
     LF:  [20, 24],
     RF:  [80, 24],
     SS:  [32, 43],
@@ -107,7 +107,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
     const totalDefIF = sumGroupDefense(IF_POSITIONS, slotByPosition, cardMap);
     const totalCountOfFilledIF = IF_POSITIONS.filter(pos => slotByPosition[pos]).length;
     const avgDefIF = totalCountOfFilledIF > 0 ? (totalDefIF! / totalCountOfFilledIF) : null;
-    const colorDefIF = avgDefIF !== null ? (avgDefIF > 3 ? 'text-(--green)' : avgDefIF >= 1.75 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
+    const colorDefIF = avgDefIF !== null ? (avgDefIF >= 2.5 ? 'text-(--green)' : avgDefIF >= 1.75 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
 
     // Catcher Arm
     const cSlot = slotByPosition['C'];
@@ -162,14 +162,6 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
 
     const sections = rosterData ? [
         {
-            label: 'Bench',
-            total: benchPts,
-            roles: benchRoles,
-            kpis: benchKpis,
-            getCard:    (role: string) => { const s = benchByRole[role]; return s ? cardMap[s.card_id] : null; },
-            onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(role, benchByRole[role] ?? null) : undefined,
-        },
-        {
             label: 'Rotation', total: rotationPts, maxPlayers: rosterData.maxRotation,
             roles: [...ROTATION_ROLES].slice(0, rosterData?.maxRotation) as string[],
             kpis: rotationKpis,
@@ -182,6 +174,14 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
             kpis: bullpenKpis,
             getCard:    (role: string) => { const r = bullByRole[role]; return r ? cardMap[r.card_id] : null; },
             onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, bullByRole[role] ?? null) : undefined,
+        },
+        {
+            label: 'Bench',
+            total: benchPts,
+            roles: benchRoles,
+            kpis: benchKpis,
+            getCard:    (role: string) => { const s = benchByRole[role]; return s ? cardMap[s.card_id] : null; },
+            onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(role, benchByRole[role] ?? null) : undefined,
         },
     ] : [];
 

@@ -1480,6 +1480,74 @@ class PostgresDB:
             traceback.print_exc()
             return standings
 
+    def fetch_team_season_card_pool(self, season: int, showdown_set: str, team_id: int, team_abbr: Optional[str] = None, sport_id: int = 1) -> list[dict]:
+        """Fetch flat card summary rows for every player on a team's roster in a given season.
+
+        Used to construct an on-the-fly team builder Team for an MLB/WBC team.
+        Sources, in priority order:
+          1. WBC (sport_id 51): card_wbc filtered by wbc_team_id + wbc_season.
+          2. MLB season with roster snapshots: latest internal.dim_roster_history snapshot joined to card_bot.
+          3. Historical MLB season (no snapshot rows): card_bot filtered by the team's bref abbreviation + year.
+
+        Args:
+            season: The season (year) of the roster.
+            showdown_set: The showdown set to filter cards by (ex: '2000', 'CLASSIC').
+            team_id: MLB API team id (or WBC team id for sport_id 51).
+            team_abbr: MLB API team abbreviation, used for the historical card_bot path.
+            sport_id: MLB API sport id (1 = MLB, 51 = International/WBC).
+
+        Returns:
+            List of card summary dicts tagged with a `_card_source` key.
+        """
+
+        if self.connection is None:
+            return []
+
+        summary_columns = "card_id, name, year, points, positions_list, positions_and_defense_string, is_pitcher, g, gs, pa, real_ip, ip"
+
+        if SportEnum(sport_id) == SportEnum.INTERNATIONAL:
+            query = sql.SQL(f"""
+                SELECT {summary_columns}, 'WBC' AS _card_source
+                FROM card_wbc
+                WHERE wbc_team_id = %s AND wbc_season = %s AND showdown_set = %s
+            """)
+            return self.execute_query(query=query, filter_values=(team_id, season, showdown_set))
+
+        # For MLB seasons before May 1st, cards are still built from the prior year's stats
+        card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
+
+        roster_history_query = sql.SQL(f"""
+            WITH latest_roster AS (
+                SELECT player_id
+                FROM internal.dim_roster_history
+                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM internal.dim_roster_history WHERE season = %s)
+                    AND season = %s
+                    AND team_id = %s
+                    AND status = 'Active'
+            )
+            SELECT {summary_columns}, real_sv, 'BOT' AS _card_source
+            FROM card_bot AS cards
+            JOIN latest_roster ON cards.mlb_id::text = latest_roster.player_id
+            WHERE cards.year = %s AND cards.showdown_set = %s
+        """)
+        results = self.execute_query(query=roster_history_query, filter_values=(season, season, str(team_id), card_year, showdown_set))
+        if results:
+            return results
+
+        # Historical fallback: no roster snapshots for this season, use the cards' own team assignment.
+        if not team_abbr:
+            return []
+        bref_team = Team.map_from_mlb_api_team(team_abbr)
+        if bref_team in (Team.MLB, Team.MILB):
+            return []
+        historical_query = sql.SQL(f"""
+            SELECT {summary_columns}, real_sv, 'BOT' AS _card_source
+            FROM card_bot AS cards
+            WHERE cards.team_id = %s
+                AND cards.year = %s AND cards.showdown_set = %s
+        """)
+        return self.execute_query(query=historical_query, filter_values=(bref_team.value, season, showdown_set))
+
 # ------------------------------------------------------------------------
 # CARD DATA UPLOADS (BOT AND WOTC)
 # ------------------------------------------------------------------------

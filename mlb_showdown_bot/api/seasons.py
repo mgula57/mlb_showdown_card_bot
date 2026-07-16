@@ -8,6 +8,7 @@ from ..core.mlb_stats_api.models.leagues.league import League
 from ..core.mlb_stats_api.models.leagues.standings import StandingsType
 from ..core.mlb_stats_api.models.stats.enums import PlayerPoolEnum, StatGroupEnum, LeaderLeaderStatEnum
 from ..core.database.postgres_db import PostgresDB, Set as ShowdownSet
+from ..core.card.team_builder import RosterToTeamConverter
 
 seasons_bp = Blueprint('seasons', __name__)
 
@@ -16,6 +17,9 @@ _mlb_stats_api = MLBStatsAPI(cache_ttl=int(SEASONS_CACHE_TTL.total_seconds()))
 
 STANDINGS_CACHE_TTL = timedelta(hours=12)
 _standings_cache: dict[str, tuple[list, datetime]] = {}
+
+SHOWDOWN_TEAM_CACHE_TTL = timedelta(hours=1)
+_showdown_team_cache: dict[str, tuple[dict, datetime]] = {}
 
 @seasons_bp.route('/seasons/list', methods=["GET"])
 def fetch_season_list():
@@ -143,6 +147,58 @@ def fetch_roster(season_id: str, team_id: str):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     
+@seasons_bp.route('/seasons/<season_id>/teams/<team_id>/showdown_team', methods=["GET"])
+def fetch_showdown_team(season_id: str, team_id: str):
+    """Construct a team builder Team from the season's roster + card archive data"""
+    try:
+        if not season_id or not team_id:
+            return jsonify({'error': 'Missing required parameters: season and team'}), 400
+
+        try:
+            season = int(season_id)
+        except ValueError:
+            return jsonify({'error': f'Invalid season: {season_id}'}), 400
+
+        showdown_set = request.args.get('showdown_set', ShowdownSet._2000.value)
+        try:
+            showdown_set_enum = ShowdownSet(showdown_set)
+        except ValueError:
+            return jsonify({'error': f'Invalid showdown_set: {showdown_set}. Valid options are: {[s.value for s in ShowdownSet]}'}), 400
+
+        sport_id = request.args.get('sport_id', 1, type=int)
+        team_abbr = request.args.get('team_abbr', None)
+        team_name = request.args.get('team_name', None)
+
+        cache_key = f"{season_id}:{team_id}:{sport_id}:{showdown_set_enum.value}"
+        cached = _showdown_team_cache.get(cache_key)
+        if cached and datetime.now() - cached[1] < SHOWDOWN_TEAM_CACHE_TTL:
+            return jsonify({'team': cached[0]}), 200
+
+        with PostgresDB() as db:
+            cards = db.fetch_team_season_card_pool(
+                season=season,
+                showdown_set=showdown_set_enum.value,
+                team_id=int(team_id),
+                team_abbr=team_abbr,
+                sport_id=sport_id,
+            )
+            db.close_connection()
+
+        builder = RosterToTeamConverter(
+            cards=cards,
+            team_id=f"mlb-{sport_id}-{team_id}-{season_id}-{showdown_set_enum.value}",
+            name=team_name or team_abbr or f"Team {team_id}",
+            abbreviation=team_abbr or str(team_id),
+        )
+        team_data = builder.build_api_dict()
+        _showdown_team_cache[cache_key] = (team_data, datetime.now())
+        return jsonify({'team': team_data}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @seasons_bp.route('/seasons/<season_id>/teams', methods=["GET"])
 def fetch_teams_for_season(season_id: str):
     """Fetch teams for a given season"""

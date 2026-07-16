@@ -81,7 +81,7 @@ function PositionRow({
                             : 'border-(--divider) text-(--text-tertiary) hover:border-(--secondary)/50 hover:text-(--secondary)'
                         }`}
                 >
-                    <FaPlus className="text-[9px]" />
+                    {!readOnly && <FaPlus className="text-[9px]" />}
                     <span>Empty</span>
                 </button>
             )}

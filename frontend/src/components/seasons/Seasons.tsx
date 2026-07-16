@@ -12,13 +12,14 @@ import "react-day-picker/style.css";
 import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
-    fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
+    fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchShowdownTeam,
     fetchSchedule, fetchSeasonTeams,
-    type Season, type Sport, type League, type Standings, type Team, type Roster,
+    type Season, type Sport, type League, type Standings, type Team,
     type Schedule
 } from '../../api/mlbAPI';
+import type { Team as TeamBuilderTeam } from "../../api/userTeams";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
-import TeamRoster from "../teams/TeamRoster";
+import { TeamDetail } from "../team_builder/TeamDetail";
 import SidebarPanel, { type SidebarSection } from "../shared/SidebarPanel";
 import ReactCountryFlag from "react-country-flag";
 import { countryCodeForTeam } from "../../functions/flags";
@@ -30,7 +31,7 @@ import {
     FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark
 } from "react-icons/fa6";
 
-import ShowdownCardSearch from "../cards/ShowdownCardSearch";
+// import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
 import GameDetail from "../games/GameDetail";
 import SeasonLeaders from "./SeasonLeaders";
@@ -66,6 +67,45 @@ const isSameCalendarDay = (a: Date, b: Date): boolean => {
 
 const formatGamesHeaderDate = (date: Date): string => {
     return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date).toUpperCase();
+};
+
+type ShowdownTeamPanelProps = {
+    showdownTeam: TeamBuilderTeam | null;
+    isStarred: boolean;
+    onToggleStar: () => void;
+};
+
+/** Read-only team builder view for a backend-constructed MLB/WBC roster, with loading + empty states. */
+const ShowdownTeamPanel = ({ showdownTeam, isStarred, onToggleStar }: ShowdownTeamPanelProps) => {
+    if (showdownTeam === null) {
+        return (
+            <div className="flex items-center justify-center gap-2 py-16">
+                <span className="w-2 h-2 rounded-full bg-(--text-tertiary) animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 rounded-full bg-(--text-tertiary) animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-(--text-tertiary) animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+        );
+    }
+    if ((showdownTeam.roster ?? []).length === 0) {
+        return (
+            <div className="rounded-lg border border-(--divider) px-4 py-6 text-sm text-(--text-secondary)">
+                No showdown card data available for this team.
+            </div>
+        );
+    }
+    return (
+        <div className="rounded-lg border border-(--divider) overflow-hidden">
+            <TeamDetail
+                key={showdownTeam.team_id}
+                team={showdownTeam}
+                readOnly
+                embedded
+                onSave={async () => {}}
+                isStarred={isStarred}
+                onToggleStar={onToggleStar}
+            />
+        </div>
+    );
 };
 
 type SeasonsProps = {
@@ -122,11 +162,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [teams, setTeams] = useState<Team[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
-    const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
+    const [selectedRoster, setSelectedRoster] = useState<TeamBuilderTeam | null>(null);
 
     // Team selected from the standings table — shows an inline roster below the standings
     const [standingsTeam, setStandingsTeam] = useState<Team | null>(null);
-    const [standingsRoster, setStandingsRoster] = useState<Roster | null>(null);
+    const [standingsRoster, setStandingsRoster] = useState<TeamBuilderTeam | null>(null);
     const standingsRosterRef = useRef<HTMLDivElement>(null);
 
     const [gamesSchedule, setGamesSchedule] = useState<Schedule | null>(null);
@@ -556,19 +596,24 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     };
 
-    const loadTeamRoster = async (team: Team): Promise<Roster | null> => {
+    const loadShowdownTeam = async (team: Team): Promise<TeamBuilderTeam | null> => {
         if (!selectedSeason || !selectedSport || !team) {
             return null;
         }
 
         beginLoading();
         try {
-            const rosterType = "active";
-            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, selectedSport.id, team.abbreviation || team.name);
-            console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
-            return rosterData;
+            const showdownTeam = await fetchShowdownTeam(selectedSeason, team.id, selectedSport.id, team.abbreviation || team.name, team.name, userShowdownSet);
+            console.log(`Fetched showdown team for ${team.name} in season ${selectedSeason.season_id}:`, showdownTeam);
+            // Overlay MLB team identity — the backend constructs the team from card data only
+            return {
+                ...showdownTeam,
+                name: team.name || showdownTeam.name,
+                primary_color: team.primary_color || showdownTeam.primary_color,
+                secondary_color: team.secondary_color || showdownTeam.secondary_color,
+            };
         } catch (error) {
-            console.error(`Error fetching roster for team ${team.name} in season ${selectedSeason.season_id}:`, error);
+            console.error(`Error fetching showdown team for ${team.name} in season ${selectedSeason.season_id}:`, error);
             return null;
         } finally {
             endLoading();
@@ -680,14 +725,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         if (activeTab !== "teams") return;
         if (selectedTeam === null || selectedTeam.id === undefined) return;
-        loadTeamRoster(selectedTeam).then(setSelectedRoster);
+        setSelectedRoster(null);
+        loadShowdownTeam(selectedTeam).then(setSelectedRoster);
     }, [selectedTeam, userShowdownSet, activeTab]);
 
     // Load the inline roster shown below the standings table
     useEffect(() => {
         if (activeTab !== "standings" || standingsTeam === null) return;
         setStandingsRoster(null);
-        loadTeamRoster(standingsTeam).then(setStandingsRoster);
+        loadShowdownTeam(standingsTeam).then(setStandingsRoster);
     }, [standingsTeam, userShowdownSet, activeTab]);
 
     // Scroll the inline roster into view so it's clear the selection did something
@@ -1062,6 +1108,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             
                                             {standingsTeam && (
                                                 <div ref={standingsRosterRef} className="pt-4 scroll-mt-4 space-y-3">
+                                                    <hr className="border-(--divider)" />
                                                     <div className="flex items-center justify-between">
                                                         <h2 className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
                                                             {standingsTeam.name || standingsTeam.abbreviation} Roster
@@ -1076,13 +1123,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             Close
                                                         </button>
                                                     </div>
-                                                    <TeamRoster
-                                                        team={standingsTeam}
-                                                        sportId={selectedSport?.id || null}
-                                                        roster={standingsRoster}
+                                                    <ShowdownTeamPanel
+                                                        showdownTeam={standingsRoster}
                                                         isStarred={starredTeamKeys.includes(`${standingsTeam.id}-${standingsTeam.season}`)}
-                                                        season={Number(selectedSeason.season_id)}
-                                                        loadShowdownCards={true}
                                                         onToggleStar={() => toggleStarTeam(standingsTeam)}
                                                     />
                                                 </div>
@@ -1197,13 +1240,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="lg:pt-6 lg:pr-6">
                                             {selectedTeam && (
-                                                <TeamRoster
-                                                    team={selectedTeam}
-                                                    sportId={selectedSport?.id || null}
-                                                    roster={selectedRoster}
+                                                <ShowdownTeamPanel
+                                                    showdownTeam={selectedRoster}
                                                     isStarred={isSelectedTeamStarred}
-                                                    season={Number(selectedSeason.season_id)}
-                                                    loadShowdownCards={true}
                                                     onToggleStar={() => toggleStarTeam(selectedTeam)}
                                                 />
                                             )}

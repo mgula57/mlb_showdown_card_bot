@@ -160,8 +160,10 @@ export const CardItemCompact = ({
                         {isRedacted ? '--- • ---' : (
                             <>
                                 {getDefenseDisplay(card, fieldPosition)}
-                                <span className="px-0.5 opacity-50">•</span>
-                                {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                                <span className="hidden @[90px]:flex">
+                                    <span className="px-0.5 opacity-50">•</span>
+                                    {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                                </span>
                             </>
                         )}
                     </div>

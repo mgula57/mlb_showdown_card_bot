@@ -10,6 +10,7 @@
  */
 
 import { type ShowdownBotCard, type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "./showdownBotCard";
+import { type Team as TeamBuilderTeam } from "./userTeams";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -117,13 +118,16 @@ export const fetchSeasonLeaders = async (
     return response.json() as Promise<LeadersResponse>;
 };
 
-export const fetchTeamRoster = async (season: Season, teamId: number, rosterType: string, sportId: number, teamAbbr: string, showdownSet?: string): Promise<Roster> => {
-    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/roster?roster_type=${rosterType}${showdownSet ? `&showdown_set=${encodeURIComponent(showdownSet)}` : ''}&sport_id=${sportId}&team_abbr=${teamAbbr}`);
+export const fetchShowdownTeam = async (season: Season, teamId: number, sportId: number, teamAbbr: string, teamName?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
+    const params = new URLSearchParams({ sport_id: String(sportId), team_abbr: teamAbbr });
+    if (teamName) params.set('team_name', teamName);
+    if (showdownSet) params.set('showdown_set', showdownSet);
+    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/showdown_team?${params}`);
     if (!response.ok) {
-        throw new Error(`Failed to fetch roster for season ${season.season_id} and team ${teamId}: ${response.statusText}`);
+        throw new Error(`Failed to fetch showdown team for season ${season.season_id} and team ${teamId}: ${response.statusText}`);
     }
     const data = await response.json();
-    return data.roster as Roster;
+    return data.team as TeamBuilderTeam;
 }
 
 const getUserTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
@@ -455,32 +459,6 @@ export interface Schedule {
     date?: string;
     dates?: Schedule[];
     games?: GameScheduled[];
-}
-
-export interface Roster {
-
-    roster_type: 'active' | '40Man' | 'fullSeason' | 'fullRoster' | 'gameday' | 'depthChart';
-    team_id?: number;
-    roster?: RosterSlot[];
-}
-
-export interface RosterSlot {
-    person: Player;
-    position: {
-        code?: string;
-        name?: string;
-        type?: string;
-        abbreviation?: string;
-        description?: string;
-    };
-    status?: string | {
-        code?: string;
-        description?: string;
-    };
-    jersey_number?: string;
-    parent_team_id?: number;
-    /** True only for the synthetic extra slot inserted for two-way players pitching role. */
-    is_pitcher_slot?: boolean;
 }
 
 export interface Player {
