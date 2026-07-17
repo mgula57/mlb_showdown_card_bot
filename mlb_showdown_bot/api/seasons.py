@@ -21,6 +21,11 @@ _standings_cache: dict[str, tuple[list, datetime]] = {}
 SHOWDOWN_TEAM_CACHE_TTL = timedelta(hours=1)
 _showdown_team_cache: dict[str, tuple[dict, datetime]] = {}
 
+AWARDS_CACHE_TTL = timedelta(hours=24)
+_awards_cache: dict[str, tuple[dict, datetime]] = {}
+AWARD_TYPES = ['MVP', 'CY', 'ROY', 'GG', 'SS']
+AWARD_LEAGUES = ['AL', 'NL']
+
 @seasons_bp.route('/seasons/list', methods=["GET"])
 def fetch_season_list():
     """Fetch list of seasons from the database"""
@@ -249,6 +254,41 @@ def fetch_leaders_for_season(season_id: str):
         final_data = {'leaders': leaders_data}
 
         return jsonify(final_data), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@seasons_bp.route('/seasons/<season_id>/awards', methods=["GET"])
+def fetch_awards_for_season(season_id: str):
+    """Fetch MVP, Cy Young, Rookie of the Year, Gold Glove, and Silver Slugger winners for a season, split by league"""
+    try:
+        if not season_id:
+            return jsonify({'error': 'Missing required parameter: season'}), 400
+
+        try:
+            season = int(season_id)
+        except ValueError:
+            return jsonify({'error': f'Invalid season: {season_id}'}), 400
+
+        cache_key = season_id
+        cached = _awards_cache.get(cache_key)
+        if cached and datetime.now() - cached[1] < AWARDS_CACHE_TTL:
+            return jsonify({'awards': cached[0]}), 200
+
+        awards_data: dict[str, dict[str, list | None]] = {award_type: {} for award_type in AWARD_TYPES}
+        for award_type in AWARD_TYPES:
+            for league in AWARD_LEAGUES:
+                recipients = _mlb_stats_api.awards.get_recipients(award_id=f"{league}{award_type}", season=season)
+                recipients_data = [recipient.model_dump(mode='json') for recipient in recipients]
+                if award_type in ('GG', 'SS'):
+                    awards_data[award_type][league] = recipients_data
+                else:
+                    awards_data[award_type][league] = recipients_data[0] if recipients_data else None
+
+        _awards_cache[cache_key] = (awards_data, datetime.now())
+        return jsonify({'awards': awards_data}), 200
 
     except Exception as e:
         import traceback

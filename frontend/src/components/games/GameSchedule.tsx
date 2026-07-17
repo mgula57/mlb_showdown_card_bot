@@ -107,7 +107,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
     }
 
     // Sort: starred-team games first, then by game state (live → upcoming → final)
-    const statusOrder: Record<string, number> = { "Live": 0, "Scheduled": 1, "Final": 2 };
+    const statusOrder: Record<string, number> = { "Live": 0, "Preview": 1, "Scheduled": 2, "Final": 3, "Postponed": 4 };
     const sortedGames = [...games].sort((a, b) => {
         const aStarred = starredTeamIds
             ? (starredTeamIds.has(a.teams?.away?.team?.id ?? -1) || starredTeamIds.has(a.teams?.home?.team?.id ?? -1))

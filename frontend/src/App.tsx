@@ -112,10 +112,6 @@ const AppContent = () => {
         if (location.pathname === '/explore') {
             navigate('/cards', { replace: true });
         }
-        // TODO: When feature is implemented, remove this redirect and allow users to access the teams page directly
-        if (location.pathname === '/teams' || location.pathname.startsWith('/teams/')) {
-            navigate('/', { replace: true });
-        }
     }, [location.pathname, navigate]);
 
     const isActive = (path: string) => {

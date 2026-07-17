@@ -9,7 +9,7 @@ import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
-const POSITION_COORDS: Record<string, [number, number]> = {
+export const POSITION_COORDS: Record<string, [number, number]> = {
     CF:  [50, 18],
     LF:  [20, 24],
     RF:  [80, 24],
@@ -19,9 +19,12 @@ const POSITION_COORDS: Record<string, [number, number]> = {
     '1B': [82, 63],
     C:   [50, 85],
     DH:  [84, 85],
+    // Award-winner-only slots (Gold Glove Pitcher/Utility, Silver Slugger Utility)
+    P:   [50, 58],
+    UT:  [84, 85],
 };
 
-const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
+export const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 
 export type FieldViewRosterData = {
@@ -46,6 +49,12 @@ type FieldViewProps = {
     onCardHover?: (cardId: string | null) => void;
     /** True while cardMap entries are still being fetched — shows loading placeholders for filled-but-unresolved slots */
     isLoadingCards?: boolean;
+    /** Which field slots to render, e.g. append 'P'/'UT' for a Gold Glove/Silver Slugger showcase. Defaults to the standard 9-man lineup. */
+    positions?: readonly string[];
+    /** Label shown in the header above the field (defaults to "Starting Lineup") */
+    headerLabel?: string;
+    /** Hides the OF/IF/CA defense badges and points totals — off by default for read-only showcases where they don't apply */
+    showDefenseSummary?: boolean;
 };
 
 
@@ -92,7 +101,11 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
     return total;
 }
 
-export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData, hoveredCardId, onCardHover, isLoadingCards }: FieldViewProps) {
+export function FieldView({
+    lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition,
+    rosterData, hoveredCardId, onCardHover, isLoadingCards,
+    positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true,
+}: FieldViewProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
     const slotByPosition = Object.fromEntries(
@@ -200,7 +213,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                     draggable={false}
                 />
 
-                {([
+                {showDefenseSummary && ([
                     { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF, top: 80, left: 15 },
                     { label: 'TOTAL IF', value: totalDefIF, color: colorDefIF, top: 84, left: 15 },
                     { label: 'CA ARM',   value: armC,       color: colorArmC,  top: 88, left: 15 },
@@ -218,11 +231,17 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                 ))}
 
                 <div className="absolute inset-0" >
-                    <FieldViewSectionHeader label="Starting Lineup" filledCount={lineup.slots.length} maxPlayers={9} total={lineupPts} kpis={lineupKpis} />
+                    <FieldViewSectionHeader
+                        label={headerLabel}
+                        filledCount={lineup.slots.length}
+                        maxPlayers={positions.length}
+                        total={showDefenseSummary ? lineupPts : 0}
+                        kpis={showDefenseSummary ? lineupKpis : undefined}
+                    />
                 </div>
 
-                {FIELD_POSITIONS.map(pos => {
-                    const [left, top] = POSITION_COORDS[pos];
+                {positions.map(pos => {
+                    const [left, top] = POSITION_COORDS[pos] ?? [50, 50];
                     const slot = slotByPosition[pos] ?? null;
                     const card = slot ? cardMap[slot.card_id] : null;
                     const isActive = activePosition === pos;
@@ -248,7 +267,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
                                         className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
-                                        size="lg"
+                                       
                                         fieldPosition={pos}
                                         onClick={() => setDetailCard(card)}
                                         isSelected={isActive}
@@ -292,7 +311,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                         <CardItemCompactFromCardDatabaseRecord
                                             card={card}
                                             className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
-                                            size="lg"
+                                           
                                             onClick={() => setDetailCard(card)}
                                             actionButton={onItemClick ? {
                                                 icon: <FaPencil className="w-2.5 h-2.5" />,

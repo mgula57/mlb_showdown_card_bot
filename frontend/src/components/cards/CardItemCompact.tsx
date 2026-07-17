@@ -8,6 +8,7 @@ import { FaHatWizard } from "react-icons/fa6";
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardIcon from "./card_elements/CardIcon";
+import { getFirstName, getLastName, getFirstInitial } from "../../functions/names"
 
 // =============================================================================
 // TYPES
@@ -29,14 +30,10 @@ type CardItemCompactProps = {
     onClick?: () => void;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
-    /**
-     * sm: minimal (no pts, no extra details)
-     * md: auto-size via ResizeObserver (default)
-     * lg: always show a second row with defense/IP
-     */
-    size?: 'sm' | 'md' | 'lg';
-    /** When size='lg', show defense only for this position (e.g. 'SS', 'CF'). Falls back to full string. */
+    /** Show defense only for this position (e.g. 'SS', 'CF'). Falls back to full string. */
     fieldPosition?: string;
+    /** Always hide the set icon and defense/outs/handedness row, regardless of container width */
+    hideDetails?: boolean;
 };
 
 // =============================================================================
@@ -60,8 +57,8 @@ export const CardItemCompact = ({
     isLoading,
     onClick,
     actionButton,
-    size = 'md',
     fieldPosition,
+    hideDetails,
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
@@ -84,32 +81,15 @@ export const CardItemCompact = ({
         color: getContrastColor(primaryColor),
     };
 
+    const isClickable = onClick !== undefined;
+
     const borderSettings = isSelected
-        ? (isDark ? 'border-2' : 'border-2')
-        : (isDark ? 'border-2 border-white/10' : 'border-2 border-gray-200');
-
-    const getLastName = (name?: string): string => {
-        if (!name) return 'Unknown Player';
-        const trimmed = name.trim();
-        if (!trimmed) return 'Unknown Player';
-        const parts = trimmed.split(/\s+/);
-        if (parts.length === 1) return parts[0];
-        const last = parts[parts.length - 1].replace('.', '').toUpperCase();
-        if (['JR', 'SR', 'II', 'III', 'IV', 'V'].includes(last) && parts.length > 1) {
-            return `${parts[parts.length - 2]} ${parts[parts.length - 1]}`;
-        }
-        return parts[parts.length - 1];
-    };
-
-    const getFirstInitial = (name?: string): string => {
-        if (!name) return '';
-        const trimmed = name.trim();
-        if (!trimmed) return '';
-        return trimmed.split(/\s+/)[0][0].toUpperCase();
-    };
+        ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
+        : (isDark
+            ? `border-3 border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
+            : `border-3 border-gray-200 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     const isRedacted = card?.isEmpty || false;
-    const displayName = isRedacted ? 'REDACTED NAME' : `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
     return (
         <div
@@ -134,35 +114,51 @@ export const CardItemCompact = ({
                 secondaryColor={secondaryColor}
                 command={card?.command}
                 team={card?.team || 'N/A'}
-                className={`w-6.5 h-6.5 shrink-0 ${['md', 'lg'].includes(size) ? 'mt-1.5' : 'mt-1'}`}
+                className={`w-6.5 h-6.5 shrink-0 mt-1 ${hideDetails ? '' : '@[70px]:mt-1.5'}`}
             />
 
             <div className="min-w-0 flex-1 space-y-0.5 text-left">
-                <div className={`text-[12px] font-black text-(--text-primary) truncate ${isRedacted ? 'redacted' : ''}`}>
-                    {displayName}
+                <div className={`flex gap-x-0.5 text-[12px] font-black text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
+                    {isRedacted 
+                        ? 'REDACTED NAME' 
+                        : 
+                            <>
+                                {/* First Initial */}
+                                <span className="hidden @[70px]:flex @[150px]:hidden">{getFirstInitial(card?.name)}. </span>
+
+                                {/* Full First Name */}
+                                <span className="hidden @[150px]:flex">{getFirstName(card?.name)} </span>
+                            
+                                {/* Last Name */}
+                                {getLastName(card?.name)}
+
+                            </>
+                    }
+                    
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
                     <div
-                        className={`text-[9px] flex leading-none shrink-0 font-semibold rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                        className={`text-[9px] flex leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                         style={isRedacted ? undefined : teamStyle}
                     >
                         {card?.team || 'N/A'}
                         <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                     </div>
                     <div
-                        className={`hidden @[100px]:flex shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                        className={`hidden @[80px]:flex shrink-0 text-[9px] leading-none font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                         style={isRedacted ? undefined : pointsBadgeStyle}
                     >
-                        {card?.points != null ? `${card.points} PTS` : '-- PTS'}
+                        {card?.points != null ? `${card.points} PT` : '-- PT'}
+                        <span className="hidden @[90px]:block">S</span>
                     </div>
                 </div>
-                {size !== 'sm' && (
-                    <div className={`flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-wrap ${isRedacted ? 'redacted' : ''}`}>
+                {!hideDetails && (
+                    <div className={`hidden @[70px]:flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                         {isRedacted ? '--- • ---' : (
                             <>
                                 {/* DEFENSE */}
                                 {getDefenseDisplay(card, fieldPosition)}
-                                
+
                                 {/* OUTS/SPEED */}
                                 <span className="hidden @[90px]:flex">
                                     <span className="px-0.5 opacity-50">•</span>
@@ -181,8 +177,8 @@ export const CardItemCompact = ({
             </div>
 
             {/* Absolute positioned elements */}
-            {size !== 'sm' && !isRedacted && (
-                <div className="absolute bottom-1 left-1.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+            {!hideDetails && !isRedacted && (
+                <div className="hidden @[70px]:block absolute bottom-1 left-1.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
                 </div>
             )}
@@ -192,7 +188,7 @@ export const CardItemCompact = ({
             )}
 
             {/* Icons - top-right corner */}
-            <div className="absolute -top-1 right-0 flex gap-1">
+            <div className="absolute -top-2 -right-0.5 flex gap-0.5">
                 {card?.icons_list?.map((icon, index) => (
                     <CardIcon 
                         key={`${card?.id}-icon-${index}`} 
@@ -241,14 +237,14 @@ export const CardItemCompact = ({
 type CardItemCompactFromCardProps = {
     card?: ShowdownBotCard | null;
     className?: string;
-    size?: 'sm' | 'md' | 'lg';
     fieldPosition?: string;
+    hideDetails?: boolean;
     isSelected?: boolean;
     onClick?: () => void;
     actionButton?: CardItemActionButton;
 };
 
-export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPosition, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, fieldPosition, hideDetails, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -282,8 +278,8 @@ export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPos
             }}
             className={className}
             isSelected={isSelected}
-            size={size}
             fieldPosition={fieldPosition}
+            hideDetails={hideDetails}
             onClick={onClick}
             actionButton={actionButton}
         />
@@ -297,11 +293,11 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     isLoading?: boolean;
     onClick?: () => void;
     actionButton?: CardItemActionButton;
-    size?: 'sm' | 'md' | 'lg';
     fieldPosition?: string;
+    hideDetails?: boolean;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, size, fieldPosition }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -338,8 +334,8 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             isLoading={isLoading}
             onClick={onClick}
             actionButton={actionButton}
-            size={size}
             fieldPosition={fieldPosition}
+            hideDetails={hideDetails}
         />
     );
 };

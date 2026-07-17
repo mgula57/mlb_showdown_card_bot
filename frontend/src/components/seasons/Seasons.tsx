@@ -28,13 +28,14 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark
+    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal
 } from "react-icons/fa6";
 
 // import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
 import GameDetail from "../games/GameDetail";
 import SeasonLeaders from "./SeasonLeaders";
+import AwardWinners from "./AwardWinners";
 import { getReadableTextColor } from "../../functions/colors";
 
 const formatScheduleDate = (date?: string): string => {
@@ -329,6 +330,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
+        { id: "awards", label: "Award Winners", icon: <FaMedal /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
@@ -1035,6 +1037,19 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     <div className="flex items-center font-bold text-2xl">
                                                         {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2" /> : <FaCalendarDays className="inline-block mr-2" />}
                                                         {title}
+                                                        {!(hasStaticSeasons && seasonOptions.length <= 1) && (
+                                                            <CustomSelect
+                                                                buttonClassName="
+                                                                    ml-4 text-sm p-2 items-center
+                                                                    rounded-lg bg-secondary text-primary text-nowrap text-left
+                                                                    overflow-clip
+                                                                    cursor-pointer
+                                                                "
+                                                                value={selectedSeason?.season_id.toString() || "2026"}
+                                                                onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
+                                                                options={seasonOptions}
+                                                            />
+                                                        )}
                                                     </div>
                                                     <button
                                                         type="button"
@@ -1048,13 +1063,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     </button>
                                                 </div>
                                             )}
-                                            {!(hasStaticSeasons && seasonOptions.length <= 1) && (
-                                                <CustomSelect
-                                                    value={selectedSeason?.season_id.toString() || "2026"}
-                                                    onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
-                                                    options={seasonOptions}
-                                                />
-                                            )}
+                                            
                                             {!(hasStaticSports && sportOptions.length <= 1) && (
                                                 <CustomSelect
                                                     value={selectedSport?.id?.toString() || ""}
@@ -1107,10 +1116,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         forceMount
                                     >
                                         <div className="space-y-2 pb-24 lg:pt-6 lg:pr-6">
-                                            <div className="space-y-2 flex justify-between items-center">
-                                                <span className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                            <div className="space-y-2 flex justify-between items-top">
+                                                <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
                                                     Standings
-                                                </span>
+                                                </p>
                                                 <p className="px-1 text-xs text-(--text-secondary)">
                                                     Select a team to view its Showdown roster below.
                                                 </p>
@@ -1277,6 +1286,22 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 showdownSet={userShowdownSet}
                                                 sportId={selectedSport?.id}
                                                 isActive={activeTab === 'leaders'}
+                                            />
+                                        </div>
+                                    </Tabs.Content>
+
+                                    {/* Award Winners Tab */}
+                                    <Tabs.Content
+                                        value="awards"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        <div className="lg:pt-6">
+                                            <AwardWinners
+                                                seasonId={selectedSeason.season_id}
+                                                season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
+                                                showdownSet={userShowdownSet}
+                                                sportId={selectedSport?.id}
+                                                isActive={activeTab === 'awards'}
                                             />
                                         </div>
                                     </Tabs.Content>

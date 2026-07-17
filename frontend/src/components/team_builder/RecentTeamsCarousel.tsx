@@ -277,8 +277,8 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                             <CardItemCompactFromCardDatabaseRecord
                                 key={i}
                                 card={card ?? undefined}
-                                size="sm"
                                 isLoading={cardsLoading && card === null}
+                                hideDetails
                             />
                         )
                     ))}

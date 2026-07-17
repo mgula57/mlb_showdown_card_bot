@@ -118,6 +118,45 @@ export const fetchSeasonLeaders = async (
     return response.json() as Promise<LeadersResponse>;
 };
 
+export interface AwardRecipientPosition {
+    code?: string;
+    name?: string;
+    abbreviation?: string;
+}
+
+export interface AwardRecipientPlayer {
+    id: number;
+    name_first_last?: string;
+    primary_position?: AwardRecipientPosition;
+}
+
+export interface AwardRecipient {
+    id: string;
+    name: string;
+    date?: string;
+    season?: string;
+    player: AwardRecipientPlayer;
+}
+
+export type SeasonAwardsByLeague<T> = { AL: T | null; NL: T | null };
+
+export interface SeasonAwards {
+    MVP: SeasonAwardsByLeague<AwardRecipient>;
+    CY: SeasonAwardsByLeague<AwardRecipient>;
+    ROY: SeasonAwardsByLeague<AwardRecipient>;
+    GG: SeasonAwardsByLeague<AwardRecipient[]>;
+    SS: SeasonAwardsByLeague<AwardRecipient[]>;
+}
+
+export const fetchSeasonAwards = async (seasonId: string): Promise<SeasonAwards> => {
+    const response = await fetch(`${API_BASE}/seasons/${seasonId}/awards`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch awards for season ${seasonId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.awards as SeasonAwards;
+};
+
 export const fetchShowdownTeam = async (season: Season, teamId: number, sportId: number, teamAbbr: string, teamName?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
     const params = new URLSearchParams({ sport_id: String(sportId), team_abbr: teamAbbr });
     if (teamName) params.set('team_name', teamName);

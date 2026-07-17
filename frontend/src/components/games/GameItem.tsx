@@ -143,9 +143,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const awayScore = game.teams?.away?.score;
     const homeScore = game.teams?.home?.score;
     const codedGameState = game.status?.coded_game_state;
+    const detailedGameState = game.status?.detailed_state;
     const isFinal = codedGameState === 'F' || game.status?.status_code === 'F';
     const isNotStarted = codedGameState === 'P' || codedGameState === 'S';
-    const isInProgress = !isFinal && !isNotStarted;
+    const isPostponed = codedGameState === 'D';
+    const isInProgress = !isFinal && !isNotStarted && !isPostponed;
     const hasStarted = !isNotStarted;
 
     const awayCountryCode = countryCodeForTeam(sportId || 0, awayAbbr);
@@ -246,6 +248,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
         outs: 0,
         speed: null,
         source: 'BOT',
+        hand: null,
     });
 
     const liveAtBatCardFallback = createPlaceholderCard(
@@ -286,12 +289,14 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
     const livePitchingCard = livePitchingCardFallback;
     const winningPitcherCard = winningPitcherCardFallback;
     const losingPitcherCard = losingPitcherCardFallback;
-    const stateBadgeLabel = isFinal ? 'Final' : isInProgress ? 'Live' : 'Preview';
-    const stateBadgeClasses = isFinal
-        ? 'border-green-500/40 bg-green-500/10 text-green-300'
-        : isInProgress
-            ? 'border-yellow-400/50 bg-yellow-400/5 text-yellow-400'
-            : 'border-(--divider) bg-(--background-primary) text-(--text-secondary)';
+    const stateBadgeLabel = (detailedGameState);
+    const stateBadgeClasses = detailedGameState === 'Final'
+        ? 'border-green-500/40 bg-(--success)/10 text-(--success)'
+        : detailedGameState === 'Postponed'
+            ? 'border-(--red)/40 bg-(--red)/10 text-(--red)'
+            : isInProgress
+                ? 'border-yellow-400/50 bg-yellow-400/5 text-yellow-400'
+                : 'border-(--divider) bg-(--background-primary) text-(--text-secondary)';
 
     return (
         <div
@@ -388,12 +393,12 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     </div>
                     <div className="pt-1 flex gap-2 items-center">
                         {awayProbableCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={awayProbableCardRecord} size="sm" />
-                            : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} size="sm" />}
+                            ? <CardItemCompactFromCardDatabaseRecord card={awayProbableCardRecord} hideDetails />
+                            : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} hideDetails />}
                         <span className="text-[12px]">vs</span>
                         {homeProbableCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={homeProbableCardRecord} size="sm" />
-                            : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} size="sm" />}
+                            ? <CardItemCompactFromCardDatabaseRecord card={homeProbableCardRecord} hideDetails />
+                            : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} hideDetails />}
                     </div>
                 </>
             )}
@@ -411,11 +416,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     </div>
                     <div className="pt-1 flex gap-2">
                         {liveAtBatCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={liveAtBatCardRecord} size="sm" />
-                            : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} size="sm" />}
+                            ? <CardItemCompactFromCardDatabaseRecord card={liveAtBatCardRecord} hideDetails />
+                            : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} hideDetails />}
                         {livePitchingCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={livePitchingCardRecord} size="sm" />
-                            : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} size="sm" />}
+                            ? <CardItemCompactFromCardDatabaseRecord card={livePitchingCardRecord} hideDetails />
+                            : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} hideDetails />}
                     </div>
                 </>
             )}
@@ -433,11 +438,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     </div>
                     <div className="pt-1 flex gap-2">
                         {winningPitcherCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={winningPitcherCardRecord} size="sm" />
-                            : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} size="sm" />}
+                            ? <CardItemCompactFromCardDatabaseRecord card={winningPitcherCardRecord} hideDetails />
+                            : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} hideDetails />}
                         {losingPitcherCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={losingPitcherCardRecord} size="sm" />
-                            : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} size="sm" />}
+                            ? <CardItemCompactFromCardDatabaseRecord card={losingPitcherCardRecord} hideDetails />
+                            : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} hideDetails />}
                     </div>
                 </>
             )}

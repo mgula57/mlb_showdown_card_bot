@@ -148,10 +148,10 @@ export const CardItem = ({
 
     // Dynamic border styling based on selection state and theme
     const borderSettings = isSelected
-        ? (isDark ? 'border-3' : `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`)
+        ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
         : (isDark
-            ? `border-white/10${isClickable ? ' hover:border-white/50' : ''}`
-            : `shadow-xl border-gray-200${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+            ? `border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
+            : `border-gray-200 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     // Calculate width of the set and expansion display for proper spacing
     const has_expansion = cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion);
