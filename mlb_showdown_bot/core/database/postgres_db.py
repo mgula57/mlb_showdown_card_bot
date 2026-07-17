@@ -121,7 +121,7 @@ class ExploreDataRecord(BaseModel):
     # Position information
     primary_positions: List[str]
     secondary_positions: List[str]
-    positions_list: List[str]
+    positions_list: List[Position]
     
     # Basic stats
     g: int = Field(description="Games played")
@@ -1560,10 +1560,12 @@ class PostgresDB:
         historical_query = sql.SQL("""
             SELECT cards.*, 'BOT' AS source
             FROM card_bot AS cards
-            WHERE (cards.team_id = %s OR %s = ANY(cards.team_id_list))
-                AND cards.year = %s AND cards.showdown_set = %s
+            WHERE 
+                cards.team_id = %s 
+                AND cards.year = %s 
+                AND cards.showdown_set = %s
         """)
-        rows = self.execute_query(query=historical_query, filter_values=(bref_team.value, bref_team.value, season, showdown_set))
+        rows = self.execute_query(query=historical_query, filter_values=(bref_team.value, season, showdown_set))
         return [ExploreDataRecord(**row) for row in rows]
 
 # ------------------------------------------------------------------------

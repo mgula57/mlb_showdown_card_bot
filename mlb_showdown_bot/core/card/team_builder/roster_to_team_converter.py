@@ -3,6 +3,7 @@ from typing import Optional
 from .team import Team, TeamSource, CardSource, TeamRosterSlot, Lineup, LineupSlot, PitcherAssignment, PickSource
 from .autofill import OFFENSE_POSITIONS
 from ...database.postgres_db import ExploreDataRecord
+from ...shared.player_position import Position, PositionSlot
 
 
 class RosterToTeamConverter:
@@ -61,14 +62,13 @@ class RosterToTeamConverter:
             return CardSource.BOT
 
     @staticmethod
-    def _pos_matches(card: ExploreDataRecord, position: str) -> bool:
+    def _pos_matches(card: ExploreDataRecord, slot: PositionSlot) -> bool:
         """Check whether a hitter card can play the given field position (positions_list-based)."""
         pos_list = card.positions_list or []
-        if position in ('LF', 'RF'):
-            return 'LF/RF' in pos_list or position in pos_list
-        if position == 'DH':
-            return True  # any hitter can DH
-        return position in pos_list
+        valid_in_game_positions = slot.valid_positions
+        if slot == PositionSlot.DH:
+            return card.player_type == 'HITTER'  # any hitter can DH
+        return any(pos in pos_list for pos in valid_in_game_positions)
 
     # ------------------------------------------------------------------
     # COMPOSITION
@@ -116,7 +116,7 @@ class RosterToTeamConverter:
         remaining_positions = [p for p in OFFENSE_POSITIONS if p not in assignment]
         if remaining_positions:
             eligible = {
-                pos: [c for c in hitters if c.card_id not in used_ids and self._pos_matches(c, pos)]
+                pos: [c for c in hitters if c.card_id not in used_ids and self._pos_matches(c, PositionSlot(pos))]
                 for pos in remaining_positions
             }
             for position in sorted(remaining_positions, key=lambda p: len(eligible[p])):
@@ -132,8 +132,8 @@ class RosterToTeamConverter:
     def build(self) -> Team:
         hitters = [c for c in self.cards if c.player_type != 'PITCHER']
         pitchers = [c for c in self.cards if c.player_type == 'PITCHER']
-        starters = [c for c in pitchers if 'STARTER' in (c.positions_list or [])]
-        relievers = [c for c in pitchers if 'STARTER' not in (c.positions_list or [])]
+        starters = [c for c in pitchers if Position.SP in (c.positions_list or [])]
+        relievers = [c for c in pitchers if Position.SP not in (c.positions_list or [])]
 
         roster_slots: list[TeamRosterSlot] = []
         lineup_slots: list[LineupSlot] = []

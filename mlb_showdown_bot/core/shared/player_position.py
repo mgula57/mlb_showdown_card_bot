@@ -308,6 +308,10 @@ class Position(Enum):
     def is_valid_in_game(self) -> bool:
         return self.name not in ['LF', 'RF']
     
+    @property
+    def valid_position_slots(self) -> list['PositionSlot']:
+        return [ps for ps in PositionSlot if self in ps.valid_positions]
+    
     def __repr__(self):
         return self.value
     

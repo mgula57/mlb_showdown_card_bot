@@ -160,10 +160,19 @@ export const CardItemCompact = ({
                     <div className={`flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-wrap ${isRedacted ? 'redacted' : ''}`}>
                         {isRedacted ? '--- • ---' : (
                             <>
+                                {/* DEFENSE */}
                                 {getDefenseDisplay(card, fieldPosition)}
+                                
+                                {/* OUTS/SPEED */}
                                 <span className="hidden @[90px]:flex">
                                     <span className="px-0.5 opacity-50">•</span>
                                     {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                                </span>
+
+                                {/* HANDEDNESS */}
+                                <span className="hidden @[110px]:flex">
+                                    <span className="px-0.5 opacity-50">•</span>
+                                    {card?.is_pitcher ? `${card?.hand}HP` : `${card?.hand}H`}
                                 </span>
                             </>
                         )}
@@ -266,6 +275,8 @@ export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPos
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
                 speed: card?.speed.speed || null,
+                icons_list: card?.icons || [],
+                hand: card?.hand || null,
                 source: card?.is_wotc ? 'WOTC' : 'BOT',
                 isEmpty: card == null || card === undefined,
             }}
@@ -317,6 +328,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
                 speed: card?.speed || null,
+                hand: card?.hand || null,
                 icons_list: card?.icons_list || [],
                 source: card?.source || 'BOT',
                 isEmpty: card == null || card === undefined,

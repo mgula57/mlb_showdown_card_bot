@@ -480,6 +480,7 @@ export type ShowdownBotCardCompact = {
     positions_and_defense?: Record<string, number> | null;
     ip: number | null;
     speed: number | null;
+    hand: string | null;
     icons_list?: string[] | null;
     source: CardSource;
     isEmpty?: boolean;
