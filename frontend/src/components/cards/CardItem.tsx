@@ -8,6 +8,7 @@ import { CardSource } from "../../types/cardSource";
 import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard } from 'react-icons/fa6';
 import type { CardItemActionButton } from './CardItemCompact';
 import { formatYear } from "../../functions/formatters";
+import CardIcon from "./card_elements/CardIcon";
 
 /**
  * Props for the CardItem component
@@ -280,17 +281,13 @@ export const CardItem = ({
                             
                             {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
                             {cardIcons?.map((icon, index) => (
-                                <div 
-                                    key={index} 
-                                    className="
-                                        text-[9px] flex w-4 h-4 
-                                        items-center font-bold justify-center 
-                                        rounded-full tracking-tight shrink-0
-                                    " 
-                                    style={colorStylingSecondary} 
-                                >
-                                    {icon}
-                                </div>
+                                <CardIcon
+                                    key={`${cardId}-icon-${index}`} 
+                                    color={secondaryColor} 
+                                    value={icon} 
+                                    circleSize="4" 
+                                    textSize={9} 
+                                />
                             ))}
                         </div>
                         

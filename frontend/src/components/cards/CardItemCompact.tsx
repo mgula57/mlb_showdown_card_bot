@@ -7,6 +7,7 @@ import { formatYear } from "../../functions/formatters";
 import { FaHatWizard } from "react-icons/fa6";
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { defenseAtPosition } from "../shared/DefenseUtils";
+import CardIcon from "./card_elements/CardIcon";
 
 // =============================================================================
 // TYPES
@@ -181,6 +182,19 @@ export const CardItemCompact = ({
                 <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="WOTC Card" />
             )}
 
+            {/* Icons - top-right corner */}
+            <div className="absolute -top-1 right-0 flex gap-1">
+                {card?.icons_list?.map((icon, index) => (
+                    <CardIcon 
+                        key={`${card?.id}-icon-${index}`} 
+                        color={secondaryColor} 
+                        value={icon} 
+                        circleSize="4" 
+                        textSize={9} 
+                    />
+                ))}
+            </div>
+
             {/* Optional action button — top-right corner */}
             {actionButton && (
                 <button
@@ -303,6 +317,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
                 speed: card?.speed || null,
+                icons_list: card?.icons_list || [],
                 source: card?.source || 'BOT',
                 isEmpty: card == null || card === undefined,
             }}
