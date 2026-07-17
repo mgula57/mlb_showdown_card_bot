@@ -107,6 +107,7 @@ class ExploreDataRecord(BaseModel):
     
     # Base identifiers
     id: str
+    card_id: Optional[str] = Field(None, description="The showdown card's own identifier (distinct from `id`, the archive row identity) — matches CardDatabaseRecord.card_id on the frontend")
     year: int
     bref_id: Optional[str] = None
     mlb_id: Optional[int] = None
@@ -162,6 +163,7 @@ class ExploreDataRecord(BaseModel):
     real_bwar: Optional[float] = Field(None, description="Real bWAR")
     real_onbase_plus_slugging: Optional[float] = Field(None, description="Real on-base plus slugging (OPS)")
     real_earned_run_avg: Optional[float] = Field(None, description="Real earned run average (ERA)")
+    real_sv: Optional[int] = Field(None, description="Real saves")
     
     # Awards and stats
     awards_list: List[str] = Field(default_factory=list, description="List of awards/achievements")
@@ -1480,8 +1482,24 @@ class PostgresDB:
             traceback.print_exc()
             return standings
 
-    def fetch_team_season_card_pool(self, season: int, showdown_set: str, team_id: int, team_abbr: Optional[str] = None, sport_id: int = 1) -> list[dict]:
-        """Fetch flat card summary rows for every player on a team's roster in a given season.
+    @staticmethod
+    def _wbc_row_to_explore_record(row: dict) -> ExploreDataRecord:
+        """Adapt a card_wbc row into an ExploreDataRecord.
+
+        card_wbc doesn't carry the primary/secondary position breakdown or the
+        team-history columns that the card_bot materialized view does, so those are
+        backfilled with best-effort defaults before construction.
+        """
+        row = dict(row)
+        row.setdefault('primary_positions', row.get('positions_list') or [])
+        row.setdefault('secondary_positions', [])
+        row.setdefault('team_id_list', [row['team_id']] if row.get('team_id') else [])
+        row.setdefault('team_games_played_dict', {})
+        row.setdefault('updated_at', row.get('modified_date'))
+        return ExploreDataRecord(**row)
+
+    def fetch_team_season_card_pool(self, season: int, showdown_set: str, team_id: int, team_abbr: Optional[str] = None, sport_id: int = 1) -> list[ExploreDataRecord]:
+        """Fetch card records for every player on a team's roster in a given season.
 
         Used to construct an on-the-fly team builder Team for an MLB/WBC team.
         Sources, in priority order:
@@ -1497,26 +1515,25 @@ class PostgresDB:
             sport_id: MLB API sport id (1 = MLB, 51 = International/WBC).
 
         Returns:
-            List of card summary dicts tagged with a `_card_source` key.
+            List of ExploreDataRecord cards, each tagged with its `.source` ('BOT' or 'WBC').
         """
 
         if self.connection is None:
             return []
 
-        summary_columns = "card_id, name, year, points, positions_list, positions_and_defense_string, is_pitcher, g, gs, pa, real_ip, ip"
-
         if SportEnum(sport_id) == SportEnum.INTERNATIONAL:
-            query = sql.SQL(f"""
-                SELECT {summary_columns}, 'WBC' AS _card_source
+            query = sql.SQL("""
+                SELECT *, 'WBC' AS source
                 FROM card_wbc
                 WHERE wbc_team_id = %s AND wbc_season = %s AND showdown_set = %s
             """)
-            return self.execute_query(query=query, filter_values=(team_id, season, showdown_set))
+            rows = self.execute_query(query=query, filter_values=(team_id, season, showdown_set))
+            return [self._wbc_row_to_explore_record(row) for row in rows]
 
         # For MLB seasons before May 1st, cards are still built from the prior year's stats
         card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
 
-        roster_history_query = sql.SQL(f"""
+        roster_history_query = sql.SQL("""
             WITH latest_roster AS (
                 SELECT player_id
                 FROM internal.dim_roster_history
@@ -1525,14 +1542,14 @@ class PostgresDB:
                     AND team_id = %s
                     AND status = 'Active'
             )
-            SELECT {summary_columns}, real_sv, 'BOT' AS _card_source
+            SELECT cards.*, 'BOT' AS source
             FROM card_bot AS cards
             JOIN latest_roster ON cards.mlb_id::text = latest_roster.player_id
             WHERE cards.year = %s AND cards.showdown_set = %s
         """)
-        results = self.execute_query(query=roster_history_query, filter_values=(season, season, str(team_id), card_year, showdown_set))
-        if results:
-            return results
+        rows = self.execute_query(query=roster_history_query, filter_values=(season, season, str(team_id), card_year, showdown_set))
+        if rows:
+            return [ExploreDataRecord(**row) for row in rows]
 
         # Historical fallback: no roster snapshots for this season, use the cards' own team assignment.
         if not team_abbr:
@@ -1540,13 +1557,14 @@ class PostgresDB:
         bref_team = Team.map_from_mlb_api_team(team_abbr)
         if bref_team in (Team.MLB, Team.MILB):
             return []
-        historical_query = sql.SQL(f"""
-            SELECT {summary_columns}, real_sv, 'BOT' AS _card_source
+        historical_query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
             FROM card_bot AS cards
-            WHERE cards.team_id = %s
+            WHERE (cards.team_id = %s OR %s = ANY(cards.team_id_list))
                 AND cards.year = %s AND cards.showdown_set = %s
         """)
-        return self.execute_query(query=historical_query, filter_values=(bref_team.value, season, showdown_set))
+        rows = self.execute_query(query=historical_query, filter_values=(bref_team.value, bref_team.value, season, showdown_set))
+        return [ExploreDataRecord(**row) for row in rows]
 
 # ------------------------------------------------------------------------
 # CARD DATA UPLOADS (BOT AND WOTC)

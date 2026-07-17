@@ -1,11 +1,12 @@
 from typing import Optional
 
-from .team import Team, TeamSource, TeamRosterSlot, Lineup, LineupSlot, PitcherAssignment, PickSource
-from .autofill import OFFENSE_POSITIONS, _pos_matches, _card_source
+from .team import Team, TeamSource, CardSource, TeamRosterSlot, Lineup, LineupSlot, PitcherAssignment, PickSource
+from .autofill import OFFENSE_POSITIONS
+from ...database.postgres_db import ExploreDataRecord
 
 
 class RosterToTeamConverter:
-    """Convert a pool of card summary rows for a real MLB/WBC roster into a read-only Team.
+    """Convert a pool of ExploreDataRecord cards for a real MLB/WBC roster into a read-only Team.
 
     Used to present real rosters (sourced from the card archive) inside the team
     builder UI without going through the drafting flow. Unlike autofill
@@ -21,14 +22,15 @@ class RosterToTeamConverter:
 
     def __init__(
         self,
-        cards: list[dict],
+        cards: list[ExploreDataRecord],
         team_id: str,
         name: str,
         abbreviation: str,
         primary_color: Optional[str] = None,
         secondary_color: Optional[str] = None,
     ) -> None:
-        self.cards = cards
+        # A card can't be placed on the roster without an identifier the frontend can look up
+        self.cards = [c for c in cards if c.card_id]
         self.team_id = team_id
         self.name = name
         self.abbreviation = abbreviation
@@ -40,45 +42,98 @@ class RosterToTeamConverter:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _by_games_played(card: dict) -> tuple:
-        return (card.get('g') or 0, card.get('points') or 0)
+    def _by_games_played(card: ExploreDataRecord) -> tuple:
+        return (card.g or 0, card.points or 0)
 
     @staticmethod
-    def _by_games_started(card: dict) -> tuple:
-        return (card.get('gs') or 0, float(card.get('real_ip') or 0), card.get('points') or 0)
+    def _by_games_started(card: ExploreDataRecord) -> tuple:
+        return (card.gs or 0, card.real_ip or 0.0, card.points or 0)
 
     @staticmethod
-    def _by_saves(card: dict) -> tuple:
-        return (card.get('real_sv') or 0, card.get('points') or 0)
+    def _by_saves(card: ExploreDataRecord) -> tuple:
+        return (card.real_sv or 0, card.points or 0)
+
+    @staticmethod
+    def _card_source(card: ExploreDataRecord) -> CardSource:
+        try:
+            return CardSource((card.source or 'BOT').upper())
+        except ValueError:
+            return CardSource.BOT
+
+    @staticmethod
+    def _pos_matches(card: ExploreDataRecord, position: str) -> bool:
+        """Check whether a hitter card can play the given field position (positions_list-based)."""
+        pos_list = card.positions_list or []
+        if position in ('LF', 'RF'):
+            return 'LF/RF' in pos_list or position in pos_list
+        if position == 'DH':
+            return True  # any hitter can DH
+        return position in pos_list
 
     # ------------------------------------------------------------------
     # COMPOSITION
     # ------------------------------------------------------------------
 
-    def _assign_lineup(self, hitters: list[dict]) -> dict[str, dict]:
-        """Assign the 9 lineup positions to the eligible hitters with the most games played.
+    @staticmethod
+    def _preferred_position(card: ExploreDataRecord) -> Optional[str]:
+        """The position a hitter played most, per Baseball Reference's position summary ordering.
 
-        Fills the scarcest positions first (mirrors autofill) so a player who is the
-        only option at a position isn't consumed by a deeper one. DH is always last
-        since every hitter qualifies.
+        `primary_positions` is already ordered by games played at each position; falls back to
+        `secondary_positions` for players with no primary position on record (e.g. limited playing time).
         """
-        eligible = {pos: [c for c in hitters if _pos_matches(c, pos)] for pos in OFFENSE_POSITIONS}
-        assignment: dict[str, dict] = {}
+        if card.primary_positions:
+            return card.primary_positions[0]
+        if card.secondary_positions:
+            return card.secondary_positions[0]
+        return None
+
+    def _assign_lineup(self, hitters: list[ExploreDataRecord]) -> dict[str, ExploreDataRecord]:
+        """Assign the 9 lineup positions to hitters.
+
+        Pass 1 prefers each hitter's most-played position (primary/secondary_positions).
+        Pass 2 falls back to the broader positions_list-based eligibility (the pre-existing
+        logic, which folds LF/RF together and allows any hitter at DH) for any position that
+        pass 1 couldn't fill. Both passes fill the scarcest position first so a player who is
+        the only option at a position isn't consumed by a deeper one.
+        """
+        assignment: dict[str, ExploreDataRecord] = {}
         used_ids: set[str] = set()
-        for position in sorted(OFFENSE_POSITIONS, key=lambda p: len(eligible[p])):
-            candidates = [c for c in eligible[position] if c['card_id'] not in used_ids]
+
+        preferred_candidates: dict[str, list[ExploreDataRecord]] = {pos: [] for pos in OFFENSE_POSITIONS}
+        for card in hitters:
+            pos = self._preferred_position(card)
+            if pos in preferred_candidates:
+                preferred_candidates[pos].append(card)
+
+        for position in sorted(OFFENSE_POSITIONS, key=lambda p: len(preferred_candidates[p])):
+            candidates = [c for c in preferred_candidates[position] if c.card_id not in used_ids]
             if not candidates:
                 continue
             picked = max(candidates, key=self._by_games_played)
             assignment[position] = picked
-            used_ids.add(picked['card_id'])
+            used_ids.add(picked.card_id)
+
+        remaining_positions = [p for p in OFFENSE_POSITIONS if p not in assignment]
+        if remaining_positions:
+            eligible = {
+                pos: [c for c in hitters if c.card_id not in used_ids and self._pos_matches(c, pos)]
+                for pos in remaining_positions
+            }
+            for position in sorted(remaining_positions, key=lambda p: len(eligible[p])):
+                candidates = [c for c in eligible[position] if c.card_id not in used_ids]
+                if not candidates:
+                    continue
+                picked = max(candidates, key=self._by_games_played)
+                assignment[position] = picked
+                used_ids.add(picked.card_id)
+
         return assignment
 
     def build(self) -> Team:
-        hitters = [c for c in self.cards if not c.get('is_pitcher')]
-        pitchers = [c for c in self.cards if c.get('is_pitcher')]
-        starters = [c for c in pitchers if 'STARTER' in (c.get('positions_list') or [])]
-        relievers = [c for c in pitchers if 'STARTER' not in (c.get('positions_list') or [])]
+        hitters = [c for c in self.cards if c.player_type != 'PITCHER']
+        pitchers = [c for c in self.cards if c.player_type == 'PITCHER']
+        starters = [c for c in pitchers if 'STARTER' in (c.positions_list or [])]
+        relievers = [c for c in pitchers if 'STARTER' not in (c.positions_list or [])]
 
         roster_slots: list[TeamRosterSlot] = []
         lineup_slots: list[LineupSlot] = []
@@ -86,28 +141,28 @@ class RosterToTeamConverter:
 
         # LINEUP: one hitter per field position, batting order by points
         lineup_assignment = self._assign_lineup(hitters)
-        lineup_cards_by_points = sorted(lineup_assignment.items(), key=lambda kv: kv[1].get('points') or 0, reverse=True)
-        batting_orders = {card['card_id']: order for order, (_, card) in enumerate(lineup_cards_by_points, start=1)}
+        lineup_cards_by_points = sorted(lineup_assignment.items(), key=lambda kv: kv[1].points or 0, reverse=True)
+        batting_orders = {card.card_id: order for order, (_, card) in enumerate(lineup_cards_by_points, start=1)}
         for position in OFFENSE_POSITIONS:
             card = lineup_assignment.get(position)
             if card is None:
                 continue
-            src = _card_source(card)
+            src = self._card_source(card)
             roster_slots.append(TeamRosterSlot(
-                card_id=card['card_id'], card_source=src, roster_position=position,
+                card_id=card.card_id, card_source=src, roster_position=position,
                 pick_source=PickSource.IMPORTED,
             ))
             lineup_slots.append(LineupSlot(
-                card_id=card['card_id'], card_source=src,
-                field_position=position, batting_order=batting_orders[card['card_id']],
+                card_id=card.card_id, card_source=src,
+                field_position=position, batting_order=batting_orders[card.card_id],
             ))
 
         # BENCH: remaining hitters by games played
-        lineup_ids = {c['card_id'] for c in lineup_assignment.values()}
-        bench = sorted([c for c in hitters if c['card_id'] not in lineup_ids], key=self._by_games_played, reverse=True)
+        lineup_ids = {c.card_id for c in lineup_assignment.values()}
+        bench = sorted([c for c in hitters if c.card_id not in lineup_ids], key=self._by_games_played, reverse=True)
         for card in bench:
             roster_slots.append(TeamRosterSlot(
-                card_id=card['card_id'], card_source=_card_source(card), roster_position='BE',
+                card_id=card.card_id, card_source=self._card_source(card), roster_position='BE',
                 pick_source=PickSource.IMPORTED,
             ))
 
@@ -116,12 +171,12 @@ class RosterToTeamConverter:
         rotation_cards = sorted(starters, key=self._by_games_started, reverse=True)[:self.MAX_ROTATION_SLOTS]
         for i, card in enumerate(rotation_cards, start=1):
             role = f'SP{i}'
-            src = _card_source(card)
+            src = self._card_source(card)
             roster_slots.append(TeamRosterSlot(
-                card_id=card['card_id'], card_source=src, roster_position=role,
+                card_id=card.card_id, card_source=src, roster_position=role,
                 pick_source=PickSource.IMPORTED,
             ))
-            rotation.append(PitcherAssignment(card_id=card['card_id'], card_source=src, role=role))
+            rotation.append(PitcherAssignment(card_id=card.card_id, card_source=src, role=role))
 
         # BULLPEN: reliever with the most saves closes, the rest by appearances
         bullpen_pool = relievers + [c for c in starters if c not in rotation_cards]
@@ -130,12 +185,12 @@ class RosterToTeamConverter:
         bullpen += sorted([c for c in bullpen_pool if c is not closer], key=self._by_games_played, reverse=True)
         for card in bullpen:
             role = 'CL' if card is closer else 'RP'
-            src = _card_source(card)
+            src = self._card_source(card)
             roster_slots.append(TeamRosterSlot(
-                card_id=card['card_id'], card_source=src, roster_position=role,
+                card_id=card.card_id, card_source=src, roster_position=role,
                 pick_source=PickSource.IMPORTED,
             ))
-            rotation.append(PitcherAssignment(card_id=card['card_id'], card_source=src, role=role))
+            rotation.append(PitcherAssignment(card_id=card.card_id, card_source=src, role=role))
 
         num_bench = len(bench)
         num_bullpen = len(bullpen)
@@ -167,6 +222,6 @@ class RosterToTeamConverter:
         """Serialize the composed team to the same shape as the /user/teams endpoints."""
         team = self.build()
         data = team.model_dump(mode='json')
-        total_points = sum(card.get('points') or 0 for card in self.cards)
+        total_points = sum(card.points or 0 for card in self.cards)
         data['total_points'] = total_points
         return data
