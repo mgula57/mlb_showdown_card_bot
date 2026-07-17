@@ -124,7 +124,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         () => draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source })),
         [draft.roster],
     );
-    const { cardMap, addCard } = useCardMap(rosterSlots);
+    const { cardMap, loading: isLoadingCards, addCard } = useCardMap(rosterSlots);
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
     const [dirty, setDirty] = useState(false);
@@ -413,6 +413,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             rosterData={rosterData}
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
+            isLoadingCards={isLoadingCards}
         />
     );
 
@@ -437,6 +438,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             activeRole={activeRole}
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
+            isLoadingCards={isLoadingCards}
         />
     );
 

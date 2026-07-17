@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
+import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { FaPlus, FaPencil } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
@@ -22,11 +22,14 @@ type DepthChartPanelProps = {
     activeRole?: string | null;
     hoveredCardId?: string | null;
     onCardHover?: (cardId: string | null) => void;
+    /** True while cardMap entries are still being fetched — shows a skeleton for filled-but-unresolved slots */
+    isLoadingCards?: boolean;
 };
 
 function PositionRow({
     label,
     card,
+    isPending,
     onClick,
     onDetailClick,
     readOnly,
@@ -37,6 +40,7 @@ function PositionRow({
 }: {
     label: string;
     card: CardDatabaseRecord | null | undefined;
+    isPending?: boolean;
     onClick: () => void;
     onDetailClick?: () => void;
     readOnly: boolean;
@@ -45,6 +49,15 @@ function PositionRow({
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
 }) {
+    if (!card && isPending) {
+        return (
+            <div className="flex items-center gap-3 min-h-9">
+                <span className="text-[11px] font-bold w-6 shrink-0 text-right text-(--text-tertiary)">{label}</span>
+                <CardItemSkeleton className="flex-1 min-w-0" />
+            </div>
+        );
+    }
+
     return (
         <div
             className={`
@@ -129,6 +142,7 @@ export function DepthChartPanel({
     activeRole,
     hoveredCardId,
     onCardHover,
+    isLoadingCards,
 }: DepthChartPanelProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
@@ -201,6 +215,7 @@ export function DepthChartPanel({
                         key={pos}
                         label={pos}
                         card={card}
+                        isPending={!card && !!slot && isLoadingCards}
                         onClick={() => onSlotClick(pos, slot)}
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
@@ -222,6 +237,7 @@ export function DepthChartPanel({
                         key={pos}
                         label={pos}
                         card={card}
+                        isPending={!card && !!slot && isLoadingCards}
                         onClick={() => onBenchClick(pos, slot)}
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
@@ -243,6 +259,7 @@ export function DepthChartPanel({
                         key={role}
                         label={role}
                         card={card}
+                        isPending={!card && !!assignment && isLoadingCards}
                         onClick={() => onRoleClick(role, assignment)}
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}
@@ -265,6 +282,7 @@ export function DepthChartPanel({
                         key={`depth-${actualRole}-${i}`}
                         label={actualRole}
                         card={card}
+                        isPending={!card && !!assignment && isLoadingCards}
                         onClick={() => onRoleClick(actualRole, assignment)}
                         onDetailClick={card ? () => setDetailCard(card) : undefined}
                         readOnly={readOnly}

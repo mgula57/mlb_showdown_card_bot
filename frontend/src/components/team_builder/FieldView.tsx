@@ -44,6 +44,8 @@ type FieldViewProps = {
     rosterData?: FieldViewRosterData;
     hoveredCardId?: string | null;
     onCardHover?: (cardId: string | null) => void;
+    /** True while cardMap entries are still being fetched — shows loading placeholders for filled-but-unresolved slots */
+    isLoadingCards?: boolean;
 };
 
 
@@ -90,7 +92,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
     return total;
 }
 
-export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData, hoveredCardId, onCardHover }: FieldViewProps) {
+export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData, hoveredCardId, onCardHover, isLoadingCards }: FieldViewProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
     const slotByPosition = Object.fromEntries(
@@ -166,6 +168,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
             roles: [...ROTATION_ROLES].slice(0, rosterData?.maxRotation) as string[],
             kpis: rotationKpis,
             getCard:    (role: string) => { const r = rotByRole[role]; return r ? cardMap[r.card_id] : null; },
+            hasAssignment: (role: string) => !!rotByRole[role],
             onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, rotByRole[role] ?? null) : undefined,
         },
         {
@@ -173,6 +176,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
             roles: bullpenRoles,
             kpis: bullpenKpis,
             getCard:    (role: string) => { const r = bullByRole[role]; return r ? cardMap[r.card_id] : null; },
+            hasAssignment: (role: string) => !!bullByRole[role],
             onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, bullByRole[role] ?? null) : undefined,
         },
         {
@@ -181,6 +185,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
             roles: benchRoles,
             kpis: benchKpis,
             getCard:    (role: string) => { const s = benchByRole[role]; return s ? cardMap[s.card_id] : null; },
+            hasAssignment: (role: string) => !!benchByRole[role],
             onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(role, benchByRole[role] ?? null) : undefined,
         },
     ] : [];
@@ -253,6 +258,8 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                             label: 'Replace card',
                                         } : undefined}
                                     />
+                                ) : slot && isLoadingCards ? (
+                                    <PositionSlotLoadingPlaceholder position={pos} />
                                 ) : (
                                     <PositionSlotPlaceholder
                                         position={pos}
@@ -266,7 +273,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                 })}
             </div>
 
-            {sections.map(({ label, roles, total, kpis, getCard, onItemClick, maxPlayers }) => {
+            {sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers }) => {
                 const filledCount = roles.filter(r => getCard(r)).length;
                 return (
                     <div key={label} className="border-t border-(--divider)" onClick={onItemClick ? e => e.stopPropagation() : undefined}>
@@ -275,6 +282,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                             {roles.map(role => {
                                 const card = getCard(role);
                                 const isPeerHovered = !!card && card.card_id === hoveredCardId;
+                                const isPending = !card && hasAssignment(role) && isLoadingCards;
                                 return card ? (
                                     <div
                                         key={role}
@@ -293,6 +301,8 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                                             } : undefined}
                                         />
                                     </div>
+                                ) : isPending ? (
+                                    <SlotLoadingPlaceholder key={role} />
                                 ) : (
                                     <button
                                         key={role}
@@ -349,5 +359,30 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             <span className={`text-[11px] font-black ${isActive ? 'text-(--secondary)' : 'text-white/70'}`}>{position}</span>
             {onClick && <FaPlus className={`text-[9px] shrink-0 ${isActive ? 'text-(--secondary)' : 'text-white/50'}`} />}
         </button>
+    );
+}
+
+const LoadingDots = ({ dotClassName }: { dotClassName: string }) => (
+    <span className="flex items-center gap-1 shrink-0">
+        <span className={`w-1 h-1 rounded-full animate-bounce ${dotClassName}`} style={{ animationDelay: '0ms' }} />
+        <span className={`w-1 h-1 rounded-full animate-bounce ${dotClassName}`} style={{ animationDelay: '150ms' }} />
+        <span className={`w-1 h-1 rounded-full animate-bounce ${dotClassName}`} style={{ animationDelay: '300ms' }} />
+    </span>
+);
+
+function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
+    return (
+        <div className="w-full flex items-center justify-between gap-1 rounded-lg px-2 h-12 border-2 border-dashed border-white/30 bg-black/20 backdrop-blur-[2px]">
+            <span className="text-[11px] font-black text-white/70">{position}</span>
+            <LoadingDots dotClassName="bg-white/60" />
+        </div>
+    );
+}
+
+function SlotLoadingPlaceholder() {
+    return (
+        <div className="flex items-center justify-center h-9 rounded-lg border border-dashed border-(--divider)">
+            <LoadingDots dotClassName="bg-(--text-tertiary)" />
+        </div>
     );
 }
