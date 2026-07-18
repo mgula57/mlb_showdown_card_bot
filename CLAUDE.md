@@ -123,3 +123,7 @@ Two PostgreSQL connections (separate pools warmed at startup):
 - **`DATABASE_URL_ARCHIVE`**: Archive of pre-computed card stats used to skip re-scraping for historical seasons. `SPLIT` period type always bypasses the archive.
 
 Supabase is used for auth and for uploading card images.
+
+### Testing
+
+Do NOT run the flask server yourself for testing. Assume the user always has one running themselves
