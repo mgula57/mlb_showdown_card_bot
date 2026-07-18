@@ -32,7 +32,9 @@ type CardItemCompactProps = {
     actionButton?: CardItemActionButton;
     /** Show defense only for this position (e.g. 'SS', 'CF'). Falls back to full string. */
     fieldPosition?: string;
-    /** Always hide the set icon and defense/outs/handedness row, regardless of container width */
+    /** Optional override for the player's defensive rating at the specified field position */
+    detailStat1Category?: 'defense' | 'hr' | 'outs';
+    /** Always hide the set icon and defense/handedness row, regardless of container width */
     hideDetails?: boolean;
 };
 
@@ -58,6 +60,7 @@ export const CardItemCompact = ({
     onClick,
     actionButton,
     fieldPosition,
+    detailStat1Category,
     hideDetails,
 }: CardItemCompactProps) => {
 
@@ -102,7 +105,7 @@ export const CardItemCompact = ({
                 relative @container
                 w-full min-w-0
                 flex items-top gap-2
-                rounded-lg px-2 py-1
+                rounded-lg px-1.5 py-1
                 bg-secondary
                 ${borderSettings}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
@@ -153,11 +156,13 @@ export const CardItemCompact = ({
                     </div>
                 </div>
                 {!hideDetails && (
-                    <div className={`hidden @[70px]:flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                    <div className={`hidden @[70px]:flex py-0.5 text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                         {isRedacted ? '--- • ---' : (
                             <>
-                                {/* DEFENSE */}
-                                {getDefenseDisplay(card, fieldPosition)}
+                                {/* STAT 1 */}
+                                {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition)}
+                                {detailStat1Category === 'hr' && (`${card?.hr_range?.split('-')[0].split('+')[0]}+ HR`)}
+                                {detailStat1Category === 'outs' && (`${card?.outs} OUT`)}
 
                                 {/* OUTS/SPEED */}
                                 <span className="hidden @[90px]:flex">
@@ -178,7 +183,7 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && (
-                <div className="hidden @[70px]:block absolute bottom-1 left-1.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                <div className="hidden @[70px]:block absolute bottom-1.5 left-1 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
                 </div>
             )}
@@ -239,12 +244,13 @@ type CardItemCompactFromCardProps = {
     className?: string;
     fieldPosition?: string;
     hideDetails?: boolean;
+    detailStat1Category?: 'defense' | 'hr' | 'outs';
     isSelected?: boolean;
     onClick?: () => void;
     actionButton?: CardItemActionButton;
 };
 
-export const CardItemCompactFromCard = ({ card, className, fieldPosition, hideDetails, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -273,6 +279,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition, hideDe
                 speed: card?.speed.speed || null,
                 icons_list: card?.icons || [],
                 hand: card?.hand || null,
+                hr_range: card?.chart.ranges.HR || null,
                 source: card?.is_wotc ? 'WOTC' : 'BOT',
                 isEmpty: card == null || card === undefined,
             }}
@@ -280,6 +287,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition, hideDe
             isSelected={isSelected}
             fieldPosition={fieldPosition}
             hideDetails={hideDetails}
+            detailStat1Category={detailStat1Category}
             onClick={onClick}
             actionButton={actionButton}
         />
@@ -294,10 +302,11 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     onClick?: () => void;
     actionButton?: CardItemActionButton;
     fieldPosition?: string;
+    detailStat1Category?: 'defense' | 'hr' | 'outs';
     hideDetails?: boolean;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -325,6 +334,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 ip: card?.ip || 0,
                 speed: card?.speed || null,
                 hand: card?.hand || null,
+                hr_range: card?.chart_ranges?.HR || null,
                 icons_list: card?.icons_list || [],
                 source: card?.source || 'BOT',
                 isEmpty: card == null || card === undefined,
@@ -336,6 +346,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             actionButton={actionButton}
             fieldPosition={fieldPosition}
             hideDetails={hideDetails}
+            detailStat1Category={detailStat1Category}
         />
     );
 };

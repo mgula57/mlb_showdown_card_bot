@@ -253,7 +253,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                 Gold Glove
                             </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 lg:pr-6">
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                             {LEAGUES.map(league => (
                                 <div key={league} className="flex flex-col gap-1.5">
                                     <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
@@ -267,7 +267,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                         isLoadingCards={isLoadingCards}
                                         positions={GG_POSITIONS}
                                         headerLabel="Gold Glove"
-                                        showDefenseSummary={false}
+                                        showDefenseSummary={true}
                                     />
                                 </div>
                             ))}
@@ -281,7 +281,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                 Silver Slugger
                             </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 lg:pr-6">
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                             {LEAGUES.map(league => (
                                 <div key={league} className="flex flex-col gap-1.5">
                                     <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
@@ -295,7 +295,8 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                         isLoadingCards={isLoadingCards}
                                         positions={SS_POSITIONS}
                                         headerLabel="Silver Slugger"
-                                        showDefenseSummary={false}
+                                        showDefenseSummary={true}
+                                        detailStat1Category="hr"
                                     />
                                 </div>
                             ))}

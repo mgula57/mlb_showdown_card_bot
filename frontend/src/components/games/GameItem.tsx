@@ -249,6 +249,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
         speed: null,
         source: 'BOT',
         hand: null,
+        hr_range: null,
     });
 
     const liveAtBatCardFallback = createPlaceholderCard(

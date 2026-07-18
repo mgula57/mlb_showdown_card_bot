@@ -481,6 +481,7 @@ export type ShowdownBotCardCompact = {
     ip: number | null;
     speed: number | null;
     hand: string | null;
+    hr_range: string | null;
     icons_list?: string[] | null;
     source: CardSource;
     isEmpty?: boolean;

@@ -20,7 +20,7 @@ export const POSITION_COORDS: Record<string, [number, number]> = {
     C:   [50, 85],
     DH:  [84, 85],
     // Award-winner-only slots (Gold Glove Pitcher/Utility, Silver Slugger Utility)
-    P:   [50, 58],
+    P:   [50, 65],
     UT:  [84, 85],
 };
 
@@ -55,6 +55,8 @@ type FieldViewProps = {
     headerLabel?: string;
     /** Hides the OF/IF/CA defense badges and points totals — off by default for read-only showcases where they don't apply */
     showDefenseSummary?: boolean;
+    /** Which detail stat to show on the cards (defaults to 'defense') */
+    detailStat1Category?: 'defense' | 'hr' | 'outs';
 };
 
 
@@ -104,7 +106,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 export function FieldView({
     lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition,
     rosterData, hoveredCardId, onCardHover, isLoadingCards,
-    positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true,
+    positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, detailStat1Category = 'defense',
 }: FieldViewProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
@@ -204,7 +206,7 @@ export function FieldView({
     ] : [];
 
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col @container">
             <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
                 <img
                     src="/images/teams/Field.png"
@@ -241,7 +243,10 @@ export function FieldView({
                 </div>
 
                 {positions.map(pos => {
-                    const [left, top] = POSITION_COORDS[pos] ?? [50, 50];
+                    // UT normally reuses DH's spot, but shifts left when both are shown together (e.g. Silver Slugger) to avoid overlapping
+                    const [left, top] = pos === 'UT' && positions.includes('DH')
+                        ? [16, 85]
+                        : (POSITION_COORDS[pos] ?? [50, 50]);
                     const slot = slotByPosition[pos] ?? null;
                     const card = slot ? cardMap[slot.card_id] : null;
                     const isActive = activePosition === pos;
@@ -267,8 +272,8 @@ export function FieldView({
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
                                         className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
-                                       
                                         fieldPosition={pos}
+                                        detailStat1Category={detailStat1Category}
                                         onClick={() => setDetailCard(card)}
                                         isSelected={isActive}
                                         actionButton={!readOnly ? {
