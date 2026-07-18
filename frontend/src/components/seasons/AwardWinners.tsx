@@ -166,6 +166,9 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
 
         for (const recipient of recipients) {
             const pos = recipient.player.primary_position?.abbreviation;
+            if (pos === 'P') {
+                continue;
+            }
             if (pos === 'OF') {
                 outfielders.push(recipient);
             } else if (pos) {
@@ -187,6 +190,10 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
         return { name: 'Silver Slugger', slots };
     };
 
+    // Filter out the UT position for seasons prior to 2022
+    const filteredGGPositions = GG_POSITIONS.filter(pos => (Number(season) < 2022 ? pos !== 'UT' : true));
+    const filteredSSPositions = SS_POSITIONS.filter(pos => (Number(season) < 2022 ? pos !== 'UT' : true));
+
     // ==========================================================================
     // MARK: - Render
     // ==========================================================================
@@ -202,13 +209,13 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
             </div>
 
             {isLoadingAwards && !awards ? (
-                <div className="space-y-8">
+                <div className="space-y-6">
                     {[0, 1, 2].map(i => (
                         <div key={i} className={`h-48 rounded-xl animate-pulse ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
                     ))}
                 </div>
             ) : (
-                <div className="space-y-10">
+                <div className="space-y-6">
                     {/* MVP / Cy Young / Rookie of the Year */}
                     {SINGLE_WINNER_AWARDS.map(({ key, label }) => (
                         <div key={key}>
@@ -265,7 +272,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                         onSlotClick={() => {}}
                                         readOnly
                                         isLoadingCards={isLoadingCards}
-                                        positions={GG_POSITIONS}
+                                        positions={filteredGGPositions}
                                         headerLabel="Gold Glove"
                                         showDefenseSummary={true}
                                     />
@@ -293,7 +300,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                         onSlotClick={() => {}}
                                         readOnly
                                         isLoadingCards={isLoadingCards}
-                                        positions={SS_POSITIONS}
+                                        positions={filteredSSPositions.filter(pos => (Number(season) < 2020 && Number(season) !== 2021 && league === 'NL' ? pos !== 'DH' : true))}
                                         headerLabel="Silver Slugger"
                                         showDefenseSummary={true}
                                         detailStat1Category="hr"

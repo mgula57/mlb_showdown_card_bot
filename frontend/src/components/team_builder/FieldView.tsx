@@ -10,18 +10,18 @@ import { CardDetail } from '../cards/CardDetail';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
-    CF:  [50, 18],
-    LF:  [20, 24],
-    RF:  [80, 24],
-    SS:  [32, 43],
-    '2B': [68, 43],
-    '3B': [18, 63],
-    '1B': [82, 63],
-    C:   [50, 85],
-    DH:  [84, 85],
+    CF:  [50, 20],
+    LF:  [20, 26],
+    RF:  [80, 26],
+    SS:  [32, 45],
+    '2B': [68, 45],
+    '3B': [18, 65],
+    '1B': [82, 65],
+    C:   [50, 87],
+    DH:  [84, 87],
     // Award-winner-only slots (Gold Glove Pitcher/Utility, Silver Slugger Utility)
-    P:   [50, 65],
-    UT:  [84, 85],
+    P:   [50, 67],
+    UT:  [84, 87],
 };
 
 export const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;

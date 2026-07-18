@@ -199,8 +199,8 @@ export const CardItemCompact = ({
                         key={`${card?.id}-icon-${index}`} 
                         color={secondaryColor} 
                         value={icon} 
-                        circleSize="4" 
-                        textSize={9} 
+                        circleSize={((card?.icons_list?.length ?? 0) > 2 ? "3" : "4")}
+                        textSize={(card?.icons_list?.length ?? 0) > 2 ? 8 : 9} 
                     />
                 ))}
             </div>
