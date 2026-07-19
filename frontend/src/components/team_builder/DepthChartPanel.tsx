@@ -230,29 +230,6 @@ export function DepthChartPanel({
                 );
             })}
 
-            {/* Bench */}
-            <SectionHeader label="Bench" filledCount={filledBenchCards.length} total={benchPts} kpis={benchKpis} />
-            {BENCH_ROLES.map(pos => {
-                const slot = benchByRole[pos] ?? null;
-                const card = slot ? cardMap[slot.card_id] : null;
-                return (
-                    <PositionRow
-                        key={pos}
-                        label={pos}
-                        card={card}
-                        isPending={!card && !!slot && isLoadingCards}
-                        onClick={() => onBenchClick(pos, slot)}
-                        onDetailClick={card ? () => setDetailCard(card) : undefined}
-                        readOnly={readOnly}
-                        isActive={activeRole === pos}
-                        isPeerHovered={!!card && card.card_id === hoveredCardId}
-                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
-                        onMouseLeave={() => onCardHover?.(null)}
-                        ptsMultiplier={team.bench_pts_multiplier}
-                    />
-                );
-            })}
-
             {/* Rotation */}
             <SectionHeader label="Rotation" filledCount={filledRotCards.length} total={rotationPts} kpis={rotationKpis} />
             {ACTIVE_ROTATION_ROLES.map(role => {
@@ -294,6 +271,29 @@ export function DepthChartPanel({
                         isPeerHovered={!!card && card.card_id === hoveredCardId}
                         onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                         onMouseLeave={() => onCardHover?.(null)}
+                    />
+                );
+            })}
+
+            {/* Bench */}
+            <SectionHeader label="Bench" filledCount={filledBenchCards.length} total={benchPts} kpis={benchKpis} />
+            {BENCH_ROLES.map(pos => {
+                const slot = benchByRole[pos] ?? null;
+                const card = slot ? cardMap[slot.card_id] : null;
+                return (
+                    <PositionRow
+                        key={pos}
+                        label={pos}
+                        card={card}
+                        isPending={!card && !!slot && isLoadingCards}
+                        onClick={() => onBenchClick(pos, slot)}
+                        onDetailClick={card ? () => setDetailCard(card) : undefined}
+                        readOnly={readOnly}
+                        isActive={activeRole === pos}
+                        isPeerHovered={!!card && card.card_id === hoveredCardId}
+                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                        onMouseLeave={() => onCardHover?.(null)}
+                        ptsMultiplier={team.bench_pts_multiplier}
                     />
                 );
             })}
