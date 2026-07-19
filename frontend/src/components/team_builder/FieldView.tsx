@@ -328,18 +328,15 @@ export function FieldView({
                                 ) : isPending ? (
                                     <SlotLoadingPlaceholder key={role} />
                                 ) : (
-                                    <button
-                                        key={role}
-                                        type="button"
+                                    <>
+                                    <PositionSlotPlaceholder
+                                        position={role}
                                         onClick={onItemClick ? () => onItemClick(role) : undefined}
-                                        disabled={!onItemClick}
-                                        className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-dashed
-                                            text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-40
-                                            border-(--divider) text-(--text-tertiary) hover:border-(--secondary)/50 hover:text-(--secondary)"
-                                    >
-                                        <FaPlus className="text-[9px]" />
-                                        <span>Empty</span>
-                                    </button>
+                                        isActive={isPeerHovered}
+                                    />
+                                    
+                                    </>
+                                    
                                 );
                             })}
                         </div>
@@ -369,7 +366,7 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             onClick={onClick}
             className={`
                 w-full flex items-center justify-between gap-1
-                rounded-lg px-2 h-12
+                rounded-lg px-2 h-16
                 border-2 border-dashed
                 backdrop-blur-[2px]
                 ${isActive
