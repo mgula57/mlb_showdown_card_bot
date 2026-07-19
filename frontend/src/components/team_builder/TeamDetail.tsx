@@ -118,6 +118,20 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
+/** Contrast-aware translucent banner tokens for a given base color.
+ *  getContrastColor returns '#000000' (black text) for light backgrounds. */
+function bannerTokens(baseColor: string) {
+    const isLight = getContrastColor(baseColor) === '#000000';
+    return {
+        fill:  isLight ? 'rgba(0,0,0,0.80)' : 'rgba(255,255,255,0.92)',
+        track: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)',
+        dot:   isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)',
+        btnClass: isLight
+            ? 'bg-black/10 hover:bg-black/20 border border-black/20 text-black/80'
+            : 'bg-white/15 hover:bg-white/25 border border-white/30 text-white',
+    };
+}
+
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
 
@@ -305,16 +319,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const primary = draft.primary_color || 'rgb(0,0,0)';
     const secondary = draft.secondary_color || 'rgb(100,100,100)';
 
-    // Banner color tokens derived from team colors (shared by drafting + editing banners)
-    const bannerContrastColor = getContrastColor(primary);
-    const bannerIsLight = bannerContrastColor === '#000' || bannerContrastColor === 'black';
-    const bannerFillColor  = bannerIsLight ? 'rgba(0,0,0,0.80)'  : 'rgba(255,255,255,0.92)';
-    const bannerTrackColor = bannerIsLight ? 'rgba(0,0,0,0.15)'  : 'rgba(255,255,255,0.25)';
-    const bannerDotColor   = bannerIsLight ? 'rgba(0,0,0,0.45)'  : 'rgba(255,255,255,0.55)';
-    const bannerStyle      = { background: `linear-gradient(to right, ${primary}, ${secondary})` };
-    const bannerBtnClass   = bannerIsLight
-        ? 'bg-black/10 hover:bg-black/20 border border-black/20 text-black/80'
-        : 'bg-white/15 hover:bg-white/25 border border-white/30 text-white';
+    // Banner color tokens derived from team colors. The banner is a left→right
+    // primary→secondary gradient, so the left side (dot + message) contrasts against
+    // primary while the right side (progress + controls) contrasts against secondary.
+    const bannerLeft  = bannerTokens(primary);
+    const bannerRight = bannerTokens(secondary);
+    const bannerStyle = { background: `linear-gradient(to right, ${primary}, ${secondary})` };
 
     const rosterProgress = useMemo(() => {
         const filledLineup = (draft.lineups[0]?.slots ?? []).length;
@@ -597,8 +607,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
             {teamMode !== 'complete' && (
                 <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={bannerStyle}>
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerDotColor }} />
-                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: bannerFillColor }}>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
+                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting'
                             ? 'DRAFTING — fill all required positions to complete your team'
                             : 'EDITING — changes are saved automatically'}
@@ -606,13 +616,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && (
                             <>
-                                <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerTrackColor }}>
+                                <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
                                     <div
                                         className="h-full rounded-full transition-all"
-                                        style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: bannerFillColor }}
+                                        style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: bannerRight.fill }}
                                     />
                                 </div>
-                                <span className="text-[11px] font-black" style={{ color: bannerFillColor }}>
+                                <span className="text-[11px] font-black" style={{ color: bannerRight.fill }}>
                                     {rosterProgress.filled}/{rosterProgress.total}
                                     {draft.pts_limit != null && ` • ${pointsBreakdown.total}/${draft.pts_limit} pts`}
                                 </span>
@@ -625,7 +635,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         type="button"
                                         onClick={handleReshuffle}
                                         disabled={reshuffling}
-                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerBtnClass}`}
+                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                         title="Reshuffle with same strategy"
                                     >
                                         <FaShuffle className={reshuffling ? 'animate-spin' : ''} />
@@ -634,7 +644,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <button
                                     type="button"
                                     onClick={() => setShowAutofill(true)}
-                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerBtnClass}`}
+                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                 >
                                     <FaWandMagicSparkles className="text-[9px]" /> Autofill
                                 </button>
@@ -644,7 +654,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <button
                                 type="button"
                                 onClick={() => setEditMode(false)}
-                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerBtnClass}`}
+                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
                             >
                                 <FaCircleCheck className="text-[9px]" /> Done
                             </button>
