@@ -1,4 +1,5 @@
 import type { CardSource } from '../types/cardSource';
+import type { CardDatabaseRecord } from './card_db/cardDatabase';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -62,6 +63,37 @@ export type Team = {
     total_points: number;
 };
 
+/**
+ * Lightweight team shape returned by the list endpoints (user + public teams).
+ * Excludes the full roster/lineups/rotation — carries only what the team list and
+ * Recent carousel render: counts, total points, a precomputed drafting flag, and the
+ * top-3 player cards (already hydrated server-side, so the carousel needs no extra fetches).
+ */
+export type TeamSummary = {
+    team_id: string;
+    user_id: string | null;
+    name: string;
+    abbreviation: string;
+    primary_color: string;
+    secondary_color: string;
+    is_public: boolean;
+    source: TeamSource;
+    pts_limit: number | null;
+    roster_size: number;
+    min_bench: number;
+    min_bullpen: number;
+    num_starters: number;
+    bench_pts_multiplier: number;
+    allowed_sets: string[] | null;
+    allowed_card_sources: string[] | null;
+    created_at: string | null;
+    updated_at: string | null;
+    total_points: number;
+    roster_count: number;
+    is_drafting: boolean;
+    top_players: CardDatabaseRecord[];
+};
+
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 const STARTER_ROLES   = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 
@@ -96,7 +128,7 @@ export type TeamUpdatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'crea
 // MARK: - API CALLS
 // =============================================================================
 
-export async function fetchUserTeams(token: string): Promise<Team[]> {
+export async function fetchUserTeams(token: string): Promise<TeamSummary[]> {
     const res = await fetch(`${API_BASE}/user/teams`, {
         headers: { Authorization: `Bearer ${token}` },
     });
@@ -104,7 +136,7 @@ export async function fetchUserTeams(token: string): Promise<Team[]> {
     return res.json();
 }
 
-export async function fetchPublicTeams(source?: TeamSource, limit = 50, offset = 0): Promise<Team[]> {
+export async function fetchPublicTeams(source?: TeamSource, limit = 50, offset = 0): Promise<TeamSummary[]> {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (source) params.set('source', source);
     const res = await fetch(`${API_BASE}/teams/public?${params}`);

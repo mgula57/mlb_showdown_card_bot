@@ -3772,14 +3772,14 @@ class PostgresDB:
 # USER TEAMS
 # ------------------------------------------------------------------------
 
-    # roster slots live in user_team_roster; lineups/rotation stay as JSONB
+    # roster slots live in user_team_roster; lineups/rotation are derived from it on read
     _TEAM_BASE_SELECT = """
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
             t.primary_color, t.secondary_color,
             t.is_public, t.source,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
-            t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets, t.player_filters, t.allowed_card_sources,
+            t.created_at, t.updated_at, t.allowed_sets, t.player_filters, t.allowed_card_sources,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -3805,6 +3805,51 @@ class PostgresDB:
         LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
     """
 
+    # Lightweight per-team summary for the teams-list/carousel views. Avoids returning
+    # the full roster: only counts, total_points, and the top-3 player refs (hydrated
+    # into full card records afterwards via fetch_card_list).
+    _TEAM_SUMMARY_SELECT = """
+        SELECT
+            t.team_id, t.user_id, t.name, t.abbreviation,
+            t.primary_color, t.secondary_color,
+            t.is_public, t.source,
+            t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
+            t.allowed_sets, t.allowed_card_sources, t.created_at, t.updated_at,
+            COUNT(r.card_id) AS roster_count,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('SP1','SP2','SP3','SP4','SP5'))               AS filled_starters,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
+            COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position = 'BE'
+                    THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
+                    ELSE COALESCE(cb.points, cw.points, 0)
+                END
+            ), 0)::int AS total_points,
+            COALESCE(tp.refs, '[]'::jsonb) AS top_player_refs
+        FROM internal.user_teams t
+        LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
+        LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
+        LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
+        LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+                jsonb_build_object('card_id', x.card_id, 'card_source', x.card_source)
+                ORDER BY x.pts DESC
+            ) AS refs
+            FROM (
+                SELECT rr.card_id, rr.card_source,
+                       COALESCE(cbx.points, cwx.points, 0) AS pts
+                FROM internal.user_team_roster rr
+                LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = rr.card_id LIMIT 1) cbx ON rr.card_source = 'BOT'
+                LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = rr.card_id LIMIT 1) cwx ON rr.card_source = 'WOTC'
+                WHERE rr.team_id = t.team_id
+                ORDER BY pts DESC
+                LIMIT 3
+            ) x
+        ) tp ON TRUE
+    """
+
     def build_user_teams_table(self) -> None:
         """Create the user_teams and user_team_roster tables. Migrates legacy roster JSONB if present."""
         if not self.connection:
@@ -3827,8 +3872,6 @@ class PostgresDB:
                     min_bench            INT          DEFAULT 4,
                     min_bullpen          INT          DEFAULT 5,
                     bench_pts_multiplier FLOAT        DEFAULT 1.0,
-                    lineups              JSONB        DEFAULT '[]',
-                    rotation             JSONB        DEFAULT '[]',
                     created_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
                     updated_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
                 );
@@ -3924,19 +3967,27 @@ class PostgresDB:
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS allowed_card_sources TEXT[] DEFAULT '{}';
             """)
+            # lineups/rotation are now derived from the roster (user_team_roster.roster_position),
+            # so drop the redundant JSONB columns.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    DROP COLUMN IF EXISTS lineups,
+                    DROP COLUMN IF EXISTS rotation;
+            """)
 
     def get_user_teams(self, user_id: str) -> list[dict]:
-        """Return all teams belonging to user_id, newest first."""
+        """Return lightweight summaries for all teams belonging to user_id, newest first."""
         if not self.connection:
             return []
-        query = self._TEAM_BASE_SELECT + """
+        query = self._TEAM_SUMMARY_SELECT + """
             WHERE t.user_id = %s
-            GROUP BY t.team_id
+            GROUP BY t.team_id, tp.refs
             ORDER BY t.updated_at DESC
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (user_id,))
-            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+        return self._serialize_team_summaries(rows)
 
     def get_public_teams(self, source: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
         """Return public teams, optionally filtered by source ('official', 'asg', 'user')."""
@@ -3948,16 +3999,17 @@ class PostgresDB:
             conditions.append("t.source = %s")
             params.append(source)
         where = " AND ".join(conditions)
-        query = self._TEAM_BASE_SELECT + f"""
+        query = self._TEAM_SUMMARY_SELECT + f"""
             WHERE {where}
-            GROUP BY t.team_id
+            GROUP BY t.team_id, tp.refs
             ORDER BY t.source ASC, t.name ASC
             LIMIT %s OFFSET %s
         """
         params += [limit, offset]
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
-            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+        return self._serialize_team_summaries(rows)
 
     def get_team(self, team_id: str, user_id: str | None = None) -> dict | None:
         """Return a single team by team_id. Enforces ownership unless is_public or user_id is None."""
@@ -4104,7 +4156,7 @@ class PostgresDB:
             VALUES %s
         """, batch)
 
-    _TEAM_JSONB_FIELDS = frozenset({'lineups', 'rotation', 'player_filters'})
+    _TEAM_JSONB_FIELDS = frozenset({'player_filters'})
 
     @staticmethod
     def _serialize_team_field(key: str, value) -> object:
@@ -4119,18 +4171,74 @@ class PostgresDB:
             'name', 'abbreviation', 'primary_color', 'secondary_color',
             'is_public', 'source',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
-            'lineups', 'rotation', 'allowed_sets', 'player_filters', 'allowed_card_sources',
+            'allowed_sets', 'player_filters', 'allowed_card_sources',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}
 
     @staticmethod
     def _serialize_team_row(row: dict) -> dict:
+        from ..card.team_builder.team import derive_lineups_rotation
         row['team_id'] = str(row['team_id'])
         if row.get('created_at'):
             row['created_at'] = row['created_at'].isoformat()
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
+        # lineups/rotation are derived from the roster rather than stored
+        row['lineups'], row['rotation'] = derive_lineups_rotation(row.get('roster') or [])
         return row
+
+    def _serialize_team_summaries(self, rows: list[dict]) -> list[dict]:
+        """Finalize lightweight team-summary rows: hydrate top-3 player refs into full
+        card records (batched per source via fetch_card_list) and compute is_drafting."""
+        # Collect the unique top-player card ids per source across all teams
+        ids_by_source: dict[str, set] = {}
+        for row in rows:
+            for ref in (row.get('top_player_refs') or []):
+                ids_by_source.setdefault(ref['card_source'], set()).add(ref['card_id'])
+        # Hydrate in a single query per source, keyed by (source, card_id)
+        cards_by_key: dict[tuple, dict] = {}
+        for source, ids in ids_by_source.items():
+            id_list = list(ids)
+            records = self.fetch_card_list({'source': source, 'card_id': id_list, 'limit': len(id_list)}) or []
+            for rec in records:
+                cards_by_key[(source, rec.get('card_id'))] = rec
+        return [self._serialize_team_summary_row(row, cards_by_key) for row in rows]
+
+    @staticmethod
+    def _serialize_team_summary_row(row: dict, cards_by_key: dict) -> dict:
+        row['team_id'] = str(row['team_id'])
+        if row.get('created_at'):
+            row['created_at'] = row['created_at'].isoformat()
+        if row.get('updated_at'):
+            row['updated_at'] = row['updated_at'].isoformat()
+        row['roster_count'] = int(row.get('roster_count') or 0)
+        row['is_drafting'] = PostgresDB._compute_is_drafting(row)
+        # Hydrate top players in ranked (ref) order, dropping any that no longer resolve
+        refs = row.pop('top_player_refs', None) or []
+        row['top_players'] = [
+            cards_by_key[(ref['card_source'], ref['card_id'])]
+            for ref in refs
+            if (ref['card_source'], ref['card_id']) in cards_by_key
+        ]
+        # Internal counts used only to compute is_drafting — not part of the payload
+        for key in ('filled_field', 'filled_starters', 'filled_bullpen', 'filled_bench'):
+            row.pop(key, None)
+        return row
+
+    @staticmethod
+    def _compute_is_drafting(row: dict) -> bool:
+        """Mirror the frontend isTeamDrafting thresholds using roster position counts."""
+        if row.get('source') == 'mlb':
+            return False
+        if (row.get('filled_field') or 0) < 9:
+            return True
+        if (row.get('filled_starters') or 0) < (row.get('num_starters') or 0):
+            return True
+        if (row.get('filled_bench') or 0) < (row.get('min_bench') or 0):
+            return True
+        if (row.get('filled_bullpen') or 0) < (row.get('min_bullpen') or 0):
+            return True
+        return False
 
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""

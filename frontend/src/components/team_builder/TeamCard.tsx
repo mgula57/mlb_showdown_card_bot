@@ -1,11 +1,10 @@
-import type { Team } from '../../api/userTeams';
-import { isTeamDrafting } from '../../api/userTeams';
+import type { TeamSummary } from '../../api/userTeams';
 import { getContrastColor } from '../shared/Color';
 import { useTheme } from '../shared/SiteSettingsContext';
 import { FaLock, FaGlobe, FaUsers } from 'react-icons/fa6';
 
 type TeamCardProps = {
-    team: Team;
+    team: TeamSummary;
     isSelected?: boolean;
     onClick?: () => void;
 };
@@ -19,8 +18,8 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
         ? (isDark ? 'border-2 border-white/60' : 'border-2 border-gray-700')
         : (isDark ? 'border-2 border-white/10' : 'border-2 border-gray-200');
 
-    const rosterCount = team.roster?.length ?? 0;
-    const drafting = isTeamDrafting(team);
+    const rosterCount = team.roster_count ?? 0;
+    const drafting = team.is_drafting;
 
     return (
         <button

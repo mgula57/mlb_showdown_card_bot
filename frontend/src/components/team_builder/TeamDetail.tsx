@@ -17,7 +17,8 @@ import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
-    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear,
+    FaList, FaRing, FaClipboardList
 } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -693,9 +694,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             "
                         >
                             <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
-                                <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}>Field View</Tabs.Trigger>
-                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
-                                {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>}
+                                <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}><FaRing className="inline mr-1.5" /> Field View</Tabs.Trigger>
+                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth Chart</Tabs.Trigger>
+                                {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1.5" />Draft</Tabs.Trigger>}
                             </Tabs.List>
 
                             <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>

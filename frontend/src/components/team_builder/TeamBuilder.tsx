@@ -8,6 +8,7 @@ import {
     createTeam,
     updateTeam,
     type Team,
+    type TeamSummary,
     type TeamUpdatePayload,
 } from '../../api/userTeams';
 import { TeamCard } from './TeamCard';
@@ -19,6 +20,7 @@ import type { TeamCreatePayload } from '../../api/userTeams';
 
 type ViewState =
     | { mode: 'list' }
+    | { mode: 'loading' }
     | { mode: 'editor'; team: Team; readOnly: boolean };
 
 export default function TeamBuilder() {
@@ -27,10 +29,11 @@ export default function TeamBuilder() {
     const navigate = useNavigate();
     const token = session?.access_token;
 
-    const [userTeams, setUserTeams] = useState<Team[]>([]);
-    const [officialTeams, setOfficialTeams] = useState<Team[]>([]);
+    const [userTeams, setUserTeams] = useState<TeamSummary[]>([]);
+    const [officialTeams, setOfficialTeams] = useState<TeamSummary[]>([]);
     const [view, setView] = useState<ViewState>({ mode: 'list' });
     const [loading, setLoading] = useState(true);
+    const [listLoaded, setListLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -39,18 +42,25 @@ export default function TeamBuilder() {
         ? (location.pathname.split('/')[2] ?? null)
         : null;
 
-    useEffect(() => {
-        loadTeams();
-    }, [token]);
+    // Auth change invalidates the cached list
+    useEffect(() => { setListLoaded(false); }, [token]);
 
-    // When URL contains a team ID, fetch and open that team
+    // Load the (lightweight) teams list lazily — only when viewing the list, so a direct
+    // visit to /teams/:teamId opens the team without first loading every team.
+    useEffect(() => {
+        if (teamIdFromUrl || listLoaded) return;
+        loadTeams();
+    }, [teamIdFromUrl, listLoaded, token]);
+
+    // When URL contains a team ID, fetch and open that full team independently of the list
     useEffect(() => {
         if (!teamIdFromUrl) {
-            setView({ mode: 'list' });
+            setView(v => v.mode === 'list' ? v : { mode: 'list' });
             return;
         }
         if (view.mode === 'editor' && view.team.team_id === teamIdFromUrl) return;
 
+        setView({ mode: 'loading' });
         fetchTeam(teamIdFromUrl, token ?? undefined)
             .then(team => {
                 const readOnly = !token || team.user_id !== session?.user?.id;
@@ -59,6 +69,7 @@ export default function TeamBuilder() {
             .catch(() => {
                 navigate('/teams', { replace: true });
             });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [teamIdFromUrl, token]);
 
     async function loadTeams() {
@@ -71,6 +82,7 @@ export default function TeamBuilder() {
             ]);
             setOfficialTeams(publicTeams.filter(t => t.source !== 'user'));
             setUserTeams(myTeams);
+            setListLoaded(true);
         } catch (err: any) {
             setError(err.message ?? 'Failed to load teams.');
         } finally {
@@ -78,10 +90,10 @@ export default function TeamBuilder() {
         }
     }
 
-    function openTeam(team: Team, readOnly: boolean) {
+    function openTeam(team: TeamSummary) {
         trackRecentTeam(team.team_id);
+        setView({ mode: 'loading' });
         navigate('/teams/' + team.team_id);
-        setView({ mode: 'editor', team, readOnly });
     }
 
     function goBack() {
@@ -89,11 +101,22 @@ export default function TeamBuilder() {
         setView({ mode: 'list' });
     }
 
+    // Refetch the currently open team (used by the "updated on another device" reload prompt)
+    function reloadCurrentTeam() {
+        if (!teamIdFromUrl) { setListLoaded(false); return; }
+        fetchTeam(teamIdFromUrl, token ?? undefined)
+            .then(team => {
+                const readOnly = !token || team.user_id !== session?.user?.id;
+                setView({ mode: 'editor', team, readOnly });
+            })
+            .catch(() => {});
+    }
+
     async function handleCreate(payload: TeamCreatePayload) {
         if (!token) return;
         const newTeam = await createTeam(payload, token);
-        setUserTeams(prev => [newTeam, ...prev]);
         setShowCreateModal(false);
+        setListLoaded(false); // list must refresh to include the new team
         trackRecentTeam(newTeam.team_id);
         navigate('/teams/' + newTeam.team_id);
         setView({ mode: 'editor', team: newTeam, readOnly: false });
@@ -102,10 +125,18 @@ export default function TeamBuilder() {
     async function handleSave(teamId: string, updates: TeamUpdatePayload) {
         if (!token) return;
         const saved = await updateTeam(teamId, updates, token);
-        setUserTeams(prev => prev.map(t => t.team_id === teamId ? saved : t));
+        setListLoaded(false); // summary (points, drafting, top players) may have changed
         setView(prev => prev.mode === 'editor' && prev.team.team_id === teamId
             ? { ...prev, team: saved }
             : prev
+        );
+    }
+
+    if (view.mode === 'loading') {
+        return (
+            <div className="flex flex-col h-full items-center justify-center py-12">
+                <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+            </div>
         );
     }
 
@@ -118,7 +149,7 @@ export default function TeamBuilder() {
                     readOnly={readOnly}
                     onSave={updates => handleSave(team.team_id, updates)}
                     onBack={goBack}
-                    onReload={loadTeams}
+                    onReload={reloadCurrentTeam}
                     token={token}
                 />
             </div>
@@ -164,7 +195,7 @@ export default function TeamBuilder() {
             {!loading && (
                 <RecentTeamsCarousel
                     teams={[...userTeams, ...officialTeams]}
-                    onClick={team => openTeam(team, !token || team.user_id !== session?.user?.id)}
+                    onClick={openTeam}
                 />
             )}
 
@@ -190,7 +221,7 @@ export default function TeamBuilder() {
                                         <TeamCard
                                             key={team.team_id}
                                             team={team}
-                                            onClick={() => openTeam(team, false)}
+                                            onClick={() => openTeam(team)}
                                         />
                                     ))}
                                 </div>
@@ -209,7 +240,7 @@ export default function TeamBuilder() {
                                     <TeamCard
                                         key={team.team_id}
                                         team={team}
-                                        onClick={() => openTeam(team, true)}
+                                        onClick={() => openTeam(team)}
                                     />
                                 ))}
                             </div>

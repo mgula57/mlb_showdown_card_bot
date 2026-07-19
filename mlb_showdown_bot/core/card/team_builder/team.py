@@ -51,6 +51,41 @@ class PitcherAssignment(BaseModel):
     role: str  # "SP1"–"SP5", "CP", "SU", "MR", "LONG"
 
 
+# Roster positions map 1:1 onto lineup field positions and rotation roles, so
+# lineups/rotation are derived from the roster rather than stored separately.
+FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
+ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5']
+BULLPEN_ROLES   = ['RP', 'CL']
+PITCHER_ROLES   = ROTATION_ROLES + BULLPEN_ROLES
+
+
+def derive_lineups_rotation(roster: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Rebuild the (name/field_position/batting_order) lineup and (role) rotation
+    structures from a roster whose slots carry the position in `roster_position`.
+
+    Returns plain dicts (a single 'Default' lineup + rotation list) so it can feed
+    either JSON API rows or Pydantic model construction.
+    """
+    lineup_slots: list[dict] = []
+    rotation: list[dict] = []
+    for slot in roster:
+        position = slot.get('roster_position')
+        if position in FIELD_POSITIONS:
+            lineup_slots.append({
+                'card_id': slot['card_id'],
+                'card_source': slot['card_source'],
+                'field_position': position,
+                'batting_order': None,
+            })
+        elif position in PITCHER_ROLES:
+            rotation.append({
+                'card_id': slot['card_id'],
+                'card_source': slot['card_source'],
+                'role': position,
+            })
+    return [{'name': 'Default', 'slots': lineup_slots}], rotation
+
+
 class Team(BaseModel):
     team_id: Optional[str] = None    # UUID assigned by DB on create
     user_id: Optional[str] = None    # None for official/admin teams
@@ -115,16 +150,16 @@ class Team(BaseModel):
             'allowed_card_sources': self.allowed_card_sources,
             'player_filters': self.player_filters,
             'roster': [s.model_dump() for s in self.roster],
-            'lineups': [
-                {'name': ln.name, 'slots': [sl.model_dump() for sl in ln.slots]}
-                for ln in self.lineups
-            ],
-            'rotation': [p.model_dump() for p in self.rotation],
         }
 
     @classmethod
     def from_db_row(cls, row: dict) -> 'Team':
-        """Deserialize from a DB row dict (as returned by RealDictCursor)."""
+        """Deserialize from a DB row dict (as returned by RealDictCursor).
+
+        lineups/rotation are no longer stored; they are derived from the roster.
+        """
+        roster_rows = row.get('roster') or []
+        derived_lineups, derived_rotation = derive_lineups_rotation(roster_rows)
         return cls(
             team_id=str(row['team_id']),
             user_id=row.get('user_id'),
@@ -143,12 +178,12 @@ class Team(BaseModel):
             allowed_sets=row.get('allowed_sets') or [],
             allowed_card_sources=row.get('allowed_card_sources') or [],
             player_filters=row.get('player_filters') or {},
-            roster=[TeamRosterSlot(**s) for s in (row.get('roster') or [])],
+            roster=[TeamRosterSlot(**s) for s in roster_rows],
             lineups=[
                 Lineup(name=ln['name'], slots=[LineupSlot(**sl) for sl in ln.get('slots', [])])
-                for ln in (row.get('lineups') or [])
+                for ln in derived_lineups
             ],
-            rotation=[PitcherAssignment(**p) for p in (row.get('rotation') or [])],
+            rotation=[PitcherAssignment(**p) for p in derived_rotation],
             created_at=row.get('created_at'),
             updated_at=row.get('updated_at'),
         )

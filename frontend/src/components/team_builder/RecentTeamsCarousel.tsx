@@ -1,13 +1,9 @@
-import { useMemo, useEffect, useState } from 'react';
-import type { Team } from '../../api/userTeams';
-import { isTeamDrafting } from '../../api/userTeams';
+import { useMemo } from 'react';
+import type { TeamSummary } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { fetchCardData } from '../../api/card_db/cardDatabase';
-import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastColor } from '../shared/Color';
 import { FaCircle, FaHatWizard } from 'react-icons/fa6';
-import { FaCircleNotch } from 'react-icons/fa';
 
 // =============================================================================
 // MARK: - Recent Team Tracking
@@ -38,22 +34,20 @@ function toRgba(color: string, alpha: number): string {
 // =============================================================================
 
 type RecentTeamsCarouselProps = {
-    teams: Team[];
+    teams: TeamSummary[];
     className?: string;
-    onClick: (team: Team) => void;
+    onClick: (team: TeamSummary) => void;
 };
 
 export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCarouselProps) {
     const recentIds = useMemo(getRecentTeamIds, []);
 
     const recentTeams = useMemo(() => {
-        const withPlayers = teams.filter(
-            t => t.roster.length > 0 || t.lineups.some(l => l.slots.length > 0) || t.rotation.length > 0
-        );
+        const withPlayers = teams.filter(t => t.roster_count > 0);
 
         if (recentIds.length > 0) {
             const teamById = new Map(withPlayers.map(t => [t.team_id, t]));
-            const ordered: Team[] = [];
+            const ordered: TeamSummary[] = [];
             for (const id of recentIds) {
                 const t = teamById.get(id);
                 if (t) ordered.push(t);
@@ -70,58 +64,6 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
             .slice(0, 8);
     }, [teams, recentIds]);
 
-    // Per team: top 3 cards by points, fetched with order/limit on the query
-    const [teamCardMap, setTeamCardMap] = useState<Record<string, CardDatabaseRecord[]>>({});
-    const [cardsLoading, setCardsLoading] = useState(false);
-
-    const teamIds = recentTeams.map(t => t.team_id).join(',');
-
-    useEffect(() => {
-        if (recentTeams.length === 0) return;
-        let cancelled = false;
-        setCardsLoading(true);
-
-        (async () => {
-            try {
-                const entries = await Promise.all(
-                    recentTeams.map(async team => {
-                        // Group roster slots by source
-                        const bySource = new Map<CardSourceType, string[]>();
-                        for (const s of team.roster) {
-                            if (!bySource.has(s.card_source)) bySource.set(s.card_source, []);
-                            bySource.get(s.card_source)!.push(s.card_id);
-                        }
-                        // Fetch top 3 per source, merge, re-sort, take top 3
-                        const sourceResults = await Promise.all(
-                            [...bySource].map(([src, ids]) =>
-                                fetchCardData(src, {
-                                    card_id: ids,
-                                    sort_by: 'points',
-                                    sort_direction: 'desc',
-                                    limit: 3,
-                                })
-                            )
-                        );
-                        const top3 = sourceResults
-                            .flat()
-                            .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
-                            .slice(0, 3);
-                        return [team.team_id, top3] as const;
-                    })
-                );
-                if (cancelled) return;
-                setTeamCardMap(Object.fromEntries(entries));
-            } catch {
-                // ignore — cards simply won't render
-            } finally {
-                if (!cancelled) setCardsLoading(false);
-            }
-        })();
-
-        return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [teamIds]);
-
     if (recentTeams.length === 0) return null;
 
     return (
@@ -134,8 +76,6 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
                     <RecentTeamCard
                         key={team.team_id}
                         team={team}
-                        playerCards={teamCardMap[team.team_id] ?? []}
-                        cardsLoading={cardsLoading}
                         onClick={() => onClick(team)}
                     />
                 ))}
@@ -149,23 +89,21 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
 // =============================================================================
 
 type RecentTeamCardProps = {
-    team: Team;
-    playerCards: (CardDatabaseRecord | null)[];
-    cardsLoading: boolean;
+    team: TeamSummary;
     onClick: () => void;
 };
 
-function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeamCardProps) {
+function RecentTeamCard({ team, onClick }: RecentTeamCardProps) {
     const primary = team.primary_color || 'rgb(20,20,20)';
     const secondary = team.secondary_color || 'rgb(80,80,80)';
     const onPrimary = getContrastColor(primary);
     const onSecondary = getContrastColor(secondary);
 
-    // Ensure we always render exactly 3 slots
+    // Top-3 players are hydrated server-side on the summary payload
     const slots: (CardDatabaseRecord | null)[] = [
-        playerCards[0] ?? null,
-        playerCards[1] ?? null,
-        playerCards[2] ?? null,
+        team.top_players[0] ?? null,
+        team.top_players[1] ?? null,
+        team.top_players[2] ?? null,
     ];
 
     return (
@@ -185,8 +123,8 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                 borderColor: secondary,
             }}
         >
-            {isTeamDrafting(team) && (
-                <span 
+            {team.is_drafting && (
+                <span
                     className="absolute flex items-center top-0 right-0 z-20 text-[9px] font-black rounded px-1 py-0.5 leading-none"
                     style={{
                         backgroundColor: secondary,
@@ -268,16 +206,13 @@ function RecentTeamCard({ team, playerCards, cardsLoading, onClick }: RecentTeam
                         
                 </div>
 
-                {/* Player cards — bottom section */}
+                {/* Player cards — bottom section (top-3 hydrated on the payload) */}
                 <div className="flex flex-col gap-0.5">
                     {slots.map((card, i) => (
-                        card === null && !cardsLoading ? (
-                            <></>
-                        ) : (
+                        card === null ? null : (
                             <CardItemCompactFromCardDatabaseRecord
                                 key={i}
-                                card={card ?? undefined}
-                                isLoading={cardsLoading && card === null}
+                                card={card}
                                 hideDetails
                             />
                         )
