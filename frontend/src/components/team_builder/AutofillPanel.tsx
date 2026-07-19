@@ -21,6 +21,8 @@ type BucketPts = Record<keyof PtsDistribution, number>;
 type Props = {
     ptsLimit: number;
     bucketSizes: BucketSizes;
+    /** Points already spent per bucket from manual draft picks — acts as a floor for each slider. */
+    existingPts: BucketPts;
     onConfirm: (strategy: AutofillStrategy) => Promise<void>;
     onClose: () => void;
 };
@@ -42,12 +44,12 @@ function distributionFromPts(pts: BucketPts, ptsLimit: number): PtsDistribution 
     };
 }
 
-function defaultBucketPts(ptsLimit: number, dist: PtsDistribution): BucketPts {
+function defaultBucketPts(ptsLimit: number, dist: PtsDistribution, floors: BucketPts): BucketPts {
     return {
-        offense:  Math.round(ptsLimit * dist.offense),
-        rotation: Math.round(ptsLimit * dist.rotation),
-        bullpen:  Math.round(ptsLimit * dist.bullpen),
-        bench:    Math.round(ptsLimit * dist.bench),
+        offense:  Math.max(floors.offense,  Math.round(ptsLimit * dist.offense)),
+        rotation: Math.max(floors.rotation, Math.round(ptsLimit * dist.rotation)),
+        bullpen:  Math.max(floors.bullpen,  Math.round(ptsLimit * dist.bullpen)),
+        bench:    Math.max(floors.bench,    Math.round(ptsLimit * dist.bench)),
     };
 }
 
@@ -68,9 +70,9 @@ function StrategyPill({ label, active, onClick }: { label: string; active: boole
     );
 }
 
-export function AutofillPanel({ ptsLimit, bucketSizes, onConfirm, onClose }: Props) {
+export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, onClose }: Props) {
     const [bucketPts, setBucketPts] = useState<BucketPts>(
-        () => defaultBucketPts(ptsLimit, DEFAULT_PTS_DISTRIBUTION)
+        () => defaultBucketPts(ptsLimit, DEFAULT_PTS_DISTRIBUTION, existingPts)
     );
     const [activePreset, setActivePreset] = useState<string>('Balanced');
     const [pitchingStrategy, setPitchingStrategy] = useState<string | null>(null);
@@ -83,32 +85,45 @@ export function AutofillPanel({ ptsLimit, bucketSizes, onConfirm, onClose }: Pro
         [bucketPts]
     );
 
+    const totalFloors = existingPts.offense + existingPts.rotation + existingPts.bullpen + existingPts.bench;
+    const overBudget = totalFloors > ptsLimit;
+
+    // Highest a bucket can go without pushing the total past ptsLimit, given the other buckets' floors
+    function bucketMax(key: keyof PtsDistribution): number {
+        const otherFloorsTotal = totalFloors - existingPts[key];
+        return Math.max(existingPts[key], ptsLimit - otherFloorsTotal);
+    }
+
     function applyPreset(label: string, dist: PtsDistribution) {
-        setBucketPts(defaultBucketPts(ptsLimit, dist));
+        setBucketPts(defaultBucketPts(ptsLimit, dist, existingPts));
         setActivePreset(label);
     }
 
-    function updateBucket(changedKey: keyof PtsDistribution, newPts: number) {
+    function updateBucket(changedKey: keyof PtsDistribution, rawNewPts: number) {
         setBucketPts(prev => {
+            const newPts = Math.min(Math.max(rawNewPts, existingPts[changedKey]), bucketMax(changedKey));
             const otherKeys = (Object.keys(prev) as (keyof PtsDistribution)[]).filter(k => k !== changedKey);
             const remaining = ptsLimit - newPts;
-            const otherTotal = otherKeys.reduce((sum, k) => sum + prev[k], 0);
+            const otherFloorsTotal = otherKeys.reduce((sum, k) => sum + existingPts[k], 0);
+            // Points left to freely distribute among the other buckets, above their floors
+            const distributable = Math.max(0, remaining - otherFloorsTotal);
+            const otherAboveFloorTotal = otherKeys.reduce((sum, k) => sum + Math.max(0, prev[k] - existingPts[k]), 0);
             const updated = { ...prev, [changedKey]: newPts };
             const lastKey = otherKeys[otherKeys.length - 1];
 
-            if (otherTotal === 0) {
-                const share = Math.round(remaining / otherKeys.length / 10) * 10;
-                otherKeys.forEach(k => { updated[k] = share; });
-                updated[lastKey] = remaining - share * (otherKeys.length - 1);
+            if (otherAboveFloorTotal === 0) {
+                const share = Math.round(distributable / otherKeys.length / 10) * 10;
+                otherKeys.forEach(k => { updated[k] = existingPts[k] + share; });
+                updated[lastKey] = existingPts[lastKey] + (distributable - share * (otherKeys.length - 1));
             } else {
                 let distributed = 0;
                 for (const k of otherKeys.slice(0, -1)) {
-                    const share = Math.round((prev[k] / otherTotal) * remaining / 10) * 10;
-                    updated[k] = share;
+                    const share = Math.round((prev[k] - existingPts[k]) / otherAboveFloorTotal * distributable / 10) * 10;
+                    updated[k] = existingPts[k] + share;
                     distributed += share;
                 }
                 // Last bucket absorbs remainder — may not be a multiple of 10 but stays exact
-                updated[lastKey] = remaining - distributed;
+                updated[lastKey] = existingPts[lastKey] + (distributable - distributed);
             }
 
             return updated;
@@ -158,7 +173,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, onConfirm, onClose }: Pro
                     <button
                         type="button"
                         onClick={onClose}
-                        className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors"
+                        className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors hover:bg-(--divider) rounded-md p-1 cursor-pointer"
                     >
                         <FaXmark />
                     </button>
@@ -194,6 +209,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, onConfirm, onClose }: Pro
                                 const pts = bucketPts[key];
                                 const slots = bucketSizes[key];
                                 const avg = slots > 0 ? Math.round(pts / slots) : 0;
+                                const floor = existingPts[key];
                                 return (
                                     <div key={key}>
                                         <div className="flex items-baseline justify-between mb-1">
@@ -211,23 +227,38 @@ export function AutofillPanel({ ptsLimit, bucketSizes, onConfirm, onClose }: Pro
                                         </div>
                                         <input
                                             type="range"
-                                            min={0}
-                                            max={ptsLimit}
+                                            min={floor}
+                                            max={bucketMax(key)}
                                             step={sliderStep}
                                             value={pts}
                                             onChange={e => updateBucket(key, Number(e.target.value))}
                                             className="w-full accent-(--showdown-red)"
                                         />
+                                        {floor > 0 && (
+                                            <div className="text-[10px] text-(--text-tertiary) mt-0.5">
+                                                {floor.toLocaleString()} pts already drafted
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
 
                         {/* Budget summary */}
-                        <div className="flex items-center justify-between mt-2 rounded-lg px-3 py-1.5 text-[11px] font-semibold bg-(--background-secondary) text-(--text-secondary)">
+                        <div className={[
+                            'flex items-center justify-between mt-2 rounded-lg px-3 py-1.5 text-[11px] font-semibold',
+                            totalAllocated > ptsLimit
+                                ? 'bg-red-500/10 text-red-500'
+                                : 'bg-(--background-secondary) text-(--text-secondary)',
+                        ].join(' ')}>
                             <span>Total allocated</span>
                             <span>{totalAllocated.toLocaleString()} / {ptsLimit.toLocaleString()} pts</span>
                         </div>
+                        {overBudget && (
+                            <p className="text-[11px] text-red-500 bg-red-500/10 rounded-lg px-3 py-2 mt-2">
+                                Manually drafted picks already total {totalFloors.toLocaleString()} pts, over the {ptsLimit.toLocaleString()} pt budget. Raise the pts limit or remove picks before autofilling.
+                            </p>
+                        )}
                     </section>
 
                     {/* Layer 2: Pitching Strategy */}
@@ -276,7 +307,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, onConfirm, onClose }: Pro
                     <button
                         type="button"
                         onClick={handleConfirm}
-                        disabled={loading}
+                        disabled={loading || overBudget || totalAllocated > ptsLimit}
                         className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                     >
                         {loading ? (

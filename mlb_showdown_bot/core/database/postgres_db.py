@@ -3794,7 +3794,7 @@ class PostgresDB:
             ) AS roster,
             COALESCE(SUM(
                 CASE
-                    WHEN r.roster_position IN ('BE', 'RP')
+                    WHEN r.roster_position = 'BE'
                     THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
                     ELSE COALESCE(cb.points, cw.points, 0)
                 END

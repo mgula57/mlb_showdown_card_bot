@@ -36,6 +36,8 @@ type CardItemCompactProps = {
     detailStat1Category?: 'defense' | 'hr' | 'outs';
     /** Always hide the set icon and defense/handedness row, regardless of container width */
     hideDetails?: boolean;
+    /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
+    ptsMultiplier?: number;
 };
 
 // =============================================================================
@@ -52,6 +54,22 @@ function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fiel
     return defenseAtPosition(card.positions_and_defense, fieldPosition || '') || card.positions_and_defense_string || 'N/A';
 }
 
+const CardItemCompactIcons = ({ className, iconsList, color, cardId }: { className?: string; iconsList: string[]; color: string; cardId: string }) => {
+    return (
+        <div className={`flex gap-0.5 ${className || ''}`}>
+            {iconsList.map((icon, index) => (
+                <CardIcon 
+                    key={`${cardId}-icon-${index}`} 
+                    color={color} 
+                    value={icon} 
+                    circleSize={((iconsList?.length ?? 0) > 2 ? "3" : "4")}
+                    textSize={(iconsList?.length ?? 0) > 2 ? 8 : 9} 
+                />
+            ))}
+        </div>
+    );
+};
+
 export const CardItemCompact = ({
     card,
     className,
@@ -62,6 +80,7 @@ export const CardItemCompact = ({
     fieldPosition,
     detailStat1Category,
     hideDetails,
+    ptsMultiplier,
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
@@ -93,6 +112,9 @@ export const CardItemCompact = ({
             : `border-3 border-gray-200 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     const isRedacted = card?.isEmpty || false;
+
+    const hasPtsMultiplier = !!ptsMultiplier && ptsMultiplier !== 1 && card?.points != null;
+    const effectivePoints = hasPtsMultiplier ? Math.round(card!.points * ptsMultiplier!) : card?.points;
 
     return (
         <div
@@ -137,6 +159,12 @@ export const CardItemCompact = ({
 
                             </>
                     }
+                    <CardItemCompactIcons
+                        className="ml-0.5 hidden @[200px]:flex"
+                        cardId={card?.id || 'card'}
+                        iconsList={card?.icons_list || []}
+                        color={secondaryColor}
+                    />
                     
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
@@ -151,7 +179,14 @@ export const CardItemCompact = ({
                         className={`hidden @[80px]:flex shrink-0 text-[9px] leading-none font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                         style={isRedacted ? undefined : pointsBadgeStyle}
                     >
-                        {card?.points != null ? `${card.points} PT` : '-- PT'}
+                        {hasPtsMultiplier ? (
+                            <span className="flex items-center gap-0.5">
+                                <span className="line-through opacity-60">{card!.points}</span>
+                                <span>{effectivePoints} PT</span>
+                            </span>
+                        ) : (
+                            card?.points != null ? `${card.points} PT` : '-- PT'
+                        )}
                         <span className="hidden @[90px]:block">S</span>
                     </div>
                 </div>
@@ -193,16 +228,13 @@ export const CardItemCompact = ({
             )}
 
             {/* Icons - top-right corner */}
-            <div className="absolute -top-2 -right-0.5 flex gap-0.5">
-                {card?.icons_list?.map((icon, index) => (
-                    <CardIcon 
-                        key={`${card?.id}-icon-${index}`} 
-                        color={secondaryColor} 
-                        value={icon} 
-                        circleSize={((card?.icons_list?.length ?? 0) > 2 ? "3" : "4")}
-                        textSize={(card?.icons_list?.length ?? 0) > 2 ? 8 : 9} 
-                    />
-                ))}
+            <div className="absolute -top-2 -right-0.5">
+                <CardItemCompactIcons
+                    className="ml-0.5 @[200px]:hidden"
+                    cardId={card?.id || 'card'}
+                    iconsList={card?.icons_list || []}
+                    color={secondaryColor}
+                />
             </div>
 
             {/* Optional action button — top-right corner */}
@@ -304,9 +336,10 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     fieldPosition?: string;
     detailStat1Category?: 'defense' | 'hr' | 'outs';
     hideDetails?: boolean;
+    ptsMultiplier?: number;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, ptsMultiplier }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -347,6 +380,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             fieldPosition={fieldPosition}
             hideDetails={hideDetails}
             detailStat1Category={detailStat1Category}
+            ptsMultiplier={ptsMultiplier}
         />
     );
 };

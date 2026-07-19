@@ -202,6 +202,7 @@ export function FieldView({
             getCard:    (role: string) => { const s = benchByRole[role]; return s ? cardMap[s.card_id] : null; },
             hasAssignment: (role: string) => !!benchByRole[role],
             onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(role, benchByRole[role] ?? null) : undefined,
+            ptsMultiplier: rosterData?.benchPtsMultiplier,
         },
     ] : [];
 
@@ -297,7 +298,7 @@ export function FieldView({
                 })}
             </div>
 
-            {sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers }) => {
+            {sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier }) => {
                 const filledCount = roles.filter(r => getCard(r)).length;
                 return (
                     <div key={label} className="border-t border-(--divider)" onClick={onItemClick ? e => e.stopPropagation() : undefined}>
@@ -316,7 +317,7 @@ export function FieldView({
                                         <CardItemCompactFromCardDatabaseRecord
                                             card={card}
                                             className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
-                                           
+                                            ptsMultiplier={ptsMultiplier}
                                             onClick={() => setDetailCard(card)}
                                             actionButton={onItemClick ? {
                                                 icon: <FaPencil className="w-2.5 h-2.5" />,

@@ -17,7 +17,7 @@ import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
-    FaShuffle, FaPenToSquare, FaStar, FaRegStar
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear
 } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -138,6 +138,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [reshuffling, setReshuffling] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,7 +159,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }, [draft.allowed_card_sources]);
 
-    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); }, [team]);
+    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); setShowSettingsModal(false); }, [team]);
 
     useEffect(() => {
         if (!draftToast) return;
@@ -467,44 +468,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const settingsChanges = pendingSettings ? getSettingsChanges(draft, pendingSettings) : [];
 
-    const settingsTabContent = (
-        <div className="relative flex flex-col">
-            <TeamSettingsForm
-                team={settingsDraft}
-                onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
-            />
-            {pendingSettings && (
-                <div className="sticky bottom-0 border-t border-(--divider) bg-(--background-primary) px-4 py-3 flex flex-col gap-2">
-                    {settingsChanges.length > 0 && (
-                        <ul className="flex flex-col gap-0.5">
-                            {settingsChanges.map(line => (
-                                <li key={line} className="text-[11px] text-(--text-secondary) flex items-start gap-1.5">
-                                    <span className="text-amber-500 mt-px shrink-0">→</span>
-                                    {line}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={() => { update(pendingSettings); setPendingSettings(null); }}
-                            className="flex-1 px-3 py-4 rounded-lg text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 cursor-pointer transition-opacity"
-                        >
-                            Apply Changes
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setPendingSettings(null)}
-                            className="px-3 py-4 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
-                        >
-                            Discard
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+    function closeSettingsModal() {
+        setPendingSettings(null);
+        setShowSettingsModal(false);
+    }
 
     // Eligible positions split into groups for the confirmation modal
     const confirmPositions = confirmCard ? getEligiblePositions(confirmCard) : [];
@@ -580,6 +547,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <FaRegStar className="h-3.5 w-3.5" />
                         )}
                         {isStarred ? "Starred" : "Star"}
+                    </button>
+                )}
+                {!isMlbTeam && editMode && (
+                    <button
+                        type="button"
+                        onClick={() => setShowSettingsModal(true)}
+                        className="flex items-center justify-center w-8 h-8 mt-0.5 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors shrink-0"
+                        aria-label="Team settings"
+                        title="Team settings"
+                    >
+                        <FaGear />
                     </button>
                 )}
                 {!readOnly && (
@@ -690,21 +668,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
                                     <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
                                     <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
-                                    <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
                                 </Tabs.List>
                             )}
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
                             </Tabs.Content>
                             {!isMlbTeam && (
-                                <>
-                                    <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
-                                        {draftHistoryContent}
-                                    </Tabs.Content>
-                                    <Tabs.Content value="settings" className="focus:outline-none flex-1 overflow-y-auto">
-                                        {settingsTabContent}
-                                    </Tabs.Content>
-                                </>
+                                <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
+                                    {draftHistoryContent}
+                                </Tabs.Content>
                             )}
                         </Tabs.Root>
                     </>
@@ -724,7 +696,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}>Field View</Tabs.Trigger>
                                 <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
                                 {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>}
-                                {!isMlbTeam && <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>}
                             </Tabs.List>
 
                             <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
@@ -736,15 +707,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             </Tabs.Content>
 
                             {!isMlbTeam && (
-                                <>
-                                    <Tabs.Content value="draft" className="focus:outline-none">
-                                        {draftHistoryContent}
-                                    </Tabs.Content>
-
-                                    <Tabs.Content value="settings" className="focus:outline-none">
-                                        {settingsTabContent}
-                                    </Tabs.Content>
-                                </>
+                                <Tabs.Content value="draft" className="focus:outline-none">
+                                    {draftHistoryContent}
+                                </Tabs.Content>
                             )}
                         </Tabs.Root>
 
@@ -842,6 +807,73 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </div>
             )}
 
+            {/* Settings modal */}
+            {showSettingsModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                    onClick={closeSettingsModal}
+                >
+                    <div
+                        className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden flex flex-col max-h-[85vh]"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-(--divider) shrink-0">
+                            <div className="text-[13px] font-bold text-(--text-primary)">Team Settings</div>
+                            <button
+                                type="button"
+                                onClick={closeSettingsModal}
+                                className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors hover:bg-(--divider) rounded-md p-1 cursor-pointer"
+                            >
+                                <FaXmark className="text-[13px]" />
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto flex-1">
+                            <TeamSettingsForm
+                                team={settingsDraft}
+                                onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
+                            />
+                        </div>
+
+                        {/* Footer: require explicit confirmation before applying */}
+                        <div className="border-t border-(--divider) bg-(--background-primary) px-4 py-3 flex flex-col gap-2 shrink-0">
+                            {pendingSettings && settingsChanges.length > 0 && (
+                                <ul className="flex flex-col gap-0.5">
+                                    {settingsChanges.map(line => (
+                                        <li key={line} className="text-[11px] text-(--text-secondary) flex items-start gap-1.5">
+                                            <span className="text-amber-500 mt-px shrink-0">→</span>
+                                            {line}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (pendingSettings) update(pendingSettings);
+                                        setPendingSettings(null);
+                                        setShowSettingsModal(false);
+                                    }}
+                                    disabled={!pendingSettings || settingsChanges.length === 0}
+                                    className="flex-1 px-3 py-4 rounded-lg text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                                >
+                                    Apply Changes
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={closeSettingsModal}
+                                    className="px-3 py-4 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                                >
+                                    {pendingSettings && settingsChanges.length > 0 ? 'Discard' : 'Close'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showAutofill && draft.pts_limit != null && (
                 <AutofillPanel
                     ptsLimit={draft.pts_limit}
@@ -850,6 +882,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         rotation: draft.num_starters,
                         bench: draft.min_bench,
                         bullpen: draft.min_bullpen,
+                    }}
+                    existingPts={{
+                        offense: pointsBreakdown.lineup,
+                        rotation: pointsBreakdown.rotation,
+                        bench: pointsBreakdown.bench,
+                        bullpen: pointsBreakdown.bullpen,
                     }}
                     onConfirm={handleAutofill}
                     onClose={() => setShowAutofill(false)}

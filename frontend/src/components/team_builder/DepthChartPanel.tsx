@@ -37,6 +37,7 @@ function PositionRow({
     isPeerHovered,
     onMouseEnter,
     onMouseLeave,
+    ptsMultiplier,
 }: {
     label: string;
     card: CardDatabaseRecord | null | undefined;
@@ -48,6 +49,7 @@ function PositionRow({
     isPeerHovered?: boolean;
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
+    ptsMultiplier?: number;
 }) {
     if (!card && isPending) {
         return (
@@ -75,6 +77,7 @@ function PositionRow({
                         card={card}
                         isSelected={isActive}
                         onClick={onDetailClick}
+                        cardPtsMultiplier={ptsMultiplier}
                         actionButton={!readOnly ? {
                             icon: <FaPencil className="w-2.5 h-2.5" />,
                             onClick,
@@ -245,6 +248,7 @@ export function DepthChartPanel({
                         isPeerHovered={!!card && card.card_id === hoveredCardId}
                         onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                         onMouseLeave={() => onCardHover?.(null)}
+                        ptsMultiplier={team.bench_pts_multiplier}
                     />
                 );
             })}

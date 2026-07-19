@@ -36,6 +36,8 @@ type CardItemProps = {
     cardPointsEstimated?: number;
     cardPointsDiffEstimatedVsActual?: number;
     cardPtsChange?: number | null;
+    /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
+    cardPtsMultiplier?: number;
 
     // Command and Outs
     cardCommand?: number;
@@ -110,7 +112,7 @@ type CardItemProps = {
 export const CardItem = ({
     cardId, cardTeam, cardName, cardYear, cardStatsPeriod,
     cardCommand, cardIsPitcher,
-    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange,
+    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange, cardPtsMultiplier,
     cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
     cardIsErrata, cardNotes, cardIsStatsEstimate,
     cardPrimaryColor, cardSecondaryColor, cardEdition,
@@ -122,6 +124,9 @@ export const CardItem = ({
 
     const { isDark } = useTheme();
     const isRedacted = cardId === null || cardId === undefined;
+
+    const hasPtsMultiplier = !!cardPtsMultiplier && cardPtsMultiplier !== 1 && cardPoints != null;
+    const effectivePoints = hasPtsMultiplier ? Math.round(cardPoints! * cardPtsMultiplier!) : cardPoints;
     
     // Team-specific color handling for better contrast (NYM, SDP, JPN use secondary first)
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
@@ -296,7 +301,12 @@ export const CardItem = ({
                             <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>
                                 {isRedacted ? (
                                     <span className="text-transparent">REDACTED</span>
-                                ) : ( 
+                                ) : hasPtsMultiplier ? (
+                                    <span className="flex items-center gap-1">
+                                        <span className="line-through opacity-60">{cardPoints}</span>
+                                        <span>{effectivePoints} PTS</span>
+                                    </span>
+                                ) : (
                                     <>
                                         {`${cardPoints} PTS`}
                                     </>
@@ -508,9 +518,11 @@ type CardItemFromCardDatabaseRecordProps = {
     hideYear?: boolean;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
+    cardPtsMultiplier?: number;
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, actionButton }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, actionButton, cardPtsMultiplier }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -549,6 +561,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardStatHighlightsList={card?.stat_highlights_list || []}
             cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
+            cardPtsMultiplier={cardPtsMultiplier}
             onClick={onClick}
             className={className}
             isSelected={isSelected}
