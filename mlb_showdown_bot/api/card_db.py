@@ -37,10 +37,9 @@ def fetch_card_list():
             print("Serving card list from cache")
             return jsonify(cached_result)
 
-        db = PostgresDB()
-        card_data = db.fetch_card_list(filters=payload)
-        db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=optional_user_id())
-        db.close_connection()
+        with PostgresDB() as db:
+            card_data = db.fetch_card_list(filters=payload)
+            db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=optional_user_id())
 
         _card_list_cache[cache_key] = (card_data, time.time())
         return jsonify(card_data)
@@ -52,10 +51,8 @@ def fetch_card_list():
 def fetch_team_data():
     """Fetch team data from the database"""
     try:
-        db = PostgresDB()
-
-        team_data = db.fetch_team_data()
-        db.close_connection()
+        with PostgresDB() as db:
+            team_data = db.fetch_team_data()
 
         return jsonify(team_data)
 
@@ -66,11 +63,10 @@ def fetch_team_data():
 def fetch_card_comps():
     """Fetch the most similar WOTC cards for a given card's attributes"""
     try:
-        db = PostgresDB()
         payload = request.get_json() or {}
         limit = payload.pop('limit', 3)
-        comps = db.fetch_similar_wotc_cards(card_attrs=payload, limit=limit)
-        db.close_connection()
+        with PostgresDB() as db:
+            comps = db.fetch_similar_wotc_cards(card_attrs=payload, limit=limit)
         return jsonify({'comps': comps})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -79,12 +75,11 @@ def fetch_card_comps():
 def fetch_card():
     """Fetch a single card by its ID"""
     try:
-        db = PostgresDB()
         id = request.args.get('id')
         source = request.args.get('src', 'unknown')
-        card = db.fetch_single_card(id)
-        db.log_card_id_lookup(card_id=id, source=source, user_id=optional_user_id())
-        db.close_connection()
+        with PostgresDB() as db:
+            card = db.fetch_single_card(id)
+            db.log_card_id_lookup(card_id=id, source=source, user_id=optional_user_id())
 
         if card is None:
             return jsonify({'error': 'Card not found'}), 404
@@ -107,9 +102,8 @@ def fetch_total_card_count():
                 return jsonify({'total_count': cached_count})
 
         # IF NOT IN CACHE OR CACHE EXPIRED, FETCH FROM DB
-        db = PostgresDB()
-        total_count = db.fetch_total_card_count()
-        db.close_connection()
+        with PostgresDB() as db:
+            total_count = db.fetch_total_card_count()
 
         _total_card_count_cache = (total_count, time.time())
         return jsonify({'total_count': total_count})
@@ -128,9 +122,8 @@ def fetch_trending_cards():
         if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
             return jsonify({'trending_cards': cached_result})
 
-        db = PostgresDB()
-        trending_cards = db.fetch_trending_cards(set=showdown_set)
-        db.close_connection()
+        with PostgresDB() as db:
+            trending_cards = db.fetch_trending_cards(set=showdown_set)
 
         _trending_cache[showdown_set] = (trending_cards, time.time())
         return jsonify({'trending_cards': trending_cards})
@@ -150,9 +143,8 @@ def fetch_popular_cards():
         if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
             return jsonify({'popular_cards': cached_result})
 
-        db = PostgresDB()
-        popular_cards = db.fetch_popular_cards(set=showdown_set)
-        db.close_connection()
+        with PostgresDB() as db:
+            popular_cards = db.fetch_popular_cards(set=showdown_set)
 
         _popular_cache[showdown_set] = (popular_cards, time.time())
         return jsonify({'popular_cards': popular_cards})
@@ -174,9 +166,8 @@ def fetch_spotlight_cards():
         if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
             return jsonify({'spotlight_cards': cached_result})
 
-        db = PostgresDB()
-        spotlight_cards = db.fetch_latest_spotlight_cards(set=showdown_set, limit=limit)
-        db.close_connection()
+        with PostgresDB() as db:
+            spotlight_cards = db.fetch_latest_spotlight_cards(set=showdown_set, limit=limit)
 
         _spotlight_cache[cache_key] = (spotlight_cards, time.time())
         return jsonify({'spotlight_cards': spotlight_cards})
@@ -196,9 +187,8 @@ def fetch_card_of_the_day():
         if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
             return jsonify({'card_of_the_day': cached_result})
 
-        db = PostgresDB()
-        card_of_the_day = db.fetch_card_of_the_day(set=showdown_set)
-        db.close_connection()
+        with PostgresDB() as db:
+            card_of_the_day = db.fetch_card_of_the_day(set=showdown_set)
 
         # GENERATE AN IMAGE FOR THE CARD
         os.makedirs(_CARD_OF_THE_DAY_FOLDER, exist_ok=True)
@@ -230,14 +220,13 @@ def fetch_full_cards():
         if not mlb_ids or not season:
             return jsonify({}), 200
 
-        db = PostgresDB()
-        card_map: dict = db.fetch_full_cards_by_mlb_id(
-            mlb_ids=mlb_ids,
-            is_wbc=is_wbc,
-            season=int(season),
-            showdown_set=showdown_set
-        )
-        db.close_connection()
+        with PostgresDB() as db:
+            card_map: dict = db.fetch_full_cards_by_mlb_id(
+                mlb_ids=mlb_ids,
+                is_wbc=is_wbc,
+                season=int(season),
+                showdown_set=showdown_set
+            )
 
         # Serialize: convert int keys to strings (JSON requirement)
         result = {str(k): v for k, v in card_map.items()}
@@ -279,14 +268,13 @@ def fetch_compact_cards():
         if not mlb_ids or not season:
             return jsonify({}), 200
 
-        db = PostgresDB()
-        card_map = db.fetch_compact_cards_by_mlb_id(
-            mlb_ids=mlb_ids,
-            is_wbc=is_wbc,
-            season=int(season),
-            showdown_set=showdown_set,
-        )
-        db.close_connection()
+        with PostgresDB() as db:
+            card_map = db.fetch_compact_cards_by_mlb_id(
+                mlb_ids=mlb_ids,
+                is_wbc=is_wbc,
+                season=int(season),
+                showdown_set=showdown_set,
+            )
 
         # Apply overrides to the card map if provided (this allows for dynamic modification of card data without needing to update the database)
         for mlb_id_int, override_data in (overrides or {}).items():
@@ -323,9 +311,8 @@ def fetch_custom_card_history():
         limit = payload.get('limit', 20)
         offset = payload.get('offset', 0)
 
-        db = PostgresDB()
-        custom_card_history = db.fetch_custom_card_history(user_ids=[g.user_id], limit=limit, offset=offset)
-        db.close_connection()
+        with PostgresDB() as db:
+            custom_card_history = db.fetch_custom_card_history(user_ids=[g.user_id], limit=limit, offset=offset)
 
         return jsonify({'custom_card_history': custom_card_history})
 

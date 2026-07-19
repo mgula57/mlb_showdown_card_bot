@@ -301,10 +301,10 @@ class WotcPlayerCardSet(BaseModel):
         list_of_dicts: list[dict[str, any]] = df_wotc_cards.to_dict(orient='records')
 
         # LOAD PLAYER STATS FROM ARCHIVE DB
-        postgres_db = PostgresDB(is_archive=True)
         year_list = [y-1 for y in set_values] + ss_year_values + [2005]  # ADD 2005 FOR TD EXPANSION
         print("FETCHING PLAYER STATS")
-        real_player_stats_archive: list[PlayerArchive] = postgres_db.fetch_all_stats_from_archive(year_list=year_list, exclude_records_with_stats=False)
+        with PostgresDB(is_archive=True) as postgres_db:
+            real_player_stats_archive: list[PlayerArchive] = postgres_db.fetch_all_stats_from_archive(year_list=year_list, exclude_records_with_stats=False)
         if len(real_player_stats_archive) == 0:
             raise Exception('No player stats found in archive for WOTC conversion.')
 

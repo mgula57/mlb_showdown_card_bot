@@ -41,8 +41,8 @@ def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
     is_wbc = Edition(edition_raw) == Edition.WBC if edition_raw else False
 
     if is_wbc and str(year) in ['2025', '2026']:
-        db = PostgresDB()
-        return db.wbc_card_search(name, showdown_set, wbc_season=2026, exclude_mlb_players=True) # HARD CODE 2026 FOR NOW SINCE 2025 WBC NON-MLB CARDS ARE NOT AVAILABLE
+        with PostgresDB() as db:
+            return db.wbc_card_search(name, showdown_set, wbc_season=2026, exclude_mlb_players=True) # HARD CODE 2026 FOR NOW SINCE 2025 WBC NON-MLB CARDS ARE NOT AVAILABLE
 
     return None
 
@@ -76,16 +76,21 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
     # SETUP LOGGING
     log_to_db = kwargs.get('store_in_logs', False)
-    db_for_logs = kwargs.get('db_connection', None)
+    caller_db_for_logs = kwargs.get('db_connection', None)
     user_id = kwargs.get('user_id', None)
-    if log_to_db:
-        # CONNECT TO DB
-        db_for_logs = db_for_logs or PostgresDB()
-        if not db_for_logs.connection:
-            db_for_logs = None
-            print("Failed to connect to database for logging. Continuing without logging.")
-    else:
-        db_for_logs = None
+
+    def log_submission(card: ShowdownPlayerCard, additional_attributes: dict[str, Any]) -> None:
+        """Log the submission, borrowing a connection only for the duration of the write (unless the caller supplied one)."""
+        if not log_to_db:
+            return
+        try:
+            if caller_db_for_logs is not None:
+                caller_db_for_logs.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
+            else:
+                with PostgresDB() as db:
+                    db.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
+        except Exception as e:
+            print(f"Failed to log card submission: {e}")
 
     try:
 
@@ -168,7 +173,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
             additional_logs['error'] = None
             additional_logs['error_for_user'] = None
-            if db_for_logs: db_for_logs.log_custom_card_submission(card=preprocessed_card, user_inputs=kwargs, additional_attributes=additional_logs)
+            log_submission(card=preprocessed_card, additional_attributes=additional_logs)
 
             final_card_payload = additional_logs
             final_card_payload['card'] = preprocessed_card.as_json()
@@ -233,9 +238,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                         normalized_player_stats.warnings.remove(defense_empty_warning)
                         
                 if not normalized_player_stats.bref_id and player_data.id:
-                    db = PostgresDB(is_archive=True)
-                    bref_id = db.fetch_bref_id_for_mlb_id(player_data.id)
-                    db.close_connection()
+                    with PostgresDB(is_archive=True) as db:
+                        bref_id = db.fetch_bref_id_for_mlb_id(player_data.id)
                     normalized_player_stats.add_bref_id(bref_id)
 
                 if stats_period.is_mlb and stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
@@ -255,12 +259,11 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
                 # FOR MULTI-YEAR CARDS, FIRST CHECK ARCHIVE DB
                 if baseball_reference_stats.stats_period.is_multi_year and not baseball_reference_stats.ignore_archive:
-                    db = PostgresDB(is_archive=True)
-                    player_archive_list: list[PlayerArchive] = db.fetch_all_player_year_stats_from_archive(
-                        bref_id=baseball_reference_stats.baseball_ref_id,
-                        type_override=baseball_reference_stats.player_type_override
-                    ) or []
-                    db.close_connection()
+                    with PostgresDB(is_archive=True) as db:
+                        player_archive_list: list[PlayerArchive] = db.fetch_all_player_year_stats_from_archive(
+                            bref_id=baseball_reference_stats.baseball_ref_id,
+                            type_override=baseball_reference_stats.player_type_override
+                        ) or []
 
                     # FILTER TO YEARS IN STATS PERIOD
                     stats_yearly_list = [
@@ -322,8 +325,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
         edition_str = kwargs.get('edition', None)
         edition = Edition(edition_str) if edition_str else None
         if edition and edition == Edition.WBC:
-            db = PostgresDB()
-            wbc_team_info = db.fetch_wbc_team_for_player(bref_id=baseball_reference_stats.baseball_ref_id, year=stats_period.year_int)
+            with PostgresDB() as db:
+                wbc_team_info = db.fetch_wbc_team_for_player(bref_id=baseball_reference_stats.baseball_ref_id, year=stats_period.year_int)
             if wbc_team_info:
                 wbc_team_abbreviation, wbc_team_year = wbc_team_info
                 kwargs['wbc_team'] = wbc_team_abbreviation
@@ -377,8 +380,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         additional_logs['scraper_load_time'] = scraper_load_time
 
         # ADD CODE TO LOG CARD TO DB
-        if db_for_logs:
-            db_for_logs.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_logs)
+        log_submission(card=card, additional_attributes=additional_logs)
 
         # CONVERT CARD TO DICT AND RETURN IT
         final_card_payload = additional_logs
@@ -441,23 +443,20 @@ def generate_card(**kwargs) -> dict[str, Any]:
         traceback.print_exc()
         print("---------------------------------")
 
-        # ADD CODE TO LOG CARD TO DB
-        if db_for_logs:
-            # LOG THE ERROR
-            db_for_logs.log_custom_card_submission(
-                card=card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
-                user_inputs=kwargs,
-                additional_attributes={
-                    'error': error_full,
-                    'error_for_user': error_for_user,
-                    'historical_season_trends': None,
-                    'in_season_trends': None,
-                    'latest_game_box_score': None,
-                    'scraper_load_time': None,
-                    'version': '',
-                    'user_id': user_id,
-                }
-            )
+        # LOG THE ERROR
+        log_submission(
+            card=card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
+            additional_attributes={
+                'error': error_full,
+                'error_for_user': error_for_user,
+                'historical_season_trends': None,
+                'in_season_trends': None,
+                'latest_game_box_score': None,
+                'scraper_load_time': None,
+                'version': '',
+                'user_id': user_id,
+            }
+        )
 
         final_card_payload = {
             'card': card.as_json() if card else None,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
@@ -477,8 +476,8 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
         return None
     
     # QUERY ARCHIVE FOR PLAYER
-    db = PostgresDB(is_archive=True)
-    yearly_archive_data = db.fetch_all_player_year_stats_from_archive(bref_id=actual_card.bref_id, type_override=actual_card.player_type_override)
+    with PostgresDB(is_archive=True) as db:
+        yearly_archive_data = db.fetch_all_player_year_stats_from_archive(bref_id=actual_card.bref_id, type_override=actual_card.player_type_override)
     if len(yearly_archive_data) == 0:
         return None
 
@@ -657,21 +656,18 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     """
 
     # CONNECT TO DB
-    postgres_db = PostgresDB(is_archive=True)
+    with PostgresDB(is_archive=True) as postgres_db:
 
-    # IF NO CONNECTION, USE FILE
-    if not postgres_db.connection:
-        return (None, None)
-    
-    # QUERY DATABASE FOR RANDOM PLAYER
-    random_player:PlayerArchive = postgres_db.fetch_random_player_stats_from_archive(
-        year_input=kwargs.get('year', None),
-        era=kwargs.get('era', None),
-        edition=kwargs.get('edition', None)
-    )
+        # IF NO CONNECTION, USE FILE
+        if not postgres_db.connection:
+            return (None, None)
 
-    # CLOSE CONNECTION
-    postgres_db.close_connection()
+        # QUERY DATABASE FOR RANDOM PLAYER
+        random_player:PlayerArchive = postgres_db.fetch_random_player_stats_from_archive(
+            year_input=kwargs.get('year', None),
+            era=kwargs.get('era', None),
+            edition=kwargs.get('edition', None)
+        )
 
     # RETURN RANDOM PLAYER IF MATCH WAS FOUND
     if random_player:
@@ -720,10 +716,9 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
     mlb_id_to_bref: dict[int, str] = {}
     if inject_bref_ids:
         try:
-            _id_db = PostgresDB(is_archive=True)
-            all_mlb_ids = [p.id for p in player_stats.players if p.id]
-            mlb_id_to_bref = _id_db.fetch_bref_ids_from_mlb_ids(all_mlb_ids)
-            _id_db.close_connection()
+            with PostgresDB(is_archive=True) as _id_db:
+                all_mlb_ids = [p.id for p in player_stats.players if p.id]
+                mlb_id_to_bref = _id_db.fetch_bref_ids_from_mlb_ids(all_mlb_ids)
         except Exception:
             pass
 

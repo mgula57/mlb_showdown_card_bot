@@ -315,7 +315,6 @@ def search_players():
                         'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
                     } for player in active_players]
 
-                    _db.close_connection()
                     return jsonify(displays)
 
 
@@ -534,8 +533,6 @@ def search_players():
                 ), reverse=True)
 
 
-        _db.close_connection()
-
         return jsonify(displays)
 
     except Exception as e:
@@ -543,6 +540,7 @@ def search_players():
         print(f"Error searching players: {e}")
         print("Full traceback:")
         traceback.print_exc()
+        return jsonify([]), 500
+    finally:
         if _db is not None:
             _db.close_connection()
-        return jsonify([]), 500

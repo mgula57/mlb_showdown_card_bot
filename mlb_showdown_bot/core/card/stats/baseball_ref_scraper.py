@@ -172,9 +172,8 @@ class BaseballReferenceScraper(BaseModel):
     def fetch_player_stats_from_archive(self) -> dict:
         """Fetch player data from the archive."""
 
-        postgres_db = PostgresDB(is_archive=True)
-        player_archive, _ = postgres_db.fetch_player_stats_from_archive(year=self.year, bref_id=self.baseball_ref_id, team_override=self.team_override, type_override=self.player_type_override, stats_period_type=self.stats_period.type)
-        postgres_db.close_connection()
+        with PostgresDB(is_archive=True) as postgres_db:
+            player_archive, _ = postgres_db.fetch_player_stats_from_archive(year=self.year, bref_id=self.baseball_ref_id, team_override=self.team_override, type_override=self.player_type_override, stats_period_type=self.stats_period.type)
 
         # IF NO ARCHIVE DATA, RETURN NONE
         if not player_archive:

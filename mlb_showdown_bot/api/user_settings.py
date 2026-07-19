@@ -116,9 +116,8 @@ def optional_user_id() -> str | None:
 @require_auth
 def get_user_settings():
     try:
-        db = PostgresDB()
-        settings = db.get_user_settings(g.user_id)
-        db.close_connection()
+        with PostgresDB() as db:
+            settings = db.get_user_settings(g.user_id)
         return jsonify(settings or {}), 200
     except Exception as exc:
         traceback.print_exc()
@@ -132,9 +131,8 @@ def upsert_user_settings():
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
-        db = PostgresDB()
-        db.upsert_user_settings(g.user_id, payload)
-        db.close_connection()
+        with PostgresDB() as db:
+            db.upsert_user_settings(g.user_id, payload)
         return jsonify({'success': True}), 200
     except Exception as exc:
         traceback.print_exc()
@@ -148,9 +146,8 @@ def get_quick_filters():
     if not source:
         return jsonify({'error': 'source query param is required'}), 400
     try:
-        db = PostgresDB()
-        filters = db.get_user_quick_filters(g.user_id, source)
-        db.close_connection()
+        with PostgresDB() as db:
+            filters = db.get_user_quick_filters(g.user_id, source)
         return jsonify(filters), 200
     except Exception as exc:
         traceback.print_exc()
@@ -170,9 +167,8 @@ def create_quick_filter():
     if not all([id_, source, name, isinstance(filters, dict)]):
         return jsonify({'error': 'id, source, name, and filters are required'}), 400
     try:
-        db = PostgresDB()
-        db.create_user_quick_filter(g.user_id, id_, source, name, filters)
-        db.close_connection()
+        with PostgresDB() as db:
+            db.create_user_quick_filter(g.user_id, id_, source, name, filters)
         return jsonify({'success': True}), 201
     except Exception as exc:
         traceback.print_exc()
@@ -194,9 +190,8 @@ def update_quick_filter(filter_id: str):
     if name is None and filters is None:
         return jsonify({'error': 'name or filters is required'}), 400
     try:
-        db = PostgresDB()
-        updated = db.update_user_quick_filter(g.user_id, filter_id, name=name, filters=filters)
-        db.close_connection()
+        with PostgresDB() as db:
+            updated = db.update_user_quick_filter(g.user_id, filter_id, name=name, filters=filters)
         if not updated:
             return jsonify({'error': 'Not found'}), 404
         return jsonify({'success': True}), 200
@@ -209,9 +204,8 @@ def update_quick_filter(filter_id: str):
 @require_auth
 def delete_quick_filter(filter_id: str):
     try:
-        db = PostgresDB()
-        deleted = db.delete_user_quick_filter(g.user_id, filter_id)
-        db.close_connection()
+        with PostgresDB() as db:
+            deleted = db.delete_user_quick_filter(g.user_id, filter_id)
         if not deleted:
             return jsonify({'error': 'Not found'}), 404
         return jsonify({'success': True}), 200

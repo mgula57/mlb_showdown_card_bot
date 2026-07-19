@@ -289,6 +289,7 @@ class PostgresDB:
         """
         pool = _get_pool(self.env_var_name)
         if pool is not None:
+            conn = None
             try:
                 conn = pool.getconn()
                 # Validate the connection is still alive (catches stale connections after dyno sleep)
@@ -296,6 +297,7 @@ class PostgresDB:
                     conn.cursor().execute("SELECT 1")
                 except Exception:
                     pool.putconn(conn, close=True)
+                    conn = None
                     conn = pool.getconn()
                 # Roll back any open transaction before setting autocommit
                 # (psycopg2 starts a transaction implicitly; setting autocommit inside one raises ProgrammingError)
@@ -308,6 +310,12 @@ class PostgresDB:
             except Exception as e:
                 print(f"Error getting connection from pool for {self.env_var_name}: {e}")
                 traceback.print_exc()
+                # Return the borrowed connection so the pool slot isn't lost before falling back
+                if conn is not None:
+                    try:
+                        pool.putconn(conn, close=True)
+                    except Exception:
+                        pass
         
         # Fallback: direct connection
         DATABASE_URL = os.getenv(self.env_var_name)
@@ -1790,6 +1798,12 @@ class PostgresDB:
                 cursor.execute(f"ALTER TABLE card_wotc ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
             print("  → Ensured card_wotc columns are up to date.")
 
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_wotc_card_id
+                ON card_wotc (card_id);
+            """)
+            print("  → Ensured card_wotc indexes exist.")
+
             # CLEAR EXISTING DATA
             cursor.execute("DELETE FROM card_wotc;")
             print("  → Cleared existing WOTC card data.")
@@ -2988,8 +3002,12 @@ class PostgresDB:
                 ON card_bot (stats_modified_date, card_modified_date);
             """)
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_card_bot_updated_at 
+                CREATE INDEX IF NOT EXISTS idx_card_bot_updated_at
                 ON card_bot (updated_at);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_bot_card_id
+                ON card_bot (card_id);
             """)
             print("  → Ensured indexes exist.")
             

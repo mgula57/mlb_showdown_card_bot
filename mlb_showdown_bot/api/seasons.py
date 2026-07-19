@@ -105,7 +105,6 @@ def fetch_standings(season_id: str, league_id: str):
         if showdown_set:
             with PostgresDB() as db:
                 standings = db.add_points_to_mlb_api_standings(standings, showdown_set=showdown_set)
-                db.close_connection()
 
         standings_data = [standing.model_dump() for standing in standings]
         _standings_cache[cache_key] = (standings_data, datetime.now())
@@ -187,7 +186,6 @@ def fetch_showdown_team(season_id: str, team_id: str):
                 team_abbr=team_abbr,
                 sport_id=sport_id,
             )
-            db.close_connection()
 
         builder = RosterToTeamConverter(
             cards=cards,
