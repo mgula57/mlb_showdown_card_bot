@@ -56,7 +56,7 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
             const rest = withPlayers
                 .filter(t => !inOrdered.has(t.team_id))
                 .sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1);
-            return [...ordered, ...rest].slice(0, 8);
+            return [...ordered, ...rest].slice(0, 4);
         }
 
         return [...withPlayers]
@@ -71,7 +71,11 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
             <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide px-4 mb-2">
                 Recent Teams
             </div>
-            <div className={`flex gap-3 overflow-x-auto pb-1 py-2 px-2 scrollbar-hide`}>
+            <div
+                className={`flex items-start gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory pb-1 py-2 px-2 scrollbar-hide`}
+                style={{ touchAction: 'pan-x' }}
+            >
+
                 {recentTeams.map(team => (
                     <RecentTeamCard
                         key={team.team_id}
@@ -112,14 +116,14 @@ function RecentTeamCard({ team, onClick }: RecentTeamCardProps) {
             onClick={onClick}
             className="
                 snap-start shrink-0 relative
-                w-44 md:w-52 rounded-xl
+                w-44 md:w-52 aspect-3/4 rounded-xl
+                overflow-hidden
                 hover:scale-[1.025] active:scale-[0.975]
                 transition-transform duration-150
                 text-left border-2
                 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
             "
             style={{
-                aspectRatio: '3/4',
                 borderColor: secondary,
             }}
         >
