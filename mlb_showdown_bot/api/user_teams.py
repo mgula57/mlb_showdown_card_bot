@@ -149,6 +149,13 @@ def autofill_team_route(team_id: str):
         hitting_strategy  = payload.get('hitting_strategy', None)
         active_filters    = payload.get('active_filters', {})
 
+        pts_target = payload.get('pts_target')
+        if pts_target is not None:
+            try:
+                pts_target = int(pts_target)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'pts_target must be a number'}), 400
+
         with PostgresDB() as db:
             team_row = db.get_team(team_id, g.user_id)
             if team_row is None:
@@ -156,8 +163,8 @@ def autofill_team_route(team_id: str):
 
             team = Team.from_db_row(team_row) if isinstance(team_row, dict) else team_row
 
-            if not team.pts_limit:
-                return jsonify({'error': 'Team must have a points limit set to use autofill'}), 400
+            if not team.pts_limit and not pts_target:
+                return jsonify({'error': 'Team must have a points limit set, or a target must be provided, to use autofill'}), 400
 
             # Build the base filter set from the team's stored constraints so that
             # autofill always respects allowed_sets and player_filters regardless of
@@ -224,6 +231,7 @@ def autofill_team_route(team_id: str):
             pts_distribution=pts_distribution,
             pitching_strategy=pitching_strategy,
             hitting_strategy=hitting_strategy,
+            pts_target=pts_target,
         )
 
         if result is None:

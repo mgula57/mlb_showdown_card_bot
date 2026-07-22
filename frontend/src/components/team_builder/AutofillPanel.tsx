@@ -19,7 +19,8 @@ type BucketSizes = {
 type BucketPts = Record<keyof PtsDistribution, number>;
 
 type Props = {
-    ptsLimit: number;
+    /** null when the team has no points cap — the user picks a one-off target instead. */
+    ptsLimit: number | null;
     bucketSizes: BucketSizes;
     /** Points already spent per bucket from manual draft picks — acts as a floor for each slider. */
     existingPts: BucketPts;
@@ -71,8 +72,16 @@ function StrategyPill({ label, active, onClick }: { label: string; active: boole
 }
 
 export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, onClose }: Props) {
+    const hasCap = ptsLimit != null;
+    const totalFloors = existingPts.offense + existingPts.rotation + existingPts.bullpen + existingPts.bench;
+
+    // When the team has no points cap, the user picks a one-off target budget first.
+    const [customTarget, setCustomTarget] = useState<number>(Math.max(1000, totalFloors));
+    const [targetConfirmed, setTargetConfirmed] = useState(hasCap);
+    const effectiveLimit = hasCap ? ptsLimit : customTarget;
+
     const [bucketPts, setBucketPts] = useState<BucketPts>(
-        () => defaultBucketPts(ptsLimit, DEFAULT_PTS_DISTRIBUTION, existingPts)
+        () => defaultBucketPts(effectiveLimit, DEFAULT_PTS_DISTRIBUTION, existingPts)
     );
     const [activePreset, setActivePreset] = useState<string>('Balanced');
     const [pitchingStrategy, setPitchingStrategy] = useState<string | null>(null);
@@ -85,25 +94,30 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
         [bucketPts]
     );
 
-    const totalFloors = existingPts.offense + existingPts.rotation + existingPts.bullpen + existingPts.bench;
-    const overBudget = totalFloors > ptsLimit;
+    const overBudget = totalFloors > effectiveLimit;
 
-    // Highest a bucket can go without pushing the total past ptsLimit, given the other buckets' floors
+    // Highest a bucket can go without pushing the total past effectiveLimit, given the other buckets' floors
     function bucketMax(key: keyof PtsDistribution): number {
         const otherFloorsTotal = totalFloors - existingPts[key];
-        return Math.max(existingPts[key], ptsLimit - otherFloorsTotal);
+        return Math.max(existingPts[key], effectiveLimit - otherFloorsTotal);
     }
 
     function applyPreset(label: string, dist: PtsDistribution) {
-        setBucketPts(defaultBucketPts(ptsLimit, dist, existingPts));
+        setBucketPts(defaultBucketPts(effectiveLimit, dist, existingPts));
         setActivePreset(label);
+    }
+
+    function confirmTarget() {
+        setBucketPts(defaultBucketPts(customTarget, DEFAULT_PTS_DISTRIBUTION, existingPts));
+        setActivePreset('Balanced');
+        setTargetConfirmed(true);
     }
 
     function updateBucket(changedKey: keyof PtsDistribution, rawNewPts: number) {
         setBucketPts(prev => {
             const newPts = Math.min(Math.max(rawNewPts, existingPts[changedKey]), bucketMax(changedKey));
             const otherKeys = (Object.keys(prev) as (keyof PtsDistribution)[]).filter(k => k !== changedKey);
-            const remaining = ptsLimit - newPts;
+            const remaining = effectiveLimit - newPts;
             const otherFloorsTotal = otherKeys.reduce((sum, k) => sum + existingPts[k], 0);
             // Points left to freely distribute among the other buckets, above their floors
             const distributable = Math.max(0, remaining - otherFloorsTotal);
@@ -136,9 +150,10 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
         setLoading(true);
         try {
             await onConfirm({
-                pts_distribution: distributionFromPts(bucketPts, ptsLimit),
+                pts_distribution: distributionFromPts(bucketPts, effectiveLimit),
                 pitching_strategy: pitchingStrategy,
                 hitting_strategy: hittingStrategy,
+                ...(hasCap ? {} : { pts_target: effectiveLimit }),
             });
             onClose();
         } catch (e: unknown) {
@@ -167,7 +182,11 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                             Autofill Roster
                         </div>
                         <div className="text-[11px] text-(--text-secondary) mt-0.5">
-                            Budget: <span className="font-bold text-(--text-primary)">{ptsLimit.toLocaleString()} pts</span>
+                            {targetConfirmed ? (
+                                <>Budget: <span className="font-bold text-(--text-primary)">{effectiveLimit.toLocaleString()} pts</span></>
+                            ) : (
+                                'This team has no points cap — pick a target to autofill against'
+                            )}
                         </div>
                     </div>
                     <button
@@ -179,6 +198,31 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                     </button>
                 </div>
 
+                {!targetConfirmed ? (
+                    <div className="px-4 py-4 space-y-3">
+                        <p className="text-[12px] text-(--text-secondary)">
+                            Set a one-off points target for this autofill. It won't change the team's settings.
+                        </p>
+                        <div>
+                            <label className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-1 block">
+                                Target Points
+                            </label>
+                            <input
+                                type="number"
+                                min={totalFloors}
+                                step={50}
+                                value={customTarget}
+                                onChange={e => setCustomTarget(Math.max(0, Number(e.target.value)))}
+                                className="w-full rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2 text-[13px] font-bold text-(--text-primary)"
+                            />
+                            {totalFloors > 0 && (
+                                <div className="text-[10px] text-(--text-tertiary) mt-1">
+                                    {totalFloors.toLocaleString()} pts already drafted — target must be at least that much
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
                 <div className="px-4 py-3 space-y-4 max-h-[70vh] overflow-y-auto">
                     {/* Layer 1: Points Distribution */}
                     <section>
@@ -247,16 +291,16 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                         {/* Budget summary */}
                         <div className={[
                             'flex items-center justify-between mt-2 rounded-lg px-3 py-1.5 text-[11px] font-semibold',
-                            totalAllocated > ptsLimit
+                            totalAllocated > effectiveLimit
                                 ? 'bg-red-500/10 text-red-500'
                                 : 'bg-(--background-secondary) text-(--text-secondary)',
                         ].join(' ')}>
                             <span>Total allocated</span>
-                            <span>{totalAllocated.toLocaleString()} / {ptsLimit.toLocaleString()} pts</span>
+                            <span>{totalAllocated.toLocaleString()} / {effectiveLimit.toLocaleString()} pts</span>
                         </div>
                         {overBudget && (
                             <p className="text-[11px] text-red-500 bg-red-500/10 rounded-lg px-3 py-2 mt-2">
-                                Manually drafted picks already total {totalFloors.toLocaleString()} pts, over the {ptsLimit.toLocaleString()} pt budget. Raise the pts limit or remove picks before autofilling.
+                                Manually drafted picks already total {totalFloors.toLocaleString()} pts, over the {effectiveLimit.toLocaleString()} pt budget. {hasCap ? 'Raise the pts limit or remove picks before autofilling.' : 'Pick a higher target or remove picks before autofilling.'}
                             </p>
                         )}
                     </section>
@@ -301,27 +345,39 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                         </p>
                     )}
                 </div>
+                )}
 
                 {/* Footer */}
                 <div className="px-4 pb-4 pt-3 border-t border-(--divider)">
-                    <button
-                        type="button"
-                        onClick={handleConfirm}
-                        disabled={loading || overBudget || totalAllocated > ptsLimit}
-                        className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                    >
-                        {loading ? (
-                            <>
-                                <FaSpinner className="animate-spin" />
-                                Filling…
-                            </>
-                        ) : (
-                            <>
-                                <FaWandMagicSparkles />
-                                Fill Roster
-                            </>
-                        )}
-                    </button>
+                    {!targetConfirmed ? (
+                        <button
+                            type="button"
+                            onClick={confirmTarget}
+                            disabled={customTarget < totalFloors}
+                            className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                        >
+                            Continue
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleConfirm}
+                            disabled={loading || overBudget || totalAllocated > effectiveLimit}
+                            className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                        >
+                            {loading ? (
+                                <>
+                                    <FaSpinner className="animate-spin" />
+                                    Filling…
+                                </>
+                            ) : (
+                                <>
+                                    <FaWandMagicSparkles />
+                                    Fill Roster
+                                </>
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

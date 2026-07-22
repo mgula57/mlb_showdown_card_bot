@@ -644,7 +644,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 </span>
                             </>
                         )}
-                        {draft.pts_limit != null && token && (
+                        {token && (
                             <>
                                 {lastAutofillStrategy && (
                                     <button
@@ -911,7 +911,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </div>
             )}
 
-            {showAutofill && draft.pts_limit != null && (
+            {showAutofill && (
                 <AutofillPanel
                     ptsLimit={draft.pts_limit}
                     bucketSizes={{

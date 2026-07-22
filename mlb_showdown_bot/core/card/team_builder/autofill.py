@@ -351,6 +351,7 @@ def autofill_team(
     hitting_strategy: str | None,
     pts_tolerance: int = 200,
     max_attempts: int = 2,
+    pts_target: int | None = None,
 ) -> dict | None:
     """
     Fill remaining roster slots using a randomized greedy algorithm.
@@ -358,8 +359,9 @@ def autofill_team(
 
     candidates_by_bucket: {bucket_name: [card_dicts]} fetched by the endpoint
     pts_distribution: fractions summing to 1.0 keyed by bucket name
+    pts_target: one-off budget to use when the team itself has no pts_limit set
     """
-    pts_limit = team.pts_limit or 0
+    pts_limit = team.pts_limit or pts_target or 0
     existing_ids = _existing_card_ids(team)
 
     filled_lineup_pos = set()

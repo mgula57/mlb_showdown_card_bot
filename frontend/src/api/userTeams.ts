@@ -213,6 +213,8 @@ export type AutofillStrategy = {
     pts_distribution: PtsDistribution;
     pitching_strategy: string | null;
     hitting_strategy: string | null;
+    /** Only sent when the team has no pts_limit — the one-off target the user picked in the modal. */
+    pts_target?: number;
 };
 
 export type AutofillResult = {
@@ -267,6 +269,7 @@ export async function autofillTeam(
             pts_distribution: strategy.pts_distribution,
             pitching_strategy: strategy.pitching_strategy,
             hitting_strategy: strategy.hitting_strategy,
+            pts_target: strategy.pts_target,
             active_filters: activeFilters ?? {},
         }),
     });
