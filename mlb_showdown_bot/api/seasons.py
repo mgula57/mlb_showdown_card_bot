@@ -192,6 +192,7 @@ def fetch_showdown_team(season_id: str, team_id: str):
             team_id=f"mlb-{sport_id}-{team_id}-{season_id}-{showdown_set_enum.value}",
             name=team_name or team_abbr or f"Team {team_id}",
             abbreviation=team_abbr or str(team_id),
+            season=season,
         )
         team_data = builder.build_api_dict()
         _showdown_team_cache[cache_key] = (team_data, datetime.now())

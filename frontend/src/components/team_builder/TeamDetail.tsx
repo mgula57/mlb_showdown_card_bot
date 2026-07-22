@@ -517,6 +517,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     {/* Name + total pts */}
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
+                        {teamMode === 'complete' && (
+                            <span className="text-[12px] font-semibold text-(--text-tertiary) shrink-0">
+                                {draft.roster.length} player{draft.roster.length !== 1 ? 's' : ''}
+                            </span>
+                        )}
                         {isTeamDrafting(draft) && (
                             <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-amber-500/20 text-amber-600 dark:text-amber-400">
                                 DRAFTING

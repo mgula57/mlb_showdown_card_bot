@@ -33,6 +33,7 @@ class RosterToTeamConverter:
         abbreviation: str,
         primary_color: Optional[str] = None,
         secondary_color: Optional[str] = None,
+        season: Optional[int] = None,
     ) -> None:
         # A card can't be placed on the roster without an identifier the frontend can look up
         self.cards = [c for c in cards if c.card_id]
@@ -41,6 +42,22 @@ class RosterToTeamConverter:
         self.abbreviation = abbreviation
         self.primary_color = primary_color
         self.secondary_color = secondary_color
+        self.season = season
+
+    @staticmethod
+    def _max_roster_size(season: Optional[int]) -> Optional[int]:
+        """Historical roster-size limit for the season, used to cap bench/bullpen depth.
+
+        Active rosters expanded over time: 21 pre-1920, 25 through the 20th century,
+        26 starting in 2020 (Opening Day rosters permanently grew from 25 to 26).
+        """
+        if season is None:
+            return None
+        if season >= 2020:
+            return 26
+        if season >= 1920:
+            return 25
+        return 21
 
     # ------------------------------------------------------------------
     # SORT KEYS
@@ -177,15 +194,34 @@ class RosterToTeamConverter:
         # BENCH: remaining hitters by games played
         lineup_ids = {c.card_id for c in lineup_assignment.values()}
         bench = sorted([c for c in hitters if c.card_id not in lineup_ids], key=self._by_games_played, reverse=True)
+
+        # ROTATION: starters by games started -> SP1..SPn, sized to however many the
+        # pool actually has (capped by the number of role slots the UI supports)
+        rotation_cards = sorted(starters, key=self._by_games_started, reverse=True)[:self.MAX_ROTATION_SLOTS]
+
+        # BULLPEN: reliever with the most saves closes, the rest by appearances
+        bullpen_pool = relievers + [c for c in starters if c not in rotation_cards]
+        closer = max(bullpen_pool, key=self._by_saves) if bullpen_pool else None
+        bullpen = [closer] if closer else []
+        bullpen += sorted([c for c in bullpen_pool if c is not closer], key=self._by_games_played, reverse=True)
+
+        # Cap total roster size to the historical limit for the season: trim the
+        # weakest bench/relief depth (lineup, rotation, and the closer are kept intact)
+        max_roster_size = self._max_roster_size(self.season)
+        if max_roster_size is not None:
+            core_count = len(lineup_slots) + len(rotation_cards) + (1 if closer else 0)
+            depth_pool = bench + [c for c in bullpen if c is not closer]
+            depth = sorted(depth_pool, key=self._by_games_played, reverse=True)[:max(0, max_roster_size - core_count)]
+            depth_ids = {c.card_id for c in depth}
+            bench = [c for c in bench if c.card_id in depth_ids]
+            bullpen = [c for c in bullpen if c is closer or c.card_id in depth_ids]
+
         for card in bench:
             roster_slots.append(TeamRosterSlot(
                 card_id=card.card_id, card_source=self._card_source(card), roster_position='BE',
                 pick_source=PickSource.IMPORTED,
             ))
 
-        # ROTATION: starters by games started -> SP1..SPn, sized to however many the
-        # pool actually has (capped by the number of role slots the UI supports)
-        rotation_cards = sorted(starters, key=self._by_games_started, reverse=True)[:self.MAX_ROTATION_SLOTS]
         for i, card in enumerate(rotation_cards, start=1):
             role = f'SP{i}'
             src = self._card_source(card)
@@ -195,11 +231,6 @@ class RosterToTeamConverter:
             ))
             rotation.append(PitcherAssignment(card_id=card.card_id, card_source=src, role=role))
 
-        # BULLPEN: reliever with the most saves closes, the rest by appearances
-        bullpen_pool = relievers + [c for c in starters if c not in rotation_cards]
-        closer = max(bullpen_pool, key=self._by_saves) if bullpen_pool else None
-        bullpen = [closer] if closer else []
-        bullpen += sorted([c for c in bullpen_pool if c is not closer], key=self._by_games_played, reverse=True)
         for card in bullpen:
             role = 'CL' if card is closer else 'RP'
             src = self._card_source(card)
