@@ -148,9 +148,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
     /** Gold Glove recipients already report a specific position (CF/LF/RF/1B/.../P/UT) — map directly. */
     const buildGoldGloveLineup = (league: LeagueAbbr): Lineup => {
         const recipients = awards?.GG[league] ?? [];
-        const slots = recipients
-            .filter(r => r.player.primary_position?.abbreviation)
-            .map(r => toSlot(r, r.player.primary_position!.abbreviation!));
+        const slots: LineupSlot[] = [];
         const outfielders: AwardRecipient[] = [];
 
         // Handle outfielders separately since they are reported as "OF" and need to be split into CF/LF/RF
