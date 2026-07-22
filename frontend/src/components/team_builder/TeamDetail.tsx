@@ -764,6 +764,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     onClose={() => setPendingSlot(null)}
                     title={pendingLabel ?? undefined}
                     dismissible={false}
+                    expandTrigger={pendingSlot}
                 >
                     {draftPanel}
                 </BottomSheet>

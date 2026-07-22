@@ -13,6 +13,11 @@ type BottomSheetProps = {
      * instead of closing. Defaults to true.
      */
     dismissible?: boolean;
+    /**
+     * Change this value (e.g. pass a new object/id) to force the sheet to snap
+     * to 'expanded' — used to spring the sheet open when a new slot is picked.
+     */
+    expandTrigger?: unknown;
 };
 
 /**
@@ -22,7 +27,7 @@ type BottomSheetProps = {
  * Drag the handle up/down to switch; flick to dismiss.
  * Hidden on lg+ (use the desktop panel instead).
  */
-export function BottomSheet({ isOpen, onClose, title, children, dismissible = true }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, title, children, dismissible = true, expandTrigger }: BottomSheetProps) {
     const sheetRef  = useRef<HTMLDivElement>(null);
     const snapRef   = useRef<SnapPoint>('closed');
     const [snapState, setSnapState] = useState<SnapPoint>('closed');
@@ -89,6 +94,13 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
+
+    // Spring the sheet open whenever a new slot is picked
+    useEffect(() => {
+        if (expandTrigger === undefined || expandTrigger === null) return;
+        snapTo('expanded');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expandTrigger]);
 
     // Lock body scroll only when fully expanded
     useEffect(() => {
@@ -232,8 +244,20 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                     )}
                 </div>
 
-                {/* Content — scrollable only when expanded so drag doesn't fight scroll */}
-                <div className={`flex-1 min-h-0 ${snapState === 'expanded' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+                {/* Content — scrollable only when expanded so drag doesn't fight scroll.
+                    While collapsed (peek/closed) it also acts as a drag handle so a
+                    swipe anywhere on the sheet — not just the tiny handle — opens it. */}
+                <div
+                    className={`flex-1 min-h-0 ${
+                        snapState === 'expanded' ? 'overflow-y-auto' : 'overflow-hidden touch-none select-none'
+                    }`}
+                    {...(snapState !== 'expanded' ? {
+                        onTouchStart: handleTouchStart,
+                        onTouchMove: handleTouchMove,
+                        onTouchEnd: handleTouchEnd,
+                        onMouseDown: handleMouseDown,
+                    } : {})}
+                >
                     {children}
                 </div>
             </div>
