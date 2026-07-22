@@ -151,6 +151,29 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
         const slots = recipients
             .filter(r => r.player.primary_position?.abbreviation)
             .map(r => toSlot(r, r.player.primary_position!.abbreviation!));
+        const outfielders: AwardRecipient[] = [];
+
+        // Handle outfielders separately since they are reported as "OF" and need to be split into CF/LF/RF
+        for (const recipient of recipients) {
+            const pos = recipient.player.primary_position?.abbreviation;
+            if (pos === 'OF') {
+                outfielders.push(recipient);
+            } else if (pos) {
+                slots.push(toSlot(recipient, pos));
+            }
+        }
+
+        outfielders
+            .map(recipient => ({
+                recipient,
+                cfDefense: defenseAtPosition(cardMap[cardKey(recipient)]?.positions_and_defense, 'CF') ?? -Infinity,
+            }))
+            .sort((a, b) => b.cfDefense - a.cfDefense)
+            .forEach(({ recipient }, i) => {
+                const pos = OF_FIELD_SLOTS[i];
+                if (pos) slots.push(toSlot(recipient, pos));
+            });
+
         return { name: 'Gold Glove', index: 0, slots };
     };
 
@@ -262,8 +285,8 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                         </div>
                         <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                             {LEAGUES.map(league => (
-                                <div key={league} className="flex flex-col gap-1.5">
-                                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
+                                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                                         {league}
                                     </span>
                                     <FieldView
@@ -290,8 +313,8 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                         </div>
                         <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                             {LEAGUES.map(league => (
-                                <div key={league} className="flex flex-col gap-1.5">
-                                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
+                                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                                         {league}
                                     </span>
                                     <FieldView

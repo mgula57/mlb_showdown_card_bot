@@ -40,7 +40,10 @@ class LeaguesClient(BaseMLBClient):
                     if league.get('abbreviation', 'N/A') in abbreviations:
                         final_leagues.append(League(**league))
                 else:
-                    final_leagues.append(League(**league))
+                    try:
+                        final_leagues.append(League(**league))
+                    except Exception as e:
+                        continue
 
             return final_leagues
         except Exception as e:
