@@ -3,11 +3,58 @@ import traceback
 from flask import Blueprint, g, jsonify, request
 
 from ..core.database.postgres_db import PostgresDB
-from ..core.card.team_builder.team import Team
+from ..core.card.team_builder.team import Team, DEFAULT_LINEUP_NAME
 from ..core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team
 from .user_settings import require_auth, optional_user_id
 
 user_teams_bp = Blueprint('user_teams', __name__)
+
+
+def normalize_lineups(payload: dict) -> str | None:
+    """Validate and normalize payload['lineups'] in place. Returns an error message, or None.
+
+    Only user-created lineups are stored — the computed 'Default' is dropped. Slots must
+    reference cards on the roster and carry a unique batting order in 1-9.
+    """
+    lineups = payload.get('lineups')
+    if lineups is None:
+        return None
+    if not isinstance(lineups, list):
+        return 'lineups must be a list'
+
+    roster_card_ids = {
+        slot.get('card_id')
+        for slot in (payload.get('roster') or [])
+        if isinstance(slot, dict)
+    }
+
+    normalized = []
+    for lineup in lineups:
+        if not isinstance(lineup, dict):
+            return 'each lineup must be an object'
+        if (lineup.get('name') or '').strip() == DEFAULT_LINEUP_NAME:
+            continue  # computed on read, never stored
+
+        slots = lineup.get('slots') or []
+        orders = set()
+        for slot in slots:
+            if not isinstance(slot, dict) or not slot.get('card_id'):
+                return 'each lineup slot needs a card_id'
+            # Only enforce roster membership when the roster is part of this same payload;
+            # a lineup-only update is validated against the roster already in the DB on read.
+            if roster_card_ids and slot['card_id'] not in roster_card_ids:
+                return f"lineup '{lineup.get('name')}' references {slot['card_id']}, which is not on the roster"
+            order = slot.get('batting_order')
+            if not isinstance(order, int) or not 1 <= order <= 9:
+                return f"batting_order must be an integer 1-9, got {order!r}"
+            if order in orders:
+                return f"lineup '{lineup.get('name')}' has duplicate batting_order {order}"
+            orders.add(order)
+
+        normalized.append({'name': lineup.get('name'), 'slots': slots})
+
+    payload['lineups'] = normalized
+    return None
 
 
 @user_teams_bp.route('/user/teams', methods=['GET'])
@@ -31,6 +78,9 @@ def create_team():
             return jsonify({'error': 'Request body must be a JSON object'}), 400
         if not payload.get('name') or not payload.get('abbreviation'):
             return jsonify({'error': 'name and abbreviation are required'}), 400
+        error = normalize_lineups(payload)
+        if error:
+            return jsonify({'error': error}), 400
         with PostgresDB() as db:
             team_id = db.create_team(g.user_id, payload)
             team = db.get_team(team_id, g.user_id)
@@ -61,6 +111,9 @@ def update_team(team_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
+        error = normalize_lineups(payload)
+        if error:
+            return jsonify({'error': error}), 400
         with PostgresDB() as db:
             updated = db.update_team(team_id, g.user_id, payload)
             if not updated:

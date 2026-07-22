@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
+from .lineup import LineupBuilder, LineupCandidate
+
 
 class CardSource(str, Enum):
     BOT    = "BOT"     # card_bot archive (official Showdown Bot cards)
@@ -36,54 +38,100 @@ class TeamRosterSlot(BaseModel):
 class LineupSlot(BaseModel):
     card_id: str
     card_source: CardSource
-    field_position: str       # "C","1B","2B","3B","SS","LF","CF","RF","SP","DH"
-    batting_order: Optional[int] = None  # 1–9, None for pitchers/DH
+    field_position: str  # "C","1B","2B","3B","SS","LF","CF","RF","SP","DH" — derived from
+                         # the roster on read, never stored on the lineup itself
+    batting_order: int   # 1–9
 
 
 class Lineup(BaseModel):
     name: str = "Default"
+    index: int = 0
     slots: list[LineupSlot] = []
 
 
 class PitcherAssignment(BaseModel):
     card_id: str
     card_source: CardSource
-    role: str  # "SP1"–"SP5", "CP", "SU", "MR", "LONG"
+    role: str  # "SP1"–"SP5", "RP", "CL"
 
 
-# Roster positions map 1:1 onto lineup field positions and rotation roles, so
-# lineups/rotation are derived from the roster rather than stored separately.
+# Roster positions map 1:1 onto lineup field positions and rotation roles, so a team's
+# defensive alignment and rotation are derived from the roster rather than stored.
+# Lineups (batting order only) are the one piece that is stored, and only when the user
+# creates one — the "Default" lineup below is always recomputed.
 FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
 ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5']
 BULLPEN_ROLES   = ['RP', 'CL']
 PITCHER_ROLES   = ROTATION_ROLES + BULLPEN_ROLES
+DEFAULT_LINEUP_NAME = 'Default'
 
 
-def derive_lineups_rotation(roster: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Rebuild the (name/field_position/batting_order) lineup and (role) rotation
-    structures from a roster whose slots carry the position in `roster_position`.
+def _lineup_candidates(roster: list[dict]) -> tuple[list[LineupCandidate], Optional[LineupCandidate]]:
+    """Split the roster into batting-order candidates plus the pitcher who bats when
+    there is no DH. Stats come from the widened card LATERALs in _TEAM_BASE_SELECT and
+    are absent for WBC/CUSTOM cards."""
+    def candidate(slot: dict, field_position: str) -> LineupCandidate:
+        return LineupCandidate(
+            card_id=slot['card_id'],
+            card_source=slot['card_source'],
+            field_position=field_position,
+            command=slot.get('command'),
+            outs=slot.get('outs'),
+            speed=slot.get('speed'),
+            points=slot.get('points'),
+            onbase_perc=slot.get('onbase_perc'),
+            slugging_perc=slot.get('slugging_perc'),
+        )
 
-    Returns plain dicts (a single 'Default' lineup + rotation list) so it can feed
-    either JSON API rows or Pydantic model construction.
+    hitters = [candidate(s, s['roster_position']) for s in roster if s.get('roster_position') in FIELD_POSITIONS]
+
+    # A pitcher only takes an at-bat when the DH slot is empty.
+    pitcher = None
+    if not any(h.field_position == 'DH' for h in hitters):
+        ace = next((s for s in roster if s.get('roster_position') == 'SP1'), None)
+        if ace:
+            pitcher = candidate(ace, 'SP')
+
+    return hitters, pitcher
+
+
+def derive_lineups_rotation(roster: list[dict], stored_lineups: Optional[list[dict]] = None) -> tuple[list[dict], list[dict]]:
+    """Rebuild the lineups and rotation for a team.
+
+    Lineups: the computed 'Default' batting order always sits at index 0, followed by any
+    user-created lineups. Stored lineups carry only (card_id, batting_order), so each slot's
+    `field_position` is resolved here from the roster.
+
+    Rotation: starters ordered by role (SP1..SP5), then the bullpen in roster order — which
+    is `sort_order`, since the roster arrives ORDER BY sort_order.
     """
-    lineup_slots: list[dict] = []
-    rotation: list[dict] = []
-    for slot in roster:
-        position = slot.get('roster_position')
-        if position in FIELD_POSITIONS:
-            lineup_slots.append({
+    default_slots = LineupBuilder(*_lineup_candidates(roster)).build()
+    lineups: list[dict] = [{'name': DEFAULT_LINEUP_NAME, 'index': 0, 'slots': default_slots}]
+
+    position_by_card = {s['card_id']: s.get('roster_position') for s in roster}
+    for i, lineup in enumerate(stored_lineups or [], start=1):
+        slots = [
+            {
                 'card_id': slot['card_id'],
                 'card_source': slot['card_source'],
-                'field_position': position,
-                'batting_order': None,
-            })
-        elif position in PITCHER_ROLES:
-            rotation.append({
-                'card_id': slot['card_id'],
-                'card_source': slot['card_source'],
-                'role': position,
-            })
-    return [{'name': 'Default', 'slots': lineup_slots}], rotation
+                'field_position': position_by_card.get(slot['card_id']) or 'DH',
+                'batting_order': slot['batting_order'],
+            }
+            for slot in sorted(lineup.get('slots') or [], key=lambda s: s['batting_order'])
+            # A player dropped from the roster since this lineup was saved is skipped.
+            if slot['card_id'] in position_by_card
+        ]
+        lineups.append({'name': lineup['name'], 'index': i, 'slots': slots})
+
+    starters = [s for s in roster if s.get('roster_position') in ROTATION_ROLES]
+    starters.sort(key=lambda s: ROTATION_ROLES.index(s['roster_position']))
+    bullpen = [s for s in roster if s.get('roster_position') in BULLPEN_ROLES]
+    rotation = [
+        {'card_id': s['card_id'], 'card_source': s['card_source'], 'role': s['roster_position']}
+        for s in starters + bullpen
+    ]
+
+    return lineups, rotation
 
 
 class Team(BaseModel):
@@ -150,16 +198,23 @@ class Team(BaseModel):
             'allowed_card_sources': self.allowed_card_sources,
             'player_filters': self.player_filters,
             'roster': [s.model_dump() for s in self.roster],
+            'lineups': [ln.model_dump() for ln in self.stored_lineups],
         }
+
+    @property
+    def stored_lineups(self) -> list['Lineup']:
+        """User-created lineups only — the computed 'Default' is never persisted."""
+        return [ln for ln in self.lineups if ln.name != DEFAULT_LINEUP_NAME]
 
     @classmethod
     def from_db_row(cls, row: dict) -> 'Team':
         """Deserialize from a DB row dict (as returned by RealDictCursor).
 
-        lineups/rotation are no longer stored; they are derived from the roster.
+        The rotation and the 'Default' lineup are derived from the roster; only
+        user-created lineups come off the row.
         """
         roster_rows = row.get('roster') or []
-        derived_lineups, derived_rotation = derive_lineups_rotation(roster_rows)
+        derived_lineups, derived_rotation = derive_lineups_rotation(roster_rows, row.get('lineups'))
         return cls(
             team_id=str(row['team_id']),
             user_id=row.get('user_id'),
@@ -180,7 +235,11 @@ class Team(BaseModel):
             player_filters=row.get('player_filters') or {},
             roster=[TeamRosterSlot(**s) for s in roster_rows],
             lineups=[
-                Lineup(name=ln['name'], slots=[LineupSlot(**sl) for sl in ln.get('slots', [])])
+                Lineup(
+                    name=ln['name'],
+                    index=ln['index'],
+                    slots=[LineupSlot(**sl) for sl in ln.get('slots', [])],
+                )
                 for ln in derived_lineups
             ],
             rotation=[PitcherAssignment(**p) for p in derived_rotation],

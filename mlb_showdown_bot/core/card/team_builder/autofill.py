@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass, field
 
-from .team import Team, TeamRosterSlot, LineupSlot, PitcherAssignment, CardSource, PickSource
+from .team import Team, TeamRosterSlot, CardSource, PickSource, derive_lineups_rotation
 
 # ---------------------------------------------------------------------------
 # Bucket definitions
@@ -103,9 +103,8 @@ def _pos_matches(card: dict, position: str) -> bool:
 
 @dataclass
 class _BucketResult:
+    # Only the roster is accumulated — lineups and rotation are derived from it.
     roster_slots: list[TeamRosterSlot] = field(default_factory=list)
-    lineup_slots: list[LineupSlot] = field(default_factory=list)
-    rotation_slots: list[PitcherAssignment] = field(default_factory=list)
     pts_used: int = 0
 
 
@@ -163,10 +162,6 @@ def _fill_offense(
         result.roster_slots.append(TeamRosterSlot(
             card_id=card_id, card_source=src, roster_position=position,
             pick_source=PickSource.AUTOFILL,
-        ))
-        result.lineup_slots.append(LineupSlot(
-            card_id=card_id, card_source=src,
-            field_position=position, batting_order=None,
         ))
 
     if abs(result.pts_used - pts_target) > pts_tolerance:
@@ -274,9 +269,6 @@ def _fill_rotation(
             card_id=card_id, card_source=src, roster_position=role,
             pick_source=PickSource.AUTOFILL,
         ))
-        result.rotation_slots.append(PitcherAssignment(
-            card_id=card_id, card_source=src, role=role,
-        ))
 
     return result
 
@@ -326,9 +318,6 @@ def _fill_bullpen(
         result.roster_slots.append(TeamRosterSlot(
             card_id=card_id, card_source=src, roster_position=role,
             pick_source=PickSource.AUTOFILL,
-        ))
-        result.rotation_slots.append(PitcherAssignment(
-            card_id=card_id, card_source=src, role=role,
         ))
 
     if abs(result.pts_used - pts_target) > pts_tolerance:
@@ -448,23 +437,15 @@ def autofill_team(
         ):
             new_roster.append(slot.model_dump())
 
-        # Build merged lineups (update first lineup's slots)
-        existing_lineups = []
-        for ln in team.lineups:
-            existing_lineups.append({
-                'name': ln.name,
-                'slots': [s.model_dump() for s in ln.slots],
-            })
-
-        if existing_lineups:
-            existing_lineups[0]['slots'] += [s.model_dump() for s in offense_result.lineup_slots]
-        else:
-            existing_lineups = [{'name': 'Default', 'slots': [s.model_dump() for s in offense_result.lineup_slots]}]
-
-        # Build merged rotation
-        new_rotation = [p.model_dump() for p in team.rotation]
-        for pa in rotation_result.rotation_slots + bullpen_result.rotation_slots:
-            new_rotation.append(pa.model_dump())
+        # Lineups and rotation both fall out of the merged roster, so derive rather than
+        # assemble them in parallel. Any user-created lineups on the team are preserved.
+        existing_lineups, new_rotation = derive_lineups_rotation(
+            new_roster,
+            [
+                {'name': ln.name, 'slots': [s.model_dump() for s in ln.slots]}
+                for ln in team.stored_lineups
+            ],
+        )
 
         return {
             'roster': new_roster,

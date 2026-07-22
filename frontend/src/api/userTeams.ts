@@ -20,12 +20,15 @@ export type TeamRosterSlot = {
 export type LineupSlot = {
     card_id: string;
     card_source: CardSource;
+    /** Server-derived from roster_position — read-only, never sent to the backend. */
     field_position: string;
-    batting_order: number | null;
+    batting_order: number; // 1–9
 };
 
 export type Lineup = {
     name: string;
+    /** 0 = computed Default (read-only). >0 = user-created, persisted. */
+    index: number;
     slots: LineupSlot[];
 };
 

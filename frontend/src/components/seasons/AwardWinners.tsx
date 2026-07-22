@@ -142,7 +142,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
         card_id: cardKey(recipient),
         card_source: CardSource.BOT,
         field_position: fieldPosition,
-        batting_order: null,
+        batting_order: 1,
     });
 
     /** Gold Glove recipients already report a specific position (CF/LF/RF/1B/.../P/UT) — map directly. */
@@ -151,7 +151,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
         const slots = recipients
             .filter(r => r.player.primary_position?.abbreviation)
             .map(r => toSlot(r, r.player.primary_position!.abbreviation!));
-        return { name: 'Gold Glove', slots };
+        return { name: 'Gold Glove', index: 0, slots };
     };
 
     /**
@@ -187,7 +187,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                 if (pos) slots.push(toSlot(recipient, pos));
             });
 
-        return { name: 'Silver Slugger', slots };
+        return { name: 'Silver Slugger', index: 0, slots };
     };
 
     // Filter out the UT position for seasons prior to 2022

@@ -1,7 +1,11 @@
 from typing import Optional
 
-from .team import Team, TeamSource, CardSource, TeamRosterSlot, Lineup, LineupSlot, PitcherAssignment, PickSource
+from .team import (
+    Team, TeamSource, CardSource, TeamRosterSlot, Lineup, LineupSlot, PitcherAssignment,
+    PickSource, DEFAULT_LINEUP_NAME,
+)
 from .autofill import OFFENSE_POSITIONS
+from .lineup import LineupBuilder, LineupCandidate
 from ...database.postgres_db import ExploreDataRecord
 from ...shared.player_position import Position, PositionSlot
 
@@ -139,10 +143,23 @@ class RosterToTeamConverter:
         lineup_slots: list[LineupSlot] = []
         rotation: list[PitcherAssignment] = []
 
-        # LINEUP: one hitter per field position, batting order by points
+        # LINEUP: one hitter per field position, batting order from the shared builder
         lineup_assignment = self._assign_lineup(hitters)
-        lineup_cards_by_points = sorted(lineup_assignment.items(), key=lambda kv: kv[1].points or 0, reverse=True)
-        batting_orders = {card.card_id: order for order, (_, card) in enumerate(lineup_cards_by_points, start=1)}
+        batting_orders = {
+            slot['card_id']: slot['batting_order']
+            for slot in LineupBuilder([
+                LineupCandidate(
+                    card_id=card.card_id,
+                    card_source=self._card_source(card),
+                    field_position=position,
+                    command=card.command,
+                    outs=card.outs,
+                    speed=card.speed,
+                    points=card.points,
+                )
+                for position, card in lineup_assignment.items()
+            ]).build()
+        }
         for position in OFFENSE_POSITIONS:
             card = lineup_assignment.get(position)
             if card is None:
@@ -213,7 +230,7 @@ class RosterToTeamConverter:
             min_bullpen=num_bullpen,
             num_starters=len(rotation_cards),
             roster=roster_slots,
-            lineups=[Lineup(name='Starting Lineup', slots=lineup_slots)],
+            lineups=[Lineup(name=DEFAULT_LINEUP_NAME, index=0, slots=lineup_slots)],
             rotation=rotation,
             **team_kwargs,
         )

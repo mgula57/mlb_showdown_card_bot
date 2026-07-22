@@ -3772,7 +3772,12 @@ class PostgresDB:
 # USER TEAMS
 # ------------------------------------------------------------------------
 
-    # roster slots live in user_team_roster; lineups/rotation are derived from it on read
+    # Roster slots live in user_team_roster; the rotation and the computed "Default" lineup are
+    # derived from it on read. Each roster slot carries the chart/real stats the default batting
+    # order is built from (see LineupBuilder) — null for WBC/CUSTOM cards, which the builder
+    # tolerates and sorts last. User-created lineups come from the pre-aggregated `ul` LATERAL:
+    # it must stay a LATERAL rather than a plain join, or it would fan out against the
+    # one-to-many roster join and corrupt both json_agg(roster) and SUM(total_points).
     _TEAM_BASE_SELECT = """
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
@@ -3787,7 +3792,13 @@ class PostgresDB:
                         'card_source',     r.card_source,
                         'roster_position', r.roster_position,
                         'draft_order',     r.draft_order,
-                        'pick_source',     r.pick_source
+                        'pick_source',     r.pick_source,
+                        'points',          COALESCE(cb.points, cw.points),
+                        'command',         COALESCE(cb.command, cw.command),
+                        'outs',            COALESCE(cb.outs, cw.outs),
+                        'speed',           COALESCE(cb.speed, cw.speed),
+                        'onbase_perc',     COALESCE(cb.real_onbase_perc, cw.real_onbase_perc),
+                        'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc)
                     ) ORDER BY r.sort_order, r.id
                 ) FILTER (WHERE r.card_id IS NOT NULL),
                 '[]'::json
@@ -3798,11 +3809,39 @@ class PostgresDB:
                     THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
                     ELSE COALESCE(cb.points, cw.points, 0)
                 END
-            ), 0)::int AS total_points
+            ), 0)::int AS total_points,
+            COALESCE(MAX(ul.lineups::text)::json, '[]'::json) AS lineups
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
-        LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
-        LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
+        LEFT JOIN LATERAL (
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc
+            FROM card_bot  WHERE card_id = r.card_id LIMIT 1
+        ) cb ON r.card_source = 'BOT'
+        LEFT JOIN LATERAL (
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc
+            FROM card_wotc WHERE card_id = r.card_id LIMIT 1
+        ) cw ON r.card_source = 'WOTC'
+        LEFT JOIN LATERAL (
+            SELECT json_agg(g.lineup ORDER BY g.lineup_index) AS lineups
+            FROM (
+                SELECT
+                    l.lineup_index,
+                    json_build_object(
+                        'name',  MIN(l.lineup_name),
+                        'index', l.lineup_index,
+                        'slots', json_agg(
+                            json_build_object(
+                                'card_id',       l.card_id,
+                                'card_source',   l.card_source,
+                                'batting_order', l.batting_order
+                            ) ORDER BY l.batting_order
+                        )
+                    ) AS lineup
+                FROM internal.user_team_lineups l
+                WHERE l.team_id = t.team_id
+                GROUP BY l.lineup_index
+            ) g
+        ) ul ON TRUE
     """
 
     # Lightweight per-team summary for the teams-list/carousel views. Avoids returning
@@ -3974,6 +4013,25 @@ class PostgresDB:
                     DROP COLUMN IF EXISTS lineups,
                     DROP COLUMN IF EXISTS rotation;
             """)
+            # User-created batting orders. One row per lineup slot. The team's "Default"
+            # lineup is computed on read and is never stored here. Defensive position is
+            # not stored either — it belongs to user_team_roster.roster_position.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_team_lineups (
+                    id            BIGSERIAL PRIMARY KEY,
+                    team_id       UUID NOT NULL REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    lineup_index  INT  NOT NULL,
+                    lineup_name   TEXT NOT NULL,
+                    card_id       TEXT NOT NULL,
+                    card_source   TEXT NOT NULL DEFAULT 'BOT',
+                    batting_order INT  NOT NULL,
+                    updated_at    TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_lineups_team_id
+                    ON internal.user_team_lineups (team_id);
+            """)
 
     def get_user_teams(self, user_id: str) -> list[dict]:
         """Return lightweight summaries for all teams belonging to user_id, newest first."""
@@ -4033,6 +4091,7 @@ class PostgresDB:
         if not self.connection:
             raise RuntimeError("No database connection")
         roster = payload.get('roster', [])
+        lineups = payload.get('lineups', [])
         fields = self._team_payload_fields(payload)
         cols = ', '.join(['user_id'] + list(fields.keys()))
         placeholders = ', '.join(['%s'] * (1 + len(fields)))
@@ -4047,6 +4106,7 @@ class PostgresDB:
             )
             team_id = str(cur.fetchone()[0])
             self._upsert_roster(cur, team_id, roster)
+            self._upsert_lineups(cur, team_id, lineups)
         return team_id
 
     def update_team(self, team_id: str, user_id: str, payload: dict) -> bool:
@@ -4054,8 +4114,9 @@ class PostgresDB:
         if not self.connection:
             return False
         roster = payload.get('roster')
+        lineups = payload.get('lineups')
         fields = self._team_payload_fields(payload)
-        if not fields and roster is None:
+        if not fields and roster is None and lineups is None:
             return False
         with self.connection.cursor() as cur:
             if fields:
@@ -4070,16 +4131,18 @@ class PostgresDB:
                 )
                 if cur.rowcount == 0:
                     return False
+            if (roster is not None or lineups is not None) and not fields:
+                # Verify ownership when only child tables are changing
+                cur.execute(
+                    "SELECT 1 FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
+                    (team_id, user_id),
+                )
+                if not cur.fetchone():
+                    return False
             if roster is not None:
-                if not fields:
-                    # Verify ownership when only the roster is changing
-                    cur.execute(
-                        "SELECT 1 FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
-                        (team_id, user_id),
-                    )
-                    if not cur.fetchone():
-                        return False
                 self._upsert_roster(cur, team_id, roster)
+            if lineups is not None:
+                self._upsert_lineups(cur, team_id, lineups)
         return True
 
     def delete_team(self, team_id: str, user_id: str) -> bool:
@@ -4100,6 +4163,7 @@ class PostgresDB:
         if not self.connection:
             raise RuntimeError("No database connection")
         roster = payload.get('roster', [])
+        lineups = payload.get('lineups', [])
         team_id = payload.get('team_id')
         fields = self._team_payload_fields(payload)
         with self.connection.cursor() as cur:
@@ -4115,6 +4179,7 @@ class PostgresDB:
                 )
                 if cur.rowcount > 0:
                     self._upsert_roster(cur, team_id, roster)
+                    self._upsert_lineups(cur, team_id, lineups)
                     return team_id
             cols = ', '.join(['user_id'] + list(fields.keys()))
             placeholders = ', '.join(['%s'] * (1 + len(fields)))
@@ -4156,6 +4221,39 @@ class PostgresDB:
             VALUES %s
         """, batch)
 
+    @staticmethod
+    def _upsert_lineups(cur, team_id: str, lineups: list) -> None:
+        """Replace all user-created lineups for a team in user_team_lineups.
+
+        The computed 'Default' lineup is never stored, so callers are expected to have
+        filtered it out (see validation in the PUT route).
+        """
+        cur.execute("DELETE FROM internal.user_team_lineups WHERE team_id = %s", (team_id,))
+        if not lineups:
+            return
+        now = datetime.now(tz=timezone.utc)
+        batch = [
+            (
+                team_id,
+                lineup_index,
+                lineup.get('name') or f'Lineup {lineup_index}',
+                slot['card_id'],
+                slot.get('card_source', 'BOT'),
+                slot['batting_order'],
+                now,
+            )
+            # lineup_index starts at 1 — index 0 is reserved for the computed Default
+            for lineup_index, lineup in enumerate(lineups, start=1)
+            for slot in lineup.get('slots') or []
+        ]
+        if not batch:
+            return
+        execute_values(cur, """
+            INSERT INTO internal.user_team_lineups
+                (team_id, lineup_index, lineup_name, card_id, card_source, batting_order, updated_at)
+            VALUES %s
+        """, batch)
+
     _TEAM_JSONB_FIELDS = frozenset({'player_filters'})
 
     @staticmethod
@@ -4183,8 +4281,11 @@ class PostgresDB:
             row['created_at'] = row['created_at'].isoformat()
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
-        # lineups/rotation are derived from the roster rather than stored
-        row['lineups'], row['rotation'] = derive_lineups_rotation(row.get('roster') or [])
+        # The rotation and the 'Default' lineup are derived from the roster; user-created
+        # lineups come off the row and are re-indexed behind the Default.
+        row['lineups'], row['rotation'] = derive_lineups_rotation(
+            row.get('roster') or [], row.get('lineups') or []
+        )
         return row
 
     def _serialize_team_summaries(self, rows: list[dict]) -> list[dict]:

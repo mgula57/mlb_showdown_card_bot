@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot } from '../../api/userTeams';
+import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot, TeamUpdatePayload } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
-import { FaPlus, FaPencil } from 'react-icons/fa6';
+import { FaPlus, FaPencil, FaChevronUp, FaChevronDown } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { Modal } from '../shared/Modal';
@@ -17,6 +17,8 @@ type DepthChartPanelProps = {
     onSlotClick: (position: string, slot: LineupSlot | null) => void;
     onRoleClick: (role: string, current: PitcherAssignment | null) => void;
     onBenchClick: (role: string, current: TeamRosterSlot | null) => void;
+    /** Called when a reorder changes the roster or rotation. Partial update merged into the team. */
+    onReorder?: (updates: Pick<TeamUpdatePayload, 'roster' | 'rotation'>) => void;
     readOnly?: boolean;
     activePosition?: string | null;
     activeRole?: string | null;
@@ -38,6 +40,8 @@ function PositionRow({
     onMouseEnter,
     onMouseLeave,
     ptsMultiplier,
+    onMoveUp,
+    onMoveDown,
 }: {
     label: string;
     card: CardDatabaseRecord | null | undefined;
@@ -50,6 +54,8 @@ function PositionRow({
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
     ptsMultiplier?: number;
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
 }) {
     if (!card && isPending) {
         return (
@@ -101,6 +107,19 @@ function PositionRow({
                     <span>Empty</span>
                 </button>
             )}
+            {/* Reorder controls (rotation / bullpen only) */}
+            {(onMoveUp || onMoveDown) && !readOnly && card && (
+                <div className="flex flex-col shrink-0">
+                    <button type="button" onClick={onMoveUp} disabled={!onMoveUp}
+                        className="text-(--text-tertiary) hover:text-(--text-secondary) disabled:opacity-20 cursor-pointer">
+                        <FaChevronUp className="text-[8px]" />
+                    </button>
+                    <button type="button" onClick={onMoveDown} disabled={!onMoveDown}
+                        className="text-(--text-tertiary) hover:text-(--text-secondary) disabled:opacity-20 cursor-pointer">
+                        <FaChevronDown className="text-[8px]" />
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
@@ -140,6 +159,7 @@ export function DepthChartPanel({
     onSlotClick,
     onRoleClick,
     onBenchClick,
+    onReorder,
     readOnly = false,
     activePosition,
     activeRole,
@@ -149,7 +169,7 @@ export function DepthChartPanel({
 }: DepthChartPanelProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
-    const lineup = team.lineups[0] ?? { name: 'Default', slots: [] };
+    const lineup = team.lineups[0] ?? { name: 'Default', index: 0, slots: [] };
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
     const roleByKey = Object.fromEntries(team.rotation.map(r => [r.role, r]));
 
@@ -161,6 +181,33 @@ export function DepthChartPanel({
     const bullpenSlots  = team.rotation.filter(r => !r.role.startsWith('SP'));
     const bullpenByRole = Object.fromEntries(BULLPEN_ROLES.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
     const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
+
+    // -------------------------------------------------------------------------
+    // Reorder helpers
+    // -------------------------------------------------------------------------
+
+    function swapRotation(roleA: string, roleB: string) {
+        if (!onReorder) return;
+        // Swap the roster_position values of the two SP slots.
+        const roster = team.roster.map(s => {
+            if (s.roster_position === roleA) return { ...s, roster_position: roleB };
+            if (s.roster_position === roleB) return { ...s, roster_position: roleA };
+            return s;
+        });
+        onReorder({ roster });
+    }
+
+    function moveBullpen(fromIdx: number, toIdx: number) {
+        if (!onReorder) return;
+        // Reorder by moving within the non-SP portion of the roster array;
+        // sort_order is the array index so the order is preserved on save.
+        const nonBullpen = team.roster.filter(s => s.roster_position.startsWith('SP') || !['RP', 'CL'].includes(s.roster_position));
+        const bpSlots = team.roster.filter(s => ['RP', 'CL'].includes(s.roster_position));
+        const reordered = [...bpSlots];
+        const [moved] = reordered.splice(fromIdx, 1);
+        reordered.splice(toIdx, 0, moved);
+        onReorder({ roster: [...nonBullpen, ...reordered] });
+    }
 
     // Defense totals for lineup KPIs
     const totalDefOF = OF_POSITIONS.reduce((sum, pos) => {
@@ -232,9 +279,11 @@ export function DepthChartPanel({
 
             {/* Rotation */}
             <SectionHeader label="Rotation" filledCount={filledRotCards.length} total={rotationPts} kpis={rotationKpis} />
-            {ACTIVE_ROTATION_ROLES.map(role => {
+            {ACTIVE_ROTATION_ROLES.map((role, idx) => {
                 const assignment = roleByKey[role] ?? null;
                 const card = assignment ? cardMap[assignment.card_id] : null;
+                const prevRole = idx > 0 ? ACTIVE_ROTATION_ROLES[idx - 1] : null;
+                const nextRole = idx < ACTIVE_ROTATION_ROLES.length - 1 ? ACTIVE_ROTATION_ROLES[idx + 1] : null;
                 return (
                     <PositionRow
                         key={role}
@@ -248,6 +297,8 @@ export function DepthChartPanel({
                         isPeerHovered={!!card && card.card_id === hoveredCardId}
                         onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                         onMouseLeave={() => onCardHover?.(null)}
+                        onMoveUp={prevRole ? () => swapRotation(role, prevRole) : undefined}
+                        onMoveDown={nextRole ? () => swapRotation(role, nextRole) : undefined}
                     />
                 );
             })}
@@ -271,6 +322,8 @@ export function DepthChartPanel({
                         isPeerHovered={!!card && card.card_id === hoveredCardId}
                         onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                         onMouseLeave={() => onCardHover?.(null)}
+                        onMoveUp={i > 0 ? () => moveBullpen(i, i - 1) : undefined}
+                        onMoveDown={i < bullpenSlots.length - 1 ? () => moveBullpen(i, i + 1) : undefined}
                     />
                 );
             })}

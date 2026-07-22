@@ -12,13 +12,14 @@ import { getContrastColor } from "../shared/Color";
 import { FieldView } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
+import { LineupPanel } from './LineupPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear,
-    FaList, FaRing, FaClipboardList
+    FaList, FaRing, FaClipboardList, FaListOl
 } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -281,22 +282,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
         const pitcherSlots = [...ROTATION_ROLES, ...BULLPEN_ROLES] as string[];
         if (pitcherSlots.includes(position)) {
-            const rotation = draft.rotation.filter(r => r.role !== position);
-            rotation.push({ card_id: card.card_id, card_source: draftSource, role: position });
             const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ rotation, roster });
+            update({ roster });
         } else if (/^BE\d+$/.test(position)) {
             const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
             update({ roster });
         } else if (position === 'BE') {
             update({ roster: [...draft.roster, rosterSlot] });
         } else {
-            const lineups = draft.lineups.length > 0 ? [...draft.lineups] : [{ name: 'Default', slots: [] }];
-            const slots = lineups[0].slots.filter(s => s.field_position !== position);
-            slots.push({ card_id: card.card_id, card_source: draftSource, field_position: position, batting_order: null });
-            lineups[0] = { ...lineups[0], slots };
+            // Field position: update roster only — lineups/rotation are re-derived from the roster on save.
             const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ lineups, roster });
+            update({ roster });
         }
 
         setDraftToast({ name: card.name, position });
@@ -445,12 +441,27 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 if (!showEditControls) return;
                 setPendingSlot({ kind: 'bench', role, current });
             }}
+            onReorder={showEditControls ? updates => update(updates) : undefined}
             readOnly={!showEditControls}
             activePosition={activeFieldPosition}
             activeRole={activeRole}
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
             isLoadingCards={isLoadingCards}
+        />
+    );
+
+    const lineupPanelContent = (
+        <LineupPanel
+            lineups={draft.lineups}
+            cardMap={cardMap}
+            onLineupsChange={userLineups => {
+                // Merge user-created lineups back with the computed Default (index 0)
+                const defaultLn = draft.lineups.find(ln => ln.name === 'Default');
+                const next = [...(defaultLn ? [defaultLn] : []), ...userLineups];
+                update({ lineups: next });
+            }}
+            readOnly={readOnly}
         />
     );
 
@@ -678,11 +689,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {!isMlbTeam && (
                                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
                                     <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
+                                    <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}>Lineup</Tabs.Trigger>
                                     <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
                                 </Tabs.List>
                             )}
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
+                            </Tabs.Content>
+                            <Tabs.Content value="lineup" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
+                                {lineupPanelContent}
                             </Tabs.Content>
                             {!isMlbTeam && (
                                 <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
@@ -706,6 +721,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
                                 <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}><FaRing className="inline mr-1.5" /> Field View</Tabs.Trigger>
                                 <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth Chart</Tabs.Trigger>
+                                <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1.5" /> Lineup</Tabs.Trigger>
                                 {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1.5" />Draft</Tabs.Trigger>}
                             </Tabs.List>
 
@@ -715,6 +731,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                             <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
+                            </Tabs.Content>
+
+                            <Tabs.Content value="lineup" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
+                                {lineupPanelContent}
                             </Tabs.Content>
 
                             {!isMlbTeam && (
