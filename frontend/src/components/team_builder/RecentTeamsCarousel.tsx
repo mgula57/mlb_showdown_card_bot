@@ -120,11 +120,13 @@ function RecentTeamCard({ team, onClick }: RecentTeamCardProps) {
                 overflow-hidden
                 hover:scale-[1.025] active:scale-[0.975]
                 transition-transform duration-150
-                text-left border-2
+                text-left border-4 border-transparent
                 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
             "
             style={{
-                borderColor: secondary,
+                backgroundImage: `linear-gradient(${primary}, ${primary}), linear-gradient(135deg, ${secondary}, ${primary})`,
+                backgroundOrigin: 'border-box',
+                backgroundClip: 'padding-box, border-box',
             }}
         >
             {team.is_drafting && (
