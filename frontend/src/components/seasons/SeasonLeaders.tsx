@@ -149,12 +149,16 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
             mlb_id: uniqueIds,
             year: season,
             showdown_set: showdownSet,
+            limit: 200
         })
             .then(records => {
                 const map: Record<string, CardDatabaseRecord> = {};
                 records.forEach(record => {
                     const id = record.mlb_id;
-                    if (!id) return;
+                    if (!id) {
+                        console.warn('Record is missing mlb_id:', record);
+                        return;
+                    }
                     if (TWO_WAY_PLAYER_IDS.has(Number(id))) {
                         map[`${id}-${record.is_pitcher ? 'P' : 'H'}`] = record;
                     } else {
@@ -207,7 +211,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                         )}
                         {name && (
                             <span className={`text-xs font-semibold truncate max-w-28 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`} title={name}>
-                                {name.split(' ').at(-1)}
+                                {name.slice(name.indexOf(' ') + 1) || name}
                             </span>
                         )}
                         {statValue && categoryDef && (

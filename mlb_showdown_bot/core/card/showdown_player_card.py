@@ -1478,7 +1478,8 @@ class ShowdownPlayerCard(BaseModel):
                         and (( f" {icon.accolade_search_term}" in a or a.startswith(f"{icon.accolade_search_term} ") ) and 'SO/9' not in a)
                 ]) > 0
                 is_leader = self.stats_for_card.get(f"is_{stat_category.lower()}_leader", False)
-                if is_top_2 or is_leader:
+                is_leader_via_triple_crown = stat_category == 'HR' and len([a for a in self.accolades if 'TRIPLE CROWN' in a.upper()]) > 0
+                if is_top_2 or is_leader or is_leader_via_triple_crown:
                     icons.append(icon)
                     continue
 
