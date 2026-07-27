@@ -529,8 +529,9 @@ def build_user_teams_tables(
     print("Building user teams tables...")
     db = PostgresDB(is_archive=env.lower() == "prod")
     db.build_user_teams_table()
+    db.build_asg_roster_table()
     db.close_connection()
-    typer.echo("Done. internal.user_teams table is ready.")
+    typer.echo("Done. internal.user_teams and internal.asg_roster tables are ready.")
 
 # Make database the default command
 @app.callback(invoke_without_command=True)

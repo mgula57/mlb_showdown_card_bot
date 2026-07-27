@@ -18,6 +18,11 @@ type BottomSheetProps = {
      * to 'expanded' — used to spring the sheet open when a new slot is picked.
      */
     expandTrigger?: unknown;
+    /**
+     * Optional element rendered inside the drag handle, below the grabber bar
+     * (and title, if any). Shares the handle's drag behavior.
+     */
+    handleContent?: React.ReactNode;
 };
 
 /**
@@ -27,7 +32,7 @@ type BottomSheetProps = {
  * Drag the handle up/down to switch; flick to dismiss.
  * Hidden on lg+ (use the desktop panel instead).
  */
-export function BottomSheet({ isOpen, onClose, title, children, dismissible = true, expandTrigger }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, title, children, dismissible = true, expandTrigger, handleContent }: BottomSheetProps) {
     const sheetRef  = useRef<HTMLDivElement>(null);
     const snapRef   = useRef<SnapPoint>('closed');
     const [snapState, setSnapState] = useState<SnapPoint>('closed');
@@ -241,6 +246,9 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                     <div className="w-10 h-1 rounded-full bg-(--divider)" />
                     {title && (
                         <div className="text-[13px] font-bold text-(--text-primary) mt-2">{title}</div>
+                    )}
+                    {handleContent && (
+                        <div className="w-full mt-2">{handleContent}</div>
                     )}
                 </div>
 

@@ -253,8 +253,9 @@ def get_public_teams():
         source = request.args.get('source')
         limit = min(request.args.get('limit', 50, type=int), 200)
         offset = request.args.get('offset', 0, type=int)
+        q = request.args.get('q') or None
         with PostgresDB() as db:
-            teams = db.get_public_teams(source=source, limit=limit, offset=offset)
+            teams = db.get_public_teams(source=source, limit=limit, offset=offset, q=q)
         return jsonify(teams), 200
     except Exception as exc:
         traceback.print_exc()

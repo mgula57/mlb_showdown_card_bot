@@ -280,6 +280,70 @@ class GamesClient(BaseMLBClient):
             "most_recent_play": _extract_most_recent_play(plays_raw),
         }
 
+    def get_all_star_rosters(self, season: int, sport_id: int = 1) -> list[dict]:
+        """Return All-Star Game participants for a season, split by league (AL/NL).
+
+        Locates the season's All-Star Game via ``gameType=A`` on the schedule, then reads the
+        game's live feed to extract each team's participants with their real starting lineup
+        position, batting order, and starting pitcher. Each returned row:
+        ``{league, mlb_id, player_name, position, batting_order, is_starter, is_starting_pitcher}``.
+
+        Returns an empty list if no All-Star Game is found for the season.
+        """
+        schedule = self.get_schedule(sport_id=sport_id, season=season, game_type="A", use_date=False)
+
+        game_pk: Optional[int] = None
+        for date_block in (schedule.dates or []):
+            for game in (date_block.games or []):
+                game_pk = game.game_pk
+                break
+            if game_pk is not None:
+                break
+        if game_pk is None:
+            return []
+
+        raw = self._make_request(f"../v1.1/game/{game_pk}/feed/live")
+        game_data = raw.get("gameData", {})
+        boxscore = raw.get("liveData", {}).get("boxscore", {})
+
+        # MLB league ids: 103 = American League, 104 = National League.
+        def _league_for_side(side: str) -> str:
+            league = game_data.get("teams", {}).get(side, {}).get("league", {}) or {}
+            if league.get("id") == 103:
+                return "AL"
+            if league.get("id") == 104:
+                return "NL"
+            name = (league.get("name") or "").lower()
+            return "AL" if "american" in name else "NL"
+
+        rows: list[dict] = []
+        for side in ("away", "home"):
+            league = _league_for_side(side)
+            team_box = boxscore.get("teams", {}).get(side, {})
+            players = team_box.get("players", {}) or {}
+            batting_order_ids: list[int] = team_box.get("battingOrder", []) or []
+            pitcher_ids: list[int] = team_box.get("pitchers", []) or []
+            starting_pitcher_id = pitcher_ids[0] if pitcher_ids else None
+            starter_batting_order = {pid: i + 1 for i, pid in enumerate(batting_order_ids)}
+
+            for key, player in players.items():
+                person = player.get("person") or {}
+                mlb_id = person.get("id")
+                if mlb_id is None:
+                    continue
+                position = (player.get("position") or {}).get("abbreviation")
+                is_starter = mlb_id in starter_batting_order
+                rows.append({
+                    "league": league,
+                    "mlb_id": mlb_id,
+                    "player_name": person.get("fullName"),
+                    "position": position,
+                    "batting_order": starter_batting_order.get(mlb_id),
+                    "is_starter": is_starter,
+                    "is_starting_pitcher": mlb_id == starting_pitcher_id,
+                })
+        return rows
+
     def _resolve_target_date(self, date_str: Optional[str], tz_name: str) -> dt_date:
         if date_str:
             return datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -343,18 +407,29 @@ class GamesClient(BaseMLBClient):
         use_date_window: bool = True,
         include_linescore: bool = False,
         include_decisions: bool = False,
+        game_type: Optional[str] = None,
+        use_date: bool = True,
     ) -> Schedule:
-        """Get schedule for a local day (US-safe by default), with optional probable pitchers."""
+        """Get schedule for a local day (US-safe by default), with optional probable pitchers.
+
+        ``game_type`` filters to a single MLB game type (e.g. ``"A"`` for the All-Star Game).
+        Pass ``use_date=False`` to query the whole season (no date/date-window params) — needed
+        when locating a season-unique game like the ASG whose date isn't known in advance.
+        """
         params = {"sportId": sport_id}
 
         if season:
             params["season"] = season
         if league_ids:
             params["leagueIds"] = league_ids
+        if game_type:
+            params["gameType"] = game_type
 
         target_date = self._resolve_target_date(date, tz_name)
 
-        if use_date_window:
+        if not use_date:
+            use_date_window = False
+        elif use_date_window:
             start_date, end_date = self._build_window(target_date)
             params["startDate"] = start_date
             params["endDate"] = end_date

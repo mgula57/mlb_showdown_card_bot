@@ -1,16 +1,180 @@
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import typer
 from prettytable import PrettyTable
 
-from ...core.database.postgres_db import PostgresDB
-from ...core.card.team_builder import Team, TeamSource
+from ...core.database.postgres_db import PostgresDB, Set
+from ...core.card.team_builder import Team, TeamSource, RosterToTeamConverter
 from ...core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team
+from ...core.mlb_stats_api import MLBStatsAPI
+from ...core.mlb_stats_api.models.teams.team import TeamWithColors
 
 app = typer.Typer()
+
+
+@app.command("build-asg-roster")
+def build_asg_roster(
+    season: int = typer.Option(..., "--season", "-y", help="Season (year) of the All-Star Game to import"),
+    sport_id: int = typer.Option(1, "--sport-id", help="MLB Stats API sport id (1 = MLB)"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Print the roster without writing to DB"),
+):
+    """Populate internal.asg_roster for a season from the MLB Stats API (gameType=A).
+
+    Fetches the season's All-Star Game participants (with starting positions, batting order, and
+    starting pitcher) and writes them to the ASG roster lookup table used by the team builder.
+    """
+    api = MLBStatsAPI()
+    typer.echo(f"Fetching {season} All-Star Game rosters from the MLB Stats API…")
+    rows = api.games.get_all_star_rosters(season=season, sport_id=sport_id)
+    if not rows:
+        typer.echo(f"No All-Star Game found for season {season}.", err=True)
+        raise typer.Exit(1)
+
+    by_league: dict[str, int] = {}
+    for r in rows:
+        by_league[r['league']] = by_league.get(r['league'], 0) + 1
+    typer.echo(f"Found {len(rows)} participants: " + ", ".join(f"{lg}={n}" for lg, n in sorted(by_league.items())))
+
+    if dry_run:
+        for r in sorted(rows, key=lambda x: (x['league'], not x['is_starter'], x.get('batting_order') or 99)):
+            flags = []
+            if r['is_starter']:
+                flags.append(f"BO{r['batting_order']}")
+            if r['is_starting_pitcher']:
+                flags.append("SP")
+            typer.echo(f"  [{r['league']}] {r['player_name']:<24} {r.get('position') or '?':<3} {' '.join(flags)}")
+        typer.echo("Dry run — no changes written.")
+        return
+
+    db = PostgresDB()
+    db.build_asg_roster_table()
+    count = db.upsert_asg_roster_rows(season=season, sport_id=sport_id, rows=rows)
+    db.close_connection()
+    typer.echo(f"Done. Wrote {count} ASG roster row(s) for {season}.")
+
+
+@app.command("build-historical")
+def build_historical_teams(
+    season: Optional[int] = typer.Option(None, "--season", "-y", help="Single season to process (overrides the range)"),
+    start_season: int = typer.Option(1901, "--start-season", help="First season of the range to process"),
+    end_season: int = typer.Option(datetime.now().year, "--end-season", help="Last season of the range to process"),
+    sport_id: int = typer.Option(1, "--sport-id", help="MLB Stats API sport id (1 = MLB)"),
+    showdown_set: str = typer.Option("EXPANDED", "--set", "-s", help="Reference set whose cards drive the playing-time sort"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Print each composed roster without writing to DB"),
+    env: str = typer.Option("dev", "--env", "-e", help="Database environment: dev | prod"),
+):
+    """Pre-process historical team rosters into internal.dim_historical_team / dim_historical_roster.
+
+    For each team in each season, composes the roster once via RosterToTeamConverter and stores
+    the resulting slots keyed by mlb_id. Slots are set-agnostic — the underlying playing time is
+    the same across sets — so --set only picks which set's cards are read to do the sorting.
+    Storing the result turns the request-time path into a lookup instead of a recomposition.
+    """
+    try:
+        showdown_set_enum = Set(showdown_set)
+    except ValueError:
+        typer.echo(f"Invalid set '{showdown_set}'. Valid options: {[s.value for s in Set]}", err=True)
+        raise typer.Exit(1)
+
+    seasons = [season] if season is not None else list(range(start_season, end_season + 1))
+    seasons.sort(reverse=True)
+
+    api = MLBStatsAPI()
+    db = PostgresDB(is_archive=(env.lower() == "prod"))
+    if not dry_run:
+        db.build_historical_team_tables()
+
+    total_teams = 0
+    total_slots = 0
+    for season_year in seasons:
+        try:
+            api_teams = api.teams.get_teams(season=season_year, sport_id=sport_id)
+        except Exception as exc:
+            typer.echo(f"  {season_year}: skipped — could not fetch teams ({exc})", err=True)
+            continue
+
+        season_teams = 0
+        season_slots = 0
+        for api_team in api_teams:
+            team_with_colors = TeamWithColors(**api_team.model_dump())
+            team_with_colors.load_colors_from_showdown_team()
+            team_abbr = api_team.abbreviation or str(api_team.id)
+
+            cards = db.fetch_team_season_card_pool(
+                season=season_year,
+                showdown_set=showdown_set_enum.value,
+                team_id=api_team.id,
+                team_abbr=team_abbr,
+                sport_id=sport_id,
+            )
+            if not cards:
+                continue
+
+            composed = RosterToTeamConverter(
+                cards=cards,
+                team_id=f"mlb-{sport_id}-{api_team.id}-{season_year}-{showdown_set_enum.value}",
+                name=api_team.name or team_abbr,
+                abbreviation=team_abbr,
+                season=season_year,
+            ).build()
+
+            # Slots are stored by mlb_id so any set's cards can be resolved against them later.
+            mlb_id_by_card_id = {c.card_id: c.mlb_id for c in cards if c.card_id and c.mlb_id is not None}
+            name_by_card_id = {c.card_id: c.name for c in cards if c.card_id}
+            batting_order_by_card_id = {
+                slot.card_id: slot.batting_order
+                for lineup in composed.lineups for slot in lineup.slots
+            }
+            rows = [
+                {
+                    'mlb_id': mlb_id_by_card_id[slot.card_id],
+                    'player_name': name_by_card_id.get(slot.card_id),
+                    'roster_position': slot.roster_position,
+                    'batting_order': batting_order_by_card_id.get(slot.card_id),
+                    'slot_order': i,
+                }
+                for i, slot in enumerate(composed.roster)
+                if slot.card_id in mlb_id_by_card_id
+            ]
+            if not rows:
+                continue
+
+            if dry_run:
+                typer.echo(f"\n  [{season_year}] {api_team.name} ({team_abbr}) — {len(rows)} slots")
+                for row in rows:
+                    order = f" #{row['batting_order']}" if row['batting_order'] else ""
+                    typer.echo(f"    {row['roster_position']:<4}{order:<4} {row['player_name']}")
+            else:
+                db.upsert_historical_team({
+                    'season': season_year,
+                    'sport_id': sport_id,
+                    'team_id': api_team.id,
+                    'abbreviation': team_abbr,
+                    'name': api_team.name,
+                    'bref_team_id': api_team.bref_team,
+                    'league_id': api_team.league.id if api_team.league else None,
+                    'league_name': api_team.league.name if api_team.league else None,
+                    'division_name': api_team.division.name if api_team.division else None,
+                    'primary_color': team_with_colors.primary_color,
+                    'secondary_color': team_with_colors.secondary_color,
+                    'roster_count': len(rows),
+                })
+                db.upsert_historical_roster_rows(season=season_year, sport_id=sport_id, team_id=api_team.id, rows=rows)
+
+            season_teams += 1
+            season_slots += len(rows)
+
+        typer.echo(f"{season_year}: {season_teams} team(s), {season_slots} slot(s)")
+        total_teams += season_teams
+        total_slots += season_slots
+
+    db.close_connection()
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    typer.echo(f"\nDone. {total_teams} team(s), {total_slots} roster slot(s) across {len(seasons)} season(s).{suffix}")
 
 
 @app.command("upload")

@@ -34,6 +34,10 @@ class RosterToTeamConverter:
         primary_color: Optional[str] = None,
         secondary_color: Optional[str] = None,
         season: Optional[int] = None,
+        source: TeamSource = TeamSource.MLB,
+        forced_positions: Optional[dict[str, str]] = None,
+        forced_batting_order: Optional[dict[str, int]] = None,
+        forced_starting_pitcher_id: Optional[str] = None,
     ) -> None:
         # A card can't be placed on the roster without an identifier the frontend can look up
         self.cards = [c for c in cards if c.card_id]
@@ -43,6 +47,13 @@ class RosterToTeamConverter:
         self.primary_color = primary_color
         self.secondary_color = secondary_color
         self.season = season
+        self.source = source
+        # Optional real-roster overrides (used for All-Star teams, where the actual starting
+        # lineup positions, batting order, and starting pitcher are known rather than derived
+        # from playing time). All keyed by card_id.
+        self.forced_positions = forced_positions or {}
+        self.forced_batting_order = forced_batting_order or {}
+        self.forced_starting_pitcher_id = forced_starting_pitcher_id
 
     @staticmethod
     def _max_roster_size(season: Optional[int]) -> Optional[int]:
@@ -120,13 +131,23 @@ class RosterToTeamConverter:
         assignment: dict[str, ExploreDataRecord] = {}
         used_ids: set[str] = set()
 
+        # Pass 0: honor explicit position assignments (e.g. All-Star starters) before any heuristic.
+        if self.forced_positions:
+            for card in hitters:
+                pos = self.forced_positions.get(card.card_id)
+                if pos in OFFENSE_POSITIONS and pos not in assignment and card.card_id not in used_ids:
+                    assignment[pos] = card
+                    used_ids.add(card.card_id)
+
         preferred_candidates: dict[str, list[ExploreDataRecord]] = {pos: [] for pos in OFFENSE_POSITIONS}
         for card in hitters:
+            if card.card_id in used_ids:
+                continue
             pos = self._preferred_position(card)
             if pos in preferred_candidates:
                 preferred_candidates[pos].append(card)
 
-        for position in sorted(OFFENSE_POSITIONS, key=lambda p: len(preferred_candidates[p])):
+        for position in sorted([p for p in OFFENSE_POSITIONS if p not in assignment], key=lambda p: len(preferred_candidates[p])):
             candidates = [c for c in preferred_candidates[position] if c.card_id not in used_ids]
             if not candidates:
                 continue
@@ -177,6 +198,10 @@ class RosterToTeamConverter:
                 for position, card in lineup_assignment.items()
             ]).build()
         }
+        # Honor a known batting order (All-Star lineups carry the real 1-9) over the derived one.
+        for card_id, order in self.forced_batting_order.items():
+            if card_id in batting_orders:
+                batting_orders[card_id] = order
         for position in OFFENSE_POSITIONS:
             card = lineup_assignment.get(position)
             if card is None:
@@ -199,8 +224,17 @@ class RosterToTeamConverter:
         # pool actually has (capped by the number of role slots the UI supports)
         rotation_cards = sorted(starters, key=self._by_games_started, reverse=True)[:self.MAX_ROTATION_SLOTS]
 
+        # If the real starting pitcher is known (All-Star game), pin them to SP1 regardless of
+        # season role — even a reliever-by-season who got the ASG start belongs at the front.
+        if self.forced_starting_pitcher_id:
+            forced_sp = next((c for c in pitchers if c.card_id == self.forced_starting_pitcher_id), None)
+            if forced_sp is not None:
+                rotation_cards = [forced_sp] + [c for c in rotation_cards if c.card_id != forced_sp.card_id]
+                rotation_cards = rotation_cards[:self.MAX_ROTATION_SLOTS]
+
         # BULLPEN: reliever with the most saves closes, the rest by appearances
-        bullpen_pool = relievers + [c for c in starters if c not in rotation_cards]
+        rotation_ids = {c.card_id for c in rotation_cards}
+        bullpen_pool = [c for c in relievers if c.card_id not in rotation_ids] + [c for c in starters if c.card_id not in rotation_ids]
         closer = max(bullpen_pool, key=self._by_saves) if bullpen_pool else None
         bullpen = [closer] if closer else []
         bullpen += sorted([c for c in bullpen_pool if c is not closer], key=self._by_games_played, reverse=True)
@@ -254,7 +288,7 @@ class RosterToTeamConverter:
             name=self.name,
             abbreviation=self.abbreviation,
             is_public=True,
-            source=TeamSource.MLB,
+            source=self.source,
             pts_limit=None,
             roster_size=len(roster_slots),
             min_bench=num_bench,

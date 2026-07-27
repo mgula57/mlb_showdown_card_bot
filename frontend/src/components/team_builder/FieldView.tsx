@@ -11,8 +11,8 @@ import { CardDetail } from '../cards/CardDetail';
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
     CF:  [50, 20],
-    LF:  [20, 26],
-    RF:  [80, 26],
+    LF:  [16, 26],
+    RF:  [84, 26],
     SS:  [32, 45],
     '2B': [68, 45],
     '3B': [18, 65],
@@ -256,7 +256,12 @@ export function FieldView({
                     return (
                         <div
                             key={pos}
-                            className={`absolute transition-all duration-200 ${isActive ? 'z-10' : ''}`}
+                            className={`
+                                absolute transition-all duration-200 
+                                ${isActive ? 'z-10' : ''}
+                                ${pos === 'CF' ? 'translate-y-[20%] @[400px]:translate-y-0' : ''}
+                                ${['LF', 'RF'].includes(pos) ? 'translate-y-[10%] @[400px]:translate-y-0' : ''}
+                            `}
                             style={{
                                 left: `${left}%`,
                                 top: `${top}%`,
@@ -367,7 +372,7 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             onClick={onClick}
             className={`
                 w-full flex items-center justify-between gap-1
-                rounded-lg px-2 h-16
+                rounded-lg px-2 h-12 @[340px]:h-16
                 border-2 border-dashed
                 backdrop-blur-[2px]
                 ${isActive

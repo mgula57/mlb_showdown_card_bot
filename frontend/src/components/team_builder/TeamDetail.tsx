@@ -19,7 +19,7 @@ import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear,
-    FaList, FaRing, FaClipboardList, FaListOl
+    FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork
 } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -43,6 +43,8 @@ type TeamDetailProps = {
     embedded?: boolean;
     isStarred?: boolean;
     onToggleStar?: () => void;
+    /** When provided, shows a "Make a copy" button that forks this team into the user's own. */
+    onFork?: () => void | Promise<void>;
 };
 
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
@@ -133,8 +135,9 @@ function bannerTokens(baseColor: string) {
     };
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
+    const [forking, setForking] = useState(false);
 
     const rosterSlots = useMemo(
         () => draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source })),
@@ -400,6 +403,28 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         />
     );
 
+    // Bot/WOTC/WBC source selector rendered in the BottomSheet handle so it stays
+    // reachable at the peek snap point. stopPropagation keeps taps from triggering
+    // the handle's drag/toggle gesture.
+    const draftSourceTabs = (
+        <div
+            className="flex items-start w-full justify-start gap-x-1 px-3"
+            onMouseDown={e => e.stopPropagation()}
+            onTouchStart={e => e.stopPropagation()}
+        >
+            {allowedSources.map(s => (
+                <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setDraftSource(s.key)}
+                    className={sourceTabClass(draftSource === s.key)}
+                >
+                    {s.label}
+                </button>
+            ))}
+        </div>
+    );
+
     const fieldViewContent = (
         <FieldView
             lineup={defaultLineup}
@@ -576,6 +601,26 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {isStarred ? "Starred" : "Star"}
                     </button>
                 )}
+                {onFork && (
+                    <button
+                        type="button"
+                        disabled={forking}
+                        onClick={async () => {
+                            setForking(true);
+                            try {
+                                await onFork();
+                            } finally {
+                                setForking(false);
+                            }
+                        }}
+                        className="flex items-center gap-1.5 rounded-md px-2 py-1 mt-0.5 text-[11px] font-semibold text-(--background-primary) bg-(--secondary) hover:opacity-90 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                        aria-label="Make a copy of this team"
+                        title="Make an editable copy of this team"
+                    >
+                        {forking ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaCodeFork className="h-3 w-3" />}
+                        Make a copy
+                    </button>
+                )}
                 {!isMlbTeam && editMode && (
                     <button
                         type="button"
@@ -626,8 +671,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
                     <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting'
-                            ? 'DRAFTING — fill all required positions to complete your team'
-                            : 'EDITING — changes are saved automatically'}
+                            ? <>DRAFTING<span className="hidden md:inline"> — fill all required positions to complete your team</span></>
+                            : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
                     </span>
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && (
@@ -724,8 +769,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             "
                         >
                             <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
-                                <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}><FaRing className="inline mr-1.5" /> Field View</Tabs.Trigger>
-                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth Chart</Tabs.Trigger>
+                                <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}><FaRing className="inline mr-1.5" /> Field <span className="hidden sm:inline sm:ml-1">View</span></Tabs.Trigger>
+                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></Tabs.Trigger>
                                 <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1.5" /> Lineup</Tabs.Trigger>
                                 {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1.5" />Draft</Tabs.Trigger>}
                             </Tabs.List>
@@ -765,8 +810,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     title={pendingLabel ?? undefined}
                     dismissible={false}
                     expandTrigger={pendingSlot}
+                    handleContent={draftSourceTabs}
                 >
-                    {draftPanel}
+                    <DraftPanel
+                        draftSource={draftSource}
+                        onSourceChange={setDraftSource}
+                        allowedSources={allowedSources}
+                        pendingLabel={pendingLabel}
+                        searchFilters={searchFilters}
+                        draftedCardIds={draftedCardIds}
+                        onCardPicked={handleCardPicked}
+                        hideSourceTabs
+                    />
                 </BottomSheet>
             )}
 
@@ -939,6 +994,15 @@ const TAB_TRIGGER_CLASS =
     'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
     'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
 
+/** Same look as TAB_TRIGGER_CLASS but for a plain (controlled) button — used for the
+ *  source tabs rendered in the BottomSheet handle, outside a Radix Tabs context. */
+function sourceTabClass(active: boolean): string {
+    return 'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors cursor-pointer ' +
+        (active
+            ? 'bg-(--background-quaternary) font-bold'
+            : 'text-(--text-tertiary) font-medium hover:bg-(--divider)');
+}
+
 type DraftPanelProps = {
     draftSource: CardSourceType;
     onSourceChange: (source: CardSourceType) => void;
@@ -947,30 +1011,35 @@ type DraftPanelProps = {
     searchFilters: Record<string, string[]>;
     draftedCardIds: string[];
     onCardPicked: (card: CardDatabaseRecord) => void;
+    /** When true, hides the internal Bot/WOTC/WBC tab list — used when the tabs are
+     *  rendered elsewhere (e.g. the BottomSheet handle) while source is controlled externally. */
+    hideSourceTabs?: boolean;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked, hideSourceTabs = false }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
             onValueChange={v => onSourceChange(v as CardSourceType)}
             className="flex flex-col h-full min-h-0"
         >
-            <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
-                {allowedSources.map(s => (
-                    <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
-                        {s.label}
-                    </Tabs.Trigger>
-                ))}
-                {pendingLabel && (
-                    <span className="ml-auto flex items-center gap-1.5 px-2 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        <span className="text-md text-amber-500 dark:text-amber-400 font-semibold">
-                            {pendingLabel}
+            {!hideSourceTabs && (
+                <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
+                    {allowedSources.map(s => (
+                        <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
+                            {s.label}
+                        </Tabs.Trigger>
+                    ))}
+                    {pendingLabel && (
+                        <span className="ml-auto flex items-center gap-1.5 px-2 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                            <span className="text-md text-amber-500 dark:text-amber-400 font-semibold">
+                                {pendingLabel}
+                            </span>
                         </span>
-                    </span>
-                )}
-            </Tabs.List>
+                    )}
+                </Tabs.List>
+            )}
             {allowedSources.map(s => (
                 <Tabs.Content key={s.key} value={s.key} className="flex-1 min-h-0 flex flex-col focus:outline-none">
                     <ShowdownCardSearch

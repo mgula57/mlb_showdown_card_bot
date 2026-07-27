@@ -11,6 +11,7 @@
 
 import { type ShowdownBotCard, type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "./showdownBotCard";
 import { type Team as TeamBuilderTeam } from "./userTeams";
+import { type CardDatabaseRecord } from "./card_db/cardDatabase";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -168,6 +169,72 @@ export const fetchShowdownTeam = async (season: Season, teamId: number, sportId:
     const data = await response.json();
     return data.team as TeamBuilderTeam;
 }
+
+/** A pre-processed historical team from internal.dim_historical_team.
+ *  Identity is stored; `total_points` and `top_players` are computed per Showdown set. */
+export type HistoricalTeam = {
+    season: number;
+    sport_id: number;
+    team_id: number;
+    name: string;
+    abbreviation: string;
+    bref_team_id?: string | null;
+    league_id?: number | null;
+    league_name?: string | null;
+    division_name?: string | null;
+    primary_color?: string | null;
+    secondary_color?: string | null;
+    roster_count: number;
+    total_points: number;
+    top_players?: CardDatabaseRecord[];
+};
+
+export type HistoricalSeasonRef = { season: number; team_count: number };
+
+export const fetchHistoricalTeams = async (options: {
+    showdownSet?: string;
+    season?: number;
+    q?: string;
+    sportId?: number;
+    limit?: number;
+    offset?: number;
+} = {}): Promise<{ teams: HistoricalTeam[]; seasons: HistoricalSeasonRef[] }> => {
+    const params = new URLSearchParams({ sport_id: String(options.sportId ?? 1) });
+    if (options.showdownSet) params.set('showdown_set', options.showdownSet);
+    if (options.season != null) params.set('season', String(options.season));
+    if (options.q) params.set('q', options.q);
+    if (options.limit != null) params.set('limit', String(options.limit));
+    if (options.offset != null) params.set('offset', String(options.offset));
+    const response = await fetch(`${API_BASE}/seasons/historical/teams?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch historical teams: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return { teams: (data.teams ?? []) as HistoricalTeam[], seasons: (data.seasons ?? []) as HistoricalSeasonRef[] };
+};
+
+/** An All-Star team available in the asg_roster lookup table. */
+export type AsgTeamRef = { season: number; league: string };
+
+export const fetchAsgSeasons = async (): Promise<AsgTeamRef[]> => {
+    const response = await fetch(`${API_BASE}/seasons/asg`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch All-Star teams: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return (data.asg_teams ?? []) as AsgTeamRef[];
+};
+
+export const fetchAsgShowdownTeam = async (seasonId: string | number, league: string, sportId: number, showdownSet?: string): Promise<TeamBuilderTeam> => {
+    const params = new URLSearchParams({ sport_id: String(sportId) });
+    if (showdownSet) params.set('showdown_set', showdownSet);
+    const response = await fetch(`${API_BASE}/seasons/${seasonId}/asg/${league}/showdown_team?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${league} All-Star team for ${seasonId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.team as TeamBuilderTeam;
+};
 
 const getUserTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
 

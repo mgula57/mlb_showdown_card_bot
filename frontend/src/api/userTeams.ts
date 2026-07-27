@@ -139,9 +139,10 @@ export async function fetchUserTeams(token: string): Promise<TeamSummary[]> {
     return res.json();
 }
 
-export async function fetchPublicTeams(source?: TeamSource, limit = 50, offset = 0): Promise<TeamSummary[]> {
+export async function fetchPublicTeams(source?: TeamSource, limit = 50, offset = 0, q?: string): Promise<TeamSummary[]> {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (source) params.set('source', source);
+    if (q) params.set('q', q);
     const res = await fetch(`${API_BASE}/teams/public?${params}`);
     if (!res.ok) throw new Error(`Failed to fetch public teams: ${res.status}`);
     return res.json();
@@ -169,6 +170,36 @@ export async function createTeam(payload: TeamCreatePayload, token: string): Pro
         throw new Error(err.error || `Failed to create team: ${res.status}`);
     }
     return res.json();
+}
+
+/**
+ * Fork a (public) team into a new team owned by the current user. Copies the roster, settings,
+ * and any user-created lineups. Roster slots are marked IMPORTED. The copy is always private.
+ */
+export async function forkTeam(teamId: string, token: string): Promise<Team> {
+    const source = await fetchTeam(teamId, token);
+    const payload: TeamCreatePayload = {
+        name: `${source.name} (Copy)`,
+        abbreviation: source.abbreviation,
+        primary_color: source.primary_color,
+        secondary_color: source.secondary_color,
+        is_public: false,
+        pts_limit: source.pts_limit,
+        roster_size: source.roster_size,
+        min_bench: source.min_bench,
+        min_bullpen: source.min_bullpen,
+        num_starters: source.num_starters,
+        bench_pts_multiplier: source.bench_pts_multiplier,
+        allowed_sets: source.allowed_sets,
+        allowed_card_sources: source.allowed_card_sources,
+        player_filters: source.player_filters,
+        // roster_position encodes rotation roles (SP1..CL) and bench (BE), so the rotation is
+        // rederived server-side — only the roster slots need to be copied.
+        roster: source.roster.map(slot => ({ ...slot, pick_source: 'IMPORTED', draft_order: null })),
+        // Only user-created lineups (index > 0) are persisted; the Default (index 0) is computed.
+        lineups: source.lineups.filter(l => l.index > 0),
+    };
+    return createTeam(payload, token);
 }
 
 export async function updateTeam(teamId: string, payload: TeamUpdatePayload, token: string): Promise<Team> {
