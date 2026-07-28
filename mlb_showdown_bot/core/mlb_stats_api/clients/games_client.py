@@ -454,3 +454,30 @@ class GamesClient(BaseMLBClient):
             )
 
         return Schedule(**response)
+
+    def get_season_schedule(self, season: int, sport_id: int = 1, game_types: list[str] = ["R"]) -> Schedule:
+        """Get every game for a season (regular season only by default).
+
+        Returns a Schedule with `games` flattened across all dates, ordered by date.
+        Postponed/cancelled games are excluded so per-team game counts stay accurate.
+        """
+        params = {
+            "sportId": sport_id,
+            "season": season,
+            "startDate": f"{season}-01-01",
+            "endDate": f"{season}-12-31",
+            "gameTypes": ",".join(game_types),
+            "hydrate": "team",
+        }
+        response = self._make_request("/schedule", params=params)
+        schedule = Schedule(**response)
+
+        excluded_states = {"Postponed", "Cancelled", "Suspended"}
+        games: list[GameScheduled] = []
+        for schedule_date in (schedule.dates or []):
+            for game in (schedule_date.games or []):
+                if game.status and game.status.detailed_state in excluded_states:
+                    continue
+                games.append(game)
+        schedule.games = games
+        return schedule

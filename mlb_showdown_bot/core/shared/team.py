@@ -173,6 +173,7 @@ class Team(str, Enum):
             'AZ': 'ARI',
             'CWS': 'CHW',
             'KC': 'KCR',
+            'LA': 'LAD',
             'SD': 'SDP',
             'SF': 'SFG',
             'TB': 'TBR',

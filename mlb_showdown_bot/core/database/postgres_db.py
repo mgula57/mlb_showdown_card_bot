@@ -1294,6 +1294,50 @@ class PostgresDB:
             traceback.print_exc()
             return {}
 
+    def fetch_cards_for_roster_slots(self, slots: list) -> dict[str, ShowdownPlayerCard]:
+        """Fetch full card data for team_builder roster slots across card sources.
+
+        Args:
+          slots: TeamRosterSlot objects (or dicts) with `card_id` and `card_source` ("BOT", "WOTC", "CUSTOM").
+
+        Returns:
+          Dict keyed by card_id with hydrated ShowdownPlayerCard values. Card ids that can't be resolved are omitted.
+        """
+
+        if self.connection is None:
+            print("No database connection available for fetching cards for roster slots.")
+            return {}
+
+        ids_by_source: dict[str, list[str]] = {}
+        for slot in slots:
+            card_id = slot.get('card_id') if isinstance(slot, dict) else slot.card_id
+            source = slot.get('card_source') if isinstance(slot, dict) else slot.card_source
+            source = str(source.value if hasattr(source, 'value') else source).upper()
+            ids_by_source.setdefault(source, []).append(str(card_id))
+
+        cards: dict[str, ShowdownPlayerCard] = {}
+        try:
+            for source, card_ids in ids_by_source.items():
+                match source:
+                    case 'BOT':
+                        query = sql.SQL("SELECT id, card_data FROM internal.dim_card WHERE id = ANY(%s)")
+                    case 'WOTC':
+                        query = sql.SQL("SELECT card_id AS id, card_data FROM card_wotc WHERE card_id = ANY(%s)")
+                    case 'CUSTOM':
+                        query = sql.SQL("SELECT id::text AS id, card_result AS card_data FROM internal.log_custom_card_bot WHERE id::text = ANY(%s)")
+                    case _:
+                        continue
+
+                for row in (self.execute_query(query=query, filter_values=(card_ids,)) or []):
+                    card_data = row.get('card_data')
+                    if card_data:
+                        cards[str(row['id'])] = ShowdownPlayerCard(**card_data)
+        except Exception as e:
+            print("Error fetching cards for roster slots:", e)
+            traceback.print_exc()
+
+        return cards
+
     def add_showdown_cards_to_mlb_api_roster(self, roster: Roster, showdown_set: Set, season: int, sport_id: int, team_abbr: Optional[str] = None) -> Roster:
         """Fetch card data for a list of MLB API roster data from the dim_card table."""
         
