@@ -47,6 +47,7 @@ dependencies = [
     "supabase>=2.4.0",
     "termcolor>=2.0.1",
     "thefuzz>=0.22.1",
+    "tqdm>=4.66.0",
     "typer>=0.16.0",
     "Unidecode>=1.2.0",
     "webcolors>=1.13",

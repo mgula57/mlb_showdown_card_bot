@@ -53,7 +53,6 @@ static/card_of_the_day/
 mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/
 mlb_showdown_bot/cache_data/
-mlb_showdown_sim/
 showdown-bot-app/
 **/cache_data/
 **/image_output/

@@ -1,0 +1,473 @@
+from datetime import date
+from random import Random
+from typing import Optional
+
+from ..card.showdown_player_card import ShowdownPlayerCard
+from ..card.team_builder.team import Team as BuilderTeam
+from ..shared.player_position import PlayerType, PositionSlot
+from .game import Game
+from .inning import Inning
+from .models import TeamRecord
+from .player import SimPitcher, SimPlayer
+from .player_group import Bullpen, PositionEligibility, Rotation
+from .roster import Roster
+from .stats import StatCategory, Stats, StatsGroup
+
+# BUILDER TEAM LINEUP FIELD POSITIONS -> SIM POSITION SLOTS
+_FIELD_POSITION_TO_SLOT = {
+    "C": PositionSlot.CA,
+    "CA": PositionSlot.CA,
+    "1B": PositionSlot._1B,
+    "2B": PositionSlot._2B,
+    "3B": PositionSlot._3B,
+    "SS": PositionSlot.SS,
+    "LF": PositionSlot.LF,
+    "CF": PositionSlot.CF,
+    "RF": PositionSlot.RF,
+    "DH": PositionSlot.DH,
+}
+
+# RANKING FOR BUILDER BULLPEN ROLES (LOWER = HIGHER LEVERAGE)
+_BULLPEN_ROLE_RANK = {"SU": 0, "MR": 1, "LONG": 2}
+
+# BONUS ADDED TO REST RATING FOR PLAYERS IN A BUILDER TEAM'S PRESET LINEUP.
+# LARGE ENOUGH THAT PRESET STARTERS ALMOST ALWAYS PLAY, SMALL ENOUGH THAT AN
+# EXHAUSTED STARTER EVENTUALLY GIVES WAY TO THE BENCH.
+_PRESET_LINEUP_BONUS = 300.0
+
+
+class SimTeam:
+
+    def __init__(self, year: int, name: str, position_players: list[SimPlayer], rotation: Rotation, bullpen: Bullpen, league: str = None) -> None:
+        self.year = year
+        self.name = name
+        self.league = league
+
+        self.position_players = position_players
+        self.rotation = rotation
+        self.bullpen = bullpen
+
+        # 40-MAN ROSTER / INJURIES. ONLY SET FOR REAL-SEASON TEAMS (`from_player_pool`) - BUILDER/
+        # TOURNAMENT TEAMS (`from_builder_team`) LEAVE THIS `None`, WHICH IS THE SCOPE GUARD EVERY
+        # ROSTER/INJURY HOOK CHECKS.
+        self.roster: Optional[Roster] = None
+        self._last_roster_date: Optional[date] = None
+
+        self.points = sum([player.points for player in self.active_players])
+
+        # CURRENT GAME STATE. REBUILT EACH GAME IN `add_new_game` - THE LINEUP IS FIXED FOR A WHOLE
+        # GAME (NO DEFENSIVE SUBS), SO POSITION/DEFENSE LOOKUPS ARE COMPUTED ONCE PER GAME.
+        self.starting_lineup: list[SimPlayer] = []
+        self.batting_order: list[SimPlayer] = []
+        self.current_game_stats: Stats = Stats(id="0")
+        self.game_player_appearances: set[str] = set()
+        self.position_map: dict[PositionSlot, SimPlayer] = {}
+        self.infield_defense: int = 0
+        self.outfield_defense: int = 0
+        self.catcher: Optional[SimPlayer] = None
+        self.available_reliever_ids: set[str] = set()
+
+        # GAMES
+        self.lineup_index = 0
+        self.stats = StatsGroup(year=year)
+        self.wins = 0
+        self.losses = 0
+        # CONSECUTIVE GAMES STARTED PER PLAYER ID, MAINTAINED INCREMENTALLY FOR REST DECISIONS
+        self.consecutive_starts: dict[str, int] = {}
+        self.playoff_seeding = None
+        if len(self.all_players) == 0:
+            raise ValueError(f'ERROR: No players for team {self.name}')
+
+    # ------------------------------------------------------------------
+    # CONSTRUCTION
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_player_pool(
+        cls, year: int, name: str, cards: list[ShowdownPlayerCard], league: str = None,
+        min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30,
+        active_roster_size: int = 26, full_roster_size: int = 40, enable_injuries: bool = False,
+        games_per_season: int = 162,
+    ) -> 'SimTeam':
+        """Auto-build a roster from a pool of cards (a real season's team).
+
+        Builds a `full_roster_size`-man pool, of which `active_roster_size` are active (13
+        position players, 5 SP, 8 RP by default) and the rest are reserves available for callup.
+        """
+
+        selection = Roster.select(
+            cards=cards, min_pa=min_pa, min_ip_sp=min_ip_sp, min_ip_rp=min_ip_rp,
+            active_size=active_roster_size, full_size=full_roster_size, games_per_season=games_per_season,
+        )
+
+        team = cls(
+            year=year,
+            name=name,
+            position_players=selection.position_players,
+            rotation=Rotation(players=selection.rotation),
+            bullpen=Bullpen(players=selection.bullpen),
+            league=league,
+        )
+        team.roster = Roster(team_name=name, selection=selection, enable_injuries=enable_injuries)
+        return team
+
+    @classmethod
+    def from_builder_team(cls, team: BuilderTeam, cards: dict[str, ShowdownPlayerCard], year: int, league: str = None) -> 'SimTeam':
+        """Build from a user-created team_builder Team, honoring its explicit lineup and pitcher roles.
+
+        Args:
+          team: The builder team (roster slots, lineups, rotation assignments).
+          cards: Hydrated cards keyed by roster slot card_id.
+          year: Sim year (used for stat grouping only).
+          league: League/tournament label.
+        """
+
+        position_players: list[SimPlayer] = []
+        sp_players: dict[str, SimPitcher] = {}
+        bullpen_players: dict[str, SimPitcher] = {}
+
+        for slot in team.roster:
+            card = cards.get(slot.card_id)
+            if card is None:
+                continue
+            roster_position = slot.roster_position.upper()
+            match roster_position:
+                case "SP":
+                    sp_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.SP)
+                case "RP":
+                    bullpen_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.BP)
+                case _:
+                    position_players.append(SimPlayer(card=card, id=slot.card_id))
+
+        # ROTATION ORDER FROM SP1-SP5 ROLES, FALLING BACK TO POINTS
+        sp_roles = {a.card_id: a.role for a in team.rotation if a.role.upper().startswith("SP") and a.role[2:].isdigit()}
+        ordered_sp_ids = [card_id for card_id, _ in sorted(sp_roles.items(), key=lambda kv: int(kv[1][2:])) if card_id in sp_players]
+        unassigned_sps = sorted([p for card_id, p in sp_players.items() if card_id not in ordered_sp_ids], key=lambda p: p.points, reverse=True)
+        rotation_players = [sp_players[card_id] for card_id in ordered_sp_ids] + unassigned_sps
+
+        # BULLPEN ROLES: CP -> CLOSER, SU/MR/LONG -> LEVERAGE RANKING
+        closer_id: Optional[str] = None
+        role_order: dict[str, int] = {}
+        for assignment in team.rotation:
+            role = assignment.role.upper()
+            if role == "CP" and assignment.card_id in bullpen_players:
+                closer_id = assignment.card_id
+            elif role in _BULLPEN_ROLE_RANK and assignment.card_id in bullpen_players:
+                role_order[assignment.card_id] = _BULLPEN_ROLE_RANK[role]
+
+        # PRESET LINEUP (FIRST DEFINED LINEUP)
+        if len(team.lineups) > 0:
+            slots_by_card_id = {slot.card_id: slot for slot in team.lineups[0].slots}
+            for player in position_players:
+                lineup_slot = slots_by_card_id.get(player.id)
+                if lineup_slot is None:
+                    continue
+                player.preset_lineup_spot = lineup_slot.batting_order
+                player.preset_position_slot = _FIELD_POSITION_TO_SLOT.get(lineup_slot.field_position.upper())
+
+        return cls(
+            year=year,
+            name=team.abbreviation,
+            position_players=position_players,
+            rotation=Rotation(players=rotation_players),
+            bullpen=Bullpen(players=list(bullpen_players.values()), closer_id=closer_id, role_order=role_order),
+            league=league,
+        )
+
+    # ------------------------------------------------------------------
+    # ROSTER / LINEUP
+    # ------------------------------------------------------------------
+
+    @property
+    def active_players(self) -> list[SimPlayer]:
+        """The 26-man active roster. For builder/tournament teams (no `Roster`) this is the whole team."""
+        return (self.position_players + self.rotation.players + self.bullpen.players)
+
+    @property
+    def all_players(self) -> list[SimPlayer]:
+        """Active roster plus reserves (the full 40-man). Includes reserves so `PlayerStatsGroup`
+        seeds identity statlines for anyone who might be called up mid-season."""
+        return self.active_players + (self.roster.reserves if self.roster else [])
+
+    def num_players_valid_per_position(self, player_list: list[SimPlayer], current_lineup_dict: dict[str, PositionSlot] = None) -> dict[PositionSlot, float]:
+        return PositionEligibility.counts_by_slot(players=player_list, current_lineup_dict=current_lineup_dict)
+
+    def filter_players_w_eligibility(self, player_list: list[SimPlayer], position_slot: PositionSlot, excluded_player_ids: list[str] = None) -> list[SimPlayer]:
+        return PositionEligibility.players_for_slot(players=player_list, position_slot=position_slot, excluded_player_ids=excluded_player_ids)
+
+    def _player_for_slot(self, position: PositionSlot, current_lineup: dict[str, PositionSlot], game: Game) -> SimPlayer:
+        """Best available starter for a slot, with fallbacks so a capped roster + injuries can't
+        deadlock a lineup: (1) normal eligible-active-player ranking, (2) emergency callup from
+        the reserve pool, (3) any unused active position player ranked by defense at the slot
+        (an out-of-position start), (4) force-activate the IL player closest to returning if the
+        reserve pool is also exhausted, (5) raise - there is truly no one left."""
+
+        player_games_since_last_rest = self.consecutive_starts
+        excluded_players = list(current_lineup.keys())
+
+        def rating(p: SimPlayer) -> float:
+            preset_bonus = _PRESET_LINEUP_BONUS if p.preset_position_slot == position else 0.0
+            return p.player_rest_rating(player_games_since_last_rest.get(p.id, 0)) + preset_bonus
+
+        eligible_players_list = self.filter_players_w_eligibility(player_list=self.position_players, position_slot=position, excluded_player_ids=excluded_players)
+        if eligible_players_list:
+            return sorted(eligible_players_list, key=rating, reverse=True)[0]
+
+        if self.roster is not None:
+            protected_ids = set(excluded_players)
+            callup = self.roster.emergency_callup(team=self, position_slot=position, game_date=game.date, protected_ids=protected_ids)
+            if callup is not None:
+                return callup
+
+        unused_players = [p for p in self.position_players if p.id not in excluded_players]
+        if unused_players:
+            return sorted(unused_players, key=lambda p: (p.defense_for_position_slot(position), rating(p)), reverse=True)[0]
+
+        if self.roster is not None:
+            protected_ids = set(excluded_players)
+            activated = self.roster.emergency_activate_earliest(team=self, game_date=game.date, protected_ids=protected_ids)
+            if activated is not None and activated.id not in excluded_players:
+                return activated
+
+        active_count = len(self.position_players)
+        il_count = len(self.roster.injured) if self.roster is not None else 0
+        raise ValueError(
+            f'ERROR: No available players on {self.name} for position {position.value} '
+            f'({game.date}, active position players: {active_count}, on IL: {il_count})'
+        )
+
+    def fill_starting_position_players(self, game: Game) -> None:
+
+        current_lineup: dict[str, PositionSlot] = {} # KEY: PLAYER ID, VALUE: POSITION
+        for _ in range(0,9):
+
+            # ORDER POSITION SLOTS BY NUMBER OF VALID PLAYERS ABLE TO PLAY THERE.
+            positions_list_w_counts: dict[PositionSlot, float] = self.num_players_valid_per_position(player_list=self.position_players, current_lineup_dict=current_lineup)
+            positions_list_sorted = sorted(positions_list_w_counts.items(), key=lambda x: x[1])
+            position = positions_list_sorted[0][0]
+
+            player = self._player_for_slot(position=position, current_lineup=current_lineup, game=game)
+            current_lineup[player.id] = position
+
+        # UPDATED PLAYERS
+        for player in self.position_players:
+            position_for_game = current_lineup.get(player.id, None)
+            player.position_slot = position_for_game or PositionSlot.NONE
+        self.starting_lineup = [player for player in self.position_players if player.id in current_lineup.keys()]
+
+        # CACHE POSITION LOOKUPS + DEFENSE TOTALS FOR THE GAME. THE LINEUP DOESN'T CHANGE MID-GAME,
+        # SO THESE WOULD OTHERWISE BE RECOMPUTED ON EVERY PLATE APPEARANCE.
+        self.position_map = {player.position_slot: player for player in self.starting_lineup}
+        self.catcher = self.position_map.get(PositionSlot.CA)
+        self.infield_defense = sum(
+            player.defense_for_position_slot(pos)
+            for pos in (PositionSlot._1B, PositionSlot._2B, PositionSlot._3B, PositionSlot.SS)
+            if (player := self.position_map.get(pos)) is not None
+        )
+        self.outfield_defense = sum(
+            player.defense_for_position_slot(pos)
+            for pos in (PositionSlot.LF, PositionSlot.CF, PositionSlot.RF)
+            if (player := self.position_map.get(pos)) is not None
+        )
+
+    def generate_batting_order(self, game: Game) -> None:
+
+        starting_players = self.starting_lineup
+        if not starting_players:
+            raise ValueError(f'LINEUP IS EMPTY FOR {self.name} GAME {game.index}, {game.away_team_name} VS {game.home_team_name}')
+
+        # PRESET BATTING ORDER (BUILDER TEAMS): USE DEFINED SPOTS, FILL GAPS BY OPS
+        preset_players = {p.preset_lineup_spot: p for p in starting_players if p.preset_lineup_spot in range(1, 10)}
+        if len(preset_players) > 0:
+            batting_order: dict[int, SimPlayer] = dict(preset_players)
+            remaining_players = sorted([p for p in starting_players if p not in batting_order.values()], key=lambda x: x.projected.get('onbase_plus_slugging', 0), reverse=True)
+            open_spots = [spot for spot in range(1, 10) if spot not in batting_order]
+            for spot, player in zip(open_spots, remaining_players):
+                batting_order[spot] = player
+            self.batting_order = [player for _, player in sorted(batting_order.items(), key=lambda x: x[0])]
+            return
+
+        batting_order = {}
+        hitter_pool: list[SimPlayer] = starting_players.copy()
+        ops_key = 'onbase_plus_slugging'
+        obp_key = 'onbase_perc'
+        hr_key = 'hr_per_650_pa'
+        slg_key = 'slugging_perc'
+        speed_key = 'speed'
+        logic_dict = {
+            3: ops_key,
+            4: hr_key,
+            1: speed_key,
+            2: ops_key,
+            5: slg_key,
+            6: ops_key,
+            7: ops_key,
+            8: ops_key,
+            9: ops_key,
+        }
+        for order_position, stat_key in logic_dict.items():
+            if stat_key == 'speed':
+                hitter = sorted(hitter_pool, key=lambda x: (x.speed, x.projected.get(obp_key, 0)), reverse=True)[0]
+            else:
+                hitter = sorted(hitter_pool, key=lambda x: x.projected.get(stat_key, 0), reverse=True)[0]
+            batting_order[order_position] = hitter
+            hitter_pool.remove(hitter)
+
+        sorted_player_tuples_list = sorted(batting_order.items(), key=lambda x: x[0])
+        sorted_player_list = [player for _, player in sorted_player_tuples_list]
+
+        self.batting_order = sorted_player_list
+
+    def update_lineup_index(self):
+        next_lineup_index = self.lineup_index + 1
+        self.lineup_index = 0 if next_lineup_index > 8 else next_lineup_index
+
+    # ------------------------------------------------------------------
+    # PITCHING
+    # ------------------------------------------------------------------
+
+    def reset_pitchers_used(self) -> None:
+        for pitcher in (self.rotation.players + self.bullpen.players):
+            pitcher.reset()
+        self._pitchers_used: list[SimPitcher] = []
+
+    def current_pitcher(self) -> SimPitcher:
+        return self._pitchers_used[-1]
+
+    def mark_pitcher_entered(self, pitcher: SimPitcher, inning_num_full: float) -> None:
+        """Record a pitcher entering the game.
+
+        Order is tracked by entry rather than by sorting on `start_inning`: two pitchers can share
+        an `inning_num_full` (a reliever pulled before recording an out), and sorting then resolves
+        the tie by roster order, which can report the pitcher who was just replaced as the current one.
+        """
+        pitcher.start_inning = inning_num_full
+        self._pitchers_used.append(pitcher)
+
+    def check_for_pitcher_sub(self, game_date: date, inning: Inning, runs_allowed: int) -> None:
+        """ Check if current pitcher is tired and needs a sub"""
+        if self.current_pitcher().is_tired(inning=inning) and len(self.available_reliever_ids) > 0:
+            suggested_reliever = self.bullpen.suggested_reliever(
+                game_date=game_date, inning=inning,
+                runs_scored=self.current_game_stats.stat(StatCategory.RUNS_SCORED), runs_allowed=runs_allowed,
+                available_ids=self.available_reliever_ids,
+            )
+            if suggested_reliever:
+                self.mark_pitcher_entered(suggested_reliever, inning.inning_num_full)
+                self.available_reliever_ids.discard(suggested_reliever.id)
+
+    def update_pitcher_runs_allowed(self, pitcher_runs_allowed_dict: dict) -> None:
+        if not pitcher_runs_allowed_dict:
+            return
+        for pitcher in self._pitchers_used:
+            if pitcher.id in pitcher_runs_allowed_dict:
+                pitcher.runs_allowed += pitcher_runs_allowed_dict[pitcher.id]
+
+    def log_pitcher_stats(self, game: Game) -> None:
+        pitcher_stats = self.stats.stats_list_for_type(type=PlayerType.PITCHER)
+        self.bullpen.pitching_log.log_pitcher_stats(game_date=game.date, stats=pitcher_stats)
+
+    # ------------------------------------------------------------------
+    # GAME LIFECYCLE
+    # ------------------------------------------------------------------
+
+    def update_roster_for_date(self, game_date: date, rng: Random) -> None:
+        """Process IL returns and roll new injuries before the day's games. No-op for builder
+        teams and when injuries are disabled - critically, `rng` is never touched in that case,
+        so a seeded sim's per-game random stream is unaffected by whether injuries are on."""
+        if self.roster is None or not self.roster.injuries_enabled:
+            return
+        if game_date == self._last_roster_date:
+            return  # DOUBLEHEADER: ONE ROSTER PASS PER CALENDAR DAY
+        self._last_roster_date = game_date
+        self.roster.process_date(team=self, game_date=game_date, rng=rng)
+
+    def process_il_returns_for_date(self, game_date: date) -> None:
+        """Postseason hook: activate anyone whose IL stint has ended, but never roll new injuries
+        or touch `rng` - see `Postseason.simulate`."""
+        if self.roster is None:
+            return
+        self.roster.process_returns(team=self, game_date=game_date)
+
+    def add_new_game(self, game: Game, opposing_team: 'SimTeam') -> None:
+        self.lineup_index = 0
+        self.reset_pitchers_used()
+        self.stats = StatsGroup(year=game.date.year)
+        self.current_game_stats = Stats(id=str(game.index))
+        self.game_player_appearances = set()
+        self.fill_starting_position_players(game=game)
+        self.generate_batting_order(game=game)
+
+        # BULLPEN AVAILABILITY IS FIXED FOR THE GAME - THE PITCHING LOG IS ONLY WRITTEN POST-GAME.
+        unavailable = self.bullpen.pitching_log.pitcher_ids_with_recent_workload(
+            game_date=game.date, days_back=2, ip_cutoff=2,
+        )
+        self.available_reliever_ids = {p.id for p in self.bullpen.players if p.id not in unavailable}
+
+    def current_hitter(self, game: Game) -> SimPlayer:
+        return self.batting_order[self.lineup_index]
+
+    def finalize_stats_post_game(self, game: Game) -> None:
+        self.log_pitcher_stats(game)
+        self.update_wins_and_losses()
+        self.rotation.move_to_next_pitcher_index()
+        self.update_players_games_played_stat(game)
+        self.update_consecutive_starts()
+
+    def update_consecutive_starts(self) -> None:
+        """Roll the per-player consecutive-start counter used by the rest logic."""
+        starter_ids = {player.id for player in self.starting_lineup}
+        for player in self.position_players:
+            if player.id in starter_ids:
+                self.consecutive_starts[player.id] = self.consecutive_starts.get(player.id, 0) + 1
+            else:
+                self.consecutive_starts[player.id] = 0
+
+    def update_wins_and_losses(self) -> None:
+        last_game_stats = self.current_game_stats
+        runs_scored = last_game_stats.stat(StatCategory.RUNS_SCORED)
+        runs_allowed = last_game_stats.stat(StatCategory.RUNS_ALLOWED)
+        if runs_scored > runs_allowed:
+            self.wins += 1
+        else:
+            self.losses += 1
+
+    def update_players_games_played_stat(self, game: Game) -> None:
+        for player_id in self.game_player_appearances:
+            self.stats.update_individual_stats(id=player_id, stats=Stats(id=player_id, totals={StatCategory.G.value: 1}))
+
+    def log_player_appearance(self, game: Game, player_id: str) -> None:
+        self.game_player_appearances.add(player_id)
+
+    # ------------------------------------------------------------------
+    # RECORD / DEFENSE
+    # ------------------------------------------------------------------
+
+    @property
+    def games(self) -> int:
+        return self.wins + self.losses
+
+    @property
+    def win_pct(self) -> float:
+        return round(float(self.wins) / max(self.games, 1), 3)
+
+    def as_record(self, division: str = None, games_back: float = None) -> TeamRecord:
+        return TeamRecord(
+            name=self.name,
+            league=self.league,
+            division=division,
+            points=self.points,
+            wins=self.wins,
+            losses=self.losses,
+            win_pct=self.win_pct,
+            games_back=games_back,
+            playoff_seeding=self.playoff_seeding,
+        )
+
+    def player_for_position(self, position_slot: PositionSlot) -> Optional[SimPlayer]:
+        """Starter at a position for the current game. `position_map` is rebuilt each game."""
+        return self.position_map.get(position_slot)
+
+    def player_for_id(self, id: str) -> Optional[SimPlayer]:
+        players_w_id = [p for p in self.all_players if p.id == id]
+        return None if len(players_w_id) == 0 else players_w_id[0]
