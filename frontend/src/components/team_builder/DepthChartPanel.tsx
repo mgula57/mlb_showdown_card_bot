@@ -4,8 +4,9 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { FaPlus, FaPencil, FaChevronUp, FaChevronDown } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
-import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
+import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { Modal } from '../shared/Modal';
+import { SectionHeader } from '../shared/SectionHeader';
 import { CardDetail } from '../cards/CardDetail';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
@@ -118,35 +119,6 @@ function PositionRow({
                         className="text-(--text-tertiary) hover:text-(--text-secondary) disabled:opacity-20 cursor-pointer">
                         <FaChevronDown className="text-[8px]" />
                     </button>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function SectionHeader({ label, filledCount, total, kpis }: {
-    label: string;
-    filledCount: number;
-    total: number;
-    kpis?: KpiTile[];
-}) {
-    return (
-        <div className="pt-3 pb-1">
-            <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-widest">{label}</span>
-                <span className="text-[10px] text-(--text-tertiary)">{filledCount}</span>
-                {total > 0 && (
-                    <span className="ml-auto text-[10px] font-semibold text-(--text-tertiary)">{total} pts</span>
-                )}
-            </div>
-            {kpis && kpis.length > 0 && (
-                <div className="flex items-center gap-3 mt-1.5 overflow-x-auto pb-0.5">
-                    {kpis.map(({ label: kLabel, value }) => (
-                        <div key={kLabel} className="flex flex-col items-center shrink-0">
-                            <span className="text-[8px] text-(--text-tertiary) uppercase tracking-wider opacity-75">{kLabel}</span>
-                            <span className="text-[11px] font-bold text-(--text-secondary)">{value}</span>
-                        </div>
-                    ))}
                 </div>
             )}
         </div>

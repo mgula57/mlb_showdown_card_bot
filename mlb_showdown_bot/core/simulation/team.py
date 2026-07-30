@@ -5,9 +5,10 @@ from typing import Optional
 from ..card.showdown_player_card import ShowdownPlayerCard
 from ..card.team_builder.team import Team as BuilderTeam
 from ..shared.player_position import PlayerType, PositionSlot
+from ..shared.team import Team as ShowdownTeam
 from .game import Game
 from .inning import Inning
-from .models import TeamRecord
+from .models import SimTeamIdentity, TeamRecord
 from .player import SimPitcher, SimPlayer
 from .player_group import Bullpen, PositionEligibility, Rotation
 from .roster import Roster
@@ -36,12 +37,17 @@ _BULLPEN_ROLE_RANK = {"SU": 0, "MR": 1, "LONG": 2}
 _PRESET_LINEUP_BONUS = 300.0
 
 
+def _rgb_string(color: tuple) -> str:
+    return f"rgb({color[0]}, {color[1]}, {color[2]})"
+
+
 class SimTeam:
 
     def __init__(self, year: int, name: str, position_players: list[SimPlayer], rotation: Rotation, bullpen: Bullpen, league: str = None) -> None:
         self.year = year
         self.name = name
         self.league = league
+        self.identity = SimTeamIdentity(abbreviation=name, name=name, league=league)
 
         self.position_players = position_players
         self.rotation = rotation
@@ -109,6 +115,18 @@ class SimTeam:
             league=league,
         )
         team.roster = Roster(team_name=name, selection=selection, enable_injuries=enable_injuries)
+
+        # TEAM BRANDING - YEAR-AWARE SO A HISTORICAL SIM SHOWS THE ERA-APPROPRIATE COLORS, NOT
+        # TODAY'S. `Team._missing_` FALLS BACK TO `Team.MLB` FOR AN UNRECOGNIZED ABBREVIATION
+        # RATHER THAN RAISING, SO IDENTITY RESOLUTION CAN NEVER FAIL A SIM.
+        showdown_team = ShowdownTeam(name)
+        team.identity = SimTeamIdentity(
+            abbreviation=name,
+            name=name,
+            primary_color=_rgb_string(showdown_team.color(year=year)),
+            secondary_color=_rgb_string(showdown_team.color(year=year, is_secondary=True)),
+            league=league,
+        )
         return team
 
     @classmethod
@@ -165,7 +183,7 @@ class SimTeam:
                 player.preset_lineup_spot = lineup_slot.batting_order
                 player.preset_position_slot = _FIELD_POSITION_TO_SLOT.get(lineup_slot.field_position.upper())
 
-        return cls(
+        sim_team = cls(
             year=year,
             name=team.abbreviation,
             position_players=position_players,
@@ -173,6 +191,16 @@ class SimTeam:
             bullpen=Bullpen(players=list(bullpen_players.values()), closer_id=closer_id, role_order=role_order),
             league=league,
         )
+        # BUILDER TEAMS CARRY THEIR OWN USER-CHOSEN COLORS - NOT RESOLVED VIA THE ShowdownTeam
+        # ENUM, SINCE A BUILDER ABBREVIATION (E.G. "MYTM") ISN'T A MEMBER OF IT.
+        sim_team.identity = SimTeamIdentity(
+            abbreviation=team.abbreviation,
+            name=team.name,
+            primary_color=team.primary_color,
+            secondary_color=team.secondary_color,
+            league=league,
+        )
+        return sim_team
 
     # ------------------------------------------------------------------
     # ROSTER / LINEUP

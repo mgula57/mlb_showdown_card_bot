@@ -5,7 +5,7 @@
  * player cards, team points, and performance analytics.
  */
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
@@ -73,6 +73,14 @@ const isSeasonOver = (season: Season | null): boolean => {
 
 const isSameCalendarDay = (a: Date, b: Date): boolean => {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+};
+
+/** Parses a `gamePk` out of a `/seasons/game/<gamePk>` path, e.g. from a shared/pasted link. */
+const parseGamePkFromPath = (pathname: string): number | null => {
+    const match = pathname.match(/^\/seasons\/game\/(\d+)/);
+    if (!match) return null;
+    const pk = parseInt(match[1], 10);
+    return isNaN(pk) ? null : pk;
 };
 
 const formatGamesHeaderDate = (date: Date): string => {
@@ -145,7 +153,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         const now = new Date();
         return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     });
-    const [selectedGamePk, setSelectedGamePk] = useState<number | null>(null);
     const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
     const datePickerRef = useRef<HTMLDivElement>(null);
 
@@ -170,19 +177,26 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "schedule");
 
-    // Open a specific game if ?gamePk=XXX is in the URL (e.g. linked from Home ticker)
+    // A game gets its own distinct, shareable URL — /seasons/game/<gamePk> — parsed straight from the path
+    // rather than kept in separate state, so the URL is always the single source of truth (e.g. pasted links work).
     const location = useLocation();
+    const navigate = useNavigate();
+    const selectedGamePk = parseGamePkFromPath(location.pathname);
+
     useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const gamePkParam = params.get('gamePk');
-        if (gamePkParam) {
-            const pk = parseInt(gamePkParam, 10);
-            if (!isNaN(pk)) {
-                setSelectedGamePk(pk);
-                setActiveTab('schedule');
-            }
+        if (selectedGamePk !== null) {
+            setActiveTab('schedule');
         }
-    }, [location.search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedGamePk]);
+
+    const handleGameSelect = (gamePk: number) => {
+        navigate(`/seasons/game/${gamePk}`);
+    };
+
+    const handleGameBack = () => {
+        navigate('/seasons', { replace: true });
+    };
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
     const [starredTeamKeys, setStarredTeamKeys] = useState<string[]>(() => {
@@ -930,6 +944,22 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         },
     ];
 
+    // Full-screen game detail takeover: hides the sidebar/tabs entirely, mirroring TeamDetail's editor view
+    if (selectedSeason && selectedGamePk !== null) {
+        return (
+            <div className="w-full bg-(--background-primary)">
+                <GameDetail
+                    gamePk={selectedGamePk}
+                    sportId={selectedSport?.id}
+                    season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : undefined}
+                    showdownSet={userShowdownSet}
+                    isActive={true}
+                    onBack={handleGameBack}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="w-full bg-(--background-primary)">
             <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
@@ -1125,19 +1155,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        {selectedGamePk !== null ? (
-                                            <GameDetail
-                                                gamePk={selectedGamePk}
-                                                sportId={selectedSport?.id}
-                                                season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
-                                                showdownSet={userShowdownSet}
-                                                isActive={activeTab === 'schedule'}
-                                                className="lg:py-6 lg:pr-6"
-                                                onBack={() => setSelectedGamePk(null)}
-                                            />
-                                        ) : (
                                         <div className="space-y-5 lg:pt-6 lg:pr-6">
-                                                <div className="rounded-xl border border-(--divider) bg-(--background-secondary) px-4 py-3">
+                                                <div className="rounded-xl bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
                                                             type="button"
@@ -1209,14 +1228,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
                                                     showdownSet={userShowdownSet}
                                                     starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
-                                                    onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
+                                                    onGameSelect={handleGameSelect}
                                                     onRefresh={() => {
                                                         // Force re-fetch games schedule for the current date
                                                         setGamesDate((previous) => new Date(previous));
                                                     }}
                                                 />
                                             </div>
-                                        )}
                                     </Tabs.Content>
 
                                     {/* Teams Tab */}

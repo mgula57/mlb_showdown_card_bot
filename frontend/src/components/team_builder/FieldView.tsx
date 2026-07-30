@@ -4,7 +4,8 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus, FaPencil } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
-import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
+import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
+import { SectionHeader } from '../shared/SectionHeader';
 import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
 
@@ -59,38 +60,6 @@ type FieldViewProps = {
     detailStat1Category?: 'defense' | 'hr' | 'outs';
 };
 
-
-// ---- Section header ----
-
-function FieldViewSectionHeader({ label, filledCount, maxPlayers, total, kpis }: {
-    label: string;
-    filledCount: number;
-    maxPlayers?: number;
-    total: number;
-    kpis?: KpiTile[];
-}) {
-    return (
-        <div className="px-3 py-1.5 backdrop-blur-xs bg-(--background)/40">
-            <div className="flex items-center gap-1.5 opacity-75">
-                <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{label}</span>
-                <span className="text-[10px] text-(--text-tertiary)">{filledCount}{maxPlayers !== undefined ? `/${maxPlayers}` : ''}</span>
-                {total > 0 && (
-                    <span className="ml-auto text-[11px] font-semibold text-(--text-tertiary)">{total} pts</span>
-                )}
-            </div>
-            {kpis && kpis.length > 0 && (
-                <div className="flex items-center gap-3 mt-1.5 overflow-x-auto pb-0.5">
-                    {kpis.map(({ label: kLabel, value }) => (
-                        <div key={kLabel} className="flex flex-col items-center shrink-0">
-                            <span className="text-[8px] text-(--text-tertiary) uppercase tracking-wider opacity-75">{kLabel}</span>
-                            <span className="text-[11px] font-bold text-(--text-secondary)">{value}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
 
 function sumGroupDefense(positions: readonly string[], slotByPosition: Record<string, LineupSlot>, cardMap: Record<string, CardDatabaseRecord | null>): number | null {
     let total = 0;
@@ -234,7 +203,8 @@ export function FieldView({
                 ))}
 
                 <div className="absolute inset-0" >
-                    <FieldViewSectionHeader
+                    <SectionHeader
+                        variant="overlay"
                         label={headerLabel}
                         filledCount={lineup.slots.length}
                         maxPlayers={positions.length}
@@ -307,7 +277,7 @@ export function FieldView({
                 const filledCount = roles.filter(r => getCard(r)).length;
                 return (
                     <div key={label} className="border-t border-(--divider)" onClick={onItemClick ? e => e.stopPropagation() : undefined}>
-                        <FieldViewSectionHeader label={label} filledCount={filledCount} maxPlayers={maxPlayers} total={total} kpis={kpis} />
+                        <SectionHeader variant="overlay" label={label} filledCount={filledCount} maxPlayers={maxPlayers} total={total} kpis={kpis} />
                         <div className="grid grid-cols-2 gap-1.5 px-3 pb-3">
                             {roles.map(role => {
                                 const card = getCard(role);

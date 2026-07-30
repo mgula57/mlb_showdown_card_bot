@@ -1,7 +1,7 @@
 import type { ShowdownBotCard, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardCommand from "./card_elements/CardCommand";
-import { getContrastColor } from "../shared/Color";
+import { getContrastTextColor } from "../../functions/colors";
 import { useTheme } from "../shared/SiteSettingsContext";
 import { formatYear } from "../../functions/formatters";
 import { FaHatWizard } from "react-icons/fa6";
@@ -95,12 +95,12 @@ export const CardItemCompact = ({
 
     const pointsBadgeStyle = {
         backgroundColor: secondaryColor,
-        color: getContrastColor(secondaryColor),
+        color: getContrastTextColor(secondaryColor),
     };
 
     const teamStyle = {
         backgroundColor: primaryColor,
-        color: getContrastColor(primaryColor),
+        color: getContrastTextColor(primaryColor),
     };
 
     const isClickable = onClick !== undefined;

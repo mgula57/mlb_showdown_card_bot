@@ -1,4 +1,4 @@
-import { getContrastColor } from "../../shared/Color";
+import { getContrastTextColor } from "../../../functions/colors";
 
 /**
  * Props for the CardChart component
@@ -97,7 +97,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
             lowerKey.includes('fb') || lowerKey.includes('pu')) {
             return {
                 backgroundColor: color,
-                color: getContrastColor(color),
+                color: getContrastTextColor(color),
                 className: '' // No Tailwind classes when using inline styles
             };
         }

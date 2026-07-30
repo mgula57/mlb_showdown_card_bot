@@ -3,12 +3,12 @@ import { type GameScheduled } from "../../api/mlbAPI";
 import { fetchCardData, type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardSource } from "../../types/cardSource";
 import { FaArrowsRotate } from "react-icons/fa6";
+import { fromScheduledGame } from "../../domain/adapters/fromMlbApi";
+import { cardKey } from "../../domain/players";
+import type { GameState } from "../../domain/game";
 import GameItem from "./GameItem";
 
 type CardMap = Record<string, CardDatabaseRecord>;
-
-// TODO: replace hard-coded IDs with a general two-way player detection strategy
-const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 
 type GameScheduleProps = {
     games: GameScheduled[];
@@ -22,44 +22,38 @@ type GameScheduleProps = {
     onRefresh?: () => void;
 };
 
+const STATE_SORT_ORDER: Record<GameState, number> = { LIVE: 0, PREVIEW: 1, FINAL: 2, POSTPONED: 3 };
+
 export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, onGameSelect, onRefresh }: GameScheduleProps) {
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoadingCards, setIsLoadingCards] = useState(false);
 
+    const gameViews = useMemo(() => games.map((game) => fromScheduledGame(game, sportId)), [games, sportId]);
+
     // Derive a stable key from only the IDs relevant to each game's current state,
     // so the card-fetch effect only re-runs when those IDs actually change.
-    // Two-way players are encoded with a role suffix (e.g. "660271-H" vs "660271-P")
-    // so the key changes when their on-field role changes.
     const idsKey = useMemo(() => {
         const ids = new Set<string>();
-        const encodeId = (id: number, role: 'H' | 'P'): string =>
-            TWO_WAY_PLAYER_IDS.has(id) ? `${id}-${role}` : String(id);
-
-        for (const game of games) {
-            const coded = game.status?.coded_game_state;
-            const isFinal = coded === 'F' || game.status?.status_code === 'F';
-            const isNotStarted = coded === 'P' || coded === 'S';
-            const isInProgress = !isFinal && !isNotStarted;
-
-            if (isFinal) {
+        for (const game of gameViews) {
+            if (game.state === 'FINAL') {
                 const winner = game.decisions?.winner?.id;
                 const loser = game.decisions?.loser?.id;
-                if (winner != null) ids.add(encodeId(winner, 'P'));
-                if (loser != null) ids.add(encodeId(loser, 'P'));
-            } else if (isInProgress) {
-                const batter = game.linescore?.offense?.batter?.id;
-                const pitcher = game.linescore?.defense?.pitcher?.id;
-                if (batter != null) ids.add(encodeId(batter, 'H'));
-                if (pitcher != null) ids.add(encodeId(pitcher, 'P'));
+                if (typeof winner === 'number') ids.add(cardKey(winner, 'P'));
+                if (typeof loser === 'number') ids.add(cardKey(loser, 'P'));
+            } else if (game.state === 'LIVE') {
+                const batter = game.situation?.batter?.id;
+                const pitcher = game.situation?.pitcher?.id;
+                if (typeof batter === 'number') ids.add(cardKey(batter, 'H'));
+                if (typeof pitcher === 'number') ids.add(cardKey(pitcher, 'P'));
             } else {
-                const awayPitcher = game.teams?.away?.probable_pitcher?.id;
-                const homePitcher = game.teams?.home?.probable_pitcher?.id;
-                if (awayPitcher != null) ids.add(encodeId(awayPitcher, 'P'));
-                if (homePitcher != null) ids.add(encodeId(homePitcher, 'P'));
+                const awayPitcher = game.away.probablePitcher?.id;
+                const homePitcher = game.home.probablePitcher?.id;
+                if (typeof awayPitcher === 'number') ids.add(cardKey(awayPitcher, 'P'));
+                if (typeof homePitcher === 'number') ids.add(cardKey(homePitcher, 'P'));
             }
         }
         return [...ids].sort().join(',');
-    }, [games]);
+    }, [gameViews]);
 
     useEffect(() => {
         if (!season || !showdownSet || !idsKey) return;
@@ -86,11 +80,10 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                 for (const record of records) {
                     const id = record.mlb_id;
                     if (id == null) continue;
-                    if (TWO_WAY_PLAYER_IDS.has(Number(id))) {
-                        map[`${id}-${record.is_pitcher ? "P" : "H"}`] = record;
-                    } else {
-                        map[String(id)] = record;
+                    if (typeof id === 'number' || !Number.isNaN(Number(id))) {
+                        map[cardKey(Number(id), record.is_pitcher ? "P" : "H")] = record;
                     }
+                    map[String(id)] = record;
                 }
                 setCardMap(map);
             })
@@ -106,17 +99,16 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         return null;
     }
 
-    // Sort: starred-team games first, then by game state (live → upcoming → final)
-    const statusOrder: Record<string, number> = { "Live": 0, "Preview": 1, "Scheduled": 2, "Final": 3, "Postponed": 4 };
-    const sortedGames = [...games].sort((a, b) => {
+    // Sort: starred-team games first, then by game state (live → upcoming → final → postponed)
+    const sortedGames = [...gameViews].sort((a, b) => {
         const aStarred = starredTeamIds
-            ? (starredTeamIds.has(a.teams?.away?.team?.id ?? -1) || starredTeamIds.has(a.teams?.home?.team?.id ?? -1))
+            ? (starredTeamIds.has(Number(a.away.team.id) || -1) || starredTeamIds.has(Number(a.home.team.id) || -1))
             : false;
         const bStarred = starredTeamIds
-            ? (starredTeamIds.has(b.teams?.away?.team?.id ?? -1) || starredTeamIds.has(b.teams?.home?.team?.id ?? -1))
+            ? (starredTeamIds.has(Number(b.away.team.id) || -1) || starredTeamIds.has(Number(b.home.team.id) || -1))
             : false;
         if (aStarred !== bStarred) return aStarred ? -1 : 1;
-        return (statusOrder[a.status?.abstract_game_state || ""] ?? 3) - (statusOrder[b.status?.abstract_game_state || ""] ?? 3);
+        return STATE_SORT_ORDER[a.state] - STATE_SORT_ORDER[b.state];
     });
 
     return (
@@ -128,7 +120,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                         <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
                     )}
                 </div>
-                
+
                 {/* Refresh button */}
                 {onRefresh && (
                     <button
@@ -146,22 +138,21 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                 )}
 
             </div>
-            
+
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
                 {sortedGames.map((game) => {
                     return (
                         <GameItem
-                            key={game.game_pk}
+                            key={game.id}
                             game={game}
-                            sportId={sportId}
                             onSelect={onGameSelect}
                             showMatchupDetails={true}
                             cardMap={cardMap}
                             isLoadingCards={isLoadingCards}
                             isStarred={
                                 starredTeamIds
-                                    ? (starredTeamIds.has(game.teams?.away?.team?.id ?? -1) || starredTeamIds.has(game.teams?.home?.team?.id ?? -1))
+                                    ? (starredTeamIds.has(Number(game.away.team.id) || -1) || starredTeamIds.has(Number(game.home.team.id) || -1))
                                     : false
                             }
                         />

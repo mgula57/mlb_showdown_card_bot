@@ -93,6 +93,7 @@ const AppContent = () => {
         if (path === '/home') return '/';
         if (path === '/explore') return '/cards';
         if (path.startsWith('/teams/')) return '/teams';
+        if (path.startsWith('/seasons/')) return '/seasons';
         return path;
     };
     

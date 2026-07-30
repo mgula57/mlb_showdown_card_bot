@@ -2,7 +2,7 @@ import ReactCountryFlag from "react-country-flag";
 
 import { type Standings, type Team } from '../../api/mlbAPI';
 import { countryCodeForTeam } from "../../functions/flags";
-import { getContrastColor } from "../shared/Color";
+import { getContrastTextColor } from "../../functions/colors";
 
 type StandingsProps = {
 	standingsEntries: [string, Standings[]][];
@@ -66,7 +66,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 										`}
 										style={{
 											backgroundColor,
-											color: getContrastColor(backgroundColor),
+											color: getContrastTextColor(backgroundColor),
 										}}
 									>
 										<span className="flex items-center gap-1.5 font-black tracking-wide truncate">

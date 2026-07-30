@@ -2,7 +2,7 @@ import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
-import { getContrastColor } from "../shared/Color";
+import { getContrastTextColor } from "../../functions/colors";
 import { useTheme } from "../shared/SiteSettingsContext";
 import { CardSource } from "../../types/cardSource";
 import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard } from 'react-icons/fa6';
@@ -134,7 +134,7 @@ export const CardItem = ({
         : cardPrimaryColor) || 'rgb(0, 0, 0)';
     const colorStylingPrimary = { 
         backgroundColor: primaryColor, 
-        color: getContrastColor(primaryColor) 
+        color: getContrastTextColor(primaryColor) 
     };
     
     const secondaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
@@ -142,7 +142,7 @@ export const CardItem = ({
         : cardSecondaryColor) || 'rgb(0, 0, 0)';
     const colorStylingSecondary = { 
         backgroundColor: secondaryColor, 
-        color: getContrastColor(secondaryColor) 
+        color: getContrastTextColor(secondaryColor) 
     };
 
     // Determine whether the stats have been estimated

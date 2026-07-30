@@ -1,6 +1,6 @@
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
-import { getContrastColor } from '../shared/Color';
+import { getContrastTextColor } from '../../functions/colors';
 import { FaCircle, FaHatWizard } from 'react-icons/fa6';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
@@ -37,8 +37,8 @@ type TeamPreviewCardProps = {
 export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: TeamPreviewCardProps) {
     const primary = team.primary_color || 'rgb(20,20,20)';
     const secondary = team.secondary_color || 'rgb(80,80,80)';
-    const onPrimary = getContrastColor(primary);
-    const onSecondary = getContrastColor(secondary);
+    const onPrimary = getContrastTextColor(primary);
+    const onSecondary = getContrastTextColor(secondary);
 
     const widthClass = size === 'sm' ? 'w-36 md:w-40' : 'w-44 md:w-52';
 
@@ -134,7 +134,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                                 <div
                                     key={src}
                                     className="flex items-center gap-0.5 text-[8px] font-bold uppercase px-1.5 py-0.5 rounded"
-                                    style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastColor('rgba(255,255,255,0.85)') }}
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
                                 >
                                     {src === 'WOTC' ? <FaHatWizard className="w-2.5 h-2.5" /> : undefined}
                                     {src}

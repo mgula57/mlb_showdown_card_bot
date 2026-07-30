@@ -30,6 +30,7 @@ import ChartPlayerPointsTrend from './card_detail/ChartPlayerPointsTrend';
 
 // Live game integration
 import GameItem from '../games/GameItem';
+import { fromBoxscoreDetail } from '../../domain/adapters/fromMlbApi';
 
 // Visual breakdown panels
 import OutcomeProbability from './card_detail/OutcomeProbability';
@@ -435,7 +436,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     {showGameBoxscore() && activeCardData?.latest_game_box_score && (
                         <div className='@xl:hidden mb-3'>
                             <GameItem
-                                game={activeCardData.latest_game_box_score}
+                                game={fromBoxscoreDetail(activeCardData.latest_game_box_score)}
                                 playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
                             />
                         </div>
@@ -500,7 +501,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     {showGameBoxscore() && activeCardData?.latest_game_box_score && (
                         <div className='hidden @xl:block'>
                             <GameItem
-                                game={activeCardData.latest_game_box_score}
+                                game={fromBoxscoreDetail(activeCardData.latest_game_box_score)}
                                 playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
                             />
                         </div>

@@ -1,5 +1,5 @@
 import type { TeamSummary } from '../../api/userTeams';
-import { getContrastColor } from '../shared/Color';
+import { getContrastTextColor } from '../../functions/colors';
 import { useTheme } from '../shared/SiteSettingsContext';
 import { FaLock, FaGlobe, FaUsers } from 'react-icons/fa6';
 
@@ -40,7 +40,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             {/* Color swatch / abbreviation badge */}
             <div
                 className="shrink-0 w-10 h-10 rounded-md flex items-center justify-center text-[11px] font-black"
-                style={{ backgroundColor: primary, color: getContrastColor(primary) }}
+                style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}
             >
                 {team.abbreviation}
             </div>
@@ -63,7 +63,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                     )}
                     <span
                         className="text-[9px] font-black rounded px-1 py-0.5 leading-none"
-                        style={{ backgroundColor: secondary, color: getContrastColor(secondary) }}
+                        style={{ backgroundColor: secondary, color: getContrastTextColor(secondary) }}
                     >
                         {team.source.toUpperCase()}
                     </span>

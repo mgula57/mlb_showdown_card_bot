@@ -855,10 +855,17 @@ export interface PlayMatchup {
     splits?: PlayMatchupSplits;
 }
 
+export interface PlayCount {
+    balls?: number;
+    strikes?: number;
+    outs?: number;
+}
+
 export interface MostRecentPlay {
     result?: PlayResult;
     about?: PlayAbout;
     matchup?: PlayMatchup;
+    count?: PlayCount;
 }
 
 export interface GameBoxscoreDetail {
@@ -879,6 +886,7 @@ export interface GameBoxscoreDetail {
     linescore: BoxscoreLinescore;
     decisions: BoxscoreDecisions;
     most_recent_play?: MostRecentPlay;
+    plays?: MostRecentPlay[];
 }
 
 export interface SituationCode {

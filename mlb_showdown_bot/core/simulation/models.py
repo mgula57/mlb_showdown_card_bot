@@ -134,6 +134,7 @@ class SeasonSimulationConfig(BaseModel):
     tournament_games: Optional[int] = None
 
     include_game_logs: bool = False
+    include_box_scores: bool = False
 
     @property
     def is_tournament(self) -> bool:
@@ -142,6 +143,12 @@ class SeasonSimulationConfig(BaseModel):
     @property
     def league_name(self) -> str:
         return self.tournament_name or "CUSTOM LEAGUE"
+
+    @property
+    def should_collect_box_scores(self) -> bool:
+        """Tournaments are small enough (tens of games) that box scores are effectively free and
+        are exactly what that UI wants; a full MLB season only collects them if asked."""
+        return self.include_box_scores or self.is_tournament
 
 
 class TeamRecord(BaseModel):
@@ -177,6 +184,100 @@ class GameLogEntry(BaseModel):
     summary: str = ""   # FULL HUMAN READABLE LINE
 
 
+class SimTeamIdentity(BaseModel):
+    """Team branding for rendering. Real-season teams resolve this from the `shared.Team` enum
+    (year-aware colors); builder/tournament teams pass their own colors straight through."""
+
+    abbreviation: str
+    name: str = ""
+    primary_color: Optional[str] = None    # "rgb(r, g, b)"
+    secondary_color: Optional[str] = None  # "rgb(r, g, b)"
+    league: Optional[str] = None
+
+
+class InningLineScore(BaseModel):
+    """One row of the linescore. A side's `runs` is None when that half-inning was never played
+    (e.g. the home team wins in the top of the 9th and never bats in the bottom)."""
+
+    num: int
+    ordinal_num: str
+    away_runs: Optional[int] = None
+    home_runs: Optional[int] = None
+
+
+class TeamLineScoreTotals(BaseModel):
+    runs: int = 0
+    hits: int = 0
+    errors: int = 0   # THE SIM DOES NOT MODEL FIELDING ERRORS - ALWAYS 0, KEPT FOR SHAPE PARITY
+    left_on_base: int = 0
+
+
+class LineScoreResult(BaseModel):
+    innings: list[InningLineScore] = []
+    scheduled_innings: int = 9
+    away: TeamLineScoreTotals = TeamLineScoreTotals()
+    home: TeamLineScoreTotals = TeamLineScoreTotals()
+
+
+class BoxScoreBattingStats(BaseModel):
+    at_bats: int = 0
+    runs: int = 0
+    hits: int = 0
+    doubles: int = 0
+    triples: int = 0
+    home_runs: int = 0
+    rbi: int = 0
+    base_on_balls: int = 0
+    strike_outs: int = 0
+    stolen_bases: int = 0
+    caught_stealing: int = 0
+    ground_into_double_play: int = 0
+    plate_appearances: int = 0
+    summary: str = ""
+
+
+class BoxScoreBatter(BaseModel):
+    id: str
+    name: str = ""
+    position: str = ""
+    batting_order: int = 0
+    is_substitute: bool = False   # ALWAYS False - THE SIM HAS NO POSITION-PLAYER SUBSTITUTIONS
+    is_in_lineup: bool = True
+    stats: BoxScoreBattingStats = BoxScoreBattingStats()
+
+
+class BoxScorePitchingStats(BaseModel):
+    innings_pitched: str = "0.0"   # "5.2" FORMAT, MATCHES THE REAL MLB API
+    outs: int = 0
+    hits: int = 0
+    runs: int = 0                  # == earned_runs - THE SIM DOES NOT DISTINGUISH UNEARNED RUNS
+    earned_runs: int = 0
+    base_on_balls: int = 0
+    strike_outs: int = 0
+    home_runs: int = 0
+    batters_faced: int = 0
+    era: float = 0.0
+    summary: str = ""
+
+
+class BoxScorePitcher(BaseModel):
+    id: str
+    name: str = ""
+    position: str = "SP"   # "SP" | "RP"
+    order: int = 0          # 0 = STARTER, THEN ORDER OF ENTRY
+    is_substitute: bool = False
+    entered_in_inning: Optional[float] = None
+    stats: BoxScorePitchingStats = BoxScorePitchingStats()
+
+
+class TeamBoxScore(BaseModel):
+    team: SimTeamIdentity
+    batting: list[BoxScoreBatter] = []
+    pitching: list[BoxScorePitcher] = []
+    batting_totals: BoxScoreBattingStats = BoxScoreBattingStats()
+    pitching_totals: BoxScorePitchingStats = BoxScorePitchingStats()
+
+
 class GameResult(BaseModel):
     index: int
     date: date
@@ -186,6 +287,14 @@ class GameResult(BaseModel):
     away_score: int = 0
     winner: Optional[str] = None
     log: list[GameLogEntry] = []
+
+    home_team_identity: Optional[SimTeamIdentity] = None
+    away_team_identity: Optional[SimTeamIdentity] = None
+    linescore: Optional[LineScoreResult] = None
+    home_box_score: Optional[TeamBoxScore] = None
+    away_box_score: Optional[TeamBoxScore] = None
+    innings_played: int = 9
+    is_extra_innings: bool = False
 
 
 class SeriesResult(BaseModel):

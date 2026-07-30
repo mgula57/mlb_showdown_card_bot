@@ -13,6 +13,9 @@ import { useSiteSettings } from './shared/SiteSettingsContext';
 import { useAuth } from './auth/AuthContext';
 import { fetchTodaysSchedule, fetchSeasons, fetchSeasonLeaders } from '../api/mlbAPI';
 import type { GameScheduled, Season, LeadersGroup } from '../api/mlbAPI';
+import { fromScheduledGame } from '../domain/adapters/fromMlbApi';
+import type { GameState } from '../domain/game';
+import { TeamChip } from './shared/TeamChip';
 
 // Modal
 import { Modal } from './shared/Modal';
@@ -29,7 +32,6 @@ import CardCommand from './cards/card_elements/CardCommand';
 import { CardChart } from './cards/card_elements/CardChart';
 import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
 import { CardDetail } from './cards/CardDetail';
-import { getReadableTextColor } from '../functions/colors';
 
 // API
 import { fetchCardById, buildCardsFromIds } from '../api/showdownBotCard';
@@ -384,45 +386,32 @@ export default function Home() {
                                 No games scheduled today.
                             </div>
                         )}
-                        {!isLoadingGames && [...todaysGames].sort((a, b) => {
+                        {!isLoadingGames && todaysGames.map((game) => fromScheduledGame(game)).sort((a, b) => {
                             const seasonId = tickerSeason?.season_id ?? '';
-                            const aStarred = starredTeamKeys.includes(`${a.teams?.away?.team?.id}-${seasonId}`) || starredTeamKeys.includes(`${a.teams?.home?.team?.id}-${seasonId}`);
-                            const bStarred = starredTeamKeys.includes(`${b.teams?.away?.team?.id}-${seasonId}`) || starredTeamKeys.includes(`${b.teams?.home?.team?.id}-${seasonId}`);
+                            const aStarred = starredTeamKeys.includes(`${a.away.team.id}-${seasonId}`) || starredTeamKeys.includes(`${a.home.team.id}-${seasonId}`);
+                            const bStarred = starredTeamKeys.includes(`${b.away.team.id}-${seasonId}`) || starredTeamKeys.includes(`${b.home.team.id}-${seasonId}`);
                             if (aStarred !== bStarred) return aStarred ? -1 : 1;
-                            const statusOrder: Record<string, number> = { "Live": 0, "Scheduled": 1, "Final": 2 };
-                            return (statusOrder[a.status?.abstract_game_state || ""] ?? 3) - (statusOrder[b.status?.abstract_game_state || ""] ?? 3);
+                            const statusOrder: Record<GameState, number> = { LIVE: 0, PREVIEW: 1, FINAL: 2, POSTPONED: 3 };
+                            return statusOrder[a.state] - statusOrder[b.state];
                         }).map((game) => {
-                            const away = game.teams?.away;
-                            const home = game.teams?.home;
-                            const awayAbbr = away?.team?.abbreviation ?? '???';
-                            const homeAbbr = home?.team?.abbreviation ?? '???';
-                            const awayScore = away?.score;
-                            const homeScore = home?.score;
-                            const awayBadgeBg = away?.team?.primary_color ?? undefined;
-                            const awayBadgeText = awayBadgeBg ? getReadableTextColor(awayBadgeBg, '#ffffff') : undefined;
-                            const homeBadgeBg = home?.team?.primary_color ?? undefined;
-                            const homeBadgeText = homeBadgeBg ? getReadableTextColor(homeBadgeBg, '#ffffff') : undefined;
-                            const state = game.status?.abstract_game_state;
-                            const detailedState = game.status?.detailed_state;
-                            const isFinal = state === 'Final';
-                            const isLive = state === 'Live';
-                            const linescore = game.linescore;
-                            const inning = linescore?.current_inning;
-                            const inningHalf = linescore?.inning_half === 'Top' ? '▲' : linescore?.inning_half === 'Bottom' ? '▼' : '';
-                            const isAwayStarred = starredTeamKeys.includes(`${away?.team?.id}-${tickerSeason?.season_id}`);
-                            const isHomeStarred = starredTeamKeys.includes(`${home?.team?.id}-${tickerSeason?.season_id}`);
+                            const isFinal = game.state === 'FINAL';
+                            const isLive = game.state === 'LIVE';
+                            const inning = game.situation?.inning;
+                            const inningHalf = game.situation?.isTop ? '▲' : game.situation ? '▼' : '';
+                            const isAwayStarred = starredTeamKeys.includes(`${game.away.team.id}-${tickerSeason?.season_id}`);
+                            const isHomeStarred = starredTeamKeys.includes(`${game.home.team.id}-${tickerSeason?.season_id}`);
                             const statusLabel = isFinal
                                 ? 'FINAL'
                                 : isLive
                                 ? `${inningHalf}${inning ?? ''}`
-                                : game.game_date
-                                ? new Date(game.game_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-                                : detailedState ?? '';
+                                : game.date
+                                ? new Date(game.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                                : game.detailedState ?? '';
 
                             return (
                                 <Link
-                                    key={game.game_pk}
-                                    to={`/seasons?gamePk=${game.game_pk}`}
+                                    key={game.id}
+                                    to={`/seasons/game/${game.id}`}
                                     className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) hover:brightness-105 transition ${isDark ? 'hover:bg-neutral-800/60' : 'hover:bg-neutral-50'}`}
                                 >
                                     {/* Status badge */}
@@ -444,37 +433,15 @@ export default function Home() {
                                     </div>
 
                                     {/* Away team */}
-                                    <div className={`flex items-center justify-between gap-1 mb-1`}>
-                                        <div className="flex items-center gap-2">
-                                            <span 
-                                                className={`flex items-center gap-0.5 text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`}
-                                                style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
-                                            >
-                                                {awayAbbr}
-                                                {isAwayStarred && <FaStar className="text-yellow-400 w-2 h-2" />}
-                                            </span>
-                                            {away?.league_record && (
-                                                <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{away.league_record.wins}-{away.league_record.losses}</span>
-                                            )}
-                                        </div>
-                                        <span className={`text-sm font-black tabular-nums `}>{awayScore === undefined || awayScore === null ? "-" : awayScore}</span>
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                        <TeamChip team={game.away.team} record={game.away.record} size="sm" isStarred={isAwayStarred} />
+                                        <span className="text-sm font-black tabular-nums">{game.away.score == null ? "-" : game.away.score}</span>
                                     </div>
 
                                     {/* Home team */}
-                                    <div className={`flex items-center justify-between gap-1`}>
-                                        <div className="flex items-center gap-2">
-                                            <span 
-                                                className={`flex items-center gap-0.5 text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`} 
-                                                style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
-                                            >
-                                                {homeAbbr}
-                                                {isHomeStarred && <FaStar className="text-yellow-400 w-2 h-2" />}
-                                            </span>
-                                            {home?.league_record && (
-                                                <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{home.league_record.wins}-{home.league_record.losses}</span>
-                                            )}
-                                        </div>
-                                            <span className={`text-sm font-black tabular-nums`}>{homeScore === undefined || homeScore === null ? "-" : homeScore}</span>
+                                    <div className="flex items-center justify-between gap-1">
+                                        <TeamChip team={game.home.team} record={game.home.record} size="sm" isStarred={isHomeStarred} />
+                                        <span className="text-sm font-black tabular-nums">{game.home.score == null ? "-" : game.home.score}</span>
                                     </div>
                                 </Link>
                             );

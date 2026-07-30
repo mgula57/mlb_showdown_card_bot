@@ -1,16 +1,14 @@
-import ReactCountryFlag from "react-country-flag";
 import { FaStar } from "react-icons/fa6";
 
-import { countryCodeForTeam } from "../../functions/flags";
-import { getReadableTextColor } from "../../functions/colors";
-import { type GameScheduled, type GameBoxscoreDetail } from "../../api/mlbAPI";
+import type { GameView } from "../../domain/game";
+import { cardKey } from "../../domain/players";
+import { TeamChip } from "../shared/TeamChip";
 import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import { type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardItemCompact, CardItemCompactFromCardDatabaseRecord } from "../cards/CardItemCompact";
 
 type GameItemProps = {
-    game: GameScheduled | GameBoxscoreDetail;
-    sportId?: number;
+    game: GameView;
     isStarred?: boolean;
     showMatchupDetails?: boolean;
     playerIdForLinescoreHighlight?: number;
@@ -19,86 +17,11 @@ type GameItemProps = {
     onSelect?: (gamePk: number) => void;
 };
 
-function isBoxscoreDetail(game: GameScheduled | GameBoxscoreDetail): game is GameBoxscoreDetail {
-    return 'datetime' in game && 'linescore' in game && (game as GameBoxscoreDetail).teams?.away?.batting !== undefined;
-}
-
-function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
-    if (!isBoxscoreDetail(raw)) return raw;
-
-    const ls = raw.linescore;
-    const awayRuns = ls?.teams?.away?.runs;
-    const homeRuns = ls?.teams?.home?.runs;
-    const awayWins = awayRuns != null && homeRuns != null && awayRuns > homeRuns;
-    const homeWins = awayRuns != null && homeRuns != null && homeRuns > awayRuns;
-
-    const awayTeamInfo = raw.teams.away.team;
-    const homeTeamInfo = raw.teams.home.team;
-
-    return {
-        game_pk: raw.game_pk,
-        official_date: raw.datetime?.official_date,
-        game_date: raw.datetime?.date_time,
-        status: raw.status,
-        teams: {
-            away: {
-                team: awayTeamInfo,
-                score: awayRuns,
-                is_winner: awayWins,
-                league_record: awayTeamInfo.record
-                    ? { wins: (awayTeamInfo.record as { wins?: number }).wins, losses: (awayTeamInfo.record as { losses?: number }).losses }
-                    : undefined,
-                batting: raw.teams.away.batting,
-                pitching: raw.teams.away.pitching,
-            },
-            home: {
-                team: homeTeamInfo,
-                score: homeRuns,
-                is_winner: homeWins,
-                league_record: homeTeamInfo.record
-                    ? { wins: (homeTeamInfo.record as { wins?: number }).wins, losses: (homeTeamInfo.record as { losses?: number }).losses }
-                    : undefined,
-                batting: raw.teams.home.batting,
-                pitching: raw.teams.home.pitching,
-            },
-        },
-        linescore: {
-            current_inning: ls?.current_inning,
-            current_inning_ordinal: ls?.current_inning_ordinal,
-            inning_state: ls?.inning_state,
-            inning_half: ls?.inning_half,
-            is_top_inning: ls?.is_top_inning,
-            outs: ls?.outs,
-            balls: ls?.balls,
-            strikes: ls?.strikes,
-            offense: ls?.offense
-                ? {
-                    batter: ls.offense.batter_id != null ? { id: ls.offense.batter_id, full_name: ls.offense.batter } : undefined,
-                    first: ls.offense.first ? { full_name: ls.offense.first } : undefined,
-                    second: ls.offense.second ? { full_name: ls.offense.second } : undefined,
-                    third: ls.offense.third ? { full_name: ls.offense.third } : undefined,
-                }
-                : undefined,
-            defense: ls?.defense
-                ? { pitcher: ls.defense.pitcher_id != null ? { id: ls.defense.pitcher_id, full_name: ls.defense.pitcher } : undefined }
-                : undefined,
-        },
-        decisions: raw.decisions
-            ? {
-                winner: raw.decisions.winner ? { full_name: raw.decisions.winner.full_name } : undefined,
-                loser: raw.decisions.loser ? { full_name: raw.decisions.loser.full_name } : undefined,
-                save: raw.decisions.save ? { full_name: raw.decisions.save.full_name } : undefined,
-            }
-            : undefined,
-    };
-}
-
-// TODO: replace hard-coded IDs with a general two-way player detection strategy
-const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
-
-/** Returns the cardMap key for a player, adding a role suffix for two-way players. */
-const cardKey = (id: number, role: 'H' | 'P'): string =>
-    TWO_WAY_PLAYER_IDS.has(id) ? `${id}-${role}` : String(id);
+/** cardKey() is keyed on numeric MLB player ids; sim card_ids (strings) don't need the two-way suffix. */
+const resolveCardKey = (id: number | string | undefined, role: "H" | "P"): string | undefined => {
+    if (id == null) return undefined;
+    return typeof id === "number" ? cardKey(id, role) : String(id);
+};
 
 const formatGameTime = (gameDate?: string): string => {
     if (!gameDate) {
@@ -134,75 +57,45 @@ const formatGameDate = (gameDate?: string, includeTime: boolean = false): string
     }).format(parsedDate);
 };
 
-export default function GameItem({ game: rawGame, sportId, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, cardMap, isLoadingCards, onSelect }: GameItemProps) {
-    const game = normalizeGame(rawGame);
-    const awayTeam = game.teams?.away?.team;
-    const homeTeam = game.teams?.home?.team;
-    const awayAbbr = awayTeam?.abbreviation || awayTeam?.name || "AWAY";
-    const homeAbbr = homeTeam?.abbreviation || homeTeam?.name || "HOME";
-    const awayScore = game.teams?.away?.score;
-    const homeScore = game.teams?.home?.score;
-    const codedGameState = game.status?.coded_game_state;
-    const detailedGameState = game.status?.detailed_state;
-    const isFinal = codedGameState === 'F' || game.status?.status_code === 'F';
-    const isNotStarted = codedGameState === 'P' || codedGameState === 'S';
-    const isPostponed = codedGameState === 'D';
-    const isInProgress = !isFinal && !isNotStarted && !isPostponed;
+export default function GameItem({ game, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, cardMap, isLoadingCards, onSelect }: GameItemProps) {
+    const isFinal = game.state === 'FINAL';
+    const isNotStarted = game.state === 'PREVIEW';
+    const isPostponed = game.state === 'POSTPONED';
+    const isInProgress = game.state === 'LIVE';
     const hasStarted = !isNotStarted;
 
-    const awayCountryCode = countryCodeForTeam(sportId || 0, awayAbbr);
-    const homeCountryCode = countryCodeForTeam(sportId || 0, homeAbbr);
+    const awayRecord = game.away.record;
+    const homeRecord = game.home.record;
 
-    const awayBadgeBg = awayTeam?.primary_color ?? undefined;
-    const awayBadgeText = awayBadgeBg ? getReadableTextColor(awayBadgeBg, '#ffffff') : undefined;
-    const homeBadgeBg = homeTeam?.primary_color ?? undefined;
-    const homeBadgeText = homeBadgeBg ? getReadableTextColor(homeBadgeBg, '#ffffff') : undefined;
-
-    const awayRecord = game.teams?.away?.league_record;
-    const homeRecord = game.teams?.home?.league_record;
-
-    const batterName = game.linescore?.offense?.batter?.full_name;
-    const livePitcherName = game.linescore?.defense?.pitcher?.full_name;
-    const awayProbablePitcherName = game.teams?.away?.probable_pitcher?.full_name;
-    const homeProbablePitcherName = game.teams?.home?.probable_pitcher?.full_name;
-    const winningPitcherName = game.decisions?.winner?.full_name;
-    const losingPitcherName = game.decisions?.loser?.full_name;
-
-    // Player IDs for cardMap lookups
-    const awayProbableId = game.teams?.away?.probable_pitcher?.id;
-    const homeProbableId = game.teams?.home?.probable_pitcher?.id;
-    const livePitcherId = game.linescore?.defense?.pitcher?.id;
-    const liveBatterId = game.linescore?.offense?.batter?.id;
-    const winnerId = game.decisions?.winner?.id;
-    const loserId = game.decisions?.loser?.id;
+    const batterName = game.situation?.batter?.name;
+    const livePitcherName = game.situation?.pitcher?.name;
+    const awayProbablePitcherName = game.away.probablePitcher?.name;
+    const homeProbablePitcherName = game.home.probablePitcher?.name;
+    const winningPitcherName = game.decisions?.winner?.name;
+    const losingPitcherName = game.decisions?.loser?.name;
 
     // Card records from map — two-way players use a role suffix to pick the correct card.
-    const awayProbableCardRecord = awayProbableId ? cardMap?.[cardKey(awayProbableId, 'P')] : undefined;
-    const homeProbableCardRecord = homeProbableId ? cardMap?.[cardKey(homeProbableId, 'P')] : undefined;
-    const liveAtBatCardRecord = liveBatterId ? cardMap?.[cardKey(liveBatterId, 'H')] : undefined;
-    const livePitchingCardRecord = livePitcherId ? cardMap?.[cardKey(livePitcherId, 'P')] : undefined;
-    const winningPitcherCardRecord = winnerId ? cardMap?.[cardKey(winnerId, 'P')] : undefined;
-    const losingPitcherCardRecord = loserId ? cardMap?.[cardKey(loserId, 'P')] : undefined;
+    const awayProbableCardRecord = cardMap?.[resolveCardKey(game.away.probablePitcher?.id, 'P') ?? ''];
+    const homeProbableCardRecord = cardMap?.[resolveCardKey(game.home.probablePitcher?.id, 'P') ?? ''];
+    const liveAtBatCardRecord = cardMap?.[resolveCardKey(game.situation?.batter?.id, 'H') ?? ''];
+    const livePitchingCardRecord = cardMap?.[resolveCardKey(game.situation?.pitcher?.id, 'P') ?? ''];
+    const winningPitcherCardRecord = cardMap?.[resolveCardKey(game.decisions?.winner?.id, 'P') ?? ''];
+    const losingPitcherCardRecord = cardMap?.[resolveCardKey(game.decisions?.loser?.id, 'P') ?? ''];
 
-    const inningHalf = (game.linescore?.inning_half || game.linescore?.inning_state || '').toUpperCase();
-    const inningNumber = game.linescore?.current_inning_ordinal || game.linescore?.current_inning || '';
-    const outs = Math.max(0, Math.min(3, game.linescore?.outs ?? 0));
-
-    const hasRunnerOnFirst = !!game.linescore?.offense?.first;
-    const hasRunnerOnSecond = !!game.linescore?.offense?.second;
-    const hasRunnerOnThird = !!game.linescore?.offense?.third;
+    const outs = Math.max(0, Math.min(3, game.situation?.outs ?? 0));
+    const bases = game.situation?.bases;
 
     const liveBasesAndOuts = (
         <div className="flex-col gap-1 items-center px-4">
             <div className="relative w-8 h-8 mt-0.5 translate-x-0.5">
                 <div className={`absolute top-0 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 rotate-45 ${
-                    hasRunnerOnSecond ? 'bg-yellow-400' : 'bg-gray-400'
+                    bases?.second ? 'bg-yellow-400' : 'bg-gray-400'
                 }`} />
                 <div className={`absolute bottom-1/3 left-0 w-2.5 h-2.5 rotate-45 ${
-                    hasRunnerOnThird ? 'bg-yellow-400' : 'bg-gray-400'
+                    bases?.third ? 'bg-yellow-400' : 'bg-gray-400'
                 }`} />
                 <div className={`absolute bottom-1/3 right-0 w-2.5 h-2.5 rotate-45 ${
-                    hasRunnerOnFirst ? 'bg-yellow-400' : 'bg-gray-400'
+                    bases?.first ? 'bg-yellow-400' : 'bg-gray-400'
                 }`} />
             </div>
 
@@ -217,13 +110,13 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
         </div>
     );
 
-    const playerIdLinescoreMatch = playerIdForLinescoreHighlight ?
-        (game.teams?.away?.batting?.find(player => player.id === playerIdForLinescoreHighlight && player.is_in_lineup) || game.teams?.home?.batting?.find(player => player.id === playerIdForLinescoreHighlight && player.is_in_lineup))
-        || (game.teams?.away?.pitching?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.pitching?.find(player => player.id === playerIdForLinescoreHighlight))
+    const playerIdLinescoreMatch = playerIdForLinescoreHighlight
+        ? (game.away.boxscore?.batting.find(p => p.id === playerIdForLinescoreHighlight && p.isInLineup) || game.home.boxscore?.batting.find(p => p.id === playerIdForLinescoreHighlight && p.isInLineup))
+            || (game.away.boxscore?.pitching.find(p => p.id === playerIdForLinescoreHighlight) || game.home.boxscore?.pitching.find(p => p.id === playerIdForLinescoreHighlight))
         : undefined;
     const playerLinescoreSummary = playerIdLinescoreMatch ? (
         <div className="mt-2 px-3 py-1 rounded border border-yellow-400/50 bg-yellow-400/5 text-yellow-400 text-sm font-bold">
-            {playerIdLinescoreMatch.name}: {playerIdLinescoreMatch.stats.summary ?? '-'}
+            {playerIdLinescoreMatch.name}: {playerIdLinescoreMatch.summary ?? '-'}
         </div>
     ) : null;
 
@@ -233,9 +126,9 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
         team: string | undefined,
         detail: string,
     ): ShowdownBotCardCompact => ({
-        id: `${game.game_pk}-${idSuffix}`,
+        id: `${game.id}-${idSuffix}`,
         name: name || 'TBD',
-        year: game.season || game.official_date?.slice(0, 4) || '----',
+        year: game.date?.slice(0, 4) || '----',
         set: 'LIVE',
         points: 0,
         command: 0,
@@ -252,65 +145,39 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
         hr_range: null,
     });
 
-    const liveAtBatCardFallback = createPlaceholderCard(
-        'at-bat',
-        batterName,
-        game.linescore?.offense?.team?.abbreviation || awayAbbr,
-        'At Bat',
-    );
-    const livePitchingCardFallback = createPlaceholderCard(
-        'pitching',
-        livePitcherName,
-        game.linescore?.defense?.team?.abbreviation || homeAbbr,
-        'Pitching',
-    );
+    const liveAtBatCardFallback = createPlaceholderCard('at-bat', batterName, game.away.team.abbreviation, 'At Bat');
+    const livePitchingCardFallback = createPlaceholderCard('pitching', livePitcherName, game.home.team.abbreviation, 'Pitching');
+    const awayProbableCardFallback = createPlaceholderCard('away-probable', awayProbablePitcherName, game.away.team.abbreviation, 'Away Probable');
+    const homeProbableCardFallback = createPlaceholderCard('home-probable', homeProbablePitcherName, game.home.team.abbreviation, 'Home Probable');
 
-    const awayProbableCardFallback = createPlaceholderCard(
-        'away-probable',
-        awayProbablePitcherName,
-        awayAbbr,
-        'Away Probable',
-    );
-    const homeProbableCardFallback = createPlaceholderCard(
-        'home-probable',
-        homeProbablePitcherName,
-        homeAbbr,
-        'Home Probable',
-    );
-
-    const winnerTeamAbbr = game.teams?.home?.is_winner ? homeAbbr : game.teams?.away?.is_winner ? awayAbbr : 'WIN';
-    const loserTeamAbbr = game.teams?.home?.is_winner ? awayAbbr : game.teams?.away?.is_winner ? homeAbbr : 'LOSS';
+    const winnerTeamAbbr = game.home.isWinner ? game.home.team.abbreviation : game.away.isWinner ? game.away.team.abbreviation : 'WIN';
+    const loserTeamAbbr = game.home.isWinner ? game.away.team.abbreviation : game.away.isWinner ? game.home.team.abbreviation : 'LOSS';
 
     const winningPitcherCardFallback = createPlaceholderCard('winner', winningPitcherName, winnerTeamAbbr, 'Winning Pitcher');
     const losingPitcherCardFallback = createPlaceholderCard('loser', losingPitcherName, loserTeamAbbr, 'Losing Pitcher');
 
-    const awayProbableCard = awayProbableCardFallback;
-    const homeProbableCard = homeProbableCardFallback;
-    const liveAtBatCard = liveAtBatCardFallback;
-    const livePitchingCard = livePitchingCardFallback;
-    const winningPitcherCard = winningPitcherCardFallback;
-    const losingPitcherCard = losingPitcherCardFallback;
-    const stateBadgeLabel = (detailedGameState);
-    const stateBadgeClasses = detailedGameState === 'Final'
+    const stateBadgeLabel = game.detailedState;
+    const stateBadgeClasses = game.detailedState === 'Final'
         ? 'border-green-500/40 bg-(--success)/10 text-(--success)'
-        : detailedGameState === 'Postponed'
+        : game.detailedState === 'Postponed'
             ? 'border-(--red)/40 bg-(--red)/10 text-(--red)'
             : isInProgress
                 ? 'border-yellow-400/50 bg-yellow-400/5 text-yellow-400'
                 : 'border-(--divider) bg-(--background-primary) text-(--text-secondary)';
 
+    const gamePk = typeof game.id === 'number' ? game.id : Number(game.id);
+
     return (
         <div
             className={`rounded-xl border-2 bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-yellow-400/50' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
-            onClick={onSelect ? () => onSelect(game.game_pk) : undefined}
+            onClick={onSelect ? () => onSelect(gamePk) : undefined}
             role={onSelect ? "button" : undefined}
             tabIndex={onSelect ? 0 : undefined}
-            onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(game.game_pk); } } : undefined}
+            onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(gamePk); } } : undefined}
         >
-            {(game.series_description || game.description) && game.series_description !== "Regular Season" && (
+            {game.seriesLabel && game.seriesLabel !== "Regular Season" && (
                 <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
-                    <span>{(game.series_description || game.description || "Game")}
-                    {game.series_game_number ? ` | Game ${game.series_game_number}` : ""}</span>
+                    <span>{game.seriesLabel}</span>
                 </div>
                 )
             }
@@ -318,13 +185,13 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
             <div className="py-1 flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-1 text-sm font-extrabold text-(--text-primary)">
                     {isFinal && (
-                        <span>{formatGameDate(game.game_date)}</span>
+                        <span>{formatGameDate(game.date)}</span>
                     )}
                     {!isFinal && hasStarted && (
-                        <span>{inningHalf && inningNumber ? `${inningHalf} ${inningNumber}` : ''}</span>
+                        <span>{game.situation ? `${game.situation.isTop ? 'TOP' : 'BOT'} ${game.situation.inningLabel}` : ''}</span>
                     )}
                     {!isFinal && !hasStarted && (
-                        <span>{formatGameTime(game.game_date)}</span>
+                        <span>{formatGameTime(game.date)}</span>
                     )}
                     {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
                 </div>
@@ -340,48 +207,26 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                 {/* Teams and Scores */}
                 <div className="w-full space-y-2 py-2">
                     <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                            {sportId === 51 && awayCountryCode && (
-                                <ReactCountryFlag countryCode={awayCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
-                            )}
-                            <span
-                                className={`font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
-                                style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
-                            >{awayAbbr}</span>
-                            {awayRecord && (
-                                <span className="text-[11px] font-semibold text-(--text-secondary)">{awayRecord.wins ?? 0} - {awayRecord.losses ?? 0}</span>
-                            )}
-                        </div>
-                        {hasStarted && awayScore != null && (
-                            <span className="font-black text-(--text-primary)">{awayScore}</span>
+                        <TeamChip team={game.away.team} record={awayRecord} />
+                        {hasStarted && game.away.score != null && (
+                            <span className="font-black text-(--text-primary)">{game.away.score}</span>
                         )}
                     </div>
 
                     <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                            {sportId === 51 && homeCountryCode && (
-                                <ReactCountryFlag countryCode={homeCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
-                            )}
-                            <span
-                                className={`font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
-                                style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
-                            >{homeAbbr}</span>
-                            {homeRecord && (
-                                <span className="text-[12px] font-semibold text-(--text-secondary)">{homeRecord.wins ?? 0} - {homeRecord.losses ?? 0}</span>
-                            )}
-                        </div>
-                        {hasStarted && homeScore != null && (
-                            <span className="font-black text-(--text-primary)">{homeScore}</span>
+                        <TeamChip team={game.home.team} record={homeRecord} />
+                        {hasStarted && game.home.score != null && (
+                            <span className="font-black text-(--text-primary)">{game.home.score}</span>
                         )}
                     </div>
                 </div>
-                
+
                 {/* Live Bases and Outs */}
                 {isInProgress && liveBasesAndOuts}
 
             </div>
-            
-            {isNotStarted && showMatchupDetails && (
+
+            {isNotStarted && !isPostponed && showMatchupDetails && (
                 <>
                     <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
@@ -395,11 +240,11 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     <div className="pt-1 flex gap-2 items-center">
                         {awayProbableCardRecord
                             ? <CardItemCompactFromCardDatabaseRecord card={awayProbableCardRecord} hideDetails />
-                            : <CardItemCompact card={awayProbableCard} isLoading={isLoadingCards && awayProbableId != null} hideDetails />}
+                            : <CardItemCompact card={awayProbableCardFallback} isLoading={isLoadingCards && game.away.probablePitcher?.id != null} hideDetails />}
                         <span className="text-[12px]">vs</span>
                         {homeProbableCardRecord
                             ? <CardItemCompactFromCardDatabaseRecord card={homeProbableCardRecord} hideDetails />
-                            : <CardItemCompact card={homeProbableCard} isLoading={isLoadingCards && homeProbableId != null} hideDetails />}
+                            : <CardItemCompact card={homeProbableCardFallback} isLoading={isLoadingCards && game.home.probablePitcher?.id != null} hideDetails />}
                     </div>
                 </>
             )}
@@ -418,10 +263,10 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     <div className="pt-1 flex gap-2">
                         {liveAtBatCardRecord
                             ? <CardItemCompactFromCardDatabaseRecord card={liveAtBatCardRecord} hideDetails />
-                            : <CardItemCompact card={liveAtBatCard} isLoading={isLoadingCards && liveBatterId != null} hideDetails />}
+                            : <CardItemCompact card={liveAtBatCardFallback} isLoading={isLoadingCards && game.situation?.batter?.id != null} hideDetails />}
                         {livePitchingCardRecord
                             ? <CardItemCompactFromCardDatabaseRecord card={livePitchingCardRecord} hideDetails />
-                            : <CardItemCompact card={livePitchingCard} isLoading={isLoadingCards && livePitcherId != null} hideDetails />}
+                            : <CardItemCompact card={livePitchingCardFallback} isLoading={isLoadingCards && game.situation?.pitcher?.id != null} hideDetails />}
                     </div>
                 </>
             )}
@@ -440,10 +285,10 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     <div className="pt-1 flex gap-2">
                         {winningPitcherCardRecord
                             ? <CardItemCompactFromCardDatabaseRecord card={winningPitcherCardRecord} hideDetails />
-                            : <CardItemCompact card={winningPitcherCard} isLoading={isLoadingCards && winnerId != null} hideDetails />}
+                            : <CardItemCompact card={winningPitcherCardFallback} isLoading={isLoadingCards && game.decisions?.winner?.id != null} hideDetails />}
                         {losingPitcherCardRecord
                             ? <CardItemCompactFromCardDatabaseRecord card={losingPitcherCardRecord} hideDetails />
-                            : <CardItemCompact card={losingPitcherCard} isLoading={isLoadingCards && loserId != null} hideDetails />}
+                            : <CardItemCompact card={losingPitcherCardFallback} isLoading={isLoadingCards && game.decisions?.loser?.id != null} hideDetails />}
                     </div>
                 </>
             )}

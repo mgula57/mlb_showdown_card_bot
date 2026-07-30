@@ -185,19 +185,26 @@ class GamesClient(BaseMLBClient):
                 "link": d.get("link", ""),
             }
         
+        def _extract_play(play: dict) -> dict:
+            """Trim a single raw play down to the fields the frontend needs: result, matchup,
+            about, and count (for the post-play out count)."""
+            return {
+                "result": play.get("result", {}),
+                "matchup": play.get("matchup", {}),
+                "about": play.get("about", {}),
+                "count": play.get("count", {}),
+            }
+
         def _extract_most_recent_play(plays: dict) -> dict | None:
-            """Extract details of the most recent play from the plays data. Only include result and matchup details, not the full play-by-play info."""
+            """Extract details of the most recent play from the plays data."""
             all_plays = plays.get("allPlays", [])
             if not all_plays:
                 return None
-            if len(all_plays) == 0:
-                return None
-            most_recent = all_plays[-1]
-            return {
-                "result": most_recent.get("result", {}),
-                "matchup": most_recent.get("matchup", {}),
-                "about": most_recent.get("about", {}),
-            }
+            return _extract_play(all_plays[-1])
+
+        def _extract_all_plays(plays: dict) -> list[dict]:
+            """Full play-by-play list (one entry per plate appearance), oldest first."""
+            return [_extract_play(p) for p in plays.get("allPlays", [])]
 
         # Linescore
         innings = []
@@ -278,6 +285,7 @@ class GamesClient(BaseMLBClient):
                 if pitcher
             },
             "most_recent_play": _extract_most_recent_play(plays_raw),
+            "plays": _extract_all_plays(plays_raw),
         }
 
     def get_all_star_rosters(self, season: int, sport_id: int = 1) -> list[dict]:

@@ -1,4 +1,4 @@
-import { getContrastColor } from "../../shared/Color";
+import { getContrastTextColor } from "../../../functions/colors";
 
 /**
  * Props for the CardIcon component
@@ -15,7 +15,7 @@ type CardIconProps = {
  * CardIcon component displays an icon with a specified color and value.
  */
 const CardIcon = ({ color, value, circleSize, textSize }: CardIconProps) => {
-    const contrastColor = getContrastColor(color);
+    const contrastColor = getContrastTextColor(color);
     const twoDigitTextSize = value.length === 2 ? (textSize - 1) : textSize;
 
     return (

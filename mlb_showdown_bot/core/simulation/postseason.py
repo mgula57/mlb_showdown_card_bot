@@ -109,11 +109,12 @@ class PostseasonSeries:
 
 class Postseason:
 
-    def __init__(self, year: int, standings: Standings, format: PostseasonFormat, start_date: date) -> None:
+    def __init__(self, year: int, standings: Standings, format: PostseasonFormat, start_date: date, collect_box_score: bool = False) -> None:
         self.year = year
         self.standings = standings
         self.format = self.default_format_for_year(year=year) if format == PostseasonFormat.DYNAMIC else format
         self.start_date = start_date
+        self.collect_box_score = collect_box_score
         # SCHEDULE PLACEHOLDERS
         self.rounds: dict[PostseasonRound, dict[str, PostseasonSeries]] = {round: {} for round in self.format.rounds}
         self.generate_initial_schedule()
@@ -333,7 +334,7 @@ class Postseason:
                         home_team.process_il_returns_for_date(game_date=game.date)
                         away_team.process_il_returns_for_date(game_date=game.date)
                         game.setup(home_team=home_team, away_team=away_team)
-                        game.simulate(rng=rng)
+                        game.simulate(rng=rng, collect_box_score=self.collect_box_score)
                         end_date = game.date
 
                 series.end_date = end_date

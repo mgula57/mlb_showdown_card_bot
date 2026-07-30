@@ -88,6 +88,9 @@ export const getReadableTextColor = (bg: string, preferredText: string): string 
     return whiteContrast >= blackContrast ? '#ffffff' : '#000000';
 };
 
+/** Best-contrast text color (black or white) for a background, with no preferred override. */
+export const getContrastTextColor = (bg: string): string => getReadableTextColor(bg, '#000000');
+
 /**
  * Darken a color only when it is too bright against a white background.
  *

@@ -8,7 +8,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { useCardMap } from '../../hooks/useCardMap';
-import { getContrastColor } from "../shared/Color";
+import { getContrastTextColor } from "../../functions/colors";
 import { FieldView } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
@@ -122,9 +122,9 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
 }
 
 /** Contrast-aware translucent banner tokens for a given base color.
- *  getContrastColor returns '#000000' (black text) for light backgrounds. */
+ *  getContrastTextColor returns '#000000' (black text) for light backgrounds. */
 function bannerTokens(baseColor: string) {
-    const isLight = getContrastColor(baseColor) === '#000000';
+    const isLight = getContrastTextColor(baseColor) === '#000000';
     return {
         fill:  isLight ? 'rgba(0,0,0,0.80)' : 'rgba(255,255,255,0.92)',
         track: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)',
@@ -570,7 +570,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     </div>
                     {/* Subtitle row: PTS Breakdown */}
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-0.5">
-                        <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastColor(primary) }}>
+                        <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
                             {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
                         </span>
                         {([
@@ -579,7 +579,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             { label: 'ROTATION', value: pointsBreakdown.rotation },
                             { label: 'BULLPEN', value: pointsBreakdown.bullpen },
                         ] as const).map(({ label, value }) => (
-                            <span key={label} className="text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastColor(team.secondary_color) }}>
+                            <span key={label} className="text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
                                 {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
                             </span>
                         ))}
