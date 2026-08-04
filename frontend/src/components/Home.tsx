@@ -418,7 +418,7 @@ export default function Home() {
                                     <div className="mb-2 flex items-center justify-between gap-1.5">
                                         <span className={`text-[10px] font-bold uppercase tracking-wide py-0.5 ${isLive || isFinal ? 'px-1.5 rounded' : ''} ${
                                             isLive
-                                                ? 'bg-yellow-400/10 text-yellow-400'
+                                                ? 'bg-(--live)/10 text-(--live)'
                                                 : isFinal
                                                 ? 'bg-green-500/10 text-green-300'
                                                 : isDark ? 'text-neutral-100' : 'text-neutral-500'
@@ -426,7 +426,7 @@ export default function Home() {
                                             {isLive ? 'LIVE' : statusLabel}
                                         </span>
                                         {isLive && inning != null && (
-                                            <span className="text-[10px] font-bold text-yellow-400">
+                                            <span className="text-[10px] font-bold text-(--live)">
                                                 {inningHalf} {inning}
                                             </span>
                                         )}

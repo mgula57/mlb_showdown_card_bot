@@ -1,11 +1,12 @@
 import { FaStar } from "react-icons/fa6";
 
 import type { GameView } from "../../domain/game";
-import { cardKey } from "../../domain/players";
+import { resolveCardKey } from "../../domain/players";
 import { TeamChip } from "../shared/TeamChip";
 import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import { type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardItemCompact, CardItemCompactFromCardDatabaseRecord } from "../cards/CardItemCompact";
+import { BasesDiamond } from "./BasesDiamond";
 
 type GameItemProps = {
     game: GameView;
@@ -15,12 +16,6 @@ type GameItemProps = {
     cardMap?: Record<string | number, CardDatabaseRecord>;
     isLoadingCards?: boolean;
     onSelect?: (gamePk: number) => void;
-};
-
-/** cardKey() is keyed on numeric MLB player ids; sim card_ids (strings) don't need the two-way suffix. */
-const resolveCardKey = (id: number | string | undefined, role: "H" | "P"): string | undefined => {
-    if (id == null) return undefined;
-    return typeof id === "number" ? cardKey(id, role) : String(id);
 };
 
 const formatGameTime = (gameDate?: string): string => {
@@ -82,32 +77,8 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
     const winningPitcherCardRecord = cardMap?.[resolveCardKey(game.decisions?.winner?.id, 'P') ?? ''];
     const losingPitcherCardRecord = cardMap?.[resolveCardKey(game.decisions?.loser?.id, 'P') ?? ''];
 
-    const outs = Math.max(0, Math.min(3, game.situation?.outs ?? 0));
-    const bases = game.situation?.bases;
-
     const liveBasesAndOuts = (
-        <div className="flex-col gap-1 items-center px-4">
-            <div className="relative w-8 h-8 mt-0.5 translate-x-0.5">
-                <div className={`absolute top-0 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 rotate-45 ${
-                    bases?.second ? 'bg-yellow-400' : 'bg-gray-400'
-                }`} />
-                <div className={`absolute bottom-1/3 left-0 w-2.5 h-2.5 rotate-45 ${
-                    bases?.third ? 'bg-yellow-400' : 'bg-gray-400'
-                }`} />
-                <div className={`absolute bottom-1/3 right-0 w-2.5 h-2.5 rotate-45 ${
-                    bases?.first ? 'bg-yellow-400' : 'bg-gray-400'
-                }`} />
-            </div>
-
-            <div className="flex items-center gap-1.5">
-                {[0, 1, 2].map((outIndex) => (
-                    <span
-                        key={outIndex}
-                        className={`h-2 w-2 rounded-full border ${outIndex < outs ? 'bg-yellow-400' : 'bg-(--text-secondary)/40'}`}
-                    />
-                ))}
-            </div>
-        </div>
+        <BasesDiamond bases={game.situation?.bases} outs={game.situation?.outs ?? 0} className="px-4" />
     );
 
     const playerIdLinescoreMatch = playerIdForLinescoreHighlight
@@ -162,7 +133,7 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
         : game.detailedState === 'Postponed'
             ? 'border-(--red)/40 bg-(--red)/10 text-(--red)'
             : isInProgress
-                ? 'border-yellow-400/50 bg-yellow-400/5 text-yellow-400'
+                ? 'border-(--live)/50 bg-(--live)/5 text-(--live)'
                 : 'border-(--divider) bg-(--background-primary) text-(--text-secondary)';
 
     const gamePk = typeof game.id === 'number' ? game.id : Number(game.id);

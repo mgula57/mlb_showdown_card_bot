@@ -70,16 +70,38 @@ export type GameSide = {
     boxscore?: TeamBoxscore;
 };
 
+/** The nine defensive slots, keyed the way the MLB linescore reports them. Every slot is
+ * optional — a defense isn't set before first pitch, and slots go briefly missing mid-substitution. */
+export type DefenseAlignment = {
+    pitcher?: PlayerRef;
+    catcher?: PlayerRef;
+    first?: PlayerRef;
+    second?: PlayerRef;
+    third?: PlayerRef;
+    shortstop?: PlayerRef;
+    left?: PlayerRef;
+    center?: PlayerRef;
+    right?: PlayerRef;
+};
+
 export type LiveSituation = {
     inning: number;
     isTop: boolean;
     inningLabel: string;
     outs: number;
+    /** MLB only — the sim resolves a plate appearance in one pitch roll + one swing roll,
+     * so it has no ball/strike count to report. */
     balls?: number;
     strikes?: number;
-    bases: { first: boolean; second: boolean; third: boolean };
+    /** Runner on each base, or null when the base is empty — occupancy derives as `!!bases.first`.
+     * A runner whose identity isn't known (the sim tracks occupancy only) is the sentinel
+     * `{ name: "" }`; render those as a plain marker rather than a named chip. */
+    bases: { first: PlayerRef | null; second: PlayerRef | null; third: PlayerRef | null };
     batter?: PlayerRef;
     pitcher?: PlayerRef;
+    onDeck?: PlayerRef;
+    inHole?: PlayerRef;
+    defense?: DefenseAlignment;
 };
 
 export type InningLine = {

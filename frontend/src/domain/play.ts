@@ -10,15 +10,16 @@ export type PlayEntry = {
     id: string;              // about.atBatIndex — stable across polls
     inning: number;
     isTop: boolean;
-    batterId?: number;
+    /** Numeric for MLB players, string for sim card_ids — resolve with `resolveCardKey`. */
+    batterId?: number | string;
     batterName: string;
-    pitcherId?: number;
+    pitcherId?: number | string;
     pitcherName: string;
     event: string;            // badge label, e.g. "Flyout", "Walk", "Home Run"
     description: string;
     isScoringPlay?: boolean;
     outs?: number;            // post-play outs in the half-inning
-    roll?: {                  // SIM ONLY - unpopulated until a sim adapter exists
+    roll?: {                  // SIM ONLY - MLB plays have a pitch count instead
         pitchRoll: number;
         pitchResult: string;
         swingRoll: number;

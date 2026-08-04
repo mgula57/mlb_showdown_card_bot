@@ -18,6 +18,7 @@ import type {
 import type {
     BoxscoreBatterLine,
     BoxscorePitcherLine,
+    DefenseAlignment,
     GameSide,
     GameState,
     GameView,
@@ -86,6 +87,33 @@ const deriveGameState = (status?: GameStatus): { state: GameState; detailedState
 const personRef = (id: number | string | undefined, name: string | undefined): PlayerRef | undefined =>
     name ? { id, name } : undefined;
 
+/** Same as `personRef` but for base slots, where "no runner" is a meaningful value rather than
+ * an absent field — `LiveSituation.bases` uses null so occupancy reads as `!!bases.first`. */
+const runnerRef = (slot: { id?: number; full_name?: string } | null | undefined): PlayerRef | null =>
+    slot?.full_name ? { id: slot.id, name: slot.full_name } : null;
+
+const slotRef = (slot: { id?: number; full_name?: string } | null | undefined): PlayerRef | undefined =>
+    slot?.full_name ? { id: slot.id, name: slot.full_name } : undefined;
+
+/** Builds the nine-slot defense, or undefined when no slot is populated (pre-first-pitch). */
+const toDefenseAlignment = (
+    defense: Partial<Record<keyof DefenseAlignment, { id?: number; full_name?: string } | null>> | undefined,
+): DefenseAlignment | undefined => {
+    if (!defense) return undefined;
+    const alignment: DefenseAlignment = {
+        pitcher: slotRef(defense.pitcher),
+        catcher: slotRef(defense.catcher),
+        first: slotRef(defense.first),
+        second: slotRef(defense.second),
+        third: slotRef(defense.third),
+        shortstop: slotRef(defense.shortstop),
+        left: slotRef(defense.left),
+        center: slotRef(defense.center),
+        right: slotRef(defense.right),
+    };
+    return Object.values(alignment).some(Boolean) ? alignment : undefined;
+};
+
 // ------------------------------------------------------------------
 // SCHEDULED GAME (schedule / ticker / game tile)
 // ------------------------------------------------------------------
@@ -139,12 +167,15 @@ export const fromScheduledGame = (game: GameScheduled, sportId?: number): GameVi
             balls: ls.balls,
             strikes: ls.strikes,
             bases: {
-                first: !!ls.offense?.first,
-                second: !!ls.offense?.second,
-                third: !!ls.offense?.third,
+                first: runnerRef(ls.offense?.first),
+                second: runnerRef(ls.offense?.second),
+                third: runnerRef(ls.offense?.third),
             },
             batter: personRef(ls.offense?.batter?.id, ls.offense?.batter?.full_name),
             pitcher: personRef(ls.defense?.pitcher?.id, ls.defense?.pitcher?.full_name),
+            onDeck: slotRef(ls.offense?.on_deck),
+            inHole: slotRef(ls.offense?.in_hole),
+            defense: toDefenseAlignment(ls.defense),
         }
         : undefined;
 
@@ -236,12 +267,15 @@ export const fromBoxscoreDetail = (game: GameBoxscoreDetail, sportId?: number): 
             balls: ls.balls,
             strikes: ls.strikes,
             bases: {
-                first: !!ls.offense?.first,
-                second: !!ls.offense?.second,
-                third: !!ls.offense?.third,
+                first: runnerRef(ls.offense?.first),
+                second: runnerRef(ls.offense?.second),
+                third: runnerRef(ls.offense?.third),
             },
-            batter: personRef(ls.offense?.batter_id, ls.offense?.batter),
-            pitcher: personRef(ls.defense?.pitcher_id, ls.defense?.pitcher),
+            batter: slotRef(ls.offense?.batter),
+            pitcher: slotRef(ls.defense?.pitcher),
+            onDeck: slotRef(ls.offense?.on_deck),
+            inHole: slotRef(ls.offense?.in_hole),
+            defense: toDefenseAlignment(ls.defense),
         }
         : undefined;
 

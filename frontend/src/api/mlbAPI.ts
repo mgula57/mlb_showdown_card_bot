@@ -724,18 +724,32 @@ export interface BoxscoreLinescoreTeams {
     home: BoxscoreLinescoreTeamTotals;
 }
 
+/** A linescore offense/defense slot. Null when unoccupied — an empty base, no on-deck hitter
+ * between innings, or a defense that isn't set yet before first pitch. */
+export interface BoxscorePersonRef {
+    id: number;
+    full_name: string;
+}
+
 export interface BoxscoreLinescoreOffense {
-    batter?: string;
-    batter_id?: number;
-    on_deck?: string;
-    first?: string;
-    second?: string;
-    third?: string;
+    batter?: BoxscorePersonRef | null;
+    on_deck?: BoxscorePersonRef | null;
+    in_hole?: BoxscorePersonRef | null;
+    first?: BoxscorePersonRef | null;
+    second?: BoxscorePersonRef | null;
+    third?: BoxscorePersonRef | null;
 }
 
 export interface BoxscoreLinescoreDefense {
-    pitcher?: string;
-    pitcher_id?: number;
+    pitcher?: BoxscorePersonRef | null;
+    catcher?: BoxscorePersonRef | null;
+    first?: BoxscorePersonRef | null;
+    second?: BoxscorePersonRef | null;
+    third?: BoxscorePersonRef | null;
+    shortstop?: BoxscorePersonRef | null;
+    left?: BoxscorePersonRef | null;
+    center?: BoxscorePersonRef | null;
+    right?: BoxscorePersonRef | null;
 }
 
 export interface BoxscoreLinescore {

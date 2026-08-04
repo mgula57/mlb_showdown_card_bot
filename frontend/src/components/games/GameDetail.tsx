@@ -1,17 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from "react";
 import ReactCountryFlag from "react-country-flag";
 import { FaChevronLeft } from "react-icons/fa6";
 
 import { countryCodeForTeam } from "../../functions/flags";
 import { getReadableTextColor, getContrastTextColor } from "../../functions/colors";
 import { Modal } from "../shared/Modal";
+import { BottomSheet } from "../shared/BottomSheet";
 import {
     fetchGameBoxscore,
     type GameBoxscoreDetail,
     type BoxscoreTeamData,
     type BoxscoreBatter,
     type BoxscorePitcher,
-    type BoxscoreLinescoreInning,
     type BoxscoreDecisionPerson,
 } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -22,10 +22,14 @@ import { CardDetail } from "../cards/CardDetail";
 import {
     useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
 } from "@floating-ui/react";
+import * as Tabs from '@radix-ui/react-tabs';
 import { TWO_WAY_PLAYER_IDS, cardKey } from "../../domain/players";
-import { fromGamePlays } from "../../domain/adapters/fromMlbApi";
-import type { PlayEntry } from "../../domain/play";
+import { fromBoxscoreDetail, fromGamePlays } from "../../domain/adapters/fromMlbApi";
 import PlayByPlayLog from "./PlayByPlayLog";
+import GameField from "./GameField";
+import GameMatchup from "./GameMatchup";
+import { BasesDiamond } from "./BasesDiamond";
+import GameLinescore from "./GameLinescore";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -52,9 +56,15 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const [error, setError] = useState<string | null>(null);
 
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
+    const [isFieldExpanded, setIsFieldExpanded] = useState(false);
     const handleModalCardClose = () => {
         setSelectedCard(null);
     };
+
+    // The new panels all render from the canonical GameView; the raw boxscore stays the source
+    // for the batting/pitching tables and game info, which carry MLB-only detail.
+    const view = useMemo(() => (boxscore ? fromBoxscoreDetail(boxscore, sportId) : null), [boxscore, sportId]);
+    const plays = useMemo(() => fromGamePlays(boxscore?.plays ?? []), [boxscore]);
 
     const refreshBoxscore = useCallback((silent = false) => {
         if (!silent) setIsRefreshing(true);
@@ -225,7 +235,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         );
     }
 
-    if (error || !boxscore) {
+    if (error || !boxscore || !view) {
         return (
             <div className={`flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                 <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
@@ -240,64 +250,186 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     const away = boxscore.teams.away;
     const home = boxscore.teams.home;
-    const ls = boxscore.linescore;
-    const isFinal = boxscore.status?.coded_game_state === "F";
-    const isNotStarted = boxscore.status?.coded_game_state === "P" || boxscore.status?.coded_game_state === "S";
-    const isInProgress = !isFinal && !isNotStarted;
-    const detailedState = boxscore.status?.detailed_state ?? (isFinal ? "Final" : "In Progress");
-    const plays = fromGamePlays(boxscore.plays ?? []);
+    const isFinal = view.state === "FINAL";
+    const isNotStarted = view.state === "PREVIEW" || view.state === "POSTPONED";
+    const isInProgress = view.state === "LIVE";
+    const detailedState = view.detailedState || (isFinal ? "Final" : "In Progress");
+
+    // The field is the mobile backdrop, so it only leads the layout once there's a live
+    // situation to put on it. Before first pitch and after the final out, the panels are the page.
+    const hasLiveField = true;
+
+    /* Play-by-play gets its own column on desktop (lg), so it's split out from the rest of the
+       box score. It renders at natural (uncapped) height there — its column is the one that
+       scrolls (`overflow-y-auto`), same as the box-score column — rather than nesting one
+       scrollbar inside another. The mobile/no-field layouts keep the original height cap. */
+    const playByPlayPanelDesktop = (
+        <PlayByPlayLog
+            key={gamePk}
+            plays={plays}
+            cardMap={cardMap}
+            onCardSelect={setSelectedCard}
+            isLoadingCards={isLoadingCards}
+            maxHeightClassName="max-h-none"
+        />
+    );
+    const playByPlayPanelMobile = (
+        <PlayByPlayLog
+            key={gamePk}
+            plays={plays}
+            cardMap={cardMap}
+            onCardSelect={setSelectedCard}
+            isLoadingCards={isLoadingCards}
+            maxHeightClassName="max-h-[26rem]"
+        />
+    );
+
+    /* Linescore, box score and game info. On desktop this is the scrolling right column; on
+       mobile it rides in the bottom sheet over the field, below the play-by-play panel. */
+    const boxScorePanels = (
+        <div className="@container space-y-4">
+            <GameLinescore game={view} />
+
+            {isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+
+            {isNotStarted && boxscore.probable_pitchers && (
+                <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
+            )}
+
+            {/* Below @820px the container is too narrow for both teams' tables side by side, so
+                they collapse into tabs; at/above it, both Tabs.Content panels are forced visible
+                (via forceMount + the @[820px] override below) and sit in a 2-column grid instead. */}
+            <Tabs.Root defaultValue="away">
+                <Tabs.List className="@[820px]:hidden flex gap-1 rounded-lg bg-(--background-tertiary) p-1 mb-3">
+                    <Tabs.Trigger
+                        value="away"
+                        style={{ '--tab-bg': away.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(away.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
+                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
+                    >
+                        {away.team.abbreviation}
+                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                        value="home"
+                        style={{ '--tab-bg': home.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(home.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
+                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
+                    >
+                        {home.team.abbreviation}
+                    </Tabs.Trigger>
+                </Tabs.List>
+                <div className="grid gap-4 @[820px]:grid-cols-2">
+                    <Tabs.Content value="away" forceMount className="space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
+                        <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                        <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                    </Tabs.Content>
+                    <Tabs.Content value="home" forceMount className="space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
+                        <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                        <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                    </Tabs.Content>
+                </div>
+            </Tabs.Root>
+
+            <GameInfo away={away} home={home} />
+        </div>
+    );
+
+    const scoreHeader = (
+        <ScoreHeader
+            away={away}
+            home={home}
+            linescore={boxscore.linescore}
+            sportId={sportId}
+            detailedState={detailedState}
+            isInProgress={isInProgress}
+        />
+    );
 
     return (
         <div className={`flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
-            <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
+            <div className="px-4 py-2.5 border-b border-(--divider) shrink-0 flex items-center gap-3">
                 <BackButton onBack={onBack} />
+                {isRefreshing && (
+                    <svg className="animate-spin h-3.5 w-3.5 text-(--secondary)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                )}
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-                <div className="space-y-4 p-4 pb-24">
-                    {/* Header: Teams + Score */}
-                    <ScoreHeader
-                        away={away}
-                        home={home}
-                        linescore={ls}
-                        sportId={sportId}
-                        detailedState={detailedState}
-                        isInProgress={isInProgress}
-                    />
+            {hasLiveField ? (
+                <>
+                    <div className="flex-1 min-h-0 lg:grid lg:grid-cols-[3fr_4fr_3fr] lg:gap-4 lg:p-4 lg:overflow-hidden">
+                        {/* Play-by-play column — desktop only; it rides in the bottom sheet on mobile. */}
+                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto">
+                            {playByPlayPanelDesktop}
+                        </div>
 
-                    {/* Matchup Strip — current at-bat, with recent plays flowing underneath it */}
-                    {isInProgress && <MatchupStrip gamePk={gamePk} linescore={ls} plays={plays} teams={boxscore.teams} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+                        {/* Spotlight column — the whole screen on mobile, with the sheet parked over it. */}
+                        <div className="h-full overflow-y-auto space-y-4 p-4 pb-[22vh] lg:p-0 lg:pb-4">
+                            {/* Grass backdrop behind the scoreboard, field and matchup as one group —
+                                faded top/bottom so it blends into the page instead of a hard edge.
+                                The image is the first child with no z-index of its own, and the
+                                content wrapper below it is `relative` (so it's a positioned sibling
+                                too) — later DOM order among same-stacking-level positioned elements
+                                paints on top, with no negative z-index needed (which can end up
+                                behind an ancestor's own background instead of just this image). */}
+                            <div className="relative">
+                                <img
+                                    src="/images/games/Grass.png"
+                                    alt=""
+                                    className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
+                                    style={{
+                                        maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)',
+                                        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)',
+                                    }}
+                                />
 
-                    {/* Linescore Table */}
-                    <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} currentInning={ls.current_inning} isInProgress={isInProgress} />
+                                <div className="relative space-y-4">
+                                    {/* The field's own score bug carries this on mobile. */}
+                                    <div className="hidden lg:block">{scoreHeader}</div>
 
-                    {/* Play-by-Play — standalone once the game is final (no current matchup to attach it to) */}
-                    {!isInProgress && <PlayByPlayLog key={gamePk} plays={plays} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+                                    <GameField
+                                        game={view}
+                                        cardMap={cardMap}
+                                        onCardSelect={setSelectedCard}
+                                        expanded={isFieldExpanded}
+                                        onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
+                                        isLoadingCards={isLoadingCards}
+                                    />
 
-                    {/* Decisions */}
-                    {isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+                                    <GameMatchup
+                                        game={view}
+                                        plays={plays}
+                                        cardMap={cardMap}
+                                        isLoadingCards={isLoadingCards}
+                                        onCardSelect={setSelectedCard}
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
-                    {/* Probable Starting Pitchers */}
-                    {isNotStarted && boxscore.probable_pitchers && <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
-
-                    <div className="grid sm:grid-cols-2 gap-4">
-                        {/* Away Batting */}
-                        <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                        {/* Home Batting */}
-                        <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-
-                        {/* Away Pitching */}
-                        <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-
-                        {/* Home Pitching */}
-                        <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-
+                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto lg:pb-4">
+                            {boxScorePanels}
+                        </div>
                     </div>
 
-                    {/* Game Info */}
-                    <GameInfo away={away} home={home} />
+                    {/* BottomSheet is lg:hidden internally, so this is the mobile half of the split.
+                        Non-dismissible: the panels are the only way to reach the box score here. */}
+                    <BottomSheet isOpen onClose={() => {}} dismissible={false} title="Game Details">
+                        <div className="px-4 pb-[calc(2rem+var(--safe-bottom))] pt-2 space-y-4">
+                            {playByPlayPanelMobile}
+                            {boxScorePanels}
+                        </div>
+                    </BottomSheet>
+                </>
+            ) : (
+                <div className="flex-1 overflow-y-auto">
+                    <div className="space-y-4 p-4 pb-24 lg:mx-auto lg:max-w-5xl">
+                        {scoreHeader}
+                        {playByPlayPanelMobile}
+                        {boxScorePanels}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className={selectedCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={handleModalCardClose} isVisible={!!selectedCard}>
@@ -363,60 +495,71 @@ function ScoreHeader({
     const inningOrdinal = linescore.current_inning_ordinal || linescore.current_inning || '';
     const inningStr = inningHalf && inningOrdinal ? `${inningHalf} ${inningOrdinal}` : String(inningOrdinal);
 
+    const hasCount = linescore.balls != null && linescore.strikes != null;
+    const bases = { first: linescore.offense?.first, second: linescore.offense?.second, third: linescore.offense?.third };
+
     return (
-        <>
-        <style>{`@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }`}</style>
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4">
+        <div className="rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                {/* Away team - left aligned */}
+                {/* Away team - left aligned, score next to the badge rather than in the center */}
                 <div className="flex flex-col gap-1">
                     {sportId === 51 && awayCode && (
                         <ReactCountryFlag countryCode={awayCode} svg style={{ width: '1.5em', height: '1.5em' }} />
                     )}
-                    <div
-                        className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none"
-                        style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
-                    >{away.team.abbreviation}</div>
+                    <div className="flex items-center gap-2.5">
+                        <div
+                            className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none shrink-0"
+                            style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
+                        >{away.team.abbreviation}</div>
+                        <span className="text-[32px] font-bold leading-none text-(--primary)">{awayRuns}</span>
+                    </div>
                     <div className="text-[14px] hidden sm:block font-semibold text-(--primary) leading-snug">{away.team.name}</div>
                     {awayRecord && (
                         <div className="text-[12px] text-(--secondary)">{awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}</div>
                     )}
                 </div>
 
-                {/* Center: Score + status */}
+                {/* Center: game state, count and bases — the situational info, not the score */}
                 <div className="flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-3">
-                        <span className={`text-[40px] font-bold leading-none text-(--primary)`}>
-                            {awayRuns}
-                        </span>
-                        <span className="text-2xl font-bold text-(--secondary)">–</span>
-                        <span className={`text-[40px] font-bold leading-none text-(--primary)`}>
-                            {homeRuns}
-                        </span>
-                    </div>
                     {isInProgress && inningStr ? (
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-(--background-primary) border border-(--divider) text-[11px]">
-                            <span className="w-1.75 h-1.75 rounded-full bg-red-500 shrink-0" style={{ animation: 'live-pulse 1.4s ease-in-out infinite' }} />
-                            <span className="font-semibold tracking-[0.5px] text-red-500">LIVE</span>
+                            <span className="live-pulse w-1.75 h-1.75 rounded-full bg-(--live) shrink-0" />
+                            <span className="font-semibold tracking-[0.5px] text-(--live)">LIVE</span>
                             <span className="text-(--secondary) mx-0.5">·</span>
                             <span className="text-(--secondary)">{inningStr}</span>
                         </div>
                     ) : (
                         <div className="text-xs font-semibold text-(--secondary) uppercase tracking-wide">{detailedState}</div>
                     )}
+
+                    {isInProgress && (
+                        <div className="flex items-center gap-3">
+                            {hasCount && (
+                                <div className="text-center">
+                                    <div className="text-[9px] uppercase tracking-wide text-(--secondary)">Count</div>
+                                    <div className="text-[16px] font-bold leading-none text-(--primary)">{linescore.balls}–{linescore.strikes}</div>
+                                </div>
+                            )}
+                            <BasesDiamond bases={bases} outs={linescore.outs} size="sm" />
+                        </div>
+                    )}
                 </div>
 
-                {/* Home team - right aligned */}
+                {/* Home team - right aligned, mirrored: score then badge so the abbreviation
+                    anchors the outer edge same as away's */}
                 <div className="flex flex-col items-end gap-1">
                     {sportId === 51 && homeCode && (
                         <div className="self-end">
                             <ReactCountryFlag countryCode={homeCode} svg style={{ width: '1.5em', height: '1.5em' }} />
                         </div>
                     )}
-                    <div
-                        className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none"
-                        style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
-                    >{home.team.abbreviation}</div>
+                    <div className="flex items-center gap-2.5">
+                        <span className="text-[32px] font-bold leading-none text-(--primary)">{homeRuns}</span>
+                        <div
+                            className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none shrink-0"
+                            style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
+                        >{home.team.abbreviation}</div>
+                    </div>
                     <div className="text-[14px] hidden sm:block  font-semibold text-(--primary) leading-snug text-right">{home.team.name}</div>
                     {homeRecord && (
                         <div className="text-[12px] text-(--secondary)">{homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}</div>
@@ -424,220 +567,9 @@ function ScoreHeader({
                 </div>
             </div>
         </div>
-        </>
     );
 }
 
-
-function LinescoreTable({
-    away,
-    home,
-    innings,
-    teams,
-    currentInning,
-    isInProgress,
-}: {
-    away: BoxscoreTeamData;
-    home: BoxscoreTeamData;
-    innings: BoxscoreLinescoreInning[];
-    teams: GameBoxscoreDetail["linescore"]["teams"];
-    currentInning?: number;
-    isInProgress?: boolean;
-}) {
-    const filledInnings = [...innings];
-    for (let i = innings.length + 1; i <= 9; i++) {
-        filledInnings.push({ num: i, away: { runs: undefined }, home: { runs: undefined } });
-    }
-
-    const awayBadgeBg = away.team.primary_color ?? '#374151';
-    const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
-    const homeBadgeBg = home.team.primary_color ?? '#374151';
-    const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
-
-    const isCurrent = (n: number) => isInProgress && currentInning != null && n === currentInning;
-    const isFuture = (n: number) => isInProgress && currentInning != null && n > currentInning;
-
-    const rows = [
-        { key: 'away', data: away, side: 'away' as const, badgeBg: awayBadgeBg, badgeText: awayBadgeText },
-        { key: 'home', data: home, side: 'home' as const, badgeBg: homeBadgeBg, badgeText: homeBadgeText },
-    ];
-
-    return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-x-auto">
-            <table className="w-full text-xs text-center">
-                <thead>
-                    <tr className="border-b border-(--divider) text-(--secondary)">
-                        <th className="pl-3 pr-2 py-2 text-left w-16" />
-                        {filledInnings.map((inn) => (
-                            <th key={inn.num} className={`px-1.5 py-2 min-w-7 text-[10px] tracking-[0.5px] font-semibold ${isCurrent(inn.num) ? 'text-(--primary)' : ''}`}>
-                                {inn.num}
-                            </th>
-                        ))}
-                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary) border-l border-(--divider)">R</th>
-                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary)">H</th>
-                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary)">E</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map(({ key, data, side, badgeBg, badgeText }, rowIdx) => (
-                        <tr key={key} className={rowIdx < rows.length - 1 ? 'border-b border-(--divider)' : ''}>
-                            <td className="pl-3 pr-2 py-2 text-left">
-                                <span
-                                    className="inline-flex items-center justify-center rounded font-bold text-[10px] px-1 py-0.5 leading-none"
-                                    style={{ backgroundColor: badgeBg, color: badgeText, minWidth: '22px' }}
-                                >{data.team.abbreviation}</span>
-                            </td>
-                            {filledInnings.map((inn) => {
-                                const val = inn[side].runs;
-                                return (
-                                    <td
-                                        key={inn.num}
-                                        className={`px-1.5 py-2 text-[13px] ${
-                                            isCurrent(inn.num) ? 'bg-(--background-quaternary) text-(--primary)' :
-                                            isFuture(inn.num) ? 'text-(--secondary) opacity-30' :
-                                            'text-(--secondary)'
-                                        }`}
-                                    >
-                                        {isFuture(inn.num) ? '' : (val ?? '-')}
-                                    </td>
-                                );
-                            })}
-                            <td className="px-2 py-2 font-semibold text-(--primary) border-l border-(--divider)">{teams[side].runs}</td>
-                            <td className="px-2 py-2 font-semibold text-(--primary)">{teams[side].hits}</td>
-                            <td className={`px-2 py-2 font-semibold text-(--primary)'}`}>{teams[side].errors}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
-
-function MatchupStrip({ gamePk, linescore, plays, teams, isRefreshing, cardMap, onCardSelect, isLoadingCards }: { gamePk: number; linescore: GameBoxscoreDetail["linescore"]; plays: PlayEntry[]; teams?: GameBoxscoreDetail["teams"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
-    const inningHalf = (linescore.inning_half || linescore.inning_state || "").toUpperCase();
-    const inningLabel = linescore.current_inning_ordinal || linescore.current_inning || "";
-    const outs = linescore.outs ?? 0;
-    const hasFirst = !!linescore.offense?.first;
-    const hasSecond = !!linescore.offense?.second;
-    const hasThird = !!linescore.offense?.third;
-    const batterName = linescore.offense?.batter;
-    const batterId = linescore.offense?.batter_id;
-    const pitcherName = linescore.defense?.pitcher;
-    const pitcherId = linescore.defense?.pitcher_id;
-
-    const batterCard = batterId ? cardMap[cardKey(batterId, 'H')] : undefined;
-    const pitcherCard = pitcherId ? cardMap[cardKey(pitcherId, 'P')] : undefined;
-
-    const allBatters = [...(teams?.away.batting ?? []), ...(teams?.home.batting ?? [])];
-    const allPitchers = [...(teams?.away.pitching ?? []), ...(teams?.home.pitching ?? [])];
-    const batterSummary = batterId ? allBatters.find(b => b.id === batterId)?.stats.summary : undefined;
-    const pitcherSummary = pitcherId ? allPitchers.find(p => p.id === pitcherId)?.stats.summary : undefined;
-
-    return (
-        <>
-        <style>{`
-            @keyframes live-border-glow {
-                0%, 100% { box-shadow: 0 0 6px rgba(234,179,8,0.12); border-color: rgba(234,179,8,0.25); }
-                50%       { box-shadow: 0 0 18px rgba(234,179,8,0.35); border-color: rgba(234,179,8,0.6); }
-            }
-        `}</style>
-        <div
-            className="rounded-xl border bg-(--background-secondary) p-4 space-y-3"
-            style={{ animation: 'live-border-glow 2s ease-in-out infinite' }}
-        >
-            
-
-            <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold uppercase tracking-wide text-yellow-600">
-                    {inningHalf} {inningLabel}
-                </span>
-
-                <div className="flex items-center gap-2">
-                    {isRefreshing && (
-                        <svg className="animate-spin h-3 w-3 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                    )}
-                    {!isRefreshing && (
-                        <span className="text-xs text-yellow-600/60 italic">Updates every 30s</span>
-                    )}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center sm:items-start gap-x-8 max-w-280">
-                {/* Pitcher side */}
-                <div className="space-y-1.5 min-w-0">
-                    <div className="flex items-baseline gap-1.5 justify-between w-full">
-                        
-                        <div className="flex items-center gap-1.5">
-                            <div className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary)">Pitching</div>
-                            {pitcherSummary && <div className="text-[10px] text-(--secondary) truncate">{pitcherSummary}</div>}
-                        </div>
-                        {pitcherCard?.in_season_trends?.pts_change.day != null && pitcherCard?.in_season_trends?.pts_change.day !== 0 && (
-                            <div className={`text-[10px] font-semibold ${pitcherCard.in_season_trends.pts_change.day >= 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                                {pitcherCard.in_season_trends.pts_change.day >= 0 ? '+' : ''}{pitcherCard.in_season_trends.pts_change.day} PTS today
-                            </div>
-                        )}
-                    </div>
-                    {pitcherCard ? (
-                        <CardItemFromCard card={pitcherCard.card} onClick={() => onCardSelect?.(cardMap[cardKey(pitcherId!, 'P')])} />
-                    ) : isLoadingCards ? (
-                        <CardItemSkeleton/>
-                    ) : pitcherName ? (
-                        <div className="text-sm font-semibold text-(--primary) truncate">{pitcherName}</div>
-                    ) : <CardItemFromCard card={undefined} className="opacity-50" />}
-                </div>
-
-                {/* Center: Count + Diamond + Outs */}
-                <div className="flex flex-row sm:flex-col items-center justify-center gap-1.5 px-2 shrink-0 py-2 space-x-4 sm:space-x-0">
-                    {linescore.balls != null && linescore.strikes != null ? (
-                        <div className="space-y-1 items-center">
-                            <div className="text-[10px] uppercase text-(--secondary) tracking-wide">Count</div>
-                            <div className="text-[22px] font-bold text-(--primary) leading-none">{linescore.balls}–{linescore.strikes}</div>
-                        </div>
-                    ) : null}
-                    <div className="relative w-12 h-12 mt-1">
-                        <div className={`absolute top-0 left-1/2 -translate-x-1/2 translate-y-1/4 w-4 h-4 rotate-45 border ${hasSecond ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
-                        <div className={`absolute bottom-1/4 left-0.5 w-4 h-4 rotate-45 border ${hasThird ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
-                        <div className={`absolute bottom-1/4 right-0.5 w-4 h-4 rotate-45 border ${hasFirst ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
-                    </div>
-                    <div className="text-[14px] md:text-[12px] text-(--secondary)">{outs} out{outs !== 1 ? 's' : ''}</div>
-                </div>
-
-                {/* Batter side - right aligned */}
-                <div className="space-y-1.5 min-w-0 flex flex-col items-start">
-                    <div className="flex items-baseline w-full justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5">
-                            <div className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary) shrink-0">At Bat</div>
-                            {batterSummary && <div className="text-[10px] text-(--secondary) truncate">{batterSummary}</div>}
-                        </div>
-                        
-                        {batterCard?.in_season_trends?.pts_change.day != null && (
-                            <div className={`text-[10px] font-semibold ${batterCard.in_season_trends.pts_change.day >= 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                                {batterCard.in_season_trends.pts_change.day >= 0 ? '+' : ''}{batterCard.in_season_trends.pts_change.day} PTS today
-                            </div>
-                        )}
-                    </div>
-                    {batterCard ? (
-                        <CardItemFromCard card={batterCard.card} className="w-full" onClick={() => onCardSelect?.(cardMap[cardKey(batterId!, 'H')])} />
-                    ) : isLoadingCards ? (
-                        <CardItemSkeleton className="w-full" />
-                    ) : batterName ? (
-                        <div className="text-sm font-semibold text-(--primary) truncate">{batterName}</div>
-                    ) : <CardItemFromCard card={undefined} className="opacity-50" />}
-                </div>
-            </div>
-
-            {plays.length > 0 && (
-                <PlayByPlayLog key={gamePk} plays={plays} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} embedded />
-            )}
-
-        </div>
-        </>
-    );
-}
 
 
 function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxscore: GameBoxscoreDetail; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {

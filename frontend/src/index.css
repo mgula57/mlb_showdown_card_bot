@@ -31,6 +31,10 @@
     --green: #287c22;
     --red: #ca443d;
 
+    /* In-progress games: occupied bases, out pips, the LIVE dot. Previously split between
+       yellow-400 (GameItem, Home ticker) and red-500 (GameDetail header). */
+    --live: #d92d20;
+
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 
 }
@@ -61,6 +65,8 @@
 
     --green: #5df452;
     --red: #fb3232;
+
+    --live: #f04438;
 }
 
 /* Custom Fonts */
@@ -238,6 +244,26 @@
 
 .card-glow-pulse {
     animation: card-glow-pulse 3s ease-in-out infinite;
+}
+
+/* Live-game indicators. Was declared in inline <style> blocks inside ScoreHeader and
+   MatchupStrip, which re-injected the same keyframes on every render. */
+@keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.4; transform: scale(0.85); }
+}
+
+.live-pulse {
+    animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-border-glow {
+    0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--live) 12%, transparent); border-color: color-mix(in srgb, var(--live) 25%, transparent); }
+    50%      { box-shadow: 0 0 18px color-mix(in srgb, var(--live) 35%, transparent); border-color: color-mix(in srgb, var(--live) 60%, transparent); }
+}
+
+.live-border-glow {
+    animation: live-border-glow 2s ease-in-out infinite;
 }
 
 body {

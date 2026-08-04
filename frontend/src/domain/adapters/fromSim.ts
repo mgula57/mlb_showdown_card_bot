@@ -5,7 +5,8 @@
  * abstraction holds for a second source before any sim UI is built. Field names mirror the
  * Python models exactly (snake_case), since that's the wire format.
  */
-import type { BoxscoreBatterLine, BoxscorePitcherLine, GameSide, GameView, Linescore, TeamBoxscore } from "../game";
+import type { BoxscoreBatterLine, BoxscorePitcherLine, GameSide, GameView, Linescore, LiveSituation, TeamBoxscore } from "../game";
+import type { PlayEntry } from "../play";
 import type { TeamIdentity } from "../team";
 
 export type SimTeamIdentityJson = {
@@ -94,7 +95,24 @@ export type SimTeamBoxScoreJson = {
     pitching: SimBoxScorePitcherJson[];
 };
 
+/** One plate appearance, mirroring `GameLogEntry`. Only emitted when the sim runs with
+ * `include_game_logs` — `GameResult.log` is empty otherwise. */
 export type SimGameLogEntryJson = {
+    inning: number;
+    is_top: boolean;
+    outs: number;
+    /** Base occupancy, ordered THIRD, SECOND, FIRST — `Runners.base_squares_str` walks [3,2,1]. */
+    bases: string;
+    away_score: number;
+    home_score: number;
+    /** Names only; the sim's log doesn't carry player ids, so sim plays can't resolve cards yet. */
+    pitcher: string;
+    hitter: string;
+    pitch_roll: number;
+    pitch_result: string;
+    swing_roll: number;
+    swing_result: string;
+    detail?: string;
     summary: string;
 };
 
@@ -114,6 +132,26 @@ export type SimGameResultJson = {
     away_box_score?: SimTeamBoxScoreJson | null;
     innings_played: number;
     is_extra_innings: boolean;
+};
+
+/** `Result` enum values (`core/simulation/result.py`) as play-log badge labels. */
+const SIM_EVENT_LABELS: Record<string, string> = {
+    pu: "Popout", so: "Strikeout", gb: "Groundout", fb: "Flyout", bb: "Walk",
+    "1b": "Single", "1b+": "Single+", "2b": "Double", "3b": "Triple", hr: "Home Run",
+    out: "Out", safe: "Safe",
+};
+
+const ORDINAL_SUFFIXES: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
+const ordinal = (n: number): string => {
+    const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : ORDINAL_SUFFIXES[n % 10] ?? "th";
+    return `${n}${suffix}`;
+};
+
+/** The sim reports base state as occupancy, not identity, so occupied bases become the
+ * `{ name: "" }` sentinel that `LiveSituation.bases` documents. */
+const parseSimBases = (bases: string): LiveSituation["bases"] => {
+    const occupied = (index: number) => (bases[index] === "■" ? { name: "" } : null);
+    return { third: occupied(0), second: occupied(1), first: occupied(2) };
 };
 
 const fromSimTeamIdentity = (identity: SimTeamIdentityJson): TeamIdentity => ({
@@ -172,6 +210,35 @@ const toSimBoxscore = (box: SimTeamBoxScoreJson): TeamBoxscore => ({
     })),
 });
 
+/**
+ * Sim game log to play entries, newest-first to match `fromGamePlays`. Populates `roll` — the
+ * sim's two d20s stand in for the pitch count a real game reports.
+ */
+export const fromSimPlays = (log: SimGameLogEntryJson[]): PlayEntry[] =>
+    log
+        .map((entry, index): PlayEntry => {
+            const previous = log[index - 1];
+            const runsBefore = previous ? previous.away_score + previous.home_score : 0;
+            return {
+                id: String(index),
+                inning: entry.inning,
+                isTop: entry.is_top,
+                batterName: entry.hitter,
+                pitcherName: entry.pitcher,
+                event: SIM_EVENT_LABELS[entry.swing_result] ?? entry.swing_result.toUpperCase(),
+                description: entry.summary || entry.detail || "",
+                isScoringPlay: entry.away_score + entry.home_score > runsBefore,
+                outs: entry.outs,
+                roll: {
+                    pitchRoll: entry.pitch_roll,
+                    pitchResult: entry.pitch_result,
+                    swingRoll: entry.swing_roll,
+                    swingResult: entry.swing_result,
+                },
+            };
+        })
+        .reverse();
+
 export const fromSimGame = (game: SimGameResultJson): GameView => {
     const linescore: Linescore | undefined = game.linescore
         ? {
@@ -204,6 +271,22 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
         boxscore: boxScore ? toSimBoxscore(boxScore) : undefined,
     });
 
+    // The last logged plate appearance is the game's final state. Balls/strikes and the defensive
+    // alignment stay undefined — the sim models neither — which is what the field and matchup
+    // components degrade against.
+    const lastEntry = game.log.length > 0 ? game.log[game.log.length - 1] : undefined;
+    const situation: LiveSituation | undefined = lastEntry
+        ? {
+            inning: lastEntry.inning,
+            isTop: lastEntry.is_top,
+            inningLabel: ordinal(lastEntry.inning),
+            outs: lastEntry.outs,
+            bases: parseSimBases(lastEntry.bases),
+            batter: { name: lastEntry.hitter },
+            pitcher: { name: lastEntry.pitcher },
+        }
+        : undefined;
+
     return {
         id: game.index,
         source: "SIM",
@@ -213,6 +296,7 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
         away: toSide(game.away_team, game.away_team_identity, game.away_score, game.away_box_score),
         home: toSide(game.home_team, game.home_team_identity, game.home_score, game.home_box_score),
         linescore,
-        lastPlay: game.log.length > 0 ? game.log[game.log.length - 1].summary : undefined,
+        situation,
+        lastPlay: lastEntry?.summary,
     };
 };

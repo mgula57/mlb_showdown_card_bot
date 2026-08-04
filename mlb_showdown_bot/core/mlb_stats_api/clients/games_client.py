@@ -206,7 +206,16 @@ class GamesClient(BaseMLBClient):
             """Full play-by-play list (one entry per plate appearance), oldest first."""
             return [_extract_play(p) for p in plays.get("allPlays", [])]
 
+        def _person(node: dict | None) -> dict | None:
+            """Trim a linescore offense/defense slot to id + name. None when the slot is empty
+            (base unoccupied, no on-deck hitter between innings, defense not yet set)."""
+            if not node or not node.get("id"):
+                return None
+            return {"id": node.get("id"), "full_name": node.get("fullName", "")}
+
         # Linescore
+        ls_offense = linescore_raw.get("offense") or {}
+        ls_defense = linescore_raw.get("defense") or {}
         innings = []
         for inn in linescore_raw.get("innings", []):
             innings.append({
@@ -246,16 +255,19 @@ class GamesClient(BaseMLBClient):
                 "balls": linescore_raw.get("balls"),
                 "strikes": linescore_raw.get("strikes"),
                 "offense": {
-                    "batter": (linescore_raw.get("offense") or {}).get("batter", {}).get("fullName"),
-                    "batter_id": (linescore_raw.get("offense") or {}).get("batter", {}).get("id"),
-                    "on_deck": (linescore_raw.get("offense") or {}).get("onDeck", {}).get("fullName"),
-                    "first": (linescore_raw.get("offense") or {}).get("first", {}).get("fullName"),
-                    "second": (linescore_raw.get("offense") or {}).get("second", {}).get("fullName"),
-                    "third": (linescore_raw.get("offense") or {}).get("third", {}).get("fullName"),
+                    slot: _person(ls_offense.get(raw_key))
+                    for slot, raw_key in (
+                        ("batter", "batter"), ("on_deck", "onDeck"), ("in_hole", "inHole"),
+                        ("first", "first"), ("second", "second"), ("third", "third"),
+                    )
                 },
                 "defense": {
-                    "pitcher": (linescore_raw.get("defense") or {}).get("pitcher", {}).get("fullName"),
-                    "pitcher_id": (linescore_raw.get("defense") or {}).get("pitcher", {}).get("id"),
+                    slot: _person(ls_defense.get(raw_key))
+                    for slot, raw_key in (
+                        ("pitcher", "pitcher"), ("catcher", "catcher"), ("first", "first"),
+                        ("second", "second"), ("third", "third"), ("shortstop", "shortstop"),
+                        ("left", "left"), ("center", "center"), ("right", "right"),
+                    )
                 },
                 "innings": innings,
                 "teams": {
