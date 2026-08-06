@@ -57,14 +57,14 @@ const HOME: readonly [number, number] = [49.9, 85.4];
 
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
     pitcher: [49.9, 53.5],
-    catcher: [49.9, 97],
-    first: [83, 44],
-    second: [65, 31],
-    third: [17, 44],
-    shortstop: [34, 31],
-    left: [19, 13],
-    center: [49.9, 5],
-    right: [81, 13],
+    catcher: [49.9, 105],
+    first: [90, 24],
+    second: [70, 12],
+    third: [10, 24],
+    shortstop: [30, 12],
+    left: [19, -10],
+    center: [49.9, -15],
+    right: [81, -10],
 };
 
 /** Position abbreviations for the defense slots, used for the card's defensive rating lookup. */
@@ -91,7 +91,7 @@ const TONE_ACCENT: Record<"offense" | "defense", string | undefined> = {
  * placeholder card while the real one is still being fetched. */
 function FieldMarker({
     player, role, cardMap, onCardSelect, isLoadingCards, tone,
-    hideCommand = false, detailStat1Category, liveIp, fieldPosition,
+    hideCommand = false, hideTeamPoints = hideCommand, detailStat1Category, liveIp, fieldPosition,
 }: {
     player: PlayerRef;
     role: "H" | "P";
@@ -100,7 +100,9 @@ function FieldMarker({
     isLoadingCards?: boolean;
     tone: "offense" | "defense";
     hideCommand?: boolean;
-    detailStat1Category?: "defense" | "speed";
+    /** Hide the team/points row, leaving just the name and detail stat. Defaults to whatever hideCommand is, since the two go together on these lean field chips. */
+    hideTeamPoints?: boolean;
+    detailStat1Category?: "defense" | "speed" | "hr";
     liveIp?: string | number | null;
     fieldPosition?: string;
 }) {
@@ -140,6 +142,7 @@ function FieldMarker({
                     card={response.card}
                     onClick={() => onCardSelect?.(response)}
                     hideCommand={hideCommand}
+                    hideTeamPoints={hideTeamPoints}
                     hideDetails={!showDetails}
                     detailStat1Category={detailStat1Category}
                     liveIp={liveIp}
@@ -151,6 +154,7 @@ function FieldMarker({
                     card={placeholderCard}
                     isLoading={isLoadingCards}
                     hideCommand={hideCommand}
+                    hideTeamPoints={hideTeamPoints}
                     hideDetails
                     accentColor={accentColor}
                 />
@@ -184,7 +188,7 @@ function DefenseTotals({ defense, cardMap }: { defense: DefenseAlignment; cardMa
     if (rows.every(([, value]) => value == null)) return null;
 
     return (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 space-y-0.5">
+        <div className="flex-col p-1 items-center gap-1.5">
             {rows.map(([label, value]) => (
                 <div
                     key={label}
@@ -239,31 +243,47 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
     return (
         <div className={`@container relative w-full ${className}`}>
-            {/* Padded so outfielder chips and the score bug can sit above the field art. */}
-            <div className="relative px-1 pb-0 pt-8">
+            {/* Padded so outfielder/catcher cards and the score bug have room to sit above and
+                below the field art without overlapping whatever follows in the DOM. Expanded
+                needs noticeably more of both — the fielder cards carry a defense-rating row, and
+                the catcher/corner outfielders sit right at the edges with nothing to spare
+                otherwise. The padding transition is what makes the expand/collapse feel like the
+                field is growing rather than snapping to a new size. */}
+            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-24 pb-12" : "pt-8 pb-0"}`}>
                 <div className="relative aspect-703/369 w-full overflow-visible">
                     <div className="absolute inset-0 overflow-hidden rounded-lg">
                         <img src="/images/teams/Field No BG.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
                     </div>
 
-                    {/* Defense — full alignment when expanded, otherwise just the battery. */}
+                    {/* Defense — the battery is always mounted; the rest of the alignment stays
+                        mounted too (so it can fade/scale in instead of popping in) but is hidden
+                        and inert until expanded. */}
                     {defense && (Object.keys(DEFENSE_SPOTS) as (keyof DefenseAlignment)[])
-                        .filter((slot) => expanded || slot === "pitcher")
                         .map((slot) => {
                             const player = defense[slot];
                             if (!player) return null;
+                            const isBattery = slot === "pitcher";
+                            const isVisible = expanded || isBattery;
                             return (
-                                <div key={slot} className="absolute -translate-x-1/2 -translate-y-1/2" style={atPercent(DEFENSE_SPOTS[slot])}>
+                                <div
+                                    key={slot}
+                                    aria-hidden={!isVisible}
+                                    className={`absolute -translate-x-1/2 -translate-y-1/2 transition-[opacity,transform] duration-300 ease-out ${
+                                        isVisible ? "opacity-100 scale-100" : "pointer-events-none scale-75 opacity-0"
+                                    }`}
+                                    style={atPercent(DEFENSE_SPOTS[slot])}
+                                >
                                     <FieldMarker
                                         player={player}
-                                        role={slot === "pitcher" ? "P" : "H"}
+                                        role={isBattery ? "P" : "H"}
                                         cardMap={cardMap}
                                         onCardSelect={onCardSelect}
                                         isLoadingCards={isLoadingCards}
                                         tone="defense"
-                                        hideCommand={slot !== "pitcher"}
-                                        detailStat1Category={slot === "pitcher" ? "defense" : undefined}
-                                        liveIp={slot === "pitcher" ? pitcherLine?.inningsPitched : undefined}
+                                        hideCommand={!isBattery}
+                                        detailStat1Category="defense"
+                                        fieldPosition={DEFENSE_POSITIONS[slot]}
+                                        liveIp={isBattery ? pitcherLine?.inningsPitched : undefined}
                                     />
                                 </div>
                             );
@@ -315,23 +335,28 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 onCardSelect={onCardSelect}
                                 isLoadingCards={isLoadingCards}
                                 tone="offense"
+                                detailStat1Category="hr"
                             />
                         </div>
                     )}
                 </div>
 
-                {defense && <DefenseTotals defense={defense} cardMap={cardMap} />}
                 <ScoreBug game={game} />
 
-                {defense && onToggleExpanded && (
-                    <button
-                        type="button"
-                        onClick={onToggleExpanded}
-                        aria-label={expanded ? "Show battery only" : "Show all fielders"}
-                        className="absolute bottom-0 right-0 cursor-pointer rounded-md border border-(--divider) bg-(--background-secondary)/90 p-1.5 text-(--secondary) hover:text-(--primary)"
-                    >
-                        {expanded ? <FaCompress size={12} /> : <FaExpand size={12} />}
-                    </button>
+                {defense && (
+                    <div className="absolute bottom-0 left-0 flex items-center gap-2">
+                        <DefenseTotals defense={defense} cardMap={cardMap} />
+                        {onToggleExpanded && (
+                            <button
+                                type="button"
+                                onClick={onToggleExpanded}
+                                aria-label={expanded ? "Show battery only" : "Show all fielders"}
+                                className="cursor-pointer rounded-md border border-(--divider) bg-(--background-secondary)/90 p-1.5 text-(--secondary) transition-colors hover:text-(--primary)"
+                            >
+                                {expanded ? <FaCompress size={12} /> : <FaExpand size={12} />}
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
         </div>

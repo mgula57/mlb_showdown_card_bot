@@ -38,8 +38,10 @@ type CardItemCompactProps = {
     hideDetails?: boolean;
     /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
     ptsMultiplier?: number;
-    /** Hide the CardCommand badge — for layouts too tight for it (e.g. on-field markers) */
+    /** Hide the CardCommand badge — for layouts too tight for it (e.g. on-field markers). Also hides the set icon, which leans on the same badge for context. */
     hideCommand?: boolean;
+    /** Hide the team/points row, leaving just the name and (if shown) the detail-stat row */
+    hideTeamPoints?: boolean;
     /** For pitchers with detailStat1Category 'defense': show this in-game IP instead of the card's season IP (e.g. a live boxscore line) */
     liveIp?: number | string | null;
     /** Override the card's border color, e.g. to distinguish offense/defense on a field diagram. Any CSS color value. */
@@ -88,6 +90,7 @@ export const CardItemCompact = ({
     hideDetails,
     ptsMultiplier,
     hideCommand,
+    hideTeamPoints,
     liveIp,
     accentColor,
 }: CardItemCompactProps) => {
@@ -179,29 +182,31 @@ export const CardItemCompact = ({
                     />
                     
                 </div>
-                <div className="flex items-center gap-1 min-w-0">
-                    <div
-                        className={`text-[9px] flex leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
-                        style={isRedacted ? undefined : teamStyle}
-                    >
-                        {card?.team || 'N/A'}
-                        <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
+                {!hideTeamPoints && (
+                    <div className="flex items-center gap-1 min-w-0">
+                        <div
+                            className={`text-[9px] flex leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            style={isRedacted ? undefined : teamStyle}
+                        >
+                            {card?.team || 'N/A'}
+                            <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
+                        </div>
+                        <div
+                            className={`hidden @[80px]:flex shrink-0 text-[9px] leading-none font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            style={isRedacted ? undefined : pointsBadgeStyle}
+                        >
+                            {hasPtsMultiplier ? (
+                                <span className="flex items-center gap-0.5">
+                                    <span className="line-through opacity-60">{card!.points}</span>
+                                    <span>{effectivePoints} PT</span>
+                                </span>
+                            ) : (
+                                card?.points != null ? `${card.points} PT` : '-- PT'
+                            )}
+                            <span className="hidden @[90px]:block">S</span>
+                        </div>
                     </div>
-                    <div
-                        className={`hidden @[80px]:flex shrink-0 text-[9px] leading-none font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
-                        style={isRedacted ? undefined : pointsBadgeStyle}
-                    >
-                        {hasPtsMultiplier ? (
-                            <span className="flex items-center gap-0.5">
-                                <span className="line-through opacity-60">{card!.points}</span>
-                                <span>{effectivePoints} PT</span>
-                            </span>
-                        ) : (
-                            card?.points != null ? `${card.points} PT` : '-- PT'
-                        )}
-                        <span className="hidden @[90px]:block">S</span>
-                    </div>
-                </div>
+                )}
                 {!hideDetails && (
                     <div className={`hidden @[70px]:flex py-0.5 text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                         {isRedacted ? '--- • ---' : (
@@ -230,7 +235,7 @@ export const CardItemCompact = ({
             </div>
 
             {/* Absolute positioned elements */}
-            {!hideDetails && !isRedacted && (
+            {!hideDetails && !isRedacted && !hideCommand && (
                 <div className="hidden @[70px]:block absolute bottom-1.5 left-1 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
                 </div>
@@ -294,11 +299,12 @@ type CardItemCompactFromCardProps = {
     onClick?: () => void;
     actionButton?: CardItemActionButton;
     hideCommand?: boolean;
+    hideTeamPoints?: boolean;
     liveIp?: number | string | null;
     accentColor?: string;
 };
 
-export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, liveIp, accentColor }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -339,6 +345,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideD
             onClick={onClick}
             actionButton={actionButton}
             hideCommand={hideCommand}
+            hideTeamPoints={hideTeamPoints}
             liveIp={liveIp}
             accentColor={accentColor}
         />

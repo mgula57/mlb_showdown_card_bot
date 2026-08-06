@@ -358,9 +358,9 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             {hasLiveField ? (
                 <>
                     <div className="flex-1 min-h-0 lg:grid lg:grid-cols-[3fr_4fr_3fr] lg:gap-4 lg:p-4 lg:overflow-hidden">
-                        {/* Play-by-play column — desktop only; it rides in the bottom sheet on mobile. */}
-                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto">
-                            {playByPlayPanelDesktop}
+
+                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto lg:pb-4">
+                            {boxScorePanels}
                         </div>
 
                         {/* Spotlight column — the whole screen on mobile, with the sheet parked over it. */}
@@ -407,8 +407,9 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                             </div>
                         </div>
 
-                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto lg:pb-4">
-                            {boxScorePanels}
+                        {/* Play-by-play column — desktop only; it rides in the bottom sheet on mobile. */}
+                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto">
+                            {playByPlayPanelDesktop}
                         </div>
                     </div>
 
@@ -618,7 +619,7 @@ function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxsco
         <div 
             className="
                 flex flex-col
-                md:grid md:grid-cols-2 xl:grid-cols-3
+                md:grid md:grid-cols-2
                 p-3 gap-x-6 gap-y-2
                 rounded-xl border border-(--divider) bg-(--background-secondary) 
                 text-sm
