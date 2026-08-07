@@ -11,6 +11,7 @@ import type { PlayEntry } from "../../domain/play";
 import { resolveCardKey } from "../../domain/players";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
+import { CardItemCompactFromCard } from "../cards/CardItemCompact";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -22,6 +23,7 @@ type GameMatchupProps = {
     isLoadingCards?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
     className?: string;
+    isCompactCards?: boolean;
 };
 
 /**
@@ -45,7 +47,7 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
 }
 
 function MatchupSide({
-    label, player, response, summary, advantage, isLoadingCards, onCardSelect,
+    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect,
 }: {
     label: string;
     player?: PlayerRef;
@@ -53,31 +55,41 @@ function MatchupSide({
     summary?: string;
     advantage?: number;
     isLoadingCards?: boolean;
+    isCompact?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
 }) {
     return (
         <div className="min-w-0 space-y-1.5">
             <div className="flex w-full items-baseline justify-between gap-1.5">
-                <div className="flex min-w-0 items-center gap-1.5">
+                <div className="flex min-w-0 items-center gap-2">
                     <span className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary)">{label}</span>
                     {summary && <span className="truncate text-[10px] text-(--secondary)">{summary}</span>}
+                    <PointsTrend card={response} />
                 </div>
                 {advantage != null && (
                     <div className="text-[11px] font-bold text-(--secondary)">
                         <span className="text-(--primary)">{advantage}%</span> advantage
                     </div>
                 )}
-                <PointsTrend card={response} />
+                
             </div>
 
             {response?.card ? (
-                <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
+                isCompact ? (
+                    <CardItemCompactFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
+                ) : (
+                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
+                )
             ) : isLoadingCards ? (
                 <CardItemSkeleton className="w-full" />
             ) : player?.name ? (
                 <div className="truncate text-sm font-semibold text-(--primary)">{player.name}</div>
             ) : (
-                <CardItemFromCard card={undefined} className="w-full opacity-50" />
+                isCompact ? (
+                    <CardItemCompactFromCard card={undefined} className="w-full opacity-50" />
+                ) : (
+                    <CardItemFromCard card={undefined} className="w-full opacity-50" />
+                )
             )}
 
             
@@ -85,7 +97,7 @@ function MatchupSide({
     );
 }
 
-export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCardSelect, className = "" }: GameMatchupProps) {
+export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, }: GameMatchupProps) {
     const situation = game.situation;
     if (!situation) return null;
 
@@ -105,28 +117,32 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
 
     return (
         <div className={`@container rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-4 p-4 ${className}`}>
-            <div className="grid grid-cols-1 @[600px]:grid-cols-2 items-start gap-3 sm:gap-3">
-                <MatchupSide
-                    label="Pitching"
-                    player={pitcher}
-                    response={pitcherResponse}
-                    summary={pitcherSummary}
-                    advantage={pitcherAdvantage}
-                    isLoadingCards={isLoadingCards}
-                    onCardSelect={onCardSelect}
-                />
+            <div 
+                className={`
+                    ${isCompactCards ? "grid grid-cols-2" : "grid grid-cols-1 @[600px]:grid-cols-2 "}
+                    items-start gap-3 sm:gap-3
+                `}>
+                    <MatchupSide
+                        label="Pitching"
+                        player={pitcher}
+                        response={pitcherResponse}
+                        summary={pitcherSummary}
+                        advantage={pitcherAdvantage}
+                        isLoadingCards={isLoadingCards}
+                        onCardSelect={onCardSelect}
+                        isCompact={isCompactCards}
+                    />                
 
-                
-
-                <MatchupSide
-                    label="At Bat"
-                    player={batter}
-                    response={batterResponse}
-                    summary={batterSummary}
-                    advantage={pitcherAdvantage != null ? 100 - pitcherAdvantage : undefined}
-                    isLoadingCards={isLoadingCards}
-                    onCardSelect={onCardSelect}
-                />
+                    <MatchupSide
+                        label="At Bat"
+                        player={batter}
+                        response={batterResponse}
+                        summary={batterSummary}
+                        advantage={pitcherAdvantage != null ? 100 - pitcherAdvantage : undefined}
+                        isLoadingCards={isLoadingCards}
+                        onCardSelect={onCardSelect}
+                        isCompact={isCompactCards}
+                    />
             </div>
 
             {(situation.onDeck || situation.inHole) && (

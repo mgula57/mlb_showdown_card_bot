@@ -5,7 +5,7 @@ import { FaChevronLeft } from "react-icons/fa6";
 import { countryCodeForTeam } from "../../functions/flags";
 import { getReadableTextColor, getContrastTextColor } from "../../functions/colors";
 import { Modal } from "../shared/Modal";
-import { BottomSheet } from "../shared/BottomSheet";
+import { BottomSheet, type SnapPoint } from "../shared/BottomSheet";
 import {
     fetchGameBoxscore,
     type GameBoxscoreDetail,
@@ -57,6 +57,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
+    const [sheetSnap, setSheetSnap] = useState<SnapPoint>('closed');
     const handleModalCardClose = () => {
         setSelectedCard(null);
     };
@@ -316,12 +317,12 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         {home.team.abbreviation}
                     </Tabs.Trigger>
                 </Tabs.List>
-                <div className="grid gap-4 @[820px]:grid-cols-2">
-                    <Tabs.Content value="away" forceMount className="space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
+                <div className="grid gap-4 @[820px]:grid-cols-2 min-w-0">
+                    <Tabs.Content value="away" forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
                         <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
                         <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
                     </Tabs.Content>
-                    <Tabs.Content value="home" forceMount className="space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
+                    <Tabs.Content value="home" forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
                         <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
                         <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
                     </Tabs.Content>
@@ -359,12 +360,12 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 <>
                     <div className="flex-1 min-h-0 lg:grid lg:grid-cols-[3fr_4fr_3fr] lg:gap-4 lg:p-4 lg:overflow-hidden">
 
-                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto lg:pb-4">
+                        <div className="hidden lg:block lg:h-full lg:min-w-0 lg:overflow-y-auto lg:pb-4">
                             {boxScorePanels}
                         </div>
 
                         {/* Spotlight column — the whole screen on mobile, with the sheet parked over it. */}
-                        <div className="h-full overflow-y-auto space-y-4 p-4 pb-[22vh] lg:p-0 lg:pb-4">
+                        <div className="h-full overflow-y-auto space-y-4 p-0 pb-[22vh] lg:p-0 lg:pb-4 lg:min-w-0">
                             {/* Grass backdrop behind the scoreboard, field and matchup as one group —
                                 faded top/bottom so it blends into the page instead of a hard edge.
                                 The image is the first child with no z-index of its own, and the
@@ -383,7 +384,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                     }}
                                 />
 
-                                <div className="relative space-y-4">
+                                <div className="relative space-y-4 p-1">
                                     {/* The field's own score bug carries this on mobile. */}
                                     <div className="hidden lg:block">{scoreHeader}</div>
 
@@ -408,17 +409,49 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         </div>
 
                         {/* Play-by-play column — desktop only; it rides in the bottom sheet on mobile. */}
-                        <div className="hidden lg:block lg:h-full lg:overflow-y-auto">
+                        <div className="hidden lg:block lg:h-full lg:min-w-0 lg:overflow-y-auto">
                             {playByPlayPanelDesktop}
                         </div>
                     </div>
 
                     {/* BottomSheet is lg:hidden internally, so this is the mobile half of the split.
-                        Non-dismissible: the panels are the only way to reach the box score here. */}
-                    <BottomSheet isOpen onClose={() => {}} dismissible={false} title="Game Details">
-                        <div className="px-4 pb-[calc(2rem+var(--safe-bottom))] pt-2 space-y-4">
-                            {playByPlayPanelMobile}
-                            {boxScorePanels}
+                        Non-dismissible: the panels are the only way to reach the box score here.
+                        The handle grows to include the pitcher/batter matchup once expanded — at
+                        peek it's just the title, matching the desktop field's own compact bug. */}
+                    <BottomSheet
+                        isOpen
+                        onClose={() => {}}
+                        dismissible={false}
+                        onSnapChange={setSheetSnap}
+                        handleContent={
+                            sheetSnap === 'expanded' && view.situation
+                                ? <GameMatchup game={view} cardMap={cardMap} isLoadingCards={isLoadingCards} className="mt-2" isCompactCards={true} />
+                                : undefined
+                        }
+                    >
+                        <div className="px-4 pb-[calc(2rem+var(--safe-bottom))] pt-2 h-full flex flex-col">
+                            <Tabs.Root defaultValue="playbyplay" className="flex flex-col h-full min-h-0">
+                                <Tabs.List className="flex gap-1 rounded-lg bg-(--background-tertiary) p-1 mb-3 shrink-0">
+                                    <Tabs.Trigger
+                                        value="playbyplay"
+                                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--showdown-blue) data-[state=active]:text-white cursor-pointer transition-colors"
+                                    >
+                                        Play By Play
+                                    </Tabs.Trigger>
+                                    <Tabs.Trigger
+                                        value="boxscore"
+                                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--showdown-blue) data-[state=active]:text-white cursor-pointer transition-colors"
+                                    >
+                                        Boxscore
+                                    </Tabs.Trigger>
+                                </Tabs.List>
+                                <Tabs.Content value="playbyplay" className="data-[state=inactive]:hidden">
+                                    {playByPlayPanelMobile}
+                                </Tabs.Content>
+                                <Tabs.Content value="boxscore" className="data-[state=inactive]:hidden">
+                                    {boxScorePanels}
+                                </Tabs.Content>
+                            </Tabs.Root>
                         </div>
                     </BottomSheet>
                 </>

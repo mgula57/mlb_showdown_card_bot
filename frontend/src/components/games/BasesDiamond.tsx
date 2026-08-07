@@ -52,7 +52,7 @@ export function BasesDiamond({ bases, outs, size = "sm", className = "" }: Bases
     const pipStyle: CSSProperties = { width: bd * 0.2222, height: bd * 0.2222 };
 
     return (
-        <div className={`flex flex-col items-center ${className}`} style={{ gap: bd * 0.22 }}>
+        <div className={`flex flex-col items-center ${className}`} style={{ gap: bd * 0.1 }}>
             <div className="relative" style={{ width: boxWidth, height: boxHeight }}>
                 <div className={`absolute border ${occupied(bases?.second)}`} style={markerStyle(centerX, secondY)} />
                 <div className={`absolute border ${occupied(bases?.third)}`} style={markerStyle(centerX - halfSpreadX, cornerY)} />
@@ -60,7 +60,7 @@ export function BasesDiamond({ bases, outs, size = "sm", className = "" }: Bases
             </div>
 
             {outs != null && (
-                <div className="flex items-center" style={{ gap: bd * 0.1667 }}>
+                <div className="flex items-center" style={{ gap: bd * 0.1 }}>
                     {[0, 1, 2].map((index) => (
                         <span
                             key={index}

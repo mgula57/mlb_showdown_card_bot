@@ -208,19 +208,21 @@ function ScoreBug({ game }: { game: GameView }) {
     const isLive = game.state === "LIVE";
 
     return (
-        <div className="absolute right-0 top-0 w-max overflow-hidden rounded-lg border border-(--divider) bg-(--background-secondary)/95 text-[11px] shadow-sm lg:hidden">
-            {[game.away, game.home].map((side, index) => (
-                <div
-                    key={side.team.key}
-                    className={`flex items-center justify-between gap-3 px-2 py-0.5 ${index === 0 ? "border-b border-(--divider)" : ""}`}
-                >
-                    <span className="font-bold text-(--primary)">{side.team.abbreviation}</span>
-                    <span className="font-black tabular-nums text-(--primary)">{side.score ?? 0}</span>
-                </div>
-            ))}
+        <div className="absolute flex right-0 top-0 w-max overflow-hidden rounded-lg border border-(--divider) bg-(--background-secondary)/90 text-[11px] shadow-sm lg:hidden">
+            <div className='flex-col'>
+                {[game.away, game.home].map((side, index) => (
+                    <div
+                        key={side.team.key}
+                        className={`flex items-center justify-between gap-3 px-2 py-1 ${index === 0 ? "border-b border-(--divider)" : ""}`}
+                    >
+                        <span className="font-bold text-(--primary)">{side.team.abbreviation}</span>
+                        <span className="font-black tabular-nums text-(--primary)">{side.score ?? 0}</span>
+                    </div>
+                ))}
+            </div>
 
             {situation && (
-                <div className="flex items-center gap-2 border-t border-(--divider) px-2 py-1">
+                <div className="flex items-center gap-2 px-2 py-1">
                     {isLive && <span className="live-pulse h-1.5 w-1.5 rounded-full bg-(--live)" />}
                     <span className="font-bold text-(--secondary)">
                         {situation.isTop ? "▲" : "▼"} {situation.inningLabel}
@@ -249,7 +251,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 the catcher/corner outfielders sit right at the edges with nothing to spare
                 otherwise. The padding transition is what makes the expand/collapse feel like the
                 field is growing rather than snapping to a new size. */}
-            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-24 pb-12" : "pt-8 pb-0"}`}>
+            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-28 pb-12" : "pt-4 pb-0"}`}>
                 <div className="relative aspect-703/369 w-full overflow-visible">
                     <div className="absolute inset-0 overflow-hidden rounded-lg">
                         <img src="/images/teams/Field No BG.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />

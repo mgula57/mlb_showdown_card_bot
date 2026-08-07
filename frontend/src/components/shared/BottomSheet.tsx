@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-type SnapPoint = 'closed' | 'peek' | 'expanded';
+export type SnapPoint = 'closed' | 'peek' | 'expanded';
 
 type BottomSheetProps = {
     isOpen: boolean;
@@ -23,6 +23,9 @@ type BottomSheetProps = {
      * (and title, if any). Shares the handle's drag behavior.
      */
     handleContent?: React.ReactNode;
+    /** Called whenever the sheet settles on a snap point — e.g. to swap in a bigger
+     * `handleContent` only once the sheet is actually expanded. */
+    onSnapChange?: (snap: SnapPoint) => void;
 };
 
 /**
@@ -32,7 +35,7 @@ type BottomSheetProps = {
  * Drag the handle up/down to switch; flick to dismiss.
  * Hidden on lg+ (use the desktop panel instead).
  */
-export function BottomSheet({ isOpen, onClose, title, children, dismissible = true, expandTrigger, handleContent }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, title, children, dismissible = true, expandTrigger, handleContent, onSnapChange }: BottomSheetProps) {
     const sheetRef  = useRef<HTMLDivElement>(null);
     const snapRef   = useRef<SnapPoint>('closed');
     const [snapState, setSnapState] = useState<SnapPoint>('closed');
@@ -77,6 +80,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
         if (!sheet) return;
         snapRef.current = point;
         setSnapState(point);
+        onSnapChange?.(point);
         const px = snapPx(point);
         if (animate) {
             sheet.style.transition = 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)';
