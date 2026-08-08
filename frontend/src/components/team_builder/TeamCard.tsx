@@ -31,7 +31,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             onClick={onClick}
             className={`
                 relative w-full text-left flex items-center gap-3
-                rounded-lg p-3 ${borderSettings} ${borderStyle}
+                bg-secondary rounded-lg p-3 ${borderSettings} ${borderStyle}
                 ${onClick ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}
                 transition-opacity
             `}

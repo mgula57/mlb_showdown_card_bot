@@ -277,6 +277,8 @@ export type AutofillStrategy = {
     pts_distribution: PtsDistribution;
     pitching_strategy: string | null;
     hitting_strategy: string | null;
+    defense_strategy: string | null;
+    catcher_defense_strategy: string | null;
     /** Only sent when the team has no pts_limit — the one-off target the user picked in the modal. */
     pts_target?: number;
 };
@@ -315,6 +317,20 @@ export const HITTING_STRATEGY_OPTIONS: { value: string | null; label: string }[]
     { value: 'speed', label: 'Speed' },
     { value: 'slug', label: 'Slug' },
     { value: 'contact', label: 'Contact' },
+];
+
+export const DEFENSE_STRATEGY_OPTIONS: { value: string | null; label: string }[] = [
+    { value: null, label: 'Balanced' },
+    { value: 'low_defense', label: 'Low' },
+    { value: 'high_defense', label: 'High' },
+    { value: 'elite_defense', label: 'Elite' },
+];
+
+export const CATCHER_DEFENSE_STRATEGY_OPTIONS: { value: string | null; label: string }[] = [
+    { value: null, label: 'Balanced' },
+    { value: 'low_catcher_defense', label: 'Low' },
+    { value: 'high_catcher_defense', label: 'High' },
+    { value: 'elite_catcher_defense', label: 'Elite' },
 ];
 
 export async function autofillTeam(

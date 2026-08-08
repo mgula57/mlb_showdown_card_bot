@@ -881,7 +881,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 @container
                                 flex flex-col shrink-0
                                 overflow-y-auto
-                                w-full lg:w-124 xl:w-148 2xl:w-190 3xl:w-256
+                                w-full lg:w-124 2xl:w-148 3xl:w-190 4xl:w-256
                             "
                         >
                             <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">

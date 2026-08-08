@@ -6,6 +6,8 @@ import {
     AUTOFILL_PRESETS,
     PITCHING_STRATEGY_OPTIONS,
     HITTING_STRATEGY_OPTIONS,
+    DEFENSE_STRATEGY_OPTIONS,
+    CATCHER_DEFENSE_STRATEGY_OPTIONS,
     DEFAULT_PTS_DISTRIBUTION,
 } from '../../api/userTeams';
 
@@ -86,6 +88,8 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
     const [activePreset, setActivePreset] = useState<string>('Balanced');
     const [pitchingStrategy, setPitchingStrategy] = useState<string | null>(null);
     const [hittingStrategy, setHittingStrategy] = useState<string | null>(null);
+    const [defenseStrategy, setDefenseStrategy] = useState<string | null>(null);
+    const [catcherDefenseStrategy, setCatcherDefenseStrategy] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -153,6 +157,8 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                 pts_distribution: distributionFromPts(bucketPts, effectiveLimit),
                 pitching_strategy: pitchingStrategy,
                 hitting_strategy: hittingStrategy,
+                defense_strategy: defenseStrategy,
+                catcher_defense_strategy: catcherDefenseStrategy,
                 ...(hasCap ? {} : { pts_target: effectiveLimit }),
             });
             onClose();
@@ -334,6 +340,40 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                                     label={opt.label}
                                     active={hittingStrategy === opt.value}
                                     onClick={() => setHittingStrategy(opt.value)}
+                                />
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Layer 4: Defense Strategy */}
+                    <section>
+                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                            Defense Priority
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {DEFENSE_STRATEGY_OPTIONS.map(opt => (
+                                <StrategyPill
+                                    key={String(opt.value)}
+                                    label={opt.label}
+                                    active={defenseStrategy === opt.value}
+                                    onClick={() => setDefenseStrategy(opt.value)}
+                                />
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Layer 5: Catcher Defense Strategy */}
+                    <section>
+                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                            Catcher Defense Priority
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {CATCHER_DEFENSE_STRATEGY_OPTIONS.map(opt => (
+                                <StrategyPill
+                                    key={String(opt.value)}
+                                    label={opt.label}
+                                    active={catcherDefenseStrategy === opt.value}
+                                    onClick={() => setCatcherDefenseStrategy(opt.value)}
                                 />
                             ))}
                         </div>

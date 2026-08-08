@@ -46,20 +46,41 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
         );
         onChange({ player_filters: Object.keys(cleaned).length ? cleaned : null });
     };
+
+    const MIN_ROSTER = 15;
+    const MAX_ROSTER = 40;
+
+    const getDefaultStartersForRosterSize = (roster: number): number => {
+        if (roster >= 35) return 7;
+        if (roster >= 29) return 6;
+        if (roster >= 24) return 5;
+        if (roster >= 18) return 4;
+        return 3;
+    };
+
     const LINEUP_SLOTS = 9;
     const rosterSize   = team.roster_size    ?? 25;
     const minBench     = team.min_bench      ?? 4;
     const minBullpen   = team.min_bullpen    ?? 5;
-    const numStarters  = team.num_starters   ?? 5;
+    const numStarters  = team.num_starters   ?? getDefaultStartersForRosterSize(rosterSize);
     const rosterUsed   = LINEUP_SLOTS + minBench + minBullpen + numStarters;
     const rosterError  = rosterUsed > rosterSize
         ? `Minimum roster needs ${rosterUsed} slots (9 lineup + ${numStarters} SP + ${minBullpen} bullpen + ${minBench} bench) but roster size is ${rosterSize}.`
+        : null;
+    const rosterSizeError = rosterSize < MIN_ROSTER || rosterSize > MAX_ROSTER
+        ? `Roster size must be between ${MIN_ROSTER} and ${MAX_ROSTER}.`
         : null;
     const minPtsLimit  = rosterSize * 10;
     const ptsLimit     = team.pts_limit ?? null;
     const ptsError     = ptsLimit !== null && ptsLimit < minPtsLimit
         ? `PTS limit (${ptsLimit}) must be at least roster size × 10 (${minPtsLimit}).`
         : null;
+
+    const handleRosterSizeChange = (v: number) => {
+        const size = v || 25;
+        const newStarterCount = getDefaultStartersForRosterSize(size);
+        onChange({ roster_size: size, num_starters: newStarterCount });
+    };
 
     return (
         <div className="flex flex-col gap-3 p-4">
@@ -146,7 +167,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
             <FormSection title="Rules" icon={<FaGears />} isOpenByDefault={isOpen('rules')}>
                 <FormInput
                     label="PTS Limit"
-                    value={team.pts_limit ?? ''}
+                    value={team.pts_limit ?? '5500'}
                     type="number"
                     placeholder="None"
                     onChange={v => onChange({ pts_limit: v ? Number(v) : null })}
@@ -158,16 +179,21 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                     </div>
                 )}
                 <FormInput
-                    label="Roster Size"
-                    value={team.roster_size ?? 20}
+                    label={`Roster Size (${MIN_ROSTER}–${MAX_ROSTER})`}
+                    value={team.roster_size ?? 25}
                     type="number"
-                    onChange={v => onChange({ roster_size: Number(v) || 20 })}
+                    onChange={v => handleRosterSizeChange(Number(v))}
                 />
+                {rosterSizeError && (
+                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {rosterSizeError}
+                    </div>
+                )}
                 <FormInput
                     label="Starting Pitchers"
-                    value={team.num_starters ?? 4}
+                    value={team.num_starters ?? 5}
                     type="number"
-                    onChange={v => onChange({ num_starters: Number(v) || 4 })}
+                    onChange={v => onChange({ num_starters: Number(v) || 5 })}
                 />
                 <FormInput
                     label="Min Bullpen"

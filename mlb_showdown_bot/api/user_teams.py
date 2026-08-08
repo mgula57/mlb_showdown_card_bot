@@ -200,10 +200,12 @@ def delete_team_logo(team_id: str):
 def autofill_team_route(team_id: str):
     try:
         payload = request.get_json(silent=True) or {}
-        pts_distribution  = payload.get('pts_distribution', {})
-        pitching_strategy = payload.get('pitching_strategy', None)
-        hitting_strategy  = payload.get('hitting_strategy', None)
-        active_filters    = payload.get('active_filters', {})
+        pts_distribution      = payload.get('pts_distribution', {})
+        pitching_strategy     = payload.get('pitching_strategy', None)
+        hitting_strategy      = payload.get('hitting_strategy', None)
+        defense_strategy      = payload.get('defense_strategy', None)
+        catcher_defense_strategy = payload.get('catcher_defense_strategy', None)
+        active_filters        = payload.get('active_filters', {})
 
         pts_target = payload.get('pts_target')
         if pts_target is not None:
@@ -252,7 +254,7 @@ def autofill_team_route(team_id: str):
                 # to ensure autofill has options when budget-constrained.
                 price_bands = [
                     {'min': 10,  'max': 100,  'limit': 100, 'player_type': 'HITTER'},  # Cheap tier: max options for bench fill
-                    {'min': 10,  'max': 100,  'limit': 50, 'position_list': ['STARTER']},  # Cheap tier: options for bullpen
+                    {'min': 10,  'max': 100,  'limit': 50, 'positions_list': ['STARTER']},  # Cheap tier: options for bullpen
                     
                     {'min': 100, 'max': 200,  'limit': 150},  # Low-mid tier
                     {'min': 200, 'max': 350,  'limit': 150},  # Mid tier (avg ~250)
@@ -284,8 +286,8 @@ def autofill_team_route(team_id: str):
                         if band.get('player_type', None):
                             filters['player_type'] = band['player_type']
 
-                        if band.get('position_list', None):
-                            filters['position_list'] = band['position_list']
+                        if band.get('positions_list', None):
+                            filters['positions_list'] = band['positions_list']
 
                         cards = db.fetch_card_list(filters=filters) or []
                         for c in cards:
@@ -310,6 +312,8 @@ def autofill_team_route(team_id: str):
             pts_distribution=pts_distribution,
             pitching_strategy=pitching_strategy,
             hitting_strategy=hitting_strategy,
+            defense_strategy=defense_strategy,
+            catcher_defense_strategy=catcher_defense_strategy,
             pts_target=pts_target,
         )
 

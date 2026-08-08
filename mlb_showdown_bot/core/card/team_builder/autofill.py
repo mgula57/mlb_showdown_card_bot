@@ -36,6 +36,20 @@ HITTING_SORT: dict[str, tuple[str | None, str | None]] = {
     'contact': ('real_batting_avg', 'desc'),
 }
 
+DEFENSE_SORT: dict[str, tuple[str | None, str | None]] = {
+    'low_defense':     ('defense', 'asc'),
+    'medium_defense':  ('defense', 'desc'),
+    'high_defense':    ('defense', 'desc'),
+    'elite_defense':   ('defense', 'desc'),
+}
+
+CATCHER_DEFENSE_SORT: dict[str, tuple[str | None, str | None]] = {
+    'low_catcher_defense':     ('defense', 'asc'),
+    'medium_catcher_defense':  ('defense', 'desc'),
+    'high_catcher_defense':    ('defense', 'desc'),
+    'elite_catcher_defense':   ('defense', 'desc'),
+}
+
 # Fraction of the sorted pool to randomly sample from when a strategy is set
 _STRATEGY_TIER_FRACTION = 0.4
 
@@ -118,33 +132,63 @@ def _ob_score(card: dict) -> float:
     return sum(cv.get(k, 0) or 0 for k in ('BB', '1B', '2B', '3B', 'HR'))
 
 
-def _sort_candidates(candidates: list[dict], strategy: str | None, is_pitcher: bool) -> list[dict]:
-    """Sort by strategy metric with tier-based sampling, or pure shuffle if balanced."""
-    sort_map = PITCHING_SORT if is_pitcher else HITTING_SORT
-    config = sort_map.get(strategy or '', (None, None))
-    sort_key, direction = config
+def _sort_candidates(
+    candidates: list[dict],
+    strategy: str | None,
+    is_pitcher: bool,
+    catcher_defense_strategy: str | None = None,
+) -> list[dict]:
+    """Sort by strategy metric with tier-based sampling, or pure shuffle if balanced.
+    For position players, applies catcher_defense_strategy to catchers if set."""
+    sorted_candidates = []
 
-    if sort_key is None and strategy != 'high_ob':
-        shuffled = candidates[:]
-        random.shuffle(shuffled)
-        return shuffled
+    # Separate catchers from other position players
+    catchers = [c for c in candidates if 'C' in (c.get('positions_list') or [])]
+    non_catchers = [c for c in candidates if 'C' not in (c.get('positions_list') or [])]
 
-    if strategy == 'high_ob':
-        sorted_candidates = sorted(candidates, key=_ob_score, reverse=True)
-    else:
-        reverse = direction == 'desc'
-        sorted_candidates = sorted(
-            candidates,
-            key=lambda c: (c.get(sort_key) is not None, c.get(sort_key) or 0),
-            reverse=reverse,
-        )
+    # Sort each group with appropriate strategy
+    for group, group_strategy in [
+        (catchers, catcher_defense_strategy if catcher_defense_strategy else strategy),
+        (non_catchers, strategy),
+    ]:
+        if not group:
+            continue
 
-    tier_size = max(1, int(len(sorted_candidates) * _STRATEGY_TIER_FRACTION))
-    top = sorted_candidates[:tier_size]
-    rest = sorted_candidates[tier_size:]
-    random.shuffle(top)
-    random.shuffle(rest)
-    return top + rest
+        # Determine which sort map to use
+        if group_strategy in DEFENSE_SORT:
+            sort_map = DEFENSE_SORT
+        elif group_strategy in CATCHER_DEFENSE_SORT:
+            sort_map = CATCHER_DEFENSE_SORT
+        else:
+            sort_map = PITCHING_SORT if is_pitcher else HITTING_SORT
+
+        config = sort_map.get(group_strategy or '', (None, None))
+        sort_key, direction = config
+
+        if sort_key is None and group_strategy != 'high_ob':
+            shuffled = group[:]
+            random.shuffle(shuffled)
+            sorted_candidates.extend(shuffled)
+            continue
+
+        if group_strategy == 'high_ob':
+            group_sorted = sorted(group, key=_ob_score, reverse=True)
+        else:
+            reverse = direction == 'desc'
+            group_sorted = sorted(
+                group,
+                key=lambda c: (c.get(sort_key) is not None, c.get(sort_key) or 0),
+                reverse=reverse,
+            )
+
+        tier_size = max(1, int(len(group_sorted) * _STRATEGY_TIER_FRACTION))
+        top = group_sorted[:tier_size]
+        rest = group_sorted[tier_size:]
+        random.shuffle(top)
+        random.shuffle(rest)
+        sorted_candidates.extend(top + rest)
+
+    return sorted_candidates
 
 
 def _existing_card_ids(team: Team) -> set[str]:
@@ -503,6 +547,8 @@ def autofill_team(
     pts_distribution: dict[str, float],
     pitching_strategy: str | None,
     hitting_strategy: str | None,
+    defense_strategy: str | None = None,
+    catcher_defense_strategy: str | None = None,
     pts_tolerance: int = 200,
     max_attempts: int = 8,
     pts_target: int | None = None,
@@ -561,9 +607,18 @@ def autofill_team(
         sorted_candidates: dict[str, list[dict]] = {}
         for bucket, raw in candidates_by_bucket.items():
             is_pitcher = bucket in ('rotation', 'bullpen')
-            strategy = pitching_strategy if is_pitcher else hitting_strategy
+            if is_pitcher:
+                strategy = pitching_strategy
+            elif bucket == 'offense':
+                # Offense prioritizes hitting strategy, but can be overridden by defense strategy
+                strategy = defense_strategy if defense_strategy else hitting_strategy
+            else:  # bench
+                # Bench also respects defense strategy if set
+                strategy = defense_strategy if defense_strategy else hitting_strategy
             pool = [c for c in raw if c['card_id'] not in existing_ids]
-            sorted_candidates[bucket] = _sort_candidates(pool, strategy, is_pitcher)
+            sorted_candidates[bucket] = _sort_candidates(
+                pool, strategy, is_pitcher, catcher_defense_strategy
+            )
 
         offense_result, offense_ids = _fill_offense(
             sorted_candidates['offense'], filled_lineup_pos,
