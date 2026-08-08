@@ -40,7 +40,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
     const onPrimary = getContrastTextColor(primary);
     const onSecondary = getContrastTextColor(secondary);
 
-    const widthClass = size === 'sm' ? 'w-36 md:w-40' : 'w-44 md:w-52';
+    const widthClass = size === 'sm' ? 'w-40' : 'w-52';
 
     const slots: (CardDatabaseRecord | null)[] = [
         team.top_players?.[0] ?? null,
@@ -71,7 +71,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
         >
             {team.badge && (
                 <span
-                    className="absolute top-0 left-0 z-20 text-[9px] font-black rounded-br-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
+                    className="absolute top-0 right-0 z-20 text-[9px] font-black rounded-bl-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
                     style={{ backgroundColor: secondary, color: onSecondary }}
                 >
                     {team.badge}

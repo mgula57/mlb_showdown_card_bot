@@ -49,6 +49,7 @@ export type Team = {
     secondary_color: string;
     is_public: boolean;
     source: TeamSource;
+    logo_url: string | null;
     pts_limit: number | null;
     roster_size: number;
     min_bench: number;
@@ -56,6 +57,8 @@ export type Team = {
     num_starters: number;
     bench_pts_multiplier: number;
     allowed_sets: string[] | null;
+    /** Per-source set restrictions — the source of truth; `allowed_sets` mirrors its union. */
+    allowed_sets_by_source?: Record<string, string[]> | null;
     allowed_card_sources: string[] | null;
     player_filters: Record<string, unknown> | null;
     roster: TeamRosterSlot[];
@@ -81,6 +84,7 @@ export type TeamSummary = {
     secondary_color: string;
     is_public: boolean;
     source: TeamSource;
+    logo_url: string | null;
     pts_limit: number | null;
     roster_size: number;
     min_bench: number;
@@ -88,6 +92,7 @@ export type TeamSummary = {
     num_starters: number;
     bench_pts_multiplier: number;
     allowed_sets: string[] | null;
+    allowed_sets_by_source?: Record<string, string[]> | null;
     allowed_card_sources: string[] | null;
     created_at: string | null;
     updated_at: string | null;
@@ -191,6 +196,7 @@ export async function forkTeam(teamId: string, token: string): Promise<Team> {
         num_starters: source.num_starters,
         bench_pts_multiplier: source.bench_pts_multiplier,
         allowed_sets: source.allowed_sets,
+        allowed_sets_by_source: source.allowed_sets_by_source,
         allowed_card_sources: source.allowed_card_sources,
         player_filters: source.player_filters,
         // roster_position encodes rotation roles (SP1..CL) and bench (BE), so the rotation is
@@ -214,6 +220,33 @@ export async function updateTeam(teamId: string, payload: TeamUpdatePayload, tok
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to update team: ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function uploadTeamLogo(teamId: string, file: File, token: string): Promise<Team> {
+    const formData = new FormData();
+    formData.append('logo', file);
+    const res = await fetch(`${API_BASE}/user/teams/${teamId}/logo`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to upload logo: ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function deleteTeamLogo(teamId: string, token: string): Promise<Team> {
+    const res = await fetch(`${API_BASE}/user/teams/${teamId}/logo`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to delete logo: ${res.status}`);
     }
     return res.json();
 }

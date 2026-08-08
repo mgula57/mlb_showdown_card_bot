@@ -220,7 +220,6 @@ export function HistoricalTeams() {
                             <TeamPreviewCard
                                 key={`${team.season}-${team.team_id}`}
                                 team={{ ...teamToPreview(team), badge: String(team.season) }}
-                                size="sm"
                                 onClick={() => openTeam(team)}
                             />
                         ))}

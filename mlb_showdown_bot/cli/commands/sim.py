@@ -10,9 +10,11 @@ except ImportError:
     tqdm = None
 
 from ...core.card.team_builder.team import Team as BuilderTeam
+from ...core.database.postgres_db import PostgresDB
 from ...core.simulation.models import PostseasonFormat, SeasonSimulationConfig
 from ...core.simulation.reporting import SeasonReport
 from ...core.simulation.season import Season
+from ...core.simulation.takeover import TakeoverOptions
 
 app = typer.Typer()
 
@@ -36,6 +38,8 @@ def sim_main(
     tournament: str = typer.Option(None, "--tournament", "-t", help="Tournament name (requires --teams_file)"),
     teams_file: str = typer.Option(None, "--teams_file", "-tf", help="Path to a JSON file with a list of team_builder Team payloads for tournament mode"),
     tournament_games: int = typer.Option(None, "--tournament_games", "-tg", help="Number of round robin games in tournament mode"),
+    takeover_team_id: str = typer.Option(None, "--takeover_team_id", "-to", help="Saved team_builder team UUID to drop into the season, replacing a real club"),
+    takeover_replaces: str = typer.Option(None, "--takeover_replaces", "-tr", help="Abbreviation of the club the takeover team replaces (era-correct, e.g. TBD for 1998). Defaults to the season's worst team."),
     export_data: bool = typer.Option(False, "--export_data", "-ex", help="Export player stats to CSV"),
     json_path: str = typer.Option(None, "--json_path", "-js", help="Write the full simulation result to a JSON file"),
     enable_injuries: bool = typer.Option(False, "--enable_injuries", "-inj", help="Enable random injuries, IL stints, and callups (real-season teams only)"),
@@ -54,6 +58,18 @@ def sim_main(
             payloads = json.load(f)
         custom_teams = [BuilderTeam(**payload) for payload in payloads]
 
+    takeover_team = None
+    takeover_replaces_abbr = None
+    if takeover_team_id:
+        with PostgresDB() as db:
+            row = db.get_team(takeover_team_id, None)
+        if row is None:
+            typer.echo(f"ERROR: team '{takeover_team_id}' not found or not public.")
+            raise typer.Exit(code=1)
+        takeover_team = BuilderTeam.from_db_row(row)
+        takeover_replaces_abbr = TakeoverOptions(year=year).resolve(takeover_replaces)
+        typer.echo(f"TAKEOVER: '{takeover_team.name}' replaces {takeover_replaces_abbr} in {year}")
+
     config = SeasonSimulationConfig(
         year=year,
         set=set,
@@ -65,6 +81,8 @@ def sim_main(
         custom_teams=custom_teams,
         tournament_name=tournament,
         tournament_games=tournament_games,
+        takeover_team=takeover_team,
+        takeover_replaces_abbr=takeover_replaces_abbr,
         include_game_logs=show_game_log,
         enable_injuries=enable_injuries,
         injury_severity_multiplier=injury_severity,
@@ -125,7 +143,7 @@ def sim_main(
 
     if export_data:
         file_name = f"season_{config.year}_set_{config.set.value}.csv"
-        derived_keys = ['ba', 'obp', 'slg', 'ops', 'whip', 'era', 'so9']
+        derived_keys = ['ba', 'obp', 'slg', 'ops', 'whip', 'era', 'so9', 'advantage_pct', 'own_chart_out_pct']
         total_keys = sorted({key for stats in result.player_stats for key in stats.totals.keys()})
         with open(file_name, 'w', newline='') as f:
             writer = csv.writer(f)

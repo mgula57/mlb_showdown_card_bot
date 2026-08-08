@@ -2,19 +2,21 @@ from typing import Optional
 
 from prettytable import PrettyTable
 
-from ..shared.player_position import PlayerType
+from ..shared.player_position import PlayerSubType, PlayerType
 from .models import PostseasonFormat, PostseasonRound, SeasonSimulationResult, SeriesResult
 from .stats import StatCategory, Stats
 
-_HITTER_CATEGORIES = [
+HITTER_CATEGORIES = [
     StatCategory.G, StatCategory.PA, StatCategory.BA, StatCategory.OBP, StatCategory.SLG, StatCategory.OPS, StatCategory.OPS_PLUS,
     StatCategory.BB, StatCategory.HITS, StatCategory.SINGLES, StatCategory.DOUBLES, StatCategory.TRIPLES,
     StatCategory.HOMERUNS, StatCategory.RBI, StatCategory.SO, StatCategory.GDP,
     StatCategory.SB, StatCategory.CS, StatCategory.RUNS, StatCategory.wRC_PLUS,
+    StatCategory.ADVANTAGE_PCT, StatCategory.OWN_CHART_OUT_PCT,
 ]
-_PITCHER_CATEGORIES = [
+PITCHER_CATEGORIES = [
     StatCategory.G, StatCategory.ERA, StatCategory.WHIP, StatCategory.IP,
     StatCategory.EARNED_RUNS, StatCategory.SO9, StatCategory.GDP, StatCategory.GDPa,
+    StatCategory.ADVANTAGE_PCT, StatCategory.OWN_CHART_OUT_PCT,
 ]
 
 
@@ -63,7 +65,9 @@ class SeasonReport:
             tbl.align['Team'] = 'l'
             for record in records:
                 games_back = '-' if record.games_back is None else record.games_back
-                tbl.add_row([division, record.name, record.points, record.wins, record.losses, record.win_pct, games_back])
+                # `name` IS THE SCHEDULE KEY - A TAKEOVER TEAM SHOWS UNDER ITS OWN BRANDING
+                team = record.identity.abbreviation if record.identity else record.name
+                tbl.add_row([division, team, record.points, record.wins, record.losses, record.win_pct, games_back])
             print(tbl)
 
     # ------------------------------------------------------------------
@@ -76,7 +80,7 @@ class SeasonReport:
         woba_weights = self.result.woba_weights
 
         field_names = [StatCategory.NAME] + ([StatCategory.TEAM] if show_team else []) + ([StatCategory.POSITION] if show_position else []) + ([StatCategory.POINTS] if show_points else []) + ([StatCategory.COMMAND] if show_command else [])
-        field_names += _HITTER_CATEGORIES if player_type == PlayerType.HITTER else _PITCHER_CATEGORIES
+        field_names += HITTER_CATEGORIES if player_type == PlayerType.HITTER else PITCHER_CATEGORIES
         field_names = [category for category in field_names if category not in stats_to_ignore]
 
         def value(stats: Stats, category: StatCategory):
@@ -112,9 +116,12 @@ class SeasonReport:
         self._print_header("TOP HITTERS")
         top_hitters = self.result.top_players(player_type=PlayerType.HITTER.value, stat=StatCategory.OPS.value, limit=limit, min_pa=self.result.stats_min_pa)
         print(self._stats_table(stats_list=top_hitters, player_type=PlayerType.HITTER, show_rank=True))
-        self._print_header("TOP PITCHERS")
-        top_pitchers = self.result.top_players(player_type=PlayerType.PITCHER.value, stat=StatCategory.ERA.value, limit=limit, is_desc=False, min_ip=self.result.stats_min_ip)
-        print(self._stats_table(stats_list=top_pitchers, player_type=PlayerType.PITCHER, show_rank=True))
+        self._print_header("TOP STARTING PITCHERS")
+        top_starters = self.result.top_players(player_type=PlayerType.PITCHER.value, stat=StatCategory.ERA.value, limit=limit, is_desc=False, min_ip=self.result.stats_min_ip, player_sub_type=PlayerSubType.STARTING_PITCHER)
+        print(self._stats_table(stats_list=top_starters, player_type=PlayerType.PITCHER, show_rank=True))
+        self._print_header("TOP RELIEF PITCHERS / CLOSERS")
+        top_relievers = self.result.top_players(player_type=PlayerType.PITCHER.value, stat=StatCategory.ERA.value, limit=limit, is_desc=False, min_ip=self.result.stats_min_ip_rp, player_sub_type=PlayerSubType.RELIEF_PITCHER)
+        print(self._stats_table(stats_list=top_relievers, player_type=PlayerType.PITCHER, show_rank=True))
 
     def print_real_life_comparison(self) -> None:
         self._print_header("SIM VS. REAL-LIFE")

@@ -36,7 +36,7 @@ export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, c
     const badgeText = badgeBg ? getReadableTextColor(badgeBg, "#ffffff") : undefined;
 
     return (
-        <div className={`flex items-center gap-2 min-w-0 ${className}`}>
+        <div className={`flex items-center gap-1.5 min-w-0 ${className}`}>
             {team.countryCode && (
                 <ReactCountryFlag countryCode={team.countryCode} svg style={{ width: sizing.flag, height: sizing.flag }} />
             )}
@@ -48,7 +48,7 @@ export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, c
             </span>
             {record && (
                 <span className={`${sizing.record} font-semibold text-(--text-secondary)`}>
-                    {record.wins} - {record.losses}
+                    {record.wins}-{record.losses}
                 </span>
             )}
             {onToggleStar ? (

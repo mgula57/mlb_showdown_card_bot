@@ -154,7 +154,7 @@ const parseSimBases = (bases: string): LiveSituation["bases"] => {
     return { third: occupied(0), second: occupied(1), first: occupied(2) };
 };
 
-const fromSimTeamIdentity = (identity: SimTeamIdentityJson): TeamIdentity => ({
+export const fromSimTeamIdentity = (identity: SimTeamIdentityJson): TeamIdentity => ({
     key: identity.abbreviation,
     abbreviation: identity.abbreviation,
     name: identity.name || identity.abbreviation,
@@ -162,7 +162,7 @@ const fromSimTeamIdentity = (identity: SimTeamIdentityJson): TeamIdentity => ({
     secondaryColor: identity.secondary_color ?? undefined,
 });
 
-const fallbackIdentity = (abbreviation: string): TeamIdentity => ({
+export const fallbackIdentity = (abbreviation: string): TeamIdentity => ({
     key: abbreviation,
     abbreviation,
     name: abbreviation,

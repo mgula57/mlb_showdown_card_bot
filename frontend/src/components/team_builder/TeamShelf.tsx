@@ -29,7 +29,7 @@ export function TeamShelf({ title, subtitle, onSeeAll, children }: TeamShelfProp
                 )}
             </div>
             <div
-                className="flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x pb-1 py-2 px-4 scrollbar-hide"
+                className="flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 px-4 scrollbar-hide"
                 style={{ touchAction: 'pan-x' }}
             >
                 {children}

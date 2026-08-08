@@ -65,10 +65,8 @@ export function RecentTeamsCarousel({ teams, className, onClick }: RecentTeamsCa
                 Recent Teams
             </div>
             <div
-                className={`flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory pb-1 py-2 px-2 scrollbar-hide`}
-                style={{ touchAction: 'pan-x' }}
+                className={`flex gap-3 overflow-x-auto overflow-y-hidden pb-1 py-2 px-2 scrollbar-hide`}
             >
-
                 {recentTeams.map(team => (
                     <TeamPreviewCard
                         key={team.team_id}

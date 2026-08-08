@@ -183,6 +183,25 @@ class Team(str, Enum):
             return Team(conversion_map[mlb_api_team])
         return Team(mlb_api_team)
 
+    def for_year(self, year: int) -> 'Team':
+        """The abbreviation this franchise actually used in `year`.
+
+        The MLB API reports a franchise's *modern* abbreviation for every season it played, but
+        the card archive stores the era-correct one - 1998 Tampa Bay is TBD, not TBR - so any
+        historical lookup has to resolve backwards before the two can be joined on team.
+
+        Each alias is bounded on both ends by the years the code was in use, so a year outside a
+        franchise's lifetime falls through unchanged. Only covers the modern era; the pre-1950
+        relocations (BRO/BSN/NYG/PHA/SLB) are not mapped yet.
+        """
+        match self.value:
+            case 'LAA' if 1965 <= year <= 1996: return Team.CAL
+            case 'LAA' if 1997 <= year <= 2004: return Team.ANA
+            case 'WSN' if 1969 <= year <= 2004: return Team.MON
+            case 'MIA' if 1993 <= year <= 2011: return Team.FLA
+            case 'TBR' if 1998 <= year <= 2007: return Team.TBD
+            case _: return self
+
 # ------------------------------------------------------------------------
 # COLOR
 # ------------------------------------------------------------------------

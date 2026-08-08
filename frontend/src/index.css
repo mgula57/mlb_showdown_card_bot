@@ -15,15 +15,15 @@
     --showdown-red: #9a362f;
     --showdown-gray: #6e6e73;
     
-    --background-primary: #f3f7fa;
-    --background-secondary: #ffffff;
-    --background-tertiary: #e8ebed;
-    --background-quaternary: #dfdede;
-    --divider: #e0e0e0;
-    --background-gradient: linear-gradient(to bottom right, rgb(232, 232, 234), rgb(255 255 255), rgb(226, 222, 222));
+    --background-primary: #f5f3f0;
+    --background-secondary: #fdfcfa;
+    --background-tertiary: #ebe8e3;
+    --background-quaternary: #e0dcd6;
+    --divider: #e2ded8;
+    --background-gradient: linear-gradient(to bottom right, rgb(235, 232, 227), rgb(253, 252, 250), rgb(228, 222, 214));
 
-    --table-header: #dbdbdb;
-    --table-banding: #eeecec;
+    --table-header: #dedad4;
+    --table-banding: #f0ede9;
 
     --warning: #F3CE32;
     --success: #4BB543;
@@ -49,16 +49,16 @@
     --showdown-red: #d04e47;
     --showdown-gray: #a0a0a5;
 
-    --background-primary: #18191c;
-    --background-secondary: #202225;
-    --background-tertiary: #2f3136;
-    --background-quaternary: #36393f;
-    --background-gradient: linear-gradient(to bottom right, rgb(14, 14, 14), rgb(33, 33, 37), rgb(28 25 23));
+    --background-primary: #1c1a18;
+    --background-secondary: #25221f;
+    --background-tertiary: #36322d;
+    --background-quaternary: #3f3a34;
+    --background-gradient: linear-gradient(to bottom right, rgb(16, 15, 14), rgb(37, 34, 31), rgb(28 25 23));
 
-    --divider: #444444;
+    --divider: #47423b;
 
-    --table-header: #444444;
-    --table-banding: #1c1c1c;
+    --table-header: #47423b;
+    --table-banding: #1d1b19;
 
     --warning: #e9de3f;
     --success: #4dc545;

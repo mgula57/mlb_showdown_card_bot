@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import type { Team, TeamUpdatePayload } from '../../api/userTeams';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
-import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
+import { imageForSet } from '../shared/SiteSettingsContext';
 import FormSection from '../customs/FormSection';
 import RangeFilter from '../customs/RangeFilter';
 import { TeamHierarchy } from '../cards/TeamHierarchy';
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
-import { FaUser, FaLayerGroup, FaGears, FaFilter, FaDatabase } from 'react-icons/fa6';
+import {
+    TEAM_CARD_SOURCES, activeSources, allowedSetsForSource, isSingleSetSource,
+    normalizeSetSettings, setOptionsForSource, toggleSetForSource,
+} from '../../domain/teamSets';
+import { FaUser, FaLayerGroup, FaGears, FaFilter } from 'react-icons/fa6';
 
 type PlayerFilters = {
     min_year?: number;
@@ -16,12 +20,6 @@ type PlayerFilters = {
     league?: string[];
     team?: string[];
 };
-
-const CARD_SOURCE_OPTIONS = [
-    { value: 'BOT',  label: 'Bot' },
-    { value: 'WOTC', label: 'WOTC' },
-    { value: 'WBC',  label: 'WBC' },
-] as const;
 
 type TeamSettingsFormProps = {
     team: Partial<Team>;
@@ -48,40 +46,6 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
         );
         onChange({ player_filters: Object.keys(cleaned).length ? cleaned : null });
     };
-    const AllowedSetsToggle = (
-        <div className="flex flex-wrap gap-2 col-span-full">
-            <div className="text-sm font-semibold text-(--text-secondary) w-full">
-                Allowed Showdown Sets
-            </div>
-            {showdownSets.map(s => {
-                const active = (team.allowed_sets ?? []).includes(s.value);
-                return (
-                    <button
-                        key={s.value}
-                        type="button"
-                        onClick={() => {
-                            const current = team.allowed_sets ?? [];
-                            const next = active
-                                ? current.filter(v => v !== s.value)
-                                : [...current, s.value];
-                            onChange({ allowed_sets: next });
-                        }}
-                        className={`p-1 rounded-lg border-2 transition-colors
-                            ${active
-                                ? 'border-(--secondary) bg-(--secondary)/10'
-                                : 'border-(--divider) opacity-40 hover:opacity-70'
-                            }`}
-                    >
-                        {imageForSet(s.value)
-                            ? <img src={imageForSet(s.value)} alt={s.value} className="h-5 w-auto object-contain" />
-                            : <span className="text-[11px] font-bold px-1">{s.value}</span>
-                        }
-                    </button>
-                );
-            })}
-        </div>
-    );
-
     const LINEUP_SLOTS = 9;
     const rosterSize   = team.roster_size    ?? 25;
     const minBench     = team.min_bench      ?? 4;
@@ -130,19 +94,12 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                 />
             </FormSection>
 
-            <FormSection title="Allowed Sets" icon={<FaLayerGroup />} isOpenByDefault={isOpen('set')}>
-                {AllowedSetsToggle}
-                {(team.allowed_sets ?? []).length === 0 && (
-                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
-                        At least one set must be selected.
-                    </div>
-                )}
-
+            <FormSection title="Cards" icon={<FaLayerGroup />} isOpenByDefault={isOpen('set')}>
                 <div className="flex flex-wrap gap-2 col-span-full">
                     <div className="text-sm font-semibold text-(--text-secondary) w-full">
                         Allowed Card Sources
                     </div>
-                    {CARD_SOURCE_OPTIONS.map(s => {
+                    {TEAM_CARD_SOURCES.map(s => {
                         const active = (team.allowed_card_sources ?? []).includes(s.value);
                         return (
                             <button
@@ -153,9 +110,9 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                                     const next = active
                                         ? current.filter(v => v !== s.value)
                                         : [...current, s.value];
-                                    onChange({ allowed_card_sources: next });
+                                    onChange({ allowed_card_sources: next, ...normalizeSetSettings({ ...team, allowed_card_sources: next }) });
                                 }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors
+                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors cursor-pointer
                                     ${active
                                         ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary)'
                                         : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary)'
@@ -166,12 +123,24 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                         );
                     })}
                     {(team.allowed_card_sources ?? []).length === 0 && (
-                    <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
-                        No restriction — all sources allowed.
-                    </div>
-                )}
+                        <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
+                            No restriction — all sources allowed.
+                        </div>
+                    )}
                 </div>
-                
+
+                {/* Sets are chosen per source: Bot cards exist in every set so a team pins one,
+                    while WOTC sets were printed alongside each other and can be combined. */}
+                {activeSources(team).map(source => (
+                    <SetToggleGroup
+                        key={source}
+                        label={`${TEAM_CARD_SOURCES.find(s => s.value === source)?.label ?? source} Sets`}
+                        hint={isSingleSetSource(source) ? 'Pick one' : 'Combine any'}
+                        options={setOptionsForSource(source)}
+                        selected={allowedSetsForSource(team, source)}
+                        onToggle={set => onChange(toggleSetForSource(team, source, set))}
+                    />
+                ))}
             </FormSection>
 
             <FormSection title="Rules" icon={<FaGears />} isOpenByDefault={isOpen('rules')}>
@@ -246,6 +215,55 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                     onTeamChange={values => updatePlayerFilters({ team: values })}
                 />
             </FormSection>
+        </div>
+    );
+}
+
+
+type SetToggleGroupProps = {
+    label: string;
+    /** Short rule reminder shown next to the label (e.g. "Pick one"). */
+    hint: string;
+    options: string[];
+    selected: string[];
+    onToggle: (set: string) => void;
+};
+
+/** Set picker for a single card source. Empty selection is an error — the caller decides how
+ *  strictly to enforce it, but a team with no sets for a source can't draft from it. */
+function SetToggleGroup({ label, hint, options, selected, onToggle }: SetToggleGroupProps) {
+    return (
+        <div className="flex flex-wrap gap-2 col-span-full">
+            <div className="flex items-baseline gap-2 w-full">
+                <span className="text-sm font-semibold text-(--text-secondary)">{label}</span>
+                <span className="text-[11px] text-(--text-tertiary)">{hint}</span>
+            </div>
+            {options.map(value => {
+                const active = selected.includes(value);
+                const image = imageForSet(value);
+                return (
+                    <button
+                        key={value}
+                        type="button"
+                        onClick={() => onToggle(value)}
+                        className={`p-1 rounded-lg border-2 transition-colors cursor-pointer
+                            ${active
+                                ? 'border-(--secondary) bg-(--secondary)/10'
+                                : 'border-(--divider) opacity-40 hover:opacity-70'
+                            }`}
+                    >
+                        {image
+                            ? <img src={image} alt={value} className="h-5 w-auto object-contain" />
+                            : <span className="text-[11px] font-bold px-1">{value}</span>
+                        }
+                    </button>
+                );
+            })}
+            {selected.length === 0 && (
+                <div className="w-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                    At least one set must be selected.
+                </div>
+            )}
         </div>
     );
 }

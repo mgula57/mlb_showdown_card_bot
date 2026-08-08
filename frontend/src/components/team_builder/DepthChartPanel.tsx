@@ -60,7 +60,7 @@ function PositionRow({
 }) {
     if (!card && isPending) {
         return (
-            <div className="flex items-center gap-3 min-h-9">
+            <div className="flex items-center gap-3 min-h-9 shrink-0">
                 <span className="text-[11px] font-bold w-6 shrink-0 text-right text-(--text-tertiary)">{label}</span>
                 <CardItemSkeleton className="flex-1 min-w-0" />
             </div>
@@ -70,7 +70,7 @@ function PositionRow({
     return (
         <div
             className={`
-                flex items-center gap-3 min-h-9 rounded-lg
+                flex items-center gap-3 min-h-9 rounded-lg shrink-0
                 transition-all duration-200
                 ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`}
                 onClick={e => e.stopPropagation()}
@@ -226,102 +226,106 @@ export function DepthChartPanel({
     const bullpenKpis  = buildPitcherKpis(filledBullCards, bullpenPts);
 
     return (
-        <div className="flex flex-col gap-1.5 px-4">
-            {/* Starting Lineup */}
-            <SectionHeader label="Starting Lineup" filledCount={filledLineupCards.length} total={lineupPts} kpis={lineupKpis} />
-            {FIELD_POSITIONS.map(pos => {
-                const slot = slotByPos[pos] ?? null;
-                const card = slot ? cardMap[slot.card_id] : null;
-                return (
-                    <PositionRow
-                        key={pos}
-                        label={pos}
-                        card={card}
-                        isPending={!card && !!slot && isLoadingCards}
-                        onClick={() => onSlotClick(pos, slot)}
-                        onDetailClick={card ? () => setDetailCard(card) : undefined}
-                        readOnly={readOnly}
-                        isActive={activePosition === pos}
-                        isPeerHovered={!!card && card.card_id === hoveredCardId}
-                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
-                        onMouseLeave={() => onCardHover?.(null)}
-                    />
-                );
-            })}
+        <div className="@container flex flex-col h-full min-h-0 px-4">
+            <div className="flex flex-col @field-split:flex-row flex-1 min-h-0 gap-4">
+                {/* Column 1: Position Players + Bench */}
+                <div className="flex flex-col gap-1.5 @field-split:flex-1 @field-split:min-w-0 @field-split:min-h-0 @field-split:overflow-y-auto @field-split:pr-4 @field-split:border-r @field-split:border-(--divider)">
+                    <div className="shrink-0"><SectionHeader label="Starting Lineup" filledCount={filledLineupCards.length} total={lineupPts} kpis={lineupKpis} /></div>
+                    {FIELD_POSITIONS.map(pos => {
+                        const slot = slotByPos[pos] ?? null;
+                        const card = slot ? cardMap[slot.card_id] : null;
+                        return (
+                            <PositionRow
+                                key={pos}
+                                label={pos}
+                                card={card}
+                                isPending={!card && !!slot && isLoadingCards}
+                                onClick={() => onSlotClick(pos, slot)}
+                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                readOnly={readOnly}
+                                isActive={activePosition === pos}
+                                isPeerHovered={!!card && card.card_id === hoveredCardId}
+                                onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                                onMouseLeave={() => onCardHover?.(null)}
+                            />
+                        );
+                    })}
 
-            {/* Rotation */}
-            <SectionHeader label="Rotation" filledCount={filledRotCards.length} total={rotationPts} kpis={rotationKpis} />
-            {ACTIVE_ROTATION_ROLES.map((role, idx) => {
-                const assignment = roleByKey[role] ?? null;
-                const card = assignment ? cardMap[assignment.card_id] : null;
-                const prevRole = idx > 0 ? ACTIVE_ROTATION_ROLES[idx - 1] : null;
-                const nextRole = idx < ACTIVE_ROTATION_ROLES.length - 1 ? ACTIVE_ROTATION_ROLES[idx + 1] : null;
-                return (
-                    <PositionRow
-                        key={role}
-                        label={role}
-                        card={card}
-                        isPending={!card && !!assignment && isLoadingCards}
-                        onClick={() => onRoleClick(role, assignment)}
-                        onDetailClick={card ? () => setDetailCard(card) : undefined}
-                        readOnly={readOnly}
-                        isActive={activeRole === role}
-                        isPeerHovered={!!card && card.card_id === hoveredCardId}
-                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
-                        onMouseLeave={() => onCardHover?.(null)}
-                        onMoveUp={prevRole ? () => swapRotation(role, prevRole) : undefined}
-                        onMoveDown={nextRole ? () => swapRotation(role, nextRole) : undefined}
-                    />
-                );
-            })}
+                    <div className="shrink-0"><SectionHeader label="Bench" filledCount={filledBenchCards.length} total={benchPts} kpis={benchKpis} /></div>
+                    {BENCH_ROLES.map(pos => {
+                        const slot = benchByRole[pos] ?? null;
+                        const card = slot ? cardMap[slot.card_id] : null;
+                        return (
+                            <PositionRow
+                                key={pos}
+                                label={pos}
+                                card={card}
+                                isPending={!card && !!slot && isLoadingCards}
+                                onClick={() => onBenchClick(pos, slot)}
+                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                readOnly={readOnly}
+                                isActive={activeRole === pos}
+                                isPeerHovered={!!card && card.card_id === hoveredCardId}
+                                onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                                onMouseLeave={() => onCardHover?.(null)}
+                                ptsMultiplier={team.bench_pts_multiplier}
+                            />
+                        );
+                    })}
+                </div>
 
-            {/* Bullpen */}
-            <SectionHeader label="Bullpen" filledCount={filledBullCards.length} total={bullpenPts} kpis={bullpenKpis} />
-            {BULLPEN_ROLES.map((role, i) => {
-                const assignment = bullpenByRole[role] ?? null;
-                const actualRole = bullpenSlots[i]?.role ?? role;
-                const card = assignment ? cardMap[assignment.card_id] : null;
-                return (
-                    <PositionRow
-                        key={`depth-${actualRole}-${i}`}
-                        label={actualRole}
-                        card={card}
-                        isPending={!card && !!assignment && isLoadingCards}
-                        onClick={() => onRoleClick(actualRole, assignment)}
-                        onDetailClick={card ? () => setDetailCard(card) : undefined}
-                        readOnly={readOnly}
-                        isActive={activeRole === actualRole}
-                        isPeerHovered={!!card && card.card_id === hoveredCardId}
-                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
-                        onMouseLeave={() => onCardHover?.(null)}
-                        onMoveUp={i > 0 ? () => moveBullpen(i, i - 1) : undefined}
-                        onMoveDown={i < bullpenSlots.length - 1 ? () => moveBullpen(i, i + 1) : undefined}
-                    />
-                );
-            })}
+                {/* Column 2: Rotation + Bullpen */}
+                <div className="flex flex-col gap-1.5 @field-split:flex-1 @field-split:min-w-0 @field-split:min-h-0 @field-split:overflow-y-auto">
+                    <div className="shrink-0"><SectionHeader label="Rotation" filledCount={filledRotCards.length} total={rotationPts} kpis={rotationKpis} /></div>
+                    {ACTIVE_ROTATION_ROLES.map((role, idx) => {
+                        const assignment = roleByKey[role] ?? null;
+                        const card = assignment ? cardMap[assignment.card_id] : null;
+                        const prevRole = idx > 0 ? ACTIVE_ROTATION_ROLES[idx - 1] : null;
+                        const nextRole = idx < ACTIVE_ROTATION_ROLES.length - 1 ? ACTIVE_ROTATION_ROLES[idx + 1] : null;
+                        return (
+                            <PositionRow
+                                key={role}
+                                label={role}
+                                card={card}
+                                isPending={!card && !!assignment && isLoadingCards}
+                                onClick={() => onRoleClick(role, assignment)}
+                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                readOnly={readOnly}
+                                isActive={activeRole === role}
+                                isPeerHovered={!!card && card.card_id === hoveredCardId}
+                                onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                                onMouseLeave={() => onCardHover?.(null)}
+                                onMoveUp={prevRole ? () => swapRotation(role, prevRole) : undefined}
+                                onMoveDown={nextRole ? () => swapRotation(role, nextRole) : undefined}
+                            />
+                        );
+                    })}
 
-            {/* Bench */}
-            <SectionHeader label="Bench" filledCount={filledBenchCards.length} total={benchPts} kpis={benchKpis} />
-            {BENCH_ROLES.map(pos => {
-                const slot = benchByRole[pos] ?? null;
-                const card = slot ? cardMap[slot.card_id] : null;
-                return (
-                    <PositionRow
-                        key={pos}
-                        label={pos}
-                        card={card}
-                        isPending={!card && !!slot && isLoadingCards}
-                        onClick={() => onBenchClick(pos, slot)}
-                        onDetailClick={card ? () => setDetailCard(card) : undefined}
-                        readOnly={readOnly}
-                        isActive={activeRole === pos}
-                        isPeerHovered={!!card && card.card_id === hoveredCardId}
-                        onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
-                        onMouseLeave={() => onCardHover?.(null)}
-                        ptsMultiplier={team.bench_pts_multiplier}
-                    />
-                );
-            })}
+                    <div className="shrink-0"><SectionHeader label="Bullpen" filledCount={filledBullCards.length} total={bullpenPts} kpis={bullpenKpis} /></div>
+                    {BULLPEN_ROLES.map((role, i) => {
+                        const assignment = bullpenByRole[role] ?? null;
+                        const actualRole = bullpenSlots[i]?.role ?? role;
+                        const card = assignment ? cardMap[assignment.card_id] : null;
+                        return (
+                            <PositionRow
+                                key={`depth-${actualRole}-${i}`}
+                                label={actualRole}
+                                card={card}
+                                isPending={!card && !!assignment && isLoadingCards}
+                                onClick={() => onRoleClick(actualRole, assignment)}
+                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                readOnly={readOnly}
+                                isActive={activeRole === actualRole}
+                                isPeerHovered={!!card && card.card_id === hoveredCardId}
+                                onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
+                                onMouseLeave={() => onCardHover?.(null)}
+                                onMoveUp={i > 0 ? () => moveBullpen(i, i - 1) : undefined}
+                                onMoveDown={i < bullpenSlots.length - 1 ? () => moveBullpen(i, i + 1) : undefined}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
 
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>

@@ -37,55 +37,60 @@ class PlayerLoader:
             if status_callback:
                 status_callback(message)
 
-        # FAST PATH: PRE-BUILT CARDS FROM THE card_bot VIEW / dim_card TABLE
+        # FAST PATH: PRE-BUILT CARDS FROM THE card_bot / dim_card TABLES
         status(f"Loading pre-built {year} {set.value} cards from the archive DB...")
-        cards_by_player_id: dict[str, ShowdownPlayerCard] = {}
-        try:
-            rows = self.db.fetch_card_list(filters={'year': [str(year)], 'showdown_set': set.value, 'limit': 5000}) or []
-            card_id_to_player_id = {str(row['card_id']): str(row['id']) for row in rows if row.get('card_id')}
-            if card_id_to_player_id:
-                slots = [{'card_id': card_id, 'card_source': 'BOT'} for card_id in card_id_to_player_id.keys()]
-                fetched_cards = self.db.fetch_cards_for_roster_slots(slots=slots)
-                for card_id, card in fetched_cards.items():
-                    cards_by_player_id[card_id_to_player_id[card_id]] = card
+        cards_by_player_id = self.db.fetch_season_card_pool(year=year, set=set)
+        if cards_by_player_id:
             status(f"Loaded {len(cards_by_player_id)} pre-built card(s)")
-        except Exception as e:
-            status(f"WARNING: pre-built card fetch failed, falling back to archive stats ({e})")
+        else:
+            status("WARNING: no pre-built cards returned, falling back to archive stats")
 
-        # FALLBACK: BUILD CARDS FROM RAW ARCHIVE STATS FOR PLAYERS NOT PRE-BUILT
-        status(f"Fetching {year} archive stats for players missing a pre-built card...")
-        player_archives: list[PlayerArchive] = self.db.fetch_all_stats_from_archive(year_list=[int(year)], exclude_records_with_stats=False)
-
-        def meets_playing_time(archive: PlayerArchive) -> bool:
-            if archive.player_type.upper() == 'PITCHER':
-                return (archive.ip or 0) >= min_ip
-            return (archive.pa or 0) >= min_pa
-
-        missing_archives = [
-            archive for archive in player_archives
-            if archive.id not in cards_by_player_id and archive.stats and meets_playing_time(archive)
+        # FALLBACK: BUILD CARDS FROM RAW ARCHIVE STATS FOR PLAYERS NOT PRE-BUILT.
+        # PROBE PLAYING TIME FIRST - EVERY FULL ARCHIVE ROW DRAGS A `stats` BLOB ALONG, AND IN
+        # PRACTICE A SEASON IS ~100% PRE-BUILT, SO THE FULL FETCH USUALLY NEVER RUNS AT ALL.
+        status(f"Checking {year} archive for players missing a pre-built card...")
+        missing_ids = [
+            playing_time.id
+            for playing_time in self.db.fetch_archive_playing_time(year_list=[int(year)])
+            if playing_time.id not in cards_by_player_id and playing_time.meets_playing_time(min_pa=min_pa, min_ip=min_ip)
         ]
+
+        # MOST ROWS WITH NO PRE-BUILT CARD HAVE NO SCRAPED STATS EITHER AND SO CAN'T BE BUILT. THAT
+        # ONLY SHOWS UP ONCE THE `stats` BLOB IS IN HAND, WHICH IS WHY THE COUNT REPORTED BELOW IS
+        # TAKEN AFTER THE FETCH RATHER THAN FROM `missing_ids`.
+        missing_archives: list[PlayerArchive] = []
+        if missing_ids:
+            status(f"Fetching archive stats for {len(missing_ids)} player(s) with no pre-built card...")
+            missing_archives = [
+                archive for archive in self.db.fetch_all_stats_from_archive(
+                    year_list=[int(year)],
+                    filters=[('id', missing_ids)],
+                    exclude_records_with_stats=False,
+                )
+                if archive.stats
+            ]
+
         if missing_archives:
             status(f"Building {len(missing_archives)} card(s) from raw archive stats (min {min_pa} PA / {min_ip} IP)...")
-        built_count = 0
-        failed_count = 0
-        for archive in missing_archives:
-            try:
-                cards_by_player_id[archive.id] = ShowdownPlayerCard(
-                    year=str(archive.year),
-                    set=set,
-                    stats=archive.stats,
-                    name=archive.name,
-                    stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(archive.year)),
-                )
-                built_count += 1
-            except Exception:
-                failed_count += 1
-                continue
+            built_count = 0
+            failed_count = 0
+            for archive in missing_archives:
+                try:
+                    cards_by_player_id[archive.id] = ShowdownPlayerCard(
+                        year=str(archive.year),
+                        set=set,
+                        stats=archive.stats,
+                        name=archive.name,
+                        stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(archive.year)),
+                    )
+                    built_count += 1
+                except Exception:
+                    failed_count += 1
+                    continue
 
-        if missing_archives:
             failed_str = f", {failed_count} failed to build" if failed_count else ""
             status(f"Built {built_count} card(s) from archive stats{failed_str}")
+
         status(f"Player pool ready: {len(cards_by_player_id)} total card(s)")
 
         return list(cards_by_player_id.values())
@@ -210,14 +215,25 @@ class Season:
     # TEAM CONSTRUCTION
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _load_builder_team_cards(builder_team) -> dict[str, ShowdownPlayerCard]:
+        """Hydrate a builder team's roster slots.
+
+        Deliberately reads the logs DB rather than the archive: builder teams are drafted from
+        the card database `card_db`/`user_teams` serve, which is the logs connection, and the
+        archive's `card_wotc` is a stale copy with no `card_id` column to join WOTC slots on.
+        """
+        with PostgresDB() as db:
+            cards = db.fetch_cards_for_roster_slots(slots=builder_team.roster, strip_diagnostics=True)
+        if len(cards) == 0:
+            raise ValueError(f"No cards could be loaded for team '{builder_team.name}'")
+        return cards
+
     def _build_tournament_teams(self) -> dict[str, SimTeam]:
         config = self.config
-        db = self.db or PostgresDB(is_archive=True)
         teams: dict[str, SimTeam] = {}
         for builder_team in config.custom_teams:
-            cards = db.fetch_cards_for_roster_slots(slots=builder_team.roster)
-            if len(cards) == 0:
-                raise ValueError(f"No cards could be loaded for team '{builder_team.name}'")
+            cards = self._load_builder_team_cards(builder_team)
             teams[builder_team.abbreviation] = SimTeam.from_builder_team(
                 team=builder_team,
                 cards=cards,
@@ -270,8 +286,33 @@ class Season:
         if missing_teams:
             raise ValueError(f"No player cards found for scheduled team(s): {missing_teams}. Check team abbreviation mappings.")
 
+        # TAKEOVER: SWAP THE BUILDER TEAM INTO THE REPLACED CLUB'S SLOT. THE SCHEDULE BINDS GAMES
+        # TO TEAMS BY ABBREVIATION AND `Standings` KEYS OFF THE SAME DICT, SO KEEPING THE CLUB'S
+        # KEY IS ALL IT TAKES TO INHERIT ITS SCHEDULE, DIVISION AND OPPONENTS. ONLY THE DISPLAY
+        # IDENTITY (NAME/COLORS) DIFFERS, AND `from_builder_team` ALREADY SETS THAT.
+        if config.is_takeover:
+            replaced_abbr = config.takeover_replaces_abbr
+            if replaced_abbr not in teams:
+                raise ValueError(
+                    f"Cannot take over '{replaced_abbr}' in {config.year} - not a team that season. "
+                    f"Options: {sorted(teams.keys())}"
+                )
+            cards = self._load_builder_team_cards(config.takeover_team)
+            status(f"Replacing {replaced_abbr} with '{config.takeover_team.name}' ({len(cards)} cards)")
+            teams[replaced_abbr] = SimTeam.from_builder_team(
+                team=config.takeover_team,
+                cards=cards,
+                year=config.year,
+                league=self.schedule.team_leagues.get(replaced_abbr),
+                name_override=replaced_abbr,
+            )
+
         if config.enable_injuries:
             for team in teams.values():
+                # A TAKEOVER TEAM HAS NO `Roster` (NO 40-MAN, NO RESERVES), WHICH IS THE SAME SCOPE
+                # GUARD EVERY OTHER ROSTER/INJURY HOOK USES. IT SIMPLY PLAYS THE SEASON INJURY-FREE.
+                if team.roster is None:
+                    continue
                 team.roster.build_profiles(
                     team=team,
                     games_per_team=self.schedule.games_per_team,
@@ -294,6 +335,7 @@ class Season:
         schedule_length = self.schedule.schedule_length or len(self.schedule.games)
         original_schedule_length = self.schedule.original_schedule_length or schedule_length
         stats_min_ip = int(60 * schedule_length / max(original_schedule_length, 1))
+        stats_min_ip_rp = int(30 * schedule_length / max(original_schedule_length, 1))
         stats_min_pa = int(250 * schedule_length / max(original_schedule_length, 1))
 
         league_totals = {
@@ -327,6 +369,7 @@ class Season:
             original_schedule_length=original_schedule_length,
             stats_min_pa=stats_min_pa,
             stats_min_ip=stats_min_ip,
+            stats_min_ip_rp=stats_min_ip_rp,
             standings=standings_result,
             player_stats=list(self.league_stats.stats.values()),
             league_totals=league_totals,

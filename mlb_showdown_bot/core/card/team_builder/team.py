@@ -14,6 +14,12 @@ class CardSource(str, Enum):
     CUSTOM = "CUSTOM"  # internal.log_custom_card (user's own generated cards)
 
 
+# Sets a team can allow, per card source. WOTC only ever printed 2000-2005 —
+# CLASSIC and EXPANDED are Showdown Bot sets.
+WOTC_SETS = ['2000', '2001', '2002', '2003', '2004', '2005']
+BOT_SETS  = WOTC_SETS + ['CLASSIC', 'EXPANDED']
+
+
 class PickSource(str, Enum):
     MANUAL    = "MANUAL"    # user picked the card themselves
     AUTOFILL  = "AUTOFILL"  # filled by the autofill algorithm
@@ -150,8 +156,11 @@ class Team(BaseModel):
     min_bullpen: int = 5
     num_starters: int = 5
     bench_pts_multiplier: float = 1.0
-    # Set / source restrictions
+    # Set / source restrictions. `allowed_sets_by_source` is the source of truth — Bot cards exist
+    # in every set so a team pins one, while WOTC sets are combinable. `allowed_sets` is kept as
+    # the flattened union for list views and for teams saved before the per-source split.
     allowed_sets: list[str] = []
+    allowed_sets_by_source: dict[str, list[str]] = {}
     allowed_card_sources: list[str] = []
     # JSONB columns
     player_filters: dict = {}
@@ -179,6 +188,22 @@ class Team(BaseModel):
     def bullpen(self) -> list[TeamRosterSlot]:
         return [s for s in self.roster if s.roster_position.upper() == "RP"]
 
+    def sets_for_source(self, source: str) -> list[str]:
+        """Sets allowed when drafting from one card source.
+
+        Teams saved before the per-source split have no map entry and fall back to their flat
+        `allowed_sets`, narrowed to what that source could have produced. An empty result means
+        no set restriction for that source.
+        """
+        source = source.upper()
+        stored = self.allowed_sets_by_source.get(source)
+        if stored is not None:
+            return stored
+        valid = WOTC_SETS if source == 'WOTC' else BOT_SETS
+        legacy = [s for s in self.allowed_sets if s in valid]
+        # Bot teams pin exactly one set
+        return legacy[:1] if source == 'BOT' else legacy
+
     def to_db_dict(self) -> dict:
         """Serialize to a flat dict suitable for DB insertion/update."""
         return {
@@ -195,6 +220,7 @@ class Team(BaseModel):
             'num_starters': self.num_starters,
             'bench_pts_multiplier': self.bench_pts_multiplier,
             'allowed_sets': self.allowed_sets,
+            'allowed_sets_by_source': self.allowed_sets_by_source,
             'allowed_card_sources': self.allowed_card_sources,
             'player_filters': self.player_filters,
             'roster': [s.model_dump() for s in self.roster],
@@ -231,6 +257,7 @@ class Team(BaseModel):
             num_starters=row.get('num_starters', 5),
             bench_pts_multiplier=row.get('bench_pts_multiplier', 1.0),
             allowed_sets=row.get('allowed_sets') or [],
+            allowed_sets_by_source=row.get('allowed_sets_by_source') or {},
             allowed_card_sources=row.get('allowed_card_sources') or [],
             player_filters=row.get('player_filters') or {},
             roster=[TeamRosterSlot(**s) for s in roster_rows],

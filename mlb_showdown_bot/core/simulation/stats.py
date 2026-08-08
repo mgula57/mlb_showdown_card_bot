@@ -8,7 +8,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from ..shared.player_position import PlayerType, PositionSlot
+from ..shared.player_position import PlayerSubType, PlayerType, PositionSlot
 
 
 class StatCategory(Enum):
@@ -27,6 +27,9 @@ class StatCategory(Enum):
     HOMERUNS = "hr"
     PITCHER_ADVANTAGE = "padv"
     HITTER_ADVANTAGE = "hadv"
+    OWN_CHART_OUT = "own_chart_out"
+    ADVANTAGE_PCT = "advantage_pct"
+    OWN_CHART_OUT_PCT = "own_chart_out_pct"
     EARNED_RUNS = "er"
     RBI = "rbi"
     RUNS = "r"
@@ -72,6 +75,9 @@ class StatCategory(Enum):
             case StatCategory.WINS: return "W"
             case StatCategory.LOSSES: return "L"
             case StatCategory.POSITION: return "POS"
+            case StatCategory.OWN_CHART_OUT: return "OCO"
+            case StatCategory.ADVANTAGE_PCT: return "ADV%"
+            case StatCategory.OWN_CHART_OUT_PCT: return "OCO%"
             case _: return self.value.upper()
 
     @property
@@ -81,7 +87,7 @@ class StatCategory(Enum):
     @property
     def decimal_places(self) -> int:
         match self:
-            case StatCategory.BA | StatCategory.OBP | StatCategory.SLG | StatCategory.OPS | StatCategory.wOBA:
+            case StatCategory.BA | StatCategory.OBP | StatCategory.SLG | StatCategory.OPS | StatCategory.wOBA | StatCategory.ADVANTAGE_PCT | StatCategory.OWN_CHART_OUT_PCT:
                 return 3
             case StatCategory.ERA | StatCategory.WHIP: return 2
             case StatCategory.IP | StatCategory.SO9: return 1
@@ -94,6 +100,7 @@ class Stats(BaseModel):
     id: str
     name: str = ""
     player_type: Optional[PlayerType] = None
+    player_sub_type: Optional[PlayerSubType] = None  # POSITION_PLAYER / STARTING_PITCHER / RELIEF_PITCHER - SPLITS LEADERBOARDS
     position: Optional[str] = None
     team: Optional[str] = None
     points: int = 0
@@ -130,6 +137,8 @@ class Stats(BaseModel):
             case StatCategory.ERA: return self.era
             case StatCategory.SO9: return self.so9
             case StatCategory.OPS_PLUS: return self.ops_plus(league_stats=league_stats)
+            case StatCategory.ADVANTAGE_PCT: return self.advantage_pct
+            case StatCategory.OWN_CHART_OUT_PCT: return self.own_chart_out_pct
             case StatCategory.wOBA: return self.wOBA(weights=woba_weights)
             case StatCategory.wRAA: return self.wRAA(league_stats=league_stats, weights=woba_weights)
             case StatCategory.wRC: return self.wRC(league_stats=league_stats, weights=woba_weights)
@@ -177,6 +186,22 @@ class Stats(BaseModel):
     @property
     def ops(self) -> float:
         return round(self.obp + self.slg, 3)
+
+    @property
+    def own_chart_pa(self) -> float:
+        """PAs decided on this player's own chart (they held the pitch advantage)."""
+        category = StatCategory.HITTER_ADVANTAGE if self.player_type == PlayerType.HITTER else StatCategory.PITCHER_ADVANTAGE
+        return float(self.totals.get(category.value, 0))
+
+    @property
+    def advantage_pct(self) -> float:
+        pa = float(self.stat(StatCategory.PA))
+        return round(self.own_chart_pa / pa, 3) if pa > 0 else 0.000
+
+    @property
+    def own_chart_out_pct(self) -> float:
+        own_chart_pa = self.own_chart_pa
+        return round(self.totals.get(StatCategory.OWN_CHART_OUT.value, 0) / own_chart_pa, 3) if own_chart_pa > 0 else 0.000
 
     @property
     def whip(self) -> float:
@@ -358,7 +383,7 @@ class PlayerStatsGroup(StatsGroup):
         super().__init__(year=year, name=name)
         self.stats = {
             p.id: Stats(
-                id=p.id, name=p.name, player_type=p.player_type, position=p.primary_position.value,
+                id=p.id, name=p.name, player_type=p.player_type, player_sub_type=p.player_sub_type, position=p.primary_position.value,
                 team=p.team, points=p.points, speed=p.speed, command=p.chart.command,
                 real_ops=p.real_ops,
             )

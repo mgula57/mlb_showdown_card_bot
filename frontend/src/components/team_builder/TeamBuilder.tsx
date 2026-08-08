@@ -22,7 +22,9 @@ import { NewTeamModal } from './NewTeamModal';
 import { RecentTeamsCarousel, trackRecentTeam } from './RecentTeamsCarousel';
 import { CommunityTeams } from './CommunityTeams';
 import { HistoricalTeams, asgIdentity, type HistoricalNavState } from './HistoricalTeams';
-import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaClockRotateLeft } from 'react-icons/fa6';
+import { SimSeasonView } from './sim/SimSeasonView';
+import { SimulationsTab } from './sim/SimulationsTab';
+import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaClockRotateLeft, FaRankingStar } from 'react-icons/fa6';
 import type { TeamCreatePayload } from '../../api/userTeams';
 
 // A team can be addressed by URL three ways: a saved UUID, a historical MLB team, or an All-Star team.
@@ -46,17 +48,27 @@ function parseTeamRef(pathname: string): TeamRef | null {
     return null;
 }
 
+// A running simulation gets its own URL (/teams/:teamId/sim/:jobId) so a refresh mid-run
+// reconnects to the job instead of losing it — the job's state lives in Postgres.
+function parseSimJobId(pathname: string): string | null {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[2] === 'sim' && parts[3] ? parts[3] : null;
+}
+
 type ViewState =
     | { mode: 'list' }
     | { mode: 'loading' }
     | { mode: 'editor'; team: Team; readOnly: boolean };
 
-type TabId = 'mine' | 'community' | 'historical';
+type TabId = 'mine' | 'community' | 'historical' | 'simulations';
 const ACTIVE_TAB_KEY = 'teams.activeTab';
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'mine', label: 'My Teams', icon: <FaUsers /> },
-    { id: 'community', label: 'Community', icon: <FaGlobe /> },
-    { id: 'historical', label: 'Historical', icon: <FaClockRotateLeft /> },
+const TAB_IDS: TabId[] = ['mine', 'community', 'historical', 'simulations'];
+// `shortLabel` keeps four tabs readable on a phone; the full label returns at sm.
+const TABS: { id: TabId; label: string; shortLabel: string; icon: React.ReactNode }[] = [
+    { id: 'mine', label: 'My Teams', shortLabel: 'Mine', icon: <FaUsers /> },
+    { id: 'community', label: 'Community', shortLabel: 'Community', icon: <FaGlobe /> },
+    { id: 'historical', label: 'Historical', shortLabel: 'History', icon: <FaClockRotateLeft /> },
+    { id: 'simulations', label: 'Simulations', shortLabel: 'Sims', icon: <FaRankingStar /> },
 ];
 
 export default function TeamBuilder() {
@@ -74,12 +86,15 @@ export default function TeamBuilder() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [activeTab, setActiveTab] = useState<TabId>(() => {
         const stored = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_TAB_KEY) : null;
-        return (stored === 'community' || stored === 'historical' || stored === 'mine') ? stored : 'mine';
+        return TAB_IDS.includes(stored as TabId) ? (stored as TabId) : 'mine';
     });
 
     // Parse the team addressed by the current URL (saved UUID, historical, or All-Star).
     const teamRef = parseTeamRef(location.pathname);
-    // The pathname of the team currently resolved into the editor, so we don't re-resolve on re-render.
+    const simJobId = parseSimJobId(location.pathname);
+    // The team currently resolved into the editor, so we don't re-resolve on re-render. Keyed on
+    // the ref rather than the pathname so entering/leaving a sim URL doesn't refetch the team.
+    const teamRefKey = teamRef ? JSON.stringify(teamRef) : null;
     const resolvedPathRef = useRef<string | null>(null);
 
     useEffect(() => {
@@ -106,19 +121,19 @@ export default function TeamBuilder() {
             setView(v => v.mode === 'list' ? v : { mode: 'list' });
             return;
         }
-        if (resolvedPathRef.current === location.pathname && view.mode === 'editor') return;
+        if (resolvedPathRef.current === teamRefKey && view.mode === 'editor') return;
 
         setView({ mode: 'loading' });
         resolveTeamRef(teamRef)
             .then(({ team, readOnly }) => {
-                resolvedPathRef.current = location.pathname;
+                resolvedPathRef.current = teamRefKey;
                 setView({ mode: 'editor', team, readOnly });
             })
             .catch(() => {
                 navigate('/teams', { replace: true });
             });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.pathname, token, userShowdownSet]);
+    }, [teamRefKey, token, userShowdownSet]);
 
     // Resolve a URL team ref into a full Team + read-only flag for the editor.
     async function resolveTeamRef(ref: TeamRef): Promise<{ team: Team; readOnly: boolean }> {
@@ -236,6 +251,26 @@ export default function TeamBuilder() {
 
     if (view.mode === 'editor') {
         const { team, readOnly } = view;
+
+        // A simulation addressed by URL takes over the view; the team is still resolved behind
+        // it so going back is instant and the sim can show whose season it is.
+        if (simJobId) {
+            return (
+                <div className="flex flex-col h-full">
+                    <SimSeasonView
+                        // Remounts on a new job id so state resets naturally instead of an
+                        // effect clearing it — going straight from one result to another (e.g.
+                        // via the leaderboard) must not show the previous season's data.
+                        key={simJobId}
+                        jobId={simJobId}
+                        teamName={team.name}
+                        token={token}
+                        onBack={() => navigate('/teams/' + team.team_id)}
+                    />
+                </div>
+            );
+        }
+
         // A public team owned by someone else can be forked into the current user's own copy.
         const canFork = readOnly && !!token && team.source === 'user' && team.is_public;
         return (
@@ -291,7 +326,8 @@ export default function TeamBuilder() {
                             }`}
                         >
                             <span>{tab.icon}</span>
-                            <span>{tab.label}</span>
+                            <span className="hidden sm:inline">{tab.label}</span>
+                            <span className="sm:hidden">{tab.shortLabel}</span>
                         </button>
                     ))}
                 </div>
@@ -354,6 +390,17 @@ export default function TeamBuilder() {
             {/* Historical tab */}
             {activeTab === 'historical' && (
                 <HistoricalTeams />
+            )}
+
+            {/* Simulations tab */}
+            {activeTab === 'simulations' && (
+                <SimulationsTab
+                    token={token}
+                    onOpenSeason={(teamId, jobId) => {
+                        trackRecentTeam(teamId);
+                        navigate(`/teams/${teamId}/sim/${jobId}`);
+                    }}
+                />
             )}
         </div>
     );

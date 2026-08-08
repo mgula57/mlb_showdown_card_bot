@@ -3,6 +3,8 @@ import type { TeamCreatePayload } from '../../api/userTeams';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { FaXmark, FaPlus, FaSpinner } from 'react-icons/fa6';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { CardSource } from '../../types/cardSource';
+import { activeSources, allowedSetsForSource } from '../../domain/teamSets';
 
 type NewTeamModalProps = {
     onConfirm: (payload: TeamCreatePayload) => Promise<void>;
@@ -23,7 +25,11 @@ export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
         min_bullpen: 5,
         num_starters: 4,
         bench_pts_multiplier: 0.2,
+        // A new team starts as a single-set Bot team; the settings form opens up WOTC (and its
+        // combinable sets) from there.
+        allowed_card_sources: [CardSource.BOT],
         allowed_sets: [userShowdownSet],
+        allowed_sets_by_source: { [CardSource.BOT]: [userShowdownSet] },
     };
     const [draft, setDraft] = useState<TeamCreatePayload>({ ...DEFAULTS });
     const [creating, setCreating] = useState(false);
@@ -32,7 +38,9 @@ export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
     const rosterUsed = 9 + (draft.num_starters ?? 4) + (draft.min_bullpen ?? 5) + (draft.min_bench ?? 2);
     const rosterValid = rosterUsed <= (draft.roster_size ?? 20);
     const ptsValid = draft.pts_limit == null || draft.pts_limit >= (draft.roster_size ?? 20) * 10;
-    const canCreate = draft.name.trim().length > 0 && draft.abbreviation.trim().length > 0 && rosterValid && ptsValid && (draft.allowed_sets ?? []).length > 0;
+    // Every source the team drafts from needs at least one set of its own.
+    const setsValid = activeSources(draft).every(source => allowedSetsForSource(draft, source).length > 0);
+    const canCreate = draft.name.trim().length > 0 && draft.abbreviation.trim().length > 0 && rosterValid && ptsValid && setsValid;
 
     async function handleCreate() {
         if (!canCreate || creating) return;

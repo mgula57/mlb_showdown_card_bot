@@ -3,7 +3,7 @@ from random import Random
 from typing import Optional
 
 from ..card.showdown_player_card import ShowdownPlayerCard
-from ..card.team_builder.team import Team as BuilderTeam
+from ..card.team_builder.team import BULLPEN_ROLES, ROTATION_ROLES, Team as BuilderTeam
 from ..shared.player_position import PlayerType, PositionSlot
 from ..shared.team import Team as ShowdownTeam
 from .game import Game
@@ -27,9 +27,6 @@ _FIELD_POSITION_TO_SLOT = {
     "RF": PositionSlot.RF,
     "DH": PositionSlot.DH,
 }
-
-# RANKING FOR BUILDER BULLPEN ROLES (LOWER = HIGHER LEVERAGE)
-_BULLPEN_ROLE_RANK = {"SU": 0, "MR": 1, "LONG": 2}
 
 # BONUS ADDED TO REST RATING FOR PLAYERS IN A BUILDER TEAM'S PRESET LINEUP.
 # LARGE ENOUGH THAT PRESET STARTERS ALMOST ALWAYS PLAY, SMALL ENOUGH THAT AN
@@ -130,7 +127,7 @@ class SimTeam:
         return team
 
     @classmethod
-    def from_builder_team(cls, team: BuilderTeam, cards: dict[str, ShowdownPlayerCard], year: int, league: str = None) -> 'SimTeam':
+    def from_builder_team(cls, team: BuilderTeam, cards: dict[str, ShowdownPlayerCard], year: int, league: str = None, name_override: str = None) -> 'SimTeam':
         """Build from a user-created team_builder Team, honoring its explicit lineup and pitcher roles.
 
         Args:
@@ -138,40 +135,45 @@ class SimTeam:
           cards: Hydrated cards keyed by roster slot card_id.
           year: Sim year (used for stat grouping only).
           league: League/tournament label.
+          name_override: Schedule key to run under instead of the team's own abbreviation. Used by
+            season takeover, where the team occupies a real club's slot and every schedule,
+            standings, and division lookup keys off that club's abbreviation. Display identity
+            (name/colors) is unaffected.
         """
 
         position_players: list[SimPlayer] = []
         sp_players: dict[str, SimPitcher] = {}
         bullpen_players: dict[str, SimPitcher] = {}
 
+        # EVERY STATLINE REPORTS THE BUILDER TEAM RATHER THAN THE CLUB THE CARD REALLY PLAYED FOR.
+        # NOTE THIS IS THE TEAM'S OWN ABBREVIATION, NOT `name_override` - A TAKEOVER RUNS UNDER THE
+        # REPLACED CLUB'S SCHEDULE KEY, BUT ITS PLAYERS BELONG TO THE USER'S TEAM.
+        team_abbreviation = team.abbreviation
+
+        # ROSTER POSITIONS ARE THE CANONICAL SOURCE FOR PITCHER ROLES - `Team.from_db_row` DERIVES
+        # `rotation` FROM THEM. THE VOCABULARY IS SP1-SP5 AND RP/CL, NEVER A BARE "SP".
         for slot in team.roster:
             card = cards.get(slot.card_id)
             if card is None:
                 continue
             roster_position = slot.roster_position.upper()
-            match roster_position:
-                case "SP":
-                    sp_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.SP)
-                case "RP":
-                    bullpen_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.BP)
-                case _:
-                    position_players.append(SimPlayer(card=card, id=slot.card_id))
+            if roster_position in ROTATION_ROLES:
+                sp_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.SP, team_override=team_abbreviation)
+            elif roster_position in BULLPEN_ROLES:
+                bullpen_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.BP, team_override=team_abbreviation)
+            else:
+                position_players.append(SimPlayer(card=card, id=slot.card_id, team_override=team_abbreviation))
 
-        # ROTATION ORDER FROM SP1-SP5 ROLES, FALLING BACK TO POINTS
-        sp_roles = {a.card_id: a.role for a in team.rotation if a.role.upper().startswith("SP") and a.role[2:].isdigit()}
-        ordered_sp_ids = [card_id for card_id, _ in sorted(sp_roles.items(), key=lambda kv: int(kv[1][2:])) if card_id in sp_players]
-        unassigned_sps = sorted([p for card_id, p in sp_players.items() if card_id not in ordered_sp_ids], key=lambda p: p.points, reverse=True)
-        rotation_players = [sp_players[card_id] for card_id in ordered_sp_ids] + unassigned_sps
+        # ROTATION ORDER FROM THE SP1..SP5 SLOT NUMBERS
+        sp_slot_by_card_id = {slot.card_id: slot.roster_position.upper() for slot in team.roster if slot.roster_position.upper() in ROTATION_ROLES}
+        rotation_players = [sp_players[card_id] for card_id in sorted(sp_players, key=lambda cid: int(sp_slot_by_card_id[cid][2:]))]
 
-        # BULLPEN ROLES: CP -> CLOSER, SU/MR/LONG -> LEVERAGE RANKING
-        closer_id: Optional[str] = None
-        role_order: dict[str, int] = {}
-        for assignment in team.rotation:
-            role = assignment.role.upper()
-            if role == "CP" and assignment.card_id in bullpen_players:
-                closer_id = assignment.card_id
-            elif role in _BULLPEN_ROLE_RANK and assignment.card_id in bullpen_players:
-                role_order[assignment.card_id] = _BULLPEN_ROLE_RANK[role]
+        # THE 'CL' SLOT IS THE CLOSER. THE BUILDER HAS NO SETUP/MIDDLE/LONG ROLES, SO THE REST OF
+        # THE BULLPEN IS LEFT TO `pitchers_available`'s OPS-BASED LEVERAGE SORT.
+        closer_id: Optional[str] = next(
+            (slot.card_id for slot in team.roster if slot.roster_position.upper() == 'CL' and slot.card_id in bullpen_players),
+            None,
+        )
 
         # PRESET LINEUP (FIRST DEFINED LINEUP)
         if len(team.lineups) > 0:
@@ -185,10 +187,10 @@ class SimTeam:
 
         sim_team = cls(
             year=year,
-            name=team.abbreviation,
+            name=name_override or team.abbreviation,
             position_players=position_players,
             rotation=Rotation(players=rotation_players),
-            bullpen=Bullpen(players=list(bullpen_players.values()), closer_id=closer_id, role_order=role_order),
+            bullpen=Bullpen(players=list(bullpen_players.values()), closer_id=closer_id),
             league=league,
         )
         # BUILDER TEAMS CARRY THEIR OWN USER-CHOSEN COLORS - NOT RESOLVED VIA THE ShowdownTeam
@@ -482,6 +484,7 @@ class SimTeam:
     def as_record(self, division: str = None, games_back: float = None) -> TeamRecord:
         return TeamRecord(
             name=self.name,
+            identity=self.identity,
             league=self.league,
             division=division,
             points=self.points,

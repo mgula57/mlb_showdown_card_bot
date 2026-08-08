@@ -5,9 +5,13 @@ from flask import Blueprint, g, jsonify, request
 from ..core.database.postgres_db import PostgresDB
 from ..core.card.team_builder.team import Team, DEFAULT_LINEUP_NAME
 from ..core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team
+from ..core.supabase import SupabaseClientManager, upload_to_supabase
 from .user_settings import require_auth, optional_user_id
+from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 
 user_teams_bp = Blueprint('user_teams', __name__)
+
+TEAM_LOGO_BUCKET = 'team_logos'
 
 
 def normalize_lineups(payload: dict) -> str | None:
@@ -139,6 +143,58 @@ def delete_team(team_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+@user_teams_bp.route('/user/teams/<team_id>/logo', methods=['POST'])
+@require_auth
+def upload_team_logo(team_id: str):
+    file = request.files.get('logo')
+    if not file or file.filename == '':
+        return jsonify({'error': 'No logo file provided'}), 400
+
+    uploaded_file_data = None
+    try:
+        uploaded_file_data = process_uploaded_file(file)
+        ext = uploaded_file_data['filename'].rsplit('.', 1)[-1].lower()
+        destination_path = f'{team_id}/logo.{ext}'
+
+        upload_result = upload_to_supabase(
+            bucket_name=TEAM_LOGO_BUCKET,
+            file_path=uploaded_file_data['path'],
+            destination_path=destination_path,
+        )
+        if not upload_result.get('success'):
+            return jsonify({'error': upload_result.get('error') or 'Failed to upload logo'}), 500
+
+        logo_url = SupabaseClientManager().get_public_url(TEAM_LOGO_BUCKET, destination_path)
+
+        with PostgresDB() as db:
+            updated = db.update_team(team_id, g.user_id, {'logo_url': logo_url})
+            if not updated:
+                return jsonify({'error': 'Team not found or not owned by user'}), 404
+            team = db.get_team(team_id, g.user_id)
+        return jsonify(team), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+    finally:
+        if uploaded_file_data:
+            cleanup_uploaded_file(uploaded_file_data)
+
+
+@user_teams_bp.route('/user/teams/<team_id>/logo', methods=['DELETE'])
+@require_auth
+def delete_team_logo(team_id: str):
+    try:
+        with PostgresDB() as db:
+            updated = db.update_team(team_id, g.user_id, {'logo_url': None})
+            if not updated:
+                return jsonify({'error': 'Team not found or not owned by user'}), 404
+            team = db.get_team(team_id, g.user_id)
+        return jsonify(team), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @user_teams_bp.route('/user/teams/<team_id>/autofill', methods=['POST'])
 @require_auth
 def autofill_team_route(team_id: str):
@@ -167,12 +223,11 @@ def autofill_team_route(team_id: str):
                 return jsonify({'error': 'Team must have a points limit set, or a target must be provided, to use autofill'}), 400
 
             # Build the base filter set from the team's stored constraints so that
-            # autofill always respects allowed_sets and player_filters regardless of
-            # what the frontend sends.  Payload active_filters are merged last so
-            # the UI can add session-level overrides (e.g. a one-time set filter).
+            # autofill always respects player_filters regardless of what the frontend
+            # sends.  Payload active_filters are merged last so the UI can add
+            # session-level overrides (e.g. a one-time set filter).  Set restrictions are
+            # applied per source below, since each source has its own allowed sets.
             team_filters: dict = {}
-            if team.allowed_sets:
-                team_filters['showdown_set'] = team.allowed_sets
             if team.player_filters:
                 team_filters.update(team.player_filters)
             # Payload overrides come last
@@ -192,6 +247,12 @@ def autofill_team_route(team_id: str):
 
                 for source in card_sources:
                     base = {**bucket_filters, **active_filters, 'source': source}
+                    # An explicit showdown_set override from the caller wins; otherwise use the
+                    # sets this team allows for this source (empty = no set restriction).
+                    if 'showdown_set' not in base:
+                        source_sets = team.sets_for_source(source)
+                        if source_sets:
+                            base['showdown_set'] = source_sets
 
                     main = db.fetch_card_list(filters={
                         **base,

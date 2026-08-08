@@ -23,6 +23,10 @@ class SimPlayer(BaseModel):
     position_slot: PositionSlot = PositionSlot.NONE
     preset_lineup_spot: Optional[int] = None                 # BATTING ORDER (1-9) FROM A BUILDER TEAM LINEUP
     preset_position_slot: Optional[PositionSlot] = None      # FIELD POSITION FROM A BUILDER TEAM LINEUP
+    # THE TEAM THE PLAYER SUITS UP FOR IN THIS SIM, WHEN IT ISN'T THE CARD'S OWN CLUB. A BUILDER
+    # ROSTER IS DRAFTED FROM ANY ERA, SO WITHOUT THIS EVERY STATLINE WOULD REPORT THE CLUB THE
+    # PLAYER REALLY PLAYED FOR RATHER THAN THE TEAM THEY PLAYED FOR HERE.
+    team_override: Optional[str] = None
     results_list: list[Result] = Field(default_factory=list) # PRECOMPUTED ROLL (1-N) -> RESULT LOOKUP
 
     def model_post_init(self, __context) -> None:
@@ -41,6 +45,8 @@ class SimPlayer(BaseModel):
 
     @property
     def team(self) -> Optional[str]:
+        if self.team_override:
+            return self.team_override
         return self.card.team.value if self.card.team else None
 
     @property

@@ -18,6 +18,21 @@ def league_abbreviation(league) -> Optional[str]:
     return None
 
 
+def normalized_team_abbr(api_abbreviation: Optional[str], year: int) -> Optional[str]:
+    """The card archive's abbreviation for an MLB API team in a given season.
+
+    The API reports a franchise's modern code for every season it played, so it is resolved
+    back to the era-correct one - otherwise a historical season's schedule and divisions never
+    join to its cards. Every lookup keyed on team abbreviation must go through here.
+    """
+    if api_abbreviation is None:
+        return None
+    showdown_team = ShowdownTeam.map_from_mlb_api_team(api_abbreviation)
+    if showdown_team is None or showdown_team == ShowdownTeam.MLB:
+        return api_abbreviation
+    return showdown_team.for_year(year).value
+
+
 class Schedule:
     """A season's worth of games plus team/league metadata.
 
@@ -95,10 +110,7 @@ class Schedule:
         season_schedule = client.games.get_season_schedule(season=year)
 
         def normalized_abbr(team) -> Optional[str]:
-            if team is None or team.abbreviation is None:
-                return None
-            showdown_team = ShowdownTeam.map_from_mlb_api_team(team.abbreviation)
-            return showdown_team.value if showdown_team and showdown_team != ShowdownTeam.MLB else team.abbreviation
+            return normalized_team_abbr(team.abbreviation if team else None, year)
 
         scheduled_games: list[dict] = []
         games_played_count: dict[str, int] = {}

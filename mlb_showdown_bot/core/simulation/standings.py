@@ -84,18 +84,16 @@ class Standings:
         except Exception:
             return self.default_division_mapping
 
-        from ..shared.team import Team as ShowdownTeam
+        from .schedule import league_abbreviation, normalized_team_abbr
 
         divisions_dict: dict[str, list[str]] = {}
         for api_team in api_teams:
             if api_team.abbreviation is None or api_team.division is None:
                 continue
-            showdown_team = ShowdownTeam.map_from_mlb_api_team(api_team.abbreviation)
-            team_abbr = showdown_team.value if showdown_team and showdown_team != ShowdownTeam.MLB else api_team.abbreviation
+            team_abbr = normalized_team_abbr(api_team.abbreviation, int(self.year))
             if team_abbr not in self.teams.keys():
                 continue
             # BUILD "AL EAST" STYLE NAMES - LEAGUE PREFIX IS USED FOR LEAGUE MATCHING ELSEWHERE
-            from .schedule import league_abbreviation
             league_abbr = league_abbreviation(api_team.league) or self.team_leagues.get(team_abbr)
             region = api_team.division.name.split(' ')[-1].upper() if api_team.division.name else ''
             division_name = f"{league_abbr} {region}" if league_abbr and region else (api_team.division.name_short or api_team.division.name).upper()

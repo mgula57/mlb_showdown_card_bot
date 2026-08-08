@@ -21,6 +21,9 @@ _SB = StatCategory.SB.value
 _CS = StatCategory.CS.value
 _GDP = StatCategory.GDP.value
 _GDPa = StatCategory.GDPa.value
+_HADV = StatCategory.HITTER_ADVANTAGE.value
+_PADV = StatCategory.PITCHER_ADVANTAGE.value
+_OWN_CHART_OUT = StatCategory.OWN_CHART_OUT.value
 
 
 def _stat_event(id: str, totals: dict[str, float], name: str = "", player_type=None, position=None, team=None, speed: int = 0, command: float = 0) -> Stats:
@@ -211,6 +214,14 @@ class PlateAppearance:
         return self.total_outs < 3 and self.swing.result == Result.GB and (self.runners.runner_for_base(1) is not None)
 
     @property
+    def _pitcher_had_advantage(self) -> bool:
+        return self.pitch.result == Result.PITCHER_ADVANTAGE
+
+    @property
+    def _hitter_had_advantage(self) -> bool:
+        return self.pitch.result == Result.HITTER_ADVANTAGE
+
+    @property
     def pitcher_stats(self) -> Stats:
         return _stat_event(
             id=self.pitcher.id,
@@ -226,6 +237,9 @@ class PlateAppearance:
                 self.swing.result.value: 1,
                 _IP: (self.outs / 3.0),
                 _EARNED_RUNS: self.pitcher_runs_allowed.get(self.pitcher.id, 0),
+                _HADV: int(self._hitter_had_advantage),
+                _PADV: int(self._pitcher_had_advantage),
+                _OWN_CHART_OUT: int(self._pitcher_had_advantage and self.swing.result.is_out),
             },
         )
 
@@ -244,6 +258,9 @@ class PlateAppearance:
                 _HITS: int(self.swing.result.is_hit),
                 self.swing.result.value: 1,
                 _RBI: 0 if self.outs > 1 else self.runs_scored,
+                _HADV: int(self._hitter_had_advantage),
+                _PADV: int(self._pitcher_had_advantage),
+                _OWN_CHART_OUT: int(self._hitter_had_advantage and self.swing.result.is_out),
             },
         )
 

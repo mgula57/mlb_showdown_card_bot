@@ -95,6 +95,35 @@ class PlayerArchive(BaseModel):
             return 'RELIEF_PITCHER'
 
 
+class ArchivePlayingTime(BaseModel):
+    """Playing-time-only projection of a `player_season_stats` row.
+
+    The full row carries a `stats` JSONB blob an order of magnitude larger than these columns.
+    Callers that only need to decide *whether* a player clears a PA/IP floor fetch this first
+    and pull full rows for the survivors.
+    """
+    id: str
+    player_type: str
+    pa: Optional[int] = None
+    ip: Optional[float] = None
+
+    def meets_playing_time(self, min_pa: int, min_ip: int) -> bool:
+        if self.player_type.upper() == 'PITCHER':
+            return (self.ip or 0) >= min_ip
+        return (self.pa or 0) >= min_pa
+
+
+# `card_data` keys that only the card-detail UI renders. They are ~70% of the stored JSON
+# (`command_out_accuracy_breakdowns` alone is ~60%), all default-valued on `ShowdownPlayerCard`,
+# and never read outside that UI - so bulk loads can strip them server-side.
+CARD_DATA_DIAGNOSTIC_KEYS = [
+    'command_out_accuracy_breakdowns',
+    'command_out_accuracies',
+    'points_breakdown',
+    'real_vs_projected_stats',
+]
+
+
 class ImageMatchType(str, Enum):
     """Types of image matches available"""
     EXACT = "exact"
@@ -678,12 +707,23 @@ class PostgresDB:
         """Fetch a single explore data record from the database by card ID."""
         
         query = sql.SQL("""
-            SELECT *
+            SELECT id, card_data
             FROM internal.dim_card
             WHERE id = %s
             LIMIT 1
         """)
+
+        if '-WOTC' in card_id:
+            query = sql.SQL("""
+                SELECT id, card_data
+                FROM public.card_wotc
+                WHERE id = %s
+                LIMIT 1
+            """)
+
+        # CHECK FOR DATA
         raw_data = self.execute_query(query=query, filter_values=(card_id,))
+        
         if len(raw_data) == 0:
             # Check in the WBC table if not found in the main card table (since some WBC cards are only stored there)
             query_wbc = sql.SQL("""
@@ -1294,11 +1334,71 @@ class PostgresDB:
             traceback.print_exc()
             return {}
 
-    def fetch_cards_for_roster_slots(self, slots: list) -> dict[str, ShowdownPlayerCard]:
+    @staticmethod
+    def _card_data_select(column: str, strip_diagnostics: bool) -> tuple[sql.Composable, list]:
+        """SELECT expression for a `card_data` column, optionally minus the UI-only diagnostic keys.
+
+        Returns the expression plus the filter values it introduces. Those values must be spliced
+        into the query's value tuple at the position the expression appears in the statement.
+        """
+        expression = sql.SQL(column)
+        if not strip_diagnostics:
+            return expression, []
+        return sql.SQL("{column} - %s::text[]").format(column=expression), [CARD_DATA_DIAGNOSTIC_KEYS]
+
+    def fetch_season_card_pool(self, year: int, set: Set, strip_diagnostics: bool = True) -> dict[str, ShowdownPlayerCard]:
+        """Every pre-built bot card for a season/set, keyed by archive player id ('{year}-{bref_id}').
+
+        One joined round trip: `card_bot` supplies the year/set index plus the archive id, `dim_card`
+        the payload. Projecting to those two columns is the point - `SELECT *` on `card_bot` moves
+        ~60 wide columns per row and measured ~25x slower than this for the same result set.
+
+        The ORDER BY is load-bearing, not cosmetic. Callers feed this dict straight into roster
+        selection, so its iteration order decides tie-breaks and therefore the seeded RNG sequence.
+        The plan for this join is parallel, which leaves row order genuinely unstable run to run
+        without it. The sort matches what `fetch_card_list` returned before, keeping seeded
+        simulations reproducible across the change.
+        """
+
+        if self.connection is None:
+            print("No database connection available for fetching a season card pool.")
+            return {}
+
+        card_data_expression, values = self._card_data_select("dim.card_data", strip_diagnostics)
+        query = sql.SQL("""
+            SELECT bot.id AS player_id, {card_data} AS card_data
+            FROM card_bot bot
+            JOIN internal.dim_card dim ON dim.id = bot.card_id
+            WHERE bot.year = %s AND bot.showdown_set = %s
+            ORDER BY bot.points DESC NULLS LAST, bot.bref_id, bot.year
+        """).format(card_data=card_data_expression)
+        values += [int(year), set.value if isinstance(set, Set) else str(set)]
+
+        cards: dict[str, ShowdownPlayerCard] = {}
+        try:
+            for row in (self.execute_query(query=query, filter_values=tuple(values)) or []):
+                if row.get('card_data'):
+                    cards[str(row['player_id'])] = ShowdownPlayerCard(**row['card_data'])
+        except Exception as e:
+            print("Error fetching season card pool:", e)
+            traceback.print_exc()
+
+        return cards
+
+    def fetch_archive_playing_time(self, year_list: list[int]) -> list[ArchivePlayingTime]:
+        """Playing-time projection of the season archive, for cheaply deciding which players matter."""
+
+        query = sql.SQL("SELECT id, player_type, pa, ip FROM {table} WHERE year IN %s AND historical_date IS NULL") \
+                    .format(table=sql.Identifier("player_season_stats"))
+        return [ArchivePlayingTime(**row) for row in self.execute_query(query=query, filter_values=(tuple(year_list),))]
+
+    def fetch_cards_for_roster_slots(self, slots: list, strip_diagnostics: bool = False) -> dict[str, ShowdownPlayerCard]:
         """Fetch full card data for team_builder roster slots across card sources.
 
         Args:
           slots: TeamRosterSlot objects (or dicts) with `card_id` and `card_source` ("BOT", "WOTC", "CUSTOM").
+          strip_diagnostics: Drop `CARD_DATA_DIAGNOSTIC_KEYS` from the payload. Safe for consumers that
+            never render the card-detail UI (the simulation); leave off when the card is served to it.
 
         Returns:
           Dict keyed by card_id with hydrated ShowdownPlayerCard values. Card ids that can't be resolved are omitted.
@@ -1320,15 +1420,21 @@ class PostgresDB:
             for source, card_ids in ids_by_source.items():
                 match source:
                     case 'BOT':
-                        query = sql.SQL("SELECT id, card_data FROM internal.dim_card WHERE id = ANY(%s)")
+                        table, id_column, data_column = "internal.dim_card", "id", "card_data"
                     case 'WOTC':
-                        query = sql.SQL("SELECT card_id AS id, card_data FROM card_wotc WHERE card_id = ANY(%s)")
+                        table, id_column, data_column = "card_wotc", "card_id", "card_data"
                     case 'CUSTOM':
-                        query = sql.SQL("SELECT id::text AS id, card_result AS card_data FROM internal.log_custom_card_bot WHERE id::text = ANY(%s)")
+                        table, id_column, data_column = "internal.log_custom_card_bot", "id::text", "card_result"
                     case _:
                         continue
 
-                for row in (self.execute_query(query=query, filter_values=(card_ids,)) or []):
+                card_data_expression, values = self._card_data_select(data_column, strip_diagnostics)
+                query = sql.SQL("SELECT {id_column} AS id, {card_data} AS card_data FROM {table} WHERE {id_column} = ANY(%s)").format(
+                    id_column=sql.SQL(id_column),
+                    card_data=card_data_expression,
+                    table=sql.SQL(table),
+                )
+                for row in (self.execute_query(query=query, filter_values=tuple(values + [card_ids])) or []):
                     card_data = row.get('card_data')
                     if card_data:
                         cards[str(row['id'])] = ShowdownPlayerCard(**card_data)
@@ -4260,9 +4366,9 @@ class PostgresDB:
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
             t.primary_color, t.secondary_color,
-            t.is_public, t.source,
+            t.is_public, t.source, t.logo_url,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
-            t.created_at, t.updated_at, t.allowed_sets, t.player_filters, t.allowed_card_sources,
+            t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -4329,9 +4435,9 @@ class PostgresDB:
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
             t.primary_color, t.secondary_color,
-            t.is_public, t.source,
+            t.is_public, t.source, t.logo_url,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
-            t.allowed_sets, t.allowed_card_sources, t.created_at, t.updated_at,
+            t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
             COUNT(r.card_id) AS roster_count,
             COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
             COUNT(*) FILTER (WHERE r.roster_position IN ('SP1','SP2','SP3','SP4','SP5'))               AS filled_starters,
@@ -4483,6 +4589,16 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS allowed_card_sources TEXT[] DEFAULT '{}';
+            """)
+            # Per-source set restrictions ({"BOT": ["2002"], "WOTC": ["2000","2001"]}). Teams
+            # predating this column fall back to the flat allowed_sets (see Team.sets_for_source).
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS allowed_sets_by_source JSONB DEFAULT '{}';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS logo_url TEXT;
             """)
             # lineups/rotation are now derived from the roster (user_team_roster.roster_position),
             # so drop the redundant JSONB columns.
@@ -4736,7 +4852,7 @@ class PostgresDB:
             VALUES %s
         """, batch)
 
-    _TEAM_JSONB_FIELDS = frozenset({'player_filters'})
+    _TEAM_JSONB_FIELDS = frozenset({'player_filters', 'allowed_sets_by_source'})
 
     @staticmethod
     def _serialize_team_field(key: str, value) -> object:
@@ -4749,9 +4865,9 @@ class PostgresDB:
     def _team_payload_fields(payload: dict) -> dict:
         ALLOWED = {
             'name', 'abbreviation', 'primary_color', 'secondary_color',
-            'is_public', 'source',
+            'is_public', 'source', 'logo_url',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
-            'allowed_sets', 'player_filters', 'allowed_card_sources',
+            'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}
 
@@ -7095,3 +7211,381 @@ class PostgresDB:
         
         return schedule
         
+# -----------------------------------------------------------------------
+# SIMULATION JOBS
+# -----------------------------------------------------------------------
+
+    # A season sim takes 15-30s - too long for a request under Heroku's 30s router timeout, and
+    # too heavy to hold one of three gunicorn workers. The row is the shared state: whichever
+    # worker runs the sim writes progress here, and any worker can serve the client's polling.
+    # Only the projected summary is stored; the full ~6 MB result is discarded (see summary.py).
+
+    SIM_JOB_TTL_HOURS = 24 * 7
+    SIM_JOB_STALE_MINUTES = 5
+
+    def build_sim_job_table(self) -> None:
+        """Create the sim_job table."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_job (
+                    job_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id         TEXT,
+                    team_id         UUID,
+                    status          TEXT NOT NULL DEFAULT 'queued',
+                    phase           TEXT,
+                    games_completed INT  NOT NULL DEFAULT 0,
+                    games_total     INT  NOT NULL DEFAULT 0,
+                    config          JSONB,
+                    summary         JSONB,
+                    error           TEXT,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    finished_at     TIMESTAMP WITHOUT TIME ZONE,
+                    expires_at      TIMESTAMP WITHOUT TIME ZONE
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_user_id ON internal.sim_job (user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_team_id ON internal.sim_job (team_id, created_at DESC);")
+            # DRIVES BOTH THE STALE-JOB REAPER AND TTL CLEANUP
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_status ON internal.sim_job (status) WHERE status IN ('queued', 'running');")
+
+            # RENAMED FROM sim_leaderboard: THE TABLE IS THE PERMANENT RECORD OF A PLAYED SEASON,
+            # NOT JUST A RANKING ROW.
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables
+                                WHERE table_schema = 'internal' AND table_name = 'sim_leaderboard')
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.tables
+                                        WHERE table_schema = 'internal' AND table_name = 'sim_season')
+                    THEN
+                        ALTER TABLE internal.sim_leaderboard RENAME TO sim_season;
+                    END IF;
+                END $$;
+            """)
+
+            # The permanent record of a played season. Job rows are transient progress tracking
+            # and expire; this holds the full result summary so a season stays viewable forever.
+            # Team branding is snapshotted because the team can be edited afterwards, but
+            # eligibility is *not* - `is_public` is joined live at read time so making a team
+            # private immediately removes it from other users' view.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_season (
+                    entry_id           BIGSERIAL PRIMARY KEY,
+                    job_id             UUID,
+                    user_id            TEXT,
+                    team_id            UUID REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    team_name          TEXT,
+                    team_abbreviation  TEXT,
+                    primary_color      TEXT,
+                    secondary_color    TEXT,
+                    year               INT  NOT NULL,
+                    showdown_set       TEXT,
+                    replaced_abbr      TEXT,
+                    wins               INT  NOT NULL DEFAULT 0,
+                    losses             INT  NOT NULL DEFAULT 0,
+                    win_pct            FLOAT NOT NULL DEFAULT 0,
+                    points             INT  NOT NULL DEFAULT 0,
+                    division           TEXT,
+                    division_rank      INT,
+                    made_playoffs      BOOLEAN DEFAULT FALSE,
+                    is_champion        BOOLEAN DEFAULT FALSE,
+                    longest_win_streak INT DEFAULT 0,
+                    seed               INT,
+                    summary            JSONB,
+                    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            # The viewable result moved here from sim_job, which now only tracks progress.
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS summary JSONB;")
+            cur.execute("ALTER TABLE internal.sim_job DROP COLUMN IF EXISTS summary;")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_season_year ON internal.sim_season (year, wins DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_season_user ON internal.sim_season (user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_season_team ON internal.sim_season (team_id, created_at DESC);")
+            # One entry per job, so a retried write can never double-count a season.
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sim_season_job ON internal.sim_season (job_id);")
+
+    def create_sim_job(self, user_id: str | None, team_id: str | None, config: dict) -> str:
+        """Insert a queued job and return its id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_job (user_id, team_id, status, phase, config, expires_at)
+                VALUES (%s, %s, 'queued', 'Queued', %s, NOW() + %s * INTERVAL '1 hour')
+                RETURNING job_id
+                """,
+                (user_id, team_id, extras.Json(config), self.SIM_JOB_TTL_HOURS),
+            )
+            return str(cur.fetchone()[0])
+
+    def update_sim_job_progress(self, job_id: str, phase: str | None = None, games_completed: int | None = None, games_total: int | None = None) -> None:
+        """Mark the job running and record progress. Called from the worker thread on its own
+        connection - it cannot share the one the simulation is using."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET status          = 'running',
+                       phase           = COALESCE(%s, phase),
+                       games_completed = COALESCE(%s, games_completed),
+                       games_total     = COALESCE(%s, games_total),
+                       updated_at      = NOW()
+                 WHERE job_id = %s
+                """,
+                (phase, games_completed, games_total, job_id),
+            )
+
+    def finish_sim_job(self, job_id: str, error: str | None = None) -> None:
+        """Terminal update. The result itself lives on `sim_season`, not here."""
+        if not self.connection:
+            return
+        status = 'failed' if error else 'succeeded'
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET status = %s, error = %s, phase = %s,
+                       updated_at = NOW(), finished_at = NOW()
+                 WHERE job_id = %s
+                """,
+                (status, error, 'Failed' if error else 'Complete', job_id),
+            )
+
+    def get_sim_job(self, job_id: str, user_id: str | None = None) -> dict | None:
+        """Fetch a job's progress. A job with no user_id is public; otherwise owner-only."""
+        if not self.connection:
+            return None
+        self.reap_stale_sim_jobs()
+        rows = self.execute_query(
+            """
+            SELECT job_id, user_id, team_id, status, phase, games_completed, games_total,
+                   config, error, created_at, updated_at, finished_at
+              FROM internal.sim_job
+             WHERE job_id = %s AND (user_id IS NULL OR user_id = %s)
+            """,
+            (job_id, user_id),
+        )
+        if not rows:
+            return None
+        row = dict(rows[0])
+        row['job_id'] = str(row['job_id'])
+        row['team_id'] = str(row['team_id']) if row['team_id'] else None
+        return row
+
+    def count_running_sim_jobs(self, user_id: str) -> int:
+        """In-flight jobs for one user, used to stop a single account queueing many at once."""
+        if not self.connection:
+            return 0
+        rows = self.execute_query(
+            "SELECT count(*) AS c FROM internal.sim_job WHERE user_id = %s AND status IN ('queued','running')",
+            (user_id,),
+        )
+        return int(rows[0]['c']) if rows else 0
+
+    def reap_stale_sim_jobs(self) -> None:
+        """Fail jobs whose worker stopped reporting.
+
+        The runner is a thread inside the web process, so a dyno restart or crash leaves a row
+        stuck in 'running' forever. Anything silent past the stale window is declared dead.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET status = 'failed', finished_at = NOW(), updated_at = NOW(),
+                       phase = 'Failed',
+                       error = COALESCE(error, 'Simulation stopped responding and was cancelled.')
+                 WHERE status IN ('queued','running')
+                   AND updated_at < NOW() - %s * INTERVAL '1 minute'
+                """,
+                (self.SIM_JOB_STALE_MINUTES,),
+            )
+            cur.execute("DELETE FROM internal.sim_job WHERE expires_at IS NOT NULL AND expires_at < NOW()")
+
+    def record_sim_season(self, job_id: str, user_id: str | None, team_id: str | None, team: dict, summary: dict) -> None:
+        """Permanently record a played season, result included. Idempotent on job_id."""
+        if not self.connection:
+            return
+        team_season = summary.get('team') or {}
+        identity = team_season.get('identity') or {}
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_season (
+                    job_id, user_id, team_id, team_name, team_abbreviation,
+                    primary_color, secondary_color, year, showdown_set, replaced_abbr,
+                    wins, losses, win_pct, points, division, division_rank,
+                    made_playoffs, is_champion, longest_win_streak, seed, summary
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (job_id) DO NOTHING
+                """,
+                (
+                    job_id, user_id, team_id,
+                    team.get('name') or identity.get('name'),
+                    team.get('abbreviation') or identity.get('abbreviation'),
+                    team.get('primary_color'), team.get('secondary_color'),
+                    summary.get('year'), summary.get('set'), team_season.get('replaced_abbr'),
+                    team_season.get('wins', 0), team_season.get('losses', 0),
+                    team_season.get('win_pct', 0), team_season.get('points', 0),
+                    team_season.get('division'), team_season.get('division_rank'),
+                    team_season.get('made_playoffs', False), team_season.get('is_champion', False),
+                    team_season.get('longest_win_streak', 0), summary.get('seed'),
+                    extras.Json(summary),
+                ),
+            )
+
+    def fetch_sim_leaderboard(self, user_id: str | None = None, year: int | None = None, per_season_limit: int = 25) -> list[dict]:
+        """Seasons that have been played, each with its ranked entries - one row per team,
+        showing that team's best run at the season.
+
+        Visibility is joined live against `user_teams.is_public`, so a team turned private drops
+        off other users' boards immediately. A user always sees their own entries, which is why
+        a rank is "among the entries this viewer can see" rather than a global position.
+
+        Args:
+          user_id: Viewer. Used to mark their own rows and to include their private teams.
+          year: Restrict to a single season.
+          per_season_limit: Teams kept per season.
+        """
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            -- COLUMNS ARE ENUMERATED RATHER THAN `l.*`: THE SUMMARY BLOB IS ~70 KB A ROW AND
+            -- MUST NOT BE CARRIED THROUGH THE WINDOW FUNCTIONS JUST TO BE DISCARDED.
+            WITH visible AS (
+                SELECT l.entry_id, l.job_id, l.team_id, l.team_name, l.team_abbreviation,
+                       l.primary_color, l.secondary_color, l.year, l.showdown_set, l.replaced_abbr,
+                       l.wins, l.losses, l.win_pct, l.points, l.division, l.division_rank,
+                       l.made_playoffs, l.is_champion, l.longest_win_streak, l.seed, l.created_at,
+                       (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
+                  FROM internal.sim_season l
+                  JOIN internal.user_teams t ON t.team_id = l.team_id
+                 WHERE (t.is_public = TRUE OR l.user_id IS NOT DISTINCT FROM %(user_id)s)
+                   AND (%(year)s IS NULL OR l.year = %(year)s)
+            ),
+            -- One row per team per season: its best run. Without this a team that replays a
+            -- season would occupy several slots and crowd everyone else off the board.
+            best_per_team AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY year, team_id
+                           ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
+                       ) AS run_rank,
+                       COUNT(*) OVER (PARTITION BY year, team_id) AS attempts
+                  FROM visible
+            ),
+            ranked AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY year
+                           ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
+                       ) AS rank
+                  FROM best_per_team
+                 WHERE run_rank = 1
+            )
+            SELECT entry_id, job_id, team_id, team_name, team_abbreviation,
+                   primary_color, secondary_color, year, showdown_set, replaced_abbr,
+                   wins, losses, win_pct, points, division, division_rank,
+                   made_playoffs, is_champion, longest_win_streak, seed, created_at,
+                   is_own, rank, attempts
+              FROM ranked
+             WHERE rank <= %(limit)s
+             ORDER BY year DESC, rank ASC
+            """,
+            {'user_id': user_id, 'year': year, 'limit': per_season_limit},
+        )
+        for row in rows:
+            row['job_id'] = str(row['job_id']) if row['job_id'] else None
+            row['team_id'] = str(row['team_id']) if row['team_id'] else None
+        return rows
+
+    # COLUMNS SHARED BY THE HISTORY LIST AND THE LEADERBOARD. THE SUMMARY IS DELIBERATELY ABSENT -
+    # IT IS ~70 KB A ROW AND ONLY THE DETAIL FETCH NEEDS IT.
+    _SIM_SEASON_LIST_COLUMNS = """
+        s.entry_id, s.job_id, s.team_id, s.team_name, s.team_abbreviation,
+        s.primary_color, s.secondary_color, s.year, s.showdown_set, s.replaced_abbr,
+        s.wins, s.losses, s.win_pct, s.points, s.division, s.division_rank,
+        s.made_playoffs, s.is_champion, s.longest_win_streak, s.seed, s.created_at
+    """
+
+    @staticmethod
+    def _stringify_sim_season_ids(rows: list[dict]) -> list[dict]:
+        for row in rows:
+            row['job_id'] = str(row['job_id']) if row.get('job_id') else None
+            row['team_id'] = str(row['team_id']) if row.get('team_id') else None
+        return rows
+
+    def fetch_sim_season(self, job_id: str, user_id: str | None = None) -> dict | None:
+        """One played season with its full result.
+
+        Readable when the team is public or the viewer owns the season, matching the leaderboard's
+        visibility rule so a link shared from the board resolves for whoever can already see it.
+        """
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, s.summary,
+                   (s.user_id IS NOT DISTINCT FROM %s) AS is_own
+              FROM internal.sim_season s
+              JOIN internal.user_teams t ON t.team_id = s.team_id
+             WHERE s.job_id = %s
+               AND (t.is_public = TRUE OR s.user_id IS NOT DISTINCT FROM %s)
+            """,
+            (user_id, job_id, user_id),
+        )
+        if not rows:
+            return None
+        return self._stringify_sim_season_ids(rows)[0]
+
+    def fetch_user_sim_seasons(self, user_id: str, limit: int = 100, team_id: str | None = None) -> list[dict]:
+        """A user's own played seasons, newest first. Every run, not just their best."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, TRUE AS is_own
+              FROM internal.sim_season s
+             WHERE s.user_id = %s
+               AND (%s IS NULL OR s.team_id = %s::uuid)
+             ORDER BY s.created_at DESC
+             LIMIT %s
+            """,
+            (user_id, team_id, team_id, limit),
+        )
+        return self._stringify_sim_season_ids(rows)
+
+    def fetch_team_sim_seasons(self, team_id: str, viewer_user_id: str | None = None, limit: int = 10) -> list[dict]:
+        """Every season played with a given team, newest first, regardless of who ran it.
+
+        A public team can be simulated by any signed-in user (`get_team`'s own visibility rule),
+        so its history can span multiple users - unlike `fetch_user_sim_seasons`, which is one
+        viewer's own runs. Visibility here is at the team level: callers are expected to already
+        know the viewer can see this team (they're looking at its detail page), so the only check
+        is that the team is public or the viewer owns it - not a per-row owner check.
+        """
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, (s.user_id IS NOT DISTINCT FROM %(viewer)s) AS is_own
+              FROM internal.sim_season s
+              JOIN internal.user_teams t ON t.team_id = s.team_id
+             WHERE s.team_id = %(team_id)s::uuid
+               AND (t.is_public = TRUE OR t.user_id IS NOT DISTINCT FROM %(viewer)s)
+             ORDER BY s.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'team_id': team_id, 'viewer': viewer_user_id, 'limit': limit},
+        )
+        return self._stringify_sim_season_ids(rows)

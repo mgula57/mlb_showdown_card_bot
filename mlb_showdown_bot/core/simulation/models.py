@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from ..card.sets import Set
 from ..card.team_builder.team import Team as BuilderTeam
-from ..shared.player_position import PositionSlotParent
+from ..shared.player_position import PlayerSubType, PositionSlotParent
 from .stats import Stats
 
 
@@ -133,12 +133,22 @@ class SeasonSimulationConfig(BaseModel):
     tournament_name: Optional[str] = None
     tournament_games: Optional[int] = None
 
+    # SEASON TAKEOVER. THE BUILDER TEAM REPLACES ONE REAL CLUB IN AN OTHERWISE REAL MLB SEASON,
+    # INHERITING ITS SCHEDULE, DIVISION AND OPPONENTS. DELIBERATELY SEPARATE FROM `custom_teams`,
+    # WHICH SWAPS THE ENTIRE LEAGUE OUT FOR A ROUND ROBIN - THE TWO ARE MUTUALLY EXCLUSIVE.
+    takeover_team: Optional[BuilderTeam] = None
+    takeover_replaces_abbr: Optional[str] = None  # ERA-CORRECT ABBREVIATION, E.G. "TBD" FOR 1998
+
     include_game_logs: bool = False
     include_box_scores: bool = False
 
     @property
     def is_tournament(self) -> bool:
         return len(self.custom_teams) > 0
+
+    @property
+    def is_takeover(self) -> bool:
+        return self.takeover_team is not None
 
     @property
     def league_name(self) -> str:
@@ -151,8 +161,20 @@ class SeasonSimulationConfig(BaseModel):
         return self.include_box_scores or self.is_tournament
 
 
+class SimTeamIdentity(BaseModel):
+    """Team branding for rendering. Real-season teams resolve this from the `shared.Team` enum
+    (year-aware colors); builder/tournament teams pass their own colors straight through."""
+
+    abbreviation: str
+    name: str = ""
+    primary_color: Optional[str] = None    # "rgb(r, g, b)"
+    secondary_color: Optional[str] = None  # "rgb(r, g, b)"
+    league: Optional[str] = None
+
+
 class TeamRecord(BaseModel):
-    name: str
+    name: str  # SCHEDULE KEY. FOR A TAKEOVER TEAM THIS IS THE CLUB IT REPLACED - RENDER `identity`
+    identity: Optional[SimTeamIdentity] = None
     league: Optional[str] = None
     division: Optional[str] = None
     points: int = 0
@@ -182,17 +204,6 @@ class GameLogEntry(BaseModel):
     swing_result: str
     detail: str = ""    # STEALS, DPS, ADVANCES, ROLL ADJUSTMENTS
     summary: str = ""   # FULL HUMAN READABLE LINE
-
-
-class SimTeamIdentity(BaseModel):
-    """Team branding for rendering. Real-season teams resolve this from the `shared.Team` enum
-    (year-aware colors); builder/tournament teams pass their own colors straight through."""
-
-    abbreviation: str
-    name: str = ""
-    primary_color: Optional[str] = None    # "rgb(r, g, b)"
-    secondary_color: Optional[str] = None  # "rgb(r, g, b)"
-    league: Optional[str] = None
 
 
 class InningLineScore(BaseModel):
@@ -361,7 +372,8 @@ class SeasonSimulationResult(BaseModel):
     schedule_length: int
     original_schedule_length: int
     stats_min_pa: int
-    stats_min_ip: int
+    stats_min_ip: int      # QUALIFYING IP FOR STARTERS
+    stats_min_ip_rp: int   # QUALIFYING IP FOR RELIEVERS/CLOSERS - LOWER, SINCE THEY THROW FAR FEWER INNINGS
 
     standings: StandingsResult
     player_stats: list[Stats] = []
@@ -377,13 +389,15 @@ class SeasonSimulationResult(BaseModel):
     def runtime_seconds(self) -> float:
         return (self.ended_at - self.started_at).total_seconds()
 
-    def top_players(self, player_type: str, stat: str, limit: int = 20, is_desc: bool = True, min_pa: int = 0, min_ip: int = 0) -> list[Stats]:
-        """Ordered leaderboard filtered by playing time minimums."""
+    def top_players(self, player_type: str, stat: str, limit: int = 20, is_desc: bool = True, min_pa: int = 0, min_ip: int = 0, player_sub_type: Optional[PlayerSubType] = None) -> list[Stats]:
+        """Ordered leaderboard filtered by playing time minimums. `player_sub_type` further restricts
+        to STARTING_PITCHER/RELIEF_PITCHER (or POSITION_PLAYER), used to split leaderboards by role."""
         league_stats = self.league_totals.get(player_type)
         eligible = [
             s for s in self.player_stats
             if s.player_type is not None and s.player_type.value == player_type
             and s.stat_by_key('pa') >= min_pa and s.stat_by_key('ip') >= min_ip
+            and (player_sub_type is None or s.player_sub_type == player_sub_type)
         ]
         eligible.sort(key=lambda s: s.stat_by_key(stat, league_stats=league_stats, woba_weights=self.woba_weights), reverse=is_desc)
         return eligible[:limit] if limit else eligible

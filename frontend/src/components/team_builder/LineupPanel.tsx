@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
 import type { Lineup } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus, FaTrash, FaPencil, FaCheck, FaChevronUp, FaChevronDown, FaCopy } from 'react-icons/fa6';
+import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 
 const DEFAULT_LINEUP_NAME = 'Default';
 
@@ -243,7 +243,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                 {/* Card */}
                                 <div className="flex-1 min-w-0">
                                     {card ? (
-                                        <CardItemCompactFromCardDatabaseRecord card={card} />
+                                        <CardItemFromCardDatabaseRecord card={card} />
                                     ) : (
                                         <div className="text-[11px] text-(--text-tertiary) px-2">—</div>
                                     )}

@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, uploadTeamLogo, deleteTeamLogo } from '../../api/userTeams';
 import { AutofillPanel } from './AutofillPanel';
+import { TeamLogo } from './TeamLogo';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
@@ -19,11 +20,17 @@ import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear,
-    FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork
+    FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine
 } from 'react-icons/fa6';
+import { useNavigate } from 'react-router-dom';
+import { fetchTeamSimSeasons, startSeasonSim, type SimSeasonListItem } from '../../api/sim';
+import { SimSetupModal } from './sim/SimSetupModal';
+import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
+import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
+import { effectiveBenchBullpenMinimums } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
 
 type PendingSlot =
@@ -50,11 +57,6 @@ type TeamDetailProps = {
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 const BULLPEN_ROLES  = ['RP', 'CL'] as const;
 
-const CARD_SOURCES = [
-    { key: CardSource.BOT,  label: 'Bot' },
-    { key: CardSource.WOTC, label: 'WOTC' },
-    { key: CardSource.WBC,  label: 'WBC' },
-] as const;
 
 function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, string[]> {
     if (!slot) return {};
@@ -91,10 +93,14 @@ function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[
         lines.push(`Min bench: ${original.min_bench} → ${pending.min_bench}`);
     if ('bench_pts_multiplier' in pending && pending.bench_pts_multiplier !== original.bench_pts_multiplier)
         lines.push(`Bench PTS multiplier: ${original.bench_pts_multiplier}× → ${pending.bench_pts_multiplier}×`);
-    if ('allowed_sets' in pending) {
-        const orig = (original.allowed_sets ?? []).sort().join(', ') || 'all';
-        const next = (pending.allowed_sets ?? []).sort().join(', ') || 'all';
-        if (orig !== next) lines.push(`Allowed sets: ${orig} → ${next}`);
+    if ('allowed_sets' in pending || 'allowed_sets_by_source' in pending) {
+        // Sets are per source, so report each source's list separately.
+        const merged = { ...original, ...pending };
+        for (const { value, label } of TEAM_CARD_SOURCES) {
+            const orig = allowedSetsForSource(original, value).slice().sort().join(', ') || 'all';
+            const next = allowedSetsForSource(merged, value).slice().sort().join(', ') || 'all';
+            if (orig !== next) lines.push(`${label} sets: ${orig} → ${next}`);
+        }
     }
     if ('allowed_card_sources' in pending) {
         const orig = (original.allowed_card_sources ?? []).sort().join(', ') || 'all';
@@ -158,6 +164,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [editMode, setEditMode] = useState(false);
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [showSimModal, setShowSimModal] = useState(false);
+    const [logoUploading, setLogoUploading] = useState(false);
+    // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
+    // team that's never been played shows no dead tab.
+    const [teamSeasons, setTeamSeasons] = useState<SimSeasonListItem[] | null>(null);
+    const navigate = useNavigate();
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -205,6 +217,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Recent simulations played with this team, across every user — a public team can be
+    // simulated by anyone, not just its owner, so this isn't limited to the viewer's own runs.
+    // Synthetic (MLB/ASG) teams have no real team_id and simply never fetch, which is fine:
+    // `teamSeasons` staying null already means the Sims tab doesn't render.
+    useEffect(() => {
+        if (!team.team_id) return;
+        let stale = false;
+        fetchTeamSimSeasons(team.team_id, token)
+            .then(seasons => { if (!stale) setTeamSeasons(seasons); })
+            .catch(() => { if (!stale) setTeamSeasons([]); });
+        return () => { stale = true; };
+    }, [team.team_id, token]);
+
     // Auto-save: debounce 1.5s after any dirty change
     useEffect(() => {
         if (!dirty || readOnly) return;
@@ -226,11 +251,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }, [draft, dirty]);
 
 
-    const searchFilters = useMemo(() => ({
-        ...(draft.player_filters ?? {}),
-        ...getSearchFiltersForSlot(pendingSlot),
-        ...(draft.allowed_sets?.length ? { showdown_set: draft.allowed_sets } : {}),
-    }), [pendingSlot, draft.allowed_sets, draft.player_filters]);
+    // Set restrictions are per card source, so the draft panel's filters follow the active tab.
+    const { allowed_sets, allowed_sets_by_source, player_filters } = draft;
+    const searchFilters = useMemo(() => {
+        const sets = allowedSetsForSource({ allowed_sets, allowed_sets_by_source }, draftSource);
+        return {
+            ...(player_filters ?? {}),
+            ...getSearchFiltersForSlot(pendingSlot),
+            ...(sets.length ? { showdown_set: sets } : {}),
+        };
+    }, [pendingSlot, draftSource, allowed_sets, allowed_sets_by_source, player_filters]);
 
     function update(updates: TeamUpdatePayload) {
         setDraft(prev => ({ ...prev, ...updates } as Team));
@@ -239,11 +269,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     async function handleAutofill(strategy: AutofillStrategy) {
         if (!token || !draft.team_id) return;
-        const activeFilters: Record<string, unknown> = {};
-        if (draft.allowed_sets?.length) activeFilters['showdown_set'] = draft.allowed_sets;
-        // Pass single allowed source so autofill fetches from the correct table
-        if (draft.allowed_card_sources?.length === 1) activeFilters['source'] = draft.allowed_card_sources[0];
-        const result = await autofillTeam(draft.team_id, strategy, token, activeFilters);
+        // Sets are left to the server: it queries one source at a time and applies that
+        // source's own allowed sets, which a single flat filter here couldn't express.
+        const result = await autofillTeam(draft.team_id, strategy, token, {});
         update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
         const added = result.roster.length - draft.roster.length;
         setLastAutofillStrategy(strategy);
@@ -257,6 +285,32 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             await handleAutofill(lastAutofillStrategy);
         } finally {
             setReshuffling(false);
+        }
+    }
+
+    async function handleLogoUpload(file: File) {
+        if (!token || !draft.team_id || logoUploading) return;
+        setLogoUploading(true);
+        try {
+            const updated = await uploadTeamLogo(draft.team_id, file, token);
+            setDraft(prev => ({ ...prev, logo_url: updated.logo_url }));
+        } catch (err) {
+            console.error('Failed to upload team logo', err);
+        } finally {
+            setLogoUploading(false);
+        }
+    }
+
+    async function handleLogoRemove() {
+        if (!token || !draft.team_id || logoUploading) return;
+        setLogoUploading(true);
+        try {
+            const updated = await deleteTeamLogo(draft.team_id, token);
+            setDraft(prev => ({ ...prev, logo_url: updated.logo_url }));
+        } catch (err) {
+            console.error('Failed to remove team logo', err);
+        } finally {
+            setLogoUploading(false);
         }
     }
 
@@ -308,6 +362,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const showEditControls = !readOnly && teamMode !== 'complete';
     // Real MLB/WBC rosters are synthesized read-only from the card archive — there's no draft history or editable settings to show
     const isMlbTeam = team.source === 'mlb';
+    // A season needs a complete roster and a signed-in owner (the sim endpoint is authenticated).
+    // Synthetic MLB/ASG teams aren't saved, so there is no team_id for the job to reference.
+    const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id;
+    const hasSims = !!teamSeasons && teamSeasons.length > 0;
 
     const settingsDraft = useMemo(
         () => pendingSettings ? { ...draft, ...pendingSettings } as Team : draft,
@@ -325,15 +383,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const bannerRight = bannerTokens(secondary);
     const bannerStyle = { background: `linear-gradient(to right, ${primary}, ${secondary})` };
 
+    const effectiveBucketMins = useMemo(() => effectiveBenchBullpenMinimums(draft), [draft]);
+
     const rosterProgress = useMemo(() => {
+        const { bench: benchTarget, bullpen: bullpenTarget } = effectiveBucketMins;
         const filledLineup = (draft.lineups[0]?.slots ?? []).length;
         const filledStarters = draft.rotation.filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).length;
         const filledBench = draft.roster.filter(s => s.roster_position === 'BE').length;
         const filledBullpen = draft.rotation.filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).length;
-        const filled = filledLineup + Math.min(filledStarters, draft.num_starters) + Math.min(filledBench, draft.min_bench) + Math.min(filledBullpen, draft.min_bullpen);
-        const total = 9 + draft.num_starters + draft.min_bench + draft.min_bullpen;
+        const filled = filledLineup + Math.min(filledStarters, draft.num_starters) + Math.min(filledBench, benchTarget) + Math.min(filledBullpen, bullpenTarget);
+        const total = 9 + draft.num_starters + benchTarget + bullpenTarget;
         return { filled, total };
-    }, [draft]);
+    }, [draft, effectiveBucketMins]);
 
     const activeFieldPosition = pendingSlot?.kind === 'field' ? pendingSlot.position : null;
     const activeRole = (pendingSlot?.kind === 'rotation' || pendingSlot?.kind === 'bench') ? pendingSlot.role : null;
@@ -384,12 +445,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         : 'Adding to roster'
         : null;
 
-    const allowedSources = useMemo(() => {
-        const restricted = draft.allowed_card_sources ?? [];
-        return restricted.length > 0
-            ? CARD_SOURCES.filter(s => restricted.includes(s.key))
-            : [...CARD_SOURCES];
-    }, [draft.allowed_card_sources]);
+    const allowedSources = useMemo(
+        () => activeSources({ allowed_card_sources: draft.allowed_card_sources })
+            .map(value => ({ key: value, label: TEAM_CARD_SOURCES.find(s => s.value === value)!.label })),
+        [draft.allowed_card_sources],
+    );
 
     const draftPanel = (
         <DraftPanel
@@ -513,11 +573,32 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         </div>
     );
 
+    const simsContent = (
+        <div className="flex flex-col gap-1.5 p-4">
+            {(teamSeasons ?? []).map(entry => (
+                <SimSeasonRow
+                    key={entry.entry_id}
+                    entry={entry}
+                    showTime
+                    onOpen={() => entry.job_id && navigate(`/teams/${team.team_id}/sim/${entry.job_id}`)}
+                />
+            ))}
+        </div>
+    );
+
     const settingsChanges = pendingSettings ? getSettingsChanges(draft, pendingSettings) : [];
 
     function closeSettingsModal() {
         setPendingSettings(null);
         setShowSettingsModal(false);
+    }
+
+    /** Queue a season and hand off to the job's own URL, which owns polling and the result. */
+    async function handleStartSim(options: { year: number; set: string; replaces: string }) {
+        if (!token) return;
+        const { job_id } = await startSeasonSim({ team_id: team.team_id, ...options }, token);
+        setShowSimModal(false);
+        navigate(`/teams/${team.team_id}/sim/${job_id}`);
     }
 
     // Eligible positions split into groups for the confirmation modal
@@ -536,6 +617,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <FaArrowLeft />
                     </button>
                 )}
+
+                <TeamLogo
+                    logoUrl={draft.logo_url}
+                    abbreviation={draft.abbreviation}
+                    primaryColor={primary}
+                    editable={!readOnly && !isMlbTeam && !!token && !!draft.team_id}
+                    uploading={logoUploading}
+                    onUpload={handleLogoUpload}
+                    onRemove={handleLogoRemove}
+                    className="mt-0.5"
+                />
 
                 {/* Team Header */}
                 <div className="flex-1 min-w-0 space-y-1">
@@ -653,6 +745,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         )}
                     </div>
                 )}
+                {canSimulate && (
+                    <div className="flex h-full items-center ">
+                        <button
+                            type="button"
+                            onClick={() => setShowSimModal(true)}
+                            className="flex items-center gap-1.5 rounded-md h-8 px-2 py-1 mt-0.5 text-[11px] font-semibold hover:opacity-90 cursor-pointer shrink-0 transition-opacity"
+                            style={{
+                                backgroundImage: `linear-gradient(135deg, ${draft.primary_color}, ${draft.secondary_color})`,
+                                color: getContrastTextColor(draft.primary_color)
+                            }}
+                            aria-label="Simulate a season with this team"
+                            title="Drop this team into a real season and play all 162 games"
+                        >
+                            <FaPlay className="h-3 w-3" />
+                            Play
+                        </button>
+                    </div>
+                )}
             </div>
 
             {stale && (
@@ -738,9 +848,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         >
                             {!isMlbTeam && (
                                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
-                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
-                                    <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}>Lineup</Tabs.Trigger>
-                                    <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
+                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></Tabs.Trigger>
+                                    <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1.5" /> Lineup</Tabs.Trigger>
+                                    <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1.5" /> Draft</Tabs.Trigger>
+                                    {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1.5" /> Sims</Tabs.Trigger>}
                                 </Tabs.List>
                             )}
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
@@ -752,6 +863,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {!isMlbTeam && (
                                 <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
                                     {draftHistoryContent}
+                                </Tabs.Content>
+                            )}
+                            {hasSims && (
+                                <Tabs.Content value="sims" className="focus:outline-none flex-1 overflow-y-auto">
+                                    {simsContent}
                                 </Tabs.Content>
                             )}
                         </Tabs.Root>
@@ -773,6 +889,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></Tabs.Trigger>
                                 <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1.5" /> Lineup</Tabs.Trigger>
                                 {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1.5" />Draft</Tabs.Trigger>}
+                                {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1.5" />Sims</Tabs.Trigger>}
                             </Tabs.List>
 
                             <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
@@ -790,6 +907,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {!isMlbTeam && (
                                 <Tabs.Content value="draft" className="focus:outline-none">
                                     {draftHistoryContent}
+                                </Tabs.Content>
+                            )}
+
+                            {hasSims && (
+                                <Tabs.Content value="sims" className="focus:outline-none">
+                                    {simsContent}
                                 </Tabs.Content>
                             )}
                         </Tabs.Root>
@@ -900,6 +1023,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {/* Settings modal */}
+            {showSimModal && (
+                <SimSetupModal
+                    showdownSet={draft.allowed_sets?.[0] ?? '2000'}
+                    onCancel={() => setShowSimModal(false)}
+                    onStart={handleStartSim}
+                />
+            )}
+
             {showSettingsModal && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -972,8 +1103,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     bucketSizes={{
                         offense: 9,
                         rotation: draft.num_starters,
-                        bench: draft.min_bench,
-                        bullpen: draft.min_bullpen,
+                        bench: effectiveBucketMins.bench,
+                        bullpen: effectiveBucketMins.bullpen,
                     }}
                     existingPts={{
                         offense: pointsBreakdown.lineup,
