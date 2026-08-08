@@ -43,19 +43,20 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             )}
             {/* Team logo (left of the abbreviation badge) */}
             <div className="shrink-0 flex items-center gap-1.5">
-                {team.logo_url && (
+                {team.logo_url ? (
                     <img
                         src={team.logo_url}
                         alt={`${team.abbreviation} logo`}
                         className="w-10 h-10 rounded-md object-cover shrink-0"
                     />
+                ) : (
+                    <div
+                        className="w-10 h-10 rounded-md flex items-center justify-center text-[11px] font-black shrink-0"
+                        style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}
+                    >
+                        {team.abbreviation}
+                    </div>
                 )}
-                <div
-                    className="w-10 h-10 rounded-md flex items-center justify-center text-[11px] font-black shrink-0"
-                    style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}
-                >
-                    {team.abbreviation}
-                </div>
             </div>
 
             <div className="min-w-0 flex-1">

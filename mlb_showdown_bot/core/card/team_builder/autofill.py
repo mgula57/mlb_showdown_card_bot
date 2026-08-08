@@ -15,7 +15,7 @@ BUCKET_QUERY_FILTERS: dict[str, dict] = {
     'offense': {'player_type': ['HITTER'], 'positions': ['C', '1B', '2B', '3B', 'SS', 'LF/RF', 'CF', 'DH']},
     'rotation': {'player_type': ['PITCHER'], 'positions': ['STARTER']},
     'bench':    {'player_type': ['HITTER']},
-    'bullpen':  {'player_type': ['PITCHER'], 'positions': ['RELIEVER', 'STARTER']},
+    'bullpen':  {'player_type': ['PITCHER'], 'positions': ['RELIEVER']},
 }
 
 # ---------------------------------------------------------------------------
