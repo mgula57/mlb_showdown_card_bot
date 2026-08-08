@@ -197,6 +197,29 @@ def _pos_matches(card: dict, position: str) -> bool:
     return position in pos_list
 
 
+def _diagnose_bucket_failure(
+    bucket: str,
+    candidates: list[dict],
+    used_ids: set[str],
+    pts_remaining: int,
+    bench_pts_multiplier: float = 1.0,
+) -> str:
+    """Diagnose why a bucket couldn't be filled and return a detailed error message."""
+    available = [c for c in candidates if c['card_id'] not in used_ids]
+    if not available:
+        return f"No {bucket} players available in candidate pool"
+
+    # Apply multiplier for bench bucket
+    price_fn = (lambda c: round((c.get('points') or 0) * bench_pts_multiplier)) if bucket == 'bench' else (lambda c: c.get('points') or 0)
+    prices = [price_fn(c) for c in available]
+    cheapest = min(prices)
+
+    if cheapest > pts_remaining:
+        return f"Cheapest available {bucket} player costs {cheapest} pts, but only {pts_remaining} pts remaining in budget"
+    else:
+        return f"Unable to complete {bucket} fill within tolerance (budget constraints)"
+
+
 # ---------------------------------------------------------------------------
 # Per-bucket fill functions
 # ---------------------------------------------------------------------------
@@ -243,12 +266,10 @@ def _fill_offense(
             if c['card_id'] not in used_ids and _pos_matches(c, position)
         ]
         if not eligible:
-            print(f"No eligible candidates for position {position} with {pts_remaining} pts remaining")
             return None, set()
 
         affordable = [c for c in eligible if (c.get('points') or 0) <= pts_remaining]
         if not affordable:
-            print(f"No affordable candidates for position {position} with {pts_remaining} pts remaining")
             return None, set()
 
         picked = _pick_balanced(
@@ -485,10 +506,10 @@ def autofill_team(
     pts_tolerance: int = 200,
     max_attempts: int = 8,
     pts_target: int | None = None,
-) -> dict | None:
+) -> dict | tuple[None, str]:
     """
     Fill remaining roster slots using a randomized greedy algorithm.
-    Returns merged roster/lineups/rotation dict on success, or None on failure.
+    Returns merged roster/lineups/rotation dict on success, or (None, error_msg) on failure.
 
     candidates_by_bucket: {bucket_name: [card_dicts]} fetched by the endpoint
     pts_distribution: fractions summing to 1.0 keyed by bucket name
@@ -549,7 +570,7 @@ def autofill_team(
             offense_target, pts_tolerance, source_counts,
         )
         if offense_result is None:
-            print("Offense fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('lineup', sorted_candidates['offense'], set(), offense_target)
             continue
 
         bench_result = _fill_bench(
@@ -560,7 +581,7 @@ def autofill_team(
             team.bench_pts_multiplier, source_counts,
         )
         if bench_result is None:
-            print("Bench fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('bench', sorted_candidates['bench'], existing_ids | offense_ids, bench_target, team.bench_pts_multiplier)
             continue
 
         rotation_result = _fill_rotation(
@@ -568,7 +589,7 @@ def autofill_team(
             team.num_starters, rotation_target, pts_tolerance, source_counts,
         )
         if rotation_result is None:
-            print("Rotation fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('rotation', sorted_candidates['rotation'], set(), rotation_target)
             continue
 
         bullpen_result = _fill_bullpen(
@@ -576,7 +597,7 @@ def autofill_team(
             effective_min_bullpen, bullpen_target, pts_tolerance, source_counts,
         )
         if bullpen_result is None:
-            print("Bullpen fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('bullpen', sorted_candidates['bullpen'], set(), bullpen_target)
             continue
 
         # Build merged roster
@@ -605,4 +626,6 @@ def autofill_team(
             'rotation': new_rotation,
         }
 
-    return None
+    # All attempts exhausted
+    last_failure = last_failure if 'last_failure' in locals() else 'Unable to complete roster after all attempts'
+    return (None, f"{last_failure}. Try adjusting your points targets, strategy, or removing some manual picks.")

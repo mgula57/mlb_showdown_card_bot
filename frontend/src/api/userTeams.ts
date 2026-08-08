@@ -339,7 +339,7 @@ export async function autofillTeam(
     });
     if (res.status === 422) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'Autofill failed');
+        throw new Error(body.message || body.error || 'Autofill failed');
     }
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));

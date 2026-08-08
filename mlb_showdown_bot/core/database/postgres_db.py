@@ -1032,10 +1032,15 @@ class PostgresDB:
                 )
 
             else:
-                final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
-                    field=sql.Identifier(sort_by),
-                    direction=sql.SQL(sort_direction)
-                )
+                if sort_by.lower() == 'random()':
+                    final_sort = sql.SQL("random() {direction} NULLS LAST").format(
+                        direction=sql.SQL(sort_direction)
+                    )
+                else:
+                    final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
+                        field=sql.Identifier(sort_by),
+                        direction=sql.SQL(sort_direction)
+                    )
 
             query += sql.SQL(" ORDER BY {}, points DESC, bref_id, year").format(final_sort)
 

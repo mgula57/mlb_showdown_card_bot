@@ -241,9 +241,24 @@ def autofill_team_route(team_id: str):
                 card_sources = ['BOT']
 
             def _fetch_bucket(bucket_filters: dict) -> list[dict]:
-                """Fetch candidates for one bucket across all allowed card sources."""
+                """Fetch stratified candidate pool across price bands (10-800 pts).
+                Ensures representation at all budget levels. Cheap tier (10-100) prioritizes
+                position players to improve bench fill success.
+                """
                 merged_all: list[dict] = []
                 seen_ids: set[str] = set()
+
+                # Price bands with card limits per band. Cheaper tiers get more cards
+                # to ensure autofill has options when budget-constrained.
+                price_bands = [
+                    {'min': 10,  'max': 100,  'limit': 100, 'player_type': 'HITTER'},  # Cheap tier: max options for bench fill
+                    {'min': 10,  'max': 100,  'limit': 50, 'position_list': ['STARTER']},  # Cheap tier: options for bullpen
+                    
+                    {'min': 100, 'max': 200,  'limit': 150},  # Low-mid tier
+                    {'min': 200, 'max': 350,  'limit': 150},  # Mid tier (avg ~250)
+                    {'min': 350, 'max': 550,  'limit': 100},  # High-mid tier
+                    {'min': 550, 'max': 1000,  'limit': 80},   # Premium tier (sparse)
+                ]
 
                 for source in card_sources:
                     base = {**bucket_filters, **active_filters, 'source': source}
@@ -254,33 +269,36 @@ def autofill_team_route(team_id: str):
                         if source_sets:
                             base['showdown_set'] = source_sets
 
-                    main = db.fetch_card_list(filters={
-                        **base,
-                        'limit': 500,
-                        'sort_by': 'points',
-                        'sort_direction': 'desc',
-                    }) or []
+                    # Fetch from each price band. Cheap tier (10-100 pts) gets more cards
+                    # to ensure bench has affordable options when filling.
+                    # No sort needed — autofill's _sort_candidates() handles shuffling per strategy.
+                    for band in price_bands:
+                        filters = {
+                            **base,
+                            'min_points': band['min'],
+                            'max_points': band['max'],
+                            'limit': band['limit'],
+                            'sort_by': 'random()',
+                        }
 
-                    budget_floor = db.fetch_card_list(filters={
-                        **base,
-                        'max_points': 150,
-                        'limit': 200,
-                        'sort_by': 'points',
-                        'sort_direction': 'desc',
-                    }) or []
+                        if band.get('player_type', None):
+                            filters['player_type'] = band['player_type']
 
-                    for c in main + budget_floor:
-                        if c['card_id'] not in seen_ids:
-                            c['_card_source'] = source  # tag so autofill knows which table it came from
-                            merged_all.append(c)
-                            seen_ids.add(c['card_id'])
+                        if band.get('position_list', None):
+                            filters['position_list'] = band['position_list']
+
+                        cards = db.fetch_card_list(filters=filters) or []
+                        for c in cards:
+                            if c['card_id'] not in seen_ids:
+                                c['_card_source'] = source
+                                merged_all.append(c)
+                                seen_ids.add(c['card_id'])
 
                 return merged_all
 
-            # Fetch candidate pools for each bucket.
-            # Two passes per bucket: main pool (top 500 by points) + a low-point
-            # supplement (max 150 pts, 200 cards) so cheap budget-filler options
-            # always exist regardless of how the main pool skews high.
+            # Fetch candidate pools for each bucket via stratified sampling across price bands.
+            # Cheap tier (10-100 pts) gets 150 cards to ensure bench fill has affordable options.
+            # This approach ensures representation at all price levels and gives autofill variety.
             candidates_by_bucket: dict[str, list[dict]] = {
                 bucket: _fetch_bucket(bucket_filters)
                 for bucket, bucket_filters in BUCKET_QUERY_FILTERS.items()
@@ -295,10 +313,11 @@ def autofill_team_route(team_id: str):
             pts_target=pts_target,
         )
 
-        if result is None:
+        if isinstance(result, tuple):
+            # (None, error_message) returned
             return jsonify({
                 'error': 'autofill_failed',
-                'message': "Couldn't complete roster with current selections and budget. Try adjusting your targets or filters.",
+                'message': result[1],
             }), 422
 
         return jsonify(result), 200

@@ -340,9 +340,14 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                     </section>
 
                     {error && (
-                        <p className="text-[11px] text-red-500 bg-red-500/10 rounded-lg px-3 py-2">
-                            {error}
-                        </p>
+                        <div className="bg-red-500/15 border border-red-500/30 rounded-lg px-3 py-2.5 space-y-2">
+                            <div className="text-[12px] font-semibold text-red-600">
+                                Autofill couldn't complete
+                            </div>
+                            <p className="text-[11px] text-red-600/90 leading-snug">
+                                {error}
+                            </p>
+                        </div>
                     )}
                 </div>
                 )}

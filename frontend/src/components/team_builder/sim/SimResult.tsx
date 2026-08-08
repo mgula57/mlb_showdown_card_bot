@@ -275,7 +275,7 @@ export function SimResult({ summary, onRunAgain }: Props) {
                         <StatTable rows={summary.top_players?.starting_pitcher} columns={PITCHER_COLUMNS} emptyLabel="No qualified starters." />
                     </div>
                     <div>
-                        <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Relief Pitchers / Closers (ERA)</p>
+                        <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Relief Pitchers (ERA)</p>
                         <StatTable rows={summary.top_players?.relief_pitcher} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." />
                     </div>
                 </Tabs.Content>
