@@ -302,7 +302,7 @@ export default function TeamBuilder() {
                     <button
                         type="button"
                         onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                        className="flex items-center gap-1 px-4 py-3 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
                     >
                         <FaPlus className="text-[10px]" />
                         New
@@ -367,7 +367,7 @@ export default function TeamBuilder() {
                                     You haven't created any teams yet.
                                 </p>
                             ) : (
-                                <div className="flex flex-col gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                     {userTeams.map(team => (
                                         <TeamCard
                                             key={team.team_id}

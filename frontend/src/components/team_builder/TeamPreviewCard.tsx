@@ -1,6 +1,7 @@
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastTextColor } from '../../functions/colors';
+import { useAuth } from '../auth/AuthContext';
 import { FaCircle, FaHatWizard } from 'react-icons/fa6';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
@@ -19,6 +20,10 @@ export type TeamPreviewData = {
     badge?: string;
     /** Small line under the name (e.g. set name, roster count) shown when there are no points. */
     subtitle?: string;
+    /** Uploaded team logo image, shown next to the abbreviation. Historical/ASG tiles have none. */
+    logo_url?: string | null;
+    /** Owner's user id — used to show the viewer's own avatar only on their own teams. */
+    user_id?: string | null;
 };
 
 function toRgba(color: string, alpha: number): string {
@@ -35,10 +40,12 @@ type TeamPreviewCardProps = {
 
 /** Spotify-style "album cover" tile for a team: gradient border, field art, identity, and top-3 cards. */
 export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: TeamPreviewCardProps) {
+    const { user, userSettings } = useAuth();
     const primary = team.primary_color || 'rgb(20,20,20)';
     const secondary = team.secondary_color || 'rgb(80,80,80)';
     const onPrimary = getContrastTextColor(primary);
     const onSecondary = getContrastTextColor(secondary);
+    const avatarUrl = user && team.user_id === user.id ? userSettings?.avatar_url : null;
 
     const widthClass = size === 'sm' ? 'w-40' : 'w-52';
 
@@ -111,8 +118,24 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
             {/* Content */}
             <div className="relative z-10 flex flex-col h-full p-2.5 gap-1">
                 <div className="flex-1 flex flex-col justify-start min-h-0">
-                    <div className="text-[38px] leading-none font-black tracking-tight drop-shadow-lg" style={{ color: onPrimary }}>
-                        {team.abbreviation}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        {team.logo_url && (
+                            <img
+                                src={team.logo_url}
+                                alt=""
+                                className="w-7 h-7 rounded-md object-cover shrink-0 ring-1 ring-white/20"
+                            />
+                        )}
+                        <div className="text-[38px] leading-none font-black tracking-tight drop-shadow-lg truncate" style={{ color: onPrimary }}>
+                            {team.abbreviation}
+                        </div>
+                        {avatarUrl && (
+                            <img
+                                src={avatarUrl}
+                                alt="Your avatar"
+                                className="w-6 h-6 rounded-full object-cover shrink-0 ml-auto ring-1 ring-white/30"
+                            />
+                        )}
                     </div>
                     <div className="text-[10px] font-bold mt-0.5 line-clamp-1 drop-shadow opacity-85" style={{ color: onPrimary }}>
                         {team.name}
