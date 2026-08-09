@@ -632,7 +632,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 {/* Team Header */}
                 <div className="flex-1 min-w-0 space-y-1">
                     {/* Name + total pts */}
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 overflow-x-scroll scrollbar-hide">
                         <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
                         {teamMode === 'complete' && (
                             <span className="text-[12px] font-semibold text-(--text-tertiary) shrink-0">
@@ -646,7 +646,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         )}
                         
                         {/* Showdown Sets */}
-                        <div className="flex items-center gap-0.5 flex-wrap">
+                        <div className="flex items-center gap-0.5 ">
                             {(draft.allowed_sets ?? [])
                             .sort((a, b) => a.localeCompare(b))
                                 .map(s => {
@@ -661,7 +661,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                     </div>
                     {/* Subtitle row: PTS Breakdown */}
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-0.5">
+                    <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
                         <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
                             {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
                         </span>
@@ -671,7 +671,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             { label: 'ROTATION', value: pointsBreakdown.rotation },
                             { label: 'BULLPEN', value: pointsBreakdown.bullpen },
                         ] as const).map(({ label, value }) => (
-                            <span key={label} className="text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
+                            <span key={label} className="flex gap-1 text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
                                 {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
                             </span>
                         ))}
@@ -711,17 +711,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     >
                         {forking ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaCodeFork className="h-3 w-3" />}
                         Make a copy
-                    </button>
-                )}
-                {!isMlbTeam && editMode && (
-                    <button
-                        type="button"
-                        onClick={() => setShowSettingsModal(true)}
-                        className="flex items-center justify-center w-8 h-8 mt-0.5 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors shrink-0"
-                        aria-label="Team settings"
-                        title="Team settings"
-                    >
-                        <FaGear />
                     </button>
                 )}
                 {!readOnly && (
@@ -779,10 +768,25 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {teamMode !== 'complete' && (
                 <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={bannerStyle}>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
-                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: bannerLeft.fill }}>
+                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm flex items-center gap-4" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting'
                             ? <>DRAFTING<span className="hidden md:inline"> — fill all required positions to complete your team</span></>
                             : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
+                        {teamMode === 'editing' && (
+                            <>
+                                {!isMlbTeam && editMode && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSettingsModal(true)}
+                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                        aria-label="Team settings"
+                                        title="Team settings"
+                                    >
+                                        <FaGear /> Settings
+                                    </button>
+                                )}
+                            </>
+                        )}
                     </span>
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && (
@@ -822,13 +826,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             </>
                         )}
                         {teamMode === 'editing' && (
-                            <button
-                                type="button"
-                                onClick={() => setEditMode(false)}
-                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
-                            >
-                                <FaCircleCheck className="text-[9px]" /> Done
-                            </button>
+                            <>
+                               
+                                <button
+                                    type="button"
+                                    onClick={() => setEditMode(false)}
+                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                >
+                                    <FaCircleCheck className="text-[9px]" /> Done
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>

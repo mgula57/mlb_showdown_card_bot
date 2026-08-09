@@ -107,6 +107,8 @@ class Stats(BaseModel):
     speed: int = 0
     command: float = 0
     real_ops: Optional[float] = None  # REAL LIFE OPS, USED FOR OUTLIER COMPARISONS
+    is_rookie: bool = False           # REAL-LIFE ROOKIE STATUS FOR THE CARD'S YEAR - USED FOR RoY
+    defense: int = 0                  # CARD'S positions_and_defense RATING AT THE PLAYER'S PRIMARY SIM POSITION
     totals: dict[str, float] = Field(default_factory=dict)
 
     def merge(self, stats: 'Stats') -> None:
@@ -316,6 +318,43 @@ class Stats(BaseModel):
             return f"{name} {era} ERA | {whip} WHIP | {ip} IP"
 
 
+class SimStatLine(BaseModel):
+    """A statline with its rate stats already computed.
+
+    `Stats` derives BA/OBP/SLG/OPS/ERA/WHIP as Python properties and OPS+/wRC+ as methods
+    needing league context, so none of them survive `model_dump()`. Materializing here is what
+    keeps the frontend from having to reimplement wOBA math. Lives next to `Stats` (rather than in
+    `summary.py`, where it's consumed) so `awards.py` can build these without a circular import
+    between `summary.py` and `awards.py`.
+    """
+
+    id: str
+    name: str
+    team: Optional[str] = None
+    position: Optional[str] = None
+    points: int = 0
+    command: float = 0
+    player_type: Optional[str] = None
+    stats: dict[str, float] = {}
+    # ID OF THE ROSTER SLOT'S CardSource, WHEN THIS PLAYER IS ON THE TAKEOVER TEAM'S OWN ROSTER -
+    # THE SAME (card_id, card_source) PAIR `useCardMap` FETCHES ROSTER CARDS WITH ON THE FRONTEND.
+    card_source: Optional[str] = None
+
+    @classmethod
+    def build(cls, stats: 'Stats', categories: list[StatCategory], league_stats: Optional['Stats'], woba_weights: dict[str, float], card_source: Optional[str] = None) -> 'SimStatLine':
+        values: dict[str, float] = {}
+        for category in categories:
+            value = stats.stat(category, league_stats=league_stats, woba_weights=woba_weights, combine_1b_and_1b_plus=True)
+            if isinstance(value, (int, float)):
+                values[category.value] = round(float(value), 3)
+        return cls(
+            id=stats.id, name=stats.name, team=stats.team, position=stats.position,
+            points=stats.points, command=stats.command,
+            player_type=stats.player_type.value if stats.player_type else None,
+            stats=values, card_source=card_source,
+        )
+
+
 class StatsGroup:
     """A keyed collection of statlines (per player id or per game id)."""
 
@@ -386,6 +425,8 @@ class PlayerStatsGroup(StatsGroup):
                 id=p.id, name=p.name, player_type=p.player_type, player_sub_type=p.player_sub_type, position=p.primary_position.value,
                 team=p.team, points=p.points, speed=p.speed, command=p.chart.command,
                 real_ops=p.real_ops,
+                is_rookie=p.card.stats_for_card.get('is_rookie', False),
+                defense=p.card.positions_and_defense.get(p.primary_position, 0),
             )
             for p in self.players
         }

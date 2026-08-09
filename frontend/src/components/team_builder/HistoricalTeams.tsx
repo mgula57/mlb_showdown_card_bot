@@ -48,13 +48,14 @@ const teamToPreview = (team: HistoricalTeam): TeamPreviewData => ({
 
 /** One season's shelf. Teams are fetched when the shelf mounts, so scrolling back through
  *  history pages the data in rather than loading every season up front. */
-function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, onOpenAsg }: {
+function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, onOpenAsg, className }: {
     season: number;
     teamCount: number;
     asgLeagues: string[];
     showdownSet?: string;
     onOpenTeam: (team: HistoricalTeam) => void;
     onOpenAsg: (season: number, league: string) => void;
+    className?: string;
 }) {
     const [teams, setTeams] = useState<HistoricalTeam[]>([]);
     const [loading, setLoading] = useState(true);
@@ -79,7 +80,7 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
     };
 
     return (
-        <TeamShelf title={String(season)} subtitle={`${teamCount} teams`}>
+        <TeamShelf title={String(season)} subtitle={`${teamCount} teams`} className={className}>
             {asgLeagues.map(league => (
                 <TeamPreviewCard key={`asg-${season}-${league}`} team={asgPreview(league)} onClick={() => onOpenAsg(season, league)} />
             ))}
@@ -94,7 +95,7 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
 
 /** Browse pre-processed historical MLB rosters and All-Star teams music-app style.
  *  Seasons are shelves ordered newest-first — no dropdowns; each tile opens its own shareable page. */
-export function HistoricalTeams() {
+export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: string }) {
     const { userShowdownSet } = useSiteSettings();
     const navigate = useNavigate();
 
@@ -177,10 +178,10 @@ export function HistoricalTeams() {
     }, [asgTeams]);
 
     return (
-        <div className="flex flex-col gap-5">
+        <div className="relative flex flex-col gap-5">
             {/* Search across every season — replaces the old season/sport dropdowns */}
-            <div className="px-4">
-                <div className="relative flex-1 sm:max-w-xs">
+            <div className={horizontalPadding ?? ''}>
+                <div className="relative w-full sm:max-w-xs">
                     <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-(--text-tertiary)" />
                     <input
                         type="text"
@@ -203,7 +204,7 @@ export function HistoricalTeams() {
             </div>
 
             {error && (
-                <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <div className={`${horizontalPadding ?? ''} mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>
                     {error}
                 </div>
             )}
@@ -215,7 +216,7 @@ export function HistoricalTeams() {
                 ) : searchResults.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
                 ) : (
-                    <div className="px-4 flex flex-wrap gap-3">
+                    <div className={`flex flex-wrap gap-3 ${horizontalPadding ?? ''}`}>
                         {searchResults.map(team => (
                             <TeamPreviewCard
                                 key={`${team.season}-${team.team_id}`}
@@ -240,6 +241,7 @@ export function HistoricalTeams() {
                             showdownSet={userShowdownSet}
                             onOpenTeam={openTeam}
                             onOpenAsg={openAsg}
+                            className={horizontalPadding ?? ''}
                         />
                     ))}
                     <div ref={sentinelRef} className="h-8" />

@@ -51,7 +51,7 @@ type CardDetailProps = {
     /** Loading state for the main card data */
     isLoading?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail';
+    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail' | 'sim_result';
     parent?: string;
     showdownSetForPlaceholder?: string; // Used to determine placeholder image when card image is not available
 };

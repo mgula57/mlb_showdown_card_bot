@@ -6,15 +6,24 @@ type Props = {
     teamName: string;
 };
 
+// Setup phases (see `_friendly_phase` in `api/sim.py`) report no game counts, so the bar would
+// otherwise sit at 0% through all of card loading and schedule building. Stepping it through a
+// few small ticks gives a sense of motion without implying real progress toward the games total.
+const SETUP_PHASES = ['Starting simulation', 'Loading players', 'Building the schedule', 'Setting up teams'];
+const SETUP_MAX_PCT = 8;
+
 /**
  * Progress while a season runs. Setup (card loading, schedule, rosters) reports a phase with no
- * game counts, so the bar only appears once games start.
+ * game counts, so the bar ticks through minor fixed increments until games start.
  */
 export function SimProgress({ job, teamName }: Props) {
     const total = job?.games_total ?? 0;
     const completed = job?.games_completed ?? 0;
-    const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
     const phase = job?.phase ?? 'Starting simulation';
+
+    const setupIndex = SETUP_PHASES.indexOf(phase);
+    const setupPct = setupIndex >= 0 ? ((setupIndex + 1) / SETUP_PHASES.length) * SETUP_MAX_PCT : SETUP_MAX_PCT / 2;
+    const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : setupPct;
 
     return (
         <div className="flex flex-col items-center justify-center gap-4 py-16 px-4">

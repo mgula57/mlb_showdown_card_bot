@@ -9,12 +9,13 @@ const SET_ORDER = ['2000', '2001', '2002', '2003', '2004', '2005', 'EXPANDED', '
 
 type CommunityTeamsProps = {
     onOpen: (team: TeamSummary) => void;
+    className?: string;
     /** Signed-in user's id — their own public teams are hidden here (they live under "My Teams"). */
     currentUserId?: string | null;
 };
 
 /** Browse other users' public teams music-app style: shelves of preview tiles, with search-as-a-mode. */
-export function CommunityTeams({ onOpen, currentUserId }: CommunityTeamsProps) {
+export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTeamsProps) {
     const [query, setQuery] = useState('');
     const [allTeams, setAllTeams] = useState<TeamSummary[]>([]);
     const [results, setResults] = useState<TeamSummary[] | null>(null);
@@ -76,29 +77,27 @@ export function CommunityTeams({ onOpen, currentUserId }: CommunityTeamsProps) {
     }, [allTeams]);
 
     return (
-        <div className="flex flex-col gap-5">
+        <div className={`flex flex-col gap-5 ${className ?? ''}`}>
             {/* Search bar */}
-            <div className="px-4">
-                <div className="relative">
-                    <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-(--text-tertiary)" />
-                    <input
-                        type="text"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        placeholder="Search public teams by name…"
-                        className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-(--background-secondary) border border-(--divider) text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--text-tertiary)"
-                    />
-                    {query && (
-                        <button
-                            type="button"
-                            onClick={() => setQuery('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-(--text-tertiary) hover:bg-(--divider) cursor-pointer"
-                            aria-label="Clear search"
-                        >
-                            <FaXmark className="text-[12px]" />
-                        </button>
-                    )}
-                </div>
+            <div className="relative">
+                <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-(--text-tertiary)" />
+                <input
+                    type="text"
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="Search public teams by name…"
+                    className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-(--background-secondary) border border-(--divider) text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--text-tertiary)"
+                />
+                {query && (
+                    <button
+                        type="button"
+                        onClick={() => setQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-(--text-tertiary) hover:bg-(--divider) cursor-pointer"
+                        aria-label="Clear search"
+                    >
+                        <FaXmark className="text-[12px]" />
+                    </button>
+                )}
             </div>
 
             {error && (

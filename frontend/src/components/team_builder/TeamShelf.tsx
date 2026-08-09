@@ -4,16 +4,17 @@ import { FaChevronRight } from 'react-icons/fa6';
 type TeamShelfProps = {
     title: string;
     subtitle?: string;
+    className?: string;
     /** Optional "See all" affordance shown on the right of the header. */
     onSeeAll?: () => void;
     children: ReactNode;
 };
 
 /** A titled, horizontally-scrolling row of team tiles — the music-app "shelf" pattern. */
-export function TeamShelf({ title, subtitle, onSeeAll, children }: TeamShelfProps) {
+export function TeamShelf({ title, subtitle, onSeeAll, children, className }: TeamShelfProps) {
     return (
         <section className="flex flex-col">
-            <div className="flex items-baseline justify-between px-4 mb-1.5">
+            <div className={`flex items-baseline justify-between mb-1.5 ${className ?? ''}`}>
                 <div className="flex items-baseline gap-2 min-w-0">
                     <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
                     {subtitle && <span className="text-[11px] text-(--text-tertiary) shrink-0">{subtitle}</span>}
@@ -29,7 +30,7 @@ export function TeamShelf({ title, subtitle, onSeeAll, children }: TeamShelfProp
                 )}
             </div>
             <div
-                className="flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 px-4 scrollbar-hide"
+                className={`flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 scrollbar-hide ${className ?? ''}`}
                 style={{ touchAction: 'pan-x' }}
             >
                 {children}

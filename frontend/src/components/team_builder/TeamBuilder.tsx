@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -17,9 +17,10 @@ import {
 } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamCard } from './TeamCard';
+import { TeamPreviewCard } from './TeamPreviewCard';
+import { TeamShelf } from './TeamShelf';
 import { TeamDetail } from './TeamDetail';
 import { NewTeamModal } from './NewTeamModal';
-import { RecentTeamsCarousel, trackRecentTeam } from './RecentTeamsCarousel';
 import { CommunityTeams } from './CommunityTeams';
 import { HistoricalTeams, asgIdentity, type HistoricalNavState } from './HistoricalTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
@@ -55,6 +56,26 @@ function parseSimJobId(pathname: string): string | null {
     return parts[0] === 'teams' && parts[2] === 'sim' && parts[3] ? parts[3] : null;
 }
 
+// =============================================================================
+// MARK: - Recent Team Tracking
+// =============================================================================
+
+const RECENTLY_VIEWED_KEY = 'showdown_recent_teams';
+const MAX_RECENT = 10;
+
+export function trackRecentTeam(teamId: string) {
+    try {
+        const ids: string[] = JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) ?? '[]');
+        const next = [teamId, ...ids.filter(id => id !== teamId)].slice(0, MAX_RECENT);
+        localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(next));
+    } catch {}
+}
+
+function getRecentTeamIds(): string[] {
+    try { return JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) ?? '[]'); }
+    catch { return []; }
+}
+
 type ViewState =
     | { mode: 'list' }
     | { mode: 'loading' }
@@ -88,6 +109,33 @@ export default function TeamBuilder() {
         const stored = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_TAB_KEY) : null;
         return TAB_IDS.includes(stored as TabId) ? (stored as TabId) : 'mine';
     });
+
+    // UX Spacing
+    const px = 'px-4 sm:px-8';
+
+    // Recent teams shelf — recently viewed teams (from localStorage) first, then most recently updated.
+    const recentTeamIds = useMemo(getRecentTeamIds, []);
+    const recentTeams = useMemo(() => {
+        const withPlayers = userTeams.filter(t => t.roster_count > 0);
+
+        if (recentTeamIds.length > 0) {
+            const teamById = new Map(withPlayers.map(t => [t.team_id, t]));
+            const ordered: TeamSummary[] = [];
+            for (const id of recentTeamIds) {
+                const t = teamById.get(id);
+                if (t) ordered.push(t);
+            }
+            const inOrdered = new Set(ordered.map(t => t.team_id));
+            const rest = withPlayers
+                .filter(t => !inOrdered.has(t.team_id))
+                .sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1);
+            return [...ordered, ...rest].slice(0, 4);
+        }
+
+        return [...withPlayers]
+            .sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1)
+            .slice(0, 8);
+    }, [userTeams, recentTeamIds]);
 
     // Parse the team addressed by the current URL (saved UUID, historical, or All-Star).
     const teamRef = parseTeamRef(location.pathname);
@@ -291,7 +339,7 @@ export default function TeamBuilder() {
     return (
         <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
-            <div className="flex items-center px-4 justify-between">
+            <div className={`flex items-center ${px} justify-between`}>
                 <div>
                     <h1 className="text-[20px] font-black text-(--text-primary)">Teams</h1>
                     <p className="text-[13px] text-(--text-secondary)">
@@ -302,7 +350,7 @@ export default function TeamBuilder() {
                     <button
                         type="button"
                         onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-1 px-4 py-3 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                        className={`flex items-center gap-1 ${px} py-3 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer`}
                     >
                         <FaPlus className="text-[10px]" />
                         New
@@ -312,8 +360,8 @@ export default function TeamBuilder() {
             </div>
 
             {/* Tabs */}
-            <div className="px-4">
-                <div className="flex gap-1 rounded-lg bg-(--background-tertiary) p-1">
+            <div className={`${px}`}>
+                <div className={`flex gap-1 rounded-lg bg-(--background-tertiary) p-1`}>
                     {TABS.map(tab => (
                         <button
                             key={tab.id}
@@ -349,8 +397,12 @@ export default function TeamBuilder() {
             {/* My Teams tab */}
             {activeTab === 'mine' && (
                 <>
-                    {!loading && userTeams.length > 0 && (
-                        <RecentTeamsCarousel teams={userTeams} onClick={openTeam} />
+                    {!loading && recentTeams.length > 0 && (
+                        <TeamShelf title="Recent Teams" className={px}>
+                            {recentTeams.map(team => (
+                                <TeamPreviewCard key={team.team_id} team={team} onClick={() => openTeam(team)} />
+                            ))}
+                        </TeamShelf>
                     )}
                     {loading ? (
                         <div className="flex justify-center py-12">
@@ -361,7 +413,7 @@ export default function TeamBuilder() {
                             Sign in to create your own teams.
                         </p>
                     ) : (
-                        <section className="px-4">
+                        <section className={`${px}`}>
                             {userTeams.length === 0 ? (
                                 <p className="text-[13px] text-(--text-tertiary) py-4">
                                     You haven't created any teams yet.
@@ -384,12 +436,12 @@ export default function TeamBuilder() {
 
             {/* Community tab */}
             {activeTab === 'community' && (
-                <CommunityTeams onOpen={openTeam} currentUserId={session?.user?.id} />
+                <CommunityTeams onOpen={openTeam} className={px} currentUserId={session?.user?.id} />
             )}
 
             {/* Historical tab */}
             {activeTab === 'historical' && (
-                <HistoricalTeams />
+                <HistoricalTeams horizontalPadding={px} />
             )}
 
             {/* Simulations tab */}

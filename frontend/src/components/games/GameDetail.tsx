@@ -3,7 +3,7 @@ import ReactCountryFlag from "react-country-flag";
 import { FaChevronLeft } from "react-icons/fa6";
 
 import { countryCodeForTeam } from "../../functions/flags";
-import { getReadableTextColor, getContrastTextColor } from "../../functions/colors";
+import { getReadableTextColor } from "../../functions/colors";
 import { Modal } from "../shared/Modal";
 import { BottomSheet, type SnapPoint } from "../shared/BottomSheet";
 import {
@@ -16,9 +16,11 @@ import {
 } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { defenseAtPosition } from "../shared/DefenseUtils";
-import CardCommand from "../cards/card_elements/CardCommand";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
+import CardIdentityCell from "../cards/card_elements/CardIdentityCell";
+import PointsBadge from "../cards/card_elements/PointsBadge";
+import { useIsSmallScreen } from "../../hooks/useIsSmallScreen";
 import {
     useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
 } from "@floating-ui/react";
@@ -712,44 +714,6 @@ function ProbableStartingPitchers({
     );
 }
 
-function PlayerNameCell({ name, position, card, ptsChange, isLoadingCard }: { name: string; position?: string; card?: ShowdownBotCard; ptsChange?: number | null; isLoadingCard?: boolean; onClick?: () => void }) {
-        
-    return (
-        <div className="flex items-center space-x-1.5">
-            {isLoadingCard ? (
-                <div className="w-6 h-6 rounded-full bg-(--background-quaternary) animate-pulse shrink-0" />
-            ) : (
-                <CardCommand
-                    isPitcher={card?.chart.is_pitcher ?? true}
-                    primaryColor={card?.image.color_primary ?? '#333'}
-                    secondaryColor={card?.image.color_secondary ?? '#666'}
-                    command={card?.chart.command}
-                    team={card?.team ?? undefined}
-                    className={`w-6 h-6 ${card === undefined && 'opacity-40'}`}
-                />
-            )}
-            <div className="space-y-0.5">
-                
-                <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
-                <div className="flex items-center gap-1">
-                    {isLoadingCard && <div className="h-4 w-10 rounded-full bg-(--background-quaternary) animate-pulse" />}
-                    {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
-                    {card && ptsChange != null && ptsChange !== 0 && (
-                        <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                            {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}
-                        </span>
-                    )}
-                    {position && <div className="text-[10px] text-(--text-tertiary)">
-                        {position}{cardDefenseForPosition(card, position) != null && (cardDefenseForPosition(card, position) || 0) >= 0 ? "+" : ""}{cardDefenseForPosition(card, position)}
-                    </div>}
-                </div>
-                
-            </div>
-        </div>
-    );
-
-}
-
 function TablePointsSummary({ totalPoints, pointsChange, backgroundColor }: { totalPoints: number; pointsChange: number; backgroundColor?: string }) {
     if (totalPoints === 0) return null;
     
@@ -872,17 +836,6 @@ function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, is
     );
 }
 
-function useIsSmallScreen() {
-    const [isSmall, setIsSmall] = useState(() => window.matchMedia("(max-width: 639px)").matches);
-    useEffect(() => {
-        const mq = window.matchMedia("(max-width: 639px)");
-        const handler = (e: MediaQueryListEvent) => setIsSmall(e.matches);
-        mq.addEventListener("change", handler);
-        return () => mq.removeEventListener("change", handler);
-    }, []);
-    return isSmall;
-}
-
 function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
     const isSmallScreen = useIsSmallScreen();
@@ -915,7 +868,12 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
                     ${indent ? 'pl-8' : ''}
                     ${!batter.is_in_lineup ? 'opacity-60' : ''}
                 `} >
-                    <PlayerNameCell name={batter.name} position={batter.position} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
+                    <CardIdentityCell
+                        name={batter.name} position={batter.position} hasCard={!!card}
+                        isPitcher={card?.chart.is_pitcher} primaryColor={card?.image.color_primary} secondaryColor={card?.image.color_secondary}
+                        command={card?.chart.command} team={card?.team} points={card?.points} positionsAndDefense={card?.positions_and_defense}
+                        ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse}
+                    />
             </td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.at_bats}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.runs}</td>
@@ -1041,7 +999,12 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoa
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
         >
             <td ref={refs.setReference} {...getReferenceProps()} className="pl-3 pr-2 py-1.5 text-left" >
-                <PlayerNameCell name={pitcher.name} position={'P'} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
+                <CardIdentityCell
+                    name={pitcher.name} position={'P'} hasCard={!!card}
+                    isPitcher={card?.chart.is_pitcher} primaryColor={card?.image.color_primary} secondaryColor={card?.image.color_secondary}
+                    command={card?.chart.command} team={card?.team} points={card?.points} positionsAndDefense={card?.positions_and_defense}
+                    ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse}
+                />
             </td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.innings_pitched}</td>
             <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.hits}</td>
@@ -1069,19 +1032,6 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoa
         </tr>
     );
 }
-
-function PointsBadge({ points, bg_color, className }: { points: number, bg_color?: string | null, className?: string }) {
-    return (
-        <span 
-            className={`inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full text-[9px] font-bold leading-none text-nowrap ${className ?? ''}`}
-            style={
-                { backgroundColor: bg_color ?? 'var(--secondary)/15', color: getContrastTextColor(bg_color ?? 'var(--secondary)/15') }}
-        >
-            {points} PT
-        </span>
-    );
-}
-
 
 function GameInfo({ away, home }: { away: BoxscoreTeamData; home: BoxscoreTeamData }) {
     const allInfo = [...away.info, ...home.info];

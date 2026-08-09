@@ -4,9 +4,10 @@ from typing import Optional
 from pydantic import BaseModel
 
 from ..shared.player_position import PlayerSubType, PlayerType
+from .awards import AwardsBuilder, SeasonAwards
 from .models import SeasonSimulationResult, SimTeamIdentity, StandingsResult, TeamRecord
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
-from .stats import StatCategory, Stats
+from .stats import SimStatLine, StatCategory, Stats
 
 # LEADERBOARD DEPTH. SMALL ON PURPOSE - THE FULL 1100-PLAYER `player_stats` LIST IS ~390 KB AND
 # THE RESULT SCREEN ONLY EVER SHOWS A TOP TEN.
@@ -18,38 +19,6 @@ _LEADERBOARD_STATS: dict[PlayerSubType, tuple[str, bool]] = {
     PlayerSubType.STARTING_PITCHER: ('era', False),
     PlayerSubType.RELIEF_PITCHER: ('era', False),
 }
-
-
-class SimStatLine(BaseModel):
-    """A statline with its rate stats already computed.
-
-    `Stats` derives BA/OBP/SLG/OPS/ERA/WHIP as Python properties and OPS+/wRC+ as methods
-    needing league context, so none of them survive `model_dump()`. Materializing here is what
-    keeps the frontend from having to reimplement wOBA math.
-    """
-
-    id: str
-    name: str
-    team: Optional[str] = None
-    position: Optional[str] = None
-    points: int = 0
-    command: float = 0
-    player_type: Optional[str] = None
-    stats: dict[str, float] = {}
-
-    @classmethod
-    def build(cls, stats: Stats, categories: list[StatCategory], league_stats: Optional[Stats], woba_weights: dict[str, float]) -> 'SimStatLine':
-        values: dict[str, float] = {}
-        for category in categories:
-            value = stats.stat(category, league_stats=league_stats, woba_weights=woba_weights, combine_1b_and_1b_plus=True)
-            if isinstance(value, (int, float)):
-                values[category.value] = round(float(value), 3)
-        return cls(
-            id=stats.id, name=stats.name, team=stats.team, position=stats.position,
-            points=stats.points, command=stats.command,
-            player_type=stats.player_type.value if stats.player_type else None,
-            stats=values,
-        )
 
 
 class SimGameLine(BaseModel):
@@ -70,8 +39,20 @@ class SimGameLine(BaseModel):
     losses: int
 
 
+class SimPostseasonGameLine(BaseModel):
+    """One game within a postseason series, trimmed the same way `SimGameLine` trims the regular
+    season - no linescore/log/box score, just enough for a per-game results table."""
+
+    date: str
+    home_team: str
+    away_team: str
+    home_score: int = 0
+    away_score: int = 0
+    winner: Optional[str] = None
+
+
 class SimSeriesLine(BaseModel):
-    """A postseason series without its games."""
+    """A postseason series, with its games trimmed down for a results breakdown."""
 
     round: str
     league: Optional[str] = None
@@ -80,6 +61,7 @@ class SimSeriesLine(BaseModel):
     home_team_wins: int = 0
     away_team_wins: int = 0
     winner: Optional[str] = None
+    games: list[SimPostseasonGameLine] = []
 
 
 class SimTeamSeason(BaseModel):
@@ -138,6 +120,8 @@ class SeasonSimSummary(BaseModel):
     league_totals: dict[str, SimStatLine] = {}
     real_league_averages: dict[str, SimStatLine] = {}
 
+    awards: SeasonAwards = SeasonAwards()
+
 
 class SeasonSummaryBuilder:
     """Projects a `SeasonSimulationResult` down to the fields the result screen needs.
@@ -164,6 +148,19 @@ class SeasonSummaryBuilder:
             return None
         return {slot.card_id for slot in takeover_team.roster}
 
+    @property
+    def roster_card_sources(self) -> dict[str, str]:
+        """card_id -> CardSource for the takeover team's own roster.
+
+        This is the exact (card_id, card_source) pair `useCardMap` on the frontend fetches roster
+        cards with - reusing it here means the batting/pitching tables can link straight to the
+        real card with no year-guessing or re-derivation.
+        """
+        takeover_team = self.result.config.takeover_team
+        if takeover_team is None:
+            return {}
+        return {slot.card_id: slot.card_source.value for slot in takeover_team.roster}
+
     def build(self) -> SeasonSimSummary:
         result = self.result
         record, division, rank, size = self._find_record()
@@ -188,6 +185,7 @@ class SeasonSummaryBuilder:
             top_players={sub_type.value: self._leaderboard(sub_type) for sub_type in PlayerSubType},
             league_totals=self._league_lines(result.league_totals),
             real_league_averages=self._league_lines(result.real_league_averages),
+            awards=AwardsBuilder(result=result).build(),
         )
 
     # ------------------------------------------------------------------
@@ -288,23 +286,25 @@ class SeasonSummaryBuilder:
     def _categories(self, player_type: PlayerType) -> list[StatCategory]:
         return HITTER_CATEGORIES if player_type == PlayerType.HITTER else PITCHER_CATEGORIES
 
-    def _line(self, stats: Stats, player_type: PlayerType) -> SimStatLine:
+    def _line(self, stats: Stats, player_type: PlayerType, card_source: Optional[str] = None) -> SimStatLine:
         return SimStatLine.build(
             stats=stats,
             categories=self._categories(player_type),
             league_stats=self.result.league_totals.get(player_type.value),
             woba_weights=self.result.woba_weights,
+            card_source=card_source,
         )
 
     def _build_players(self) -> list[SimStatLine]:
         """Only the team's own players - the other 29 clubs' statlines are dropped."""
         roster_ids = self.roster_player_ids
+        card_sources = self.roster_card_sources
         on_team = (
             (lambda stats: stats.id in roster_ids) if roster_ids is not None
             else (lambda stats: stats.team == self.team_abbr)
         )
         lines = [
-            self._line(stats, stats.player_type)
+            self._line(stats, stats.player_type, card_source=card_sources.get(stats.id))
             for stats in self.result.player_stats
             if stats.player_type is not None and on_team(stats)
         ]
@@ -349,6 +349,13 @@ class SeasonSummaryBuilder:
                 home_team_wins=series.home_team_wins,
                 away_team_wins=series.away_team_wins,
                 winner=series.winner,
+                games=[
+                    SimPostseasonGameLine(
+                        date=str(game.date), home_team=game.home_team, away_team=game.away_team,
+                        home_score=game.home_score, away_score=game.away_score, winner=game.winner,
+                    )
+                    for game in series.games
+                ],
             )
             for round_value, series_list in self.result.postseason.rounds.items()
             for series in series_list

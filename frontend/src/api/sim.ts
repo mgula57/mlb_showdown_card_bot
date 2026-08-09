@@ -37,6 +37,29 @@ export type SimStatLine = {
     command: number;
     player_type: string | null;
     stats: Record<string, number>;
+    /** Set only for players on the takeover team's own roster — pairs with `id` as the
+     * (card_id, card_source) `useCardMap` fetches roster cards with. Null/absent for players from
+     * other clubs, and for summaries persisted before this field existed. */
+    card_source?: string | null;
+};
+
+/** One award winner. `value`/`value_label` are the deciding stat for that category, already
+ * formatted server-side (see `AwardsBuilder` in `core/simulation/awards.py`). */
+export type AwardWinner = {
+    category: 'MVP' | 'CY_YOUNG' | 'ROY' | 'SILVER_SLUGGER';
+    league: string;
+    position?: string | null;
+    value: number;
+    value_label: string;
+    player: SimStatLine;
+};
+
+/** Absent/empty for summaries persisted before awards existed. */
+export type SeasonAwards = {
+    mvp: AwardWinner[];
+    cy_young: AwardWinner[];
+    rookie_of_year: AwardWinner[];
+    silver_sluggers: AwardWinner[];
 };
 
 /** Mirrors `PlayerSubType` — keys of `SeasonSimSummary.top_players`. */
@@ -55,6 +78,15 @@ export type SimGameLine = {
     losses: number;
 };
 
+export type SimPostseasonGameLine = {
+    date: string;
+    home_team: string;
+    away_team: string;
+    home_score: number;
+    away_score: number;
+    winner: string | null;
+};
+
 export type SimSeriesLine = {
     round: string;
     league: string | null;
@@ -63,6 +95,8 @@ export type SimSeriesLine = {
     home_team_wins: number;
     away_team_wins: number;
     winner: string | null;
+    /** Absent for summaries persisted before per-game postseason data existed. */
+    games?: SimPostseasonGameLine[];
 };
 
 export type SimTeamRecord = {
@@ -115,6 +149,8 @@ export type SeasonSimSummary = {
     top_players: Record<PlayerSubType, SimStatLine[]>;
     league_totals: Record<string, SimStatLine>;
     real_league_averages: Record<string, SimStatLine>;
+    /** Absent for summaries persisted before awards existed. */
+    awards?: SeasonAwards | null;
 };
 
 export type SimJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
