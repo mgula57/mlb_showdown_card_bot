@@ -9,7 +9,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { useCardMap } from '../../hooks/useCardMap';
-import { getContrastTextColor } from "../../functions/colors";
+import { bannerTokens, getContrastTextColor } from "../../functions/colors";
 import { FieldView } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
@@ -125,20 +125,6 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
         return [pos];
     });
     return [...new Set([...expanded, 'DH', 'BE'])];
-}
-
-/** Contrast-aware translucent banner tokens for a given base color.
- *  getContrastTextColor returns '#000000' (black text) for light backgrounds. */
-function bannerTokens(baseColor: string) {
-    const isLight = getContrastTextColor(baseColor) === '#000000';
-    return {
-        fill:  isLight ? 'rgba(0,0,0,0.80)' : 'rgba(255,255,255,0.92)',
-        track: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)',
-        dot:   isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)',
-        btnClass: isLight
-            ? 'bg-black/10 hover:bg-black/20 border border-black/20 text-black/80'
-            : 'bg-white/15 hover:bg-white/25 border border-white/30 text-white',
-    };
 }
 
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork }: TeamDetailProps) {

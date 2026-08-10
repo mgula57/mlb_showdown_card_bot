@@ -11,6 +11,7 @@ from .models import (
     BoxScorePitchingStats,
     GameLogEntry,
     GameResult,
+    GameStartState,
     InningLineScore,
     LineScoreResult,
     TeamBoxScore,
@@ -107,6 +108,9 @@ class Game:
         self.away_team_final_score = 0
         self.logs: list[GameLogEntry] = []
 
+        # SET IN `setup`. NON-None ONLY WHEN RESUMING A GAME ALREADY IN PROGRESS.
+        self.start_state: Optional[GameStartState] = None
+
         # POPULATED IN `finalize_game` - THE LINESCORE IS ALWAYS BUILT, THE BOX SCORE ONLY WHEN
         # `_collect_box_score` IS SET (SEE `simulate`).
         self.linescore: Optional[LineScoreResult] = None
@@ -114,17 +118,52 @@ class Game:
         self.away_box_score: Optional[TeamBoxScore] = None
         self._collect_box_score = False
 
-    def setup(self, home_team, away_team) -> None:
-        self.innings = [Inning(inning=1, is_top=True)]
+    def setup(self, home_team, away_team, start_state: Optional[GameStartState] = None) -> None:
+        """Prepare both teams and the inning stack.
+
+        Args:
+          start_state: Mid-game state to resume from, for taking over a real game already in
+            progress. Omitted (the season/tournament path) starts from the first pitch.
+        """
+
         self.plate_appearances = []
         home_team.add_new_game(game=self, opposing_team=away_team)
         away_team.add_new_game(game=self, opposing_team=home_team)
-        home_team.mark_pitcher_entered(home_team.rotation.current_pitcher, 1)
-        away_team.mark_pitcher_entered(away_team.rotation.current_pitcher, 1)
         self.home_team = home_team
         self.away_team = away_team
+        self.start_state = start_state
 
         self.logs = []
+
+        if start_state is None:
+            self.innings = [Inning(inning=1, is_top=True)]
+            home_team.mark_pitcher_entered(home_team.rotation.current_pitcher, 1)
+            away_team.mark_pitcher_entered(away_team.rotation.current_pitcher, 1)
+            return
+
+        # RESUME. THE COMPLETED HALF-INNINGS ARE REBUILT AS PLAYED FRAMES (`outs=3` IS WHAT MAKES
+        # `Inning.is_played` TRUE FOR A SCORELESS ONE) SO `_build_linescore` RENDERS ONE CONTINUOUS
+        # GAME RATHER THAN RESTARTING AT THE TAKEOVER INNING. THEIR BASERUNNERS ARE GONE, SO THE
+        # LEFT-ON-BASE TOTAL COUNTS THE SIMULATED PORTION ONLY.
+        self.innings = [
+            Inning(inning=half.inning, is_top=half.is_top, outs=3, runs=half.runs)
+            for half in start_state.completed_innings
+        ]
+        self.innings.append(Inning(
+            inning=start_state.inning,
+            is_top=start_state.is_top,
+            outs=start_state.outs,
+            runs=start_state.runs,
+            runners=start_state.runners.model_copy(deep=True),
+        ))
+        home_team.resume_from(start_state.home)
+        away_team.resume_from(start_state.away)
+
+        # RUNS ALLOWED IS EACH SIDE'S VIEW OF THE OTHER'S SCORE. IT IS SEEDED HERE RATHER THAN IN
+        # `resume_from` BECAUSE ONLY THE GAME KNOWS BOTH SIDES - AND `update_wins_and_losses`
+        # DECIDES THE WINNER BY COMPARING THE TWO.
+        home_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.away.runs_scored)
+        away_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.home.runs_scored)
 
     def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False):
 
@@ -175,6 +214,7 @@ class Game:
                 team_hitting.update_lineup_index()
 
             if collect_log or log_callback:
+                narration = plate_appearance.narration
                 log_entry = GameLogEntry(
                     inning=inning.inning,
                     is_top=inning.is_top,
@@ -183,11 +223,16 @@ class Game:
                     away_score=int(away_score),
                     home_score=int(home_score),
                     pitcher=plate_appearance.pitcher.name,
+                    pitcher_id=plate_appearance.pitcher.id,
                     hitter=plate_appearance.hitter.name,
+                    hitter_id=plate_appearance.hitter.id,
+                    runs_scored=int(plate_appearance.runs_scored),
                     pitch_roll=plate_appearance.pitch.roll,
                     pitch_result=plate_appearance.pitch.result.value,
                     swing_roll=plate_appearance.swing.roll,
                     swing_result=plate_appearance.swing.result.value,
+                    event=narration.event,
+                    description=narration.description,
                     detail=plate_appearance.detail_str.strip(),
                     summary=f"{inning.summary_str}  {self.away_team.name}:{away_score}|{self.home_team.name}:{home_score}  {plate_appearance.summary_str()}",
                 )
@@ -257,8 +302,13 @@ class Game:
                 home_runs=bottom.runs if bottom is not None else None,
             ))
 
-        away_hits = int(self.away_team.stats.aggregated_stats(type=PlayerType.HITTER).stat(StatCategory.HITS))
-        home_hits = int(self.home_team.stats.aggregated_stats(type=PlayerType.HITTER).stat(StatCategory.HITS))
+        # `team.stats` ONLY HOLDS WHAT THE SIMULATION ITSELF PRODUCED, SO A TAKEOVER ADDS BACK THE
+        # HITS THE REAL GAME ALREADY RECORDED. RUNS NEED NO SUCH FIXUP - THE FINAL SCORES COME FROM
+        # `current_game_stats`, WHICH `resume_from` SEEDS.
+        away_carryover_hits = self.start_state.away.hits if self.start_state else 0
+        home_carryover_hits = self.start_state.home.hits if self.start_state else 0
+        away_hits = int(self.away_team.stats.aggregated_stats(type=PlayerType.HITTER).stat(StatCategory.HITS)) + away_carryover_hits
+        home_hits = int(self.home_team.stats.aggregated_stats(type=PlayerType.HITTER).stat(StatCategory.HITS)) + home_carryover_hits
         away_lob = sum(i.runners.count() for i in played if i.is_top)
         home_lob = sum(i.runners.count() for i in played if not i.is_top)
 

@@ -91,6 +91,21 @@ export const getReadableTextColor = (bg: string, preferredText: string): string 
 /** Best-contrast text color (black or white) for a background, with no preferred override. */
 export const getContrastTextColor = (bg: string): string => getReadableTextColor(bg, '#000000');
 
+/** Contrast-aware translucent tokens for content sitting on a solid identity color — the mode
+ *  banners in the team builder and on the game page. `getContrastTextColor` returns '#000000'
+ *  (black text) for light backgrounds, which is the signal for which set to use. */
+export const bannerTokens = (baseColor: string) => {
+    const isLight = getContrastTextColor(baseColor) === '#000000';
+    return {
+        fill:  isLight ? 'rgba(0,0,0,0.80)' : 'rgba(255,255,255,0.92)',
+        track: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)',
+        dot:   isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)',
+        btnClass: isLight
+            ? 'bg-black/10 hover:bg-black/20 border border-black/20 text-black/80'
+            : 'bg-white/15 hover:bg-white/25 border border-white/30 text-white',
+    };
+};
+
 /**
  * Darken a color only when it is too bright against a white background.
  *

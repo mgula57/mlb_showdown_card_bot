@@ -19,6 +19,9 @@ export type PlayEntry = {
     description: string;
     isScoringPlay?: boolean;
     outs?: number;            // post-play outs in the half-inning
+    /** Which engine produced this play. A taken-over game merges both into one list, so the log
+     * needs to know where the handoff happened. */
+    source?: "MLB" | "SIM";
     roll?: {                  // SIM ONLY - MLB plays have a pitch count instead
         pitchRoll: number;
         pitchResult: string;

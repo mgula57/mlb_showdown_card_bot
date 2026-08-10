@@ -1,13 +1,13 @@
 /**
  * @fileoverview Adapter from the simulation engine's `GameResult` JSON
  * (`mlb_showdown_bot/core/simulation/models.py`, emitted via Pydantic's `model_dump_json`) into
- * the canonical `GameView`. No UI consumes this yet — it exists to prove the `GameView`
- * abstraction holds for a second source before any sim UI is built. Field names mirror the
- * Python models exactly (snake_case), since that's the wire format.
+ * the canonical `GameView`. Field names mirror the Python models exactly (snake_case), since
+ * that's the wire format.
  */
 import type { BoxscoreBatterLine, BoxscorePitcherLine, GameSide, GameView, Linescore, LiveSituation, TeamBoxscore } from "../game";
 import type { PlayEntry } from "../play";
 import type { TeamIdentity } from "../team";
+import { ordinal } from "../../functions/formatters";
 
 export type SimTeamIdentityJson = {
     abbreviation: string;
@@ -105,13 +105,22 @@ export type SimGameLogEntryJson = {
     bases: string;
     away_score: number;
     home_score: number;
-    /** Names only; the sim's log doesn't carry player ids, so sim plays can't resolve cards yet. */
     pitcher: string;
     hitter: string;
+    /** Whatever id space the SimTeam was built with — a builder team's card_id, or an MLB player
+     * id (as a string) for a real-game sim. Empty for logs produced before ids were recorded. */
+    pitcher_id?: string;
+    hitter_id?: string;
     pitch_roll: number;
     pitch_result: string;
     swing_roll: number;
     swing_result: string;
+    /** Runs driven in on this plate appearance. */
+    runs_scored?: number;
+    /** Narration in the MLB feed's voice, built by the engine's `PlateAppearanceNarrator`.
+     * Absent on logs produced before narration existed, which fall back to the roll labels. */
+    event?: string;
+    description?: string;
     detail?: string;
     summary: string;
 };
@@ -134,17 +143,12 @@ export type SimGameResultJson = {
     is_extra_innings: boolean;
 };
 
-/** `Result` enum values (`core/simulation/result.py`) as play-log badge labels. */
+/** `Result` enum values (`core/simulation/result.py`) as play-log badge labels. Only a fallback —
+ * the engine now sends its own `event`, worded the way the MLB feed words it. */
 const SIM_EVENT_LABELS: Record<string, string> = {
     pu: "Popout", so: "Strikeout", gb: "Groundout", fb: "Flyout", bb: "Walk",
     "1b": "Single", "1b+": "Single+", "2b": "Double", "3b": "Triple", hr: "Home Run",
     out: "Out", safe: "Safe",
-};
-
-const ORDINAL_SUFFIXES: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
-const ordinal = (n: number): string => {
-    const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : ORDINAL_SUFFIXES[n % 10] ?? "th";
-    return `${n}${suffix}`;
 };
 
 /** The sim reports base state as occupancy, not identity, so occupied bases become the
@@ -216,27 +220,29 @@ const toSimBoxscore = (box: SimTeamBoxScoreJson): TeamBoxscore => ({
  */
 export const fromSimPlays = (log: SimGameLogEntryJson[]): PlayEntry[] =>
     log
-        .map((entry, index): PlayEntry => {
-            const previous = log[index - 1];
-            const runsBefore = previous ? previous.away_score + previous.home_score : 0;
-            return {
-                id: String(index),
-                inning: entry.inning,
-                isTop: entry.is_top,
-                batterName: entry.hitter,
-                pitcherName: entry.pitcher,
-                event: SIM_EVENT_LABELS[entry.swing_result] ?? entry.swing_result.toUpperCase(),
-                description: entry.summary || entry.detail || "",
-                isScoringPlay: entry.away_score + entry.home_score > runsBefore,
-                outs: entry.outs,
-                roll: {
-                    pitchRoll: entry.pitch_roll,
-                    pitchResult: entry.pitch_result,
-                    swingRoll: entry.swing_roll,
-                    swingResult: entry.swing_result,
-                },
-            };
-        })
+        .map((entry, index): PlayEntry => ({
+            // Sim entries have no stable identifier of their own, so the index stands in. Prefixed
+            // because a taken-over game merges these with MLB plays, whose ids are atBatIndexes
+            // from the same small integer range.
+            id: `sim-${index}`,
+            inning: entry.inning,
+            isTop: entry.is_top,
+            batterId: entry.hitter_id || undefined,
+            batterName: entry.hitter,
+            pitcherId: entry.pitcher_id || undefined,
+            pitcherName: entry.pitcher,
+            event: entry.event || SIM_EVENT_LABELS[entry.swing_result] || entry.swing_result.toUpperCase(),
+            description: entry.description || entry.summary || entry.detail || "",
+            isScoringPlay: (entry.runs_scored ?? 0) > 0,
+            outs: entry.outs,
+            source: "SIM",
+            roll: {
+                pitchRoll: entry.pitch_roll,
+                pitchResult: entry.pitch_result,
+                swingRoll: entry.swing_roll,
+                swingResult: entry.swing_result,
+            },
+        }))
         .reverse();
 
 export const fromSimGame = (game: SimGameResultJson): GameView => {
@@ -297,6 +303,6 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
         home: toSide(game.home_team, game.home_team_identity, game.home_score, game.home_box_score),
         linescore,
         situation,
-        lastPlay: lastEntry?.summary,
+        lastPlay: lastEntry?.description || lastEntry?.summary,
     };
 };

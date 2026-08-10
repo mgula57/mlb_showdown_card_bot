@@ -236,12 +236,12 @@ function ScoreBug({ game }: { game: GameView }) {
 
 export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, className = "" }: GameFieldProps) {
     const situation = game.situation;
-    if (!situation) return null;
+    // if (!situation) return null;
 
     // The fielding side is whichever team isn't batting — used for the pitcher's line score.
-    const fieldingSide = situation.isTop ? game.home : game.away;
-    const pitcherLine = fieldingSide.boxscore?.pitching.find((line) => line.id === situation.pitcher?.id);
-    const defense = situation.defense;
+    const fieldingSide = situation?.isTop ? game.home : game.away;
+    const pitcherLine = fieldingSide.boxscore?.pitching.find((line) => line.id === situation?.pitcher?.id);
+    const defense = situation?.defense;
 
     return (
         <div className={`@container relative w-full ${className}`}>
@@ -292,7 +292,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         })}
 
                     {/* Pitcher without an alignment (sim, or a defense the feed hasn't set yet). */}
-                    {!defense && situation.pitcher && (
+                    {!defense && situation?.pitcher && (
                         <div className="absolute -translate-x-1/2 -translate-y-1/2" style={atPercent(DEFENSE_SPOTS.pitcher)}>
                             <FieldMarker
                                 player={situation.pitcher}
@@ -309,7 +309,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
                     {/* Runners */}
                     {(["first", "second", "third"] as const).map((base) => {
-                        const runner = situation.bases[base];
+                        const runner = situation?.bases[base];
                         if (!runner) return null;
                         return (
                             <div key={base} className="absolute -translate-x-1/2 -translate-y-1/2" style={atPercent(BASES[base])}>
@@ -328,10 +328,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     })}
 
                     {/* Batter at the plate */}
-                    {situation.batter && (
+                    {situation?.batter && (
                         <div className="absolute -translate-x-1/2 -translate-y-1/2" style={atPercent(HOME)}>
                             <FieldMarker
-                                player={situation.batter}
+                                player={situation?.batter}
                                 role="H"
                                 cardMap={cardMap}
                                 onCardSelect={onCardSelect}

@@ -3,8 +3,10 @@ import ReactCountryFlag from "react-country-flag";
 import { FaChevronLeft } from "react-icons/fa6";
 
 import { countryCodeForTeam } from "../../functions/flags";
-import { getReadableTextColor } from "../../functions/colors";
+import { bannerTokens, getReadableTextColor } from "../../functions/colors";
+import { ordinal } from "../../functions/formatters";
 import { Modal } from "../shared/Modal";
+import { ModeBanner } from "../shared/ModeBanner";
 import { BottomSheet, type SnapPoint } from "../shared/BottomSheet";
 import {
     fetchGameBoxscore,
@@ -27,11 +29,17 @@ import {
 import * as Tabs from '@radix-ui/react-tabs';
 import { TWO_WAY_PLAYER_IDS, cardKey } from "../../domain/players";
 import { fromBoxscoreDetail, fromGamePlays } from "../../domain/adapters/fromMlbApi";
+import { fromSimGame, fromSimPlays } from "../../domain/adapters/fromSim";
+import { startGameSim, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
+import { useAuth } from "../auth/AuthContext";
+import GameSimSetupModal from "./GameSimSetupModal";
+import SimBoxScoreTable from "./SimBoxScoreTable";
 import PlayByPlayLog from "./PlayByPlayLog";
 import GameField from "./GameField";
 import GameMatchup from "./GameMatchup";
 import { BasesDiamond } from "./BasesDiamond";
 import GameLinescore from "./GameLinescore";
+import { FaTerminal } from "react-icons/fa";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -64,10 +72,29 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setSelectedCard(null);
     };
 
+    // Showdown simulation of this game. Non-null once one has been run; the panels then render it
+    // instead of the real game until the user switches back.
+    const { session } = useAuth();
+    const [showSimSetup, setShowSimSetup] = useState(false);
+    const [simResult, setSimResult] = useState<SimGameResult | null>(null);
+    const [simError, setSimError] = useState<string | null>(null);
+
     // The new panels all render from the canonical GameView; the raw boxscore stays the source
     // for the batting/pitching tables and game info, which carry MLB-only detail.
-    const view = useMemo(() => (boxscore ? fromBoxscoreDetail(boxscore, sportId) : null), [boxscore, sportId]);
-    const plays = useMemo(() => fromGamePlays(boxscore?.plays ?? []), [boxscore]);
+    const realView = useMemo(() => (boxscore ? fromBoxscoreDetail(boxscore, sportId) : null), [boxscore, sportId]);
+    const realPlays = useMemo(() => fromGamePlays(boxscore?.plays ?? []), [boxscore]);
+
+    const simView = useMemo(() => (simResult ? fromSimGame(simResult.game) : null), [simResult]);
+    /* One continuous log for a taken-over game: simulated plate appearances on top (both adapters
+       emit newest-first), then the real ones that preceded the takeover. `PlayByPlayLog` draws the
+       handoff divider where `source` flips. */
+    const simPlays = useMemo(
+        () => (simResult ? [...fromSimPlays(simResult.game.log), ...fromGamePlays(simResult.real_plays)] : []),
+        [simResult],
+    );
+
+    const view = simView ?? realView;
+    const plays = simResult ? simPlays : realPlays;
 
     const refreshBoxscore = useCallback((silent = false) => {
         if (!silent) setIsRefreshing(true);
@@ -109,6 +136,9 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         if (!boxscore) return;
         if (!isInProgressRef.current) return;
         if (!isActive) return;
+        // A simulation has replaced the panels, so refreshing the real game would only churn
+        // state nothing on screen is reading.
+        if (simResult) return;
 
         let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -142,7 +172,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             document.removeEventListener("visibilitychange", onVisibility);
             stopPolling();
         };
-    }, [boxscore, refreshBoxscore, isActive]);
+    }, [boxscore, refreshBoxscore, isActive, simResult]);
 
     // Fetch Showdown cards for all players in the boxscore
     useEffect(() => {
@@ -159,6 +189,14 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             for (const side of ["away", "home"] as const) {
                 const id = boxscore.probable_pitchers[side]?.id;
                 if (id != null) allIds.add(String(id));
+            }
+        }
+        // A simulation can use bench and bullpen players the real boxscore never lists, so their
+        // cards have to be fetched too or the sim's play log and box score fall back to bare names.
+        if (simResult) {
+            for (const side of ["away", "home"] as const) {
+                for (const option of simResult.setup[side].position_players) allIds.add(option.player_id);
+                for (const option of simResult.setup[side].bullpen) allIds.add(option.player_id);
             }
         }
 
@@ -223,7 +261,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             .finally(() => { if (!cancelled) setIsLoadingCards(false); });
 
         return () => { cancelled = true; };
-    }, [boxscore, season, showdownSet, sportId]);
+    }, [boxscore, season, showdownSet, sportId, simResult]);
 
     if (isLoading) {
         return (
@@ -256,7 +294,47 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const isFinal = view.state === "FINAL";
     const isNotStarted = view.state === "PREVIEW" || view.state === "POSTPONED";
     const isInProgress = view.state === "LIVE";
-    const detailedState = view.detailedState || (isFinal ? "Final" : "In Progress");
+    const detailedState = simResult
+        ? `Simulated Final${simResult.is_takeover ? " · Taken Over" : ""}`
+        : view.detailedState || (isFinal ? "Final" : "In Progress");
+
+    // Whether the real game still has innings left to play. A finished game can only be re-watched.
+    const realState = realView?.state;
+    const canSimulate = realState === "PREVIEW" || realState === "LIVE";
+
+    async function handleStartSim(payload: StartGameSimPayload) {
+        const token = session?.access_token;
+        if (!token) throw new Error("Sign in to simulate a game.");
+        const { result } = await startGameSim(gamePk, payload, token);
+        setSimResult(result);
+        setSimError(null);
+        setShowSimSetup(false);
+    }
+
+    /* Mode strip in the team builder's idiom, coloured by the two clubs so it reads as this
+       game's own. Full-bleed at the top of the page rather than inside a panel — it is a
+       statement about the whole view, not about the box score. */
+    const simBannerTokens = bannerTokens(home.team.secondary_color ?? '#374151');
+    const simBanner = simResult && (
+        <ModeBanner
+            primaryColor={away.team.primary_color ?? '#374151'}
+            secondaryColor={home.team.secondary_color ?? '#374151'}
+            label={simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM'}
+            detail={
+                simResult.is_takeover && simResult.setup.start_state
+                    ? `— took over in the ${simResult.setup.start_state.is_top ? 'top' : 'bottom'} of the ${ordinal(simResult.setup.start_state.inning)}`
+                    : '— played from the first pitch'
+            }
+        >
+            <button
+                type="button"
+                onClick={() => setSimResult(null)}
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
+            >
+                Exit Sim
+            </button>
+        </ModeBanner>
+    );
 
     // The field is the mobile backdrop, so it only leads the layout once there's a live
     // situation to put on it. Before first pitch and after the final out, the panels are the page.
@@ -293,9 +371,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         <div className="@container space-y-4">
             <GameLinescore game={view} />
 
-            {isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+            {/* Decisions and probables come off the real feed, so they only make sense for it. */}
+            {!simResult && isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
 
-            {isNotStarted && boxscore.probable_pitchers && (
+            {!simResult && isNotStarted && boxscore.probable_pitchers && (
                 <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
             )}
 
@@ -320,14 +399,22 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     </Tabs.Trigger>
                 </Tabs.List>
                 <div className="grid gap-4 @[820px]:grid-cols-2 min-w-0">
-                    <Tabs.Content value="away" forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
-                        <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                        <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                    </Tabs.Content>
-                    <Tabs.Content value="home" forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
-                        <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                        <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                    </Tabs.Content>
+                    {(['away', 'home'] as const).map((side) => {
+                        const team = side === 'away' ? away : home;
+                        const simSide = view[side].boxscore;
+                        return (
+                            <Tabs.Content key={side} value={side} forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
+                                {simResult && simSide ? (
+                                    <SimBoxScoreTable boxscore={simSide} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                                ) : (
+                                    <>
+                                        <BattingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                                        <PitchingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                                    </>
+                                )}
+                            </Tabs.Content>
+                        );
+                    })}
                 </div>
             </Tabs.Root>
 
@@ -335,14 +422,33 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         </div>
     );
 
+    /* A simulated game is always complete, so the header shows its final score with the live
+       inning/count/bases cleared - the real feed's values would contradict it. */
+    const headerLinescore: GameBoxscoreDetail["linescore"] = simResult
+        ? {
+            ...boxscore.linescore,
+            teams: {
+                away: { ...boxscore.linescore.teams.away, runs: simResult.game.away_score },
+                home: { ...boxscore.linescore.teams.home, runs: simResult.game.home_score },
+            },
+            inning_half: undefined,
+            inning_state: undefined,
+            current_inning_ordinal: undefined,
+            current_inning: undefined,
+            balls: undefined,
+            strikes: undefined,
+            offense: undefined,
+        }
+        : boxscore.linescore;
+
     const scoreHeader = (
         <ScoreHeader
             away={away}
             home={home}
-            linescore={boxscore.linescore}
+            linescore={headerLinescore}
             sportId={sportId}
             detailedState={detailedState}
-            isInProgress={isInProgress}
+            isInProgress={!simResult && isInProgress}
         />
     );
 
@@ -350,6 +456,17 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         <div className={`flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
             <div className="px-4 py-2.5 border-b border-(--divider) shrink-0 flex items-center gap-3">
                 <BackButton onBack={onBack} />
+                {canSimulate && !simResult && (
+                    <button
+                        type="button"
+                        onClick={() => { setSimError(null); setShowSimSetup(true); }}
+                        className="flex items-center gap-x-1 cursor-pointer rounded-lg bg-(--secondary) px-3 py-1.5 text-[11px] font-bold text-(--background-primary) transition-opacity hover:opacity-90"
+                    >
+                        <FaTerminal />
+                        {realState === "LIVE" ? "Take Over" : "Simulate"}
+                    </button>
+                )}
+                {simError && <span className="text-[11px] text-(--red)">{simError}</span>}
                 {isRefreshing && (
                     <svg className="animate-spin h-3.5 w-3.5 text-(--secondary)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -357,6 +474,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     </svg>
                 )}
             </div>
+
+            {simBanner}
 
             {hasLiveField ? (
                 <>
@@ -427,7 +546,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         onSnapChange={setSheetSnap}
                         handleContent={
                             sheetSnap === 'expanded' && view.situation
-                                ? <GameMatchup game={view} cardMap={cardMap} isLoadingCards={isLoadingCards} className="mt-2" isCompactCards={true} />
+                                ? <GameMatchup game={view} plays={plays} cardMap={cardMap} isLoadingCards={isLoadingCards} className="mt-2" isCompactCards={true} />
                                 : undefined
                         }
                     >
@@ -477,6 +596,15 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     />
                 </Modal>
             </div>
+
+            {showSimSetup && (
+                <GameSimSetupModal
+                    gamePk={gamePk}
+                    showdownSet={showdownSet ?? '2000'}
+                    onCancel={() => setShowSimSetup(false)}
+                    onStart={handleStartSim}
+                />
+            )}
         </div>
     );
 }

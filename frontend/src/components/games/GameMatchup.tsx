@@ -115,6 +115,12 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
     const onbase = batterResponse?.card?.chart.command;
     const pitcherAdvantage = control != null && onbase != null ? pitcherAdvantagePct(control, onbase) : undefined;
 
+    /* MLB reports a live ball/strike count. A sim has none, so the latest play's two rolls stand
+       in as the equivalent readout - the plate appearance the situation is describing IS that
+       play, since `fromSimGame` builds the situation from the final log entry. */
+    const hasCount = situation.balls != null && situation.strikes != null;
+    const latestRoll = hasCount ? undefined : plays?.[0]?.roll;
+
     return (
         <div className={`@container rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-4 p-4 ${className}`}>
             <div 
@@ -144,6 +150,20 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
                         isCompact={isCompactCards}
                     />
             </div>
+
+            {(hasCount || latestRoll) && (
+                <div className="mt-3 flex items-center justify-center gap-2 border-t border-(--divider) pt-2 text-[11px]">
+                    {hasCount ? (
+                        <span className="font-bold tabular-nums text-(--primary)">
+                            {situation.balls}-{situation.strikes}
+                        </span>
+                    ) : (
+                        <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 font-bold tracking-wide text-(--secondary)">
+                            P {latestRoll!.pitchRoll} · S {latestRoll!.swingRoll}
+                        </span>
+                    )}
+                </div>
+            )}
 
             {(situation.onDeck || situation.inHole) && (
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-(--divider) pt-2 text-[11px]">

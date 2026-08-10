@@ -2,11 +2,12 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..card.sets import Set
 from ..card.team_builder.team import Team as BuilderTeam
 from ..shared.player_position import PlayerSubType, PositionSlotParent
+from .runners import Runners
 from .stats import Stats
 
 
@@ -189,6 +190,54 @@ class StandingsResult(BaseModel):
     divisions: dict[str, list[TeamRecord]] = {}  # KEY: DIVISION NAME, VALUE: TEAMS SORTED BY RECORD
 
 
+class PitcherAppearance(BaseModel):
+    """A pitcher who has already appeared when a takeover begins, in order of entry.
+
+    `start_inning`/`end_inning` are `Inning.inning_num_full` values (inning number plus the
+    fraction of outs recorded, so 5.33 is one out into the 5th). `SimPitcher.innings_pitched`
+    is simply `end - start` in those units, so the faithful way to seed a real pitcher is
+    `start_inning = <current inning_num_full> - <real innings pitched>` rather than the inning
+    they actually entered - that way `is_tired` reads their true workload.
+    """
+
+    player_id: str
+    start_inning: float = 1.0
+    end_inning: Optional[float] = None   # None = STILL IN THE GAME
+    runs_allowed: int = 0
+
+
+class CompletedHalfInning(BaseModel):
+    """A half-inning already played before a takeover. Only the runs matter - they are what the
+    linescore renders; outs and baserunners are gone by definition."""
+
+    inning: int
+    is_top: bool
+    runs: int = 0
+
+
+class TeamStartState(BaseModel):
+    runs_scored: int = 0
+    hits: int = 0                                        # CARRIED INTO THE LINESCORE ONLY - NOT INTO PLAYER STATS
+    lineup_index: int = 0                                # 0-8, THE SPOT OF THE *NEXT* BATTER
+    pitchers_used: list[PitcherAppearance] = []          # IN ORDER OF ENTRY
+
+
+class GameStartState(BaseModel):
+    """Mid-game state for a game the simulation is resuming rather than starting.
+
+    Absent means simulate from the first pitch, which is every season/tournament game.
+    """
+
+    inning: int = 1
+    is_top: bool = True
+    outs: int = 0
+    runs: int = 0                                        # RUNS ALREADY IN *THIS* HALF-INNING
+    runners: Runners = Field(default_factory=Runners)
+    completed_innings: list[CompletedHalfInning] = []
+    away: TeamStartState = Field(default_factory=TeamStartState)
+    home: TeamStartState = Field(default_factory=TeamStartState)
+
+
 class GameLogEntry(BaseModel):
     inning: int
     is_top: bool
@@ -197,11 +246,20 @@ class GameLogEntry(BaseModel):
     away_score: int
     home_score: int
     pitcher: str
+    # PLAYER IDS SO A RENDERED LOG CAN RESOLVE CARDS. THE ID SPACE IS WHATEVER THE SimTeam WAS BUILT
+    # WITH: A BUILDER TEAM'S card_id, OR AN MLB PLAYER ID FOR A REAL-GAME SIM.
+    pitcher_id: str = ""
     hitter: str
+    hitter_id: str = ""
+    runs_scored: int = 0   # RUNS ON THIS PLATE APPEARANCE - AVOIDS INFERRING A SCORING PLAY BY DIFFING SCORES
     pitch_roll: int
     pitch_result: str
     swing_roll: int
     swing_result: str
+    # READER-FACING NARRATION, WORDED LIKE THE MLB FEED SO A SIMULATED PLAY LOG READS THE SAME AS
+    # A REAL ONE. `detail`/`summary` BELOW STAY AS THEY WERE - THEY ARE THE CLI'S DICE-LEVEL VIEW.
+    event: str = ""         # BADGE LABEL, EX: "Single", "Grounded Into DP"
+    description: str = ""   # EX: "Freddy Fermin singles. Gavin Sheets to 2nd."
     detail: str = ""    # STEALS, DPS, ADVANCES, ROLL ADJUSTMENTS
     summary: str = ""   # FULL HUMAN READABLE LINE
 

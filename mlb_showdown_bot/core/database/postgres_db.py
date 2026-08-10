@@ -7594,3 +7594,134 @@ class PostgresDB:
             {'team_id': team_id, 'viewer': viewer_user_id, 'limit': limit},
         )
         return self._stringify_sim_season_ids(rows)
+
+    # ----------------------------------------------------------
+    # MARK: - SIMULATED MLB GAMES
+    # ----------------------------------------------------------
+
+    # EVERYTHING A LIST ROW NEEDS. THE `result` BLOB IS DELIBERATELY EXCLUDED - IT IS ~200 KB AND
+    # ONLY THE DETAIL VIEW READS IT.
+    _SIM_GAME_LIST_COLUMNS = """
+        g.sim_id, g.user_id, g.game_pk, g.season, g.showdown_set, g.game_date,
+        g.away_abbr, g.home_abbr, g.away_score, g.home_score,
+        g.is_takeover, g.takeover_inning, g.seed, g.created_at
+    """
+
+    def build_sim_game_table(self) -> None:
+        """Create the sim_game table - the permanent record of a simulated real MLB game.
+
+        Unlike a season sim there is no job row: one game runs in milliseconds and is returned
+        synchronously, so this is written on the request path rather than by a worker.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_game (
+                    sim_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id         TEXT,
+                    game_pk         BIGINT NOT NULL,
+                    season          INT,
+                    showdown_set    TEXT,
+                    game_date       DATE,
+                    away_abbr       TEXT,
+                    home_abbr       TEXT,
+                    away_score      INT NOT NULL DEFAULT 0,
+                    home_score      INT NOT NULL DEFAULT 0,
+                    is_takeover     BOOLEAN NOT NULL DEFAULT FALSE,
+                    takeover_inning INT,
+                    seed            BIGINT,
+                    result          JSONB,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_user ON internal.sim_game (user_id, created_at DESC);")
+            # BACKS "OTHER PEOPLE'S SIMS OF THIS GAME", WHICH IS THE ONLY WAY TO DISCOVER ONE.
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_game_pk ON internal.sim_game (game_pk, created_at DESC);")
+
+    def record_sim_game(self, user_id: str | None, result: dict) -> str | None:
+        """Store one simulated game and return its id.
+
+        Args:
+          result: An `MLBGameSimResult` dumped in JSON mode. The scalar columns are projected out
+            of it so listing a user's games never has to parse the blob.
+        """
+        if not self.connection:
+            return None
+
+        game = result.get('game') or {}
+        setup = result.get('setup') or {}
+        start_state = setup.get('start_state') or {}
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_game (
+                    user_id, game_pk, season, showdown_set, game_date,
+                    away_abbr, home_abbr, away_score, home_score,
+                    is_takeover, takeover_inning, seed, result
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING sim_id
+                """,
+                (
+                    user_id, result.get('game_pk'), result.get('season'), result.get('showdown_set'),
+                    game.get('date'),
+                    game.get('away_team'), game.get('home_team'),
+                    game.get('away_score', 0), game.get('home_score', 0),
+                    bool(result.get('is_takeover')),
+                    start_state.get('inning') if result.get('is_takeover') else None,
+                    result.get('seed'),
+                    extras.Json(result),
+                ),
+            )
+            row = cur.fetchone()
+        # THE RAW CURSOR RETURNS TUPLES - ONLY `execute_query` USES A DICT CURSOR.
+        return str(row[0]) if row else None
+
+    def fetch_sim_game(self, sim_id: str, user_id: str | None = None) -> dict | None:
+        """One simulated game with its full result.
+
+        Readable by anyone with the link. A simulated game carries no private roster - it is two
+        real MLB clubs - so there is nothing here to gate, and a shareable URL is the point.
+        `user_id` only marks the row as the viewer's own.
+        """
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_GAME_LIST_COLUMNS}, g.result,
+                   (g.user_id IS NOT DISTINCT FROM %s) AS is_own
+              FROM internal.sim_game g
+             WHERE g.sim_id = %s::uuid
+            """,
+            (user_id, sim_id),
+        )
+        return self._stringify_sim_game_ids(rows)[0] if rows else None
+
+    def fetch_sim_games_for_game(self, game_pk: int, user_id: str | None = None, limit: int = 10) -> list[dict]:
+        """Previous simulations of one real game, newest first."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_GAME_LIST_COLUMNS}, (g.user_id IS NOT DISTINCT FROM %s) AS is_own
+              FROM internal.sim_game g
+             WHERE g.game_pk = %s
+             ORDER BY g.created_at DESC
+             LIMIT %s
+            """,
+            (user_id, int(game_pk), limit),
+        )
+        return self._stringify_sim_game_ids(rows)
+
+    @staticmethod
+    def _stringify_sim_game_ids(rows: list[dict]) -> list[dict]:
+        """UUIDs and dates come back as objects psycopg won't hand to `jsonify`."""
+        for row in rows:
+            if row.get('sim_id') is not None:
+                row['sim_id'] = str(row['sim_id'])
+            if row.get('game_date') is not None:
+                row['game_date'] = str(row['game_date'])
+            if row.get('created_at') is not None:
+                row['created_at'] = str(row['created_at'])
+        return rows

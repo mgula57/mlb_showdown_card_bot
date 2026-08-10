@@ -8,14 +8,15 @@ from ..shared.player_position import PlayerType, PositionSlot
 from ..shared.team import Team as ShowdownTeam
 from .game import Game
 from .inning import Inning
-from .models import SimTeamIdentity, TeamRecord
+from .models import SimTeamIdentity, TeamRecord, TeamStartState
 from .player import SimPitcher, SimPlayer
 from .player_group import Bullpen, PositionEligibility, Rotation
 from .roster import Roster
 from .stats import StatCategory, Stats, StatsGroup
 
-# BUILDER TEAM LINEUP FIELD POSITIONS -> SIM POSITION SLOTS
-_FIELD_POSITION_TO_SLOT = {
+# LINEUP FIELD POSITIONS -> SIM POSITION SLOTS. THE VOCABULARY A LINEUP CAN BE EXPRESSED IN,
+# SHARED BY BUILDER TEAMS AND REAL MLB GAMES.
+FIELD_POSITION_TO_SLOT = {
     "C": PositionSlot.CA,
     "CA": PositionSlot.CA,
     "1B": PositionSlot._1B,
@@ -36,6 +37,27 @@ _PRESET_LINEUP_BONUS = 300.0
 
 def _rgb_string(color: tuple) -> str:
     return f"rgb({color[0]}, {color[1]}, {color[2]})"
+
+
+def _apply_preset_lineup(position_players: list[SimPlayer], lineup_by_id: dict[str, tuple[int, str]]) -> None:
+    """Pin players to a chosen batting order and field position.
+
+    `_player_for_slot` adds `_PRESET_LINEUP_BONUS` to anyone whose `preset_position_slot` matches
+    the slot being filled, and `generate_batting_order` honors `preset_lineup_spot` outright, so
+    setting these is all it takes to make an explicit lineup - a builder team's, or a real game's
+    announced one - come out of the ordinary lineup machinery unchanged.
+
+    Args:
+      lineup_by_id: player id -> (batting order 1-9, field position abbreviation).
+    """
+
+    for player in position_players:
+        entry = lineup_by_id.get(player.id)
+        if entry is None:
+            continue
+        batting_order, field_position = entry
+        player.preset_lineup_spot = batting_order
+        player.preset_position_slot = FIELD_POSITION_TO_SLOT.get(field_position.upper())
 
 
 class SimTeam:
@@ -177,13 +199,10 @@ class SimTeam:
 
         # PRESET LINEUP (FIRST DEFINED LINEUP)
         if len(team.lineups) > 0:
-            slots_by_card_id = {slot.card_id: slot for slot in team.lineups[0].slots}
-            for player in position_players:
-                lineup_slot = slots_by_card_id.get(player.id)
-                if lineup_slot is None:
-                    continue
-                player.preset_lineup_spot = lineup_slot.batting_order
-                player.preset_position_slot = _FIELD_POSITION_TO_SLOT.get(lineup_slot.field_position.upper())
+            _apply_preset_lineup(position_players, {
+                slot.card_id: (slot.batting_order, slot.field_position)
+                for slot in team.lineups[0].slots
+            })
 
         sim_team = cls(
             year=year,
@@ -202,6 +221,79 @@ class SimTeam:
             secondary_color=team.secondary_color,
             league=league,
         )
+        return sim_team
+
+    @classmethod
+    def from_mlb_game_roster(
+        cls, year: int, cards: dict[str, ShowdownPlayerCard], identity: SimTeamIdentity,
+        lineup: list[tuple[str, str]], starting_pitcher_id: str,
+        position_player_ids: list[str], bullpen_ids: list[str], league: str = None,
+    ) -> 'SimTeam':
+        """Build one side of a real MLB game.
+
+        Unlike a season team there is no roster selection to do - the participants are known. The
+        lineup, when MLB has published one, is pinned through `_apply_preset_lineup` so it comes
+        out of the normal lineup machinery verbatim. Pass an empty `lineup` and the whole position
+        pool is up for selection by `fill_starting_position_players`, which is the path taken
+        before lineups are announced.
+
+        Args:
+          cards: Hydrated cards keyed by MLB player id (as a string).
+          identity: Branding, and the club every statline reports.
+          lineup: (player_id, field position) in batting order, 1st through 9th. May be empty.
+          starting_pitcher_id: The probable/actual starter. Becomes the whole rotation - a single
+            game has exactly one turn in it.
+          position_player_ids: Every position player available, starters included. The lineup is
+            pinned on top of this pool rather than being separate from it, so it may be passed
+            whole (a full roster) without pre-subtracting the nine.
+          bullpen_ids: Every available arm. The starter is skipped if it appears here too.
+        """
+
+        lineup_ids = [player_id for player_id, _ in lineup]
+        abbreviation = identity.abbreviation
+
+        def build(player_id: str, is_pitcher: bool) -> Optional[SimPlayer]:
+            card = cards.get(player_id)
+            if card is None:
+                return None
+            if is_pitcher:
+                slot = PositionSlot.SP if player_id == starting_pitcher_id else PositionSlot.BP
+                return SimPitcher(card=card, id=player_id, position_slot=slot, team_override=abbreviation)
+            return SimPlayer(card=card, id=player_id, team_override=abbreviation)
+
+        # LINEUP FIRST, THEN THE REST OF THE POOL. `dict.fromkeys` DEDUPES WHILE KEEPING THAT ORDER,
+        # WHICH MATTERS BECAUSE THE POOL NORMALLY CONTAINS THE STARTING NINE TOO.
+        position_ids = list(dict.fromkeys(lineup_ids + list(position_player_ids)))
+        position_players = [player for pid in position_ids if (player := build(pid, is_pitcher=False))]
+
+        starter = build(starting_pitcher_id, is_pitcher=True)
+        relievers = [
+            pitcher for pid in bullpen_ids
+            if pid != starting_pitcher_id and (pitcher := build(pid, is_pitcher=True))
+        ]
+
+        if starter is None:
+            # NO CARD FOR THE ANNOUNCED STARTER - PROMOTE THE BEST AVAILABLE ARM RATHER THAN
+            # FAILING THE WHOLE GAME.
+            if not relievers:
+                raise ValueError(f'ERROR: No pitchers with cards for {abbreviation}')
+            starter = relievers.pop(0)
+            starter.position_slot = PositionSlot.SP
+
+        _apply_preset_lineup(position_players, {
+            player_id: (order, field_position)
+            for order, (player_id, field_position) in enumerate(lineup, start=1)
+        })
+
+        sim_team = cls(
+            year=year,
+            name=abbreviation,
+            position_players=position_players,
+            rotation=Rotation(players=[starter]),
+            bullpen=Bullpen(players=relievers),
+            league=league,
+        )
+        sim_team.identity = identity
         return sim_team
 
     # ------------------------------------------------------------------
@@ -433,6 +525,37 @@ class SimTeam:
             game_date=game.date, days_back=2, ip_cutoff=2,
         )
         self.available_reliever_ids = {p.id for p in self.bullpen.players if p.id not in unavailable}
+
+    def resume_from(self, state: TeamStartState) -> None:
+        """Seed mid-game state for a takeover.
+
+        `add_new_game` must have run first - it rebuilds every field this touches (lineup index,
+        per-game stats, pitchers used, bullpen availability), so seeding before it would be
+        silently discarded.
+
+        Pitchers are replayed through `mark_pitcher_entered` rather than assigned directly so
+        `_pitchers_used` keeps its entry ordering, which is what `current_pitcher` and the box
+        score both read. A pitcher id that isn't on the roster is skipped - the sim can only field
+        arms it has cards for.
+        """
+
+        self.current_game_stats.add_stat(StatCategory.RUNS_SCORED, state.runs_scored)
+        self.lineup_index = max(0, min(state.lineup_index, 8))
+
+        self.reset_pitchers_used()
+        for appearance in state.pitchers_used:
+            pitcher = next((p for p in (self.rotation.players + self.bullpen.players) if p.id == appearance.player_id), None)
+            if pitcher is None:
+                continue
+            self.mark_pitcher_entered(pitcher, appearance.start_inning)
+            pitcher.end_inning = appearance.end_inning
+            pitcher.runs_allowed = appearance.runs_allowed
+            self.available_reliever_ids.discard(pitcher.id)
+
+        # NO RECOGNIZED PITCHER MEANS THE GAME WOULD HAVE NO ONE ON THE MOUND - FALL BACK TO THE
+        # ROTATION THE WAY A FRESH GAME WOULD.
+        if not self._pitchers_used:
+            self.mark_pitcher_entered(self.rotation.current_pitcher, float(1))
 
     def current_hitter(self, game: Game) -> SimPlayer:
         return self.batting_order[self.lineup_index]

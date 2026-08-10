@@ -102,19 +102,6 @@ const AccountPage: React.FC = () => {
         });
     };
 
-    /**
-     * Get user initials for avatar
-     */
-    const getUserInitials = () => {
-        if (!user?.email) return '?';
-        const email = user.email;
-        const parts = email.split('@')[0].split('.');
-        if (parts.length > 1) {
-            return (parts[0][0] + parts[1][0]).toUpperCase();
-        }
-        return email.substring(0, 2).toUpperCase();
-    };
-
     const validateUsername = (value: string) => {
         if (value.length < 3) return 'Username must be at least 3 characters';
         if (!/^[a-zA-Z0-9_]+$/.test(value)) {

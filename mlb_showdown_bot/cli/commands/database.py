@@ -546,6 +546,19 @@ def build_sim_job_table(
     db.close_connection()
     typer.echo("Done. internal.sim_job and internal.sim_season tables are ready.")
 
+@app.command("build_sim_game_table")
+def build_sim_game_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the simulated-MLB-game history table"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building sim game table...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_sim_game_table()
+    db.close_connection()
+    typer.echo("Done. internal.sim_game table is ready.")
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

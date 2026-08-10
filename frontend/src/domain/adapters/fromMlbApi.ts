@@ -339,6 +339,7 @@ export const fromGamePlays = (plays: MostRecentPlay[]): PlayEntry[] => {
             description: play.result?.description ?? '',
             isScoringPlay: play.about?.isScoringPlay,
             outs: play.count?.outs,
+            source: "MLB",
         }))
         .reverse();
 };

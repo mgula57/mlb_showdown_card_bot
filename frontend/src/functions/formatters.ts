@@ -1,4 +1,12 @@
 
+const ORDINAL_SUFFIXES: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
+
+/** 1 -> "1st", 3 -> "3rd", 11 -> "11th". Used for innings and bases. */
+export function ordinal(n: number): string {
+    const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : ORDINAL_SUFFIXES[n % 10] ?? "th";
+    return `${n}${suffix}`;
+}
+
 /** Format a value for display in a slashline (ex: .950) */
 export function formatSlashlineValue(value: unknown, digits = 3): string {
     if (value == null) return "";

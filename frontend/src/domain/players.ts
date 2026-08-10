@@ -11,8 +11,12 @@ export const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 export const cardKey = (id: number, role: "H" | "P"): string =>
     TWO_WAY_PLAYER_IDS.has(id) ? `${id}-${role}` : String(id);
 
-/** cardKey() is keyed on numeric MLB player ids; sim card_ids (strings) don't need the two-way suffix. */
+/** cardKey() is keyed on numeric MLB player ids; sim card_ids (strings) don't need the two-way suffix.
+ * A sim of a *real* game carries MLB ids as strings, so a numeric-looking string is coerced first —
+ * otherwise a two-way player would miss the `-H`/`-P` key the card map was built with. */
 export const resolveCardKey = (id: number | string | undefined, role: "H" | "P"): string | undefined => {
     if (id == null) return undefined;
-    return typeof id === "number" ? cardKey(id, role) : String(id);
+    if (typeof id === "number") return cardKey(id, role);
+    const numeric = Number(id);
+    return id !== "" && Number.isInteger(numeric) ? cardKey(numeric, role) : String(id);
 };

@@ -3,6 +3,7 @@ from random import Random
 
 from ..shared.player_position import PlayerType, PositionSlot
 from .inning import Inning
+from .narration import PlateAppearanceNarrator
 from .player import SimPitcher, SimPlayer
 from .result import Result
 from .runners import Runner
@@ -46,11 +47,15 @@ class PlateAppearanceState(Enum):
 
 class Roll:
 
-    def __init__(self, roll=0, result=Result.NONE, runner: Runner = None, adjustment: int = 0) -> None:
+    def __init__(self, roll=0, result=Result.NONE, runner: Runner = None, adjustment: int = 0, base: int = 0) -> None:
         self.roll = roll
         self.result = result
         self.runner = runner
         self.adjustment = adjustment
+        # THE BASE THE RUNNER OCCUPIED WHEN THIS ROLL HAPPENED. CAPTURED BECAUSE A SUCCESSFUL STEAL
+        # OR ADVANCE MUTATES `runner.base` IMMEDIATELY, SO READING IT BACK LATER (AS THE
+        # PLAY-BY-PLAY NARRATION DOES) WOULD REPORT WHERE THEY ENDED UP, NOT WHERE THEY RAN FROM.
+        self.base = base
 
     def is_empty(self) -> bool:
         return self.result == Result.NONE
@@ -74,6 +79,12 @@ class PlateAppearance:
         self.pitcher_runs_allowed = {} # KEY: pitcher_id, VALUE: num runs allowed
         self.runners_scored = []
         self.was_last_result_single_plus = was_last_result_single_plus
+        # BASE STATE AS THE BALL WAS PUT IN PLAY - (id, name, base) TUPLES RATHER THAN THE Runner
+        # OBJECTS, WHICH ARE MUTATED IN PLACE AS THE PLAY RESOLVES. THIS IS WHAT THE NARRATION
+        # DIFFS AGAINST TO WORK OUT WHO ADVANCED, SCORED, OR WAS RETIRED. SET IN `execute_swing`,
+        # AFTER ANY STEALS, SO A RUNNER WHO STOLE SECOND AND THEN TOOK THIRD ON A HIT IS DESCRIBED
+        # AS DOING BOTH.
+        self.runners_before_swing: list[tuple[str, str, int]] = []
 
     def execute_pitch(self) -> None:
         if self.total_outs < 3:
@@ -89,6 +100,7 @@ class PlateAppearance:
             random_adjustment = self.random_plus_or_minus_to_roll(occurance_probability=0.35)
             dice_roll = self.__random_dice_roll(adjustment=random_adjustment)
             self.swing = Roll(roll = dice_roll, result=player_with_advantage.result_for_roll(dice_roll), adjustment=random_adjustment)
+            self.runners_before_swing = [(runner.id, runner.name, runner.base) for runner in self.runners.runners]
             self.outs += int(self.swing.result.is_out)
             self.pitcher_runs_allowed, self.runners_scored = self.runners.move(result=self.swing.result,outs=self.total_outs,hitter=self.hitter,pitcher=self.pitcher, is_double_play_attempt=self.is_double_play_opportunity)
             self.runs_scored = sum(self.pitcher_runs_allowed.values())
@@ -159,7 +171,7 @@ class PlateAppearance:
                     if probability_of_steal_attempt >= self.rng.randint(35, 100):
                         dice_roll = self.__random_dice_roll()
                         steal_result = Result.OUT if ( (catcher_arm + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
-                        steal_roll = Roll(roll=dice_roll, result=steal_result, runner=runner)
+                        steal_roll = Roll(roll=dice_roll, result=steal_result, runner=runner, base=runner.base)
                         self.steal_attempts.append(steal_roll)
                         self.outs += int(steal_result.is_out)
                         if steal_result == Result.SAFE:
@@ -189,7 +201,7 @@ class PlateAppearance:
                     if probability_of_safe >= probability_threshold:
                         dice_roll = self.__random_dice_roll()
                         advance_result = Result.OUT if ( (outfield_defense + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
-                        advance_roll = Roll(roll=dice_roll, result=advance_result, runner=runner)
+                        advance_roll = Roll(roll=dice_roll, result=advance_result, runner=runner, base=runner.base)
                         self.advance_attempts.append(advance_roll)
                         self.outs += int(advance_result.is_out)
                         if advance_result == Result.SAFE:
@@ -322,6 +334,11 @@ class PlateAppearance:
             + (f" (PADJ: {self.pitch.adjustment})" if self.pitch.adjustment else "") \
             + (f" (SADJ: {self.swing.adjustment})" if self.swing.adjustment else "") \
             + (f" (>20 SWING: {self.swing.roll})" if self.swing.roll > 20 else "")
+
+    @property
+    def narration(self) -> 'PlateAppearanceNarrator':
+        """Reader-facing wording for this plate appearance. Only valid once every step has run."""
+        return PlateAppearanceNarrator(self)
 
     def summary_str(self) -> str:
         return \

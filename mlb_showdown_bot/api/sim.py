@@ -7,6 +7,7 @@ from flask import Blueprint, g, jsonify, request
 from ..core.card.sets import Set
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
+from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
 from ..core.simulation.models import SeasonSimulationConfig
 from ..core.simulation.season import Season
 from ..core.simulation.summary import SeasonSummaryBuilder
@@ -322,6 +323,175 @@ def get_team_sim_seasons(team_id: str):
         with PostgresDB() as db:
             seasons = db.fetch_team_sim_seasons(team_id, viewer_user_id=user_id, limit=limit)
         return jsonify({'seasons': seasons}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+# ----------------------------------------------------------
+# MARK: - SIMULATING A REAL MLB GAME
+# ----------------------------------------------------------
+
+# The setup is a few seconds of MLB API calls plus a card lookup, and every viewer of the same
+# game wants the identical answer. Short-lived because a live game's state moves constantly.
+_GAME_SETUP_CACHE_TTL = timedelta(seconds=20)
+_game_setup_cache: dict[str, tuple[dict, datetime]] = {}
+
+
+def _game_setup(game_pk: int, showdown_set: Set) -> dict:
+    """Cached `MLBGameSetup` payload for a game.
+
+    A finished or not-yet-started game is stable, so it caches cleanly. A live game's start state
+    changes with every pitch, but a 20 second window is well inside the ~30s the game page itself
+    polls at, and a takeover always re-reads the live state at simulate time anyway.
+    """
+
+    cache_key = f"{game_pk}:{showdown_set.value}"
+    cached = _game_setup_cache.get(cache_key)
+    if cached and datetime.now() - cached[1] < _GAME_SETUP_CACHE_TTL:
+        return cached[0]
+
+    setup = MLBGameSimulator(game_pk=game_pk, showdown_set=showdown_set).build_setup()
+    payload = setup.model_dump(mode='json')
+    _game_setup_cache[cache_key] = (payload, datetime.now())
+    return payload
+
+
+@sim_bp.route('/sim/game/<int:game_pk>/setup', methods=['GET'])
+def get_sim_game_setup(game_pk: int):
+    """The lineups, rosters and (for a game in progress) mid-game state a simulation would use.
+
+    Returned before anything is simulated so the client can show - and let the user edit - the
+    lineup it is about to commit to.
+    """
+    try:
+        try:
+            showdown_set = Set(str(request.args.get('set') or '2000'))
+        except ValueError:
+            return jsonify({'error': f"unknown set '{request.args.get('set')}'"}), 400
+
+        return jsonify(_game_setup(game_pk, showdown_set)), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+def _apply_lineup_overrides(setup: MLBGameSetup, payload: dict) -> None:
+    """Replace a side's lineup and starter with the client's edits.
+
+    Only ids are trusted from the client: the batting order and field position come from the
+    request, but every player must already be in the setup's own pool, so a request can rearrange
+    a game's participants and never invent one.
+    """
+
+    for side in ('away', 'home'):
+        override = payload.get(side)
+        if not isinstance(override, dict):
+            continue
+        team: MLBGameTeamSetup = getattr(setup, side)
+        known = {option.player_id: option for option in team.position_players}
+
+        lineup = override.get('lineup')
+        if isinstance(lineup, list) and lineup:
+            slots = []
+            for order, entry in enumerate(lineup[:9], start=1):
+                player_id = str(entry.get('player_id') if isinstance(entry, dict) else entry)
+                option = known.get(player_id)
+                if option is None:
+                    raise ValueError(f"'{player_id}' is not available to {team.identity.abbreviation}.")
+                position = (entry.get('position') if isinstance(entry, dict) else None) or option.position
+                slots.append(MLBGameLineupSlot(
+                    batting_order=order, player_id=player_id, name=option.name, position=position,
+                ))
+            if len(slots) != 9:
+                raise ValueError(f"{team.identity.abbreviation} needs 9 batters, got {len(slots)}.")
+            team.lineup = slots
+
+        starter_id = override.get('starting_pitcher_id')
+        if starter_id:
+            starter_id = str(starter_id)
+            if starter_id not in {option.player_id for option in team.bullpen}:
+                raise ValueError(f"'{starter_id}' is not a pitcher available to {team.identity.abbreviation}.")
+            team.starting_pitcher_id = starter_id
+
+
+@sim_bp.route('/sim/game/<int:game_pk>', methods=['POST'])
+@require_auth
+def start_game_sim(game_pk: int):
+    """Simulate one real MLB game and store the result.
+
+    Synchronous, unlike a season sim: a single game is a few hundred plate appearances and runs in
+    milliseconds. The `_sim_slots` semaphore is still held for the duration so a burst of these
+    can't starve the season worker or the request path.
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        try:
+            showdown_set = Set(str(payload.get('set') or '2000'))
+        except ValueError:
+            return jsonify({'error': f"unknown set '{payload.get('set')}'"}), 400
+
+        seed = payload.get('seed')
+        if seed is not None:
+            try:
+                seed = int(seed)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'seed must be an integer'}), 400
+
+        if not _sim_slots.acquire(blocking=False):
+            return jsonify({'error': 'The simulator is busy right now. Try again in a minute.'}), 429
+
+        try:
+            simulator = MLBGameSimulator(game_pk=game_pk, showdown_set=showdown_set)
+            setup = simulator.build_setup()
+            if setup.is_final:
+                return jsonify({'error': 'This game is already over - there is nothing left to simulate.'}), 400
+
+            try:
+                _apply_lineup_overrides(setup, payload)
+            except ValueError as exc:
+                return jsonify({'error': str(exc)}), 400
+
+            result = simulator.simulate(setup, seed=seed)
+        finally:
+            _sim_slots.release()
+
+        result_payload = result.model_dump(mode='json')
+        with PostgresDB() as db:
+            sim_id = db.record_sim_game(user_id=g.user_id, result=result_payload)
+
+        return jsonify({'sim_id': sim_id, 'result': result_payload}), 201
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/game/result/<sim_id>', methods=['GET'])
+def get_sim_game(sim_id: str):
+    """A stored simulated game. The durable, shareable identifier for one."""
+    try:
+        user_id = optional_user_id()
+        with PostgresDB() as db:
+            game = db.fetch_sim_game(sim_id, user_id)
+        if game is None:
+            return jsonify({'error': 'simulated game not found'}), 404
+        return jsonify(game), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/game/<int:game_pk>/history', methods=['GET'])
+def get_sim_game_history(game_pk: int):
+    """Every stored simulation of one real game, newest first."""
+    try:
+        user_id = optional_user_id()
+        limit = min(request.args.get('limit', default=10, type=int), 50)
+        with PostgresDB() as db:
+            games = db.fetch_sim_games_for_game(game_pk, user_id=user_id, limit=limit)
+        return jsonify({'games': games}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

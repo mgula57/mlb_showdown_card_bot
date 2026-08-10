@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayEntry } from "../../domain/play";
 import { resolveCardKey } from "../../domain/players";
+import { ordinal } from "../../functions/formatters";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 
@@ -19,13 +20,6 @@ type PlayByPlayLogProps = {
      * `overflow-y-auto` be the single scroll container rather than nesting one scrollbar inside
      * another (which also sidesteps depending on a percentage-height chain through the grid). */
     maxHeightClassName?: string;
-};
-
-const ORDINAL_SUFFIXES: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
-
-const ordinal = (n: number): string => {
-    const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : ORDINAL_SUFFIXES[n % 10] ?? "th";
-    return `${n}${suffix}`;
 };
 
 const inningLabel = (inning: number, isTop: boolean): string => `${isTop ? "Top" : "Bot"} ${ordinal(inning)}`;
@@ -57,6 +51,13 @@ function MiniCard({
 export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingCards, embedded, maxHeightClassName = "max-h-64" }: PlayByPlayLogProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [showBottomFade, setShowBottomFade] = useState(false);
+    const [scoringOnly, setScoringOnly] = useState(false);
+
+    const scoringCount = useMemo(() => plays.filter((play) => play.isScoringPlay).length, [plays]);
+    const visiblePlays = useMemo(
+        () => (scoringOnly ? plays.filter((play) => play.isScoringPlay) : plays),
+        [plays, scoringOnly],
+    );
 
     const checkScroll = () => {
         const el = scrollRef.current;
@@ -65,26 +66,54 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
         setShowBottomFade(el.scrollHeight > el.clientHeight && !atBottom);
     };
 
-    // Re-check once card content finishes loading in (row heights settle) and whenever the play
-    // list itself changes (live polling can grow it).
+    // Re-check once card content finishes loading in (row heights settle) and whenever the visible
+    // list changes (live polling can grow it, and the filter can shrink it).
     useEffect(() => {
         checkScroll();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [plays, isLoadingCards]);
+    }, [visiblePlays, isLoadingCards]);
 
-    if (plays.length === 0) return null;
+    const filterToggle = (
+        <button
+            type="button"
+            onClick={() => setScoringOnly((on) => !on)}
+            disabled={scoringCount === 0 && !scoringOnly}
+            aria-pressed={scoringOnly}
+            className={`cursor-pointer rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                scoringOnly
+                    ? 'border-(--green)/40 bg-(--green)/10 text-(--green)'
+                    : 'border-(--divider) text-(--secondary) hover:text-(--primary)'
+            }`}
+        >
+            Scoring{scoringCount > 0 ? ` (${scoringCount})` : ''}
+        </button>
+    );
 
-    const list = (
+    const list = visiblePlays.length === 0 ? (
+        <div className="py-6 text-center text-sm text-(--secondary)">
+            {scoringOnly && plays.length > 0 ? 'No scoring plays yet.' : 'No plays yet.'}
+        </div>
+    ) : (
         <div className="relative @container">
             <div ref={scrollRef} onScroll={checkScroll} className={`${maxHeightClassName} overflow-y-auto space-y-3 pr-1`}>
-                {plays.map((play, index) => {
-                    const previous = plays[index - 1];
+                {visiblePlays.map((play, index) => {
+                    const previous = visiblePlays[index - 1];
                     const showDivider = !previous || previous.inning !== play.inning || previous.isTop !== play.isTop;
+                    // Plays run newest-first, so the handoff in a taken-over game is the point where
+                    // the entry ABOVE this one is simulated and this one is still real.
+                    const showTakeover = previous?.source === 'SIM' && play.source === 'MLB';
                     const batterCardResponse = cardMap[resolveCardKey(play.batterId, 'H') ?? ''];
                     const pitcherCardResponse = cardMap[resolveCardKey(play.pitcherId, 'P') ?? ''];
 
                     return (
                         <div key={play.id}>
+                            {showTakeover && (
+                                <div className="flex items-center gap-2 py-2">
+                                    <div className="h-px flex-1 bg-(--divider)" />
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-(--secondary)">Took over here</span>
+                                    <div className="h-px flex-1 bg-(--divider)" />
+                                </div>
+                            )}
                             {showDivider && (
                                 <div className="text-sm w-full text-center font-black text-(--primary) pt-1 pb-2">
                                     {inningLabel(play.inning, play.isTop)}
@@ -131,13 +160,22 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
         </div>
     );
 
+    // Embedded, the parent owns the heading, so the toggle sits on its own right-aligned row.
     if (embedded) {
-        return list;
+        return (
+            <div>
+                <div className="mb-2 flex justify-end">{filterToggle}</div>
+                {list}
+            </div>
+        );
     }
 
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-(--secondary) mb-2">Play-by-Play</div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Play-by-Play</div>
+                {filterToggle}
+            </div>
             {list}
         </div>
     );
