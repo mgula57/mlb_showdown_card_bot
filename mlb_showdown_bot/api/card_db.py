@@ -30,18 +30,25 @@ def fetch_card_list():
     """Fetch card data from the database"""
     try:
         payload = request.get_json() or {}
+        user_id = optional_user_id()
+        # Custom-card searches are scoped to the requester and must never be cached: the cache
+        # key is just the filter payload, which doesn't encode identity, so caching here would
+        # leak one user's private cards to the next requester with the same filters.
+        is_custom_source = str(payload.get('source', 'BOT')).upper() == 'CUSTOM'
         cache_key = json.dumps(payload, sort_keys=True)
 
-        cached_result, cached_at = _card_list_cache.get(cache_key, (None, 0.0))
-        if cached_result is not None and (time.time() - cached_at) < _CARD_LIST_CACHE_TTL:
-            print("Serving card list from cache")
-            return jsonify(cached_result)
+        if not is_custom_source:
+            cached_result, cached_at = _card_list_cache.get(cache_key, (None, 0.0))
+            if cached_result is not None and (time.time() - cached_at) < _CARD_LIST_CACHE_TTL:
+                print("Serving card list from cache")
+                return jsonify(cached_result)
 
         with PostgresDB() as db:
-            card_data = db.fetch_card_list(filters=payload)
-            db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=optional_user_id())
+            card_data = db.fetch_card_list(filters=payload, user_id=user_id)
+            db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=user_id)
 
-        _card_list_cache[cache_key] = (card_data, time.time())
+        if not is_custom_source:
+            _card_list_cache[cache_key] = (card_data, time.time())
         return jsonify(card_data)
 
     except Exception as e:

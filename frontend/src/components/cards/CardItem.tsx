@@ -5,7 +5,7 @@ import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
 import { useTheme } from "../shared/SiteSettingsContext";
 import { CardSource } from "../../types/cardSource";
-import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard } from 'react-icons/fa6';
+import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles } from 'react-icons/fa6';
 import type { CardItemActionButton } from './CardItemCompact';
 import { formatYear } from "../../functions/formatters";
 import CardIcon from "./card_elements/CardIcon";
@@ -406,6 +406,9 @@ export const CardItem = ({
                         {cardSource === 'WOTC' && (
                             <FaHatWizard className="inline-block w-3 h-3" title="Wizards of the Coast" />
                         )}
+                        {cardSource === 'CUSTOM' && (
+                            <FaWandMagicSparkles className="inline-block w-3 h-3" title="Custom Card" />
+                        )}
                         {cardSetNumber && (
                             <span className="font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
                         )}
@@ -450,9 +453,11 @@ type CardItemFromCardProps = {
     ptsChange?: number | null;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    /** Override the source badge shown (e.g. CUSTOM) — `card.is_wotc` only distinguishes WOTC vs BOT, so callers displaying a user's own custom card (which also has is_wotc: false) must pass this explicitly. */
+    sourceOverride?: CardSource;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -492,7 +497,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             cardAwardList={card?.image.award_summary_list || []}
             cardStatHighlightsList={card?.image.stat_highlights_list || []}
             cardChartRanges={card?.chart.ranges || {}}
-            cardSource={card?.is_wotc ? 'WOTC' : 'BOT'}
+            cardSource={sourceOverride || (card?.is_wotc ? 'WOTC' : 'BOT')}
             onClick={onClick}
             className={className}
             isSelected={isSelected}

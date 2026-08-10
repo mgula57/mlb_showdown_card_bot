@@ -814,16 +814,31 @@ class PostgresDB:
 
         return [ExploreDataRecord(**row) for row in raw_data]
 
-    def fetch_card_list(self, filters: dict = {}) -> list[dict]:
-        """Fetch all card data from the database with support for lists and min/max filtering."""
+    def fetch_card_list(self, filters: dict = {}, user_id: Optional[str] = None) -> list[dict]:
+        """Fetch all card data from the database with support for lists and min/max filtering.
+
+        Args:
+          filters: Query filters. For `source: 'custom'`, an explicit `id` filter is treated as a
+            direct-lookup-by-id (e.g. hydrating a card already drafted onto a team roster) and is
+            not scoped by ownership — same trust model as the BOT/WOTC tables, and consistent with
+            `fetch_cards_for_roster_slots`, which hydrates CUSTOM roster slots by id with no
+            ownership check. Any other custom-card query is a browse/search and requires `user_id`,
+            scoped to that user's own (non-hidden) cards.
+          user_id: Verified requester id (from the JWT). Required for a custom-card browse/search;
+            not consulted for an id-based custom-card lookup.
+        """
 
         if not self.connection:
             return None
-        
+
         try:
 
             # Pop Out Source
             source = str(filters.pop('source', 'BOT')).lower()
+
+            is_custom_id_lookup = source == 'custom' and bool(filters.get('id'))
+            if source == 'custom' and not is_custom_id_lookup and not user_id:
+                return []
 
             match source:
                 case 'bot':
@@ -844,8 +859,37 @@ class PostgresDB:
                         from card_wbc
                         where true
                     """)
+                case 'custom':
+                    # log_custom_card_bot stores the card as jsonb (`card_result`), not flat
+                    # columns like card_bot/card_wotc — flatten the fields the generic filter/
+                    # sort logic below expects (points, command, outs, etc.) in a subquery so
+                    # that logic can run unmodified for this source too.
+                    scope_clause = sql.SQL("TRUE") if is_custom_id_lookup else sql.SQL("user_id = %s AND is_hidden = FALSE")
+                    query = sql.SQL("""
+                        SELECT *, 'CUSTOM' as source
+                        FROM (
+                            SELECT
+                                id::text AS id,
+                                name,
+                                year,
+                                (card_result->>'bref_id') AS bref_id,
+                                set AS showdown_set,
+                                created_on AS updated_at,
+                                card_result AS card_data,
+                                (card_result->>'points')::int AS points,
+                                (card_result->'chart'->>'command')::int AS command,
+                                (card_result->'chart'->>'outs')::int AS outs,
+                                (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
+                                (card_result->'speed'->>'speed')::int AS speed,
+                                (card_result->>'ip')::int AS ip,
+                                (card_result->>'hand') AS hand
+                            FROM internal.log_custom_card_bot
+                            WHERE {scope_clause}
+                        ) sub
+                        WHERE TRUE
+                    """).format(scope_clause=scope_clause)
 
-            filter_values = []
+            filter_values = [user_id] if (source == 'custom' and not is_custom_id_lookup) else []
 
             # Pop out sorting filters
             sort_by = str(filters.pop('sort_by', 'points'))

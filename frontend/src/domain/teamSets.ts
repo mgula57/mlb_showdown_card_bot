@@ -1,9 +1,9 @@
 /**
  * @fileoverview Which Showdown sets a team allows is a per-card-source rule, not one flat list.
- * Bot cards exist for every set, so a Bot team pins exactly one; WOTC sets were printed alongside
- * each other and are freely combined. `allowed_sets_by_source` is the source of truth —
- * `allowed_sets` is kept as its flattened union so list/header views (and teams saved before the
- * split) keep working without a backfill.
+ * Bot and Custom cards are each generated against one baseline set, so those sources pin exactly
+ * one; WOTC sets were printed alongside each other and are freely combined. `allowed_sets_by_source`
+ * is the source of truth — `allowed_sets` is kept as its flattened union so list/header views (and
+ * teams saved before the split) keep working without a backfill.
  */
 import { CardSource, type CardSource as CardSourceType } from '../types/cardSource';
 
@@ -11,6 +11,7 @@ import { CardSource, type CardSource as CardSourceType } from '../types/cardSour
 export const TEAM_CARD_SOURCES: { value: CardSourceType; label: string }[] = [
     { value: CardSource.BOT, label: 'Bot' },
     { value: CardSource.WOTC, label: 'WOTC' },
+    { value: CardSource.CUSTOM, label: 'Customs' },
 ];
 
 const BOT_SET_VALUES = ['2000', '2001', 'CLASSIC', '2002', '2003', '2004', '2005', 'EXPANDED'];
@@ -29,8 +30,10 @@ export type TeamSetSettings = {
 export const setOptionsForSource = (source: CardSourceType): string[] =>
     source === CardSource.WOTC ? WOTC_SET_VALUES : BOT_SET_VALUES;
 
-/** Bot teams pin exactly one set; any other source combines freely. */
-export const isSingleSetSource = (source: CardSourceType): boolean => source === CardSource.BOT;
+/** Bot and Custom cards are each generated against exactly one baseline set, so a team pins to a
+ *  single set for those sources; WOTC sets were printed alongside each other and combine freely. */
+export const isSingleSetSource = (source: CardSourceType): boolean =>
+    source === CardSource.BOT || source === CardSource.CUSTOM;
 
 /** Sources the team drafts from — an empty restriction (or one naming only sources no longer
  *  offered, e.g. a team saved as WBC-only) means all of them. */

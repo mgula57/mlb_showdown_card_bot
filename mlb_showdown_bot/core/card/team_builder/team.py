@@ -201,8 +201,9 @@ class Team(BaseModel):
             return stored
         valid = WOTC_SETS if source == 'WOTC' else BOT_SETS
         legacy = [s for s in self.allowed_sets if s in valid]
-        # Bot teams pin exactly one set
-        return legacy[:1] if source == 'BOT' else legacy
+        # Bot and Custom cards are each generated against exactly one baseline set, so those
+        # sources pin to a single set; WOTC sets were printed alongside each other and combine freely.
+        return legacy[:1] if source in ('BOT', 'CUSTOM') else legacy
 
     def to_db_dict(self) -> dict:
         """Serialize to a flat dict suitable for DB insertion/update."""

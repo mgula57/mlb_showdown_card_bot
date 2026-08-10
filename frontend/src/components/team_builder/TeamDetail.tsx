@@ -135,7 +135,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         () => draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source })),
         [draft.roster],
     );
-    const { cardMap, loading: isLoadingCards, addCard } = useCardMap(rosterSlots);
+    const { cardMap, loading: isLoadingCards, addCard } = useCardMap(rosterSlots, token);
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
     const [dirty, setDirty] = useState(false);

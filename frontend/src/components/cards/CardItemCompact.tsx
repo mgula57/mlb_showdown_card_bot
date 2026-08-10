@@ -4,7 +4,7 @@ import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
 import { useTheme } from "../shared/SiteSettingsContext";
 import { formatYear } from "../../functions/formatters";
-import { FaHatWizard } from "react-icons/fa6";
+import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardIcon from "./card_elements/CardIcon";
@@ -243,6 +243,9 @@ export const CardItemCompact = ({
 
             {card?.source === 'WOTC' && (
                 <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="WOTC Card" />
+            )}
+            {card?.source === 'CUSTOM' && (
+                <FaWandMagicSparkles className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="Custom Card" />
             )}
 
             {/* Icons - top-right corner */}

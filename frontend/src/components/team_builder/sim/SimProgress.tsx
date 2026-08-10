@@ -1,5 +1,6 @@
 import { FaSpinner } from 'react-icons/fa6';
 import type { SimJob } from '../../../api/sim';
+import { SimEngineExplainer } from './SimEngineExplainer';
 
 type Props = {
     job: SimJob | null;
@@ -47,6 +48,8 @@ export function SimProgress({ job, teamName }: Props) {
             </div>
 
             <p className="text-[11px] text-(--text-tertiary)">This usually takes under a minute.</p>
+
+            <SimEngineExplainer />
         </div>
     );
 }

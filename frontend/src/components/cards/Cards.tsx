@@ -9,7 +9,7 @@ import { useState } from "react";
 import * as Tabs from '@radix-ui/react-tabs';
 import ShowdownBotSearch from "./ShowdownCardSearch";
 import { CardSource, isValidCardSource } from '../../types/cardSource';
-import { FaRobot, FaHatWizard } from "react-icons/fa6";
+import { FaRobot, FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
 
 export default function Cards() {
 
@@ -64,6 +64,19 @@ export default function Cards() {
                     <FaHatWizard />
                     WOTC
                 </Tabs.Trigger>
+                <Tabs.Trigger
+                    value={CardSource.CUSTOM}
+                    className="relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg
+                               data-[state=active]:bg-(--background-quaternary)
+                               data-[state=active]:font-bold
+                               data-[state=active]:text-(--showdown-blue)
+                               data-[state=inactive]:text-tertiary
+                               data-[state=inactive]:font-medium
+                               data-[state=inactive]:hover:bg-(--divider)"
+                >
+                    <FaWandMagicSparkles />
+                    My Customs
+                </Tabs.Trigger>
             </Tabs.List>
 
             {/* Tab Content */}
@@ -80,6 +93,13 @@ export default function Cards() {
                 forceMount
             >
                 <ShowdownBotSearch source={CardSource.WOTC} />
+            </Tabs.Content>
+            <Tabs.Content
+                value={CardSource.CUSTOM}
+                className="focus:outline-none data-[state=inactive]:hidden"
+                forceMount
+            >
+                <ShowdownBotSearch source={CardSource.CUSTOM} />
             </Tabs.Content>
         </Tabs.Root>
     );

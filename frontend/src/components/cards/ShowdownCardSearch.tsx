@@ -222,6 +222,11 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
                 sort_by: "points",
                 sort_direction: "desc",
             };
+        case CardSource.CUSTOM:
+            return {
+                sort_by: "points",
+                sort_direction: "desc",
+            };
         default:
             return baseDefaults;
     }
@@ -419,6 +424,10 @@ const getSortOptions = (source: CardSource): SelectOption[] => {
                 ...WOTC_SPECIFIC_SORT_OPTIONS,
                 ...baseOptions,
             ];
+        case CardSource.CUSTOM:
+            // A personal card list — only the fields the backend flattens out of card_result
+            // are sortable (no defense/chart-value breakdown columns like Bot/WOTC have).
+            return BASE_SORT_OPTIONS;
         default:
             return baseOptions;
     }
@@ -599,6 +608,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     /** Current user's selected Showdown set */
     const { userShowdownSet } = useSiteSettings();
     const { session } = useAuth();
+    // Only My Customs needs auth — derived so other sources see a stable `undefined` and don't
+    // treat an unrelated session change (e.g. resolving on mount) as a reason to refetch.
+    const authToken = source === CardSource.CUSTOM ? session?.access_token : undefined;
 
     // Separate search from filters
     const [searchText, setSearchText] = useState('');
@@ -785,7 +797,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }, 200); // Small delay to prevent rapid successive calls
 
         return () => clearTimeout(timeoutId);
-    }, [userShowdownSet, filters, debouncedSearchText]);
+    // Only My Customs' request depends on the session (sent as a bearer token, required to scope
+    // the search) — `authToken` stays a stable `undefined` for other sources so a session
+    // resolving/changing (e.g. restoring one from storage on refresh) doesn't refetch every tab.
+    }, [userShowdownSet, filters, debouncedSearchText, authToken]);
 
     // Debounce search text only
     useEffect(() => {
@@ -817,6 +832,17 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     const getCardsData = async (pageNum: number = 1, append: boolean = false) => {
 
+        // My Customs is scoped to the signed-in user — skip the request entirely rather than
+        // asking the backend to resolve an empty result for an anonymous "custom card" search.
+        if (source === CardSource.CUSTOM && !session) {
+            setShowdownCards([]);
+            setHasMore(false);
+            setWarningMessage("Sign in to see your custom cards.");
+            setIsLoading(false);
+            setIsLoadingMore(false);
+            return;
+        }
+
         // Loading indicators
         if (pageNum === 1) {
             setIsLoading(true);
@@ -846,7 +872,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const cleanedFilters = Object.fromEntries(
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
-            const data = await fetchCardData(source, cleanedFilters);
+            const data = await fetchCardData(source, cleanedFilters, authToken);
 
             console.log("Fetched cards data:", { source, filters: cleanedFilters, data });
 
@@ -1255,6 +1281,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             onClick={() => handleRowClick(cardRecord)}
                                             isSelected={selectedCard?.id === cardRecord.id}
                                             actionButton={resolvedAction}
+                                        />
+                                    )}
+                                    {source === CardSource.CUSTOM && (
+                                        <CardItemFromCard
+                                            card={cardRecord.card_data}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                            sourceOverride={CardSource.CUSTOM}
                                         />
                                     )}
                                     {source === CardSource.BOT && (
