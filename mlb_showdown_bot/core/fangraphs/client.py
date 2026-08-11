@@ -81,7 +81,7 @@ class FangraphsAPIClient:
                 "season": str(season_end),   # END YEAR
                 "ind": "0",
                 "team": "0",
-                "pageitems": "2000",
+                "pageitems": "4000",
                 "pagenum": "1",
             }
 
