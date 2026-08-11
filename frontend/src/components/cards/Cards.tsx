@@ -24,10 +24,16 @@ export default function Cards() {
         return CardSource.BOT;
     });
 
+    // Track which tabs have ever been shown, so each is only mounted (and its
+    // queries fired) the first time a user visits it. Once mounted, a tab stays
+    // mounted (via forceMount) so switching back and forth preserves its state.
+    const [visitedTabs, setVisitedTabs] = useState<Set<CardSource>>(() => new Set([tab]));
+
     // Persist tab selection to localStorage whenever it changes
     const handleTabChange = (value: string) => {
         const newTab = value as CardSource;
         setTab(newTab);
+        setVisitedTabs(prev => prev.has(newTab) ? prev : new Set(prev).add(newTab));
         if (typeof window !== 'undefined') {
             localStorage.setItem('explore-tab', newTab);
         }
@@ -79,28 +85,34 @@ export default function Cards() {
                 </Tabs.Trigger>
             </Tabs.List>
 
-            {/* Tab Content */}
-            <Tabs.Content 
-                value={CardSource.BOT} 
-                className="focus:outline-none data-[state=inactive]:hidden"
-                forceMount
-            >
-                <ShowdownBotSearch source={CardSource.BOT} />
-            </Tabs.Content>
-            <Tabs.Content 
-                value={CardSource.WOTC} 
-                className="focus:outline-none data-[state=inactive]:hidden"
-                forceMount
-            >
-                <ShowdownBotSearch source={CardSource.WOTC} />
-            </Tabs.Content>
-            <Tabs.Content
-                value={CardSource.CUSTOM}
-                className="focus:outline-none data-[state=inactive]:hidden"
-                forceMount
-            >
-                <ShowdownBotSearch source={CardSource.CUSTOM} />
-            </Tabs.Content>
+            {/* Tab Content - only mounted once a tab has been visited, then kept alive */}
+            {visitedTabs.has(CardSource.BOT) && (
+                <Tabs.Content
+                    value={CardSource.BOT}
+                    className="focus:outline-none data-[state=inactive]:hidden"
+                    forceMount
+                >
+                    <ShowdownBotSearch source={CardSource.BOT} />
+                </Tabs.Content>
+            )}
+            {visitedTabs.has(CardSource.WOTC) && (
+                <Tabs.Content
+                    value={CardSource.WOTC}
+                    className="focus:outline-none data-[state=inactive]:hidden"
+                    forceMount
+                >
+                    <ShowdownBotSearch source={CardSource.WOTC} />
+                </Tabs.Content>
+            )}
+            {visitedTabs.has(CardSource.CUSTOM) && (
+                <Tabs.Content
+                    value={CardSource.CUSTOM}
+                    className="focus:outline-none data-[state=inactive]:hidden"
+                    forceMount
+                >
+                    <ShowdownBotSearch source={CardSource.CUSTOM} />
+                </Tabs.Content>
+            )}
         </Tabs.Root>
     );
 }
