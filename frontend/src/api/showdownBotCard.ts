@@ -452,7 +452,7 @@ export type ShowdownBotCard = {
 
     /** Stats Object */
     stats: Record<string, any>;
-    stats_period: StatsPeriod;
+    stats_period?: StatsPeriod;
     is_stats_estimate?: boolean;
 
     /** Flag indicating if the card is a WOTC card */

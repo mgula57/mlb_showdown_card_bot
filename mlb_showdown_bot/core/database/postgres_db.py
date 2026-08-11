@@ -864,7 +864,7 @@ class PostgresDB:
                     # columns like card_bot/card_wotc — flatten the fields the generic filter/
                     # sort logic below expects (points, command, outs, etc.) in a subquery so
                     # that logic can run unmodified for this source too.
-                    scope_clause = sql.SQL("TRUE") if is_custom_id_lookup else sql.SQL("user_id = %s AND is_hidden = FALSE")
+                    scope_clause = sql.SQL("TRUE") if is_custom_id_lookup else sql.SQL("user_id = %s AND coalesce(is_hidden, FALSE) = FALSE")
                     query = sql.SQL("""
                         SELECT *, 'CUSTOM' as source
                         FROM (
@@ -878,13 +878,15 @@ class PostgresDB:
                                 card_result AS card_data,
                                 (card_result->>'points')::int AS points,
                                 (card_result->'chart'->>'command')::int AS command,
-                                (card_result->'chart'->>'outs')::int AS outs,
+                                (card_result->'chart'->>'outs_full')::int AS outs,
                                 (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
                                 (card_result->'speed'->>'speed')::int AS speed,
                                 (card_result->>'ip')::int AS ip,
                                 (card_result->>'hand') AS hand
                             FROM internal.log_custom_card_bot
-                            WHERE {scope_clause}
+                            WHERE 
+                                error IS NULL AND
+                                ({scope_clause})
                         ) sub
                         WHERE TRUE
                     """).format(scope_clause=scope_clause)

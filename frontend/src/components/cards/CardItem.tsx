@@ -465,13 +465,15 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
     const secondaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_primary 
                             : card?.image.color_secondary) || 'rgb(0, 0, 0)';
+    const cardYear = card?.stats_period?.year || card?.year;
+    const cardId = card === undefined || card === null ? undefined : `${card.bref_id}-${cardYear}-${card.set}`;
     return (
         <CardItem
-            cardId={card === undefined || card === null ? undefined : `${card.bref_id}-${card.stats_period.year}-${card.set}`}
+            cardId={cardId}
             cardTeam={card?.wbc_team || card?.team}
             cardLeague={card?.league || undefined}
             cardName={card?.name}
-            cardYear={hideYear ? undefined : (card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year))}
+            cardYear={hideYear ? undefined : (card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period?.year))}
             cardStatsPeriod={card?.stats_period}
             cardCommand={card?.chart.command}
             cardOuts={card?.chart.outs}
