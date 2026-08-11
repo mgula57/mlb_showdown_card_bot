@@ -373,6 +373,11 @@ const matchupRef = (person?: { id: number; fullName?: string } | null): PlayerRe
 const postOnRef = (person?: { id: number; fullName?: string } | null): PlayerRef | null =>
     person ? { id: person.id, name: person.fullName ?? "" } : null;
 
+/** Bases the plate result itself awards — feeds `allocateScoredAndRetired`'s "attempted one base
+ *  beyond standard" heuristic for a runner who didn't score or stay on base. 0 (the default for
+ *  every out) is exactly right for a force play — the attempted base is just the next one over. */
+const HIT_BASES: Record<string, number> = { single: 1, double: 2, triple: 3, home_run: 4 };
+
 /**
  * Reconstructs a frame-by-frame `GameTimeline` from the same untrimmed play data
  * `fromBoxscoreDetail` already has — the backend's `_extract_play` passes `result`/`matchup`/
@@ -469,7 +474,8 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
             })
             .map((slot) => ({ slot, player: prevBases[slot] as PlayerRef }));
         const runsForOthers = isHomeRun ? Math.max(0, runsScored - 1) : runsScored;
-        const { scored: othersScored, retired } = allocateScoredAndRetired(departed, runsForOthers);
+        const hitBases = HIT_BASES[eventType] ?? 0;
+        const { scored: othersScored, retired } = allocateScoredAndRetired(departed, runsForOthers, hitBases);
         const scored = isHomeRun && batter ? [...othersScored, batter] : othersScored;
 
         const moves = buildRunnerMoves({ prevBases, nextBases, scored, retired, batter });

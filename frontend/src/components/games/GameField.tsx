@@ -11,7 +11,7 @@ import { FaCompress, FaExpand } from "react-icons/fa6";
 
 import type { DefenseAlignment, GameView, PlayerRef } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
-import { runnerKey, type FrameTransition, type RunnerSpot } from "../../domain/timeline";
+import { basePathBetween, runnerKey, type FrameTransition, type RunnerSpot } from "../../domain/timeline";
 import type { PlayEntry } from "../../domain/play";
 import type { ShowdownBotCardAPIResponse, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import { CardItemCompact, CardItemCompactFromCard } from "../cards/CardItemCompact";
@@ -113,8 +113,11 @@ type FieldOccupant = { key: string; player: PlayerRef; spot: RunnerSpot; isOut?:
  * which spot it's asked about when the player has an id) is what turns a single or a walk into
  * one DOM node whose `left`/`top` changes — the card runs to first — instead of two markers
  * swapping out. `transition` (playback only) adds back a scoring or retired runner for one beat
- * so their departure has something to fade from; without it (live polling) they simply disappear
- * when `situation` stops reporting them, same as today.
+ * so their departure has something to animate: a retired runner's `spot` is the base they were
+ * ATTEMPTING to reach (`move.attemptedTo`) when known, so they visibly run the bases before being
+ * shown out — falling back to `move.from` (fade in place, no travel) only when the attempt isn't
+ * known (a stranded runner at a half-inning's end, or a data gap). Without a transition at all
+ * (live polling) a departure simply disappears when `situation` stops reporting it, same as today.
  */
 function buildFieldOccupants(situation: GameView["situation"], transition: FrameTransition | undefined): FieldOccupant[] {
     if (!situation) return [];
@@ -136,26 +139,11 @@ function buildFieldOccupants(situation: GameView["situation"], transition: Frame
         if (move.to === "home") {
             occupants.set(move.key, { key: move.key, player: move.player, spot: "home" });
         } else if (move.to === null && move.from) {
-            occupants.set(move.key, { key: move.key, player: move.player, spot: move.from, isOut: true });
+            occupants.set(move.key, { key: move.key, player: move.player, spot: move.attemptedTo ?? move.from, isOut: true });
         }
     }
 
     return [...occupants.values()];
-}
-
-/** The base path in running order — a runner always travels forward along this sequence, never
- *  in a straight line across the infield. `plate` (pre-contact) and `home` (post-score) share
- *  coordinates but are distinct stops: `plate` only ever starts a path, `home` only ever ends one. */
-const BASE_PATH_ORDER: RunnerSpot[] = ["plate", "first", "second", "third", "home"];
-
-/** The intermediate bases a runner passes through going from `from` to `to`, INCLUDING `to` but
- *  not `from` — e.g. `first` → `third` is `["second", "third"]`, so a runner taking two bases on a
- *  single still rounds first before angling to third rather than cutting straight across the infield. */
-function basePathBetween(from: RunnerSpot, to: RunnerSpot): RunnerSpot[] {
-    const fromIndex = BASE_PATH_ORDER.indexOf(from);
-    const toIndex = BASE_PATH_ORDER.indexOf(to);
-    if (fromIndex === -1 || toIndex === -1 || toIndex <= fromIndex) return [to];
-    return BASE_PATH_ORDER.slice(fromIndex + 1, toIndex + 1);
 }
 
 /** How long each individual base-to-base hop takes. A HR (plate→home, 4 hops) then takes 4x this,
@@ -169,6 +157,12 @@ const BASE_HOP_MS = 220;
  * of which stop to render at RIGHT NOW; a single-hop move (the common case — batter to first,
  * runner to the next base over) isn't stepped at all, since one direct CSS transition already
  * looks correct for a single leg.
+ *
+ * A retired runner's "destination" is `attemptedTo` rather than `to` (which is always null for an
+ * out) — this is what makes a runner thrown out stretching from first to third actually run
+ * through second on the way, instead of freezing at first the instant the play resolves. A
+ * stranded/unattributed out (no `attemptedTo` known) has no destination at all here and is left
+ * for `buildFieldOccupants` to render in place, same as before.
  */
 function useBasePathAnimation(transition: FrameTransition | undefined): Record<string, RunnerSpot> {
     // The FIRST waypoint of every multi-hop move is known synchronously from `transition` alone —
@@ -177,8 +171,9 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
     const initialOverrides = useMemo(() => {
         const initial: Record<string, RunnerSpot> = {};
         for (const move of transition?.moves ?? []) {
-            if (!move.from || !move.to) continue; // no path to animate (fresh arrival, or an out — those don't travel)
-            const path = basePathBetween(move.from, move.to);
+            const destination = move.to ?? move.attemptedTo;
+            if (!move.from || !destination) continue; // no path to animate (fresh arrival, or an unattributed out)
+            const path = basePathBetween(move.from, destination);
             if (path.length > 1) initial[move.key] = path[0]; // one leg needs no stepping at all
         }
         return initial;
@@ -200,8 +195,9 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
 
         const timers: ReturnType<typeof setTimeout>[] = [];
         for (const move of transition.moves) {
-            if (!move.from || !move.to) continue;
-            const path = basePathBetween(move.from, move.to);
+            const destination = move.to ?? move.attemptedTo;
+            if (!move.from || !destination) continue;
+            const path = basePathBetween(move.from, destination);
             if (path.length <= 1) continue;
 
             path.forEach((stop, i) => {
@@ -512,7 +508,14 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         across the infield — the position transition duration matches one hop
                         (`BASE_HOP_MS`) so each leg of a multi-base run reads as a distinct step. */}
                     {presentOccupants.map((occ) => {
+                        // Still stepping through `pathOverrides` = still mid-run — an "out" runner
+                        // reads as a normal (safe-looking) card while covering ground, same as any
+                        // other runner, and only visibly "gets tagged" (grayscale, dimmed) once
+                        // they've arrived at the base they were attempting, one beat before
+                        // `usePresenceList`'s exit hold removes them entirely.
+                        const isMidPath = pathOverrides[occ.key] !== undefined;
                         const renderSpot = pathOverrides[occ.key] ?? occ.spot;
+                        const taggedOut = occ.isOut && occ.presence === "present" && !isMidPath;
                         return (
                             <div
                                 key={occ.key}
@@ -524,10 +527,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 className={`
                                     absolute -translate-x-1/2 -translate-y-1/2
                                     transition-[left,top,opacity,transform] ease-in-out
-                                    ${occ.presence === "present" ? "opacity-100 scale-100"
-                                        : occ.presence === "entering" ? "opacity-0 scale-90"
-                                        : occ.isOut ? "opacity-0 scale-75 grayscale"
-                                        : "opacity-0 scale-110"}
+                                    ${occ.presence === "entering" ? "opacity-0 scale-90"
+                                        : occ.presence === "leaving" ? (occ.isOut ? "opacity-0 scale-75 grayscale" : "opacity-0 scale-110")
+                                        : taggedOut ? "opacity-50 scale-90 grayscale"
+                                        : "opacity-100 scale-100"}
                                 `}
                             >
                                 <FieldMarker

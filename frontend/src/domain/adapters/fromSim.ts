@@ -19,6 +19,8 @@ import {
     type FramePhaseKind,
     type GameFrame,
     type GameTimeline,
+    type RetiredRunner,
+    type RunnerSpot,
 } from "../timeline";
 
 export type SimTeamIdentityJson = {
@@ -336,7 +338,14 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
 const baseSlotFor = (base: number): BaseSlot | undefined =>
     base === 1 ? "first" : base === 2 ? "second" : base === 3 ? "third" : undefined;
 
+/** Same as `baseSlotFor` but also covers `base: 4` ("home") — a retired runner's `base` is "the
+ *  base they were retired trying to reach" (per `RunnerRef`'s doc in the backend), which can be
+ *  the plate itself (thrown out at home), unlike `bases_detail`'s occupancy (never 4 — a runner
+ *  who reached home scored, and isn't "on base" anymore). */
+const runnerSpotFor = (base: number): RunnerSpot => (base >= 4 ? "home" : baseSlotFor(base) ?? "home");
+
 const toPlayerRef = (r: SimRunnerRefJson): PlayerRef => ({ id: r.id, name: r.name });
+const toRetiredRunner = (r: SimRunnerRefJson): RetiredRunner => ({ player: toPlayerRef(r), attemptedSpot: runnerSpotFor(r.base) });
 
 /**
  * Reconstructs a frame-by-frame `GameTimeline` from a sim's `GameResult` log. Each `GameLogEntry`
@@ -410,7 +419,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
 
         let nextBases: Record<BaseSlot, PlayerRef | null>;
         let scored: PlayerRef[];
-        let retired: PlayerRef[];
+        let retired: RetiredRunner[];
         if (entry.bases_detail !== undefined) {
             const detailed: Record<BaseSlot, PlayerRef | null> = { ...EMPTY_BASES };
             for (const r of entry.bases_detail) {
@@ -419,7 +428,9 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             }
             nextBases = detailed;
             scored = (entry.scored ?? []).map(toPlayerRef);
-            retired = (entry.retired ?? []).map(toPlayerRef);
+            // `retired[].base` is exact from the backend (unlike MLB's heuristic) — no guessing
+            // needed for where a caught-stealing/thrown-out/forced-out sim runner was headed.
+            retired = (entry.retired ?? []).map(toRetiredRunner);
         } else {
             // Legacy stored sim — occupancy only, no identity. `runnerKey`'s `anon:${slot}`
             // fallback (inside `buildRunnerMoves`) means these fade in/out per slot rather than

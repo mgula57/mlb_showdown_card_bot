@@ -19,12 +19,18 @@ export type BaseSlot = "first" | "second" | "third";
  *  `home` = the plate as a destination (a run scoring), which then fades out. */
 export type RunnerSpot = BaseSlot | "plate" | "home";
 
+/** A runner put out on the bases, plus the base they were trying to reach when it happened — a
+ *  runner caught stealing 3rd, forced at 2nd on a double play, or thrown out stretching for an
+ *  extra base all have one, and it's what lets the field animate them running THAT far before
+ *  being retired rather than just fading in place at whatever base they started from. */
+export type RetiredRunner = { player: PlayerRef; attemptedSpot: RunnerSpot };
+
 export type RunnerSnapshot = {
     bases: Record<BaseSlot, PlayerRef | null>;
     /** Crossed the plate on the transition INTO this snapshot. */
     scored: PlayerRef[];
     /** Retired on the bases (or at the plate) on the transition INTO this snapshot. */
-    retired: PlayerRef[];
+    retired: RetiredRunner[];
     /** Who is standing in at the plate as of this frame — the NEXT play's batter, per the
      *  batter/pitcher offset described on `GameFrame`. */
     batter?: PlayerRef;
@@ -37,6 +43,11 @@ export type RunnerMove = {
     player: PlayerRef;
     from: RunnerSpot | null;   // null = entered from off-field (extra-innings ghost runner, takeover seed)
     to: RunnerSpot | null;     // null = removed (out)
+    /** Only set on `kind: "out"` moves that know what base the runner was headed to — the field
+     *  animates them running there (through every intermediate base) before showing them out,
+     *  rather than freezing them at `from`. Absent for a stranded runner at a half-inning's end
+     *  (`strandedRunnerMoves`) — they weren't attempting anything, the inning just ended. */
+    attemptedTo?: RunnerSpot;
     kind: RunnerMoveKind;
 };
 
@@ -107,6 +118,34 @@ const baseEntries = (bases: Record<BaseSlot, PlayerRef | null>): [BaseSlot, Play
         .map((slot): [BaseSlot, PlayerRef | null] => [slot, bases[slot]])
         .filter((entry): entry is [BaseSlot, PlayerRef] => entry[1] != null);
 
+// ------------------------------------------------------------------
+// BASE PATH — shared by the adapters (to compute where a retired runner was headed) and
+// `GameField` (to animate a card through every intermediate base rather than cutting straight
+// across the infield).
+// ------------------------------------------------------------------
+
+/** The base path in running order. `plate` (pre-contact) only ever starts a path; `home`
+ *  (post-score) only ever ends one — they share coordinates on the field but are distinct stops. */
+export const BASE_PATH_ORDER: RunnerSpot[] = ["plate", "first", "second", "third", "home"];
+
+/** The spot `distance` stops further along the base path than `from`, capped at home — used to
+ *  turn "how many bases beyond standard was this runner attempting" into an actual `RunnerSpot`. */
+export const spotAtDistance = (from: RunnerSpot, distance: number): RunnerSpot => {
+    const fromIndex = BASE_PATH_ORDER.indexOf(from);
+    const cappedIndex = Math.min(fromIndex + Math.max(0, distance), BASE_PATH_ORDER.length - 1);
+    return BASE_PATH_ORDER[cappedIndex];
+};
+
+/** The intermediate bases a runner passes through going from `from` to `to`, INCLUDING `to` but
+ *  not `from` — e.g. `first` → `third` is `["second", "third"]`, so a runner taking two bases on a
+ *  single still rounds first before angling to third rather than cutting straight across the infield. */
+export const basePathBetween = (from: RunnerSpot, to: RunnerSpot): RunnerSpot[] => {
+    const fromIndex = BASE_PATH_ORDER.indexOf(from);
+    const toIndex = BASE_PATH_ORDER.indexOf(to);
+    if (fromIndex === -1 || toIndex === -1 || toIndex <= fromIndex) return [to];
+    return BASE_PATH_ORDER.slice(fromIndex + 1, toIndex + 1);
+};
+
 /**
  * Assigns each departed base runner to `scored` or `retired`, closest-to-home first, up to
  * `runsToAssign`. This is a heuristic: the play data available today reports how many runs
@@ -114,17 +153,26 @@ const baseEntries = (bases: Record<BaseSlot, PlayerRef | null>): [BaseSlot, Play
  * be the one who scored than a runner on first, and this is right for the overwhelming majority
  * of plays. Wrong only on the rare "one runner scores while another is thrown out at the plate on
  * the same play" — exact per-runner movement (Phase 6) would remove the guesswork entirely.
+ *
+ * `hitBases` (0 for an out, 1-4 for a single through a homer) drives each retired runner's
+ * `attemptedSpot`: they're assumed to have been trying for one base beyond the "standard" advance
+ * for this hit type — the assumption that best explains why they'd have been running hard enough
+ * to get thrown out at all. On a groundout/DP (`hitBases: 0`) that's just the next base over,
+ * matching a force play; on a single it's two bases up, matching the classic "runner on first,
+ * thrown out stretching for third" — exact per-runner movement (Phase 6) would remove the
+ * guesswork, but this is right far more often than a flat "next base" guess.
  */
 export const allocateScoredAndRetired = (
     departed: { slot: BaseSlot; player: PlayerRef }[],
     runsToAssign: number,
-): { scored: PlayerRef[]; retired: PlayerRef[] } => {
+    hitBases: number,
+): { scored: PlayerRef[]; retired: RetiredRunner[] } => {
     const closestToHomeFirst = { third: 0, second: 1, first: 2 } as const;
     const sorted = [...departed].sort((a, b) => closestToHomeFirst[a.slot] - closestToHomeFirst[b.slot]);
     const cut = Math.max(0, Math.min(sorted.length, runsToAssign));
     return {
         scored: sorted.slice(0, cut).map((d) => d.player),
-        retired: sorted.slice(cut).map((d) => d.player),
+        retired: sorted.slice(cut).map((d) => ({ player: d.player, attemptedSpot: spotAtDistance(d.slot, hitBases + 1) })),
     };
 };
 
@@ -145,7 +193,7 @@ export const buildRunnerMoves = (params: {
     prevBases: Record<BaseSlot, PlayerRef | null>;
     nextBases: Record<BaseSlot, PlayerRef | null>;
     scored: PlayerRef[];
-    retired: PlayerRef[];
+    retired: RetiredRunner[];
     batter?: PlayerRef;
 }): RunnerMove[] => {
     const { prevBases, nextBases, scored, retired, batter } = params;
@@ -155,7 +203,11 @@ export const buildRunnerMoves = (params: {
     const nextEntries = baseEntries(nextBases);
     const nextByKey = new Map(nextEntries.map(([slot, player]) => [runnerKey(player, slot), { slot, player }] as const));
     const scoredIds = new Set(scored.map(idKey).filter((k): k is string => k != null));
-    const retiredIds = new Set(retired.map(idKey).filter((k): k is string => k != null));
+    const retiredAttemptById = new Map(
+        retired
+            .map((r): [string | null, RunnerSpot] => [idKey(r.player), r.attemptedSpot])
+            .filter((entry): entry is [string, RunnerSpot] => entry[0] != null),
+    );
     const consumedNextKeys = new Set<string>();
 
     // Runners who were on base and are no longer there — advanced, scored, or retired.
@@ -170,11 +222,12 @@ export const buildRunnerMoves = (params: {
         const id = idKey(player);
         if (id != null && scoredIds.has(id)) {
             moves.push({ key, player, from: slot, to: "home", kind: "score" });
-        } else if (id != null && retiredIds.has(id)) {
-            moves.push({ key, player, from: slot, to: null, kind: "out" });
+        } else if (id != null && retiredAttemptById.has(id)) {
+            moves.push({ key, player, from: slot, to: null, attemptedTo: retiredAttemptById.get(id), kind: "out" });
         } else {
             // No positive classification (anonymous runner, or a data gap) — treat as retired so
-            // the marker fades rather than lingering on screen forever un-animated.
+            // the marker fades rather than lingering on screen forever un-animated. No attempted
+            // base is known here, so they fade in place rather than running anywhere.
             moves.push({ key, player, from: slot, to: null, kind: "out" });
         }
     }
@@ -190,8 +243,8 @@ export const buildRunnerMoves = (params: {
             const id = idKey(batter);
             if (id != null && scoredIds.has(id)) {
                 moves.push({ key, player: batter, from: "plate", to: "home", kind: "score" });
-            } else if (id != null && retiredIds.has(id)) {
-                moves.push({ key, player: batter, from: "plate", to: null, kind: "out" });
+            } else if (id != null && retiredAttemptById.has(id)) {
+                moves.push({ key, player: batter, from: "plate", to: null, attemptedTo: retiredAttemptById.get(id), kind: "out" });
             }
             // else: no resolvable outcome for the batter (shouldn't happen with consistent data)
             // — leave them mounted at the plate rather than guessing.
