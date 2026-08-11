@@ -79,6 +79,12 @@ class PlateAppearance:
         self.pitcher_runs_allowed = {} # KEY: pitcher_id, VALUE: num runs allowed
         self.runners_scored = []
         self.was_last_result_single_plus = was_last_result_single_plus
+        # BASE STATE AS THE HITTER STEPPED IN, BEFORE ANY STEAL. `runners_before_swing` BELOW IS
+        # TAKEN AFTER STEALS RESOLVE, SO IT CANNOT SEE A RUNNER CAUGHT STEALING - THEY'RE ALREADY
+        # REMOVED FROM `self.runners` BY THEN. `retired_runners` WALKS BOTH SNAPSHOTS SO A
+        # CAUGHT-STEALING RUNNER IS STILL ACCOUNTED FOR IN THE STRUCTURED GAME LOG, EVEN THOUGH
+        # NARRATION DESCRIBES THEM SEPARATELY (VIA `steal_attempts`, NOT THIS DIFF).
+        self.runners_at_start: list[tuple[str, str, int]] = [(r.id, r.name, r.base) for r in inning.runners.runners]
         # BASE STATE AS THE BALL WAS PUT IN PLAY - (id, name, base) TUPLES RATHER THAN THE Runner
         # OBJECTS, WHICH ARE MUTATED IN PLACE AS THE PLAY RESOLVES. THIS IS WHAT THE NARRATION
         # DIFFS AGAINST TO WORK OUT WHO ADVANCED, SCORED, OR WAS RETIRED. SET IN `execute_swing`,
@@ -292,6 +298,38 @@ class PlateAppearance:
     @property
     def runner_advances_stats_dict(self) -> dict[str, Stats]:
         return {runner.id: _stat_event(id=runner.id, name=runner.name, player_type=PlayerType.HITTER, totals={_RUNS: 1}) for runner in self.runners_scored}
+
+    @property
+    def retired_runners(self) -> list[tuple[str, str, int, str]]:
+        """Runners retired on the bases this plate appearance: (id, name, base retired AT, reason).
+        `reason` is "steal" | "advance" | "forced" - "forced" covers a runner erased by a fielder's
+        choice or double play with no throw/steal roll of their own. This is the single source both
+        the narration ("X out at 2nd.") and the structured game log (`GameLogEntry.retired`) read,
+        so the two can never disagree about WHO was retired - narration additionally uses `reason`
+        to skip a redundant "forced" sentence when the batter's own DP/FC sentence already covers it.
+
+        Walks BOTH `runners_at_start` (pre-steal) and `runners_before_swing` (post-steal,
+        pre-swing) - see the comment on `runners_at_start` for why a caught-stealing runner needs
+        the earlier snapshot.
+        """
+        scored_ids = {runner.id for runner in self.runners_scored}
+        on_base_ids = {runner.id for runner in self.runners.runners}
+        thrown_out = {attempt.runner.id: attempt.base for attempt in self.advance_attempts if attempt.result == Result.OUT}
+        caught_stealing = {attempt.runner.id: attempt.base for attempt in self.steal_attempts if attempt.result == Result.OUT}
+
+        retired: list[tuple[str, str, int, str]] = []
+        seen_ids: set[str] = set()
+        for runner_id, name, base in [*self.runners_at_start, *self.runners_before_swing]:
+            if runner_id in seen_ids or runner_id == self.hitter.id or runner_id in scored_ids or runner_id in on_base_ids:
+                continue
+            seen_ids.add(runner_id)
+            if runner_id in caught_stealing:
+                retired.append((runner_id, name, caught_stealing[runner_id] + 1, "steal"))
+            elif runner_id in thrown_out:
+                retired.append((runner_id, name, thrown_out[runner_id] + 1, "advance"))
+            else:
+                retired.append((runner_id, name, base + 1, "forced"))
+        return retired
 
     def double_play_stats_dict(self, is_pitcher: bool) -> dict[str, Stats]:
         if self.double_play_roll is None:

@@ -14,6 +14,7 @@ from .models import (
     GameStartState,
     InningLineScore,
     LineScoreResult,
+    RunnerRef,
     TeamBoxScore,
     TeamLineScoreTotals,
 )
@@ -235,6 +236,9 @@ class Game:
                     description=narration.description,
                     detail=plate_appearance.detail_str.strip(),
                     summary=f"{inning.summary_str}  {self.away_team.name}:{away_score}|{self.home_team.name}:{home_score}  {plate_appearance.summary_str()}",
+                    bases_detail=[RunnerRef(id=r.id, name=r.name, base=r.base) for r in plate_appearance.runners.runners],
+                    scored=[RunnerRef(id=r.id, name=r.name, base=4) for r in plate_appearance.runners_scored],
+                    retired=[RunnerRef(id=i, name=n, base=b) for i, n, b, _reason in plate_appearance.retired_runners],
                 )
                 if collect_log:
                     self.logs.append(log_entry)

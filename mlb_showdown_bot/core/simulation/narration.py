@@ -133,19 +133,18 @@ class PlateAppearanceNarrator:
     def _runner_sentences(self) -> list[str]:
         """Where everyone who was already on base ended up.
 
-        Diffs the bases as the ball was put in play against the final state. The batter is skipped
-        throughout - their own outcome is the sentence above, and on a home run they appear in
-        `runners_scored` as well.
+        Diffs the bases as the ball was put in play against the final state, reading
+        `PlateAppearance.retired_runners`/`runners_scored` for who's gone - the same facts
+        `GameLogEntry` serializes, so the text and the structured game log can never disagree
+        about WHO did what. The batter is skipped throughout - their own outcome is the sentence
+        above, and on a home run they appear in `runners_scored` as well.
         """
 
         pa = self.pa
         hitter_id = pa.hitter.id
         scored_ids = {runner.id for runner in pa.runners_scored if runner.id != hitter_id}
         final_bases = {runner.id: runner.base for runner in pa.runners.runners}
-        thrown_out = {
-            attempt.runner.id: attempt.base
-            for attempt in pa.advance_attempts if attempt.result == Result.OUT
-        }
+        retired_by_id = {runner_id: (base, reason) for runner_id, _, base, reason in pa.retired_runners}
 
         sentences = []
         for runner_id, name, base in pa.runners_before_swing:
@@ -153,13 +152,13 @@ class PlateAppearanceNarrator:
                 continue
             if runner_id in scored_ids:
                 sentences.append(f"{name} scores.")
-            elif runner_id in thrown_out:
-                sentences.append(f"{name} out at {base_name(thrown_out[runner_id] + 1)}.")
+            elif runner_id in retired_by_id:
+                target_base, reason = retired_by_id[runner_id]
+                # A "forced" retirement (fielder's choice / double play, no throw of its own) is
+                # skipped when the batter's own sentence already covers it.
+                if reason != "forced" or not (self._grounded_into_double_play or self._fielders_choice):
+                    sentences.append(f"{name} out at {base_name(target_base)}.")
             elif runner_id in final_bases:
                 if final_bases[runner_id] > base:
                     sentences.append(f"{name} to {base_name(final_bases[runner_id])}.")
-            elif not (self._grounded_into_double_play or self._fielders_choice):
-                # OFF THE BASES WITH NO PLAY OF THEIR OWN TO EXPLAIN IT: FORCED. WHEN THE BATTER
-                # GROUNDED INTO A DP OR A FIELDER'S CHOICE THAT SENTENCE ALREADY COVERS IT.
-                sentences.append(f"{name} out at {base_name(base + 1)}.")
         return sentences

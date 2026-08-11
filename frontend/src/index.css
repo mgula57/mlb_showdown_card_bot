@@ -266,6 +266,49 @@
     animation: live-border-glow 2s ease-in-out infinite;
 }
 
+/* Game playback tempo. `--motion-scale` is the one dial: playback speed divides it, reduced
+   motion collapses it. Every animated duration inside the game view is a multiple of these three
+   custom properties rather than a hardcoded duration, so speed and accessibility stay centralized.
+   Scoped to a class (not :root) because the speed value is set inline on a descendant element —
+   a custom property set below :root can't feed a :root-level calc(). */
+.playback-scope {
+    --motion-scale:  calc(1 / var(--playback-speed, 1));
+    --motion-fast:   calc(150ms * var(--motion-scale));
+    --motion-base:   calc(300ms * var(--motion-scale));
+    --motion-runner: calc(700ms * var(--motion-scale));
+}
+
+/* 0.001 rather than 0 - a genuinely-0s transition can skip firing `transitionend`, which would
+   desync usePresenceList's exit timers from what's actually on screen. */
+@media (prefers-reduced-motion: reduce) {
+    .playback-scope { --motion-scale: 0.001; }
+}
+
+@keyframes runner-out {
+    0%   { opacity: 1; transform: scale(1) rotate(0deg); filter: grayscale(0); }
+    100% { opacity: 0; transform: scale(0.8) rotate(-6deg); filter: grayscale(1); }
+}
+.runner-out { animation: runner-out var(--motion-base, 300ms) ease-in forwards; }
+
+@keyframes score-tick {
+    0%, 100% { transform: scale(1); color: var(--primary); }
+    50%      { transform: scale(1.25); color: var(--green); }
+}
+.score-tick { animation: score-tick var(--motion-base, 300ms) ease-out; }
+
+@keyframes log-row-enter {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.log-row-enter { animation: log-row-enter var(--motion-base, 300ms) ease-out; }
+
+@keyframes result-pop {
+    0%   { opacity: 0; transform: scale(0.7); }
+    60%  { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+}
+.result-pop { animation: result-pop var(--motion-base, 300ms) ease-out; }
+
 body {
     color: var(--primary);
     background-color: var(--background-primary);

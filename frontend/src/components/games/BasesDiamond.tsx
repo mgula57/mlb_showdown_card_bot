@@ -54,9 +54,9 @@ export function BasesDiamond({ bases, outs, size = "sm", className = "" }: Bases
     return (
         <div className={`flex flex-col items-center ${className}`} style={{ gap: bd * 0.1 }}>
             <div className="relative" style={{ width: boxWidth, height: boxHeight }}>
-                <div className={`absolute border ${occupied(bases?.second)}`} style={markerStyle(centerX, secondY)} />
-                <div className={`absolute border ${occupied(bases?.third)}`} style={markerStyle(centerX - halfSpreadX, cornerY)} />
-                <div className={`absolute border ${occupied(bases?.first)}`} style={markerStyle(centerX + halfSpreadX, cornerY)} />
+                <div className={`absolute border transition-colors duration-300 ${occupied(bases?.second)}`} style={markerStyle(centerX, secondY)} />
+                <div className={`absolute border transition-colors duration-300 ${occupied(bases?.third)}`} style={markerStyle(centerX - halfSpreadX, cornerY)} />
+                <div className={`absolute border transition-colors duration-300 ${occupied(bases?.first)}`} style={markerStyle(centerX + halfSpreadX, cornerY)} />
             </div>
 
             {outs != null && (
@@ -64,7 +64,7 @@ export function BasesDiamond({ bases, outs, size = "sm", className = "" }: Bases
                     {[0, 1, 2].map((index) => (
                         <span
                             key={index}
-                            className={`rounded-full border ${index < outCount ? "bg-(--live) border-(--live)" : "border-(--secondary)/40"}`}
+                            className={`rounded-full border transition-colors duration-300 ${index < outCount ? "bg-(--live) border-(--live)" : "border-(--secondary)/40"}`}
                             style={pipStyle}
                         />
                     ))}

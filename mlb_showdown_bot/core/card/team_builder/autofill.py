@@ -655,14 +655,18 @@ def autofill_team(
             last_failure = _diagnose_bucket_failure('bullpen', sorted_candidates['bullpen'], set(), bullpen_target)
             continue
 
-        # Build merged roster
+        # Build merged roster. Autofilled slots get a draft_order continuing from the team's
+        # existing max, so they show up in the Draft History tab alongside manual picks.
         new_roster = [s.model_dump() for s in team.roster]
+        next_draft_order = max([0, *(s.draft_order or 0 for s in team.roster)]) + 1
         for slot in (
             offense_result.roster_slots
             + bench_result.roster_slots
             + rotation_result.roster_slots
             + bullpen_result.roster_slots
         ):
+            slot.draft_order = next_draft_order
+            next_draft_order += 1
             new_roster.append(slot.model_dump())
 
         # Lineups and rotation both fall out of the merged roster, so derive rather than

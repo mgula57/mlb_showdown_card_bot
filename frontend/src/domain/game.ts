@@ -144,4 +144,9 @@ export type GameView = {
     situation?: LiveSituation;
     decisions?: GameDecisions;
     lastPlay?: string;
+    /** True when this view is a reconstructed historical frame (playback), rather than the
+     *  actual current state. `state` is deliberately still "LIVE" during replay of an in-progress
+     *  or finished game — that's what keeps `GameLinescore`'s current-inning highlight active and
+     *  blanks future innings, matching the no-spoiler behavior playback wants. */
+    isReplay?: boolean;
 };

@@ -4,6 +4,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { FaPlus, FaPencil, FaChevronUp, FaChevronDown } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
+import { effectiveBenchBullpenMinimums } from '../../domain/roster';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { Modal } from '../shared/Modal';
 import { SectionHeader } from '../shared/SectionHeader';
@@ -145,12 +146,16 @@ export function DepthChartPanel({
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
     const roleByKey = Object.fromEntries(team.rotation.map(r => [r.role, r]));
 
-    const BENCH_ROLES = Array.from({ length: team.min_bench }, (_, i) => `BE${i + 1}`);
+    // Row counts must cover whatever is actually on the roster, not just the configured
+    // minimums — roster_size slack (see effectiveBenchBullpenMinimums) and manually-drafted
+    // extras can both push the real count past min_bench/min_bullpen.
+    const { bench: benchMin, bullpen: bullpenMin } = effectiveBenchBullpenMinimums(team);
     const benchSlots  = team.roster.filter(s => s.roster_position.toUpperCase() === 'BE');
+    const BENCH_ROLES = Array.from({ length: Math.max(benchMin, benchSlots.length) }, (_, i) => `BE${i + 1}`);
     const benchByRole = Object.fromEntries(BENCH_ROLES.flatMap((role, i) => benchSlots[i] ? [[role, benchSlots[i]]] : []));
 
-    const BULLPEN_ROLES = Array.from({ length: team.min_bullpen }, (_, i) => `RP${i + 1}`);
     const bullpenSlots  = team.rotation.filter(r => !r.role.startsWith('SP'));
+    const BULLPEN_ROLES = Array.from({ length: Math.max(bullpenMin, bullpenSlots.length) }, (_, i) => `RP${i + 1}`);
     const bullpenByRole = Object.fromEntries(BULLPEN_ROLES.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
     const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
 

@@ -238,6 +238,14 @@ class GameStartState(BaseModel):
     home: TeamStartState = Field(default_factory=TeamStartState)
 
 
+class RunnerRef(BaseModel):
+    """A baserunner's identity and associated base. `base` is 1-3 for a runner still on, 4 for one
+    who scored, and the base they were retired trying to reach for one who was thrown/forced out."""
+    id: str
+    name: str
+    base: int
+
+
 class GameLogEntry(BaseModel):
     inning: int
     is_top: bool
@@ -262,6 +270,13 @@ class GameLogEntry(BaseModel):
     description: str = ""   # EX: "Freddy Fermin singles. Gavin Sheets to 2nd."
     detail: str = ""    # STEALS, DPS, ADVANCES, ROLL ADJUSTMENTS
     summary: str = ""   # FULL HUMAN READABLE LINE
+    # RUNNER IDENTITY. `bases` ABOVE IS OCCUPANCY ONLY - THESE MAKE THE POST-PA BASE STATE
+    # ADDRESSABLE BY PLAYER, WHICH IS WHAT LETS A REPLAY SLIDE A NAMED CARD FROM FIRST TO SECOND
+    # RATHER THAN FADING ONE OCCUPANCY SQUARE OUT AND ANOTHER IN. EMPTY ON LOGS WRITTEN BEFORE
+    # THIS EXISTED - CONSUMERS FALL BACK TO OCCUPANCY-ONLY WHEN SO.
+    bases_detail: list[RunnerRef] = Field(default_factory=list)
+    scored: list[RunnerRef] = Field(default_factory=list)
+    retired: list[RunnerRef] = Field(default_factory=list)
 
 
 class InningLineScore(BaseModel):

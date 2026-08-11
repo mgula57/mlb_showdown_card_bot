@@ -103,13 +103,15 @@ export function FieldView({
 
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
 
-    // Build role-indexed maps so each slot renders in order (filled or placeholder)
-    const benchRoles    = rosterData ? Array.from({ length: rosterData.minBench },   (_, i) => `BE${i + 1}`) : [];
-    const bullpenRoles  = rosterData ? Array.from({ length: rosterData.minBullpen }, (_, i) => `RP${i + 1}`) : [];
+    // Build role-indexed maps so each slot renders in order (filled or placeholder).
+    // Role counts must cover whatever is actually on the roster, not just minBench/minBullpen —
+    // roster_size slack and manually-drafted extras can both push the real count higher.
     const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE');
+    const benchRoles    = rosterData ? Array.from({ length: Math.max(rosterData.minBench, benchSlots.length) },   (_, i) => `BE${i + 1}`) : [];
     const benchByRole   = Object.fromEntries(benchRoles.flatMap((role, i) => benchSlots[i] ? [[role, benchSlots[i]]] : []));
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
     const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role));
+    const bullpenRoles  = rosterData ? Array.from({ length: Math.max(rosterData.minBullpen, bullpenSlots.length) }, (_, i) => `RP${i + 1}`) : [];
     const bullByRole    = Object.fromEntries(bullpenRoles.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
 
     const lineupPts = lineup.slots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);

@@ -411,10 +411,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         roster: draft.roster,
         rotation: draft.rotation,
         benchPtsMultiplier: draft.bench_pts_multiplier,
-        minBench: draft.min_bench,
-        minBullpen: draft.min_bullpen,
+        minBench: effectiveBucketMins.bench,
+        minBullpen: effectiveBucketMins.bullpen,
         maxRotation: draft.num_starters,
-    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, draft.min_bench, draft.min_bullpen, draft.num_starters]);
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters]);
 
     const draftedCardIds = useMemo(() => {
         const ids = new Set<string>();

@@ -4,6 +4,7 @@
  * unlike that adapter, this one is lossless: it keeps the box score instead of discarding it.
  */
 import { countryCodeForTeam } from "../../functions/flags";
+import { ordinal } from "../../functions/formatters";
 import type {
     GameBoxscoreDetail,
     GameScheduled,
@@ -29,6 +30,19 @@ import type {
 } from "../game";
 import type { PlayEntry } from "../play";
 import type { TeamIdentity } from "../team";
+import {
+    allocateScoredAndRetired,
+    buildRunnerMoves,
+    EMPTY_BASES,
+    LinescoreAccumulator,
+    runnerKey,
+    severityFor,
+    strandedRunnerMoves,
+    type BaseSlot,
+    type FramePhaseKind,
+    type GameFrame,
+    type GameTimeline,
+} from "../timeline";
 
 // ------------------------------------------------------------------
 // TEAM IDENTITY
@@ -323,9 +337,13 @@ export const fromBoxscoreDetail = (game: GameBoxscoreDetail, sportId?: number): 
 // ------------------------------------------------------------------
 
 /** Feed order is oldest-first and includes the in-progress at-bat (no result yet, already
- * covered by MatchupStrip) — this drops incomplete plays and reverses to newest-first. */
-export const fromGamePlays = (plays: MostRecentPlay[]): PlayEntry[] => {
-    return plays
+ * covered by MatchupStrip) — this drops incomplete plays. Chronological order is what the
+ * timeline fold below needs; `fromGamePlays` reverses this to the newest-first order the log
+ * renders in. Kept as two functions (rather than one that reverses) so there is exactly one place
+ * that maps a raw play to a `PlayEntry` — a second mapper here would be a standing invitation for
+ * the two to drift apart on some future field. */
+export const fromGamePlaysChronological = (plays: MostRecentPlay[]): PlayEntry[] =>
+    plays
         .filter((play) => !!play.result?.event)
         .map((play, index): PlayEntry => ({
             id: String(play.about?.atBatIndex ?? index),
@@ -340,6 +358,228 @@ export const fromGamePlays = (plays: MostRecentPlay[]): PlayEntry[] => {
             isScoringPlay: play.about?.isScoringPlay,
             outs: play.count?.outs,
             source: "MLB",
-        }))
-        .reverse();
+        }));
+
+export const fromGamePlays = (plays: MostRecentPlay[]): PlayEntry[] =>
+    [...fromGamePlaysChronological(plays)].reverse();
+
+// ------------------------------------------------------------------
+// TIMELINE (playback) — one GameFrame per play, each holding a complete GameView.
+// ------------------------------------------------------------------
+
+const matchupRef = (person?: { id: number; fullName?: string } | null): PlayerRef | undefined =>
+    person ? { id: person.id, name: person.fullName ?? "" } : undefined;
+
+const postOnRef = (person?: { id: number; fullName?: string } | null): PlayerRef | null =>
+    person ? { id: person.id, name: person.fullName ?? "" } : null;
+
+/**
+ * Reconstructs a frame-by-frame `GameTimeline` from the same untrimmed play data
+ * `fromBoxscoreDetail` already has — the backend's `_extract_play` passes `result`/`matchup`/
+ * `about`/`count` through whole, so `matchup.postOnFirst/Second/Third` (post-play base occupancy
+ * WITH identity) and `result.awayScore/homeScore` are already on the wire; this just reads more
+ * of what was already there. No backend change needed for real MLB games.
+ *
+ * The batter shown at each frame's plate is the NEXT play's batter (a two-pass-in-one-loop fold,
+ * via `rawPlays[i + 1]`) — see `buildRunnerMoves`'s doc comment for why that offset is what makes
+ * the field's batter-runs-to-first animation work.
+ */
+export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): GameTimeline => {
+    const liveView = fromBoxscoreDetail(game, sportId);
+    const rawPlays = (game.plays ?? []).filter((play) => !!play.result?.event);
+    const playEntries = fromGamePlaysChronological(game.plays ?? []);
+    const isGameFinal = liveView.state === "FINAL";
+
+    const scheduledInnings = liveView.linescore?.scheduledInnings ?? 9;
+    const finalErrors = { away: liveView.linescore?.away.errors ?? 0, home: liveView.linescore?.home.errors ?? 0 };
+    const accumulator = new LinescoreAccumulator(scheduledInnings, isGameFinal ? finalErrors : { away: 0, home: 0 });
+
+    const baseView = (overrides: Partial<GameView>): GameView => ({ ...liveView, isReplay: true, ...overrides });
+
+    const frames: GameFrame[] = [];
+    let prevBases: Record<BaseSlot, PlayerRef | null> = EMPTY_BASES;
+    let awayScore = 0;
+    let homeScore = 0;
+    let inning = rawPlays[0]?.about?.inning ?? 1;
+    let isTop = rawPlays[0]?.about?.isTopInning ?? true;
+
+    accumulator.startHalf(inning, isTop);
+
+    // FRAME 0 — pre-game.
+    {
+        const firstPlay = rawPlays[0];
+        const batter = matchupRef(firstPlay?.matchup?.batter);
+        const pitcher = matchupRef(firstPlay?.matchup?.pitcher);
+        frames.push({
+            id: "mlb-pregame",
+            index: 0,
+            kind: rawPlays.length === 0 ? "FINAL" : "PRE_GAME",
+            source: "MLB",
+            runners: { bases: EMPTY_BASES, scored: [], retired: [], batter },
+            view: baseView({
+                state: rawPlays.length === 0 && isGameFinal ? "FINAL" : "LIVE",
+                away: { ...liveView.away, score: 0, isWinner: undefined },
+                home: { ...liveView.home, score: 0, isWinner: undefined },
+                decisions: undefined,
+                linescore: accumulator.snapshot(),
+                situation: {
+                    inning, isTop, inningLabel: ordinal(inning), outs: 0,
+                    bases: EMPTY_BASES, batter, pitcher,
+                    defense: rawPlays.length === 0 ? liveView.situation?.defense : undefined,
+                },
+            }),
+        });
+    }
+
+    for (let i = 0; i < rawPlays.length; i++) {
+        const play = rawPlays[i];
+        const nextPlay = rawPlays[i + 1];
+        inning = play.about?.inning ?? inning;
+        isTop = play.about?.isTopInning ?? isTop;
+        const outs = play.count?.outs ?? 0;
+
+        const nextBases: Record<BaseSlot, PlayerRef | null> = {
+            first: postOnRef(play.matchup?.postOnFirst),
+            second: postOnRef(play.matchup?.postOnSecond),
+            third: postOnRef(play.matchup?.postOnThird),
+        };
+
+        const battingSide: "away" | "home" = isTop ? "away" : "home";
+        const newAway = play.result?.awayScore ?? awayScore;
+        const newHome = play.result?.homeScore ?? homeScore;
+        const battingScoreBefore = battingSide === "away" ? awayScore : homeScore;
+        const battingScoreAfter = battingSide === "away" ? newAway : newHome;
+        const runsScored = Math.max(0, battingScoreAfter - battingScoreBefore);
+
+        const eventType = (play.result?.eventType ?? "").toLowerCase();
+        const isHomeRun = eventType === "home_run" || (play.result?.event ?? "").toLowerCase() === "home run";
+        const batter = matchupRef(play.matchup?.batter);
+
+        // Departed base runners: on base before this play, gone afterward — candidates for
+        // having scored or been retired (see `allocateScoredAndRetired`'s doc comment).
+        const departed = (["first", "second", "third"] as BaseSlot[])
+            .filter((slot) => {
+                const player = prevBases[slot];
+                if (!player) return false;
+                const key = runnerKey(player, slot);
+                return !(["first", "second", "third"] as BaseSlot[]).some((s) => {
+                    const nextPlayer = nextBases[s];
+                    return nextPlayer != null && runnerKey(nextPlayer, s) === key;
+                });
+            })
+            .map((slot) => ({ slot, player: prevBases[slot] as PlayerRef }));
+        const runsForOthers = isHomeRun ? Math.max(0, runsScored - 1) : runsScored;
+        const { scored: othersScored, retired } = allocateScoredAndRetired(departed, runsForOthers);
+        const scored = isHomeRun && batter ? [...othersScored, batter] : othersScored;
+
+        const moves = buildRunnerMoves({ prevBases, nextBases, scored, retired, batter });
+        const isHalfInningChange = !!nextPlay && (nextPlay.about?.inning !== inning || nextPlay.about?.isTopInning !== isTop);
+        const isHit = ["single", "double", "triple", "home_run"].includes(eventType);
+
+        accumulator.apply(inning, isTop, newAway, newHome, isHit);
+        const severity = severityFor({
+            moves, runsScored, isHomeRun,
+            isWalkOff: isGameFinal && !nextPlay && runsScored > 0,
+        });
+
+        const isLastPlay = i === rawPlays.length - 1;
+        const kind: FramePhaseKind = isLastPlay && isGameFinal ? "FINAL" : "PLAY";
+        const nextBatter = matchupRef(nextPlay?.matchup?.batter);
+        const nextPitcher = matchupRef(nextPlay?.matchup?.pitcher) ?? matchupRef(play.matchup?.pitcher);
+
+        frames.push({
+            id: `mlb-${play.about?.atBatIndex ?? i}`,
+            index: frames.length,
+            kind,
+            source: "MLB",
+            play: playEntries[i],
+            runners: { bases: nextBases, scored, retired, batter: nextBatter },
+            transition: {
+                fromIndex: frames.length - 1, toIndex: frames.length,
+                moves, runsScored, outsRecorded: outs, isHalfInningChange, severity,
+            },
+            view: baseView({
+                state: kind === "FINAL" ? "FINAL" : "LIVE",
+                away: { ...liveView.away, score: newAway, isWinner: kind === "FINAL" ? liveView.away.isWinner : undefined },
+                home: { ...liveView.home, score: newHome, isWinner: kind === "FINAL" ? liveView.home.isWinner : undefined },
+                decisions: kind === "FINAL" ? liveView.decisions : undefined,
+                linescore: accumulator.snapshot(),
+                situation: {
+                    inning, isTop, inningLabel: ordinal(inning), outs,
+                    balls: play.count?.balls, strikes: play.count?.strikes,
+                    bases: nextBases, batter: nextBatter, pitcher: nextPitcher,
+                    defense: kind === "FINAL" ? liveView.situation?.defense : undefined,
+                },
+                lastPlay: kind === "FINAL" ? liveView.lastPlay : undefined,
+            }),
+        });
+
+        if (isHalfInningChange && nextPlay) {
+            const breakInning = nextPlay.about?.inning ?? inning;
+            const breakIsTop = nextPlay.about?.isTopInning ?? !isTop;
+            accumulator.startHalf(breakInning, breakIsTop);
+            frames.push({
+                id: `mlb-${play.about?.atBatIndex ?? i}-break`,
+                index: frames.length,
+                kind: "HALF_INNING_BREAK",
+                source: "MLB",
+                runners: { bases: EMPTY_BASES, scored: [], retired: [], batter: nextBatter },
+                transition: {
+                    fromIndex: frames.length - 1, toIndex: frames.length,
+                    moves: strandedRunnerMoves(nextBases), runsScored: 0, outsRecorded: 0,
+                    isHalfInningChange: true, severity: "quiet",
+                },
+                view: baseView({
+                    state: "LIVE",
+                    away: { ...liveView.away, score: newAway, isWinner: undefined },
+                    home: { ...liveView.home, score: newHome, isWinner: undefined },
+                    decisions: undefined,
+                    linescore: accumulator.snapshot(),
+                    situation: {
+                        inning: breakInning, isTop: breakIsTop, inningLabel: ordinal(breakInning), outs: 0,
+                        bases: EMPTY_BASES, batter: nextBatter, pitcher: nextPitcher,
+                    },
+                }),
+            });
+            prevBases = EMPTY_BASES;
+            inning = breakInning;
+            isTop = breakIsTop;
+        } else {
+            prevBases = nextBases;
+        }
+
+        awayScore = newAway;
+        homeScore = newHome;
+    }
+
+    // Trailing AT_BAT frame for a game still in progress — the live ground truth, verbatim, so
+    // the live edge can never regress versus what the page shows today.
+    if (!isGameFinal) {
+        frames.push({
+            id: "mlb-live",
+            index: frames.length,
+            kind: "AT_BAT",
+            source: "MLB",
+            runners: {
+                bases: {
+                    first: liveView.situation?.bases.first ?? null,
+                    second: liveView.situation?.bases.second ?? null,
+                    third: liveView.situation?.bases.third ?? null,
+                },
+                scored: [],
+                retired: [],
+                batter: liveView.situation?.batter,
+            },
+            view: liveView,
+        });
+    }
+
+    return {
+        gameId: game.game_pk,
+        source: "MLB",
+        frames,
+        liveIndex: frames.length - 1,
+        hasRunnerIdentity: true,
+        frozen: { boxscore: true, defense: true },
+    };
 };
