@@ -23,7 +23,7 @@ import {
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine
 } from 'react-icons/fa6';
 import { useNavigate } from 'react-router-dom';
-import { fetchTeamSimSeasons, startSeasonSim, type SimSeasonListItem } from '../../api/sim';
+import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob } from '../../api/sim';
 import { SimSetupModal } from './sim/SimSetupModal';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
@@ -155,6 +155,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
     // team that's never been played shows no dead tab.
     const [teamSeasons, setTeamSeasons] = useState<SimSeasonListItem[] | null>(null);
+    // The signed-in user's own in-flight job, if any - shown (and cancellable) in the Sims tab
+    // only when it belongs to *this* team, so a job started elsewhere doesn't show up here.
+    const [activeJob, setActiveJob] = useState<ActiveSimJob | null>(null);
+    const [cancellingJob, setCancellingJob] = useState(false);
     const navigate = useNavigate();
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -213,6 +217,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         fetchTeamSimSeasons(team.team_id, token)
             .then(seasons => { if (!stale) setTeamSeasons(seasons); })
             .catch(() => { if (!stale) setTeamSeasons([]); });
+        return () => { stale = true; };
+    }, [team.team_id, token]);
+
+    // The user's own in-flight job (at most one can exist) - lets the Sims tab surface it, so a
+    // stuck run can be found and cancelled without having to trigger the blocked-start 429 first.
+    useEffect(() => {
+        if (!team.team_id || !token) return;
+        let stale = false;
+        fetchActiveSimJob(token)
+            .then(job => { if (!stale) setActiveJob(job); })
+            .catch(() => { if (!stale) setActiveJob(null); });
         return () => { stale = true; };
     }, [team.team_id, token]);
 
@@ -351,7 +366,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // A season needs a complete roster and a signed-in owner (the sim endpoint is authenticated).
     // Synthetic MLB/ASG teams aren't saved, so there is no team_id for the job to reference.
     const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id;
-    const hasSims = !!teamSeasons && teamSeasons.length > 0;
+    // Scoped to this team so a job started from a different team's page doesn't show up here.
+    const activeJobForTeam = activeJob && activeJob.team_id === team.team_id ? activeJob : null;
+    const hasSims = (!!teamSeasons && teamSeasons.length > 0) || !!activeJobForTeam;
 
     const settingsDraft = useMemo(
         () => pendingSettings ? { ...draft, ...pendingSettings } as Team : draft,
@@ -559,8 +576,51 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         </div>
     );
 
+    async function handleCancelActiveJob() {
+        if (!token || !activeJobForTeam) return;
+        setCancellingJob(true);
+        try {
+            await cancelSimJob(activeJobForTeam.job_id, token);
+            setActiveJob(null);
+        } catch {
+            // Leave the banner in place - the user can retry, or open it to see what happened.
+        } finally {
+            setCancellingJob(false);
+        }
+    }
+
     const simsContent = (
         <div className="flex flex-col gap-1.5 p-4">
+            {activeJobForTeam && (
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-(--background-tertiary) ring-1 ring-(--showdown-blue)/40">
+                    <FaSpinner className="animate-spin text-(--text-tertiary) text-[13px] shrink-0" />
+                    <div className="min-w-0 flex-1">
+                        <div className="text-[12px] font-bold text-(--text-primary) truncate">
+                            {activeJobForTeam.phase ?? 'Starting simulation'}
+                        </div>
+                        {activeJobForTeam.games_total > 0 && (
+                            <div className="text-[11px] text-(--text-tertiary)">
+                                {activeJobForTeam.games_completed.toLocaleString()} / {activeJobForTeam.games_total.toLocaleString()} games
+                            </div>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/teams/${team.team_id}/sim/${activeJobForTeam.job_id}`)}
+                        className="shrink-0 text-[11px] font-bold px-2 py-1.5 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                    >
+                        View
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleCancelActiveJob}
+                        disabled={cancellingJob}
+                        className="shrink-0 text-[11px] font-bold px-2 py-1.5 rounded-lg text-red-400 hover:text-red-300 disabled:opacity-50 cursor-pointer transition-colors"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
             {(teamSeasons ?? []).map(entry => (
                 <SimSeasonRow
                     key={entry.entry_id}
@@ -1021,6 +1081,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     showdownSet={draft.allowed_sets?.[0] ?? '2000'}
                     onCancel={() => setShowSimModal(false)}
                     onStart={handleStartSim}
+                    onViewExisting={(jobId, teamId) => {
+                        setShowSimModal(false);
+                        navigate(`/teams/${teamId ?? team.team_id}/sim/${jobId}`);
+                    }}
                 />
             )}
 

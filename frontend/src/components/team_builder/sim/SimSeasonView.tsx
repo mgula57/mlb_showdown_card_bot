@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaArrowLeft, FaTriangleExclamation } from 'react-icons/fa6';
-import { fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../../api/sim';
+import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../../api/sim';
 import { SimProgress } from './SimProgress';
 import { SimResult } from './SimResult';
 
@@ -47,7 +47,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
                 if (cancelled.current) return;
                 setJob(next);
 
-                if (next.status === 'failed') {
+                if (next.status === 'failed' || next.status === 'cancelled') {
                     setError(next.error ?? 'The simulation failed.');
                     return;
                 }
@@ -88,6 +88,13 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
         };
     }, [jobId, token]);
 
+    function handleCancel() {
+        if (!token) return;
+        // No local state change needed - the next poll tick (at most 1s away) picks up the
+        // job's new 'cancelled' status.
+        cancelSimJob(jobId, token).catch(() => {});
+    }
+
     return (
         <div className="flex flex-col h-full overflow-y-auto">
             <div className="px-4 pt-4">
@@ -118,7 +125,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
             ) : summary ? (
                 <SimResult summary={summary} onRunAgain={onRunAgain} />
             ) : (
-                <SimProgress job={job} teamName={teamName} />
+                <SimProgress job={job} teamName={teamName} onCancel={token ? handleCancel : undefined} />
             )}
         </div>
     );

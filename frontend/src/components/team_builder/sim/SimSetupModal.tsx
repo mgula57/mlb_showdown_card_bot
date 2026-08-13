@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FaSpinner, FaPlay } from 'react-icons/fa6';
 import { Modal } from '../../shared/Modal';
 import FormDropdown from '../../customs/FormDropdown';
-import { fetchSimSeasons, fetchSimSeasonTeams, type TakeoverClub } from '../../../api/sim';
+import { fetchSimSeasons, fetchSimSeasonTeams, SimAlreadyRunningError, type TakeoverClub } from '../../../api/sim';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -13,6 +13,9 @@ type Props = {
     showdownSet: string;
     onCancel: () => void;
     onStart: (options: { year: number; set: string; replaces: string }) => Promise<void>;
+    /** Jump straight to the user's already-running job — shown when `onStart` is blocked by
+     *  `SimAlreadyRunningError`. Its team may differ from this one, since the cap is per-user. */
+    onViewExisting: (jobId: string, teamId: string | null) => void;
 };
 
 /**
@@ -20,7 +23,7 @@ type Props = {
  * record first and defaults to the worst — taking over a last-place team is the intended
  * uphill version of the game.
  */
-export function SimSetupModal({ showdownSet, onCancel, onStart }: Props) {
+export function SimSetupModal({ showdownSet, onCancel, onStart, onViewExisting }: Props) {
     const [seasons, setSeasons] = useState<number[]>([]);
     const [year, setYear] = useState<number | null>(null);
     // Clubs are stored with the year they belong to, so "still loading" is derived from a
@@ -29,6 +32,7 @@ export function SimSetupModal({ showdownSet, onCancel, onStart }: Props) {
     const [replaces, setReplaces] = useState<string>('');
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [runningJob, setRunningJob] = useState<{ jobId: string; teamId: string | null } | null>(null);
 
     useEffect(() => {
         fetchSimSeasons()
@@ -61,9 +65,11 @@ export function SimSetupModal({ showdownSet, onCancel, onStart }: Props) {
         if (year === null || !replaces) return;
         setStarting(true);
         setError(null);
+        setRunningJob(null);
         try {
             await onStart({ year, set: showdownSet, replaces });
         } catch (err: unknown) {
+            if (err instanceof SimAlreadyRunningError) setRunningJob({ jobId: err.jobId, teamId: err.teamId });
             setError(errorMessage(err));
             setStarting(false);
         }
@@ -107,8 +113,17 @@ export function SimSetupModal({ showdownSet, onCancel, onStart }: Props) {
                 )}
 
                 {error && (
-                    <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
-                        {error}
+                    <div className="flex items-center justify-between gap-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                        <span>{error}</span>
+                        {runningJob && (
+                            <button
+                                type="button"
+                                onClick={() => onViewExisting(runningJob.jobId, runningJob.teamId)}
+                                className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+                            >
+                                View it
+                            </button>
+                        )}
                     </div>
                 )}
 

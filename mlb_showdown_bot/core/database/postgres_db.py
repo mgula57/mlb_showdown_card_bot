@@ -7374,11 +7374,15 @@ class PostgresDB:
             )
             return str(cur.fetchone()[0])
 
-    def update_sim_job_progress(self, job_id: str, phase: str | None = None, games_completed: int | None = None, games_total: int | None = None) -> None:
+    def update_sim_job_progress(self, job_id: str, phase: str | None = None, games_completed: int | None = None, games_total: int | None = None) -> bool:
         """Mark the job running and record progress. Called from the worker thread on its own
-        connection - it cannot share the one the simulation is using."""
+        connection - it cannot share the one the simulation is using.
+
+        Returns False if the job was cancelled out from under it (the row is excluded by the
+        WHERE clause), which the worker treats as a signal to stop simulating.
+        """
         if not self.connection:
-            return
+            return True
         with self.connection.cursor() as cur:
             cur.execute(
                 """
@@ -7388,13 +7392,17 @@ class PostgresDB:
                        games_completed = COALESCE(%s, games_completed),
                        games_total     = COALESCE(%s, games_total),
                        updated_at      = NOW()
-                 WHERE job_id = %s
+                 WHERE job_id = %s AND status <> 'cancelled'
                 """,
                 (phase, games_completed, games_total, job_id),
             )
+            return cur.rowcount > 0
 
     def finish_sim_job(self, job_id: str, error: str | None = None) -> None:
-        """Terminal update. The result itself lives on `sim_season`, not here."""
+        """Terminal update. The result itself lives on `sim_season`, not here.
+
+        Excludes an already-cancelled job so a race can't stomp it back to failed/succeeded.
+        """
         if not self.connection:
             return
         status = 'failed' if error else 'succeeded'
@@ -7404,10 +7412,38 @@ class PostgresDB:
                 UPDATE internal.sim_job
                    SET status = %s, error = %s, phase = %s,
                        updated_at = NOW(), finished_at = NOW()
-                 WHERE job_id = %s
+                 WHERE job_id = %s AND status <> 'cancelled'
                 """,
                 (status, error, 'Failed' if error else 'Complete', job_id),
             )
+
+    def cancel_sim_job(self, job_id: str, user_id: str) -> bool:
+        """User-initiated cancel. Only affects a job still in flight and owned by this user.
+
+        The worker thread notices on its next progress write (see `update_sim_job_progress`) and
+        stops simulating - this just flips the terminal state so the API responds immediately.
+        """
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET status = 'cancelled', error = 'Cancelled by user.', phase = 'Cancelled',
+                       updated_at = NOW(), finished_at = NOW()
+                 WHERE job_id = %s AND user_id = %s AND status IN ('queued', 'running')
+                """,
+                (job_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    def is_sim_job_cancelled(self, job_id: str) -> bool:
+        """Cheap terminal-state check, used right after a simulation finishes to catch a cancel
+        that landed in the window since the last progress write."""
+        if not self.connection:
+            return False
+        rows = self.execute_query("SELECT status FROM internal.sim_job WHERE job_id = %s", (job_id,))
+        return bool(rows) and rows[0]['status'] == 'cancelled'
 
     def get_sim_job(self, job_id: str, user_id: str | None = None) -> dict | None:
         """Fetch a job's progress. A job with no user_id is public; otherwise owner-only."""
@@ -7430,15 +7466,29 @@ class PostgresDB:
         row['team_id'] = str(row['team_id']) if row['team_id'] else None
         return row
 
-    def count_running_sim_jobs(self, user_id: str) -> int:
-        """In-flight jobs for one user, used to stop a single account queueing many at once."""
+    def get_active_sim_job(self, user_id: str) -> dict | None:
+        """This user's in-flight job, if any - at most one, since starting a new one is blocked
+        while another is queued/running. Reaps stale rows first so a job nobody has polled can't
+        permanently block a new one from starting."""
         if not self.connection:
-            return 0
+            return None
+        self.reap_stale_sim_jobs()
         rows = self.execute_query(
-            "SELECT count(*) AS c FROM internal.sim_job WHERE user_id = %s AND status IN ('queued','running')",
+            """
+            SELECT job_id, team_id, phase, games_completed, games_total, created_at
+              FROM internal.sim_job
+             WHERE user_id = %s AND status IN ('queued','running')
+             ORDER BY created_at DESC
+             LIMIT 1
+            """,
             (user_id,),
         )
-        return int(rows[0]['c']) if rows else 0
+        if not rows:
+            return None
+        row = dict(rows[0])
+        row['job_id'] = str(row['job_id'])
+        row['team_id'] = str(row['team_id']) if row['team_id'] else None
+        return row
 
     def reap_stale_sim_jobs(self) -> None:
         """Fail jobs whose worker stopped reporting.

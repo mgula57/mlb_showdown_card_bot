@@ -5,6 +5,7 @@ import { SimEngineExplainer } from './SimEngineExplainer';
 type Props = {
     job: SimJob | null;
     teamName: string;
+    onCancel?: () => void;
 };
 
 // Setup phases (see `_friendly_phase` in `api/sim.py`) report no game counts, so the bar would
@@ -19,7 +20,7 @@ const SETUP_MAX_PCT = 25;
  * Progress while a season runs. Setup (card loading, schedule, rosters) reports a phase with no
  * game counts, so the bar ticks through minor fixed increments until games start.
  */
-export function SimProgress({ job, teamName }: Props) {
+export function SimProgress({ job, teamName, onCancel }: Props) {
     const total = job?.games_total ?? 0;
     const completed = job?.games_completed ?? 0;
     const phase = job?.phase ?? 'Starting simulation';
@@ -52,6 +53,16 @@ export function SimProgress({ job, teamName }: Props) {
             </div>
 
             <p className="text-[11px] text-(--text-tertiary)">This usually takes under a minute.</p>
+
+            {onCancel && (
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="text-[11px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer underline underline-offset-2"
+                >
+                    Cancel simulation
+                </button>
+            )}
 
             <SimEngineExplainer />
         </div>

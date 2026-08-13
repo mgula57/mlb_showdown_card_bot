@@ -153,7 +153,7 @@ export type SeasonSimSummary = {
     awards?: SeasonAwards | null;
 };
 
-export type SimJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type SimJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 /**
  * Progress only — never carries the result. Job rows expire after a week, so once `status` is
@@ -232,6 +232,33 @@ export type StartSeasonSimPayload = {
     seed?: number | null;
 };
 
+/** The signed-in user's own in-flight job - at most one can exist at a time. */
+export type ActiveSimJob = {
+    job_id: string;
+    team_id: string | null;
+    phase: string | null;
+    games_completed: number;
+    games_total: number;
+    created_at: string;
+};
+
+/**
+ * Thrown by `startSeasonSim` when the user already has a simulation running. Carries the
+ * blocking job's own id/team - which may belong to a different team than the one just
+ * requested, since the cap is per-user, not per-team - so the caller can link straight to it.
+ */
+export class SimAlreadyRunningError extends Error {
+    jobId: string;
+    teamId: string | null;
+
+    constructor(message: string, jobId: string, teamId: string | null) {
+        super(message);
+        this.name = 'SimAlreadyRunningError';
+        this.jobId = jobId;
+        this.teamId = teamId;
+    }
+}
+
 // =============================================================================
 // MARK: - REQUESTS
 // =============================================================================
@@ -272,6 +299,10 @@ export async function startSeasonSim(payload: StartSeasonSimPayload, token: stri
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
     });
+    if (res.status === 429) {
+        const err = await res.json().catch(() => ({}));
+        if (err.job_id) throw new SimAlreadyRunningError(err.error ?? 'A simulation is already running.', err.job_id, err.team_id ?? null);
+    }
     if (!res.ok) await parseError(res, 'Failed to start simulation');
     return res.json();
 }
@@ -297,6 +328,27 @@ export async function fetchSimJob(jobId: string, token: string): Promise<SimJob>
     });
     if (!res.ok) await parseError(res, 'Failed to load simulation');
     return res.json();
+}
+
+/** Cancel the signed-in user's own queued/running job. The worker thread notices on its next
+ *  progress write and stops simulating - the caller's next poll picks up the new status. */
+export async function cancelSimJob(jobId: string, token: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/sim/jobs/${jobId}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to cancel simulation');
+}
+
+/** The signed-in user's own in-flight job, if any - lets a caller check without attempting a
+ *  start first. */
+export async function fetchActiveSimJob(token: string): Promise<ActiveSimJob | null> {
+    const res = await fetch(`${API_BASE}/sim/jobs/active`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to check for an active simulation');
+    const data = await res.json();
+    return data.job ?? null;
 }
 
 /**

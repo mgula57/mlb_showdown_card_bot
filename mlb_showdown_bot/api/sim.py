@@ -22,6 +22,11 @@ sim_bp = Blueprint('sim', __name__)
 _MAX_CONCURRENT_SIMS = 2
 _sim_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_SIMS)
 
+
+class SimCancelled(Exception):
+    """Raised inside a `Season.simulate()` callback when the job's row has been cancelled out
+    from under the worker thread. Propagates uncaught through `simulate()` to `_run_sim_job`."""
+
 # Progress fires once per game - 2437 times a season. Writing each one would be thousands of
 # round trips for a bar the user reads a few times a second.
 _PROGRESS_WRITE_INTERVAL = timedelta(seconds=1)
@@ -118,8 +123,15 @@ def start_season_sim():
             row = db.get_team(team_id, g.user_id)
             if row is None:
                 return jsonify({'error': 'team not found'}), 404
-            if db.count_running_sim_jobs(g.user_id) > 0:
-                return jsonify({'error': 'You already have a simulation running. Wait for it to finish.'}), 429
+            active = db.get_active_sim_job(g.user_id)
+            if active:
+                # THE BLOCKING JOB CAN BELONG TO A DIFFERENT TEAM - THE CAP IS PER-USER, NOT
+                # PER-TEAM - SO THE CALLER NEEDS ITS OWN team_id TO LINK TO IT, NOT THIS ONE'S.
+                return jsonify({
+                    'error': 'You already have a simulation running. Wait for it to finish.',
+                    'job_id': active['job_id'],
+                    'team_id': active['team_id'],
+                }), 429
 
             team = BuilderTeam.from_db_row(row)
             roster_error = _roster_error(team)
@@ -209,9 +221,13 @@ def _run_sim_job(job_id: str, config: SeasonSimulationConfig, team_abbr: str, us
         def write_progress(phase: str | None = None, completed: int | None = None, total: int | None = None) -> None:
             try:
                 with PostgresDB() as progress_db:
-                    progress_db.update_sim_job_progress(job_id, phase=phase, games_completed=completed, games_total=total)
+                    still_active = progress_db.update_sim_job_progress(job_id, phase=phase, games_completed=completed, games_total=total)
             except Exception:
-                pass  # PROGRESS IS COSMETIC - NEVER LET IT KILL THE RUN
+                return  # PROGRESS IS COSMETIC - A WRITE FAILURE MUST NEVER KILL THE RUN
+            # THE CANCELLATION CHECK MUST STAY OUTSIDE THE try/except ABOVE, OR THE BARE
+            # `except Exception` WOULD SWALLOW THE RAISE AND CANCELLATION WOULD NEVER FIRE.
+            if not still_active:
+                raise SimCancelled()
 
         def on_progress(completed: int, total: int) -> None:
             nonlocal last_write
@@ -231,6 +247,12 @@ def _run_sim_job(job_id: str, config: SeasonSimulationConfig, team_abbr: str, us
         # GameLogEntry CONSTRUCTION EVEN WHEN THE LOG IS NEVER COLLECTED.
         result = Season(config=config).simulate(progress_callback=on_progress, status_callback=on_status)
 
+        with PostgresDB() as check_db:
+            # POSTSEASON HAS NO CALLBACK OF ITS OWN, SO A CANCEL DURING IT ONLY SURFACES HERE -
+            # WITHOUT THIS, A CANCELLED RUN COULD STILL GET PERMANENTLY RECORDED BELOW.
+            if check_db.is_sim_job_cancelled(job_id):
+                return
+
         write_progress(phase='Building results')
         summary = SeasonSummaryBuilder(result=result, team_abbr=team_abbr).build()
         # DROP THE ~6 MB RESULT BEFORE THE WRITE - ONLY THE PROJECTION IS PERSISTED.
@@ -249,6 +271,8 @@ def _run_sim_job(job_id: str, config: SeasonSimulationConfig, team_abbr: str, us
             )
             db.finish_sim_job(job_id)
 
+    except SimCancelled:
+        pass  # THE ROW IS ALREADY TERMINAL ('cancelled') - finish_sim_job WOULD BE A NO-OP
     except Exception as exc:
         traceback.print_exc()
         try:
@@ -508,6 +532,40 @@ def get_sim_job(job_id: str):
         if job is None:
             return jsonify({'error': 'job not found'}), 404
         return jsonify(job), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/jobs/active', methods=['GET'])
+@require_auth
+def get_active_sim_job():
+    """The signed-in user's own in-flight job, if any - lets the client check without having to
+    attempt a start first. At most one can ever exist; see `start_season_sim`'s 429."""
+    try:
+        with PostgresDB() as db:
+            job = db.get_active_sim_job(g.user_id)
+        return jsonify({'job': job}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/jobs/<job_id>/cancel', methods=['POST'])
+@require_auth
+def cancel_sim_job(job_id: str):
+    """Cancel the signed-in user's own queued/running job.
+
+    Flips the row to a terminal state immediately; the worker thread notices on its next
+    progress write (see `_run_sim_job.write_progress`) and stops simulating, which also frees
+    its `_sim_slots` permit.
+    """
+    try:
+        with PostgresDB() as db:
+            cancelled = db.cancel_sim_job(job_id, g.user_id)
+        if not cancelled:
+            return jsonify({'error': 'job not found'}), 404
+        return jsonify({'status': 'cancelled'}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
