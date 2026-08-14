@@ -1,5 +1,6 @@
 from enum import Enum
 from random import Random
+from typing import Optional
 
 from ..shared.player_position import PlayerType, PositionSlot
 from .inning import Inning
@@ -27,7 +28,7 @@ _PADV = StatCategory.PITCHER_ADVANTAGE.value
 _OWN_CHART_OUT = StatCategory.OWN_CHART_OUT.value
 
 
-def _stat_event(id: str, totals: dict[str, float], name: str = "", player_type=None, position=None, team=None, speed: int = 0, command: float = 0) -> Stats:
+def _stat_event(id: str, totals: dict[str, float], name: str = "", player_type=None, position=None, team=None, speed: int = 0, command: float = 0, positions_played: Optional[dict[str, int]] = None) -> Stats:
     """Build a per-event Stats line, skipping Pydantic validation.
 
     These are created several times per plate appearance from values the sim already controls, so
@@ -37,6 +38,7 @@ def _stat_event(id: str, totals: dict[str, float], name: str = "", player_type=N
     return Stats.model_construct(
         id=id, name=name, player_type=player_type, position=position, team=team,
         points=0, speed=speed, command=command, real_ops=None, totals=totals,
+        positions_played=positions_played or {},
     )
 
 
@@ -270,6 +272,7 @@ class PlateAppearance:
             position=self.hitter.position_slot.value,
             team=self.hitter.team,
             command=self.hitter.chart.command,
+            positions_played={self.hitter.position_slot.value: 1},
             totals={
                 _PA: 1,
                 _AB: int(self.swing.result.count_as_ab),

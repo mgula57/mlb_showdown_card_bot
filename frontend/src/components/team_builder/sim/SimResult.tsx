@@ -4,7 +4,7 @@ import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
     FaTableList, FaRankingStar, FaSitemap,
 } from 'react-icons/fa6';
-import type { AwardWinner, SeasonSimSummary } from '../../../api/sim';
+import type { SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
 import { SimAwardsList } from './SimAwardsList';
 import { SimBracket } from './SimBracket';
@@ -41,22 +41,10 @@ export function SimResult({ summary, onRunAgain }: Props) {
     const standingsEntries = useStandingsEntries(summary);
     const postseasonExit = useMemo(() => describePostseasonExit(summary, teamKey), [summary, teamKey]);
 
-    const awardsByCategory = useMemo(() => {
+    const hasAwards = useMemo(() => {
         const awards = summary.awards;
-        if (!awards) return [];
-        return [
-            ...awards.mvp, ...awards.cy_young, ...awards.rookie_of_year, ...awards.silver_sluggers,
-        ];
+        return !!awards && (awards.mvp.length + awards.cy_young.length + awards.rookie_of_year.length + awards.silver_sluggers.length) > 0;
     }, [summary.awards]);
-    const awardsByLeague = useMemo(() => {
-        const byLeague = new Map<string, AwardWinner[]>();
-        for (const award of awardsByCategory) {
-            const bucket = byLeague.get(award.league) ?? [];
-            bucket.push(award);
-            byLeague.set(award.league, bucket);
-        }
-        return [...byLeague.entries()].sort(([a], [b]) => a.localeCompare(b));
-    }, [awardsByCategory]);
 
     const outcome = team.is_champion
         ? 'Won the World Series'
@@ -128,7 +116,7 @@ export function SimResult({ summary, onRunAgain }: Props) {
                     <Tabs.Trigger value="pitching" className={TAB_TRIGGER_CLASS}><FaBaseball className={TAB_ICON_CLASS} />Pitching</Tabs.Trigger>
                     <Tabs.Trigger value="standings" className={TAB_TRIGGER_CLASS}><FaTableList className={TAB_ICON_CLASS} />Standings</Tabs.Trigger>
                     <Tabs.Trigger value="leaders" className={TAB_TRIGGER_CLASS}><FaRankingStar className={TAB_ICON_CLASS} />League Leaders</Tabs.Trigger>
-                    {awardsByLeague.length > 0 && (
+                    {hasAwards && (
                         <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
                     )}
                     {summary.postseason.length > 0 && (
@@ -220,9 +208,9 @@ export function SimResult({ summary, onRunAgain }: Props) {
                 </Tabs.Content>
 
                 {/* Awards */}
-                {awardsByLeague.length > 0 && (
+                {hasAwards && summary.awards && (
                     <Tabs.Content value="awards" className="focus:outline-none px-4 pt-3">
-                        <SimAwardsList awardsByLeague={awardsByLeague} identities={summary.identities} />
+                        <SimAwardsList awards={summary.awards} identities={summary.identities} />
                     </Tabs.Content>
                 )}
 

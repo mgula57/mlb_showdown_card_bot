@@ -110,14 +110,24 @@ class Stats(BaseModel):
     is_rookie: bool = False           # REAL-LIFE ROOKIE STATUS FOR THE CARD'S YEAR - USED FOR RoY
     defense: int = 0                  # CARD'S positions_and_defense RATING AT THE PLAYER'S PRIMARY SIM POSITION
     totals: dict[str, float] = Field(default_factory=dict)
+    # PLATE APPEARANCES BY THE PositionSlot VALUE THE PLAYER ACTUALLY FIELDED THAT PA (E.G. "LF"/
+    # "RF"/"DH") - DISTINCT FROM `position`, WHICH IS THE CARD'S OWN (POSSIBLY COMBINED, E.G.
+    # "LF/RF") PRIMARY POSITION. USED TO TELL A SEASON'S ACTUAL LF/RF/DH USAGE APART WHEN THE CARD
+    # ITSELF DOESN'T DISTINGUISH THEM - SEE `AwardsBuilder.silver_sluggers`.
+    positions_played: dict[str, int] = Field(default_factory=dict)
 
     def merge(self, stats: 'Stats') -> None:
         """Merge another statline's counting stats into this one."""
         self.merge_totals(stats.totals)
+        self.merge_positions_played(stats.positions_played)
 
     def merge_totals(self, totals: dict[str, float]) -> None:
         for key, value in totals.items():
             self.totals[key] = self.totals.get(key, 0) + value
+
+    def merge_positions_played(self, positions_played: dict[str, int]) -> None:
+        for position, count in positions_played.items():
+            self.positions_played[position] = self.positions_played.get(position, 0) + count
 
     def add_stat(self, category: StatCategory, value: float) -> None:
         """Increment a single counting stat in place."""

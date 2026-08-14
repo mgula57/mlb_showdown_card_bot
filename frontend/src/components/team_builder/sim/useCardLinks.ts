@@ -23,5 +23,5 @@ export function useCardLinks(rows: SimStatLine[], enabled: boolean) {
     const isLoadingCard = (row: SimStatLine) =>
         enabled && !!row.card_source && isLoadingCards && cardMap[row.id] === undefined;
 
-    return { recordFor, isLoadingCard, selected, open, close, isFetching };
+    return { cardMap, isLoadingCards, recordFor, isLoadingCard, selected, open, close, isFetching };
 }

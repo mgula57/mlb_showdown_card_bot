@@ -45,15 +45,19 @@ class AwardsBuilder:
         Best-effort - the card's `is_rookie` flag is only reliably populated for MLB-API-sourced
         seasons (2026+), so a league with nobody flagged simply has no RoY rather than a guessed
         one.
-      - Silver Slugger: highest OPS per position, one per league. The engine's fielding model
-        never assigns a bare LF or RF - only the combined `LF/RF` slot, or CF/OF (see
-        `Position.is_valid_in_game`) - so outfield gets one combined LF/RF award instead of the
-        real three.
+      - Silver Slugger: highest OPS per position, one per league. The card's own primary position
+        never distinguishes LF from RF - both print as the combined `LF/RF` position (see
+        `Position.is_valid_in_game`) - so the two are split by which of the two positions a
+        player actually logged more plate appearances at this season (`Stats.positions_played`,
+        the `PositionSlot` each plate appearance was actually fielded from). DH is widened past
+        the card's own position the same way: anyone whose season was majority-DH by plate
+        appearances qualifies, not just a card whose own primary position is DH.
     """
 
-    _SILVER_SLUGGER_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'CF', 'LF/RF', 'DH']
+    _SILVER_SLUGGER_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
     _DEFENSE_BOOST_PER_POINT = 0.01     # EACH +1 CARD DEFENSE RATING NUDGES MVP SCORE UP 1%
     _NET_SB_BOOST_PER_STEAL = 0.001     # EACH NET STOLEN BASE (SB - CS) NUDGES MVP SCORE UP 0.1%
+    _DH_PA_MAJORITY_THRESHOLD = 0.5     # SHARE OF SEASON PAs AT DH NEEDED TO QUALIFY WITHOUT A DH-CARDED POSITION
 
     def __init__(self, result: SeasonSimulationResult) -> None:
         self.result = result
@@ -224,12 +228,39 @@ class AwardsBuilder:
             ))
         return winners
 
+    def _silver_slugger_candidates(self, candidates: list[Stats], position: str) -> list[Stats]:
+        """Candidates for one Silver Slugger slot.
+
+        Every infield/catcher slot matches the card's own primary position, same as always. LF
+        and RF share one card position ('LF/RF') - split by whichever position a player actually
+        logged more plate appearances at this season. DH is widened past the card's own position
+        to anyone who spent the majority of their plate appearances at DH this season, since a
+        team's actual DH usage in a sim season doesn't always match a card's real-life-derived
+        primary position.
+        """
+        if position in ('LF', 'RF'):
+            outfield = [s for s in candidates if s.position == 'LF/RF']
+            lf_pa = lambda s: s.positions_played.get('LF', 0)
+            rf_pa = lambda s: s.positions_played.get('RF', 0)
+            if position == 'LF':
+                return [s for s in outfield if lf_pa(s) >= rf_pa(s)]
+            return [s for s in outfield if rf_pa(s) > lf_pa(s)]
+        if position == 'DH':
+            return [
+                s for s in candidates
+                if s.position == 'DH' or (
+                    s.stat(StatCategory.PA) > 0
+                    and s.positions_played.get('DH', 0) / s.stat(StatCategory.PA) > self._DH_PA_MAJORITY_THRESHOLD
+                )
+            ]
+        return [s for s in candidates if s.position == position]
+
     def silver_sluggers(self) -> list[AwardWinner]:
         winners = []
         for league in self.leagues:
             candidates = self._qualified_hitters(league)
             for position in self._SILVER_SLUGGER_POSITIONS:
-                at_position = [s for s in candidates if s.position == position]
+                at_position = self._silver_slugger_candidates(candidates, position)
                 if not at_position:
                     continue
                 best = max(at_position, key=lambda s: s.ops)
