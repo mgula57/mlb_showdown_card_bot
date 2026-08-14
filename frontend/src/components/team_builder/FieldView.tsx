@@ -329,6 +329,10 @@ export function FieldView({
                     </div>
                 );
             })}
+
+            {/* Add padding at the end */}
+            <div className="h-48" />
+
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard} size='xl'>
                     <CardDetail

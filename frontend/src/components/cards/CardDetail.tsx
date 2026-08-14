@@ -137,7 +137,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
      */
     useEffect(() => {
         const fetchRanges = (card: NonNullable<ShowdownBotCardAPIResponse['card']>) => {
-            const yearList = card.stats_period.year_list || [];
+            const yearList = card.stats_period?.year_list || [];
             const playerType = card.player_type.toUpperCase() as "HITTER" | "PITCHER";
             const subType: string | undefined = card.player_sub_type;
             const pitcherRole: 'SP' | 'RP' | undefined =
@@ -270,7 +270,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
         points: `${activeCardData.card.points} PTS`,
         year: activeCardData.card.year,
-        stats_period_summary: activeCardData.card.stats_period.type !== "REGULAR" ? activeCardData.card.stats_period.display_text || null : null,
+        stats_period_summary: activeCardData.card.stats_period?.type !== "REGULAR" ? activeCardData.card.stats_period?.display_text || null : null,
         expansion: activeCardData.card.image.expansion == "BS" ? null : activeCardData.card.image.expansion,
         edition: activeCardData.card.image.edition == "NONE" || activeCardData.card.image.edition == undefined ? null : activeCardData.card.image.edition,
         chart_version: activeCardData.card.chart_version === 1 || activeCardData.card.chart_version == undefined ? null : `CHART ${activeCardData.card.chart_version}`,

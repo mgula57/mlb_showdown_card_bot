@@ -471,7 +471,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // the handle's drag/toggle gesture.
     const draftSourceTabs = (
         <div
-            className="flex items-start w-full justify-start gap-x-1 px-3"
+            className="flex items-start w-full justify-start gap-x-1 px-3 overflow-x-auto scrollbar-hide"
             onMouseDown={e => e.stopPropagation()}
             onTouchStart={e => e.stopPropagation()}
         >
@@ -897,10 +897,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                         <Tabs.Root
                             defaultValue="depth"
-                            className={`flex flex-col flex-1 min-w-0 ${embedded ? '' : 'min-h-0 overflow-hidden'}`}
+                            className={`flex flex-col flex-1 min-w-0 overflow-x-scroll ${embedded ? '' : 'min-h-0 overflow-hidden'}`}
                         >
                             {!isMlbTeam && (
-                                <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
+                                <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
                                     <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></Tabs.Trigger>
                                     <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1.5" /> Lineup</Tabs.Trigger>
                                     <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1.5" /> Draft</Tabs.Trigger>
@@ -937,7 +937,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 w-full lg:w-124 2xl:w-148 3xl:w-190 4xl:w-256
                             "
                         >
-                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
+                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0 overflow-x-auto scrollbar-hide">
                                 <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}><FaRing className="inline mr-1.5" /> Field <span className="hidden sm:inline sm:ml-1">View</span></Tabs.Trigger>
                                 <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></Tabs.Trigger>
                                 <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1.5" /> Lineup</Tabs.Trigger>
@@ -1212,7 +1212,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
             className="flex flex-col h-full min-h-0"
         >
             {!hideSourceTabs && (
-                <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
+                <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
                     {allowedSources.map(s => (
                         <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
                             {s.label}
