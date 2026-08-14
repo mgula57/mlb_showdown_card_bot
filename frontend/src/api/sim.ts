@@ -37,9 +37,9 @@ export type SimStatLine = {
     command: number;
     player_type: string | null;
     stats: Record<string, number>;
-    /** Set only for players on the takeover team's own roster — pairs with `id` as the
-     * (card_id, card_source) `useCardMap` fetches roster cards with. Null/absent for players from
-     * other clubs, and for summaries persisted before this field existed. */
+    /** Pairs with `id` as the (card_id, card_source) `useCardMap` fetches cards with — populated
+     * for every player, not just the user's own roster. Null/absent only for summaries persisted
+     * before this field existed. */
     card_source?: string | null;
 };
 

@@ -208,12 +208,18 @@ class Roster:
     # ------------------------------------------------------------------
 
     @classmethod
-    def select(cls, cards: list[ShowdownPlayerCard], min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162) -> RosterSelection:
+    def select(cls, cards: list[ShowdownPlayerCard], card_ids: dict[str, str] = {}, min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162) -> RosterSelection:
         """Pure roster selection: no mutation, no rng. Called by `SimTeam.from_player_pool`.
 
         `games_per_season` is the *real* per-team season length (e.g. 162, or shorter for a
         strike/shortened year) - used to scale the reserve sample-size floors so old/short seasons
         don't get rejected wholesale.
+
+        `card_ids` maps each card's own computed `.id` to the id it's actually archived under
+        (`card_bot.card_id`, when it has one - see `PlayerLoader.load_season_cards`). Every
+        `SimPlayer`/`SimPitcher` built here is given that id explicitly, falling back to the
+        card's own id for anything not pre-built/archived, so a real card can always be looked
+        back up by a player's id when one exists.
         """
 
         warnings: list[str] = []
@@ -230,21 +236,21 @@ class Roster:
         # ---- ROTATION (ACTIVE): TOP N SP, PREFERRED (>= min_ip_sp) TIER SEARCHED FIRST ----
         sp_preferred = [c for c in sp_cards if c.stats.get('IP', 0) >= min_ip_sp]
         sp_fallback = [c for c in sp_cards if c.stats.get('IP', 0) < min_ip_sp]
-        sp_ordered = [SimPitcher(card=c, position_slot=PositionSlot.SP) for c in (sp_preferred + sp_fallback)]
+        sp_ordered = [SimPitcher(card=c, id=card_ids.get(c.id, c.id), position_slot=PositionSlot.SP) for c in (sp_preferred + sp_fallback)]
         rotation = sp_ordered[:cls.ACTIVE_ROTATION]
         sp_remaining = sp_ordered[cls.ACTIVE_ROTATION:]
 
         # ---- BULLPEN (ACTIVE): TOP N RP ----
         rp_preferred = [c for c in rp_cards if c.stats.get('IP', 0) >= min_ip_rp]
         rp_fallback = [c for c in rp_cards if c.stats.get('IP', 0) < min_ip_rp]
-        rp_ordered = [SimPitcher(card=c, position_slot=PositionSlot.BP) for c in (rp_preferred + rp_fallback)]
+        rp_ordered = [SimPitcher(card=c, id=card_ids.get(c.id, c.id), position_slot=PositionSlot.BP) for c in (rp_preferred + rp_fallback)]
         bullpen = rp_ordered[:cls.ACTIVE_BULLPEN]
         rp_remaining = rp_ordered[cls.ACTIVE_BULLPEN:]
 
         # ---- POSITION PLAYERS (ACTIVE), COVERAGE-FIRST ----
         position_preferred = [c for c in position_cards if c.stats.get('PA', 0) >= min_pa]
         position_fallback = [c for c in position_cards if c.stats.get('PA', 0) < min_pa]
-        position_ordered = [SimPlayer(card=c) for c in (position_preferred + position_fallback)]
+        position_ordered = [SimPlayer(card=c, id=card_ids.get(c.id, c.id)) for c in (position_preferred + position_fallback)]
 
         active_position: list[SimPlayer] = []
         selected_ids: set[str] = set()

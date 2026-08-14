@@ -1,13 +1,11 @@
 import { useMemo, useState } from 'react';
 import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa6';
 import type { SimStatLine } from '../../../api/sim';
-import { useCardMap, type CardSlotRef } from '../../../hooks/useCardMap';
-import { useCardDetailModal } from '../../../hooks/useCardDetailModal';
 import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
-import type { CardSource as CardSourceType } from '../../../types/cardSource';
 import { COLUMN_LABELS, formatStat } from './simStatColumns';
+import { useCardLinks } from './useCardLinks';
 
 type SortKey = 'name' | 'team' | 'position' | string;
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
@@ -41,8 +39,8 @@ type Props = {
     rows: SimStatLine[];
     columns: string[];
     emptyLabel: string;
-    /** Fetches and links each row to its real Showdown card. Only rows carrying `card_source`
-     * (the takeover team's own roster) can resolve one — see `SimStatLine.card_source`. */
+    /** Fetches and links each row to its real Showdown card via `SimStatLine.card_source` —
+     * populated for every player, not just the user's own roster (see `SeasonSummaryBuilder._line`). */
     cardsEnabled?: boolean;
 };
 
@@ -54,14 +52,7 @@ type Props = {
 export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false }: Props) {
     const [sort, setSort] = useState<SortState>(null);
 
-    const slots: CardSlotRef[] = useMemo(() => (
-        cardsEnabled
-            ? rows.filter((r): r is SimStatLine & { card_source: string } => !!r.card_source)
-                .map(r => ({ card_id: r.id, card_source: r.card_source as CardSourceType }))
-            : []
-    ), [rows, cardsEnabled]);
-    const { cardMap, loading: isLoadingCards } = useCardMap(slots);
-    const { selected, open, close, isFetching } = useCardDetailModal();
+    const { recordFor, isLoadingCard, selected, open, close, isFetching } = useCardLinks(rows, cardsEnabled);
 
     const sortedRows = useMemo(() => {
         if (!sort) return rows;
@@ -102,8 +93,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false 
                 </thead>
                 <tbody>
                     {sortedRows.map(row => {
-                        const record = cardsEnabled && row.card_source ? cardMap[row.id] : undefined;
-                        const isLoadingCard = cardsEnabled && !!row.card_source && isLoadingCards && record === undefined;
+                        const record = recordFor(row);
                         const clickable = !!record;
                         return (
                             <tr
@@ -114,7 +104,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false 
                                 <td className="py-1.5 pr-3 text-left">
                                     {cardsEnabled ? (
                                         <CardIdentityCell
-                                            name={row.name} hasCard={!!record} isLoadingCard={isLoadingCard || (record ? isFetching(record.card_id) : false)}
+                                            name={row.name} hasCard={!!record} isLoadingCard={isLoadingCard(row) || (record ? isFetching(record.card_id) : false)}
                                             isPitcher={record?.is_pitcher} primaryColor={record?.color_primary} secondaryColor={record?.color_secondary}
                                             command={record?.command} team={record?.team} points={record?.points}
                                         />

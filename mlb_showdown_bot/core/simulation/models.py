@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from ..card.sets import Set
-from ..card.team_builder.team import Team as BuilderTeam
+from ..card.team_builder.team import CardSource, Team as BuilderTeam
 from ..shared.player_position import PlayerSubType, PositionSlotParent
 from .runners import Runners
 from .stats import Stats
@@ -150,6 +150,21 @@ class SeasonSimulationConfig(BaseModel):
     @property
     def is_takeover(self) -> bool:
         return self.takeover_team is not None
+
+    @property
+    def card_sources(self) -> dict[str, str]:
+        """card_id -> CardSource.value for every builder-drafted player in this sim (tournament
+        custom teams and/or a takeover roster). Every other statline belongs to a real-season
+        card straight from the bot archive - `CardSource.BOT` is the correct default for those,
+        not just an absence of data, so callers resolving a player's source should fall back to
+        it rather than leaving `card_source` unset.
+        """
+        sources: dict[str, str] = {}
+        for team in self.custom_teams:
+            sources.update({slot.card_id: slot.card_source.value for slot in team.roster})
+        if self.takeover_team is not None:
+            sources.update({slot.card_id: slot.card_source.value for slot in self.takeover_team.roster})
+        return sources
 
     @property
     def league_name(self) -> str:

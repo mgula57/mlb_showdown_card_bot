@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fa6';
 import type { AwardWinner, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
+import { SimAwardsList } from './SimAwardsList';
 import { SimBracket } from './SimBracket';
 import { SimSummaryTab } from './SimSummaryTab';
 import { SimStatsTable } from './SimStatsTable';
@@ -18,13 +19,6 @@ const TAB_TRIGGER_CLASS =
     'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
     'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
 const TAB_ICON_CLASS = 'text-[12px]';
-
-const AWARD_LABELS: Record<AwardWinner['category'], string> = {
-    MVP: 'MVP',
-    CY_YOUNG: 'Cy Young',
-    ROY: 'Rookie of the Year',
-    SILVER_SLUGGER: 'Silver Slugger',
-};
 
 function ordinal(n: number): string {
     const suffix = ['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th';
@@ -213,39 +207,22 @@ export function SimResult({ summary, onRunAgain }: Props) {
                 <Tabs.Content value="leaders" className="focus:outline-none px-4 pt-3 flex flex-col gap-5">
                     <div>
                         <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Hitters (OPS)</p>
-                        <SimStatsTable rows={summary.top_players?.position_player ?? []} columns={HITTER_COLUMNS} emptyLabel="No qualified hitters." />
+                        <SimStatsTable rows={summary.top_players?.position_player ?? []} columns={HITTER_COLUMNS} emptyLabel="No qualified hitters." cardsEnabled />
                     </div>
                     <div>
                         <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Starting Pitchers (ERA)</p>
-                        <SimStatsTable rows={summary.top_players?.starting_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified starters." />
+                        <SimStatsTable rows={summary.top_players?.starting_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified starters." cardsEnabled />
                     </div>
                     <div>
                         <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Relief Pitchers (ERA)</p>
-                        <SimStatsTable rows={summary.top_players?.relief_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." />
+                        <SimStatsTable rows={summary.top_players?.relief_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." cardsEnabled />
                     </div>
                 </Tabs.Content>
 
                 {/* Awards */}
                 {awardsByLeague.length > 0 && (
-                    <Tabs.Content value="awards" className="focus:outline-none px-4 pt-3 flex flex-col gap-5">
-                        {awardsByLeague.map(([league, awards]) => (
-                            <div key={league}>
-                                <p className="text-[12px] font-bold text-(--text-primary) mb-1">{league}</p>
-                                <div className="flex flex-col gap-1.5">
-                                    {awards.map((award, i) => (
-                                        <div key={i} className="flex items-center gap-2 text-[12px] rounded-lg bg-(--background-tertiary) px-3 py-2">
-                                            <FaTrophy className="text-(--secondary) shrink-0" />
-                                            <span className="font-bold text-(--text-primary) w-40 shrink-0">
-                                                {AWARD_LABELS[award.category]}{award.position ? ` (${award.position})` : ''}
-                                            </span>
-                                            <span className="text-(--text-primary)">{award.player.name}</span>
-                                            <span className="text-(--text-tertiary)">{award.player.team}</span>
-                                            <span className="ml-auto text-(--text-tertiary)">{award.value_label}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
+                    <Tabs.Content value="awards" className="focus:outline-none px-4 pt-3">
+                        <SimAwardsList awardsByLeague={awardsByLeague} />
                     </Tabs.Content>
                 )}
 

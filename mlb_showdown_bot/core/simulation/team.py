@@ -110,6 +110,7 @@ class SimTeam:
     @classmethod
     def from_player_pool(
         cls, year: int, name: str, cards: list[ShowdownPlayerCard], league: str = None,
+        card_ids: dict[str, str] = {},
         min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30,
         active_roster_size: int = 26, full_roster_size: int = 40, enable_injuries: bool = False,
         games_per_season: int = 162,
@@ -118,10 +119,15 @@ class SimTeam:
 
         Builds a `full_roster_size`-man pool, of which `active_roster_size` are active (13
         position players, 5 SP, 8 RP by default) and the rest are reserves available for callup.
+
+        Args:
+          card_ids: `ShowdownPlayerCard.id -> card_bot.card_id`, from `PlayerLoader.load_season_cards`.
+            Lets each player's statline carry the id its real card is actually archived under -
+            see `Roster.select`.
         """
 
         selection = Roster.select(
-            cards=cards, min_pa=min_pa, min_ip_sp=min_ip_sp, min_ip_rp=min_ip_rp,
+            cards=cards, card_ids=card_ids, min_pa=min_pa, min_ip_sp=min_ip_sp, min_ip_rp=min_ip_rp,
             active_size=active_roster_size, full_size=full_roster_size, games_per_season=games_per_season,
         )
 

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from random import Random
 from typing import Callable, Optional
@@ -17,13 +18,29 @@ from .stats import PlayerStatsGroup, load_real_league_avgs, load_woba_weights
 from .team import SimTeam
 
 
+@dataclass
+class SeasonCardPool:
+    """Every card for a season/set, plus each card's real archive id.
+
+    `ShowdownPlayerCard.id` (computed from year/bref_id/set/expansion) and `card_bot.card_id`
+    (archived separately - prefers mlb_id, drops expansion, lowercases everything, see
+    `PostgresDB.fetch_season_card_pool`) are built by unrelated formulas and essentially never
+    match. Anything that needs to fetch a card back by its archived id - like linking a sim
+    statline to its real card - needs `archive_card_ids` rather than the card's own computed id.
+    Cards built from raw archive stats (the no-pre-built-card fallback) have no archive id at all.
+    """
+
+    cards: list[ShowdownPlayerCard]
+    archive_card_ids: dict[str, str]  # ShowdownPlayerCard.id -> card_bot.card_id
+
+
 class PlayerLoader:
     """Loads season card pools, preferring pre-built cards from dim_card over rebuilding from archive stats."""
 
     def __init__(self, db: Optional[PostgresDB] = None) -> None:
         self.db = db or PostgresDB(is_archive=True)
 
-    def load_season_cards(self, year: int, set: Set, min_pa: int = 0, min_ip: int = 0, status_callback: Optional[Callable[[str], None]] = None) -> list[ShowdownPlayerCard]:
+    def load_season_cards(self, year: int, set: Set, min_pa: int = 0, min_ip: int = 0, status_callback: Optional[Callable[[str], None]] = None) -> SeasonCardPool:
         """All cards for a season. dim_card pre-built cards first, archive stat rebuilds for anything missing.
 
         Args:
@@ -39,7 +56,7 @@ class PlayerLoader:
 
         # FAST PATH: PRE-BUILT CARDS FROM THE card_bot / dim_card TABLES
         status(f"Loading pre-built {year} {set.value} cards from the archive DB...")
-        cards_by_player_id = self.db.fetch_season_card_pool(year=year, set=set)
+        cards_by_player_id, archive_card_ids = self.db.fetch_season_card_pool(year=year, set=set)
         if cards_by_player_id:
             status(f"Loaded {len(cards_by_player_id)} pre-built card(s)")
         else:
@@ -93,7 +110,7 @@ class PlayerLoader:
 
         status(f"Player pool ready: {len(cards_by_player_id)} total card(s)")
 
-        return list(cards_by_player_id.values())
+        return SeasonCardPool(cards=list(cards_by_player_id.values()), archive_card_ids=archive_card_ids)
 
 
 class Season:
@@ -148,7 +165,7 @@ class Season:
             # LOWER THAN THE ACTIVE-ROSTER THRESHOLDS SO A FULL 40-MAN CAN BE FILLED FROM RESERVE
             # DEPTH - BUT NO LOWER THAN THE RESERVE SAMPLE-SIZE FLOORS, SINCE `Roster.select`
             # REJECTS ANYTHING BELOW THOSE ANYWAY AND BUILDING THE CARD WOULD BE WASTED WORK.
-            cards = loader.load_season_cards(
+            card_pool = loader.load_season_cards(
                 year=config.year, set=config.set,
                 min_pa=min(config.min_pa, RESERVE_MIN_PA_POSITION),
                 min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
@@ -162,7 +179,9 @@ class Season:
                 mlb_stats_api=self.mlb_stats_api,
             )
             status(f"Building rosters for {len(self.schedule.unique_team_names)} team(s)...")
-            teams = self._build_season_teams(cards=cards, status_callback=status_callback)
+            teams = self._build_season_teams(
+                cards=card_pool.cards, card_ids=card_pool.archive_card_ids, status_callback=status_callback,
+            )
             status(f"Rosters built for {len(teams)} team(s)")
 
         self.standings = Standings(
@@ -244,7 +263,7 @@ class Season:
             raise ValueError("Tournament mode requires at least 2 custom teams")
         return teams
 
-    def _build_season_teams(self, cards: list[ShowdownPlayerCard], status_callback: Optional[Callable[[str], None]] = None) -> dict[str, SimTeam]:
+    def _build_season_teams(self, cards: list[ShowdownPlayerCard], card_ids: dict[str, str], status_callback: Optional[Callable[[str], None]] = None) -> dict[str, SimTeam]:
         config = self.config
 
         def status(message: str) -> None:
@@ -270,6 +289,7 @@ class Season:
                 year=config.year,
                 name=team_name,
                 cards=team_cards,
+                card_ids=card_ids,
                 league=self.schedule.team_leagues.get(team_name),
                 min_pa=config.min_pa,
                 min_ip_sp=config.min_ip_sp,

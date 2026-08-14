@@ -1397,14 +1397,22 @@ class PostgresDB:
             return expression, []
         return sql.SQL("{column} - %s::text[]").format(column=expression), [CARD_DATA_DIAGNOSTIC_KEYS]
 
-    def fetch_season_card_pool(self, year: int, set: Set, strip_diagnostics: bool = True) -> dict[str, ShowdownPlayerCard]:
-        """Every pre-built bot card for a season/set, keyed by archive player id ('{year}-{bref_id}').
+    def fetch_season_card_pool(self, year: int, set: Set, strip_diagnostics: bool = True) -> tuple[dict[str, ShowdownPlayerCard], dict[str, str]]:
+        """Every pre-built bot card for a season/set, keyed by archive player id ('{year}-{bref_id}'),
+        plus a second map from each card's own computed `ShowdownPlayerCard.id` to the `card_bot.card_id`
+        it's actually archived under.
+
+        Those two ids are built by unrelated formulas (`card_id` prefers `mlb_id` over `bref_id`,
+        omits the set's `expansion`, and lowercases everything - see `build_card_bot_view`) and
+        essentially never match, so a caller that needs to fetch this exact card back by id later
+        (e.g. linking a sim statline to its real card) has to carry the archive's own id forward
+        rather than recomputing it from the card's fields.
 
         One joined round trip: `card_bot` supplies the year/set index plus the archive id, `dim_card`
-        the payload. Projecting to those two columns is the point - `SELECT *` on `card_bot` moves
-        ~60 wide columns per row and measured ~25x slower than this for the same result set.
+        the payload. Projecting to those columns is the point - `SELECT *` on `card_bot` moves ~60
+        wide columns per row and measured ~25x slower than this for the same result set.
 
-        The ORDER BY is load-bearing, not cosmetic. Callers feed this dict straight into roster
+        The ORDER BY is load-bearing, not cosmetic. Callers feed the cards dict straight into roster
         selection, so its iteration order decides tie-breaks and therefore the seeded RNG sequence.
         The plan for this join is parallel, which leaves row order genuinely unstable run to run
         without it. The sort matches what `fetch_card_list` returned before, keeping seeded
@@ -1413,11 +1421,11 @@ class PostgresDB:
 
         if self.connection is None:
             print("No database connection available for fetching a season card pool.")
-            return {}
+            return {}, {}
 
         card_data_expression, values = self._card_data_select("dim.card_data", strip_diagnostics)
         query = sql.SQL("""
-            SELECT bot.id AS player_id, {card_data} AS card_data
+            SELECT bot.id AS player_id, bot.card_id AS card_id, {card_data} AS card_data
             FROM card_bot bot
             JOIN internal.dim_card dim ON dim.id = bot.card_id
             WHERE bot.year = %s AND bot.showdown_set = %s
@@ -1426,15 +1434,18 @@ class PostgresDB:
         values += [int(year), set.value if isinstance(set, Set) else str(set)]
 
         cards: dict[str, ShowdownPlayerCard] = {}
+        archive_card_ids: dict[str, str] = {}
         try:
             for row in (self.execute_query(query=query, filter_values=tuple(values)) or []):
                 if row.get('card_data'):
-                    cards[str(row['player_id'])] = ShowdownPlayerCard(**row['card_data'])
+                    card = ShowdownPlayerCard(**row['card_data'])
+                    cards[str(row['player_id'])] = card
+                    archive_card_ids[card.id] = str(row['card_id'])
         except Exception as e:
             print("Error fetching season card pool:", e)
             traceback.print_exc()
 
-        return cards
+        return cards, archive_card_ids
 
     def fetch_archive_playing_time(self, year_list: list[int]) -> list[ArchivePlayingTime]:
         """Playing-time projection of the season archive, for cheaply deciding which players matter."""
