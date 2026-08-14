@@ -54,6 +54,15 @@ type CardDetailProps = {
     context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail' | 'sim_result';
     parent?: string;
     showdownSetForPlaceholder?: string; // Used to determine placeholder image when card image is not available
+    /** A simulated season's statline (`SimStatLine.stats`) — adds a SIM column to "Card vs Real
+     * Stats" alongside the card's own projection and real-life stat, e.g. for a sim result's
+     * award-winner card, where "real" is the player's actual season and this is what they did in
+     * the simulated one. */
+    simStats?: Record<string, number>;
+    /** Optional message shown directly below the player name/set/attributes row, styled like the
+     * warnings/errata banner above it — e.g. explaining that `simStats` reflects a simulated
+     * season rather than the card's own real one. */
+    tooltip?: string;
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
@@ -95,7 +104,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip }: CardDetailProps) {
 
     const { session } = useAuth();
 
@@ -404,6 +413,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 ))}
             </div>
 
+            {/* Tooltip */}
+            {tooltip && (
+                <div className="bg-(--showdown-blue)/5 border-2 border-(--showdown-blue) text-(--showdown-blue) p-2 rounded-md text-xs">
+                    {tooltip}
+                </div>
+            )}
+
             {/* Notes */}
             {activeCardData?.card?.notes && (
                 <div className="
@@ -515,6 +531,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                             statRanges={seasonStatRanges}
                             isLoading={isRangesLoading}
                             playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
+                            simStats={simStats}
                         />
                         <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">
                             <i>* Real stat is estimated (limited data, adjusted era, etc.)</i>

@@ -350,7 +350,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
 
             {/* Modal for selected card */}
             <div className={selectedModalCard ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={() => setSelectedModalCard(null)} isVisible={!!selectedModalCard}>
+                <Modal onClose={() => setSelectedModalCard(null)} isVisible={!!selectedModalCard} size='xl'>
                     <CardDetail
                         showdownBotCardData={selectedModalCard!}
                         hideTrendGraphs={true}

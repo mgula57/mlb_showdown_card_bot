@@ -6,6 +6,7 @@ import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../../cards/Ca
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
 import { FieldView, FIELD_POSITIONS } from '../FieldView';
+import { buildSimStatHighlights, SIM_STATS_TOOLTIP } from './simStatColumns';
 import { useCardLinks } from './useCardLinks';
 
 const CATEGORY_LABELS: Record<AwardWinner['category'], string> = {
@@ -41,7 +42,7 @@ export function SimAwardsList({ awards, identities }: Props) {
     const allWinners = [...awards.mvp, ...awards.cy_young, ...awards.rookie_of_year, ...awards.silver_sluggers];
     const leagues = Array.from(new Set(allWinners.map(a => a.league))).sort();
     const players = allWinners.map(a => a.player);
-    const { cardMap, isLoadingCards, recordFor, isLoadingCard, selected, open, close, isFetching } = useCardLinks(players, true);
+    const { cardMap, isLoadingCards, recordFor, isLoadingCard, selected, selectedSimStats, open, close, isFetching } = useCardLinks(players, true);
 
     /** The winner's card, recolored to their sim team's identity (see `SimStatsTable`) — a
      * takeover/tournament team's winners should show that team's colors, not their card's own. */
@@ -66,15 +67,19 @@ export function SimAwardsList({ awards, identities }: Props) {
             <CardItemFromCardDatabaseRecord
                 card={record}
                 className={record ? 'cursor-pointer' : 'pointer-events-none opacity-40'}
-                onClick={record ? () => open(record.card_id, record.source) : undefined}
+                onClick={record ? () => open(record.card_id, record.source, award.player.stats) : undefined}
+                statHighlightsOverride={buildSimStatHighlights(award.player)}
+                awardListOverride={['SIM:']}
             />
         );
     };
 
     const silverSluggers = winnersByCategory.SILVER_SLUGGER;
     const silverSluggerCardMap: Record<string, CardDatabaseRecord | null> = {};
+    const silverSluggerSimStatsMap: Record<string, Record<string, number>> = {};
     for (const award of silverSluggers) {
         silverSluggerCardMap[award.player.id] = coloredRecord(award) ?? cardMap[award.player.id] ?? null;
+        silverSluggerSimStatsMap[award.player.id] = award.player.stats;
     }
     const buildSilverSluggerLineup = (league: string): Lineup => ({
         name: 'Silver Slugger',
@@ -140,6 +145,8 @@ export function SimAwardsList({ awards, identities }: Props) {
                                     headerLabel="Silver Slugger"
                                     showDefenseSummary
                                     detailStat1Category="hr"
+                                    simStatsMap={silverSluggerSimStatsMap}
+                                    simStatsTooltip={SIM_STATS_TOOLTIP}
                                 />
                             </div>
                         ))}
@@ -148,8 +155,8 @@ export function SimAwardsList({ awards, identities }: Props) {
             )}
 
             <div className={selected ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={close} isVisible={!!selected}>
-                    <CardDetail showdownBotCardData={selected} hideTrendGraphs={true} context="sim_result" parent="sim_result" />
+                <Modal onClose={close} isVisible={!!selected} size='xl'>
+                    <CardDetail showdownBotCardData={selected} hideTrendGraphs={true} context="sim_result" parent="sim_result" simStats={selectedSimStats} tooltip={selectedSimStats ? SIM_STATS_TOOLTIP : undefined} />
                 </Modal>
             </div>
         </div>

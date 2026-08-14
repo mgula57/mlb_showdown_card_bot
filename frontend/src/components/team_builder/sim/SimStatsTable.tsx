@@ -4,7 +4,7 @@ import type { SimStatLine, SimTeamIdentity } from '../../../api/sim';
 import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
-import { COLUMN_LABELS, formatStat } from './simStatColumns';
+import { COLUMN_LABELS, formatStat, SIM_STATS_TOOLTIP } from './simStatColumns';
 import { useCardLinks } from './useCardLinks';
 
 type SortKey = 'name' | 'team' | 'position' | string;
@@ -56,7 +56,7 @@ type Props = {
 export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false, identities }: Props) {
     const [sort, setSort] = useState<SortState>(null);
 
-    const { recordFor, isLoadingCard, selected, open, close, isFetching } = useCardLinks(rows, cardsEnabled);
+    const { recordFor, isLoadingCard, selected, selectedSimStats, open, close, isFetching } = useCardLinks(rows, cardsEnabled);
 
     const sortedRows = useMemo(() => {
         if (!sort) return rows;
@@ -104,7 +104,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                             <tr
                                 key={row.id}
                                 className={`border-b border-(--divider)/50 ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''}`}
-                                onClick={clickable ? () => open(record!.card_id, record!.source) : undefined}
+                                onClick={clickable ? () => open(record!.card_id, record!.source, row.stats) : undefined}
                             >
                                 <td className="py-1.5 pr-3 text-left">
                                     {cardsEnabled ? (
@@ -133,7 +133,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
             </table>
             <div className={selected ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={close} isVisible={!!selected}>
-                    <CardDetail showdownBotCardData={selected} hideTrendGraphs={true} context="sim_result" parent="sim_result" />
+                    <CardDetail showdownBotCardData={selected} hideTrendGraphs={true} context="sim_result" parent="sim_result" simStats={selectedSimStats} tooltip={selectedSimStats ? SIM_STATS_TOOLTIP : undefined} />
                 </Modal>
             </div>
         </div>

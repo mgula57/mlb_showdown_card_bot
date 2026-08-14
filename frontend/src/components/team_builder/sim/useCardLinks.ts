@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { SimStatLine } from '../../../api/sim';
 import { useCardMap, type CardSlotRef } from '../../../hooks/useCardMap';
 import { useCardDetailModal } from '../../../hooks/useCardDetailModal';
@@ -17,11 +17,19 @@ export function useCardLinks(rows: SimStatLine[], enabled: boolean) {
             : []
     ), [rows, enabled]);
     const { cardMap, loading: isLoadingCards } = useCardMap(slots);
-    const { selected, open, close, isFetching } = useCardDetailModal();
+    const { selected, open: openModal, close, isFetching } = useCardDetailModal();
+    // THE SIM STATLINE BEHIND THE CARD CURRENTLY OPEN IN THE MODAL - feeds CardDetail's `simStats`
+    // so its "Card vs Real Stats" table can show what this player did in THIS simulated season.
+    const [selectedSimStats, setSelectedSimStats] = useState<Record<string, number> | undefined>(undefined);
 
     const recordFor = (row: SimStatLine) => (enabled && row.card_source ? cardMap[row.id] : undefined);
     const isLoadingCard = (row: SimStatLine) =>
         enabled && !!row.card_source && isLoadingCards && cardMap[row.id] === undefined;
 
-    return { cardMap, isLoadingCards, recordFor, isLoadingCard, selected, open, close, isFetching };
+    const open = (cardId: string, source: string, stats?: Record<string, number>) => {
+        setSelectedSimStats(stats);
+        openModal(cardId, source);
+    };
+
+    return { cardMap, isLoadingCards, recordFor, isLoadingCard, selected, selectedSimStats, open, close, isFetching };
 }

@@ -527,9 +527,16 @@ type CardItemFromCardDatabaseRecordProps = {
     actionButton?: CardItemActionButton;
     /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
     cardPtsMultiplier?: number;
+    /** Overrides `card.stat_highlights_list` (the card's own real-life highlights) — e.g. a
+     * simulated season's line instead of the real one, on the sim result screens. */
+    statHighlightsOverride?: string[];
+    /** Overrides `card.awards_list` (the card's own real-life awards) — pass e.g. `['SIM:']` on
+     * sim result screens, since a card's real awards have nothing to do with what it did in a
+     * simulated season and showing them alongside `statHighlightsOverride` would be misleading. */
+    awardListOverride?: string[];
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, actionButton, cardPtsMultiplier }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, actionButton, cardPtsMultiplier, statHighlightsOverride, awardListOverride }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -564,8 +571,8 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardExpansion={card?.expansion || undefined}
             cardSetNumber={card?.set_number ? parseInt(card?.set_number) : undefined}
             cardIcons={card?.icons_list || []}
-            cardAwardList={card?.awards_list || []}
-            cardStatHighlightsList={card?.stat_highlights_list || []}
+            cardAwardList={awardListOverride ?? (card?.awards_list || [])}
+            cardStatHighlightsList={statHighlightsOverride ?? (card?.stat_highlights_list || [])}
             cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
             cardPtsMultiplier={cardPtsMultiplier}

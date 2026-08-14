@@ -58,6 +58,13 @@ type FieldViewProps = {
     showDefenseSummary?: boolean;
     /** Which detail stat to show on the cards (defaults to 'defense') */
     detailStat1Category?: 'defense' | 'hr' | 'outs';
+    /** card_id -> a simulated season's statline (`SimStatLine.stats`) - when a slot's card_id has
+     * an entry, the card-detail modal opened from that slot shows a SIM column (see
+     * `CardDetail`'s `simStats` prop) alongside the card's projection and real-life stat. */
+    simStatsMap?: Record<string, Record<string, number>>;
+    /** Passed to `CardDetail`'s `tooltip` when the opened slot has a `simStatsMap` entry - see
+     * `CardDetail`'s prop of the same name. */
+    simStatsTooltip?: string;
 };
 
 
@@ -76,6 +83,7 @@ export function FieldView({
     lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition,
     rosterData, hoveredCardId, onCardHover, isLoadingCards,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, detailStat1Category = 'defense',
+    simStatsMap, simStatsTooltip,
 }: FieldViewProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
@@ -322,8 +330,13 @@ export function FieldView({
                 );
             })}
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>
-                    <CardDetail cardId={detailCard?.card_id} context="roster" />
+                <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard} size='xl'>
+                    <CardDetail
+                        cardId={detailCard?.card_id}
+                        context="roster"
+                        simStats={detailCard ? simStatsMap?.[detailCard.card_id] : undefined}
+                        tooltip={detailCard && simStatsMap?.[detailCard.card_id] ? simStatsTooltip : undefined}
+                    />
                 </Modal>
             </div>
         </div>
