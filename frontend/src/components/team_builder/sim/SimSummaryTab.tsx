@@ -129,8 +129,8 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
 
             <SectionCard title="Top Performers">
                 <div className="flex flex-col gap-3">
-                    <SimStatsTable rows={topHitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled />
-                    <SimStatsTable rows={topPitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled />
+                    <SimStatsTable rows={topHitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} />
+                    <SimStatsTable rows={topPitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
                 </div>
             </SectionCard>
         </div>

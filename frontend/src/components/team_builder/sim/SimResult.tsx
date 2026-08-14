@@ -188,11 +188,11 @@ export function SimResult({ summary, onRunAgain }: Props) {
                 </Tabs.Content>
 
                 <Tabs.Content value="batting" className="focus:outline-none px-4 pt-3">
-                    <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled />
+                    <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} />
                 </Tabs.Content>
 
                 <Tabs.Content value="pitching" className="focus:outline-none px-4 pt-3">
-                    <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled />
+                    <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
                 </Tabs.Content>
 
                 {/* Standings */}
@@ -207,22 +207,22 @@ export function SimResult({ summary, onRunAgain }: Props) {
                 <Tabs.Content value="leaders" className="focus:outline-none px-4 pt-3 flex flex-col gap-5">
                     <div>
                         <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Hitters (OPS)</p>
-                        <SimStatsTable rows={summary.top_players?.position_player ?? []} columns={HITTER_COLUMNS} emptyLabel="No qualified hitters." cardsEnabled />
+                        <SimStatsTable rows={summary.top_players?.position_player ?? []} columns={HITTER_COLUMNS} emptyLabel="No qualified hitters." cardsEnabled identities={summary.identities} />
                     </div>
                     <div>
                         <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Starting Pitchers (ERA)</p>
-                        <SimStatsTable rows={summary.top_players?.starting_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified starters." cardsEnabled />
+                        <SimStatsTable rows={summary.top_players?.starting_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified starters." cardsEnabled identities={summary.identities} />
                     </div>
                     <div>
                         <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Relief Pitchers (ERA)</p>
-                        <SimStatsTable rows={summary.top_players?.relief_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." cardsEnabled />
+                        <SimStatsTable rows={summary.top_players?.relief_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." cardsEnabled identities={summary.identities} />
                     </div>
                 </Tabs.Content>
 
                 {/* Awards */}
                 {awardsByLeague.length > 0 && (
                     <Tabs.Content value="awards" className="focus:outline-none px-4 pt-3">
-                        <SimAwardsList awardsByLeague={awardsByLeague} />
+                        <SimAwardsList awardsByLeague={awardsByLeague} identities={summary.identities} />
                     </Tabs.Content>
                 )}
 

@@ -181,12 +181,25 @@ class SeasonSummaryBuilder:
     # ------------------------------------------------------------------
 
     def _build_identities(self) -> dict[str, SimTeamIdentity]:
-        return {
+        """Schedule key -> branding, plus an alias for a takeover roster's own abbreviation.
+
+        Standings/schedule/postseason all key off the schedule key, which for a takeover team is
+        the replaced club's abbreviation (see `SimTeam.from_builder_team`). Player statlines,
+        though, report the builder team's own abbreviation - so without the alias, resolving a
+        takeover player's team colors by `SimStatLine.team` would miss every entry here.
+        """
+        identities = {
             record.name: record.identity
             for records in self.result.standings.divisions.values()
             for record in records
             if record.identity is not None
         }
+        takeover_team = self.result.config.takeover_team
+        if takeover_team is not None:
+            replaced_identity = identities.get(self.team_abbr)
+            if replaced_identity is not None:
+                identities[takeover_team.abbreviation] = replaced_identity
+        return identities
 
     def _find_record(self) -> tuple[Optional[TeamRecord], Optional[str], Optional[int], Optional[int]]:
         """The team's standings row plus where it finished in its division."""

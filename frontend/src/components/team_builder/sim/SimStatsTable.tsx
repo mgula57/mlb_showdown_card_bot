@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa6';
-import type { SimStatLine } from '../../../api/sim';
+import type { SimStatLine, SimTeamIdentity } from '../../../api/sim';
 import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
@@ -42,6 +42,10 @@ type Props = {
     /** Fetches and links each row to its real Showdown card via `SimStatLine.card_source` —
      * populated for every player, not just the user's own roster (see `SeasonSummaryBuilder._line`). */
     cardsEnabled?: boolean;
+    /** Schedule key -> branding (`SeasonSimSummary.identities`). When a row's `team` resolves
+     * here, its identity colors win over the card's own archived colors — a takeover/tournament
+     * team's players should show that team's colors, not whatever real club they used to play for. */
+    identities?: Record<string, SimTeamIdentity>;
 };
 
 /**
@@ -49,7 +53,7 @@ type Props = {
  * additionally links each row to its real Showdown Bot card via the same (card_id, card_source)
  * pair `useCardMap` already fetches roster cards with in `TeamDetail.tsx` — no re-derivation.
  */
-export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false }: Props) {
+export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false, identities }: Props) {
     const [sort, setSort] = useState<SortState>(null);
 
     const { recordFor, isLoadingCard, selected, open, close, isFetching } = useCardLinks(rows, cardsEnabled);
@@ -95,6 +99,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false 
                     {sortedRows.map(row => {
                         const record = recordFor(row);
                         const clickable = !!record;
+                        const teamIdentity = identities?.[row.team ?? ''];
                         return (
                             <tr
                                 key={row.id}
@@ -105,8 +110,10 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false 
                                     {cardsEnabled ? (
                                         <CardIdentityCell
                                             name={row.name} hasCard={!!record} isLoadingCard={isLoadingCard(row) || (record ? isFetching(record.card_id) : false)}
-                                            isPitcher={record?.is_pitcher} primaryColor={record?.color_primary} secondaryColor={record?.color_secondary}
-                                            command={record?.command} team={record?.team} points={record?.points}
+                                            isPitcher={record?.is_pitcher}
+                                            primaryColor={teamIdentity?.primary_color ?? record?.color_primary}
+                                            secondaryColor={teamIdentity?.secondary_color ?? record?.color_secondary}
+                                            command={record?.command} team={row.team} points={record?.points}
                                         />
                                     ) : (
                                         <span className="font-medium text-(--text-primary)">{row.name}</span>
