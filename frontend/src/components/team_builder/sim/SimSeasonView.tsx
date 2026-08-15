@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { FaArrowLeft, FaTriangleExclamation } from 'react-icons/fa6';
+import { FaTriangleExclamation } from 'react-icons/fa6';
 import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../../api/sim';
+import BackButton from '../../shared/BackButton';
 import { SimProgress } from './SimProgress';
 import { SimResult } from './SimResult';
 
@@ -106,24 +107,10 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
 
     return (
         <div className="flex flex-col h-full overflow-y-auto">
-            <div className="px-4 pt-4 flex items-center gap-4">
-                <button
-                    type="button"
-                    onClick={onBack}
-                    className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
-                >
-                    <FaArrowLeft className="text-[10px]" />
-                    Back to team
-                </button>
+            <div className="px-4 pt-4 flex items-center gap-2">
+                <BackButton onBack={onBack} label="Back to team" />
                 {challengeResult !== null && onBackToChallenges && (
-                    <button
-                        type="button"
-                        onClick={onBackToChallenges}
-                        className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
-                    >
-                        <FaArrowLeft className="text-[10px]" />
-                        Back to Challenges
-                    </button>
+                    <BackButton onBack={onBackToChallenges} label="Back to Challenges" />
                 )}
             </div>
 

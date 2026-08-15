@@ -99,7 +99,7 @@ const TAB_IDS: TabId[] = ['mine', 'community', 'historical', 'simulations'];
 const TABS: TabItem<TabId>[] = [
     { id: 'mine', label: 'My Teams', shortLabel: 'Mine', icon: <FaUsers /> },
     { id: 'community', label: 'Community', shortLabel: 'Community', icon: <FaGlobe /> },
-    { id: 'historical', label: 'Historical', shortLabel: 'History', icon: <FaClockRotateLeft /> },
+    { id: 'historical', label: 'Historical', shortLabel: 'Historical', icon: <FaClockRotateLeft /> },
     { id: 'simulations', label: 'Challenges', shortLabel: 'Challenges', icon: <FaRankingStar /> },
 ];
 
@@ -508,7 +508,7 @@ export default function TeamBuilder() {
                             ) : (
                                 <div className="space-y-3" >
                                     <h3 className="text-[15px] font-black text-(--text-primary) truncate">All Teams</h3>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                                         {userTeams.map(team => (
                                             <TeamCard
                                                 key={team.team_id}

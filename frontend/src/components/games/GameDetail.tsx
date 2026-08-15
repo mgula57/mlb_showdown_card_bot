@@ -21,7 +21,7 @@ import GameMatchup from "./GameMatchup";
 import GameLinescore from "./GameLinescore";
 import { useGameDetailData } from "./useGameDetailData";
 import GameDetailPlayback from "./GameDetailPlayback";
-import BackButton from "./detail/BackButton";
+import BackButton from "../shared/BackButton";
 import ScoreHeader from "./detail/ScoreHeader";
 import Decisions from "./detail/Decisions";
 import ProbableStartingPitchers from "./detail/ProbableStartingPitchers";

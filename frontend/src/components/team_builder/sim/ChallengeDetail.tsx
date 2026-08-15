@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaSpinner, FaTrophy } from 'react-icons/fa6';
+import { FaSpinner, FaTrophy } from 'react-icons/fa6';
 import {
     fetchChallengeInstance, fetchSimLeaderboard,
     type ChallengeInstance, type SimLeaderboardEntry, type SimLeaderboardSort,
 } from '../../../api/sim';
 import { ChallengeCard } from './ChallengeCard';
 import { SimSeasonRow } from './SimSeasonRow';
+import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 
 type Props = {
@@ -65,15 +66,7 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
         return () => { stale = true; };
     }, [token, challenge, sort]);
 
-    const backButton = (
-        <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors self-start"
-        >
-            <FaArrowLeft className="text-[10px]" /> All Challenges
-        </button>
-    );
+    const backButton = <BackButton onBack={onBack} label="All Challenges" className="self-start" />;
 
     if (challengeError) {
         return (

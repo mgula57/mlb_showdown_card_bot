@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FaArrowLeft } from 'react-icons/fa6';
 import { SimLeaderboard } from './SimLeaderboard';
 import { SimHistory } from './SimHistory';
 import { SimChallenges } from './SimChallenges';
+import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 import type { ChallengeInstance } from '../../../api/sim';
 import { FaArrowRight } from 'react-icons/fa';
@@ -41,13 +41,7 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onQuick
         return (
             <div className={`flex flex-col gap-4 ${horizontalPadding}`}>
                 <div className="flex items-center justify-between gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setBrowsing(false)}
-                        className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
-                    >
-                        <FaArrowLeft className="text-[10px]" /> Challenges
-                    </button>
+                    <BackButton onBack={() => setBrowsing(false)} label="Challenges" />
                     <Tabs tabs={BROWSE_TABS} value={browseView} onChange={setBrowseView} />
                 </div>
 
