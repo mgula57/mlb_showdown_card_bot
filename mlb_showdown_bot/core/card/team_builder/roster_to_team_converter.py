@@ -210,7 +210,10 @@ class RosterToTeamConverter:
         remaining_positions = [p for p in OFFENSE_POSITIONS if p not in assignment]
         if remaining_positions:
             eligible = {
-                pos: [c for c in hitters if c.card_id not in used_ids and self._pos_matches(c, PositionSlot(pos))]
+                pos: [
+                    c for c in hitters
+                    if c.card_id not in used_ids and self._pos_matches(c, PositionSlot('CA' if pos == 'C' else pos))
+                ]
                 for pos in remaining_positions
             }
             for position in sorted(remaining_positions, key=lambda p: len(eligible[p])):
