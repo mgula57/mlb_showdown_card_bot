@@ -54,11 +54,11 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                 ? 'Made the playoffs'
                 : 'Missed the playoffs';
 
-    const outcomeColor = team.is_champion
-        ? 'text-(--success)'
+    const outcomeColor = (team.is_champion || challengeResult === 'passed')
+        ? '--success'
         : team.made_playoffs
-            ? 'text-(--warning)'
-            : 'text-(--error)';
+            ? '--warning'
+            : '--error';
 
     return (
         <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4">
@@ -71,15 +71,27 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                         {summary.seed !== null ? ` · seed ${summary.seed}` : ''}
                     </p>
                     <h1 className="text-[24px] font-black text-(--text-primary) leading-tight">
-                        {team.wins}<span className="text-(--text-tertiary)">–</span>{team.losses}
+                        {team.wins}<span className="text-(--text-tertiary)">-</span>{team.losses}
                         {team.is_champion && <FaTrophy className="inline ml-2 text-[18px] text-(--secondary)" />}
                     </h1>
                     <p className={`text-[13px] ${outcomeColor}`}>
-                        {teamName} · {outcome}
-                        {team.division && team.division_rank
-                            ? ` · ${ordinal(team.division_rank)} in the ${team.division}`
-                            : ''}
+                        {teamName}
                     </p>
+                </div>
+                <div className={`flex flex-col items-end space-y-0 px-4 py-2 rounded-xl bg-(${outcomeColor})/15 font-bold text-(${outcomeColor})`}>
+                    
+                    <div className="text-[15px]">
+                        {team.division && team.division_rank
+                            ? `${ordinal(team.division_rank)} in the ${team.division}`
+                            : ''}
+                    </div>
+                    <div className={`text-[12px] opacity-90`}>{outcome}</div>
+                    {challengeResult && (
+                        <div className={`text-[12px] text-primary opacity-70 flex items-center gap-1 `}>
+                            {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
+                            {challengeResult === 'passed' ? 'Challenge passed' : 'Challenge failed'}
+                        </div>
+                    )}
                 </div>
                 {onRunAgain && (
                     <button
@@ -92,17 +104,6 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                     </button>
                 )}
             </div>
-
-            {challengeResult && (
-                <div className={`mx-4 flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-bold ${
-                    challengeResult === 'passed'
-                        ? 'bg-(--success)/15 text-(--success)'
-                        : 'bg-(--error)/10 text-(--error)'
-                }`}>
-                    {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
-                    {challengeResult === 'passed' ? 'Challenge passed' : 'Challenge not passed'}
-                </div>
-            )}
 
             {/* Headline numbers */}
             <div className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-2">

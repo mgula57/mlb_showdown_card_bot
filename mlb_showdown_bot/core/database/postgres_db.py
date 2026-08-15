@@ -7452,20 +7452,31 @@ class PostgresDB:
                     REFERENCES internal.challenge_template(template_id) ON DELETE SET NULL;
             """)
 
-    def get_challenge_instance(self, instance_id: str) -> dict | None:
+    def get_challenge_instance(self, instance_id: str, user_id: str | None = None) -> dict | None:
         """A single challenge instance joined to its template, active or not - the caller checks
-        `expires_at` itself, since a just-expired instance still needs to explain why it 404s."""
+        `expires_at` itself, since a just-expired instance still needs to explain why it 404s.
+        This is the shareable challenge-detail page's lookup, so it must resolve regardless of
+        expiration. When user_id is given, attaches the caller's own best attempt, same as
+        `fetch_active_challenges` does for the list."""
         if not self.connection:
             return None
         rows = self.execute_query(
             """
             SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.expires_at,
-                   t.slug, t.title, t.description, t.goal_type, t.goal_value
+                   t.slug, t.title, t.description, t.goal_type, t.goal_value,
+                   attempt.challenge_result, attempt.attempted_at
               FROM internal.challenge_instance i
               JOIN internal.challenge_template t ON t.template_id = i.template_id
-             WHERE i.instance_id = %s
+              LEFT JOIN LATERAL (
+                  SELECT s.challenge_result, s.created_at AS attempted_at
+                    FROM internal.sim_season s
+                   WHERE s.challenge_instance_id = i.instance_id AND s.user_id = %(user_id)s
+                   ORDER BY (s.challenge_result = 'passed') DESC, s.created_at DESC
+                   LIMIT 1
+              ) attempt ON TRUE
+             WHERE i.instance_id = %(instance_id)s
             """,
-            (instance_id,),
+            {'instance_id': instance_id, 'user_id': user_id},
         )
         if not rows:
             return None

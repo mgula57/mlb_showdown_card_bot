@@ -16,9 +16,9 @@ export type TeamPreviewData = {
     total_points?: number;
     is_drafting?: boolean;
     allowed_card_sources?: string[] | null;
-    /** Team provenance — gates the showdown-set icon grid, which only makes sense for non-user teams. */
+    /** Team provenance. */
     source?: TeamSource;
-    /** Showdown set(s) this team is tied to. Rendered as set-logo icons in the top-right when `source` isn't 'user'. */
+    /** Showdown set(s) this team is tied to. Rendered as set-logo icons in the top-right. */
     allowed_sets?: string[] | null;
     /** Top-3 cards, hydrated on the list payload. Optional — historical tiles have none. */
     top_players?: CardDatabaseRecord[];
@@ -63,7 +63,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
     const hasCards = slots.some(Boolean);
 
     const allowedSets = team.allowed_sets ?? [];
-    const showSetGrid = team.source != null && team.source !== 'user' && allowedSets.length > 0;
+    const showSetGrid = allowedSets.length > 0;
 
     return (
         <button
@@ -105,7 +105,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                 )}
                 {showSetGrid && (
                     <div
-                        className={`rounded-bl-md p-1 ${allowedSets.length < 2 ? 'flex items-center' : 'grid grid-cols-3 gap-0.5'}`}
+                        className="rounded-bl-md p-1 flex flex-wrap items-center justify-end gap-0.5 max-w-24"
                         style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
                     >
                         {allowedSets.map(set => {
@@ -159,7 +159,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             <img
                                 src={avatarUrl}
                                 alt="Your avatar"
-                                className="w-7 h-7 rounded-full object-cover shrink-0 ml-auto ring-1 ring-white/30"
+                                className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-white/30"
                             />
                         )}
                     </div>

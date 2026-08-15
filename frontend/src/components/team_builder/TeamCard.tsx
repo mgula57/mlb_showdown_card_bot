@@ -87,7 +87,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
 
             {/* Allowed showdown sets, as a grid of icons to the left of the owner's avatar */}
             {allowedSets.length > 0 && (
-                <div className={`shrink-0 content-center ml-auto ${allowedSets.length < 2 ? 'flex items-center' : 'grid grid-cols-3 gap-1'}`}>
+                <div className="shrink-0 flex flex-wrap items-center justify-end gap-1 ml-auto max-w-28">
                     {allowedSets.map(set => {
                         const useAbbreviated = allowedSets.length >= 2;
                         const image = imageForSet(set, useAbbreviated);

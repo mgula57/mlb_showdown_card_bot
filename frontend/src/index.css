@@ -25,8 +25,10 @@
     --table-header: #dedad4;
     --table-banding: #f0ede9;
 
-    --warning: #F3CE32;
     --success: #4BB543;
+    --warning: #F3CE32;
+    --error: #E74C3C;
+    
 
     --green: #287c22;
     --red: #ca443d;
@@ -60,8 +62,10 @@
     --table-header: #47423b;
     --table-banding: #1d1b19;
 
-    --warning: #e9de3f;
     --success: #4dc545;
+    --warning: #e9de3f;
+    --error: #fb3232;
+
 
     --green: #5df452;
     --red: #fb3232;

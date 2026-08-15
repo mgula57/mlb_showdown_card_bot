@@ -366,6 +366,24 @@ def get_challenges():
         return jsonify({'error': str(exc)}), 500
 
 
+@sim_bp.route('/sim/challenges/<instance_id>', methods=['GET'])
+def get_challenge_instance_route(instance_id):
+    """A single challenge instance, active or expired - the shareable, direct-link page for one
+    challenge. Unlike `/sim/challenges`, this resolves regardless of expiration, so a link shared
+    while an instance was live still explains itself after it rotates out.
+    """
+    try:
+        user_id = optional_user_id()
+        with PostgresDB() as db:
+            instance = db.get_challenge_instance(instance_id, user_id=user_id)
+        if not instance:
+            return jsonify({'error': 'Challenge not found.'}), 404
+        return jsonify({'challenge': instance}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @sim_bp.route('/sim/leaderboard', methods=['GET'])
 def get_sim_leaderboard():
     """Played seasons ranked by wins, split into groups within each season - one group for

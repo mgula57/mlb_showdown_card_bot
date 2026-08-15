@@ -379,6 +379,22 @@ export async function fetchChallenges(token?: string): Promise<ChallengeInstance
     return data.challenges ?? [];
 }
 
+/**
+ * A single challenge instance, active or expired — backs the shareable `/teams/challenges/:id`
+ * page, so unlike `fetchChallenges` this resolves even after the instance has rotated out.
+ * Returns null on a 404 (unknown or pruned instance) rather than throwing, since that's a normal
+ * outcome for a stale shared link.
+ */
+export async function fetchChallengeInstance(instanceId: string, token?: string): Promise<ChallengeInstance | null> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/sim/challenges/${instanceId}`, { headers });
+    if (res.status === 404) return null;
+    if (!res.ok) await parseError(res, 'Failed to load challenge');
+    const data = await res.json();
+    return data.challenge ?? null;
+}
+
 /** Poll a job's progress. Returns 404 once the job row has expired — the result outlives it. */
 export async function fetchSimJob(jobId: string, token: string): Promise<SimJob> {
     const res = await fetch(`${API_BASE}/sim/jobs/${jobId}`, {

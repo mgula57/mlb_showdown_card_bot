@@ -25,6 +25,7 @@ import { CommunityTeams } from './CommunityTeams';
 import { HistoricalTeams, asgIdentity, type HistoricalNavState } from './HistoricalTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
+import { ChallengeDetail } from './sim/ChallengeDetail';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaClockRotateLeft, FaRankingStar } from 'react-icons/fa6';
 import type { TeamCreatePayload } from '../../api/userTeams';
@@ -46,7 +47,7 @@ function parseTeamRef(pathname: string): TeamRef | null {
     if (parts[1] === 'asg' && parts[3] !== undefined) {
         return { kind: 'asg', season: parts[2], league: parts[3].toUpperCase() };
     }
-    if (parts[1] !== 'historical' && parts[1] !== 'asg') {
+    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges') {
         return { kind: 'saved', teamId: parts[1] };
     }
     return null;
@@ -57,6 +58,13 @@ function parseTeamRef(pathname: string): TeamRef | null {
 function parseSimJobId(pathname: string): string | null {
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[2] === 'sim' && parts[3] ? parts[3] : null;
+}
+
+// A challenge gets its own shareable URL (/teams/challenges/:instanceId), independent of the
+// team editor/list state below — landing here bypasses both entirely.
+function parseChallengeInstanceId(pathname: string): string | null {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'challenges' && parts[2] ? parts[2] : null;
 }
 
 // =============================================================================
@@ -96,7 +104,7 @@ const TABS: TabItem<TabId>[] = [
 ];
 
 export default function TeamBuilder() {
-    const { session } = useAuth();
+    const { session, username } = useAuth();
     const { userShowdownSet } = useSiteSettings();
     const location = useLocation();
     const navigate = useNavigate();
@@ -146,6 +154,7 @@ export default function TeamBuilder() {
     // Parse the team addressed by the current URL (saved UUID, historical, or All-Star).
     const teamRef = parseTeamRef(location.pathname);
     const simJobId = parseSimJobId(location.pathname);
+    const challengeInstanceId = parseChallengeInstanceId(location.pathname);
     // The team currently resolved into the editor, so we don't re-resolve on re-render. Keyed on
     // the ref rather than the pathname so entering/leaving a sim URL doesn't refetch the team.
     const teamRefKey = teamRef ? JSON.stringify(teamRef) : null;
@@ -161,7 +170,7 @@ export default function TeamBuilder() {
     // Load the (lightweight) teams list lazily — only when viewing the list, so a direct
     // visit to a team URL opens the team without first loading every team.
     useEffect(() => {
-        if (teamRef || listLoaded) return;
+        if (teamRef || challengeInstanceId || listLoaded) return;
         loadTeams();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.pathname, listLoaded, token]);
@@ -284,9 +293,13 @@ export default function TeamBuilder() {
     // filter controls there are already the "guided" draft experience, no separate UI needed.
     async function handleQuickStart(challenge: ChallengeInstance) {
         if (!token) return;
+        // Prefer the profile username (a single handle, not a full name) over the email's local
+        // part, matching how AccountAvatar derives a display identity elsewhere in the app.
+        const displayName = username || session?.user?.email?.split('@')[0] || 'My';
+        const abbreviation = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase() || challenge.replaces_abbr.slice(0, 5);
         const payload: TeamCreatePayload = {
-            name: `${challenge.title} Squad`,
-            abbreviation: challenge.replaces_abbr.slice(0, 5),
+            name: `${displayName}'s Team`,
+            abbreviation,
             primary_color: 'rgb(0, 0, 0)',
             secondary_color: 'rgb(255, 255, 255)',
             is_public: false,
@@ -318,6 +331,12 @@ export default function TeamBuilder() {
         navigate('/teams/' + teamId, { state: { challenge } });
     }
 
+    // Opens a challenge's own shareable page. The challenge is carried as router state too, so
+    // the card that linked here can paint the header instantly instead of waiting on the fetch.
+    function openChallenge(challenge: ChallengeInstance) {
+        navigate('/teams/challenges/' + challenge.instance_id, { state: { challenge } });
+    }
+
     async function handleFork(teamId: string) {
         if (!token) return;
         const newTeam = await forkTeam(teamId, token);
@@ -335,6 +354,32 @@ export default function TeamBuilder() {
         setView(prev => prev.mode === 'editor' && prev.team.team_id === teamId
             ? { ...prev, team: saved }
             : prev
+        );
+    }
+
+    // A challenge addressed by URL takes over the view entirely, independent of the team
+    // list/editor state above — this is the shareable page, so it must resolve on a cold link
+    // with no prior navigation state.
+    if (challengeInstanceId) {
+        return (
+            <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
+                <div className={px}>
+                    <ChallengeDetail
+                        key={challengeInstanceId}
+                        instanceId={challengeInstanceId}
+                        initialChallenge={(location.state as { challenge?: ChallengeInstance } | null)?.challenge}
+                        token={token}
+                        onBack={() => navigate('/teams')}
+                        onQuickStart={handleQuickStart}
+                        onBuildFromScratch={handleBuildFromScratch}
+                        onUseExistingTeam={handleUseExistingTeam}
+                        onOpenSeason={(teamId, jobId) => {
+                            trackRecentTeam(teamId);
+                            navigate(`/teams/${teamId}/sim/${jobId}`);
+                        }}
+                    />
+                </div>
+            </div>
         );
     }
 
@@ -500,6 +545,7 @@ export default function TeamBuilder() {
                     onQuickStart={handleQuickStart}
                     onBuildFromScratch={handleBuildFromScratch}
                     onUseExistingTeam={handleUseExistingTeam}
+                    onOpenChallenge={openChallenge}
                 />
             )}
         </div>

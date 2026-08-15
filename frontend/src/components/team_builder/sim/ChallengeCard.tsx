@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
-    FaDice, FaPen, FaListUl, FaCheck, FaXmark, FaSpinner, FaChevronDown, FaChevronUp,
-    FaCalendarDays, FaShirt, FaSackDollar, FaFlagCheckered, FaClock,
+    FaDice, FaPen, FaListUl, FaSpinner, FaChevronDown, FaChevronUp,
+    FaCalendarDays, FaShirt, FaSackDollar, FaFlagCheckered, FaClock, FaTrophy, FaChevronRight,
 } from 'react-icons/fa6';
 import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
 import type { ChallengeInstance } from '../../../api/sim';
@@ -12,6 +12,9 @@ type Props = {
     onQuickStart: (challenge: ChallengeInstance) => void;
     onBuildFromScratch: (challenge: ChallengeInstance) => void;
     onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
+    /** Present only in the list view — opens the challenge's own detail + scoped leaderboard.
+     *  Omitted when this card is already the detail view's own header. */
+    onViewLeaderboard?: (challenge: ChallengeInstance) => void;
 };
 
 function goalLabel(challenge: ChallengeInstance): string {
@@ -49,12 +52,12 @@ function StatTile({ icon, label, value }: { icon: ReactNode; label: string; valu
  * Sized for a small, high-value set (usually 3-6 live at once) rather than a dense scrolling
  * list, so it spends vertical space generously on a proper info grid instead of a cramped pill row.
  */
-export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScratch, onUseExistingTeam }: Props) {
+export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScratch, onUseExistingTeam, onViewLeaderboard }: Props) {
     const [showExisting, setShowExisting] = useState(false);
     const [existingTeams, setExistingTeams] = useState<TeamSummary[] | null>(null);
     const [existingError, setExistingError] = useState<string | null>(null);
 
-    const fits = (team: TeamSummary) => challenge.pts_limit == null || team.total_points <= challenge.pts_limit;
+    const fits = (team: TeamSummary) => !team.is_drafting && (challenge.pts_limit == null || team.total_points <= challenge.pts_limit);
     const left = daysLeft(challenge.expires_at);
 
     async function toggleExisting() {
@@ -73,19 +76,27 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
         <div className="flex flex-col gap-4 rounded-xl border border-(--divider) bg-(--background-secondary) p-5">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <h3 className="text-[16px] font-black text-(--text-primary)">{challenge.title}</h3>
+                    <div className="flex gap-3 items-center">
+                        <h3 className="text-[16px] font-black text-(--text-primary)">{challenge.title}</h3>
+                        <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-full">
+                            <FaClock className="text-[10px]" />
+                            {left > 0 ? `${left}d left` : 'Expires today'}
+                        </span>
+                    </div>
+                    
                     <p className="text-[12px] text-(--text-secondary) mt-1.5 leading-relaxed">{challenge.description}</p>
                 </div>
-                {challenge.challenge_result && (
-                    <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide rounded-full px-2 py-1 ${
-                        challenge.challenge_result === 'passed'
-                            ? 'bg-green-500/15 text-(--green)'
-                            : 'bg-(--warning)/10 text-(--warning)'
-                    }`}>
-                        {challenge.challenge_result === 'passed' ? <FaCheck /> : <FaXmark />}
-                        {challenge.challenge_result === 'passed' ? 'Passed' : 'Try again'}
-                    </span>
-                )}
+                <div className="shrink-0 flex flex-col items-end gap-1.5">
+                    {onViewLeaderboard && (
+                        <button
+                            type="button"
+                            onClick={() => onViewLeaderboard(challenge)}
+                            className="flex items-center gap-1 text-sm font-bold text-(--showdown-blue) hover:opacity-80 cursor-pointer transition-opacity"
+                        >
+                            <FaTrophy /> Leaderboard <FaChevronRight className="text-[9px]" />
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -95,34 +106,34 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
                 <StatTile icon={<FaFlagCheckered />} label="Goal" value={goalLabel(challenge)} />
             </div>
 
-            <div className="flex items-center gap-1.5 text-[11px] text-(--text-tertiary)">
-                <FaClock className="text-[10px]" />
-                {left > 0 ? `${left} day${left === 1 ? '' : 's'} left` : 'Expires today'}
-            </div>
-
             {token ? (
                 <div className="flex flex-col gap-2">
-                    <button
-                        type="button"
-                        onClick={() => onQuickStart(challenge)}
-                        className="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[12px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
-                    >
-                        <FaDice className="text-[11px]" /> Quick Start
-                    </button>
-                    <div className="grid grid-cols-2 gap-2">
+
+                    <h5 className="text-[12px] font-bold text-(--text-primary) mb-1">
+                        Build your team:
+                    </h5>
+
+                    <div className="grid grid-cols-3 gap-2">
+                        <button
+                            type="button"
+                            onClick={() => onQuickStart(challenge)}
+                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[11px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
+                        >
+                            <FaDice className="text-[11px]" /> Quick Start
+                        </button>
                         <button
                             type="button"
                             onClick={() => onBuildFromScratch(challenge)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
                         >
-                            <FaPen className="text-[10px]" /> Build from Scratch
+                            <FaPen className="text-[10px]" /> From Scratch
                         </button>
                         <button
                             type="button"
                             onClick={toggleExisting}
-                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
                         >
-                            <FaListUl className="text-[10px]" /> Existing Team
+                            <FaListUl className="text-[10px]" /> Existing
                             {showExisting ? <FaChevronUp className="text-[9px]" /> : <FaChevronDown className="text-[9px]" />}
                         </button>
                     </div>
@@ -135,7 +146,7 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
                             )}
                             {existingTeams !== null && existingTeams.filter(fits).length === 0 && (
                                 <p className="text-[11px] text-(--text-tertiary) px-1 py-1.5">
-                                    None of your teams fit this challenge's budget yet.
+                                    None of your finished teams fit this challenge's budget yet.
                                 </p>
                             )}
                             {existingTeams?.filter(fits).map(t => (
