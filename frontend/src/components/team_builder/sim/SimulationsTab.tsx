@@ -1,51 +1,50 @@
 import { useState } from 'react';
 import { SimLeaderboard } from './SimLeaderboard';
 import { SimHistory } from './SimHistory';
+import { SimChallenges } from './SimChallenges';
+import { Tabs, type TabItem } from '../../shared/Tabs';
+import type { ChallengeInstance } from '../../../api/sim';
 
-type View = 'leaderboard' | 'mine';
+type View = 'challenges' | 'leaderboard' | 'mine';
+
+const VIEW_TABS: TabItem<View>[] = [
+    { id: 'challenges', label: 'Challenges' },
+    { id: 'leaderboard', label: 'Leaderboard' },
+    { id: 'mine', label: 'My Seasons' },
+];
 
 type Props = {
     token?: string;
+    horizontalPadding?: string;
     onOpenSeason: (teamId: string, jobId: string) => void;
+    onQuickStart: (challenge: ChallengeInstance) => void;
+    onBuildFromScratch: (challenge: ChallengeInstance) => void;
+    onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
 };
 
 /**
- * Home for everything about played seasons: a global leaderboard and the signed-in user's own
- * history, switched by a segmented control so both live under one "Simulations" tab rather than
- * competing for a top-level slot each.
+ * Home for Team Challenges: the live challenge list is the front door, with the global
+ * leaderboard and the signed-in user's own history demoted to secondary views in the same
+ * segmented control rather than gone — "browse everything that's been played" is still one tap
+ * away, just no longer the first thing you see.
  */
-export function SimulationsTab({ token, onOpenSeason }: Props) {
-    const [view, setView] = useState<View>('leaderboard');
+export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onQuickStart, onBuildFromScratch, onUseExistingTeam }: Props) {
+    const [view, setView] = useState<View>('challenges');
 
     return (
-        <div className="flex flex-col gap-4">
-            <div className="px-4">
-                <div className="inline-flex gap-1 rounded-lg bg-(--background-tertiary) p-1">
-                    {([
-                        { id: 'leaderboard', label: 'Leaderboard' },
-                        { id: 'mine', label: 'My Seasons' },
-                    ] as const).map(tab => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setView(tab.id)}
-                            className={`px-3 py-1.5 text-[12px] font-semibold rounded-md whitespace-nowrap transition-colors cursor-pointer ${
-                                view === tab.id
-                                    ? 'bg-(--showdown-blue) text-white shadow-sm'
-                                    : 'text-(--text-tertiary) hover:text-(--text-secondary)'
-                            }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
+        <div className={`flex flex-col gap-4 ${horizontalPadding}`}>
+            <Tabs tabs={VIEW_TABS} value={view} onChange={setView} />
 
-            {view === 'leaderboard' ? (
-                <SimLeaderboard token={token} onOpenSeason={onOpenSeason} />
-            ) : (
-                <SimHistory token={token} onOpenSeason={onOpenSeason} />
+            {view === 'challenges' && (
+                <SimChallenges
+                    token={token}
+                    onQuickStart={onQuickStart}
+                    onBuildFromScratch={onBuildFromScratch}
+                    onUseExistingTeam={onUseExistingTeam}
+                />
             )}
+            {view === 'leaderboard' && <SimLeaderboard token={token} onOpenSeason={onOpenSeason} />}
+            {view === 'mine' && <SimHistory token={token} onOpenSeason={onOpenSeason} />}
         </div>
     );
 }

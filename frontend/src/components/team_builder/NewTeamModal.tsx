@@ -9,9 +9,14 @@ import { activeSources, allowedSetsForSource } from '../../domain/teamSets';
 type NewTeamModalProps = {
     onConfirm: (payload: TeamCreatePayload) => Promise<void>;
     onCancel: () => void;
+    /** Overrides merged over the usual defaults — e.g. a challenge's pts_limit/origin tag when
+     *  this modal is opened from the "Build from Scratch" challenge route. Not locked/read-only:
+     *  the budget is still enforced server-side when the team is actually used for a challenge
+     *  run, so there's no harm in letting the user adjust it here. */
+    initialPayload?: Partial<TeamCreatePayload>;
 };
 
-export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
+export function NewTeamModal({ onConfirm, onCancel, initialPayload }: NewTeamModalProps) {
     const { userShowdownSet } = useSiteSettings();
     const DEFAULTS: TeamCreatePayload = {
         name: '',
@@ -31,7 +36,7 @@ export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
         allowed_sets: [userShowdownSet],
         allowed_sets_by_source: { [CardSource.BOT]: [userShowdownSet] },
     };
-    const [draft, setDraft] = useState<TeamCreatePayload>({ ...DEFAULTS });
+    const [draft, setDraft] = useState<TeamCreatePayload>({ ...DEFAULTS, ...initialPayload });
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 

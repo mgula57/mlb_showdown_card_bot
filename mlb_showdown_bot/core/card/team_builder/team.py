@@ -162,6 +162,9 @@ class Team(BaseModel):
     allowed_sets: list[str] = []
     allowed_sets_by_source: dict[str, list[str]] = {}
     allowed_card_sources: list[str] = []
+    # Which challenge_template this team was built for, if any (Quick Start / Build from Scratch
+    # routes set this; a team picked via the "use an existing team" route leaves it as-is).
+    origin_template_id: Optional[str] = None
     # JSONB columns
     player_filters: dict = {}
     roster: list[TeamRosterSlot] = []
@@ -223,6 +226,7 @@ class Team(BaseModel):
             'allowed_sets': self.allowed_sets,
             'allowed_sets_by_source': self.allowed_sets_by_source,
             'allowed_card_sources': self.allowed_card_sources,
+            'origin_template_id': self.origin_template_id,
             'player_filters': self.player_filters,
             'roster': [s.model_dump() for s in self.roster],
             'lineups': [ln.model_dump() for ln in self.stored_lineups],
@@ -260,6 +264,7 @@ class Team(BaseModel):
             allowed_sets=row.get('allowed_sets') or [],
             allowed_sets_by_source=row.get('allowed_sets_by_source') or {},
             allowed_card_sources=row.get('allowed_card_sources') or [],
+            origin_template_id=row.get('origin_template_id'),
             player_filters=row.get('player_filters') or {},
             roster=[TeamRosterSlot(**s) for s in roster_rows],
             lineups=[

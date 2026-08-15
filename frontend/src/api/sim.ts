@@ -202,6 +202,13 @@ export type SimSeasonListItem = {
     created_at: string;
     /** Belongs to the signed-in viewer. */
     is_own: boolean;
+    /** Non-null only for a challenge run. */
+    challenge_instance_id: string | null;
+    challenge_result: 'passed' | 'failed' | null;
+    won_pennant: boolean | null;
+    /** Actual roster cost at sim time - set for every run, challenge or not. Powers the
+     *  wins-per-point "GM efficiency" leaderboard sort. */
+    roster_points: number | null;
 };
 
 /** A leaderboard row: one team's best run at a season, ranked against every other team's best. */
@@ -230,6 +237,30 @@ export type StartSeasonSimPayload = {
     /** Era-correct club abbreviation. Omitted means the season's worst club. */
     replaces?: string;
     seed?: number | null;
+    /** When set, the backend pulls year/replaces from the instance itself (ignoring the fields
+     *  above) and enforces the instance's pts_limit against the team's actual roster cost. */
+    challenge_instance_id?: string;
+};
+
+export type ChallengeGoalType = 'made_playoffs' | 'win_pennant' | 'win_world_series' | 'min_wins';
+
+/** A live challenge instance joined to its template. */
+export type ChallengeInstance = {
+    instance_id: string;
+    template_id: string;
+    year: number;
+    replaces_abbr: string;
+    pts_limit: number | null;
+    expires_at: string;
+    slug: string;
+    title: string;
+    description: string;
+    goal_type: ChallengeGoalType;
+    goal_value: Record<string, unknown> | null;
+    /** The signed-in caller's own best attempt at this instance. Null/absent when logged out or
+     *  never attempted. */
+    challenge_result?: 'passed' | 'failed' | null;
+    attempted_at?: string | null;
 };
 
 /** The signed-in user's own in-flight job - at most one can exist at a time. */
@@ -307,18 +338,34 @@ export async function startSeasonSim(payload: StartSeasonSimPayload, token: stri
     return res.json();
 }
 
+export type SimLeaderboardSort = 'wins' | 'efficiency';
+
 /**
  * Played seasons with their ranked entries, newest season first. Public teams only, plus the
  * viewer's own private results when a token is supplied.
  */
-export async function fetchSimLeaderboard(token?: string, year?: number): Promise<SimLeaderboardSeason[]> {
-    const params = year ? `?year=${year}` : '';
+export async function fetchSimLeaderboard(token?: string, year?: number, sort: SimLeaderboardSort = 'wins'): Promise<SimLeaderboardSeason[]> {
+    const params = new URLSearchParams();
+    if (year) params.set('year', String(year));
+    if (sort !== 'wins') params.set('sort', sort);
+    const query = params.toString() ? `?${params}` : '';
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/sim/leaderboard${params}`, { headers });
+    const res = await fetch(`${API_BASE}/sim/leaderboard${query}`, { headers });
     if (!res.ok) await parseError(res, 'Failed to load leaderboard');
     const data = await res.json();
     return data.seasons ?? [];
+}
+
+/** Active (unexpired) challenge instances. An anonymous caller just sees the list; a signed-in
+ *  one also gets `challenge_result`/`attempted_at` for instances they've already attempted. */
+export async function fetchChallenges(token?: string): Promise<ChallengeInstance[]> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/sim/challenges`, { headers });
+    if (!res.ok) await parseError(res, 'Failed to load challenges');
+    const data = await res.json();
+    return data.challenges ?? [];
 }
 
 /** Poll a job's progress. Returns 404 once the job row has expired — the result outlives it. */

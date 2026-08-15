@@ -4431,6 +4431,7 @@ class PostgresDB:
             t.is_public, t.source, t.logo_url,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
+            t.origin_template_id,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -4500,6 +4501,7 @@ class PostgresDB:
             t.is_public, t.source, t.logo_url,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
+            t.origin_template_id,
             COUNT(r.card_id) AS roster_count,
             COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
             COUNT(*) FILTER (WHERE r.roster_position IN ('SP1','SP2','SP3','SP4','SP5'))               AS filled_starters,
@@ -4930,6 +4932,7 @@ class PostgresDB:
             'is_public', 'source', 'logo_url',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
             'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
+            'origin_template_id',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}
 
@@ -7370,6 +7373,215 @@ class PostgresDB:
             # One entry per job, so a retried write can never double-count a season.
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sim_season_job ON internal.sim_season (job_id);")
 
+    def build_challenge_tables(self) -> None:
+        """Create the challenge_template/challenge_instance tables and link them into
+        sim_season (the played result) and user_teams (the team built for one).
+
+        Templates are hand-authored and rarely change; instances are generated on a schedule from
+        them (see the `generate-challenges` CLI command) and expire after a week. Must run after
+        `build_sim_job_table` and `build_user_teams_tables` - it ALTERs both of those tables.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.challenge_template (
+                    template_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    slug            TEXT NOT NULL UNIQUE,
+                    title           TEXT NOT NULL,
+                    description     TEXT NOT NULL,
+                    goal_type       TEXT NOT NULL,   -- 'made_playoffs' | 'win_pennant' | 'win_world_series' | 'min_wins'
+                    goal_value      JSONB,           -- e.g. {"min_wins": 90}
+                    pts_limit       INT,             -- null = no cap
+                    year_pool       TEXT NOT NULL DEFAULT 'any',      -- 'any' | comma list of years | 'random_range:1977,2024'
+                    replaces_pool   TEXT NOT NULL DEFAULT 'any',      -- 'any' | 'worst_record' | comma list of abbrs
+                    active          BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.challenge_instance (
+                    instance_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    template_id     UUID NOT NULL REFERENCES internal.challenge_template(template_id),
+                    year            INT NOT NULL,
+                    replaces_abbr   TEXT NOT NULL,
+                    pts_limit       INT,             -- copied from the template at generation time
+                    starts_at       TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                    expires_at      TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            # NOT A PARTIAL INDEX: NOW() ISN'T IMMUTABLE, SO IT CAN'T APPEAR IN AN INDEX
+            # PREDICATE (ONLY IN A QUERY'S WHERE CLAUSE). THE TABLE IS TINY (A HANDFUL OF ROWS
+            # PER TEMPLATE) SO A PLAIN INDEX ON expires_at IS PLENTY.
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_challenge_instance_active
+                    ON internal.challenge_instance (expires_at);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_challenge_instance_template
+                    ON internal.challenge_instance (template_id);
+            """)
+
+            # LINKS A PLAYED SEASON BACK TO THE CHALLENGE IT WAS ATTEMPTING. `ON DELETE SET NULL`
+            # SO PRUNING OLD INSTANCE ROWS NEVER ORPHANS OR BLOCKS DELETING A HISTORICAL SEASON -
+            # THE SEASON KEEPS ITS OWN YEAR/REPLACED_ABBR/RESULT REGARDLESS OF WHETHER THE
+            # INSTANCE ROW STILL EXISTS.
+            cur.execute("""
+                ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS challenge_instance_id UUID
+                    REFERENCES internal.challenge_instance(instance_id) ON DELETE SET NULL;
+            """)
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS challenge_result TEXT;")  # 'passed' | 'failed', null if not a challenge run
+            # `is_champion` IS THE WORLD SERIES WINNER; THIS IS THE DISTINCT LEAGUE/PENNANT WINNER
+            # (THE CHAMPIONSHIP-ROUND SERIES, ONE STEP BEFORE THE WORLD SERIES).
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS won_pennant BOOLEAN;")
+            # ACTUAL ROSTER COST AT SIM TIME - DISTINCT FROM THE EXISTING `points` COLUMN, WHICH IS
+            # STANDINGS POINTS FROM THE SIM ENGINE, NOT BUDGET SPENT. POWERS THE WINS-PER-POINT "GM
+            # EFFICIENCY" LEADERBOARD SORT FOR EVERY SEASON, NOT JUST CHALLENGE RUNS.
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS roster_points INT;")
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sim_season_challenge_instance
+                    ON internal.sim_season (challenge_instance_id, user_id) WHERE challenge_instance_id IS NOT NULL;
+            """)
+
+            # TAGS A TEAM WITH THE TEMPLATE (NOT INSTANCE) IT WAS BUILT FOR, SO "MY CHALLENGE
+            # TEAMS" STAYS MEANINGFUL AFTER THAT WEEK'S INSTANCE EXPIRES AND ROTATES OUT.
+            cur.execute("""
+                ALTER TABLE internal.user_teams ADD COLUMN IF NOT EXISTS origin_template_id UUID
+                    REFERENCES internal.challenge_template(template_id) ON DELETE SET NULL;
+            """)
+
+    def get_challenge_instance(self, instance_id: str) -> dict | None:
+        """A single challenge instance joined to its template, active or not - the caller checks
+        `expires_at` itself, since a just-expired instance still needs to explain why it 404s."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            """
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.expires_at,
+                   t.slug, t.title, t.description, t.goal_type, t.goal_value
+              FROM internal.challenge_instance i
+              JOIN internal.challenge_template t ON t.template_id = i.template_id
+             WHERE i.instance_id = %s
+            """,
+            (instance_id,),
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        row['instance_id'] = str(row['instance_id'])
+        row['template_id'] = str(row['template_id'])
+        return row
+
+    def fetch_active_challenges(self, user_id: str | None = None) -> list[dict]:
+        """Active (unexpired) challenge instances joined to their template, soonest-expiring
+        first. When user_id is given, attaches the caller's own best attempt at each instance -
+        a pass beats a fail, and among same-result attempts the most recent wins."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.expires_at,
+                   t.slug, t.title, t.description, t.goal_type, t.goal_value,
+                   attempt.challenge_result, attempt.attempted_at
+              FROM internal.challenge_instance i
+              JOIN internal.challenge_template t ON t.template_id = i.template_id
+              LEFT JOIN LATERAL (
+                  SELECT s.challenge_result, s.created_at AS attempted_at
+                    FROM internal.sim_season s
+                   WHERE s.challenge_instance_id = i.instance_id AND s.user_id = %(user_id)s
+                   ORDER BY (s.challenge_result = 'passed') DESC, s.created_at DESC
+                   LIMIT 1
+              ) attempt ON TRUE
+             WHERE i.expires_at > NOW()
+             ORDER BY i.expires_at ASC
+            """,
+            {'user_id': user_id},
+        )
+        for row in rows:
+            row['instance_id'] = str(row['instance_id'])
+            row['template_id'] = str(row['template_id'])
+        return rows
+
+    def prune_expired_challenge_instances(self, older_than_days: int = 30) -> int:
+        """Delete instance rows expired more than `older_than_days` ago. Returns the count
+        removed. Safe at any time - `sim_season.challenge_instance_id` is ON DELETE SET NULL,
+        so a played season is never orphaned or blocked by this."""
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.challenge_instance WHERE expires_at < NOW() - make_interval(days => %s)",
+                (older_than_days,),
+            )
+            return cur.rowcount
+
+    def create_challenge_template(
+        self, slug: str, title: str, description: str, goal_type: str, goal_value: dict | None,
+        pts_limit: int | None, year_pool: str, replaces_pool: str, active: bool = True,
+    ) -> str:
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.challenge_template
+                    (slug, title, description, goal_type, goal_value, pts_limit, year_pool, replaces_pool, active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING template_id
+                """,
+                (
+                    slug, title, description, goal_type,
+                    extras.Json(goal_value) if goal_value is not None else None,
+                    pts_limit, year_pool, replaces_pool, active,
+                ),
+            )
+            return str(cur.fetchone()[0])
+
+    def list_challenge_templates(self) -> list[dict]:
+        """Every template, active or not - for CLI/admin listing (contrast with
+        `list_active_challenge_templates`, which the generator uses and only wants active ones)."""
+        rows = self.execute_query(
+            "SELECT template_id, slug, title, description, goal_type, goal_value, pts_limit, "
+            "year_pool, replaces_pool, active, created_at "
+            "FROM internal.challenge_template ORDER BY created_at DESC"
+        )
+        for row in rows:
+            row['template_id'] = str(row['template_id'])
+        return rows
+
+    def list_active_challenge_templates(self) -> list[dict]:
+        """Every template flagged active - the generator checks each for a missing instance."""
+        return self.execute_query(
+            "SELECT template_id, slug, title, pts_limit, year_pool, replaces_pool "
+            "FROM internal.challenge_template WHERE active = TRUE"
+        )
+
+    def has_unexpired_challenge_instance(self, template_id: str) -> bool:
+        rows = self.execute_query(
+            "SELECT 1 FROM internal.challenge_instance WHERE template_id = %s AND expires_at > NOW() LIMIT 1",
+            (template_id,),
+        )
+        return bool(rows)
+
+    def create_challenge_instance(
+        self, template_id: str, year: int, replaces_abbr: str, pts_limit: int | None,
+        expires_in_days: int = 7,
+    ) -> str:
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, expires_at)
+                VALUES (%s, %s, %s, %s, NOW() + make_interval(days => %s))
+                RETURNING instance_id
+                """,
+                (template_id, year, replaces_abbr, pts_limit, expires_in_days),
+            )
+            return str(cur.fetchone()[0])
+
     def create_sim_job(self, user_id: str | None, team_id: str | None, config: dict) -> str:
         """Insert a queued job and return its id."""
         if not self.connection:
@@ -7523,8 +7735,17 @@ class PostgresDB:
             )
             cur.execute("DELETE FROM internal.sim_job WHERE expires_at IS NOT NULL AND expires_at < NOW()")
 
-    def record_sim_season(self, job_id: str, user_id: str | None, team_id: str | None, team: dict, summary: dict) -> None:
-        """Permanently record a played season, result included. Idempotent on job_id."""
+    def record_sim_season(
+        self, job_id: str, user_id: str | None, team_id: str | None, team: dict, summary: dict,
+        challenge_instance_id: str | None = None, challenge_result: str | None = None,
+        won_pennant: bool | None = None, roster_points: int | None = None,
+    ) -> None:
+        """Permanently record a played season, result included. Idempotent on job_id.
+
+        `challenge_instance_id`/`challenge_result`/`won_pennant` are only set for a challenge run
+        (all null otherwise); `roster_points` is set for every run - it powers the wins-per-point
+        leaderboard sort regardless of whether this was a challenge.
+        """
         if not self.connection:
             return
         team_season = summary.get('team') or {}
@@ -7536,8 +7757,9 @@ class PostgresDB:
                     job_id, user_id, team_id, team_name, team_abbreviation,
                     primary_color, secondary_color, year, showdown_set, replaced_abbr,
                     wins, losses, win_pct, points, division, division_rank,
-                    made_playoffs, is_champion, longest_win_streak, seed, summary
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    made_playoffs, is_champion, longest_win_streak, seed, summary,
+                    challenge_instance_id, challenge_result, won_pennant, roster_points
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (job_id) DO NOTHING
                 """,
                 (
@@ -7552,10 +7774,14 @@ class PostgresDB:
                     team_season.get('made_playoffs', False), team_season.get('is_champion', False),
                     team_season.get('longest_win_streak', 0), summary.get('seed'),
                     extras.Json(summary),
+                    challenge_instance_id, challenge_result, won_pennant, roster_points,
                 ),
             )
 
-    def fetch_sim_leaderboard(self, user_id: str | None = None, year: int | None = None, per_season_limit: int = 25) -> list[dict]:
+    def fetch_sim_leaderboard(
+        self, user_id: str | None = None, year: int | None = None, per_season_limit: int = 25,
+        sort: str = 'wins',
+    ) -> list[dict]:
         """Seasons that have been played, each with its ranked entries - one row per team,
         showing that team's best run at the season.
 
@@ -7567,11 +7793,21 @@ class PostgresDB:
           user_id: Viewer. Used to mark their own rows and to include their private teams.
           year: Restrict to a single season.
           per_season_limit: Teams kept per season.
+          sort: 'wins' (default - best record) or 'efficiency' (best wins per roster point spent,
+            the "GM efficiency" view - works for every season, not just challenge runs). Anything
+            else falls back to 'wins'.
         """
         if not self.connection:
             return []
+        # NOT AN F-STRING OF THE `sort` ARGUMENT ITSELF - CHOSEN FROM TWO FIXED SQL LITERALS BY
+        # STRICT EQUALITY, SO THIS CANNOT BECOME A SQL INJECTION VECTOR.
+        rank_order = (
+            "(CASE WHEN roster_points > 0 THEN wins::float / roster_points ELSE 0 END) DESC, wins DESC, created_at ASC"
+            if sort == 'efficiency' else
+            "wins DESC, win_pct DESC, is_champion DESC, created_at ASC"
+        )
         rows = self.execute_query(
-            """
+            f"""
             -- COLUMNS ARE ENUMERATED RATHER THAN `l.*`: THE SUMMARY BLOB IS ~70 KB A ROW AND
             -- MUST NOT BE CARRIED THROUGH THE WINDOW FUNCTIONS JUST TO BE DISCARDED.
             WITH visible AS (
@@ -7579,6 +7815,7 @@ class PostgresDB:
                        l.primary_color, l.secondary_color, l.year, l.showdown_set, l.replaced_abbr,
                        l.wins, l.losses, l.win_pct, l.points, l.division, l.division_rank,
                        l.made_playoffs, l.is_champion, l.longest_win_streak, l.seed, l.created_at,
+                       l.roster_points,
                        (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
                   FROM internal.sim_season l
                   JOIN internal.user_teams t ON t.team_id = l.team_id
@@ -7589,19 +7826,13 @@ class PostgresDB:
             -- season would occupy several slots and crowd everyone else off the board.
             best_per_team AS (
                 SELECT *,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY year, team_id
-                           ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
-                       ) AS run_rank,
+                       ROW_NUMBER() OVER (PARTITION BY year, team_id ORDER BY {rank_order}) AS run_rank,
                        COUNT(*) OVER (PARTITION BY year, team_id) AS attempts
                   FROM visible
             ),
             ranked AS (
                 SELECT *,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY year
-                           ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
-                       ) AS rank
+                       ROW_NUMBER() OVER (PARTITION BY year ORDER BY {rank_order}) AS rank
                   FROM best_per_team
                  WHERE run_rank = 1
             )
@@ -7609,7 +7840,7 @@ class PostgresDB:
                    primary_color, secondary_color, year, showdown_set, replaced_abbr,
                    wins, losses, win_pct, points, division, division_rank,
                    made_playoffs, is_champion, longest_win_streak, seed, created_at,
-                   is_own, rank, attempts
+                   roster_points, is_own, rank, attempts
               FROM ranked
              WHERE rank <= %(limit)s
              ORDER BY year DESC, rank ASC
@@ -7627,7 +7858,8 @@ class PostgresDB:
         s.entry_id, s.job_id, s.team_id, s.team_name, s.team_abbreviation,
         s.primary_color, s.secondary_color, s.year, s.showdown_set, s.replaced_abbr,
         s.wins, s.losses, s.win_pct, s.points, s.division, s.division_rank,
-        s.made_playoffs, s.is_champion, s.longest_win_streak, s.seed, s.created_at
+        s.made_playoffs, s.is_champion, s.longest_win_streak, s.seed, s.created_at,
+        s.challenge_instance_id, s.challenge_result, s.won_pennant, s.roster_points
     """
 
     @staticmethod
@@ -7635,6 +7867,7 @@ class PostgresDB:
         for row in rows:
             row['job_id'] = str(row['job_id']) if row.get('job_id') else None
             row['team_id'] = str(row['team_id']) if row.get('team_id') else None
+            row['challenge_instance_id'] = str(row['challenge_instance_id']) if row.get('challenge_instance_id') else None
         return rows
 
     def fetch_sim_season(self, job_id: str, user_id: str | None = None) -> dict | None:

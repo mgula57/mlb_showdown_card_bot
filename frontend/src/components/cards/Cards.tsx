@@ -10,6 +10,9 @@ import * as Tabs from '@radix-ui/react-tabs';
 import ShowdownBotSearch from "./ShowdownCardSearch";
 import { CardSource, isValidCardSource } from '../../types/cardSource';
 import { FaRobot, FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
+import { radixTabTriggerClass } from "../shared/tabStyles";
+
+const TAB_TRIGGER_CLASS = radixTabTriggerClass();
 
 export default function Cards() {
 
@@ -43,43 +46,16 @@ export default function Cards() {
     return (
         <Tabs.Root value={tab} onValueChange={handleTabChange}>
             {/* Tab Selection */}
-            <Tabs.List className="flex px-3 border-b-2 pt-2 pb-1 border-form-element gap-x-2 h-12">
-                <Tabs.Trigger 
-                    value={CardSource.BOT}
-                    className="relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg
-                               data-[state=active]:bg-(--background-quaternary)
-                               data-[state=active]:font-bold 
-                               data-[state=active]:text-(--showdown-blue)
-                               data-[state=inactive]:text-tertiary 
-                               data-[state=inactive]:font-medium 
-                               data-[state=inactive]:hover:bg-(--divider)"
-                >
+            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 overflow-x-auto scrollbar-hide">
+                <Tabs.Trigger value={CardSource.BOT} className={TAB_TRIGGER_CLASS}>
                     <FaRobot />
                     BOT
                 </Tabs.Trigger>
-                <Tabs.Trigger 
-                    value={CardSource.WOTC}
-                    className="relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg
-                               data-[state=active]:bg-(--background-quaternary) 
-                               data-[state=active]:font-bold 
-                               data-[state=active]:text-(--showdown-blue)
-                               data-[state=inactive]:text-tertiary 
-                               data-[state=inactive]:font-medium 
-                               data-[state=inactive]:hover:bg-(--divider)"
-                >
+                <Tabs.Trigger value={CardSource.WOTC} className={TAB_TRIGGER_CLASS}>
                     <FaHatWizard />
                     WOTC
                 </Tabs.Trigger>
-                <Tabs.Trigger
-                    value={CardSource.CUSTOM}
-                    className="relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg
-                               data-[state=active]:bg-(--background-quaternary)
-                               data-[state=active]:font-bold
-                               data-[state=active]:text-(--showdown-blue)
-                               data-[state=inactive]:text-tertiary
-                               data-[state=inactive]:font-medium
-                               data-[state=inactive]:hover:bg-(--divider)"
-                >
+                <Tabs.Trigger value={CardSource.CUSTOM} className={TAB_TRIGGER_CLASS}>
                     <FaWandMagicSparkles />
                     My Customs
                 </Tabs.Trigger>

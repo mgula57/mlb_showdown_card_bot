@@ -8,6 +8,7 @@ import { BottomSheet, type SnapPoint } from "../shared/BottomSheet";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardDetail } from "../cards/CardDetail";
 import * as Tabs from '@radix-ui/react-tabs';
+import { Tabs as TabButtons, type TabItem } from '../shared/Tabs';
 import { fromBoxscoreDetail, fromGamePlays } from "../../domain/adapters/fromMlbApi";
 import { fromSimGame } from "../../domain/adapters/fromSim";
 import { startGameSim, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
@@ -31,6 +32,11 @@ import { FaTerminal } from "react-icons/fa";
 import { FaClockRotateLeft } from "react-icons/fa6";
 import IconButton from "../shared/IconButton";
 
+const MOBILE_SHEET_TABS: TabItem<'playbyplay' | 'boxscore'>[] = [
+    { id: 'playbyplay', label: 'Play By Play' },
+    { id: 'boxscore', label: 'Boxscore' },
+];
+
 type GameDetailProps = {
     gamePk: number;
     sportId?: number;
@@ -46,6 +52,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
     const [sheetSnap, setSheetSnap] = useState<SnapPoint>('closed');
+    const [mobileSheetTab, setMobileSheetTab] = useState<'playbyplay' | 'boxscore'>('playbyplay');
     // The transport strip (play/pause/scrub) is opt-in — collapsed by default so a plain live or
     // finished-game view isn't cluttered with controls most visits never touch.
     const [showPlaybackControls, setShowPlaybackControls] = useState(false);
@@ -409,21 +416,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                     }
                                 >
                                     <div className="px-4 pb-[calc(2rem+var(--safe-bottom))] pt-2 h-full flex flex-col">
-                                        <Tabs.Root defaultValue="playbyplay" className="flex flex-col h-full min-h-0">
-                                            <Tabs.List className="flex gap-1 rounded-lg bg-(--background-tertiary) p-1 mb-3 shrink-0">
-                                                <Tabs.Trigger
-                                                    value="playbyplay"
-                                                    className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--showdown-blue) data-[state=active]:text-white cursor-pointer transition-colors"
-                                                >
-                                                    Play By Play
-                                                </Tabs.Trigger>
-                                                <Tabs.Trigger
-                                                    value="boxscore"
-                                                    className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--showdown-blue) data-[state=active]:text-white cursor-pointer transition-colors"
-                                                >
-                                                    Boxscore
-                                                </Tabs.Trigger>
-                                            </Tabs.List>
+                                        <Tabs.Root value={mobileSheetTab} onValueChange={v => setMobileSheetTab(v as 'playbyplay' | 'boxscore')} className="flex flex-col h-full min-h-0">
+                                            <div className="mb-3 shrink-0">
+                                                <TabButtons tabs={MOBILE_SHEET_TABS} value={mobileSheetTab} onChange={setMobileSheetTab} fullWidth />
+                                            </div>
                                             <Tabs.Content value="playbyplay" className="data-[state=inactive]:hidden">
                                                 {playByPlayPanelMobile}
                                             </Tabs.Content>

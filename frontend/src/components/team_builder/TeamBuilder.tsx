@@ -25,8 +25,11 @@ import { CommunityTeams } from './CommunityTeams';
 import { HistoricalTeams, asgIdentity, type HistoricalNavState } from './HistoricalTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
+import { Tabs, type TabItem } from '../shared/Tabs';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaClockRotateLeft, FaRankingStar } from 'react-icons/fa6';
 import type { TeamCreatePayload } from '../../api/userTeams';
+import type { ChallengeInstance } from '../../api/sim';
+import { CardSource } from '../../types/cardSource';
 
 // A team can be addressed by URL three ways: a saved UUID, a historical MLB team, or an All-Star team.
 type TeamRef =
@@ -85,11 +88,11 @@ type TabId = 'mine' | 'community' | 'historical' | 'simulations';
 const ACTIVE_TAB_KEY = 'teams.activeTab';
 const TAB_IDS: TabId[] = ['mine', 'community', 'historical', 'simulations'];
 // `shortLabel` keeps four tabs readable on a phone; the full label returns at sm.
-const TABS: { id: TabId; label: string; shortLabel: string; icon: React.ReactNode }[] = [
+const TABS: TabItem<TabId>[] = [
     { id: 'mine', label: 'My Teams', shortLabel: 'Mine', icon: <FaUsers /> },
     { id: 'community', label: 'Community', shortLabel: 'Community', icon: <FaGlobe /> },
     { id: 'historical', label: 'Historical', shortLabel: 'History', icon: <FaClockRotateLeft /> },
-    { id: 'simulations', label: 'Simulations', shortLabel: 'Sims', icon: <FaRankingStar /> },
+    { id: 'simulations', label: 'Challenges', shortLabel: 'Challenges', icon: <FaRankingStar /> },
 ];
 
 export default function TeamBuilder() {
@@ -105,6 +108,9 @@ export default function TeamBuilder() {
     const [listLoaded, setListLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    // Set only when "Build from Scratch" was opened from a challenge card - pre-fills the new
+    // team's budget/origin tag and, once created, carries the challenge through to the team page.
+    const [challengeForNewTeam, setChallengeForNewTeam] = useState<ChallengeInstance | null>(null);
     const [activeTab, setActiveTab] = useState<TabId>(() => {
         const stored = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_TAB_KEY) : null;
         return TAB_IDS.includes(stored as TabId) ? (stored as TabId) : 'mine';
@@ -265,8 +271,51 @@ export default function TeamBuilder() {
         setShowCreateModal(false);
         setListLoaded(false); // list must refresh to include the new team
         trackRecentTeam(newTeam.team_id);
-        navigate('/teams/' + newTeam.team_id);
+        // "Build from Scratch" opened this modal from a challenge card - carry the challenge
+        // through so the team page can offer "Play Challenge" as soon as the roster is ready.
+        const challenge = challengeForNewTeam;
+        setChallengeForNewTeam(null);
+        navigate('/teams/' + newTeam.team_id, challenge ? { state: { challenge } } : undefined);
         setView({ mode: 'editor', team: newTeam, readOnly: false });
+    }
+
+    // Quick Start: skip the New Team modal entirely and create an already-configured (but empty)
+    // team, landing straight on the team page where autofill is one click away - the strategy/
+    // filter controls there are already the "guided" draft experience, no separate UI needed.
+    async function handleQuickStart(challenge: ChallengeInstance) {
+        if (!token) return;
+        const payload: TeamCreatePayload = {
+            name: `${challenge.title} Squad`,
+            abbreviation: challenge.replaces_abbr.slice(0, 5),
+            primary_color: 'rgb(0, 0, 0)',
+            secondary_color: 'rgb(255, 255, 255)',
+            is_public: false,
+            pts_limit: challenge.pts_limit,
+            roster_size: 20,
+            min_bench: 2,
+            min_bullpen: 5,
+            num_starters: 4,
+            bench_pts_multiplier: 0.2,
+            allowed_card_sources: [CardSource.BOT],
+            allowed_sets: [userShowdownSet],
+            allowed_sets_by_source: { [CardSource.BOT]: [userShowdownSet] },
+            origin_template_id: challenge.template_id,
+        };
+        const newTeam = await createTeam(payload, token);
+        setListLoaded(false);
+        trackRecentTeam(newTeam.team_id);
+        navigate('/teams/' + newTeam.team_id, { state: { challenge } });
+        setView({ mode: 'editor', team: newTeam, readOnly: false });
+    }
+
+    function handleBuildFromScratch(challenge: ChallengeInstance) {
+        setChallengeForNewTeam(challenge);
+        setShowCreateModal(true);
+    }
+
+    function handleUseExistingTeam(challenge: ChallengeInstance, teamId: string) {
+        trackRecentTeam(teamId);
+        navigate('/teams/' + teamId, { state: { challenge } });
     }
 
     async function handleFork(teamId: string) {
@@ -321,6 +370,10 @@ export default function TeamBuilder() {
 
         // A public team owned by someone else can be forked into the current user's own copy.
         const canFork = readOnly && !!token && team.source === 'user' && team.is_public;
+        // Set only when this team page was reached from a challenge card - not stored on the
+        // team itself, so a team isn't permanently bound to one instance and a page refresh just
+        // drops back to the team's normal "Play" action.
+        const challenge = (location.state as { challenge?: ChallengeInstance } | null)?.challenge;
         return (
             <div className="flex flex-col h-full">
                 <TeamDetail
@@ -331,6 +384,7 @@ export default function TeamBuilder() {
                     onReload={reloadCurrentTeam}
                     token={token}
                     onFork={canFork ? () => handleFork(team.team_id) : undefined}
+                    challenge={challenge}
                 />
             </div>
         );
@@ -341,50 +395,37 @@ export default function TeamBuilder() {
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">Teams</h1>
-                    <p className="text-[13px] text-(--text-secondary)">
-                        Build your own rosters, browse community creations, and explore real historical teams 
+                    <h1 className="text-[20px] font-black text-(--text-primary)">Team Builder</h1>
+                    <p className="text-[12px] text-(--text-secondary)">
+                        Build your team, compete in challenges, and explore community creations.
                     </p>
                 </div>
-                {token && activeTab === 'mine' && (
+                {token && (
                     <button
                         type="button"
                         onClick={() => setShowCreateModal(true)}
-                        className={`flex items-center gap-1 ${px} py-3 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer`}
+                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-xl bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer`}
                     >
-                        <FaPlus className="text-[10px]" />
+                        <FaPlus />
                         New
-                        <span className="hidden sm:inline">Team</span>
+                        <span className="hidden md:inline">Team</span>
                     </button>
                 )}
             </div>
 
             {/* Tabs */}
             <div className={`${px}`}>
-                <div className={`flex gap-1 rounded-lg bg-(--background-tertiary) p-1`}>
-                    {TABS.map(tab => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-semibold rounded-md whitespace-nowrap transition-colors cursor-pointer ${
-                                activeTab === tab.id
-                                    ? 'bg-(--showdown-blue) text-white shadow-sm'
-                                    : 'text-(--text-tertiary) hover:text-(--text-secondary)'
-                            }`}
-                        >
-                            <span>{tab.icon}</span>
-                            <span className="hidden sm:inline">{tab.label}</span>
-                            <span className="sm:hidden">{tab.shortLabel}</span>
-                        </button>
-                    ))}
-                </div>
+                <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} fullWidth />
             </div>
 
             {showCreateModal && (
                 <NewTeamModal
                     onConfirm={handleCreate}
-                    onCancel={() => setShowCreateModal(false)}
+                    onCancel={() => { setShowCreateModal(false); setChallengeForNewTeam(null); }}
+                    initialPayload={challengeForNewTeam ? {
+                        pts_limit: challengeForNewTeam.pts_limit,
+                        origin_template_id: challengeForNewTeam.template_id,
+                    } : undefined}
                 />
             )}
 
@@ -444,14 +485,18 @@ export default function TeamBuilder() {
                 <HistoricalTeams horizontalPadding={px} />
             )}
 
-            {/* Simulations tab */}
+            {/* Team Challenges tab */}
             {activeTab === 'simulations' && (
                 <SimulationsTab
                     token={token}
+                    horizontalPadding={px}
                     onOpenSeason={(teamId, jobId) => {
                         trackRecentTeam(teamId);
                         navigate(`/teams/${teamId}/sim/${jobId}`);
                     }}
+                    onQuickStart={handleQuickStart}
+                    onBuildFromScratch={handleBuildFromScratch}
+                    onUseExistingTeam={handleUseExistingTeam}
                 />
             )}
         </div>

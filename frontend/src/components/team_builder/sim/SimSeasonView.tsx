@@ -28,6 +28,7 @@ type Props = {
 export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Props) {
     const [job, setJob] = useState<SimJob | null>(null);
     const [summary, setSummary] = useState<SeasonSimSummary | null>(null);
+    const [challengeResult, setChallengeResult] = useState<'passed' | 'failed' | null>(null);
     const [error, setError] = useState<string | null>(null);
     const cancelled = useRef(false);
 
@@ -56,8 +57,12 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
                     // should already exist — this is the one re-fetch, not a poll.
                     const season = await fetchSimSeason(jobId, token);
                     if (cancelled.current) return;
-                    if (season) setSummary(season.summary);
-                    else setError('The simulation finished, but its result could not be found.');
+                    if (season) {
+                        setSummary(season.summary);
+                        setChallengeResult(season.challenge_result);
+                    } else {
+                        setError('The simulation finished, but its result could not be found.');
+                    }
                     return;
                 }
                 timer = window.setTimeout(pollJob, POLL_INTERVAL_MS);
@@ -72,6 +77,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
                 if (cancelled.current) return;
                 if (season) {
                     setSummary(season.summary);
+                    setChallengeResult(season.challenge_result);
                     return;
                 }
             } catch (err: unknown) {
@@ -123,7 +129,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
                     )}
                 </div>
             ) : summary ? (
-                <SimResult summary={summary} onRunAgain={onRunAgain} />
+                <SimResult summary={summary} challengeResult={challengeResult} onRunAgain={onRunAgain} />
             ) : (
                 <SimProgress job={job} teamName={teamName} onCancel={token ? handleCancel : undefined} />
             )}

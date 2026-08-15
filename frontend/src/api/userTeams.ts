@@ -60,6 +60,9 @@ export type Team = {
     /** Per-source set restrictions — the source of truth; `allowed_sets` mirrors its union. */
     allowed_sets_by_source?: Record<string, string[]> | null;
     allowed_card_sources: string[] | null;
+    /** Which challenge_template this team was built for, if any — set by the Quick Start /
+     *  Build from Scratch challenge routes, null for teams built outside that flow. */
+    origin_template_id: string | null;
     player_filters: Record<string, unknown> | null;
     roster: TeamRosterSlot[];
     lineups: Lineup[];
@@ -94,6 +97,7 @@ export type TeamSummary = {
     allowed_sets: string[] | null;
     allowed_sets_by_source?: Record<string, string[]> | null;
     allowed_card_sources: string[] | null;
+    origin_template_id: string | null;
     created_at: string | null;
     updated_at: string | null;
     total_points: number;

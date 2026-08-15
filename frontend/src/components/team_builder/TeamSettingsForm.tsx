@@ -175,7 +175,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
             <FormSection
                 title="Allowed Sets"
                 icon={<FaLayerGroup />}
-                isOpenByDefault={isOpen('set')}
+                isOpenByDefault={false}
                 childrenWhenClosed={<SectionSummary items={cardsSummary} />}
             >
                 <div className="flex flex-wrap gap-2 col-span-full">
@@ -229,7 +229,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
             <FormSection
                 title="Rules"
                 icon={<FaGears />}
-                isOpenByDefault={isOpen('rules')}
+                isOpenByDefault={false}
                 childrenWhenClosed={<SectionSummary items={rulesSummary} />}
             >
                 <NumberInput
@@ -286,7 +286,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
             <FormSection
                 title="Player Filters"
                 icon={<FaFilter />}
-                isOpenByDefault={isOpen('player_filters')}
+                isOpenByDefault={false}
                 childrenWhenClosed={playerFiltersSummary.length > 0 ? <SectionSummary items={playerFiltersSummary} /> : undefined}
             >
                 <RangeFilter

@@ -415,7 +415,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
             {/* Tooltip */}
             {tooltip && (
-                <div className="bg-(--showdown-blue)/5 border-2 border-(--showdown-blue) text-(--showdown-blue) p-2 rounded-md text-xs">
+                <div className="bg-(--showdown-red)/5 border-2 border-(--showdown-red) text-(--showdown-red) p-2 rounded-md text-xs">
                     {tooltip}
                 </div>
             )}

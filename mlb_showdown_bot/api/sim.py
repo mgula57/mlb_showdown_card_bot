@@ -8,7 +8,7 @@ from ..core.card.sets import Set
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
-from ..core.simulation.models import SeasonSimulationConfig
+from ..core.simulation.models import PostseasonRound, SeasonSimulationConfig
 from ..core.simulation.season import Season
 from ..core.simulation.summary import SeasonSummaryBuilder
 from ..core.simulation.takeover import TakeoverOptions
@@ -107,12 +107,10 @@ def start_season_sim():
         if not team_id:
             return jsonify({'error': 'team_id is required'}), 400
 
-        try:
-            year = int(payload.get('year'))
-        except (TypeError, ValueError):
-            return jsonify({'error': 'year is required'}), 400
-        if year < _EARLIEST_SEASON:
-            return jsonify({'error': f'Seasons before {_EARLIEST_SEASON} cannot be simulated yet.'}), 400
+        # A CHALLENGE INSTANCE IS THE SOURCE OF TRUTH FOR year/replaces/pts_limit WHEN PRESENT -
+        # NEVER THE CLIENT-SUPPLIED year/replaces, SO A USER CAN'T LAUNCH A "SMALL BUDGET"
+        # CHALLENGE WITH A TEAM THAT DOESN'T ACTUALLY FIT IT.
+        challenge_instance_id = payload.get('challenge_instance_id')
 
         try:
             showdown_set = Set(str(payload.get('set') or '2000'))
@@ -120,9 +118,32 @@ def start_season_sim():
             return jsonify({'error': f"unknown set '{payload.get('set')}'"}), 400
 
         with PostgresDB() as db:
+            challenge = db.get_challenge_instance(challenge_instance_id) if challenge_instance_id else None
+            if challenge_instance_id and (challenge is None or challenge['expires_at'] <= datetime.now()):
+                return jsonify({'error': 'This challenge is no longer active.'}), 400
+
+            if challenge is not None:
+                year = challenge['year']
+            else:
+                try:
+                    year = int(payload.get('year'))
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'year is required'}), 400
+            if year < _EARLIEST_SEASON:
+                return jsonify({'error': f'Seasons before {_EARLIEST_SEASON} cannot be simulated yet.'}), 400
+
             row = db.get_team(team_id, g.user_id)
             if row is None:
                 return jsonify({'error': 'team not found'}), 404
+            # CAPTURED REGARDLESS OF WHETHER THIS IS A CHALLENGE RUN - POWERS THE WINS-PER-POINT
+            # LEADERBOARD SORT FOR EVERY PLAYED SEASON.
+            roster_points = row.get('total_points') or 0
+
+            if challenge is not None and challenge['pts_limit'] is not None and roster_points > challenge['pts_limit']:
+                return jsonify({
+                    'error': f"This team costs {roster_points} pts, over the {challenge['pts_limit']} pt challenge limit.",
+                }), 422
+
             active = db.get_active_sim_job(g.user_id)
             if active:
                 # THE BLOCKING JOB CAN BELONG TO A DIFFERENT TEAM - THE CAP IS PER-USER, NOT
@@ -138,14 +159,19 @@ def start_season_sim():
         if roster_error:
             return jsonify({'error': roster_error}), 422
 
-        # NO DB CONNECTION HELD HERE - THIS HITS THE MLB STATS API (UP TO ~90S WORST CASE WITH
-        # RETRIES) AND MUST NOT SIT ON A POOLED CONNECTION WHILE IT DOES.
-        try:
-            replaces = TakeoverOptions(year=year).resolve(payload.get('replaces'))
-        except ValueError as exc:
-            return jsonify({'error': str(exc)}), 400
-        if replaces is None:
-            return jsonify({'error': f'No club data available for {year}.'}), 400
+        if challenge is not None:
+            # RESOLVED AND VALIDATED ALREADY AT GENERATION TIME - NOT RE-DERIVED FROM ANYTHING
+            # THE CLIENT SENT.
+            replaces = challenge['replaces_abbr']
+        else:
+            # NO DB CONNECTION HELD HERE - THIS HITS THE MLB STATS API (UP TO ~90S WORST CASE WITH
+            # RETRIES) AND MUST NOT SIT ON A POOLED CONNECTION WHILE IT DOES.
+            try:
+                replaces = TakeoverOptions(year=year).resolve(payload.get('replaces'))
+            except ValueError as exc:
+                return jsonify({'error': str(exc)}), 400
+            if replaces is None:
+                return jsonify({'error': f'No club data available for {year}.'}), 400
 
         config = SeasonSimulationConfig(
             year=year,
@@ -162,7 +188,8 @@ def start_season_sim():
                 # THE BUILDER TEAM IS DROPPED FROM THE STORED CONFIG - IT IS A FULL ROSTER THE
                 # TEAM ITSELF ALREADY HOLDS, AND ONLY THE SETUP ECHO IS NEEDED FOR DISPLAY.
                 config={'year': year, 'set': showdown_set.value, 'replaces': replaces, 'seed': payload.get('seed'),
-                        'team_name': team.name, 'team_abbreviation': team.abbreviation},
+                        'team_name': team.name, 'team_abbreviation': team.abbreviation,
+                        'challenge_instance_id': challenge['instance_id'] if challenge is not None else None},
             )
 
         if not _sim_slots.acquire(blocking=False):
@@ -173,6 +200,7 @@ def start_season_sim():
         try:
             threading.Thread(
                 target=_run_sim_job, args=(job_id, config, replaces, g.user_id, team_id),
+                kwargs={'roster_points': roster_points, 'challenge': challenge},
                 name=f'sim-{job_id[:8]}', daemon=True,
             ).start()
         except Exception:
@@ -212,7 +240,23 @@ def _friendly_phase(message: str) -> str | None:
     return None
 
 
-def _run_sim_job(job_id: str, config: SeasonSimulationConfig, team_abbr: str, user_id: str | None = None, team_id: str | None = None) -> None:
+def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_pennant: bool) -> bool:
+    """Evaluate a challenge's goal against the played season's result."""
+    if goal_type == 'made_playoffs':
+        return team_season.made_playoffs
+    if goal_type == 'win_pennant':
+        return won_pennant
+    if goal_type == 'win_world_series':
+        return team_season.is_champion
+    if goal_type == 'min_wins':
+        return team_season.wins >= (goal_value or {}).get('min_wins', 0)
+    return False
+
+
+def _run_sim_job(
+    job_id: str, config: SeasonSimulationConfig, team_abbr: str, user_id: str | None = None, team_id: str | None = None,
+    roster_points: int | None = None, challenge: dict | None = None,
+) -> None:
     """Run one simulation to completion and record the result.
 
     Runs in a background thread with its own DB connections - it must never share the one the
@@ -261,6 +305,16 @@ def _run_sim_job(job_id: str, config: SeasonSimulationConfig, team_abbr: str, us
         # DROP THE ~6 MB RESULT BEFORE THE WRITE - ONLY THE PROJECTION IS PERSISTED.
         del result
 
+        challenge_result = None
+        won_pennant = None
+        if challenge is not None:
+            won_pennant = any(
+                series.round == PostseasonRound.CHAMPIONSHIP.value and series.winner == team_abbr
+                for series in summary.postseason
+            )
+            passed = _challenge_passed(challenge['goal_type'], challenge['goal_value'], summary.team, won_pennant)
+            challenge_result = 'passed' if passed else 'failed'
+
         payload = summary.model_dump(mode='json')
         with PostgresDB() as db:
             # The permanent record - written before the job is marked done, so a client that
@@ -271,6 +325,10 @@ def _run_sim_job(job_id: str, config: SeasonSimulationConfig, team_abbr: str, us
                 job_id=job_id, user_id=user_id, team_id=team_id,
                 team=config.takeover_team.model_dump(mode='json') if config.takeover_team else {},
                 summary=payload,
+                challenge_instance_id=challenge['instance_id'] if challenge is not None else None,
+                challenge_result=challenge_result,
+                won_pennant=won_pennant,
+                roster_points=roster_points,
             )
             db.finish_sim_job(job_id)
 
@@ -291,6 +349,23 @@ def _run_sim_job(job_id: str, config: SeasonSimulationConfig, team_abbr: str, us
 # MARK: - POLLING
 # ----------------------------------------------------------
 
+@sim_bp.route('/sim/challenges', methods=['GET'])
+def get_challenges():
+    """Active challenge instances, joined to their template.
+
+    Unauthenticated callers just see the list; a signed-in caller also gets their own best
+    attempt (if any) at each instance.
+    """
+    try:
+        user_id = optional_user_id()
+        with PostgresDB() as db:
+            challenges = db.fetch_active_challenges(user_id=user_id)
+        return jsonify({'challenges': challenges}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @sim_bp.route('/sim/leaderboard', methods=['GET'])
 def get_sim_leaderboard():
     """Played seasons ranked by wins, one row per team (its best run), newest season first.
@@ -302,10 +377,11 @@ def get_sim_leaderboard():
         user_id = optional_user_id()
         year = request.args.get('year', type=int)
         limit = min(request.args.get('limit', default=25, type=int), 100)
+        sort = request.args.get('sort', default='wins')
 
         rows = []
         with PostgresDB() as db:
-            rows = db.fetch_sim_leaderboard(user_id=user_id, year=year, per_season_limit=limit)
+            rows = db.fetch_sim_leaderboard(user_id=user_id, year=year, per_season_limit=limit, sort=sort)
 
         # Rows arrive ordered by (year DESC, rank ASC), so seasons group in a single pass.
         seasons: list[dict] = []

@@ -10,6 +10,7 @@ import { useAuth } from "../auth/AuthContext";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import * as Tabs from '@radix-ui/react-tabs';
+import { Tabs as TabButtons } from '../shared/Tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
     fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchShowdownTeam,
@@ -828,11 +829,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 <div className="flex items-center gap-1">
                                     <Tabs.Trigger
                                         value={tab.id}
-                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg
+                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg transition-colors
                                                    data-[state=active]:bg-(--background-quaternary)
                                                    data-[state=active]:font-bold
-                                                   data-[state=active]:text-(--showdown-blue)
-                                                   data-[state=inactive]:text-tertiary
+                                                   data-[state=active]:text-(--text-primary)
+                                                   data-[state=inactive]:text-(--text-tertiary)
                                                    data-[state=inactive]:font-medium
                                                    data-[state=inactive]:hover:bg-(--divider)"
                                     >
@@ -1071,22 +1072,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             )}
                                         </div>
 
-                                        <Tabs.List
-                                            className="flex gap-1 rounded-lg bg-(--background-tertiary) p-1 overflow-x-auto scrollbar-hide"
-                                        >
-                                            {tabs.map((tab) => (
-                                                <Tabs.Trigger
-                                                    key={tab.id}
-                                                    value={tab.id}
-                                                    className="flex flex-1 min-w-fit items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-md whitespace-nowrap transition-colors duration-150
-                                                               data-[state=active]:bg-(--showdown-blue) data-[state=active]:text-white data-[state=active]:font-semibold data-[state=active]:shadow-sm
-                                                               data-[state=inactive]:text-tertiary data-[state=inactive]:hover:text-secondary"
-                                                >
-                                                    <span>{tab.icon}</span>
-                                                    <span>{tab.label}</span>
-                                                </Tabs.Trigger>
-                                            ))}
-                                        </Tabs.List>
+                                        {/* Radix's Tabs.Content below reads its active state from Tabs.Root's
+                                            controlled value, not from Tabs.Trigger — so the shared button
+                                            group can drive it directly via onChange/setActiveTab. */}
+                                        <TabButtons tabs={tabs} value={activeTab} onChange={setActiveTab} fullWidth />
 
                                         {activeTab === "teams" && (
                                             <CustomSelect

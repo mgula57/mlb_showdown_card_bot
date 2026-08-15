@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
-    FaTableList, FaRankingStar, FaSitemap,
+    FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark,
 } from 'react-icons/fa6';
 import type { SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -13,11 +13,9 @@ import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS } from './simStatColumns';
 import { useStandingsEntries, useIdentity, hashId, label } from './simStandings';
 import { describePostseasonExit } from './postseasonExit';
+import { radixTabTriggerClass } from '../../shared/tabStyles';
 
-const TAB_TRIGGER_CLASS =
-    'relative flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg transition-colors whitespace-nowrap cursor-pointer ' +
-    'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
-    'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
+const TAB_TRIGGER_CLASS = radixTabTriggerClass();
 const TAB_ICON_CLASS = 'text-[12px]';
 
 function ordinal(n: number): string {
@@ -27,10 +25,12 @@ function ordinal(n: number): string {
 
 type Props = {
     summary: SeasonSimSummary;
+    /** Set only when this season was a Team Challenge attempt. */
+    challengeResult?: 'passed' | 'failed' | null;
     onRunAgain?: () => void;
 };
 
-export function SimResult({ summary, onRunAgain }: Props) {
+export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
     const identityFor = useIdentity(summary);
     const team = summary.team;
     const teamKey = team.replaced_abbr ?? '';
@@ -92,6 +92,17 @@ export function SimResult({ summary, onRunAgain }: Props) {
                     </button>
                 )}
             </div>
+
+            {challengeResult && (
+                <div className={`mx-4 flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-bold ${
+                    challengeResult === 'passed'
+                        ? 'bg-(--success)/15 text-(--success)'
+                        : 'bg-(--error)/10 text-(--error)'
+                }`}>
+                    {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
+                    {challengeResult === 'passed' ? 'Challenge passed' : 'Challenge not passed'}
+                </div>
+            )}
 
             {/* Headline numbers */}
             <div className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-2">

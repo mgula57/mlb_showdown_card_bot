@@ -25,6 +25,13 @@ class RosterToTeamConverter:
     # app-wide), so a starter beyond the 5th by games started is folded into the bullpen.
     MAX_ROTATION_SLOTS = 5
 
+    # A cameo appearance (e.g. a September call-up's lone start) shouldn't be eligible to win a
+    # roster spot just because nobody else is available at that position. Cutoff is relative to
+    # the team's own busiest player at each role rather than a fixed number, since a fixed floor
+    # either excludes everyone on a rebuilding/injury-riddled roster or (mid-season) a team that
+    # simply hasn't played many games yet.
+    MIN_PLAYING_TIME_FRACTION = 0.15
+
     def __init__(
         self,
         cards: list[ExploreDataRecord],
@@ -39,8 +46,21 @@ class RosterToTeamConverter:
         forced_batting_order: Optional[dict[str, int]] = None,
         forced_starting_pitcher_id: Optional[str] = None,
     ) -> None:
-        # A card can't be placed on the roster without an identifier the frontend can look up
-        self.cards = [c for c in cards if c.card_id]
+        # Optional real-roster overrides (used for All-Star teams, where the actual starting
+        # lineup positions, batting order, and starting pitcher are known rather than derived
+        # from playing time). All keyed by card_id.
+        self.forced_positions = forced_positions or {}
+        self.forced_batting_order = forced_batting_order or {}
+        self.forced_starting_pitcher_id = forced_starting_pitcher_id
+
+        # A card can't be placed on the roster without an identifier the frontend can look up.
+        # Cameo-sample cards are dropped too, except any card a forced override depends on --
+        # those reflect a verified real-life role (e.g. an actual All-Star starter) and should
+        # never be silently excluded by a playing-time heuristic.
+        protected_ids = set(self.forced_positions) | set(self.forced_batting_order)
+        if self.forced_starting_pitcher_id:
+            protected_ids.add(self.forced_starting_pitcher_id)
+        self.cards = self._filter_by_playing_time([c for c in cards if c.card_id], protected_ids=protected_ids)
         self.team_id = team_id
         self.name = name
         self.abbreviation = abbreviation
@@ -48,12 +68,43 @@ class RosterToTeamConverter:
         self.secondary_color = secondary_color
         self.season = season
         self.source = source
-        # Optional real-roster overrides (used for All-Star teams, where the actual starting
-        # lineup positions, batting order, and starting pitcher are known rather than derived
-        # from playing time). All keyed by card_id.
-        self.forced_positions = forced_positions or {}
-        self.forced_batting_order = forced_batting_order or {}
-        self.forced_starting_pitcher_id = forced_starting_pitcher_id
+
+    @classmethod
+    def _filter_by_playing_time(
+        cls, cards: list[ExploreDataRecord], protected_ids: set[str],
+    ) -> list[ExploreDataRecord]:
+        """Drop cameo-sample cards relative to the team's own most-used player at each role.
+
+        Hitters are indexed off the team's max PA (falling back to G for older data without PA
+        on record), starters off the team's max IP, and relievers off the team's max G
+        (appearances) -- each the natural playing-time unit for that role. A card survives if it
+        clears MIN_PLAYING_TIME_FRACTION of that team-specific max, so the cutoff scales down
+        automatically for a team assembled mid-season or one with thin, injury-riddled depth,
+        rather than excluding everyone (or no one) against a fixed number.
+        """
+        hitters = [c for c in cards if c.player_type != 'PITCHER']
+        pitchers = [c for c in cards if c.player_type == 'PITCHER']
+        starters = [c for c in pitchers if Position.SP in (c.positions_list or [])]
+        relievers = [c for c in pitchers if Position.SP not in (c.positions_list or [])]
+
+        def _hitter_measure(card: ExploreDataRecord) -> float:
+            return card.pa if card.pa is not None else (card.g or 0)
+
+        def _starter_measure(card: ExploreDataRecord) -> float:
+            return card.real_ip or 0.0
+
+        def _reliever_measure(card: ExploreDataRecord) -> float:
+            return card.g or 0
+
+        def _keep(group: list[ExploreDataRecord], measure) -> list[ExploreDataRecord]:
+            threshold = max((measure(c) for c in group), default=0.0) * cls.MIN_PLAYING_TIME_FRACTION
+            return [c for c in group if c.card_id in protected_ids or measure(c) >= threshold]
+
+        return (
+            _keep(hitters, _hitter_measure)
+            + _keep(starters, _starter_measure)
+            + _keep(relievers, _reliever_measure)
+        )
 
     @staticmethod
     def _max_roster_size(season: Optional[int]) -> Optional[int]:
@@ -110,19 +161,20 @@ class RosterToTeamConverter:
     def _preferred_position(card: ExploreDataRecord) -> Optional[str]:
         """The position a hitter played most, per Baseball Reference's position summary ordering.
 
-        `primary_positions` is already ordered by games played at each position; falls back to
-        `secondary_positions` for players with no primary position on record (e.g. limited playing time).
+        Deliberately does NOT fall back to `secondary_positions` for players with no primary
+        position on record. That case means BREF saw too little playing time to name a primary
+        position at all (e.g. a September call-up who DH'd once) — trusting it as "preferred"
+        let a near-unplayed cameo win a lineup slot outright whenever he happened to be the only
+        candidate in an otherwise-empty preferred pool (most often DH, since few regulars carry
+        DH as their primary position). Returning None here routes those players to pass 2 instead,
+        where they compete for the position on games played like everyone else.
         """
-        if card.primary_positions:
-            return card.primary_positions[0]
-        if card.secondary_positions:
-            return card.secondary_positions[0]
-        return None
+        return card.primary_positions[0] if card.primary_positions else None
 
     def _assign_lineup(self, hitters: list[ExploreDataRecord]) -> dict[str, ExploreDataRecord]:
         """Assign the 9 lineup positions to hitters.
 
-        Pass 1 prefers each hitter's most-played position (primary/secondary_positions).
+        Pass 1 prefers each hitter's most-played position (primary_positions).
         Pass 2 falls back to the broader positions_list-based eligibility (the pre-existing
         logic, which folds LF/RF together and allows any hitter at DH) for any position that
         pass 1 couldn't fill. Both passes fill the scarcest position first so a player who is

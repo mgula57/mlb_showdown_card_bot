@@ -16,14 +16,15 @@ import { DepthChartPanel } from './DepthChartPanel';
 import { LineupPanel } from './LineupPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { BottomSheet } from '../shared/BottomSheet';
+import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
-    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear,
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaPerson,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine
 } from 'react-icons/fa6';
 import { useNavigate } from 'react-router-dom';
-import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob } from '../../api/sim';
+import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
 import { SimSetupModal } from './sim/SimSetupModal';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
@@ -52,6 +53,10 @@ type TeamDetailProps = {
     onToggleStar?: () => void;
     /** When provided, shows a "Make a copy" button that forks this team into the user's own. */
     onFork?: () => void | Promise<void>;
+    /** Set when this team page was reached from a Team Challenge card - offers "Play Challenge"
+     *  in place of the plain "Play" action. Not stored on the team itself: a refresh drops back
+     *  to the normal action, and the team can still be freely reused for other challenges/sims. */
+    challenge?: ChallengeInstance;
 };
 
 const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
@@ -127,7 +132,7 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, challenge }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
 
@@ -151,6 +156,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [showSimModal, setShowSimModal] = useState(false);
+    const [showChallengeConfirm, setShowChallengeConfirm] = useState(false);
+    const [startingChallenge, setStartingChallenge] = useState(false);
+    const [challengeError, setChallengeError] = useState<string | null>(null);
+    const [challengeRunningJob, setChallengeRunningJob] = useState<{ jobId: string; teamId: string | null } | null>(null);
     const [logoUploading, setLogoUploading] = useState(false);
     // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
     // team that's never been played shows no dead tab.
@@ -480,7 +489,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     key={s.key}
                     type="button"
                     onClick={() => setDraftSource(s.key)}
-                    className={sourceTabClass(draftSource === s.key)}
+                    className={tabButtonClass(draftSource === s.key)}
                 >
                     {s.label}
                 </button>
@@ -647,6 +656,30 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         navigate(`/teams/${team.team_id}/sim/${job_id}`);
     }
 
+    /** Same as `handleStartSim`, but year/club/budget all come from the challenge instance - the
+     *  backend re-derives and enforces them server-side regardless of what's sent here. */
+    async function handleStartChallenge() {
+        if (!token || !challenge) return;
+        setStartingChallenge(true);
+        setChallengeError(null);
+        setChallengeRunningJob(null);
+        try {
+            const { job_id } = await startSeasonSim({
+                team_id: team.team_id,
+                year: challenge.year,
+                set: draft.allowed_sets?.[0] ?? '2000',
+                replaces: challenge.replaces_abbr,
+                challenge_instance_id: challenge.instance_id,
+            }, token);
+            setShowChallengeConfirm(false);
+            navigate(`/teams/${team.team_id}/sim/${job_id}`);
+        } catch (err) {
+            if (err instanceof SimAlreadyRunningError) setChallengeRunningJob({ jobId: err.jobId, teamId: err.teamId });
+            setChallengeError(err instanceof Error ? err.message : 'Failed to start the challenge.');
+            setStartingChallenge(false);
+        }
+    }
+
     // Eligible positions split into groups for the confirmation modal
     const confirmPositions = confirmCard ? getEligiblePositions(confirmCard) : [];
     const confirmFieldPositions   = confirmPositions.filter(p => !([...ROTATION_ROLES, ...BULLPEN_ROLES] as string[]).includes(p));
@@ -682,7 +715,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
                         {teamMode === 'complete' && (
                             <span className="text-[12px] font-semibold text-(--text-tertiary) shrink-0">
-                                {draft.roster.length} player{draft.roster.length !== 1 ? 's' : ''}
+                                <FaPerson /> {draft.roster.length}
                             </span>
                         )}
                         {isTeamDrafting(draft) && (
@@ -784,17 +817,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex h-full items-center ">
                         <button
                             type="button"
-                            onClick={() => setShowSimModal(true)}
+                            onClick={() => challenge ? setShowChallengeConfirm(true) : setShowSimModal(true)}
                             className="flex items-center gap-1.5 rounded-md h-8 px-2 py-1 mt-0.5 text-[11px] font-semibold hover:opacity-90 cursor-pointer shrink-0 transition-opacity"
                             style={{
                                 backgroundImage: `linear-gradient(135deg, ${draft.primary_color}, ${draft.secondary_color})`,
                                 color: getContrastTextColor(draft.primary_color)
                             }}
-                            aria-label="Simulate a season with this team"
-                            title="Drop this team into a real season and play all 162 games"
+                            aria-label={challenge ? `Play the ${challenge.title} challenge with this team` : 'Simulate a season with this team'}
+                            title={challenge ? challenge.title : 'Drop this team into a real season and play all 162 games'}
                         >
                             <FaPlay className="h-3 w-3" />
-                            Play
+                            {challenge ? 'Play Challenge' : 'Play'}
                         </button>
                     </div>
                 )}
@@ -1088,6 +1121,71 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 />
             )}
 
+            {/* Challenge launch confirm - year/club/budget are all already fixed by the
+                challenge, so there's nothing left to pick, just a confirmation. */}
+            {showChallengeConfirm && challenge && (() => {
+                const fits = challenge.pts_limit == null || pointsBreakdown.total <= challenge.pts_limit;
+                return (
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => !startingChallenge && setShowChallengeConfirm(false)}
+                    >
+                        <div
+                            className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden flex flex-col"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="px-4 pt-4 pb-3 border-b border-(--divider)">
+                                <div className="text-[14px] font-black text-(--text-primary)">{challenge.title}</div>
+                                <div className="text-[12px] text-(--text-secondary) mt-1">
+                                    Bringing <span className="font-bold text-(--text-primary)">{draft.name}</span> to take over
+                                    the {challenge.year} {challenge.replaces_abbr}.
+                                </div>
+                            </div>
+                            <div className="px-4 py-3 flex flex-col gap-2">
+                                {!fits && (
+                                    <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                                        This team costs {pointsBreakdown.total} pts, over the {challenge.pts_limit} pt challenge limit.
+                                    </div>
+                                )}
+                                {challengeError && (
+                                    <div className="flex items-center justify-between gap-2 text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                                        <span>{challengeError}</span>
+                                        {challengeRunningJob && (
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate(`/teams/${challengeRunningJob.teamId ?? team.team_id}/sim/${challengeRunningJob.jobId}`)}
+                                                className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+                                            >
+                                                View it
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowChallengeConfirm(false)}
+                                        disabled={startingChallenge}
+                                        className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleStartChallenge}
+                                        disabled={startingChallenge || !fits}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        {startingChallenge ? <FaSpinner className="animate-spin text-[11px]" /> : <FaPlay className="text-[11px]" />}
+                                        Play
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
             {showSettingsModal && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -1177,19 +1275,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     );
 }
 
-const TAB_TRIGGER_CLASS =
-    'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors ' +
-    'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
-    'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
-
-/** Same look as TAB_TRIGGER_CLASS but for a plain (controlled) button — used for the
- *  source tabs rendered in the BottomSheet handle, outside a Radix Tabs context. */
-function sourceTabClass(active: boolean): string {
-    return 'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors cursor-pointer ' +
-        (active
-            ? 'bg-(--background-quaternary) font-bold'
-            : 'text-(--text-tertiary) font-medium hover:bg-(--divider)');
-}
+const TAB_TRIGGER_CLASS = radixTabTriggerClass();
 
 type DraftPanelProps = {
     draftSource: CardSourceType;

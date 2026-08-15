@@ -546,6 +546,20 @@ def build_sim_job_table(
     db.close_connection()
     typer.echo("Done. internal.sim_job and internal.sim_season tables are ready.")
 
+@app.command("build_challenge_tables")
+def build_challenge_tables(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the challenge_template/challenge_instance tables. Run after build_user_teams_tables
+    and build_sim_job_table - it ALTERs both of those tables."""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building challenge tables...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_challenge_tables()
+    db.close_connection()
+    typer.echo("Done. internal.challenge_template and internal.challenge_instance tables are ready.")
+
 @app.command("build_sim_game_table")
 def build_sim_game_table(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
