@@ -23,7 +23,7 @@ export function NewTeamModal({ onConfirm, onCancel, initialPayload }: NewTeamMod
         abbreviation: '',
         primary_color: 'rgb(0, 0, 0)',
         secondary_color: 'rgb(255, 255, 255)',
-        is_public: false,
+        is_public: true,
         pts_limit: 5000,
         roster_size: 20,
         min_bench: 2,
