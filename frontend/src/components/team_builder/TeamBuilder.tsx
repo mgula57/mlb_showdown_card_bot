@@ -460,14 +460,17 @@ export default function TeamBuilder() {
                                     You haven't created any teams yet.
                                 </p>
                             ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                    {userTeams.map(team => (
-                                        <TeamCard
-                                            key={team.team_id}
-                                            team={team}
-                                            onClick={() => openTeam(team)}
-                                        />
-                                    ))}
+                                <div className="space-y-3" >
+                                    <h3 className="text-[15px] font-black text-(--text-primary) truncate">All Teams</h3>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {userTeams.map(team => (
+                                            <TeamCard
+                                                key={team.team_id}
+                                                team={team}
+                                                onClick={() => openTeam(team)}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </section>
