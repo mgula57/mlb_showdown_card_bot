@@ -368,7 +368,10 @@ def get_challenges():
 
 @sim_bp.route('/sim/leaderboard', methods=['GET'])
 def get_sim_leaderboard():
-    """Played seasons ranked by wins, one row per team (its best run), newest season first.
+    """Played seasons ranked by wins, split into groups within each season - one group for
+    open-play runs, plus one group per challenge instance played that year - newest season first.
+    Each group ranks its own entries independently, since comparing wins across different
+    budgets/goals wouldn't mean anything.
 
     Unauthenticated callers see public teams only; a signed-in user additionally sees their own
     private results and has their rows flagged.
@@ -383,14 +386,30 @@ def get_sim_leaderboard():
         with PostgresDB() as db:
             rows = db.fetch_sim_leaderboard(user_id=user_id, year=year, per_season_limit=limit, sort=sort)
 
-        # Rows arrive ordered by (year DESC, rank ASC), so seasons group in a single pass.
+        # Rows arrive ordered by (year DESC, open-play-first, challenge_title ASC, rank ASC), so
+        # seasons and their groups both fall out in a single pass.
         seasons: list[dict] = []
         for row in rows:
             if not seasons or seasons[-1]['year'] != row['year']:
-                seasons.append({'year': row['year'], 'entries': [], 'has_own_entry': False})
-            seasons[-1]['entries'].append(row)
+                seasons.append({'year': row['year'], 'has_own_entry': False, 'groups': []})
+            season = seasons[-1]
+
+            group_id = row['challenge_instance_id']
+            groups = season['groups']
+            if not groups or groups[-1]['challenge_instance_id'] != group_id:
+                groups.append({
+                    'challenge_instance_id': group_id,
+                    'challenge_title': row.pop('challenge_title'),
+                    'challenge_slug': row.pop('challenge_slug'),
+                    'entries': [],
+                })
+            else:
+                row.pop('challenge_title', None)
+                row.pop('challenge_slug', None)
+            groups[-1]['entries'].append(row)
+
             if row.get('is_own'):
-                seasons[-1]['has_own_entry'] = True
+                season['has_own_entry'] = True
 
         return jsonify({'seasons': seasons}), 200
     except Exception as exc:

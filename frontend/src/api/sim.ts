@@ -219,10 +219,21 @@ export type SimLeaderboardEntry = SimSeasonListItem & {
     attempts: number;
 };
 
+/** One ranked group within a season: open play (`challenge_instance_id: null`) or a single
+ *  challenge instance. Entries only rank against others in the same group — wins aren't
+ *  comparable across different budgets/goals. */
+export type SimLeaderboardGroup = {
+    challenge_instance_id: string | null;
+    /** Null for the open-play group. */
+    challenge_title: string | null;
+    challenge_slug: string | null;
+    entries: SimLeaderboardEntry[];
+};
+
 export type SimLeaderboardSeason = {
     year: number;
-    entries: SimLeaderboardEntry[];
     has_own_entry: boolean;
+    groups: SimLeaderboardGroup[];
 };
 
 /** A season's full result, permanently addressable by the job id that produced it. */

@@ -7785,6 +7785,12 @@ class PostgresDB:
         """Seasons that have been played, each with its ranked entries - one row per team,
         showing that team's best run at the season.
 
+        Entries rank within their own group: a challenge run only competes against other runs at
+        the same challenge instance, and open-play runs (no challenge) only against each other -
+        comparing wins across different budgets/goals would be meaningless otherwise. Rows arrive
+        ordered so callers can split each season into an open-play group followed by one group per
+        challenge instance, alphabetically by title.
+
         Visibility is joined live against `user_teams.is_public`, so a team turned private drops
         off other users' boards immediately. A user always sees their own entries, which is why
         a rank is "among the entries this viewer can see" rather than a global position.
@@ -7792,7 +7798,7 @@ class PostgresDB:
         Args:
           user_id: Viewer. Used to mark their own rows and to include their private teams.
           year: Restrict to a single season.
-          per_season_limit: Teams kept per season.
+          per_season_limit: Teams kept per season, per group.
           sort: 'wins' (default - best record) or 'efficiency' (best wins per roster point spent,
             the "GM efficiency" view - works for every season, not just challenge runs). Anything
             else falls back to 'wins'.
@@ -7815,24 +7821,31 @@ class PostgresDB:
                        l.primary_color, l.secondary_color, l.year, l.showdown_set, l.replaced_abbr,
                        l.wins, l.losses, l.win_pct, l.points, l.division, l.division_rank,
                        l.made_playoffs, l.is_champion, l.longest_win_streak, l.seed, l.created_at,
-                       l.roster_points,
+                       l.roster_points, l.challenge_instance_id, l.challenge_result,
+                       ct.title AS challenge_title, ct.slug AS challenge_slug,
                        (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
                   FROM internal.sim_season l
                   JOIN internal.user_teams t ON t.team_id = l.team_id
+                  LEFT JOIN internal.challenge_instance ci ON ci.instance_id = l.challenge_instance_id
+                  LEFT JOIN internal.challenge_template ct ON ct.template_id = ci.template_id
                  WHERE (t.is_public = TRUE OR l.user_id IS NOT DISTINCT FROM %(user_id)s)
                    AND (%(year)s IS NULL OR l.year = %(year)s)
             ),
-            -- One row per team per season: its best run. Without this a team that replays a
-            -- season would occupy several slots and crowd everyone else off the board.
+            -- One row per team per group per season: its best run. Without this a team that
+            -- replays a season/challenge would occupy several slots and crowd out everyone else.
             best_per_team AS (
                 SELECT *,
-                       ROW_NUMBER() OVER (PARTITION BY year, team_id ORDER BY {rank_order}) AS run_rank,
-                       COUNT(*) OVER (PARTITION BY year, team_id) AS attempts
+                       ROW_NUMBER() OVER (
+                           PARTITION BY year, team_id, challenge_instance_id ORDER BY {rank_order}
+                       ) AS run_rank,
+                       COUNT(*) OVER (PARTITION BY year, team_id, challenge_instance_id) AS attempts
                   FROM visible
             ),
             ranked AS (
                 SELECT *,
-                       ROW_NUMBER() OVER (PARTITION BY year ORDER BY {rank_order}) AS rank
+                       ROW_NUMBER() OVER (
+                           PARTITION BY year, challenge_instance_id ORDER BY {rank_order}
+                       ) AS rank
                   FROM best_per_team
                  WHERE run_rank = 1
             )
@@ -7840,16 +7853,19 @@ class PostgresDB:
                    primary_color, secondary_color, year, showdown_set, replaced_abbr,
                    wins, losses, win_pct, points, division, division_rank,
                    made_playoffs, is_champion, longest_win_streak, seed, created_at,
-                   roster_points, is_own, rank, attempts
+                   roster_points, challenge_instance_id, challenge_result,
+                   challenge_title, challenge_slug, is_own, rank, attempts
               FROM ranked
              WHERE rank <= %(limit)s
-             ORDER BY year DESC, rank ASC
+             ORDER BY year DESC, (challenge_instance_id IS NOT NULL) ASC, challenge_title ASC,
+                      challenge_instance_id ASC, rank ASC
             """,
             {'user_id': user_id, 'year': year, 'limit': per_season_limit},
         )
         for row in rows:
             row['job_id'] = str(row['job_id']) if row['job_id'] else None
             row['team_id'] = str(row['team_id']) if row['team_id'] else None
+            row['challenge_instance_id'] = str(row['challenge_instance_id']) if row['challenge_instance_id'] else None
         return rows
 
     # COLUMNS SHARED BY THE HISTORY LIST AND THE LEADERBOARD. THE SUMMARY IS DELIBERATELY ABSENT -

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaSpinner } from 'react-icons/fa6';
+import { FaSpinner, FaTrophy } from 'react-icons/fa6';
 import { fetchSimLeaderboard, type SimLeaderboardSeason, type SimLeaderboardSort } from '../../../api/sim';
 import { SimSeasonRow } from './SimSeasonRow';
 import { Tabs, type TabItem } from '../../shared/Tabs';
@@ -86,31 +86,51 @@ export function SimLeaderboard({ token, onOpenSeason }: Props) {
     return (
         <div className="flex flex-col gap-3">
             {sortToggle}
-            <div className="flex flex-col gap-5 px-4">
-                {ordered.map(season => (
-                    <section key={season.year}>
-                        <div className="flex items-baseline gap-2 mb-1.5">
-                            <h2 className="text-[15px] font-black text-(--text-primary)">{season.year}</h2>
-                            <span className="text-[11px] text-(--text-tertiary)">
-                                {season.entries.length} {season.entries.length === 1 ? 'team' : 'teams'} played
-                            </span>
-                            {season.has_own_entry && (
-                                <span className="text-[10px] font-bold text-(--showdown-blue) uppercase tracking-wide">You</span>
-                            )}
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                            {season.entries.map(entry => (
-                                <SimSeasonRow
-                                    key={entry.entry_id}
-                                    entry={entry}
-                                    rank={entry.rank}
-                                    attempts={entry.attempts}
-                                    onOpen={() => entry.team_id && entry.job_id && onOpenSeason(entry.team_id, entry.job_id)}
-                                />
+            <div className="flex flex-col gap-6 px-4">
+                {ordered.map(season => {
+                    const teamCount = season.groups.reduce((n, g) => n + g.entries.length, 0);
+                    return (
+                        <section key={season.year} className="flex flex-col gap-3">
+                            <div className="flex items-baseline gap-2">
+                                <h2 className="text-[15px] font-black text-(--text-primary)">{season.year}</h2>
+                                <span className="text-[11px] text-(--text-tertiary)">
+                                    {teamCount} {teamCount === 1 ? 'team' : 'teams'} played
+                                </span>
+                                {season.has_own_entry && (
+                                    <span className="text-[10px] font-bold text-(--showdown-blue) uppercase tracking-wide">You</span>
+                                )}
+                            </div>
+                            {season.groups.map(group => (
+                                <div key={group.challenge_instance_id ?? 'open-play'} className="flex flex-col gap-1.5">
+                                    <h3 className="flex items-center gap-1.5 text-[11px] font-bold text-(--text-secondary)">
+                                        {group.challenge_title ? (
+                                            <>
+                                                <FaTrophy className="text-[10px] text-(--showdown-blue)" />
+                                                {group.challenge_title}
+                                            </>
+                                        ) : (
+                                            'Open Play'
+                                        )}
+                                        <span className="text-(--text-tertiary) font-normal">
+                                            · {group.entries.length} {group.entries.length === 1 ? 'entry' : 'entries'}
+                                        </span>
+                                    </h3>
+                                    <div className="flex flex-col gap-1.5">
+                                        {group.entries.map(entry => (
+                                            <SimSeasonRow
+                                                key={entry.entry_id}
+                                                entry={entry}
+                                                rank={entry.rank}
+                                                attempts={entry.attempts}
+                                                onOpen={() => entry.team_id && entry.job_id && onOpenSeason(entry.team_id, entry.job_id)}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
                             ))}
-                        </div>
-                    </section>
-                ))}
+                        </section>
+                    );
+                })}
             </div>
         </div>
     );

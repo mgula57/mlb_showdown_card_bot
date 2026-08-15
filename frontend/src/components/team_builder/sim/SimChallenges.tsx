@@ -48,7 +48,7 @@ export function SimChallenges({ token, onQuickStart, onBuildFromScratch, onUseEx
     }
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {challenges.map(challenge => (
                 <ChallengeCard
                     key={challenge.instance_id}

@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { FaDice, FaPen, FaListUl, FaCheck, FaXmark, FaSpinner, FaChevronDown, FaChevronUp } from 'react-icons/fa6';
+import { useState, type ReactNode } from 'react';
+import {
+    FaDice, FaPen, FaListUl, FaCheck, FaXmark, FaSpinner, FaChevronDown, FaChevronUp,
+    FaCalendarDays, FaShirt, FaSackDollar, FaFlagCheckered, FaClock,
+} from 'react-icons/fa6';
 import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
 import type { ChallengeInstance } from '../../../api/sim';
 
@@ -25,10 +28,26 @@ function daysLeft(expiresAt: string): number {
     return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000));
 }
 
+/** One tile in the challenge's info grid — an icon, a label, and its value, stacked. */
+function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+    return (
+        <div className="flex items-start gap-2.5 rounded-lg bg-(--background-tertiary) px-3 py-3">
+            <span className="text-(--text-tertiary) text-[13px] mt-0.5 shrink-0">{icon}</span>
+            <span className="min-w-0">
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">{label}</span>
+                <span className="block text-[13px] font-bold text-(--text-primary) truncate">{value}</span>
+            </span>
+        </div>
+    );
+}
+
 /**
  * One live challenge instance: its goal/budget/club, the caller's own pass/fail badge, and the
  * three ways to bring a team to it. All three land on the normal team editor — a challenge team
  * is a real, permanent, editable team, not a throwaway roll.
+ *
+ * Sized for a small, high-value set (usually 3-6 live at once) rather than a dense scrolling
+ * list, so it spends vertical space generously on a proper info grid instead of a cramped pill row.
  */
 export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScratch, onUseExistingTeam }: Props) {
     const [showExisting, setShowExisting] = useState(false);
@@ -36,6 +55,7 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
     const [existingError, setExistingError] = useState<string | null>(null);
 
     const fits = (team: TeamSummary) => challenge.pts_limit == null || team.total_points <= challenge.pts_limit;
+    const left = daysLeft(challenge.expires_at);
 
     async function toggleExisting() {
         const next = !showExisting;
@@ -50,11 +70,11 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
     }
 
     return (
-        <div className="flex flex-col gap-3 rounded-xl border border-(--divider) bg-(--background-secondary) p-4">
-            <div className="flex items-start justify-between gap-2">
-                <div>
-                    <h3 className="text-[14px] font-black text-(--text-primary)">{challenge.title}</h3>
-                    <p className="text-[12px] text-(--text-secondary) mt-0.5">{challenge.description}</p>
+        <div className="flex flex-col gap-4 rounded-xl border border-(--divider) bg-(--background-secondary) p-5">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h3 className="text-[16px] font-black text-(--text-primary)">{challenge.title}</h3>
+                    <p className="text-[12px] text-(--text-secondary) mt-1.5 leading-relaxed">{challenge.description}</p>
                 </div>
                 {challenge.challenge_result && (
                     <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide rounded-full px-2 py-1 ${
@@ -68,39 +88,41 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
                 )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <span className="rounded-lg px-2 py-1 font-bold bg-(--background-tertiary) text-(--text-secondary)">{challenge.year}</span>
-                <span className="rounded-lg px-2 py-1 font-bold bg-(--background-tertiary) text-(--text-secondary)">Take over {challenge.replaces_abbr}</span>
-                <span className="rounded-lg px-2 py-1 font-bold bg-(--background-tertiary) text-(--text-secondary)">
-                    {challenge.pts_limit != null ? `${challenge.pts_limit} pt limit` : 'No pt limit'}
-                </span>
-                <span className="rounded-lg px-2 py-1 font-bold bg-(--background-tertiary) text-(--text-secondary)">{goalLabel(challenge)}</span>
-                <span className="ml-auto text-(--text-tertiary)">{daysLeft(challenge.expires_at)}d left</span>
+            <div className="grid grid-cols-2 gap-2">
+                <StatTile icon={<FaCalendarDays />} label="Season" value={String(challenge.year)} />
+                <StatTile icon={<FaShirt />} label="Take Over" value={challenge.replaces_abbr} />
+                <StatTile icon={<FaSackDollar />} label="Budget" value={challenge.pts_limit != null ? `${challenge.pts_limit} pts` : 'No limit'} />
+                <StatTile icon={<FaFlagCheckered />} label="Goal" value={goalLabel(challenge)} />
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[11px] text-(--text-tertiary)">
+                <FaClock className="text-[10px]" />
+                {left > 0 ? `${left} day${left === 1 ? '' : 's'} left` : 'Expires today'}
             </div>
 
             {token ? (
-                <div className="flex flex-col gap-1.5">
-                    <div className="flex flex-wrap gap-1.5">
-                        <button
-                            type="button"
-                            onClick={() => onQuickStart(challenge)}
-                            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
-                        >
-                            <FaDice className="text-[10px]" /> Quick Start
-                        </button>
+                <div className="flex flex-col gap-2">
+                    <button
+                        type="button"
+                        onClick={() => onQuickStart(challenge)}
+                        className="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[12px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
+                    >
+                        <FaDice className="text-[11px]" /> Quick Start
+                    </button>
+                    <div className="grid grid-cols-2 gap-2">
                         <button
                             type="button"
                             onClick={() => onBuildFromScratch(challenge)}
-                            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
                         >
                             <FaPen className="text-[10px]" /> Build from Scratch
                         </button>
                         <button
                             type="button"
                             onClick={toggleExisting}
-                            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
                         >
-                            <FaListUl className="text-[10px]" /> Use an Existing Team
+                            <FaListUl className="text-[10px]" /> Existing Team
                             {showExisting ? <FaChevronUp className="text-[9px]" /> : <FaChevronDown className="text-[9px]" />}
                         </button>
                     </div>
