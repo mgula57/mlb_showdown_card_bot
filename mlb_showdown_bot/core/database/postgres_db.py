@@ -1412,11 +1412,18 @@ class PostgresDB:
         the payload. Projecting to those columns is the point - `SELECT *` on `card_bot` moves ~60
         wide columns per row and measured ~25x slower than this for the same result set.
 
+        The filter/sort runs in a MATERIALIZED CTE against `card_bot` alone, answered by
+        `idx_card_bot_year_set` without touching a heap page - `dim_card` is only joined in
+        afterward, once the small ordered id list already exists. Doing the sort before the join
+        keeps the wide `card_data` jsonb out of the sort step; sorting it directly (year/set
+        filtered then joined then ordered) forces an external disk sort since each row's payload
+        is several KB, which dominated this query's runtime before the split.
+
         The ORDER BY is load-bearing, not cosmetic. Callers feed the cards dict straight into roster
         selection, so its iteration order decides tie-breaks and therefore the seeded RNG sequence.
-        The plan for this join is parallel, which leaves row order genuinely unstable run to run
-        without it. The sort matches what `fetch_card_list` returned before, keeping seeded
-        simulations reproducible across the change.
+        `seq` is assigned once in the CTE and re-asserted in the outer ORDER BY so the final row
+        order is correct regardless of the join strategy the planner picks. The sort matches what
+        `fetch_card_list` returned before, keeping seeded simulations reproducible across the change.
         """
 
         if self.connection is None:
@@ -1425,13 +1432,20 @@ class PostgresDB:
 
         card_data_expression, values = self._card_data_select("dim.card_data", strip_diagnostics)
         query = sql.SQL("""
-            SELECT bot.id AS player_id, bot.card_id AS card_id, {card_data} AS card_data
-            FROM card_bot bot
-            JOIN internal.dim_card dim ON dim.id = bot.card_id
-            WHERE bot.year = %s AND bot.showdown_set = %s
-            ORDER BY bot.points DESC NULLS LAST, bot.bref_id, bot.year
+            WITH pool AS MATERIALIZED (
+                SELECT
+                    id AS player_id,
+                    card_id,
+                    row_number() OVER (ORDER BY points DESC NULLS LAST, bref_id, year) AS seq
+                FROM card_bot
+                WHERE year = %s AND showdown_set = %s
+            )
+            SELECT pool.player_id, pool.card_id, {card_data} AS card_data
+            FROM pool
+            JOIN internal.dim_card dim ON dim.id = pool.card_id
+            ORDER BY pool.seq
         """).format(card_data=card_data_expression)
-        values += [int(year), set.value if isinstance(set, Set) else str(set)]
+        values = [int(year), set.value if isinstance(set, Set) else str(set)] + values
 
         cards: dict[str, ShowdownPlayerCard] = {}
         archive_card_ids: dict[str, str] = {}
@@ -1981,7 +1995,6 @@ class PostgresDB:
         # CONCURRENTLY so card uploads aren't blocked while it builds — that requires running
         # outside a transaction, which holds because the pool sets autocommit. A CONCURRENTLY
         # build that fails leaves an INVALID index behind; drop it and rerun.
-        # card_bot only exists on the archive DB, so this is best-effort.
         try:
             with self.connection.cursor() as cur:
                 cur.execute("""
@@ -1990,6 +2003,21 @@ class PostgresDB:
                 """)
         except Exception as e:
             print(f"Skipped idx_card_bot_mlb_year_set: {e}")
+
+        # fetch_season_card_pool filters on (year, showdown_set) alone (no mlb_id), so it can't
+        # use idx_card_bot_mlb_year_set as a real range scan - Postgres ends up walking the whole
+        # index checking the condition per entry instead of seeking. This index leads with the
+        # columns that query actually filters on, with the small archive-id/order-by columns
+        # included so the season-pool lookup is answered from the index alone.
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute("""
+                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_year_set
+                        ON card_bot (year, showdown_set)
+                        INCLUDE (id, card_id, points, bref_id);
+                """)
+        except Exception as e:
+            print(f"Skipped idx_card_bot_year_set: {e}")
 
     def upsert_historical_team(self, team: dict) -> None:
         """Upsert one identity row into internal.dim_historical_team.
