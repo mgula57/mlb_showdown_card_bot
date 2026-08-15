@@ -5,7 +5,7 @@ import {
     type HistoricalTeam, type HistoricalSeasonRef, type AsgTeamRef,
 } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
-import { TeamPreviewCard, type TeamPreviewData } from './TeamPreviewCard';
+import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
 import { FaSpinner, FaMagnifyingGlass, FaXmark } from 'react-icons/fa6';
 
@@ -37,13 +37,15 @@ export type HistoricalNavState = {
 const SEASONS_PER_PAGE = 4;
 const SEARCH_LIMIT = 60;
 
-const teamToPreview = (team: HistoricalTeam): TeamPreviewData => ({
+const teamToPreview = (team: HistoricalTeam, showdownSet?: string): TeamPreviewData => ({
     abbreviation: team.abbreviation || team.name,
     name: team.name,
     primary_color: team.primary_color,
     secondary_color: team.secondary_color,
     total_points: team.total_points,
     top_players: team.top_players,
+    source: 'mlb',
+    allowed_sets: showdownSet ? [showdownSet] : undefined,
 });
 
 /** One season's shelf. Teams are fetched when the shelf mounts, so scrolling back through
@@ -76,6 +78,8 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
             abbreviation: id.abbr, name: id.name,
             primary_color: id.primary_color, secondary_color: id.secondary_color,
             badge: 'All-Star',
+            source: 'asg',
+            allowed_sets: showdownSet ? [showdownSet] : undefined,
         };
     };
 
@@ -85,9 +89,9 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
                 <TeamPreviewCard key={`asg-${season}-${league}`} team={asgPreview(league)} onClick={() => onOpenAsg(season, league)} />
             ))}
             {loading
-                ? <div className="flex items-center px-6"><FaSpinner className="animate-spin text-(--text-tertiary)" /></div>
+                ? Array.from({ length: 6 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)
                 : teams.map(team => (
-                    <TeamPreviewCard key={team.team_id} team={teamToPreview(team)} onClick={() => onOpenTeam(team)} />
+                    <TeamPreviewCard key={team.team_id} team={teamToPreview(team, showdownSet)} onClick={() => onOpenTeam(team)} />
                 ))}
         </TeamShelf>
     );
@@ -220,7 +224,7 @@ export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: str
                         {searchResults.map(team => (
                             <TeamPreviewCard
                                 key={`${team.season}-${team.team_id}`}
-                                team={{ ...teamToPreview(team), badge: String(team.season) }}
+                                team={{ ...teamToPreview(team, userShowdownSet), badge: String(team.season) }}
                                 onClick={() => openTeam(team)}
                             />
                         ))}

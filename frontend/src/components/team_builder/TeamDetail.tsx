@@ -20,7 +20,7 @@ import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
-    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaPerson,
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine
 } from 'react-icons/fa6';
 import { useNavigate } from 'react-router-dom';
@@ -714,8 +714,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex items-center gap-2 overflow-x-scroll scrollbar-hide">
                         <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
                         {teamMode === 'complete' && (
-                            <span className="text-[12px] font-semibold text-(--text-tertiary) shrink-0">
-                                <FaPerson /> {draft.roster.length}
+                            <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
+                                <FaUsers /> {draft.roster.length}
                             </span>
                         )}
                         {isTeamDrafting(draft) && (
@@ -934,10 +934,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         >
                             {!isMlbTeam && (
                                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
-                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1.5" /> Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></Tabs.Trigger>
-                                    <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1.5" /> Lineup</Tabs.Trigger>
-                                    <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1.5" /> Draft</Tabs.Trigger>
-                                    {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1.5" /> Sims</Tabs.Trigger>}
+                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1" /><span>Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></span></Tabs.Trigger>
+                                    <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>
+                                    <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" /> Draft</Tabs.Trigger>
+                                    {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" /> Sims</Tabs.Trigger>}
                                 </Tabs.List>
                             )}
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>

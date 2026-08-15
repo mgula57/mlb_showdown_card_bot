@@ -1,6 +1,8 @@
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
+import type { TeamSource } from '../../api/userTeams';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastTextColor } from '../../functions/colors';
+import { imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
 import { FaCircle, FaHatWizard } from 'react-icons/fa6';
 
@@ -14,6 +16,10 @@ export type TeamPreviewData = {
     total_points?: number;
     is_drafting?: boolean;
     allowed_card_sources?: string[] | null;
+    /** Team provenance — gates the showdown-set icon grid, which only makes sense for non-user teams. */
+    source?: TeamSource;
+    /** Showdown set(s) this team is tied to. Rendered as set-logo icons in the top-right when `source` isn't 'user'. */
+    allowed_sets?: string[] | null;
     /** Top-3 cards, hydrated on the list payload. Optional — historical tiles have none. */
     top_players?: CardDatabaseRecord[];
     /** Small ribbon in the top-left, e.g. a year or "ALL-STAR". */
@@ -56,6 +62,9 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
     ];
     const hasCards = slots.some(Boolean);
 
+    const allowedSets = team.allowed_sets ?? [];
+    const showSetGrid = team.source != null && team.source !== 'user' && allowedSets.length > 0;
+
     return (
         <button
             type="button"
@@ -76,23 +85,40 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                 backgroundClip: 'padding-box, border-box',
             }}
         >
-            {team.badge && (
-                <span
-                    className="absolute top-0 right-0 z-20 text-[9px] font-black rounded-bl-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
-                    style={{ backgroundColor: secondary, color: onSecondary }}
-                >
-                    {team.badge}
-                </span>
-            )}
-            {team.is_drafting && (
-                <span
-                    className="absolute flex items-center top-0 right-0 z-20 text-[9px] font-black rounded px-1 py-0.5 leading-none"
-                    style={{ backgroundColor: secondary, color: onSecondary }}
-                >
-                    <FaCircle className="animate-pulse w-1.5 h-1.5 inline-block mr-0.5" />
-                    DRAFTING
-                </span>
-            )}
+            <div className="absolute top-0 right-0 z-20 flex flex-col items-end gap-0.5">
+                {team.badge && (
+                    <span
+                        className="text-[9px] font-black rounded-bl-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
+                        style={{ backgroundColor: secondary, color: onSecondary }}
+                    >
+                        {team.badge}
+                    </span>
+                )}
+                {team.is_drafting && (
+                    <span
+                        className="flex items-center text-[9px] font-black rounded-bl-md px-1 py-0.5 leading-none"
+                        style={{ backgroundColor: secondary, color: onSecondary }}
+                    >
+                        <FaCircle className="animate-pulse w-1.5 h-1.5 inline-block mr-0.5" />
+                        DRAFTING
+                    </span>
+                )}
+                {showSetGrid && (
+                    <div
+                        className={`rounded-bl-md p-1 ${allowedSets.length < 2 ? 'flex items-center' : 'grid grid-cols-3 gap-0.5'}`}
+                        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+                    >
+                        {allowedSets.map(set => {
+                            const useAbbreviated = allowedSets.length >= 2;
+                            const image = imageForSet(set, useAbbreviated);
+                            const heightClass = useAbbreviated ? 'h-3.5' : 'h-4.5';
+                            return image ? (
+                                <img key={set} src={image} alt={set} className={`${heightClass} w-auto object-contain`} />
+                            ) : null;
+                        })}
+                    </div>
+                )}
+            </div>
 
             {/* Field background image */}
             <img
@@ -133,7 +159,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             <img
                                 src={avatarUrl}
                                 alt="Your avatar"
-                                className="w-6 h-6 rounded-full object-cover shrink-0 ml-auto ring-1 ring-white/30"
+                                className="w-7 h-7 rounded-full object-cover shrink-0 ml-auto ring-1 ring-white/30"
                             />
                         )}
                     </div>
@@ -178,6 +204,17 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                 )}
             </div>
         </button>
+    );
+}
+
+/** Loading placeholder sized to match TeamPreviewCard, for shelves that are still fetching. */
+export function TeamPreviewCardSkeleton({ size = 'md', className = '' }: { size?: 'sm' | 'md'; className?: string }) {
+    const widthClass = size === 'sm' ? 'w-40' : 'w-52';
+    return (
+        <div
+            aria-hidden
+            className={`snap-start shrink-0 ${widthClass} aspect-3/4 rounded-xl bg-(--background-secondary) animate-pulse ${className}`}
+        />
     );
 }
 

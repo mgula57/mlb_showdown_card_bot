@@ -2,7 +2,7 @@ import type { TeamSummary } from '../../api/userTeams';
 import { getContrastTextColor } from '../../functions/colors';
 import { useTheme, imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { FaLock, FaGlobe, FaUsers } from 'react-icons/fa6';
+import { FaLock, FaUsers } from 'react-icons/fa6';
 import PointsBadge from '../cards/card_elements/PointsBadge';
 
 type TeamCardProps = {

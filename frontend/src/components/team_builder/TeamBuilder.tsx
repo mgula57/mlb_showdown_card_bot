@@ -135,7 +135,7 @@ export default function TeamBuilder() {
             const rest = withPlayers
                 .filter(t => !inOrdered.has(t.team_id))
                 .sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1);
-            return [...ordered, ...rest].slice(0, 4);
+            return [...ordered, ...rest].slice(0, 6);
         }
 
         return [...withPlayers]
