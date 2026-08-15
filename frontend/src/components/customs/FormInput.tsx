@@ -20,6 +20,8 @@ type FormInputProps = {
     value: string | number;
     /** Callback function when input value changes */
     onChange?: (value: string | null) => void;
+    /** Callback function when the input loses focus */
+    onBlur?: () => void;
     /** Optional CSS class names for additional styling */
     className?: string;
     /** HTML input type (text, number, date, file, etc.) */
@@ -82,7 +84,7 @@ type FormInputProps = {
  * @param isTitleCase - Auto-format text in title case
  * @returns Versatile input component with label
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step }) => {
 
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
@@ -146,6 +148,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                             spellCheck="false"
                             step={step}
                             onChange={(e) => onChange && onChange(e.target.value)}
+                            onBlur={onBlur}
                             disabled={disabled}
                             className={`
                                 w-full py-2 pl-2 ${ isClearable ? 'pr-0' : 'pr-2' }

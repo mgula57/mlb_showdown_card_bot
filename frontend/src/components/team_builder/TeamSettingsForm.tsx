@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Team, TeamUpdatePayload } from '../../api/userTeams';
 import FormInput from '../customs/FormInput';
+import NumberInput from '../customs/NumberInput';
 import FormEnabler from '../customs/FormEnabler';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import FormSection from '../customs/FormSection';
@@ -76,8 +77,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
         ? `PTS limit (${ptsLimit}) must be at least roster size × 10 (${minPtsLimit}).`
         : null;
 
-    const handleRosterSizeChange = (v: number) => {
-        const size = v || 25;
+    const handleRosterSizeChange = (size: number) => {
         const newStarterCount = getDefaultStartersForRosterSize(size);
         onChange({ roster_size: size, num_starters: newStarterCount });
     };
@@ -167,7 +167,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
             <FormSection title="Rules" icon={<FaGears />} isOpenByDefault={isOpen('rules')}>
                 <FormInput
                     label="PTS Limit"
-                    value={team.pts_limit ?? '5500'}
+                    value={team.pts_limit ?? ''}
                     type="number"
                     placeholder="None"
                     onChange={v => onChange({ pts_limit: v ? Number(v) : null })}
@@ -178,43 +178,38 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                         {ptsError}
                     </div>
                 )}
-                <FormInput
+                <NumberInput
                     label={`Roster Size (${MIN_ROSTER}–${MAX_ROSTER})`}
                     value={team.roster_size ?? 25}
-                    type="number"
-                    onChange={v => handleRosterSizeChange(Number(v))}
+                    onChange={handleRosterSizeChange}
                 />
                 {rosterSizeError && (
                     <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
                         {rosterSizeError}
                     </div>
                 )}
-                <FormInput
+                <NumberInput
                     label="Starting Pitchers"
-                    value={team.num_starters ?? 5}
-                    type="number"
-                    onChange={v => onChange({ num_starters: Number(v) || 5 })}
+                    value={numStarters}
+                    onChange={v => onChange({ num_starters: v })}
                 />
-                <FormInput
+                <NumberInput
                     label="Min Bullpen"
                     value={team.min_bullpen ?? 5}
-                    type="number"
-                    onChange={v => onChange({ min_bullpen: Number(v) || 5 })}
+                    onChange={v => onChange({ min_bullpen: v })}
                 />
 
-                <FormInput
+                <NumberInput
                     label="Min Bench"
                     value={team.min_bench ?? 4}
-                    type="number"
-                    onChange={v => onChange({ min_bench: Number(v) || 4 })}
+                    onChange={v => onChange({ min_bench: v })}
                 />
 
-                <FormInput
+                <NumberInput
                     label="Bench PTS Multiplier"
                     value={team.bench_pts_multiplier ?? 0.2}
-                    type="number"
                     step={0.1}
-                    onChange={v => onChange({ bench_pts_multiplier: Number(v) || 0.2 })}
+                    onChange={v => onChange({ bench_pts_multiplier: v })}
                 />
                 {rosterError && (
                     <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
