@@ -78,8 +78,9 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                 )}
                 <div className="flex items-center gap-2 mt-0.5">
                     <span className="flex items-center gap-0.5 text-[10px] text-(--text-tertiary)">
-                        <FaUsers className="text-[9px]" />
+                        <FaUsers />
                         {rosterCount}
+                        {drafting && <>/{team.roster_size}</>}
                     </span>
                     <PointsBadge points={team.total_points} bg_color={secondary} />
                 </div>

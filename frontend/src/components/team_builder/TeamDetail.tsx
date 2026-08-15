@@ -858,7 +858,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     <button
                                         type="button"
                                         onClick={() => setShowSettingsModal(true)}
-                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerLeft.btnClass}`}
                                         aria-label="Team settings"
                                         title="Team settings"
                                     >

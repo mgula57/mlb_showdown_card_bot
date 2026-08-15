@@ -62,7 +62,10 @@ def _apply_preset_lineup(position_players: list[SimPlayer], lineup_by_id: dict[s
 
 class SimTeam:
 
-    def __init__(self, year: int, name: str, position_players: list[SimPlayer], rotation: Rotation, bullpen: Bullpen, league: str = None) -> None:
+    def __init__(
+        self, year: int, name: str, position_players: list[SimPlayer], rotation: Rotation, bullpen: Bullpen,
+        league: str = None, bench_pts_multiplier: float = 1.0, bench_player_ids: Optional[set[str]] = None,
+    ) -> None:
         self.year = year
         self.name = name
         self.league = league
@@ -79,6 +82,12 @@ class SimTeam:
         self._last_roster_date: Optional[date] = None
 
         self.points = sum([player.points for player in self.active_players])
+
+        # BENCH DISCOUNT, AS APPLIED AT DRAFT TIME (`Team.bench_pts_multiplier`). ONLY SET FOR
+        # BUILDER/TOURNAMENT TEAMS (`from_builder_team`) - REAL-SEASON TEAMS HAVE NO SUCH CONCEPT,
+        # SO THE MULTIPLIER STAYS AT ITS 1.0 NO-OP DEFAULT AND `bench_player_ids` STAYS EMPTY.
+        self.bench_pts_multiplier = bench_pts_multiplier
+        self.bench_player_ids: set[str] = bench_player_ids or set()
 
         # CURRENT GAME STATE. REBUILT EACH GAME IN `add_new_game` - THE LINEUP IS FIXED FOR A WHOLE
         # GAME (NO DEFENSIVE SUBS), SO POSITION/DEFENSE LOOKUPS ARE COMPUTED ONCE PER GAME.
@@ -210,6 +219,8 @@ class SimTeam:
                 for slot in team.lineups[0].slots
             })
 
+        bench_player_ids = {slot.card_id for slot in team.roster if slot.roster_position.upper() == 'BE'}
+
         sim_team = cls(
             year=year,
             name=name_override or team.abbreviation,
@@ -217,6 +228,8 @@ class SimTeam:
             rotation=Rotation(players=rotation_players),
             bullpen=Bullpen(players=list(bullpen_players.values()), closer_id=closer_id),
             league=league,
+            bench_pts_multiplier=team.bench_pts_multiplier,
+            bench_player_ids=bench_player_ids,
         )
         # BUILDER TEAMS CARRY THEIR OWN USER-CHOSEN COLORS - NOT RESOLVED VIA THE ShowdownTeam
         # ENUM, SINCE A BUILDER ABBREVIATION (E.G. "MYTM") ISN'T A MEMBER OF IT.
@@ -610,13 +623,24 @@ class SimTeam:
     def win_pct(self) -> float:
         return round(float(self.wins) / max(self.games, 1), 3)
 
-    def as_record(self, division: str = None, games_back: float = None) -> TeamRecord:
+    def points_total(self, apply_bench_multiplier: bool = False) -> int:
+        """Sum of active-roster card points. `apply_bench_multiplier` discounts `bench_player_ids`
+        by `bench_pts_multiplier`, matching the effective cost paid at draft time rather than each
+        bench card's full price - off by default so the raw total (`self.points`) is unaffected."""
+        if not apply_bench_multiplier or not self.bench_player_ids:
+            return self.points
+        return sum(
+            round(player.points * self.bench_pts_multiplier) if player.id in self.bench_player_ids else player.points
+            for player in self.active_players
+        )
+
+    def as_record(self, division: str = None, games_back: float = None, apply_bench_multiplier: bool = False) -> TeamRecord:
         return TeamRecord(
             name=self.name,
             identity=self.identity,
             league=self.league,
             division=division,
-            points=self.points,
+            points=self.points_total(apply_bench_multiplier=apply_bench_multiplier),
             wins=self.wins,
             losses=self.losses,
             win_pct=self.win_pct,

@@ -285,7 +285,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             aria-label="Open navigation menu"
                             onClick={() => setIsSideMenuOpenMobile(true)}
                         >
-                            <FiMenu className="h-4 w-4" />
+                            <FiMenu className="h-5 w-5" />
                         </button>
                         
                         {/* Logo Display Logic */}

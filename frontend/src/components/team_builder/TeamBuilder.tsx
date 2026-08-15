@@ -408,6 +408,7 @@ export default function TeamBuilder() {
                         teamName={team.name}
                         token={token}
                         onBack={() => navigate('/teams/' + team.team_id)}
+                        onBackToChallenges={() => { setActiveTab('simulations'); navigate('/teams'); }}
                     />
                 </div>
             );

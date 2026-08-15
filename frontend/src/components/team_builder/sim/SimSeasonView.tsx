@@ -12,6 +12,9 @@ type Props = {
     teamName: string;
     token?: string;
     onBack: () => void;
+    /** Shown only once this season resolves as a Team Challenge attempt (`challengeResult` is set) -
+     *  a plain season sim has no Challenges-tab context to return to. */
+    onBackToChallenges?: () => void;
     onRunAgain?: () => void;
 };
 
@@ -25,7 +28,7 @@ type Props = {
  * run hasn't finished yet — does this fall back to polling the job, then re-fetching the season
  * once it succeeds.
  */
-export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Props) {
+export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChallenges, onRunAgain }: Props) {
     const [job, setJob] = useState<SimJob | null>(null);
     const [summary, setSummary] = useState<SeasonSimSummary | null>(null);
     const [challengeResult, setChallengeResult] = useState<'passed' | 'failed' | null>(null);
@@ -103,7 +106,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
 
     return (
         <div className="flex flex-col h-full overflow-y-auto">
-            <div className="px-4 pt-4">
+            <div className="px-4 pt-4 flex items-center gap-4">
                 <button
                     type="button"
                     onClick={onBack}
@@ -112,6 +115,16 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onRunAgain }: Pr
                     <FaArrowLeft className="text-[10px]" />
                     Back to team
                 </button>
+                {challengeResult !== null && onBackToChallenges && (
+                    <button
+                        type="button"
+                        onClick={onBackToChallenges}
+                        className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                    >
+                        <FaArrowLeft className="text-[10px]" />
+                        Back to Challenges
+                    </button>
+                )}
             </div>
 
             {error ? (

@@ -135,7 +135,7 @@ class Standings:
 
         return [division for division in self.divisions_dict.keys() if division[0:2] in leagues]
 
-    def as_result(self) -> StandingsResult:
+    def as_result(self, apply_bench_multiplier: bool = False) -> StandingsResult:
         divisions: dict[str, list[TeamRecord]] = {}
         for division, teams_dict in self.divisions_dict.items():
             teams_sorted = self.sort_teams(teams_dict=teams_dict)
@@ -143,7 +143,7 @@ class Standings:
             records: list[TeamRecord] = []
             for team_name, team in teams_sorted:
                 games_back = None if team.wins == top_team.wins else round(( abs(top_team.wins - team.wins) + abs(top_team.losses - team.losses) ) / 2.0, 1)
-                records.append(team.as_record(division=division, games_back=games_back))
+                records.append(team.as_record(division=division, games_back=games_back, apply_bench_multiplier=apply_bench_multiplier))
             divisions[division] = records
         return StandingsResult(divisions=divisions)
 

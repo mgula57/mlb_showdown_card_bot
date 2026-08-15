@@ -48,30 +48,36 @@ export function SimWinPctChart({ games, playoffCutlinePct }: Props) {
     }
 
     return (
-        <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--divider)" vertical={false} />
-                <XAxis
-                    dataKey="game" tickLine={false} axisLine={{ stroke: 'var(--divider)' }}
-                    tick={{ fill: 'var(--tertiary)', fontSize: 10 }} tickMargin={6}
-                />
-                <YAxis
-                    domain={[0, 1]} tickFormatter={(v: number) => v.toFixed(2).replace(/^0\./, '.')}
-                    tickLine={false} axisLine={false} tick={{ fill: 'var(--tertiary)', fontSize: 10 }} width={42}
-                />
-                <ReferenceLine y={0.5} stroke="var(--tertiary)" strokeDasharray="4 4" />
-                {playoffCutlinePct != null && (
-                    <ReferenceLine
-                        y={playoffCutlinePct} stroke="var(--warning)" strokeDasharray="2 3" strokeWidth={1.5}
-                        label={{ value: 'Playoff cutoff', position: 'insideBottomLeft', fill: 'var(--warning)', fontSize: 9 }}
+        // Fixed height floor so ResponsiveContainer has a concrete pixel height to resolve
+        // against when this card isn't grid-stretched to match Standings (i.e. below `md`,
+        // where the two SectionCards stack in a single column instead of sharing a grid row).
+        // flex-1/min-h-0 let it grow to fill the stretched row height once `md:grid-cols-2` applies.
+        <div className="h-64 min-h-0 flex-1">
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--divider)" vertical={false} />
+                    <XAxis
+                        dataKey="game" tickLine={false} axisLine={{ stroke: 'var(--divider)' }}
+                        tick={{ fill: 'var(--tertiary)', fontSize: 10 }} tickMargin={6}
                     />
-                )}
-                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--divider)' }} />
-                <Line
-                    type="monotone" dataKey="winPct" stroke="var(--showdown-blue)" strokeWidth={2}
-                    dot={false} activeDot={{ r: 4, fill: 'var(--showdown-blue)' }}
-                />
-            </LineChart>
-        </ResponsiveContainer>
+                    <YAxis
+                        domain={[0, 1]} tickFormatter={(v: number) => v.toFixed(2).replace(/^0\./, '.')}
+                        tickLine={false} axisLine={false} tick={{ fill: 'var(--tertiary)', fontSize: 10 }} width={42}
+                    />
+                    <ReferenceLine y={0.5} stroke="var(--tertiary)" strokeDasharray="4 4" />
+                    {playoffCutlinePct != null && (
+                        <ReferenceLine
+                            y={playoffCutlinePct} stroke="var(--warning)" strokeDasharray="2 3" strokeWidth={1.5}
+                            label={{ value: 'Playoff cutoff', position: 'insideBottomLeft', fill: 'var(--warning)', fontSize: 9 }}
+                        />
+                    )}
+                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--divider)' }} />
+                    <Line
+                        type="monotone" dataKey="winPct" stroke="var(--showdown-blue)" strokeWidth={2}
+                        dot={false} activeDot={{ r: 4, fill: 'var(--showdown-blue)' }}
+                    />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
     );
 }

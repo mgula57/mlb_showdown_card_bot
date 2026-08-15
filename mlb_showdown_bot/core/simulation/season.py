@@ -227,7 +227,7 @@ class Season:
                 progress_callback(index + 1, total_games)
 
         # SNAPSHOT REGULAR SEASON STANDINGS BEFORE PLAYOFF GAMES ADD TO TEAM W/L
-        standings_result = self.standings.as_result()
+        standings_result = self.standings.as_result(apply_bench_multiplier=config.apply_bench_pts_multiplier_to_points)
 
         # POSTSEASON
         if config.simulate_postseason and total_games > 0:

@@ -38,7 +38,7 @@ def _validate_year_pool(year_pool: str) -> None:
     raise ValueError("--year-pool must be 'any', 'random_range:lo,hi', or a comma list of years")
 
 # MATCHES api/sim.py's _EARLIEST_SEASON - THE ARCHIVE HAS NO FULL CARD COVERAGE BEFORE THIS.
-_EARLIEST_SEASON = 1977
+_EARLIEST_SEASON = 1975
 _INSTANCE_LIFETIME_DAYS = 7
 _PRUNE_AFTER_DAYS = 30
 # A CHOSEN YEAR CAN COME BACK WITH NO STANDINGS (TRANSIENT MLB STATS API HICCUP) - RETRY A FEW

@@ -61,10 +61,10 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
             : '--error';
 
     return (
-        <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4">
+        <div className="flex flex-col gap-2 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4">
             {/* Headline */}
-            <div className="px-4 flex items-start justify-between gap-3">
-                <div>
+            <div className="px-4 flex items-center justify-between gap-3">
+                <div >
                     <p className="text-[12px] text-(--text-tertiary)">
                         {summary.year} · Set {summary.set}
                         {team.replaced_abbr ? ` · took over ${team.replaced_abbr}` : ''}
@@ -76,22 +76,24 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                     </h1>
                     <p className={`text-[13px] ${outcomeColor}`}>
                         {teamName}
+                        {` ·  ${team.points} PTS`}
                     </p>
                 </div>
-                <div className={`flex flex-col items-end space-y-0 px-4 py-2 rounded-xl bg-(${outcomeColor})/15 font-bold text-(${outcomeColor})`}>
-                    
+
+                <div className={`flex flex-col items-center space-y-0 px-4 py-2 rounded-xl bg-(${outcomeColor})/15 font-bold text-(${outcomeColor})`}>
+                    {challengeResult && (
+                        <div className={`text-[12px] text-tertiary flex items-center gap-1 `}>
+                            {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
+                            {challengeResult === 'passed' ? 'Challenge passed' : 'Challenge failed'}
+                        </div>
+                    )}
                     <div className="text-[15px]">
                         {team.division && team.division_rank
                             ? `${ordinal(team.division_rank)} in the ${team.division}`
                             : ''}
                     </div>
-                    <div className={`text-[12px] opacity-90`}>{outcome}</div>
-                    {challengeResult && (
-                        <div className={`text-[12px] text-primary opacity-70 flex items-center gap-1 `}>
-                            {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
-                            {challengeResult === 'passed' ? 'Challenge passed' : 'Challenge failed'}
-                        </div>
-                    )}
+                    <div className={`text-[12px] text-tertiary`}>{outcome}</div>
+                    
                 </div>
                 {onRunAgain && (
                     <button
@@ -103,21 +105,6 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                         Run again
                     </button>
                 )}
-            </div>
-
-            {/* Headline numbers */}
-            <div className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                    { label: 'Win %', value: team.win_pct.toFixed(3).replace(/^0\./, '.') },
-                    { label: 'Points', value: team.points.toLocaleString() },
-                    { label: 'Longest W streak', value: String(team.longest_win_streak) },
-                    { label: 'Longest L streak', value: String(team.longest_losing_streak) },
-                ].map(stat => (
-                    <div key={stat.label} className="rounded-lg bg-(--background-tertiary) px-3 py-2">
-                        <p className="text-[11px] text-(--text-tertiary)">{stat.label}</p>
-                        <p className="text-[16px] font-bold text-(--text-primary) tabular-nums">{stat.value}</p>
-                    </div>
-                ))}
             </div>
 
             <Tabs.Root defaultValue="summary" className="flex flex-col">

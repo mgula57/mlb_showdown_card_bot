@@ -4,7 +4,7 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { getContrastTextColor } from '../../functions/colors';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { FaCircle, FaHatWizard } from 'react-icons/fa6';
+import { FaCircle, FaHatWizard, FaRobot } from 'react-icons/fa6';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
 // historical MLB teams, and All-Star teams alike.
@@ -159,7 +159,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             <img
                                 src={avatarUrl}
                                 alt="Your avatar"
-                                className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-white/30"
+                                className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white/30"
                             />
                         )}
                     </div>
@@ -186,6 +186,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                                     style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
                                 >
                                     {src === 'WOTC' ? <FaHatWizard className="w-2.5 h-2.5" /> : undefined}
+                                    {src === 'BOT' ? <FaRobot className="w-2.5 h-2.5" /> : undefined}
                                     {src}
                                 </div>
                             ))}

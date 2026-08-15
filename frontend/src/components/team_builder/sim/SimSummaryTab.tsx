@@ -28,6 +28,15 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
     );
 }
 
+function KpiTile({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-lg flex flex-col items-center bg-(--background-secondary) px-3 py-2">
+            <p className="text-[11px] text-(--text-tertiary)">{label}</p>
+            <p className="text-[18px] font-bold text-(--text-primary) tabular-nums">{value}</p>
+        </div>
+    );
+}
+
 type Props = {
     summary: SeasonSimSummary;
     /** Schedule key the takeover team runs under (the club it replaced). */
@@ -73,8 +82,21 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
         [summary.players],
     );
 
+    const kpis = useMemo(() => [
+        { label: 'Win %', value: team.win_pct.toFixed(3).replace(/^0\./, '.') },
+        { label: 'PTS / Win', value: team.wins > 0 ? (team.points / team.wins).toFixed(1) : '—' },
+        { label: 'Best W Streak', value: String(team.longest_win_streak) },
+        { label: 'Worst L Streak', value: String(team.longest_losing_streak) },
+    ], [team]);
+
     return (
         <div className="flex flex-col gap-4">
+            <SectionCard title="Season KPIs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {kpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
+                </div>
+            </SectionCard>
+
             <div className="grid gap-4 md:grid-cols-2">
                 <SectionCard title={team.division ? `${team.division} Standings` : 'Standings'}>
                     {divisionEntries.length > 0 ? (
@@ -84,13 +106,13 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                     )}
                 </SectionCard>
 
-                <SectionCard title="Win % Over Time">
+                <SectionCard title="Win % Over Time" >
                     <SimWinPctChart games={summary.games} playoffCutlinePct={playoffCutlinePct} />
                 </SectionCard>
             </div>
 
-            {mySeries.length > 0 && (
-                <SectionCard title="Postseason">
+            <SectionCard title="Postseason">
+                {mySeries.length > 0 ? (
                     <div className="flex flex-col gap-1.5">
                         {mySeries.map((series, i) => {
                             const opponentKey = series.home_team === teamKey ? series.away_team : series.home_team;
@@ -108,11 +130,13 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                             );
                         })}
                     </div>
-                </SectionCard>
-            )}
+                ) : (
+                    <p className="text-[13px] text-(--text-tertiary) py-2">Didn't make the postseason.</p>
+                )}
+            </SectionCard>
 
-            {myAwards.length > 0 && (
-                <SectionCard title="Awards">
+            <SectionCard title="Awards">
+                {myAwards.length > 0 ? (
                     <div className="flex flex-col gap-1.5">
                         {myAwards.map((award, i) => (
                             <div key={i} className="flex items-center gap-2 text-[12px] rounded-lg bg-(--background-secondary) px-3 py-2">
@@ -124,8 +148,10 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                             </div>
                         ))}
                     </div>
-                </SectionCard>
-            )}
+                ) : (
+                    <p className="text-[13px] text-(--text-tertiary) py-2">No awards won.</p>
+                )}
+            </SectionCard>
 
             <SectionCard title="Top Performers">
                 <div className="flex flex-col gap-3">

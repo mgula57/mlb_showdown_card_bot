@@ -143,6 +143,13 @@ class SeasonSimulationConfig(BaseModel):
     include_game_logs: bool = False
     include_box_scores: bool = False
 
+    # STANDINGS PTS DISPLAY. A BUILDER/TOURNAMENT TEAM'S BENCH SLOTS COST LESS THAN THEIR CARD'S
+    # FULL POINTS AT DRAFT TIME (SEE `Team.bench_pts_multiplier`), SO THE RAW SUM OF EVERY ACTIVE
+    # PLAYER'S POINTS OVERSTATES WHAT THE TEAM ACTUALLY SPENT. DEFAULT ON - IT IS A NO-OP FOR
+    # REAL-SEASON TEAMS (NO `bench_player_ids`/`bench_pts_multiplier` IS EVER SET FOR THOSE), SO
+    # THIS ONLY CHANGES DISPLAYED PTS FOR BUILDER/TOURNAMENT/TAKEOVER ROSTERS.
+    apply_bench_pts_multiplier_to_points: bool = True
+
     @property
     def is_tournament(self) -> bool:
         return len(self.custom_teams) > 0
