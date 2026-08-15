@@ -22,6 +22,29 @@ type PlayerFilters = {
     team?: string[];
 };
 
+type SummaryItem = {
+    label?: string;
+    value: string;
+    image?: string;
+};
+
+/** Compact badge row shown under a collapsed FormSection, mirroring CustomCardBuilder's summary style. */
+function SectionSummary({ items }: { items: SummaryItem[] }) {
+    if (items.length === 0) return null;
+    return (
+        <div className="text-sm font-bold flex flex-wrap items-center gap-x-2 gap-y-1 text-(--text-tertiary)">
+            {items.map((item, i) => (
+                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex items-center rounded-lg px-1.5 py-0.5 border-2 border-(--divider)">
+                    {item.image
+                        ? <img src={item.image} alt={item.value} className="h-5 w-auto object-contain" />
+                        : <span>{item.label ? `${item.label}: ` : ''}{item.value}</span>
+                    }
+                </div>
+            ))}
+        </div>
+    );
+}
+
 type TeamSettingsFormProps = {
     team: Partial<Team>;
     onChange: (updates: TeamUpdatePayload) => void;
@@ -72,8 +95,8 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
         ? `Roster size must be between ${MIN_ROSTER} and ${MAX_ROSTER}.`
         : null;
     const minPtsLimit  = rosterSize * 10;
-    const ptsLimit     = team.pts_limit ?? null;
-    const ptsError     = ptsLimit !== null && ptsLimit < minPtsLimit
+    const ptsLimit     = team.pts_limit ?? 5000;
+    const ptsError     = ptsLimit < minPtsLimit
         ? `PTS limit (${ptsLimit}) must be at least roster size × 10 (${minPtsLimit}).`
         : null;
 
@@ -82,8 +105,42 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
         onChange({ roster_size: size, num_starters: newStarterCount });
     };
 
+    const cardsSummary: SummaryItem[] = (() => {
+        const restricted = team.allowed_card_sources ?? [];
+        const items: SummaryItem[] = restricted.length > 0
+            ? TEAM_CARD_SOURCES.filter(s => restricted.includes(s.value)).map(s => ({ value: s.label }))
+            : [{ value: 'All Sources' }];
+        activeSources(team).forEach(source => {
+            allowedSetsForSource(team, source).forEach(set => {
+                items.push({ value: set, image: imageForSet(set) });
+            });
+        });
+        return items;
+    })();
+
+    const rulesSummary: SummaryItem[] = [
+        { label: 'PTS', value: team.pts_limit != null ? String(team.pts_limit) : 'No Limit' },
+        { label: 'Roster', value: String(rosterSize) },
+        { label: 'SP', value: String(numStarters) },
+        { label: 'Bullpen', value: String(minBullpen) },
+        { label: 'Bench', value: String(minBench) },
+        { label: 'Bench Pts', value: `${team.bench_pts_multiplier ?? 0.2}x` },
+    ];
+
+    const playerFiltersSummary: SummaryItem[] = (() => {
+        if (Object.keys(pf).length === 0) return [];
+        const items: SummaryItem[] = [];
+        if (pf.min_year !== undefined || pf.max_year !== undefined) {
+            items.push({ label: 'Year', value: `${pf.min_year ?? 'Any'}–${pf.max_year ?? 'Any'}` });
+        }
+        (pf.organization ?? []).forEach(o => items.push({ label: 'Org', value: o }));
+        (pf.league ?? []).forEach(l => items.push({ label: 'League', value: l }));
+        (pf.team ?? []).forEach(t => items.push({ label: 'Team', value: t }));
+        return items;
+    })();
+
     return (
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex flex-col gap-6 p-4">
             <FormSection title="Identity" icon={<FaUser />} isOpenByDefault={isOpen('identity')}>
                 <FormInput
                     label="Team Name"
@@ -115,7 +172,12 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                 />
             </FormSection>
 
-            <FormSection title="Cards" icon={<FaLayerGroup />} isOpenByDefault={isOpen('set')}>
+            <FormSection
+                title="Allowed Sets"
+                icon={<FaLayerGroup />}
+                isOpenByDefault={isOpen('set')}
+                childrenWhenClosed={<SectionSummary items={cardsSummary} />}
+            >
                 <div className="flex flex-wrap gap-2 col-span-full">
                     <div className="text-sm font-semibold text-(--text-secondary) w-full">
                         Allowed Card Sources
@@ -164,14 +226,17 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                 ))}
             </FormSection>
 
-            <FormSection title="Rules" icon={<FaGears />} isOpenByDefault={isOpen('rules')}>
-                <FormInput
+            <FormSection
+                title="Rules"
+                icon={<FaGears />}
+                isOpenByDefault={isOpen('rules')}
+                childrenWhenClosed={<SectionSummary items={rulesSummary} />}
+            >
+                <NumberInput
                     label="PTS Limit"
-                    value={team.pts_limit ?? ''}
-                    type="number"
-                    placeholder="None"
-                    onChange={v => onChange({ pts_limit: v ? Number(v) : null })}
+                    value={ptsLimit}
                     step={10}
+                    onChange={v => onChange({ pts_limit: v })}
                 />
                 {ptsError && (
                     <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
@@ -218,7 +283,12 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                 )}
             </FormSection>
 
-            <FormSection title="Player Filters" icon={<FaFilter />} isOpenByDefault={isOpen('player_filters')}>
+            <FormSection
+                title="Player Filters"
+                icon={<FaFilter />}
+                isOpenByDefault={isOpen('player_filters')}
+                childrenWhenClosed={playerFiltersSummary.length > 0 ? <SectionSummary items={playerFiltersSummary} /> : undefined}
+            >
                 <RangeFilter
                     label="Year"
                     minValue={pf.min_year}
