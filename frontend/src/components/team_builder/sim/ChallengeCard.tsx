@@ -79,8 +79,8 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
                 {challenge.challenge_result && (
                     <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide rounded-full px-2 py-1 ${
                         challenge.challenge_result === 'passed'
-                            ? 'bg-green-500/15 text-green-600 dark:text-green-400'
-                            : 'bg-(--background-tertiary) text-(--text-tertiary)'
+                            ? 'bg-green-500/15 text-(--green)'
+                            : 'bg-(--warning)/10 text-(--warning)'
                     }`}>
                         {challenge.challenge_result === 'passed' ? <FaCheck /> : <FaXmark />}
                         {challenge.challenge_result === 'passed' ? 'Passed' : 'Try again'}

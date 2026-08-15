@@ -10,7 +10,7 @@ type View = 'challenges' | 'leaderboard' | 'mine';
 const VIEW_TABS: TabItem<View>[] = [
     { id: 'challenges', label: 'Challenges' },
     { id: 'leaderboard', label: 'Leaderboard' },
-    { id: 'mine', label: 'My Seasons' },
+    { id: 'mine', label: 'My Attempts' },
 ];
 
 type Props = {
