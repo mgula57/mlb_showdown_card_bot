@@ -36,12 +36,16 @@ let bodyScrollLockCount = 0;
  * Props for the Modal component
  */
 type ModalProps = {
-    /** Content to be displayed within the modal */
+    /** Content to be displayed within the modal. Scrolls independently of the header/footer. */
     children: React.ReactNode;
     /** Callback function called when the modal should be closed */
     onClose: () => void;
     /** Optional title to display in the modal header */
     title?: string;
+    /** Optional subtitle shown under the title, e.g. a short description of the modal's purpose */
+    subtitle?: string;
+    /** Optional footer content (e.g. action buttons), pinned below the scrollable body */
+    footer?: React.ReactNode;
     /** Size preset for the modal width - defaults to 'lg' */
     size?: 'sm' | 'md' | 'lg' | 'xl';
     /** If true, disables the close button in the header */
@@ -64,7 +68,7 @@ type ModalProps = {
  * @param props - Modal component props
  * @returns A full-screen modal dialog overlay
  */
-export function Modal({ children, onClose, title, size = 'lg', disableCloseButton = false, isVisible = true }: ModalProps) {
+export function Modal({ children, onClose, title, subtitle, footer, size = 'lg', disableCloseButton = false, isVisible = true }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
     const scrollYRef = useRef(0); // Stores scroll position for restoration
 
@@ -176,28 +180,37 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
             className="fixed left-0 top-0 w-screen h-lvh bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer"
             onClick={handleBackdropClick}
         >
-            {/* Modal container with responsive sizing and theming */}
-            <div 
+            {/* Modal container with responsive sizing and theming. flex-col so the header and
+                footer stay pinned while only the body scrolls. */}
+            <div
                 ref={modalRef}
                 className={`
-                    bg-(--background-primary) 
+                    bg-(--background-primary)
                     rounded-2xl
-                    shadow-2xl 
-                    w-full 
+                    shadow-2xl
+                    w-full
                     ${sizeClasses[size]}
-                    max-h-[85vh] 
-                    overflow-y-auto
+                    max-h-[85vh]
+                    flex flex-col
+                    overflow-hidden
                     cursor-default
                     relative
                     border border-form-element
                 `}
             >
-                {/* Conditional header with title and close button */}
+                {/* Conditional header with title, optional subtitle, and close button */}
                 {title ? (
-                    <div className="flex items-center justify-between p-3 border-b border-(--border-secondary)">
-                        <h2 className="text-xl font-semibold text-(--text-primary)">
-                            {title}
-                        </h2>
+                    <div className="flex items-start justify-between gap-3 p-3 border-b border-form-element shrink-0">
+                        <div className="min-w-0">
+                            <h2 className="text-xl font-semibold text-(--text-primary) truncate">
+                                {title}
+                            </h2>
+                            {subtitle && (
+                                <p className="text-[12px] text-(--text-secondary) mt-0.5">
+                                    {subtitle}
+                                </p>
+                            )}
+                        </div>
                         {!disableCloseButton && closeButton()}
                     </div>
                 ) : (
@@ -208,10 +221,17 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
                     </div>
                 )}
 
-                {/* Modal content area */}
-                <div className="p-0">
+                {/* Scrollable modal content area */}
+                <div className="flex-1 min-h-0 overflow-y-auto">
                     {children}
                 </div>
+
+                {/* Optional footer (e.g. action buttons), pinned below the scrollable body */}
+                {footer && (
+                    <div className="border-t border-form-element shrink-0 p-3 flex flex-col gap-2">
+                        {footer}
+                    </div>
+                )}
 
             </div>
         </div>

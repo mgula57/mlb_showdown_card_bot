@@ -122,8 +122,8 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
         { label: 'PTS', value: team.pts_limit != null ? String(team.pts_limit) : 'No Limit' },
         { label: 'Roster', value: String(rosterSize) },
         { label: 'SP', value: String(numStarters) },
-        { label: 'Bullpen', value: String(minBullpen) },
-        { label: 'Bench', value: String(minBench) },
+        { label: 'Min Bullpen', value: String(minBullpen) },
+        { label: 'Min Bench', value: String(minBench) },
         { label: 'Bench Pts', value: `${team.bench_pts_multiplier ?? 0.2}x` },
     ];
 
@@ -155,11 +155,15 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                     onChange={v => onChange({ abbreviation: (v ?? '').toUpperCase().slice(0, 5) })}
                     placeholder="e.g. NYY"
                 />
-                <FormEnabler
-                    label="Public"
-                    isEnabled={team.is_public ?? false}
-                    onChange={v => onChange({ is_public: !v })}
-                />
+                <div className='flex flex-col space-y-2' >
+                    <label className="text-sm font-medium text-secondary mt-0.5">Make Public?</label>
+                    <FormEnabler
+                        label={`${team.is_public ?? true ? 'Public' : 'Private'}`}
+                        isEnabled={team.is_public ?? true}
+                        onChange={v => onChange({ is_public: !v })}
+                    />
+                </div>
+                
                 <ColorPicker
                     label="Primary Color"
                     value={team.primary_color ?? 'rgb(0,0,0)'}
@@ -170,60 +174,6 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                     value={team.secondary_color ?? 'rgb(255,255,255)'}
                     onChange={v => onChange({ secondary_color: v })}
                 />
-            </FormSection>
-
-            <FormSection
-                title="Allowed Sets"
-                icon={<FaLayerGroup />}
-                isOpenByDefault={false}
-                childrenWhenClosed={<SectionSummary items={cardsSummary} />}
-            >
-                <div className="flex flex-wrap gap-2 col-span-full">
-                    <div className="text-sm font-semibold text-(--text-secondary) w-full">
-                        Allowed Card Sources
-                    </div>
-                    {TEAM_CARD_SOURCES.map(s => {
-                        const active = (team.allowed_card_sources ?? []).includes(s.value);
-                        return (
-                            <button
-                                key={s.value}
-                                type="button"
-                                onClick={() => {
-                                    const current = team.allowed_card_sources ?? [];
-                                    const next = active
-                                        ? current.filter(v => v !== s.value)
-                                        : [...current, s.value];
-                                    onChange({ allowed_card_sources: next, ...normalizeSetSettings({ ...team, allowed_card_sources: next }) });
-                                }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors cursor-pointer
-                                    ${active
-                                        ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary)'
-                                        : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary)'
-                                    }`}
-                            >
-                                {s.label}
-                            </button>
-                        );
-                    })}
-                    {(team.allowed_card_sources ?? []).length === 0 && (
-                        <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
-                            No restriction — all sources allowed.
-                        </div>
-                    )}
-                </div>
-
-                {/* Sets are chosen per source: Bot cards exist in every set so a team pins one,
-                    while WOTC sets were printed alongside each other and can be combined. */}
-                {activeSources(team).map(source => (
-                    <SetToggleGroup
-                        key={source}
-                        label={`${TEAM_CARD_SOURCES.find(s => s.value === source)?.label ?? source} Sets`}
-                        hint={isSingleSetSource(source) ? 'Pick one' : 'Combine any'}
-                        options={setOptionsForSource(source)}
-                        selected={allowedSetsForSource(team, source)}
-                        onToggle={set => onChange(toggleSetForSource(team, source, set))}
-                    />
-                ))}
             </FormSection>
 
             <FormSection
@@ -281,6 +231,60 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                         {rosterError}
                     </div>
                 )}
+            </FormSection>
+
+            <FormSection
+                title="Allowed Sets"
+                icon={<FaLayerGroup />}
+                isOpenByDefault={false}
+                childrenWhenClosed={<SectionSummary items={cardsSummary} />}
+            >
+                <div className="flex flex-wrap gap-2 col-span-full">
+                    <div className="text-sm font-semibold text-(--text-secondary) w-full">
+                        Allowed Card Sources
+                    </div>
+                    {TEAM_CARD_SOURCES.map(s => {
+                        const active = (team.allowed_card_sources ?? []).includes(s.value);
+                        return (
+                            <button
+                                key={s.value}
+                                type="button"
+                                onClick={() => {
+                                    const current = team.allowed_card_sources ?? [];
+                                    const next = active
+                                        ? current.filter(v => v !== s.value)
+                                        : [...current, s.value];
+                                    onChange({ allowed_card_sources: next, ...normalizeSetSettings({ ...team, allowed_card_sources: next }) });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors cursor-pointer
+                                    ${active
+                                        ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary)'
+                                        : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary)'
+                                    }`}
+                            >
+                                {s.label}
+                            </button>
+                        );
+                    })}
+                    {(team.allowed_card_sources ?? []).length === 0 && (
+                        <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
+                            No restriction — all sources allowed.
+                        </div>
+                    )}
+                </div>
+
+                {/* Sets are chosen per source: Bot cards exist in every set so a team pins one,
+                    while WOTC sets were printed alongside each other and can be combined. */}
+                {activeSources(team).map(source => (
+                    <SetToggleGroup
+                        key={source}
+                        label={`${TEAM_CARD_SOURCES.find(s => s.value === source)?.label ?? source} Sets`}
+                        hint={isSingleSetSource(source) ? 'Pick one' : 'Combine any'}
+                        options={setOptionsForSource(source)}
+                        selected={allowedSetsForSource(team, source)}
+                        onToggle={set => onChange(toggleSetForSource(team, source, set))}
+                    />
+                ))}
             </FormSection>
 
             <FormSection

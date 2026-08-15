@@ -33,6 +33,7 @@ import { imageForSet } from '../shared/SiteSettingsContext';
 import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
 import { effectiveBenchBullpenMinimums } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
+import { Modal } from '../shared/Modal';
 
 type PendingSlot =
     | { kind: 'field'; position: string; current: LineupSlot | null }
@@ -1187,35 +1188,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             })()}
 
             {showSettingsModal && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-                    onClick={closeSettingsModal}
-                >
-                    <div
-                        className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden flex flex-col max-h-[85vh]"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-(--divider) shrink-0">
-                            <div className="text-[13px] font-bold text-(--text-primary)">Team Settings</div>
-                            <button
-                                type="button"
-                                onClick={closeSettingsModal}
-                                className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors hover:bg-(--divider) rounded-md p-1 cursor-pointer"
-                            >
-                                <FaXmark className="text-[13px]" />
-                            </button>
-                        </div>
-
-                        <div className="overflow-y-auto flex-1">
-                            <TeamSettingsForm
-                                team={settingsDraft}
-                                onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
-                            />
-                        </div>
-
-                        {/* Footer: require explicit confirmation before applying */}
-                        <div className="border-t border-(--divider) bg-(--background-primary) px-4 py-3 flex flex-col gap-2 shrink-0">
+                <Modal
+                    title="Team Settings"
+                    onClose={closeSettingsModal}
+                    size="sm"
+                    footer={
+                        <>
                             {pendingSettings && settingsChanges.length > 0 && (
                                 <ul className="flex flex-col gap-0.5">
                                     {settingsChanges.map(line => (
@@ -1247,9 +1225,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     {pendingSettings && settingsChanges.length > 0 ? 'Discard' : 'Close'}
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                </div>
+                        </>
+                    }
+                >
+                    <TeamSettingsForm
+                        team={settingsDraft}
+                        onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
+                    />
+                </Modal>
             )}
 
             {showAutofill && (
