@@ -19,7 +19,7 @@ export function NewTeamModal({ onConfirm, onCancel }: NewTeamModalProps) {
         primary_color: 'rgb(0, 0, 0)',
         secondary_color: 'rgb(255, 255, 255)',
         is_public: false,
-        pts_limit: null,
+        pts_limit: 5000,
         roster_size: 20,
         min_bench: 2,
         min_bullpen: 5,
