@@ -42,6 +42,8 @@ type FormInputProps = {
     showSearchIcon?: boolean;
     /** Step increment for number inputs */
     step?: number | string;
+    /** Maximum character length for text input */
+    maxLength?: number;
 };
 
 /**
@@ -84,7 +86,7 @@ type FormInputProps = {
  * @param isTitleCase - Auto-format text in title case
  * @returns Versatile input component with label
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step, maxLength }) => {
 
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
@@ -147,6 +149,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                             autoComplete="off"
                             spellCheck="false"
                             step={step}
+                            maxLength={maxLength}
                             onChange={(e) => onChange && onChange(e.target.value)}
                             onBlur={onBlur}
                             disabled={disabled}

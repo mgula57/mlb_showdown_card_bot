@@ -132,55 +132,80 @@ def _ob_score(card: dict) -> float:
     return sum(cv.get(k, 0) or 0 for k in ('BB', '1B', '2B', '3B', 'HR'))
 
 
+def _strategy_rank(group: list[dict], strategy: str | None, is_pitcher: bool) -> dict[str, float]:
+    """Rank-normalize `group` by `strategy`'s metric: 1.0 = best fit, 0.0 = worst. Returns {}
+    for an unset/unrecognized strategy (e.g. 'balanced'), letting callers treat it as neutral."""
+    if not strategy or not group:
+        return {}
+
+    if strategy in DEFENSE_SORT:
+        sort_map = DEFENSE_SORT
+    elif strategy in CATCHER_DEFENSE_SORT:
+        sort_map = CATCHER_DEFENSE_SORT
+    else:
+        sort_map = PITCHING_SORT if is_pitcher else HITTING_SORT
+    sort_key, direction = sort_map.get(strategy, (None, None))
+
+    if strategy == 'high_ob':
+        ordered = sorted(group, key=_ob_score, reverse=True)
+    elif sort_key is None:
+        return {}
+    else:
+        reverse = direction == 'desc'
+        ordered = sorted(
+            group,
+            key=lambda c: (c.get(sort_key) is not None, c.get(sort_key) or 0),
+            reverse=reverse,
+        )
+
+    n = len(ordered)
+    if n <= 1:
+        return {c['card_id']: 1.0 for c in ordered}
+    return {c['card_id']: 1.0 - i / (n - 1) for i, c in enumerate(ordered)}
+
+
 def _sort_candidates(
     candidates: list[dict],
-    strategy: str | None,
     is_pitcher: bool,
+    pitching_strategy: str | None = None,
+    hitting_strategy: str | None = None,
+    defense_strategy: str | None = None,
     catcher_defense_strategy: str | None = None,
 ) -> list[dict]:
-    """Sort by strategy metric with tier-based sampling, or pure shuffle if balanced.
-    For position players, applies catcher_defense_strategy to catchers if set."""
+    """Sort by a rank-blend of every strategy set at once, with tier-based sampling, or pure
+    shuffle if none apply. A hitting strategy and a defense strategy set together both shape
+    the sort (via averaged rank) rather than one silently discarding the other. For position
+    players, catchers use catcher_defense_strategy (falling back to defense_strategy) in place
+    of defense_strategy, still blended with hitting_strategy."""
+    if is_pitcher:
+        groups: list[tuple[list[dict], list[str]]] = [
+            (candidates, [pitching_strategy] if pitching_strategy else []),
+        ]
+    else:
+        catchers = [c for c in candidates if 'C' in (c.get('positions_list') or [])]
+        non_catchers = [c for c in candidates if 'C' not in (c.get('positions_list') or [])]
+        catcher_def = catcher_defense_strategy or defense_strategy
+        groups = [
+            (catchers, [s for s in (catcher_def, hitting_strategy) if s]),
+            (non_catchers, [s for s in (defense_strategy, hitting_strategy) if s]),
+        ]
+
     sorted_candidates = []
-
-    # Separate catchers from other position players
-    catchers = [c for c in candidates if 'C' in (c.get('positions_list') or [])]
-    non_catchers = [c for c in candidates if 'C' not in (c.get('positions_list') or [])]
-
-    # Sort each group with appropriate strategy
-    for group, group_strategy in [
-        (catchers, catcher_defense_strategy if catcher_defense_strategy else strategy),
-        (non_catchers, strategy),
-    ]:
+    for group, strategies in groups:
         if not group:
             continue
 
-        # Determine which sort map to use
-        if group_strategy in DEFENSE_SORT:
-            sort_map = DEFENSE_SORT
-        elif group_strategy in CATCHER_DEFENSE_SORT:
-            sort_map = CATCHER_DEFENSE_SORT
-        else:
-            sort_map = PITCHING_SORT if is_pitcher else HITTING_SORT
-
-        config = sort_map.get(group_strategy or '', (None, None))
-        sort_key, direction = config
-
-        if sort_key is None and group_strategy != 'high_ob':
+        ranks = [r for r in (_strategy_rank(group, s, is_pitcher) for s in strategies) if r]
+        if not ranks:
             shuffled = group[:]
             random.shuffle(shuffled)
             sorted_candidates.extend(shuffled)
             continue
 
-        if group_strategy == 'high_ob':
-            group_sorted = sorted(group, key=_ob_score, reverse=True)
-        else:
-            reverse = direction == 'desc'
-            group_sorted = sorted(
-                group,
-                key=lambda c: (c.get(sort_key) is not None, c.get(sort_key) or 0),
-                reverse=reverse,
-            )
+        def combined_score(c: dict, ranks=ranks) -> float:
+            return sum(r.get(c['card_id'], 0.5) for r in ranks) / len(ranks)
 
+        group_sorted = sorted(group, key=combined_score, reverse=True)
         tier_size = max(1, int(len(group_sorted) * _STRATEGY_TIER_FRACTION))
         top = group_sorted[:tier_size]
         rest = group_sorted[tier_size:]
@@ -607,17 +632,13 @@ def autofill_team(
         sorted_candidates: dict[str, list[dict]] = {}
         for bucket, raw in candidates_by_bucket.items():
             is_pitcher = bucket in ('rotation', 'bullpen')
-            if is_pitcher:
-                strategy = pitching_strategy
-            elif bucket == 'offense':
-                # Offense prioritizes hitting strategy, but can be overridden by defense strategy
-                strategy = defense_strategy if defense_strategy else hitting_strategy
-            else:  # bench
-                # Bench also respects defense strategy if set
-                strategy = defense_strategy if defense_strategy else hitting_strategy
             pool = [c for c in raw if c['card_id'] not in existing_ids]
             sorted_candidates[bucket] = _sort_candidates(
-                pool, strategy, is_pitcher, catcher_defense_strategy
+                pool, is_pitcher,
+                pitching_strategy=pitching_strategy,
+                hitting_strategy=hitting_strategy,
+                defense_strategy=defense_strategy,
+                catcher_defense_strategy=catcher_defense_strategy,
             )
 
         offense_result, offense_ids = _fill_offense(

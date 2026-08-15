@@ -14,6 +14,8 @@ import {
 } from '../../domain/teamSets';
 import { FaUser, FaLayerGroup, FaGears, FaFilter } from 'react-icons/fa6';
 
+const TEAM_NAME_MAX_LENGTH = 25;
+
 type PlayerFilters = {
     min_year?: number;
     max_year?: number;
@@ -148,6 +150,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                     value={team.name ?? ''}
                     onChange={v => onChange({ name: v ?? '' })}
                     isTitleCase
+                    maxLength={TEAM_NAME_MAX_LENGTH}
                 />
                 <FormInput
                     label="Abbreviation"

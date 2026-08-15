@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
-import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy } from '../../api/userTeams';
+import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult } from '../../api/userTeams';
 import { fetchTeam, autofillTeam, isTeamDrafting, uploadTeamLogo, deleteTeamLogo } from '../../api/userTeams';
 import { AutofillPanel } from './AutofillPanel';
 import { TeamLogo } from './TeamLogo';
@@ -21,7 +21,8 @@ import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
-    FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine
+    FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
+    FaRobot, FaBaseball, FaHatWizard
 } from 'react-icons/fa6';
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
@@ -137,11 +138,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
 
-    const rosterSlots = useMemo(
-        () => draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source })),
-        [draft.roster],
-    );
-    const { cardMap, loading: isLoadingCards, addCard } = useCardMap(rosterSlots, token);
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
     const [dirty, setDirty] = useState(false);
@@ -153,6 +149,20 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [showAutofill, setShowAutofill] = useState(false);
     const [lastAutofillStrategy, setLastAutofillStrategy] = useState<AutofillStrategy | null>(null);
     const [reshuffling, setReshuffling] = useState(false);
+    // Staged autofill result, shown as a preview (with a reshuffle option) before it's
+    // committed to the draft and picked up by the auto-save effect.
+    const [autofillPreview, setAutofillPreview] = useState<{ strategy: AutofillStrategy; result: AutofillResult } | null>(null);
+
+    const rosterSlots = useMemo(() => {
+        const base = draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source }));
+        if (!autofillPreview) return base;
+        const seen = new Set(base.map(s => s.card_id));
+        const previewOnly = autofillPreview.result.roster
+            .filter(s => !seen.has(s.card_id))
+            .map(s => ({ card_id: s.card_id, card_source: s.card_source }));
+        return [...base, ...previewOnly];
+    }, [draft.roster, autofillPreview]);
+    const { cardMap, loading: isLoadingCards, addCard } = useCardMap(rosterSlots, token);
     const [editMode, setEditMode] = useState(false);
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -177,7 +187,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     useEffect(() => {
         const mq = window.matchMedia('(min-width: 1024px)');
-        const handler = (e: MediaQueryListEvent) => setIsLg(e.matches);
+        const handler = (e: MediaQueryListEvent) => {
+            setIsLg(e.matches);
+            // Crossing down into the BottomSheet layout: clear any pending slot left over from
+            // the desktop panel so the sheet mounts fresh (peek) instead of springing straight
+            // to expanded via its expandTrigger.
+            if (!e.matches) setPendingSlot(null);
+        };
         mq.addEventListener('change', handler);
         return () => mq.removeEventListener('change', handler);
     }, []);
@@ -278,25 +294,34 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         setDirty(true);
     }
 
-    async function handleAutofill(strategy: AutofillStrategy) {
-        if (!token || !draft.team_id) return;
-        // Sets are left to the server: it queries one source at a time and applies that
-        // source's own allowed sets, which a single flat filter here couldn't express.
-        const result = await autofillTeam(draft.team_id, strategy, token, {});
+    /** Runs autofill and stages the result as a preview rather than committing it straight to
+     *  the draft — the user reviews it (and can reshuffle for a different result) before it's
+     *  applied and picked up by the auto-save effect. */
+    async function generateAutofillPreview(strategy: AutofillStrategy) {
+        if (!token || !draft.team_id || reshuffling) return;
+        setReshuffling(true);
+        try {
+            // Sets are left to the server: it queries one source at a time and applies that
+            // source's own allowed sets, which a single flat filter here couldn't express.
+            const result = await autofillTeam(draft.team_id, strategy, token, {});
+            setAutofillPreview({ strategy, result });
+        } finally {
+            setReshuffling(false);
+        }
+    }
+
+    function acceptAutofillPreview() {
+        if (!autofillPreview) return;
+        const { strategy, result } = autofillPreview;
         update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
         const added = result.roster.length - draft.roster.length;
         setLastAutofillStrategy(strategy);
         setDraftToast({ name: 'Roster Autofilled', position: `${added} player${added !== 1 ? 's' : ''} added` });
+        setAutofillPreview(null);
     }
 
-    async function handleReshuffle() {
-        if (!lastAutofillStrategy || reshuffling) return;
-        setReshuffling(true);
-        try {
-            await handleAutofill(lastAutofillStrategy);
-        } finally {
-            setReshuffling(false);
-        }
+    function handleReshuffle() {
+        if (lastAutofillStrategy) generateAutofillPreview(lastAutofillStrategy);
     }
 
     async function handleLogoUpload(file: File) {
@@ -443,6 +468,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         maxRotation: draft.num_starters,
     }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters]);
 
+    const previewRosterData: FieldViewRosterData | null = useMemo(() => {
+        if (!autofillPreview) return null;
+        return {
+            roster: autofillPreview.result.roster,
+            rotation: autofillPreview.result.rotation,
+            benchPtsMultiplier: draft.bench_pts_multiplier,
+            minBench: effectiveBucketMins.bench,
+            minBullpen: effectiveBucketMins.bullpen,
+            maxRotation: draft.num_starters,
+        };
+    }, [autofillPreview, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters]);
+    const previewLineup = autofillPreview?.result.lineups[0] ?? { name: 'Default', index: 0, slots: [] };
+
     const draftedCardIds = useMemo(() => {
         const ids = new Set<string>();
         draft.roster.forEach(s => ids.add(s.card_id));
@@ -473,6 +511,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             searchFilters={searchFilters}
             draftedCardIds={draftedCardIds}
             onCardPicked={handleCardPicked}
+            onDismissPending={() => setPendingSlot(null)}
         />
     );
 
@@ -481,7 +520,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // the handle's drag/toggle gesture.
     const draftSourceTabs = (
         <div
-            className="flex items-start w-full justify-start gap-x-1 px-3 overflow-x-auto scrollbar-hide"
+            className="flex items-center w-full justify-start gap-x-1 px-3 overflow-x-auto scrollbar-hide"
             onMouseDown={e => e.stopPropagation()}
             onTouchStart={e => e.stopPropagation()}
         >
@@ -495,6 +534,22 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     {s.label}
                 </button>
             ))}
+            {pendingLabel && (
+                <span className="ml-auto text-sm flex items-center gap-1.5 pl-2 pr-1 py-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className=" text-amber-500 dark:text-amber-400 font-semibold">
+                        {pendingLabel}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setPendingSlot(null)}
+                        className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
+                        aria-label="Cancel filling"
+                    >
+                        <FaXmark />
+                    </button>
+                </span>
+            )}
         </div>
     );
 
@@ -689,147 +744,155 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     return (
         <div className={`flex flex-col ${embedded ? '' : 'h-[calc(100dvh-2.5rem)] overflow-hidden'}`}>
+            
+            {/* Header */}
             <div
-                className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider) shrink-0"
+                className="@container flex flex-col @lg:flex-row @lg:items-center gap-2 px-4 py-2.5 border-b border-(--divider) shrink-0"
             >
-                {onBack && (
-                    <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
-                        <FaArrowLeft />
-                    </button>
-                )}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {onBack && (
+                        <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
+                            <FaArrowLeft />
+                        </button>
+                    )}
 
-                <TeamLogo
-                    logoUrl={draft.logo_url}
-                    abbreviation={draft.abbreviation}
-                    primaryColor={primary}
-                    editable={!readOnly && !isMlbTeam && !!token && !!draft.team_id}
-                    uploading={logoUploading}
-                    onUpload={handleLogoUpload}
-                    onRemove={handleLogoRemove}
-                    className="mt-0.5"
-                />
+                    <TeamLogo
+                        logoUrl={draft.logo_url}
+                        abbreviation={draft.abbreviation}
+                        primaryColor={primary}
+                        editable={!readOnly && !isMlbTeam && !!token && !!draft.team_id}
+                        uploading={logoUploading}
+                        onUpload={handleLogoUpload}
+                        onRemove={handleLogoRemove}
+                        className="mt-0.5"
+                    />
 
-                {/* Team Header */}
-                <div className="flex-1 min-w-0 space-y-1">
-                    {/* Name + total pts */}
-                    <div className="flex items-center gap-2 overflow-x-scroll scrollbar-hide">
-                        <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
-                        {teamMode === 'complete' && (
-                            <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
-                                <FaUsers /> {draft.roster.length}
+                    {/* Team Header */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                        {/* Name + total pts */}
+                        <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
+                            <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
+                            {teamMode === 'complete' && (
+                                <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
+                                    <FaUsers /> {draft.roster.length}
+                                </span>
+                            )}
+                            {isTeamDrafting(draft) && (
+                                <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                                    DRAFTING
+                                </span>
+                            )}
+
+                            {/* Showdown Sets */}
+                            <div className="flex items-center gap-0.5 ">
+                                {(draft.allowed_sets ?? [])
+                                .sort((a, b) => a.localeCompare(b))
+                                    .map(s => {
+                                        const img = imageForSet(s);
+                                        return (
+                                            <span key={s} className="flex items-center">
+                                                {img && <img src={img} alt={s} className="h-4.5 w-auto object-fill" />}
+                                            </span>
+                                        );
+                                    })
+                                }
+                            </div>
+                        </div>
+                        {/* Subtitle row: PTS Breakdown */}
+                        <div className="hidden @[500px]:flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
+                            <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
+                                {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
                             </span>
-                        )}
-                        {isTeamDrafting(draft) && (
-                            <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                                DRAFTING
-                            </span>
-                        )}
-                        
-                        {/* Showdown Sets */}
-                        <div className="flex items-center gap-0.5 ">
-                            {(draft.allowed_sets ?? [])
-                            .sort((a, b) => a.localeCompare(b))
-                                .map(s => {
-                                    const img = imageForSet(s);
-                                    return (
-                                        <span key={s} className="flex items-center">
-                                            {img && <img src={img} alt={s} className="h-4.5 w-auto object-fill" />}
-                                        </span>
-                                    );
-                                })
-                            }
+                            {([
+                                { label: 'LINEUP', value: pointsBreakdown.lineup },
+                                { label: 'BENCH', value: pointsBreakdown.bench },
+                                { label: 'ROTATION', value: pointsBreakdown.rotation },
+                                { label: 'BULLPEN', value: pointsBreakdown.bullpen },
+                            ] as const).map(({ label, value }) => (
+                                <span key={label} className="flex gap-1 text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
+                                    {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
+                                </span>
+                            ))}
+
                         </div>
                     </div>
-                    {/* Subtitle row: PTS Breakdown */}
-                    <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
-                        <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
-                            {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
-                        </span>
-                        {([
-                            { label: 'LINEUP', value: pointsBreakdown.lineup },
-                            { label: 'BENCH', value: pointsBreakdown.bench },
-                            { label: 'ROTATION', value: pointsBreakdown.rotation },
-                            { label: 'BULLPEN', value: pointsBreakdown.bullpen },
-                        ] as const).map(({ label, value }) => (
-                            <span key={label} className="flex gap-1 text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
-                                {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
-                            </span>
-                        ))}
-                        
-                    </div>
                 </div>
-                {onToggleStar && (
-                    <button
-                        type="button"
-                        onClick={onToggleStar}
-                        className="flex items-center gap-1 rounded-md px-1.5 py-1 mt-0.5 text-[11px] font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer shrink-0"
-                        aria-label={isStarred ? `Unstar ${draft.name}` : `Star ${draft.name}`}
-                    >
-                        {isStarred ? (
-                            <FaStar className="h-3.5 w-3.5 text-yellow-300" />
-                        ) : (
-                            <FaRegStar className="h-3.5 w-3.5" />
-                        )}
-                        {isStarred ? "Starred" : "Star"}
-                    </button>
-                )}
-                {onFork && (
-                    <button
-                        type="button"
-                        disabled={forking}
-                        onClick={async () => {
-                            setForking(true);
-                            try {
-                                await onFork();
-                            } finally {
-                                setForking(false);
-                            }
-                        }}
-                        className="flex items-center gap-1.5 rounded-md px-2 py-1 mt-0.5 text-[11px] font-semibold text-(--background-primary) bg-(--secondary) hover:opacity-90 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                        aria-label="Make a copy of this team"
-                        title="Make an editable copy of this team"
-                    >
-                        {forking ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaCodeFork className="h-3 w-3" />}
-                        Make a copy
-                    </button>
-                )}
-                {!readOnly && (
-                    <div className="flex items-center h-full gap-2 text-[11px] font-semibold shrink-0 mt-0.5">
-                        {saveStatus === 'saving' && (
-                            <span className="flex items-center gap-1 text-(--text-tertiary)">
-                                <FaSpinner className="animate-spin text-[10px]" /> Saving
-                            </span>
-                        )}
-                        {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
-                        {saveStatus === 'error' && <span className="text-red-500">Error</span>}
-                        {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
-                        {teamMode === 'complete' && (
+
+                {/* Action buttons: wrap into a grid below the team info on narrow views, sit inline to the right once there's room */}
+                {(onToggleStar || onFork || !readOnly || canSimulate) && (
+                    <div className="grid grid-cols-2 @sm:grid-cols-4 @lg:flex @lg:items-center gap-2 @lg:w-auto shrink-0">
+                        {onToggleStar && (
                             <button
                                 type="button"
-                                onClick={() => setEditMode(true)}
-                                className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                                onClick={onToggleStar}
+                                className="flex items-center justify-center gap-1 rounded-md px-1.5 py-1.5 @lg:py-1 text-[11px] font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                aria-label={isStarred ? `Unstar ${draft.name}` : `Star ${draft.name}`}
                             >
-                                <FaPenToSquare /> Edit
+                                {isStarred ? (
+                                    <FaStar className="h-3.5 w-3.5 text-yellow-300" />
+                                ) : (
+                                    <FaRegStar className="h-3.5 w-3.5" />
+                                )}
+                                {isStarred ? "Starred" : "Star"}
                             </button>
                         )}
-                    </div>
-                )}
-                {canSimulate && (
-                    <div className="flex h-full items-center ">
-                        <button
-                            type="button"
-                            onClick={() => challenge ? setShowChallengeConfirm(true) : setShowSimModal(true)}
-                            className="flex items-center gap-1.5 rounded-md h-8 px-2 py-1 mt-0.5 text-[11px] font-semibold hover:opacity-90 cursor-pointer shrink-0 transition-opacity"
-                            style={{
-                                backgroundImage: `linear-gradient(135deg, ${draft.primary_color}, ${draft.secondary_color})`,
-                                color: getContrastTextColor(draft.primary_color)
-                            }}
-                            aria-label={challenge ? `Play the ${challenge.title} challenge with this team` : 'Simulate a season with this team'}
-                            title={challenge ? challenge.title : 'Drop this team into a real season and play all 162 games'}
-                        >
-                            <FaPlay className="h-3 w-3" />
-                            {challenge ? 'Play Challenge' : 'Play'}
-                        </button>
+                        {onFork && (
+                            <button
+                                type="button"
+                                disabled={forking}
+                                onClick={async () => {
+                                    setForking(true);
+                                    try {
+                                        await onFork();
+                                    } finally {
+                                        setForking(false);
+                                    }
+                                }}
+                                className="flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 @lg:py-1 text-[11px] font-semibold text-(--background-primary) bg-(--secondary) hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                                aria-label="Make a copy of this team"
+                                title="Make an editable copy of this team"
+                            >
+                                {forking ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaCodeFork className="h-3 w-3" />}
+                                Make a copy
+                            </button>
+                        )}
+                        {!readOnly && (
+                            <div className="flex items-center justify-center @lg:h-full gap-2 text-sm font-semibold">
+                                {saveStatus === 'saving' && (
+                                    <span className="flex items-center gap-1 text-(--text-tertiary)">
+                                        <FaSpinner className="animate-spin text-[10px]" /> Saving
+                                    </span>
+                                )}
+                                {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
+                                {saveStatus === 'error' && <span className="text-red-500">Error</span>}
+                                {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
+                                {teamMode === 'complete' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditMode(true)}
+                                        className="flex items-center justify-center gap-1 px-2 py-1 h-8 w-full text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                                    >
+                                        <FaPenToSquare /> Edit
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {canSimulate && (
+                            <button
+                                type="button"
+                                onClick={() => challenge ? setShowChallengeConfirm(true) : setShowSimModal(true)}
+                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold hover:opacity-90 cursor-pointer transition-opacity"
+                                style={{
+                                    backgroundImage: `linear-gradient(135deg, ${draft.primary_color}, ${draft.secondary_color})`,
+                                    color: getContrastTextColor(draft.primary_color)
+                                }}
+                                aria-label={challenge ? `Play the ${challenge.title} challenge with this team` : 'Simulate a season with this team'}
+                                title={challenge ? challenge.title : 'Drop this team into a real season and play all 162 games'}
+                            >
+                                <FaPlay className="h-3 w-3" />
+                                {challenge ? 'Play Challenge' : 'Play'}
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -926,7 +989,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 {isLg && teamMode === 'complete' ? (
                     /* Filled + large screen: FieldView fixed on left, Depth/Draft/Settings tabs on right */
                     <>
-                        <div className="flex flex-col shrink-0 overflow-y-auto w-80 md:w-108 lg:w-124 xl:w-148 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
+                        <div className="flex flex-col shrink-0 overflow-y-auto scrollbar-hide w-80 md:w-108 lg:w-124 xl:w-148 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
                             {fieldViewContent}
                         </div>
                         <Tabs.Root
@@ -941,19 +1004,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" /> Sims</Tabs.Trigger>}
                                 </Tabs.List>
                             )}
-                            <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
+                            <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
                             </Tabs.Content>
-                            <Tabs.Content value="lineup" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
+                            <Tabs.Content value="lineup" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
                                 {lineupPanelContent}
                             </Tabs.Content>
                             {!isMlbTeam && (
-                                <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
+                                <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
                                     {draftHistoryContent}
                                 </Tabs.Content>
                             )}
                             {hasSims && (
-                                <Tabs.Content value="sims" className="focus:outline-none flex-1 overflow-y-auto">
+                                <Tabs.Content value="sims" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
                                     {simsContent}
                                 </Tabs.Content>
                             )}
@@ -967,7 +1030,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             className="
                                 @container
                                 flex flex-col shrink-0
-                                overflow-y-auto
+                                overflow-y-auto scrollbar-hide
                                 w-full lg:w-124 2xl:w-148 3xl:w-190 4xl:w-256
                             "
                         >
@@ -1017,7 +1080,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 <BottomSheet
                     isOpen={true}
                     onClose={() => setPendingSlot(null)}
-                    title={pendingLabel ?? undefined}
                     dismissible={false}
                     expandTrigger={pendingSlot}
                     handleContent={draftSourceTabs}
@@ -1250,9 +1312,56 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         bench: pointsBreakdown.bench,
                         bullpen: pointsBreakdown.bullpen,
                     }}
-                    onConfirm={handleAutofill}
+                    onConfirm={generateAutofillPreview}
                     onClose={() => setShowAutofill(false)}
                 />
+            )}
+
+            {/* Autofill result preview: reshuffle for a different result, or accept to commit
+                it to the draft (which then flows through the normal auto-save). */}
+            {autofillPreview && previewRosterData && (
+                <Modal
+                    title="Autofill Preview"
+                    subtitle="Reshuffle for a different result, or use this roster as-is."
+                    onClose={() => setAutofillPreview(null)}
+                    size="lg"
+                    footer={
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setAutofillPreview(null)}
+                                className="px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                            >
+                                Discard
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => generateAutofillPreview(autofillPreview.strategy)}
+                                disabled={reshuffling}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-50 cursor-pointer transition-colors"
+                            >
+                                <FaShuffle className={reshuffling ? 'animate-spin' : ''} /> Reshuffle
+                            </button>
+                            <button
+                                type="button"
+                                onClick={acceptAutofillPreview}
+                                disabled={reshuffling}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                            >
+                                <FaCircleCheck className="text-[11px]" /> Use This Roster
+                            </button>
+                        </div>
+                    }
+                >
+                    <FieldView
+                        lineup={previewLineup}
+                        cardMap={cardMap}
+                        onSlotClick={() => {}}
+                        readOnly
+                        rosterData={previewRosterData}
+                        isLoadingCards={isLoadingCards}
+                    />
+                </Modal>
             )}
         </div>
     );
@@ -1271,28 +1380,43 @@ type DraftPanelProps = {
     /** When true, hides the internal Bot/WOTC/WBC tab list — used when the tabs are
      *  rendered elsewhere (e.g. the BottomSheet handle) while source is controlled externally. */
     hideSourceTabs?: boolean;
+    /** Clears the pending slot — shown as an X on the "Filling" badge. */
+    onDismissPending?: () => void;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked, hideSourceTabs = false }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
             onValueChange={v => onSourceChange(v as CardSourceType)}
-            className="flex flex-col h-full min-h-0"
+            className="flex flex-col gap-0 h-full min-h-0"
         >
             {!hideSourceTabs && (
                 <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
                     {allowedSources.map(s => (
                         <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
+                            {s.key === 'BOT' && <FaRobot className="inline-block" />}
+                            {s.key === 'WOTC' && <FaHatWizard className="inline-block" />}
+                            {s.key === 'WBC' && <FaBaseball className="inline-block" />}
                             {s.label}
                         </Tabs.Trigger>
                     ))}
                     {pendingLabel && (
-                        <span className="ml-auto flex items-center gap-1.5 px-2 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                        <span className="ml-auto flex text-sm items-center gap-1.5 pl-2 pr-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            <span className="text-md text-amber-500 dark:text-amber-400 font-semibold">
+                            <span className=" text-amber-500 dark:text-amber-400 font-semibold">
                                 {pendingLabel}
                             </span>
+                            {onDismissPending && (
+                                <button
+                                    type="button"
+                                    onClick={onDismissPending}
+                                    className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
+                                    aria-label="Cancel filling"
+                                >
+                                    <FaXmark className="text-[11px]" />
+                                </button>
+                            )}
                         </span>
                     )}
                 </Tabs.List>
