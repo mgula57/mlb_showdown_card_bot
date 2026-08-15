@@ -38,7 +38,23 @@ class PlayerLoader:
     """Loads season card pools, preferring pre-built cards from dim_card over rebuilding from archive stats."""
 
     def __init__(self, db: Optional[PostgresDB] = None) -> None:
+        self._owns_db = db is None
         self.db = db or PostgresDB(is_archive=True)
+
+    def close(self) -> None:
+        """Release the archive connection this loader opened itself.
+
+        No-op when `db` was supplied by the caller - that connection's lifecycle belongs to
+        whoever passed it in.
+        """
+        if self._owns_db:
+            self.db.close_connection()
+
+    def __enter__(self) -> 'PlayerLoader':
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def load_season_cards(self, year: int, set: Set, min_pa: int = 0, min_ip: int = 0, status_callback: Optional[Callable[[str], None]] = None) -> SeasonCardPool:
         """All cards for a season. dim_card pre-built cards first, archive stat rebuilds for anything missing.
@@ -161,16 +177,16 @@ class Season:
                 team_names=list(teams.keys()),
             )
         else:
-            loader = PlayerLoader(db=self.db)
-            # LOWER THAN THE ACTIVE-ROSTER THRESHOLDS SO A FULL 40-MAN CAN BE FILLED FROM RESERVE
-            # DEPTH - BUT NO LOWER THAN THE RESERVE SAMPLE-SIZE FLOORS, SINCE `Roster.select`
-            # REJECTS ANYTHING BELOW THOSE ANYWAY AND BUILDING THE CARD WOULD BE WASTED WORK.
-            card_pool = loader.load_season_cards(
-                year=config.year, set=config.set,
-                min_pa=min(config.min_pa, RESERVE_MIN_PA_POSITION),
-                min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
-                status_callback=status_callback,
-            )
+            with PlayerLoader(db=self.db) as loader:
+                # LOWER THAN THE ACTIVE-ROSTER THRESHOLDS SO A FULL 40-MAN CAN BE FILLED FROM RESERVE
+                # DEPTH - BUT NO LOWER THAN THE RESERVE SAMPLE-SIZE FLOORS, SINCE `Roster.select`
+                # REJECTS ANYTHING BELOW THOSE ANYWAY AND BUILDING THE CARD WOULD BE WASTED WORK.
+                card_pool = loader.load_season_cards(
+                    year=config.year, set=config.set,
+                    min_pa=min(config.min_pa, RESERVE_MIN_PA_POSITION),
+                    min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
+                    status_callback=status_callback,
+                )
             status(f"Building {config.year} MLB schedule...")
             self.schedule = Schedule(
                 year=config.year,

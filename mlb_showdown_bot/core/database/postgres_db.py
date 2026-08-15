@@ -23,7 +23,7 @@ def _get_pool(env_var_name: str) -> 'psycopg2_pool.ThreadedConnectionPool | None
             return None
         try:
             _pools[env_var_name] = psycopg2_pool.ThreadedConnectionPool(
-                1, 5, url,
+                1, 20, url,
                 sslmode='require',
                 keepalives=1,
                 keepalives_idle=30,

@@ -133,26 +133,29 @@ def start_season_sim():
                     'team_id': active['team_id'],
                 }), 429
 
-            team = BuilderTeam.from_db_row(row)
-            roster_error = _roster_error(team)
-            if roster_error:
-                return jsonify({'error': roster_error}), 422
+        team = BuilderTeam.from_db_row(row)
+        roster_error = _roster_error(team)
+        if roster_error:
+            return jsonify({'error': roster_error}), 422
 
-            try:
-                replaces = TakeoverOptions(year=year).resolve(payload.get('replaces'))
-            except ValueError as exc:
-                return jsonify({'error': str(exc)}), 400
-            if replaces is None:
-                return jsonify({'error': f'No club data available for {year}.'}), 400
+        # NO DB CONNECTION HELD HERE - THIS HITS THE MLB STATS API (UP TO ~90S WORST CASE WITH
+        # RETRIES) AND MUST NOT SIT ON A POOLED CONNECTION WHILE IT DOES.
+        try:
+            replaces = TakeoverOptions(year=year).resolve(payload.get('replaces'))
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        if replaces is None:
+            return jsonify({'error': f'No club data available for {year}.'}), 400
 
-            config = SeasonSimulationConfig(
-                year=year,
-                set=showdown_set,
-                simulate_postseason=True,
-                seed=payload.get('seed'),
-                takeover_team=team,
-                takeover_replaces_abbr=replaces,
-            )
+        config = SeasonSimulationConfig(
+            year=year,
+            set=showdown_set,
+            simulate_postseason=True,
+            seed=payload.get('seed'),
+            takeover_team=team,
+            takeover_replaces_abbr=replaces,
+        )
+        with PostgresDB() as db:
             job_id = db.create_sim_job(
                 user_id=g.user_id,
                 team_id=team_id,
