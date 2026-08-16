@@ -84,3 +84,50 @@ export function buildSimStatHighlights(row: SimStatLine): string[] {
     entries.sort((a, b) => b.rank - a.rank);
     return entries.map(e => e.label);
 }
+
+export type TeamKpi = { label: string; value: string };
+
+function sumStat(rows: SimStatLine[], key: string): number {
+    return rows.reduce((sum, row) => sum + (row.stats[key] ?? 0), 0);
+}
+
+/** Rate stats (BA, ERA, …) are already computed per-player server-side, so a team total weights
+ * each row by its opportunity count rather than re-deriving the rate from raw components the
+ * frontend doesn't have. This is exact for anything defined per unit of the weight (WHIP/SO9 per
+ * IP), and a close approximation for anything defined per AB rather than PA (BA/SLG). */
+function weightedAvgStat(rows: SimStatLine[], key: string, weightKey: string): number {
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const row of rows) {
+        const weight = row.stats[weightKey] ?? 0;
+        const value = row.stats[key];
+        if (value === undefined || weight <= 0) continue;
+        weightedSum += value * weight;
+        totalWeight += weight;
+    }
+    return totalWeight > 0 ? weightedSum / totalWeight : 0;
+}
+
+/** Team-level KPI tiles for the batting tab — counting stats summed, rate stats PA-weighted. */
+export function buildHitterTeamKpis(rows: SimStatLine[]): TeamKpi[] {
+    if (rows.length === 0) return [];
+    return [
+        { label: 'AVG', value: formatStat('ba', weightedAvgStat(rows, 'ba', 'pa')) },
+        { label: 'OBP', value: formatStat('obp', weightedAvgStat(rows, 'obp', 'pa')) },
+        { label: 'SLG', value: formatStat('slg', weightedAvgStat(rows, 'slg', 'pa')) },
+        { label: 'OPS', value: formatStat('ops', weightedAvgStat(rows, 'ops', 'pa')) },
+        { label: 'HR', value: formatStat('hr', sumStat(rows, 'hr')) },
+        { label: 'RBI', value: formatStat('rbi', sumStat(rows, 'rbi')) },
+    ];
+}
+
+/** Team-level KPI tiles for the pitching tab — counting stats summed, rate stats IP-weighted. */
+export function buildPitcherTeamKpis(rows: SimStatLine[]): TeamKpi[] {
+    if (rows.length === 0) return [];
+    return [
+        { label: 'ERA', value: formatStat('era', weightedAvgStat(rows, 'era', 'ip')) },
+        { label: 'WHIP', value: formatStat('whip', weightedAvgStat(rows, 'whip', 'ip')) },
+        { label: 'K/9', value: formatStat('so9', weightedAvgStat(rows, 'so9', 'ip')) },
+        { label: 'IP', value: formatStat('ip', sumStat(rows, 'ip')) },
+    ];
+}

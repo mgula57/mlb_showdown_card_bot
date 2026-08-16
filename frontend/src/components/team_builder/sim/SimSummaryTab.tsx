@@ -8,6 +8,7 @@ import { useStandingsEntries, useIdentity, hashId } from './simStandings';
 import { SimWinPctChart } from './SimWinPctChart';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS } from './simStatColumns';
+import { KpiTile } from './KpiTile';
 import { roundLabel } from './roundLabel';
 
 const TOP_PERFORMERS_COUNT = 5;
@@ -24,15 +25,6 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
         <div className="rounded-xl bg-(--background-tertiary) p-3 flex flex-col gap-2 min-w-0">
             <p className="text-[12px] font-bold text-(--text-primary)">{title}</p>
             {children}
-        </div>
-    );
-}
-
-function KpiTile({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="rounded-lg flex flex-col items-center bg-(--background-secondary) px-3 py-2">
-            <p className="text-[11px] text-(--text-tertiary)">{label}</p>
-            <p className="text-[18px] font-bold text-(--text-primary) tabular-nums">{value}</p>
         </div>
     );
 }

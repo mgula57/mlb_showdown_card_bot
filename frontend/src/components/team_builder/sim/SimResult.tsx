@@ -10,7 +10,8 @@ import { SimAwardsList } from './SimAwardsList';
 import { SimBracket } from './SimBracket';
 import { SimSummaryTab } from './SimSummaryTab';
 import { SimStatsTable } from './SimStatsTable';
-import { HITTER_COLUMNS, PITCHER_COLUMNS } from './simStatColumns';
+import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis } from './simStatColumns';
+import { KpiTile } from './KpiTile';
 import { useStandingsEntries, useIdentity, hashId, label } from './simStandings';
 import { describePostseasonExit } from './postseasonExit';
 import { radixTabTriggerClass } from '../../shared/tabStyles';
@@ -38,6 +39,8 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
 
     const hitters = useMemo(() => summary.players.filter(p => p.player_type === 'Hitter'), [summary.players]);
     const pitchers = useMemo(() => summary.players.filter(p => p.player_type === 'Pitcher'), [summary.players]);
+    const hitterKpis = useMemo(() => buildHitterTeamKpis(hitters), [hitters]);
+    const pitcherKpis = useMemo(() => buildPitcherTeamKpis(pitchers), [pitchers]);
     const standingsEntries = useStandingsEntries(summary);
     const postseasonExit = useMemo(() => describePostseasonExit(summary, teamKey), [summary, teamKey]);
 
@@ -175,10 +178,20 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                 </Tabs.Content>
 
                 <Tabs.Content value="batting" className="focus:outline-none px-4 pt-3">
+                    {hitterKpis.length > 0 && (
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                            {hitterKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
+                        </div>
+                    )}
                     <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} />
                 </Tabs.Content>
 
                 <Tabs.Content value="pitching" className="focus:outline-none px-4 pt-3">
+                    {pitcherKpis.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                            {pitcherKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
+                        </div>
+                    )}
                     <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
                 </Tabs.Content>
 
