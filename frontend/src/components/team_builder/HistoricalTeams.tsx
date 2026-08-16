@@ -7,6 +7,7 @@ import {
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
+import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { FaSpinner, FaMagnifyingGlass, FaXmark } from 'react-icons/fa6';
 
 // League team-colors for the All-Star tiles / detail header.
@@ -36,6 +37,27 @@ export type HistoricalNavState = {
 /** How many season shelves to mount at a time as the user scrolls back through history. */
 const SEASONS_PER_PAGE = 4;
 const SEARCH_LIMIT = 60;
+
+type SortKey = 'season' | 'points' | 'name' | 'roster';
+
+const SORT_OPTIONS: SelectOption[] = [
+    { value: 'season', label: 'Newest Season' },
+    { value: 'points', label: 'Most Points' },
+    { value: 'name', label: 'Name (A–Z)' },
+    { value: 'roster', label: 'Roster Size' },
+];
+
+function sortTeams(list: HistoricalTeam[], sortBy: SortKey): HistoricalTeam[] {
+    const sorted = [...list];
+    switch (sortBy) {
+        case 'points': sorted.sort((a, b) => b.total_points - a.total_points); break;
+        case 'name': sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+        case 'roster': sorted.sort((a, b) => b.roster_count - a.roster_count); break;
+        case 'season':
+        default: sorted.sort((a, b) => b.season - a.season || b.total_points - a.total_points); break;
+    }
+    return sorted;
+}
 
 const teamToPreview = (team: HistoricalTeam, showdownSet?: string): TeamPreviewData => ({
     abbreviation: team.abbreviation || team.name,
@@ -134,7 +156,8 @@ export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: str
     const [asgTeams, setAsgTeams] = useState<AsgTeamRef[]>([]);
 
     const [query, setQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<HistoricalTeam[]>([]);
+    const [sortBy, setSortBy] = useState<SortKey>('season');
+    const [rawSearchResults, setRawSearchResults] = useState<HistoricalTeam[]>([]);
     const [searching, setSearching] = useState(false);
 
     const [loadingSeasons, setLoadingSeasons] = useState(true);
@@ -151,20 +174,22 @@ export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: str
         fetchAsgSeasons().then(setAsgTeams).catch(() => setAsgTeams([]));
     }, [userShowdownSet]);
 
-    // Server-side search across every season, debounced.
+    // Server-side search across every season — matches by name, abbreviation, or season — debounced.
     const searchQuery = query.trim();
     useEffect(() => {
-        if (!searchQuery) { setSearchResults([]); setSearching(false); return; }
+        if (!searchQuery) { setRawSearchResults([]); setSearching(false); return; }
         let cancelled = false;
         setSearching(true);
         const timer = setTimeout(() => {
             fetchHistoricalTeams({ q: searchQuery, showdownSet: userShowdownSet, limit: SEARCH_LIMIT })
-                .then(result => { if (!cancelled) setSearchResults(result.teams); })
-                .catch(() => { if (!cancelled) setSearchResults([]); })
+                .then(result => { if (!cancelled) setRawSearchResults(result.teams); })
+                .catch(() => { if (!cancelled) setRawSearchResults([]); })
                 .finally(() => { if (!cancelled) setSearching(false); });
         }, 300);
         return () => { cancelled = true; clearTimeout(timer); };
     }, [searchQuery, userShowdownSet]);
+
+    const searchResults = useMemo(() => sortTeams(rawSearchResults, sortBy), [rawSearchResults, sortBy]);
 
     // Mount more season shelves as the sentinel scrolls into view.
     useEffect(() => {
@@ -217,7 +242,7 @@ export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: str
                         type="text"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        placeholder="Search all teams…"
+                        placeholder="Search by team or season (e.g. 1998)…"
                         className="w-full pl-9 pr-9 py-2 rounded-xl bg-(--background-secondary) border border-(--divider) text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--text-tertiary)"
                     />
                     {query && (
@@ -246,14 +271,28 @@ export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: str
                 ) : searchResults.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
                 ) : (
-                    <div className={`flex flex-wrap gap-3 ${horizontalPadding ?? ''}`}>
-                        {searchResults.map(team => (
-                            <TeamPreviewCard
-                                key={`${team.season}-${team.team_id}`}
-                                team={{ ...teamToPreview(team, userShowdownSet), badge: String(team.season) }}
-                                onClick={() => openTeam(team)}
+                    <div className={horizontalPadding ?? ''}>
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                                {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+                            </div>
+                            <CustomSelect
+                                value={sortBy}
+                                onChange={v => setSortBy(v as SortKey)}
+                                options={SORT_OPTIONS}
+                                buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
+                                dropdownArrowSize={12}
                             />
-                        ))}
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            {searchResults.map(team => (
+                                <TeamPreviewCard
+                                    key={`${team.season}-${team.team_id}`}
+                                    team={{ ...teamToPreview(team, userShowdownSet), badge: String(team.season) }}
+                                    onClick={() => openTeam(team)}
+                                />
+                            ))}
+                        </div>
                     </div>
                 )
             ) : loadingSeasons ? (

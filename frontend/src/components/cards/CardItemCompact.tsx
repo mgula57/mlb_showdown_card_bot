@@ -20,6 +20,7 @@ export type CardItemActionButton = {
     /** aria-label for the action button */
     label?: string;
     bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-red-500")
+    placement?: 'left' | 'right'; // Optionally change which side the button appears on
 };
 
 type CardItemCompactProps = {
@@ -164,10 +165,10 @@ export const CardItemCompact = ({
                         : 
                             <>
                                 {/* First Initial */}
-                                <span className="hidden @[70px]:flex @[150px]:hidden">{getFirstInitial(card?.name)}. </span>
+                                <span className={`hidden @[70px]:flex @[100px]:hidden`}>{getFirstInitial(card?.name)}. </span>
 
                                 {/* Full First Name */}
-                                <span className="hidden @[150px]:flex">{getFirstName(card?.name)} </span>
+                                <span className={`hidden @[100px]:flex`}>{getFirstName(card?.name)} </span>
                             
                                 {/* Last Name */}
                                 {getLastName(card?.name)}
@@ -189,7 +190,8 @@ export const CardItemCompact = ({
                             style={isRedacted ? undefined : teamStyle}
                         >
                             {card?.team || 'N/A'}
-                            <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
+                            <span className="hidden @[80px]:block @[120px]:hidden ml-0.5"> {formatYear(card?.year || '-', true)}</span>
+                            <span className="hidden @[120px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                         </div>
                         <div
                             className={`hidden @[80px]:flex shrink-0 text-[9px] leading-none font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
@@ -203,7 +205,7 @@ export const CardItemCompact = ({
                             ) : (
                                 card?.points != null ? `${card.points} PT` : '-- PT'
                             )}
-                            <span className="hidden @[90px]:block">S</span>
+                            <span className="hidden @[120px]:block">S</span>
                         </div>
                     </div>
                 )}
@@ -264,14 +266,14 @@ export const CardItemCompact = ({
                     type="button"
                     aria-label={actionButton.label}
                     onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
-                    className="
-                        absolute top-0.5 right-0.5
+                    className={`
+                        absolute top-0.5 ${actionButton.placement === 'left' ? '-left-0.5' : 'right-0.5'}
                         flex items-center justify-center
                         w-5 h-5 rounded
                         text-(--text-tertiary)
                         hover:bg-(--background-quaternary) hover:text-(--text-primary)
                         transition-colors
-                    "
+                    `}
                 >
                     {actionButton.icon}
                 </button>

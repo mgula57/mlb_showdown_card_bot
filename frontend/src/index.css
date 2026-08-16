@@ -2,6 +2,7 @@
 
 @theme {
     --container-field-split: 600px;
+    --breakpoint-3xl: 120rem; /* or 1920px */
 }
 
 :root {

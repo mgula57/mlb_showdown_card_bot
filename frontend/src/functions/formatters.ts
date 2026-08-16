@@ -56,9 +56,10 @@ export function formatStatValue(value: unknown, stat: string, digits = 3): strin
     }
 }
 
-export function formatYear(year: string | number): string {
-    const displayYear = year && year.toString().includes('-')
+export function formatYear(year: string | number, showAbbreviated: boolean = false): string {
+    const isMultiYear = year && year.toString().includes('-');
+    const displayYear = isMultiYear
         ? year.toString().split('-').map(y => y.slice(-2)).join('-')
-        : year.toString();
+        : (showAbbreviated ? `'${year.toString().slice(-2)}` : year.toString());
     return displayYear;
 }

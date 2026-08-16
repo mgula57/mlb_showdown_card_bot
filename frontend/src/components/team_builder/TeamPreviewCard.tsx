@@ -14,6 +14,7 @@ export type TeamPreviewData = {
     primary_color?: string | null;
     secondary_color?: string | null;
     total_points?: number;
+    roster_size?: number;
     is_drafting?: boolean;
     allowed_card_sources?: string[] | null;
     /** Team provenance. */
@@ -85,15 +86,18 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                 backgroundClip: 'padding-box, border-box',
             }}
         >
-            <div className="absolute top-0 right-0 z-20 flex flex-col items-end gap-0.5">
+            <div className="absolute top-0 left-0 z-20 flex flex-col items-end gap-0.5">
                 {team.badge && (
                     <span
-                        className="text-[9px] font-black rounded-bl-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
+                        className="text-[9px] font-black rounded-br-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
                         style={{ backgroundColor: secondary, color: onSecondary }}
                     >
                         {team.badge}
                     </span>
                 )}
+            </div>
+            <div className="absolute top-0 right-0 z-20 flex flex-col items-end gap-0.5">
+                
                 {team.is_drafting && (
                     <span
                         className="flex items-center text-[9px] font-black rounded-bl-md px-1 py-0.5 leading-none"
@@ -144,7 +148,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
 
             {/* Content */}
             <div className="relative z-10 flex flex-col h-full p-2.5 gap-1">
-                <div className="flex-1 flex flex-col justify-start min-h-0">
+                <div className={`flex-1 flex flex-col justify-start min-h-0 ${team.badge ? 'pt-2' : 'pt-1'}`}>
                     <div className="flex items-center gap-1.5 min-w-0">
                         {team.logo_url && (
                             <img

@@ -2150,7 +2150,7 @@ class PostgresDB:
         Args:
             showdown_set: Showdown set the points / top players should be scoped to.
             season: Restrict to one season. Omit to page across all seasons.
-            q: Case-insensitive search over team name and abbreviation (all seasons).
+            q: Case-insensitive search over team name, abbreviation, and season (all seasons).
             sport_id: MLB API sport id (1 = MLB).
             limit / offset: Pagination over the team rows.
         """
@@ -2163,9 +2163,9 @@ class PostgresDB:
             conditions.append("t.season = %s")
             params.append(season)
         if q:
-            conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s)")
+            conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s OR t.season::text ILIKE %s)")
             like = f"%{q}%"
-            params.extend([like, like])
+            params.extend([like, like, like])
         # Newest season first, and the most expensive rosters lead each season's shelf.
         # total_points is set-scoped, so the ordering shifts with the requested set.
         query = self._HISTORICAL_TEAM_SUMMARY_SELECT + f"""
@@ -4473,7 +4473,10 @@ class PostgresDB:
                         'outs',            COALESCE(cb.outs, cw.outs),
                         'speed',           COALESCE(cb.speed, cw.speed),
                         'onbase_perc',     COALESCE(cb.real_onbase_perc, cw.real_onbase_perc),
-                        'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc)
+                        'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc),
+                        'team',            COALESCE(cb.team, cw.team),
+                        'hand',            COALESCE(cb.hand, cw.hand),
+                        'year',            COALESCE(cb.year, cw.year)
                     ) ORDER BY r.sort_order, r.id
                 ) FILTER (WHERE r.card_id IS NOT NULL),
                 '[]'::json
@@ -4489,11 +4492,11 @@ class PostgresDB:
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year
             FROM card_bot  WHERE card_id = r.card_id LIMIT 1
         ) cb ON r.card_source = 'BOT'
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::int AS year
             FROM card_wotc WHERE card_id = r.card_id LIMIT 1
         ) cw ON r.card_source = 'WOTC'
         LEFT JOIN LATERAL (
@@ -7424,10 +7427,15 @@ class PostgresDB:
                     pts_limit       INT,             -- null = no cap
                     year_pool       TEXT NOT NULL DEFAULT 'any',      -- 'any' | comma list of years | 'random_range:1977,2024'
                     replaces_pool   TEXT NOT NULL DEFAULT 'any',      -- 'any' | 'worst_record' | comma list of abbrs
+                    -- Same shape/semantics as user_teams.player_filters (min_year/max_year/team/
+                    -- hand/etc, applied generically by fetch_card_list) - restricts which players
+                    -- are eligible for a team built against this template. Null = no restriction.
+                    player_filters  JSONB,
                     active          BOOLEAN NOT NULL DEFAULT TRUE,
                     created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
                 );
             """)
+            cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS player_filters JSONB;")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS internal.challenge_instance (
                     instance_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7435,11 +7443,13 @@ class PostgresDB:
                     year            INT NOT NULL,
                     replaces_abbr   TEXT NOT NULL,
                     pts_limit       INT,             -- copied from the template at generation time
+                    player_filters  JSONB,           -- copied from the template at generation time
                     starts_at       TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
                     expires_at      TIMESTAMP WITHOUT TIME ZONE NOT NULL,
                     created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
                 );
             """)
+            cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS player_filters JSONB;")
             # NOT A PARTIAL INDEX: NOW() ISN'T IMMUTABLE, SO IT CAN'T APPEAR IN AN INDEX
             # PREDICATE (ONLY IN A QUERY'S WHERE CLAUSE). THE TABLE IS TINY (A HANDFUL OF ROWS
             # PER TEMPLATE) SO A PLAIN INDEX ON expires_at IS PLENTY.
@@ -7490,7 +7500,7 @@ class PostgresDB:
             return None
         rows = self.execute_query(
             """
-            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.expires_at,
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.player_filters, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value,
                    attempt.challenge_result, attempt.attempted_at
               FROM internal.challenge_instance i
@@ -7521,7 +7531,7 @@ class PostgresDB:
             return []
         rows = self.execute_query(
             """
-            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.expires_at,
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.player_filters, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value,
                    attempt.challenge_result, attempt.attempted_at
               FROM internal.challenge_instance i
@@ -7559,6 +7569,7 @@ class PostgresDB:
     def create_challenge_template(
         self, slug: str, title: str, description: str, goal_type: str, goal_value: dict | None,
         pts_limit: int | None, year_pool: str, replaces_pool: str, active: bool = True,
+        player_filters: dict | None = None,
     ) -> str:
         if not self.connection:
             raise RuntimeError("No database connection")
@@ -7566,14 +7577,15 @@ class PostgresDB:
             cur.execute(
                 """
                 INSERT INTO internal.challenge_template
-                    (slug, title, description, goal_type, goal_value, pts_limit, year_pool, replaces_pool, active)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (slug, title, description, goal_type, goal_value, pts_limit, year_pool, replaces_pool, active, player_filters)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING template_id
                 """,
                 (
                     slug, title, description, goal_type,
                     extras.Json(goal_value) if goal_value is not None else None,
                     pts_limit, year_pool, replaces_pool, active,
+                    extras.Json(player_filters) if player_filters is not None else None,
                 ),
             )
             return str(cur.fetchone()[0])
@@ -7583,7 +7595,7 @@ class PostgresDB:
         `list_active_challenge_templates`, which the generator uses and only wants active ones)."""
         rows = self.execute_query(
             "SELECT template_id, slug, title, description, goal_type, goal_value, pts_limit, "
-            "year_pool, replaces_pool, active, created_at "
+            "year_pool, replaces_pool, active, player_filters, created_at "
             "FROM internal.challenge_template ORDER BY created_at DESC"
         )
         for row in rows:
@@ -7593,7 +7605,7 @@ class PostgresDB:
     def list_active_challenge_templates(self) -> list[dict]:
         """Every template flagged active - the generator checks each for a missing instance."""
         return self.execute_query(
-            "SELECT template_id, slug, title, pts_limit, year_pool, replaces_pool "
+            "SELECT template_id, slug, title, pts_limit, year_pool, replaces_pool, player_filters "
             "FROM internal.challenge_template WHERE active = TRUE"
         )
 
@@ -7606,18 +7618,22 @@ class PostgresDB:
 
     def create_challenge_instance(
         self, template_id: str, year: int, replaces_abbr: str, pts_limit: int | None,
-        expires_in_days: int = 7,
+        expires_in_days: int = 7, player_filters: dict | None = None,
     ) -> str:
         if not self.connection:
             raise RuntimeError("No database connection")
         with self.connection.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, expires_at)
-                VALUES (%s, %s, %s, %s, NOW() + make_interval(days => %s))
+                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, player_filters, expires_at)
+                VALUES (%s, %s, %s, %s, %s, NOW() + make_interval(days => %s))
                 RETURNING instance_id
                 """,
-                (template_id, year, replaces_abbr, pts_limit, expires_in_days),
+                (
+                    template_id, year, replaces_abbr, pts_limit,
+                    extras.Json(player_filters) if player_filters is not None else None,
+                    expires_in_days,
+                ),
             )
             return str(cur.fetchone()[0])
 

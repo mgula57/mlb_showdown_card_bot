@@ -22,7 +22,14 @@ type PlayerFilters = {
     organization?: string[];
     league?: string[];
     team?: string[];
+    hand?: string[];
 };
+
+const HAND_OPTIONS: { value: string; label: string }[] = [
+    { value: 'L', label: 'Left' },
+    { value: 'R', label: 'Right' },
+    { value: 'S', label: 'Switch' },
+];
 
 type SummaryItem = {
     label?: string;
@@ -138,6 +145,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
         (pf.organization ?? []).forEach(o => items.push({ label: 'Org', value: o }));
         (pf.league ?? []).forEach(l => items.push({ label: 'League', value: l }));
         (pf.team ?? []).forEach(t => items.push({ label: 'Team', value: t }));
+        (pf.hand ?? []).forEach(h => items.push({ label: 'Bats', value: HAND_OPTIONS.find(o => o.value === h)?.label ?? h }));
         return items;
     })();
 
@@ -312,6 +320,30 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                     onLeagueChange={values => updatePlayerFilters({ league: values })}
                     onTeamChange={values => updatePlayerFilters({ team: values })}
                 />
+                <div className="flex flex-wrap gap-2 col-span-full">
+                    <div className="text-sm font-semibold text-(--text-secondary) w-full">Bats</div>
+                    {HAND_OPTIONS.map(({ value, label }) => {
+                        const active = (pf.hand ?? []).includes(value);
+                        return (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => {
+                                    const current = pf.hand ?? [];
+                                    const next = active ? current.filter(v => v !== value) : [...current, value];
+                                    updatePlayerFilters({ hand: next });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors cursor-pointer
+                                    ${active
+                                        ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary)'
+                                        : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary)'
+                                    }`}
+                            >
+                                {label}
+                            </button>
+                        );
+                    })}
+                </div>
             </FormSection>
         </div>
     );

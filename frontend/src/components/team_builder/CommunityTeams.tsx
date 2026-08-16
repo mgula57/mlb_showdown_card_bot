@@ -2,10 +2,39 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { TeamPreviewCard } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
+import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { FaMagnifyingGlass, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 // Set ordering for the "by set" shelves — newest curated sets first.
 const SET_ORDER = ['2000', '2001', '2002', '2003', '2004', '2005', 'EXPANDED', 'CLASSIC'];
+
+type SortKey = 'recent' | 'points' | 'name' | 'roster';
+
+const SORT_OPTIONS: SelectOption[] = [
+    { value: 'recent', label: 'Recently Added' },
+    { value: 'points', label: 'Most Points' },
+    { value: 'name', label: 'Name (A–Z)' },
+    { value: 'roster', label: 'Roster Size' },
+];
+
+function sortTeams(list: TeamSummary[], sortBy: SortKey): TeamSummary[] {
+    const sorted = [...list];
+    switch (sortBy) {
+        case 'points': sorted.sort((a, b) => b.total_points - a.total_points); break;
+        case 'name': sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+        case 'roster': sorted.sort((a, b) => b.roster_count - a.roster_count); break;
+        case 'recent':
+        default: sorted.sort((a, b) => (b.created_at ?? '') > (a.created_at ?? '') ? 1 : -1); break;
+    }
+    return sorted;
+}
+
+/** Matches a team by name/abbreviation or by Showdown set (e.g. "Expanded" matches allowed_sets: ["EXPANDED"]). */
+function matchesQuery(team: TeamSummary, q: string): boolean {
+    if (team.name.toLowerCase().includes(q)) return true;
+    if (team.abbreviation.toLowerCase().includes(q)) return true;
+    return (team.allowed_sets ?? []).some(set => set.toLowerCase().includes(q));
+}
 
 type CommunityTeamsProps = {
     onOpen: (team: TeamSummary) => void;
@@ -17,51 +46,44 @@ type CommunityTeamsProps = {
 /** Browse other users' public teams music-app style: shelves of preview tiles, with search-as-a-mode. */
 export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTeamsProps) {
     const [query, setQuery] = useState('');
+    const [sortBy, setSortBy] = useState<SortKey>('recent');
     const [allTeams, setAllTeams] = useState<TeamSummary[]>([]);
-    const [results, setResults] = useState<TeamSummary[] | null>(null);
     const [loading, setLoading] = useState(true);
-    const [searching, setSearching] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const hideOwn = (list: TeamSummary[]) => currentUserId ? list.filter(t => t.user_id !== currentUserId) : list;
 
-    // Initial browse payload — one larger page bucketed into shelves client-side.
+    // Initial browse payload — one larger page (backend's max) bucketed into shelves and searched client-side.
     useEffect(() => {
         setLoading(true);
-        fetchPublicTeams('user', 120, 0)
+        fetchPublicTeams('user', 200, 0)
             .then(list => setAllTeams(hideOwn(list)))
             .catch(err => setError(err.message ?? 'Failed to load teams.'))
             .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentUserId]);
 
-    // Debounced server search — switches the view to a results grid while a query is present.
-    useEffect(() => {
-        const q = query.trim();
-        if (!q) { setResults(null); setSearching(false); return; }
-        setSearching(true);
-        const handle = setTimeout(() => {
-            fetchPublicTeams('user', 60, 0, q)
-                .then(list => setResults(hideOwn(list)))
-                .catch(() => setResults([]))
-                .finally(() => setSearching(false));
-        }, 300);
-        return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [query, currentUserId]);
+    // Only show teams whose roster is actually complete — in-progress drafts don't belong here.
+    const completeTeams = useMemo(() => allTeams.filter(t => !t.is_drafting), [allTeams]);
+
+    // Client-side search over the loaded pool — matches by name/abbreviation or by Showdown set.
+    const results = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return null;
+        return sortTeams(completeTeams.filter(t => matchesQuery(t, q)), sortBy);
+    }, [completeTeams, query, sortBy]);
 
     const shelves = useMemo(() => {
-        const withRoster = allTeams.filter(t => t.roster_count > 0);
-        const recentlyAdded = [...withRoster]
+        const recentlyAdded = [...completeTeams]
             .sort((a, b) => (b.created_at ?? '') > (a.created_at ?? '') ? 1 : -1)
             .slice(0, 15);
-        const topPoints = [...withRoster]
+        const topPoints = [...completeTeams]
             .filter(t => t.total_points > 0)
             .sort((a, b) => b.total_points - a.total_points)
             .slice(0, 15);
 
         const bySet = new Map<string, TeamSummary[]>();
-        for (const t of withRoster) {
+        for (const t of completeTeams) {
             const set = (t.allowed_sets && t.allowed_sets[0]) || 'Other';
             if (!bySet.has(set)) bySet.set(set, []);
             bySet.get(set)!.push(t);
@@ -74,7 +96,7 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
             .filter(([, list]) => list.length > 0);
 
         return { recentlyAdded, topPoints, setShelves };
-    }, [allTeams]);
+    }, [completeTeams]);
 
     return (
         <div className={`flex flex-col gap-5 ${className ?? ''}`}>
@@ -85,7 +107,7 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
                     type="text"
                     value={query}
                     onChange={e => setQuery(e.target.value)}
-                    placeholder="Search public teams by name…"
+                    placeholder="Search public teams by name or set (e.g. Expanded)…"
                     className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-(--background-secondary) border border-(--divider) text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--text-tertiary)"
                 />
                 {query && (
@@ -108,18 +130,25 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
 
             {/* Search results mode */}
             {results !== null ? (
-                searching && results.length === 0 ? (
-                    <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
-                ) : results.length === 0 ? (
+                results.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams match “{query.trim()}”.</p>
                 ) : (
                     <div className="px-4">
-                        <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-3">
-                            {results.length} result{results.length === 1 ? '' : 's'}
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                                {results.length} result{results.length === 1 ? '' : 's'}
+                            </div>
+                            <CustomSelect
+                                value={sortBy}
+                                onChange={v => setSortBy(v as SortKey)}
+                                options={SORT_OPTIONS}
+                                buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
+                                dropdownArrowSize={12}
+                            />
                         </div>
                         <div className="flex flex-wrap gap-3">
                             {results.map(team => (
-                                <TeamPreviewCard key={team.team_id} team={team} size="sm" onClick={() => onOpen(team)} />
+                                <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
                         </div>
                     </div>

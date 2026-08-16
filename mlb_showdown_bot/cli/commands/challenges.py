@@ -1,3 +1,4 @@
+import json
 import random
 from datetime import datetime
 from enum import Enum
@@ -128,6 +129,7 @@ def generate_challenges(
             instance_id = db.create_challenge_instance(
                 template_id=template['template_id'], year=year, replaces_abbr=replaces_abbr,
                 pts_limit=template['pts_limit'], expires_in_days=_INSTANCE_LIFETIME_DAYS,
+                player_filters=template.get('player_filters'),
             )
             typer.echo(f"Generated '{template['slug']}': {year} {replaces_abbr} (instance {instance_id})")
             created += 1
@@ -147,6 +149,11 @@ def create_template(
     pts_limit: int = typer.Option(None, "--pts-limit", help="Team budget cap. Omit for no cap"),
     year_pool: str = typer.Option("any", "--year-pool", help="'any' | comma list of years | 'random_range:lo,hi'"),
     replaces_pool: str = typer.Option("any", "--replaces-pool", help="'any' | 'worst_record' | comma list of abbrs"),
+    player_filters: str = typer.Option(
+        None, "--player-filters",
+        help='JSON object restricting which players are eligible, e.g. \'{"team": ["NYM", "NYY"], "hand": ["L"]}\'. '
+             "Same shape as a team's player_filters (min_year/max_year/organization/league/team/hand). Omit for no restriction.",
+    ),
     inactive: bool = typer.Option(False, "--inactive", help="Create it disabled - the generator will skip it"),
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
 ):
@@ -161,6 +168,10 @@ def create_template(
     Example with a min_wins goal, limited to one year:
 
     showdown_bot challenges create-template --slug classic-90-wins --title "90-Win Season" --description "Build a 1998 club and hit 90 wins." --goal-type min_wins --min-wins 90 --pts-limit 4500 --year-pool 1998 --replaces-pool any --env dev
+
+    Example restricted to left-handed Mets/Yankees players:
+
+    showdown_bot challenges create-template --slug lefty-subway --title "Lefty Subway Series" --description "Only lefties from the Mets or Yankees allowed." --goal-type made_playoffs --player-filters '{"team": ["NYM", "NYY"], "hand": ["L"]}' --env dev
     """
     if goal_type == GoalType.MIN_WINS and min_wins is None:
         typer.echo("ERROR: --min-wins is required when --goal-type is min_wins.")
@@ -172,13 +183,24 @@ def create_template(
         raise typer.Exit(code=1)
     goal_value = {"min_wins": min_wins} if goal_type == GoalType.MIN_WINS else None
 
+    parsed_player_filters = None
+    if player_filters is not None:
+        try:
+            parsed_player_filters = json.loads(player_filters)
+        except json.JSONDecodeError as exc:
+            typer.echo(f"ERROR: --player-filters must be valid JSON: {exc}")
+            raise typer.Exit(code=1)
+        if not isinstance(parsed_player_filters, dict):
+            typer.echo("ERROR: --player-filters must be a JSON object.")
+            raise typer.Exit(code=1)
+
     typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
     db = PostgresDB(is_archive=env.lower() == "prod")
     try:
         template_id = db.create_challenge_template(
             slug=slug, title=title, description=description, goal_type=goal_type.value,
             goal_value=goal_value, pts_limit=pts_limit, year_pool=year_pool,
-            replaces_pool=replaces_pool, active=not inactive,
+            replaces_pool=replaces_pool, active=not inactive, player_filters=parsed_player_filters,
         )
         typer.echo(f"Created template '{slug}' ({template_id}).")
         typer.echo("Run `challenges generate` to produce a live instance from it.")
@@ -201,6 +223,7 @@ def list_templates(
         for t in templates:
             flag = "" if t['active'] else "  (inactive)"
             cap = f"{t['pts_limit']} pts" if t['pts_limit'] is not None else "no cap"
-            typer.echo(f"{t['slug']:<28} {t['title']:<30} {t['goal_type']:<18} {cap:<10}{flag}")
+            filters = f"  filters: {t['player_filters']}" if t.get('player_filters') else ""
+            typer.echo(f"{t['slug']:<28} {t['title']:<30} {t['goal_type']:<18} {cap:<10}{flag}{filters}")
     finally:
         db.close_connection()

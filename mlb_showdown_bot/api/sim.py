@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, g, jsonify, request
 
 from ..core.card.sets import Set
+from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
@@ -143,6 +144,20 @@ def start_season_sim():
                 return jsonify({
                     'error': f"This team costs {roster_points} pts, over the {challenge['pts_limit']} pt challenge limit.",
                 }), 422
+
+            # CHECKED AGAINST THE ROSTER'S ACTUAL CARDS, NEVER AGAINST team.player_filters - THAT
+            # FIELD IS ONLY A PICKER/AUTOFILL DEFAULT AND IS FREELY USER-EDITABLE AFTER CREATION,
+            # SO IT CANNOT BE TRUSTED AS PROOF THE ROSTER STILL COMPLIES.
+            if challenge is not None and challenge.get('player_filters'):
+                filter_set = PlayerFilterSet(filters=challenge['player_filters'])
+                violation = next(
+                    (reason for slot in row.get('roster', []) if (reason := filter_set.ineligible_reason(slot)) is not None),
+                    None,
+                )
+                if violation:
+                    return jsonify({
+                        'error': f"This team doesn't meet the challenge's player requirements: {violation}.",
+                    }), 422
 
             active = db.get_active_sim_job(g.user_id)
             if active:
@@ -379,6 +394,44 @@ def get_challenge_instance_route(instance_id):
         if not instance:
             return jsonify({'error': 'Challenge not found.'}), 404
         return jsonify({'challenge': instance}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/challenges/<instance_id>/eligible_teams', methods=['GET'])
+@require_auth
+def get_eligible_teams(instance_id):
+    """Which of the caller's own teams could be used for this challenge right now - the same
+    budget/drafting/player_filters checks `start_season_sim` enforces at launch, run ahead of time
+    so the "use an existing team" picker doesn't offer a team that would just fail at launch.
+
+    The full roster check (via `PlayerFilterSet`) only runs when the challenge actually restricts
+    players, and only against teams that already clear the cheap budget/drafting filter - keeps
+    this a handful of extra queries at most, not one per team the caller owns.
+    """
+    try:
+        with PostgresDB() as db:
+            challenge = db.get_challenge_instance(instance_id)
+            if not challenge or challenge['expires_at'] <= datetime.now():
+                return jsonify({'error': 'This challenge is no longer active.'}), 400
+
+            candidates = [
+                t for t in db.get_user_teams(g.user_id)
+                if not t['is_drafting'] and (challenge['pts_limit'] is None or t['total_points'] <= challenge['pts_limit'])
+            ]
+
+            player_filters = challenge.get('player_filters')
+            if not player_filters:
+                return jsonify({'team_ids': [t['team_id'] for t in candidates]}), 200
+
+            filter_set = PlayerFilterSet(filters=player_filters)
+            eligible_ids = []
+            for candidate in candidates:
+                row = db.get_team(candidate['team_id'], g.user_id)
+                if row and all(filter_set.matches(slot) for slot in row.get('roster', [])):
+                    eligible_ids.append(candidate['team_id'])
+        return jsonify({'team_ids': eligible_ids}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

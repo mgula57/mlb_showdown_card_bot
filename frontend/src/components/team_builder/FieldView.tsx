@@ -266,6 +266,7 @@ export function FieldView({
                                             icon: <FaPencil className="w-2.5 h-2.5" />,
                                             onClick: () => onSlotClick(pos, slot),
                                             label: 'Replace card',
+                                            placement: 'left'
                                         } : undefined}
                                     />
                                 ) : slot && isLoadingCards ? (

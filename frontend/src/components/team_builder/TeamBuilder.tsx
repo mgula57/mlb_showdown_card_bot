@@ -98,9 +98,9 @@ const TAB_IDS: TabId[] = ['mine', 'community', 'historical', 'simulations'];
 // `shortLabel` keeps four tabs readable on a phone; the full label returns at sm.
 const TABS: TabItem<TabId>[] = [
     { id: 'mine', label: 'My Teams', shortLabel: 'Mine', icon: <FaUsers /> },
+    { id: 'simulations', label: 'Challenges', shortLabel: 'Challenges', icon: <FaRankingStar /> },
     { id: 'community', label: 'Community', shortLabel: 'Community', icon: <FaGlobe /> },
     { id: 'historical', label: 'Historical', shortLabel: 'Historical', icon: <FaClockRotateLeft /> },
-    { id: 'simulations', label: 'Challenges', shortLabel: 'Challenges', icon: <FaRankingStar /> },
 ];
 
 export default function TeamBuilder() {
@@ -313,6 +313,7 @@ export default function TeamBuilder() {
             allowed_sets: [userShowdownSet],
             allowed_sets_by_source: { [CardSource.BOT]: [userShowdownSet] },
             origin_template_id: challenge.template_id,
+            player_filters: challenge.player_filters,
         };
         const newTeam = await createTeam(payload, token);
         setListLoaded(false);
@@ -471,6 +472,7 @@ export default function TeamBuilder() {
                     initialPayload={challengeForNewTeam ? {
                         pts_limit: challengeForNewTeam.pts_limit,
                         origin_template_id: challengeForNewTeam.template_id,
+                        player_filters: challengeForNewTeam.player_filters,
                     } : undefined}
                 />
             )}

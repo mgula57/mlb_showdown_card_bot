@@ -162,8 +162,8 @@ def fetch_historical_teams():
     composed on the fly. Rows come back in the same TeamSummary shape as /teams/public, with
     `total_points` and `top_players` scoped to the requested Showdown set.
 
-    Query params: showdown_set, season (one season's shelf), q (search across all seasons),
-    sport_id, limit, offset.
+    Query params: showdown_set, season (one season's shelf), q (search by name, abbreviation,
+    or season across all seasons), sport_id, limit, offset.
     """
     try:
         showdown_set = request.args.get('showdown_set', ShowdownSet._2000.value)

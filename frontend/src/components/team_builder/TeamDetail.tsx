@@ -743,7 +743,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));
 
     return (
-        <div className={`flex flex-col ${embedded ? '' : 'h-[calc(100dvh-2.5rem)] overflow-hidden'}`}>
+        <div className={`flex flex-col ${embedded ? '' : 'lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden'}`}>
             
             {/* Header */}
             <div
@@ -802,9 +802,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {/* Subtitle row: PTS Breakdown */}
                         <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
                             <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
-                                {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
+                                {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS
                             </span>
-                            <div className="hidden @[350px]:flex ">
+                            <div className="hidden @[350px]:flex gap-1.5 items-center text-nowrap">
                                 {([
                                     { label: 'LINEUP', value: pointsBreakdown.lineup },
                                     { label: 'BENCH', value: pointsBreakdown.bench },
@@ -992,11 +992,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {/* Team Roster Content */}
-            <div className={`flex flex-1 ${embedded ? '' : 'min-h-0 overflow-hidden'}`}>
+            <div className={`flex flex-1 ${embedded ? '' : 'lg:min-h-0 lg:overflow-hidden'}`}>
                 {isLg && teamMode === 'complete' ? (
                     /* Filled + large screen: FieldView fixed on left, Depth/Draft/Settings tabs on right */
                     <>
-                        <div className="flex flex-col shrink-0 overflow-y-auto scrollbar-hide w-80 md:w-108 lg:w-124 xl:w-148 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
+                        <div className="flex flex-col shrink-0 overflow-y-auto scrollbar-hide w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-164 3xl:w-184 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
                             {fieldViewContent}
                         </div>
                         <Tabs.Root

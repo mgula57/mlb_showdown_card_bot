@@ -262,6 +262,9 @@ export type ChallengeInstance = {
     year: number;
     replaces_abbr: string;
     pts_limit: number | null;
+    /** Restricts which players are eligible for a team built for this instance (e.g. team/hand/
+     *  year), same shape as a team's own `player_filters`. Null = no restriction. */
+    player_filters: Record<string, unknown> | null;
     expires_at: string;
     slug: string;
     title: string;
@@ -393,6 +396,18 @@ export async function fetchChallengeInstance(instanceId: string, token?: string)
     if (!res.ok) await parseError(res, 'Failed to load challenge');
     const data = await res.json();
     return data.challenge ?? null;
+}
+
+/** Which of the caller's own teams pass this challenge's budget/drafting/player_filters checks
+ *  right now — the same checks `start_season_sim` enforces at launch, run ahead of time so the
+ *  "use an existing team" picker doesn't offer a team that would just fail at launch. */
+export async function fetchEligibleTeamIds(instanceId: string, token: string): Promise<string[]> {
+    const res = await fetch(`${API_BASE}/sim/challenges/${instanceId}/eligible_teams`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to check team eligibility');
+    const data = await res.json();
+    return data.team_ids ?? [];
 }
 
 /** Poll a job's progress. Returns 404 once the job row has expired — the result outlives it. */
