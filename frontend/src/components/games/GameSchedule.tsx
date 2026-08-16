@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { type GameScheduled } from "../../api/mlbAPI";
 import { fetchCardData, type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardSource } from "../../types/cardSource";
@@ -94,6 +94,18 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
 
         return () => { cancelled = true; };
     }, [idsKey, season, showdownSet, sportId]);
+
+    // Refresh the schedule whenever the user returns to this tab, since Seasons stays
+    // mounted (CSS-toggled, not remounted) while navigating away and back.
+    const onRefreshRef = useRef(onRefresh);
+    useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
+    useEffect(() => {
+        const onVisibility = () => {
+            if (!document.hidden) onRefreshRef.current?.();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => document.removeEventListener("visibilitychange", onVisibility);
+    }, []);
 
     if (!games.length) {
         return null;
