@@ -48,6 +48,11 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     const lastY             = useRef(0);
     const lastTime          = useRef(0);
     const velocity          = useRef(0); // px/ms, positive = downward
+    // Timestamp of the last real touch interaction. Browsers replay a synthetic
+    // mousedown/mouseup ~300ms after a touchend for mouse-only-code compatibility;
+    // without this guard that replay re-triggers handleMouseDown and immediately
+    // undoes the tap's snap change.
+    const lastTouchTime     = useRef(0);
 
     // ----------------------------------------------------------------
     // Snap helpers
@@ -184,7 +189,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     // Touch handlers (wired to the drag handle)
     // ----------------------------------------------------------------
 
-    const handleTouchStart = (e: React.TouchEvent) => startDrag(e.touches[0].clientY);
+    const handleTouchStart = (e: React.TouchEvent) => { lastTouchTime.current = Date.now(); startDrag(e.touches[0].clientY); };
     const handleTouchMove  = (e: React.TouchEvent) => moveDrag(e.touches[0].clientY);
     const handleTouchEnd   = () => endDrag();
 
@@ -193,6 +198,10 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     // ----------------------------------------------------------------
 
     const handleMouseDown = (e: React.MouseEvent) => {
+        // Ignore synthetic mousedown replayed by the browser shortly after a real
+        // touch tap — otherwise it re-triggers the drag/toggle a second time and
+        // immediately reverses whatever the touch just did.
+        if (Date.now() - lastTouchTime.current < 500) return;
         e.preventDefault();
         startDrag(e.clientY);
 
