@@ -4,7 +4,7 @@ import type { AwardWinner, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
 import { TeamChip } from '../../shared/TeamChip';
 import { fromSimTeamIdentity, fallbackIdentity } from '../../../domain/adapters/fromSim';
-import { useStandingsEntries, useIdentity, hashId } from './simStandings';
+import { useStandingsEntries, useIdentity, hashId, computePtsEfficiency } from './simStandings';
 import { SimWinPctChart } from './SimWinPctChart';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS } from './simStatColumns';
@@ -74,18 +74,24 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
         [summary.players],
     );
 
+    const ptsEfficiency = useMemo(() => computePtsEfficiency(summary), [summary]);
+
     const kpis = useMemo(() => [
         { label: 'Win %', value: team.win_pct.toFixed(3).replace(/^0\./, '.') },
-        { label: 'PTS / Win', value: team.wins > 0 ? (team.points / team.wins).toFixed(1) : '—' },
+        {
+            label: 'PTS+',
+            value: ptsEfficiency != null ? String(ptsEfficiency) : '—',
+            info: 'Wins per roster point, indexed to the league average that season (100 = average, like OPS+/wRC+). Higher means the points were spent more wisely.',
+        },
         { label: 'Best W Streak', value: String(team.longest_win_streak) },
         { label: 'Worst L Streak', value: String(team.longest_losing_streak) },
-    ], [team]);
+    ], [team, ptsEfficiency]);
 
     return (
         <div className="flex flex-col gap-4">
             <SectionCard title="Season KPIs">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {kpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
+                    {kpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} info={kpi.info} />)}
                 </div>
             </SectionCard>
 
