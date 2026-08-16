@@ -237,7 +237,7 @@ export const CardItemCompact = ({
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && (
                 <div className="hidden @[70px]:block absolute bottom-1.5 left-1 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
-                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
+                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
                 </div>
             )}
 

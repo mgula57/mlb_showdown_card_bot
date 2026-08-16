@@ -113,7 +113,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             const image = imageForSet(set, useAbbreviated);
                             const heightClass = useAbbreviated ? 'h-3.5' : 'h-4.5';
                             return image ? (
-                                <img key={set} src={image} alt={set} className={`${heightClass} w-auto object-contain`} />
+                                <img key={set} src={image} alt={set} loading="lazy" className={`${heightClass} w-auto object-contain`} />
                             ) : null;
                         })}
                     </div>
@@ -127,6 +127,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                 alt=""
                 aria-hidden
                 draggable={false}
+                loading="lazy"
             />
 
             {/* Team primary color wash over the field (top) */}
@@ -149,6 +150,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             <img
                                 src={team.logo_url}
                                 alt=""
+                                loading="lazy"
                                 className="w-7 h-7 rounded-md object-cover shrink-0 ring-1 ring-white/20"
                             />
                         )}
@@ -159,6 +161,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             <img
                                 src={avatarUrl}
                                 alt="Your avatar"
+                                loading="lazy"
                                 className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white/30"
                             />
                         )}

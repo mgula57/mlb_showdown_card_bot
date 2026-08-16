@@ -61,6 +61,12 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
 }) {
     const [teams, setTeams] = useState<HistoricalTeam[]>([]);
     const [loading, setLoading] = useState(true);
+    // Once loaded, real cards (and their images) are swapped for lightweight skeletons whenever
+    // the shelf scrolls well outside the viewport, so a long scroll session doesn't keep every
+    // previously-seen shelf's tiles resident in memory at once. Data already fetched is kept in
+    // state, so scrolling back just re-renders the same teams instantly.
+    const [isNearViewport, setIsNearViewport] = useState(true);
+    const containerRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -71,6 +77,17 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
     }, [season, showdownSet]);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            entries => setIsNearViewport(entries[0]?.isIntersecting ?? true),
+            { rootMargin: '800px 0px' },
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     const asgPreview = (league: string): TeamPreviewData => {
         const id = asgIdentity(season, league);
@@ -83,17 +100,26 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
         };
     };
 
+    const showSkeletons = loading || !isNearViewport;
+    const skeletonCount = loading ? 6 : asgLeagues.length + teams.length;
+
     return (
-        <TeamShelf title={String(season)} subtitle={`${teamCount} teams`} className={className}>
-            {asgLeagues.map(league => (
-                <TeamPreviewCard key={`asg-${season}-${league}`} team={asgPreview(league)} onClick={() => onOpenAsg(season, league)} />
-            ))}
-            {loading
-                ? Array.from({ length: 6 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)
-                : teams.map(team => (
-                    <TeamPreviewCard key={team.team_id} team={teamToPreview(team, showdownSet)} onClick={() => onOpenTeam(team)} />
-                ))}
-        </TeamShelf>
+        <div ref={containerRef}>
+            <TeamShelf title={String(season)} subtitle={`${teamCount} teams`} className={className}>
+                {showSkeletons
+                    ? Array.from({ length: skeletonCount }, (_, i) => <TeamPreviewCardSkeleton key={i} />)
+                    : (
+                        <>
+                            {asgLeagues.map(league => (
+                                <TeamPreviewCard key={`asg-${season}-${league}`} team={asgPreview(league)} onClick={() => onOpenAsg(season, league)} />
+                            ))}
+                            {teams.map(team => (
+                                <TeamPreviewCard key={team.team_id} team={teamToPreview(team, showdownSet)} onClick={() => onOpenTeam(team)} />
+                            ))}
+                        </>
+                    )}
+            </TeamShelf>
+        </div>
     );
 }
 
