@@ -772,7 +772,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {/* Name + total pts */}
                         <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
                             <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
-                            {teamMode === 'complete' && (
+                            
+                            {draft.roster.length === draft.roster_size && (
                                 <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
                                     <FaUsers /> {draft.roster.length}
                                 </span>
@@ -799,20 +800,22 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             </div>
                         </div>
                         {/* Subtitle row: PTS Breakdown */}
-                        <div className="hidden @[500px]:flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
+                        <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
                             <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
                                 {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
                             </span>
-                            {([
-                                { label: 'LINEUP', value: pointsBreakdown.lineup },
-                                { label: 'BENCH', value: pointsBreakdown.bench },
-                                { label: 'ROTATION', value: pointsBreakdown.rotation },
-                                { label: 'BULLPEN', value: pointsBreakdown.bullpen },
-                            ] as const).map(({ label, value }) => (
-                                <span key={label} className="flex gap-1 text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
-                                    {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
-                                </span>
-                            ))}
+                            <div className="hidden @[350px]:flex ">
+                                {([
+                                    { label: 'LINEUP', value: pointsBreakdown.lineup },
+                                    { label: 'BENCH', value: pointsBreakdown.bench },
+                                    { label: 'ROTATION', value: pointsBreakdown.rotation },
+                                    { label: 'BULLPEN', value: pointsBreakdown.bullpen },
+                                ] as const).map(({ label, value }) => (
+                                    <span key={label} className="flex gap-1 text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
+                                        {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
+                                    </span>
+                                ))}
+                            </div>
 
                         </div>
                     </div>
@@ -820,7 +823,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                 {/* Action buttons: wrap into a grid below the team info on narrow views, sit inline to the right once there's room */}
                 {(onToggleStar || onFork || !readOnly || canSimulate) && (
-                    <div className="grid grid-cols-2 @sm:grid-cols-4 @lg:flex @lg:items-center gap-2 @lg:w-auto shrink-0">
+                    <div className="grid grid-cols-2 @sm:grid-cols-3 @lg:grid-cols-4 @lg:items-center gap-2 @lg:w-auto shrink-0">
                         {onToggleStar && (
                             <button
                                 type="button"
@@ -870,14 +873,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     <button
                                         type="button"
                                         onClick={() => setEditMode(true)}
-                                        className="flex items-center justify-center gap-1 px-2 py-1 h-8 w-full text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                                        className="
+                                            flex items-center justify-center 
+                                            gap-1 px-2 py-1 h-8 w-full rounded-lg bg-quaternary
+                                            text-md text-(--text-secondary) font-bold hover:text-(--text-primary) 
+                                            cursor-pointer transition-colors
+                                        "
                                     >
                                         <FaPenToSquare /> Edit
                                     </button>
                                 )}
                             </div>
                         )}
-                        {canSimulate && (
+                        {canSimulate && teamMode === 'complete' && (
                             <button
                                 type="button"
                                 onClick={() => challenge ? setShowChallengeConfirm(true) : setShowSimModal(true)}
@@ -909,7 +917,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {teamMode !== 'complete' && (
-                <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={bannerStyle}>
+                <div className="flex items-center gap-3 px-4 py-2.5 shrink-0" style={bannerStyle}>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
                     <span className="text-[11px] font-bold flex-1 drop-shadow-sm flex items-center gap-4" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting'
@@ -921,7 +929,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     <button
                                         type="button"
                                         onClick={() => setShowSettingsModal(true)}
-                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerLeft.btnClass}`}
+                                        className={`flex items-center gap-1 px-2 py-1 h-8 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerLeft.btnClass}`}
                                         aria-label="Team settings"
                                         title="Team settings"
                                     >
@@ -970,7 +978,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         )}
                         {teamMode === 'editing' && (
                             <>
-                               
                                 <button
                                     type="button"
                                     onClick={() => setEditMode(false)}
@@ -998,7 +1005,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         >
                             {!isMlbTeam && (
                                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
-                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1" /><span>Depth <span className="hidden sm:inline sm:ml-1"> Chart</span></span></Tabs.Trigger>
+                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1" /><span>Depth <span className="hidden sm:inline"> Chart</span></span></Tabs.Trigger>
                                     <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>
                                     <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" /> Draft</Tabs.Trigger>
                                     {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" /> Sims</Tabs.Trigger>}
