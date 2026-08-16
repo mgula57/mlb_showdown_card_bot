@@ -15,6 +15,136 @@ Every mode funnels through the same play-by-play machinery (`Game` / `PlateAppea
 season game, a tournament game, and a real-game takeover are simulated identically once the two
 `SimTeam`s and a starting state exist.
 
+## Nuances, assumptions, and abilities
+
+This section is about the simulation's *behavior*, not its code — what it assumes about the world,
+what it can do, and what it deliberately doesn't model. See the sections below for where each of
+these lives in the code.
+
+### The at-bat is entirely chart-driven
+
+Every outcome comes from two 1-20 rolls read off the two `ShowdownPlayerCard`s in play — nothing
+else. A card's printed `hand` (L/R) is carried through to `SimPlayer`, but the simulation never
+reads it: there is no platoon logic anywhere in `core/simulation`, so a card performs identically
+against a lefty or a righty, and lineups are never built with handedness stacking in mind. Whatever
+context (park, league, matchup history) is baked into a card's chart at generation time is the only
+context that reaches the sim — there's no live park factor, weather, or crowd/travel effect applied
+during a game.
+
+Both dice rolls get a small randomized "wobble" (`random_plus_or_minus_to_roll`) added on top before
+being compared to the chart, so identical matchups don't reliably produce identical results — a
+±1 nudge happens up to 35% of the time on the swing roll, with rarer ±2/±3 nudges layered on top. A
+roll that lands past the top of a chart doesn't fail open; `SimPlayer.result_for_roll` clamps it to
+the chart's best (highest) listed result.
+
+### Baserunning is pure matchup arithmetic, with a few situational thumbs on the scale
+
+Steals, extra-base advances, and double plays are each a `(defense + roll) vs. (runner speed [+
+bonus])` comparison (`probability_of_advance`), not chart-driven. A few hand-tuned situational
+adjustments sit on top of the raw speed-vs-defense math:
+
+- Stealing third carries a **+5/+10** success bonus for the runner over stealing second (bigger with
+  two outs, since a caught-stealing there costs nothing but a lost baserunner rather than a rally).
+- Stealing *to* third is nudged **harder** against the runner (a **-5** penalty) than stealing
+  second — real baseball's "never make the first or third out at third" instinct, baked in as a flat
+  number rather than an explicit rule.
+- A steal of second with two outs already on the board has its attempt probability cut by 40
+  percentage points — there's little value in the extra risk when the runner's already in scoring
+  position.
+- Steal attempts are probability-gated before the actual safe/out roll even happens: the "should we
+  even try" call is clamped between a 1% floor and a 90% ceiling, so no runner — however fast — is
+  ever a lock to go, and no runner is ever completely unable to try.
+- A double play can only be attempted off a ground ball with a runner on first (`is_double_play_opportunity`)
+  — there's no double play off a line drive, a bunt, or any other batted-ball type, because the
+  engine doesn't model batted-ball type at all.
+- A fly ball with fewer than 3 outs is still "advanceable" even though it isn't a hit — that's how
+  tag-up sac flies are modeled, via the same `check_and_execute_advance` roll used for hits.
+
+### Pitcher fatigue has no concept of a pitch count
+
+`SimPitcher.is_tired` compares innings *actually thrown this game* against the card's own printed
+`ip` rating — the sim has no pitch-count model at all. Runs allowed accelerate fatigue: every 3 runs
+given up count as roughly one extra inning thrown for fatigue purposes, so a starter getting rocked
+tires faster than his raw innings would suggest. A starter who's still spotless and within his
+printed limit is never flagged tired, no matter how deep into the game he's gone — a great outing can
+run long. There is also no explicit "days of rest between starts" requirement for a starting
+rotation — `Rotation` just advances round-robin one slot per team-game regardless of the calendar gap
+between those games.
+
+Relief pitcher selection (`Bullpen.suggested_reliever`) is scored, not rules-based: each available
+reliever gets a 0-1 "situational fit" score built from how well the score margin and inning match
+his role on the staff, discounted by how much he's thrown in the last 3 days (a pitcher who threw
+2+ innings in the last 2 days is filtered out of availability entirely by
+`pitching_log.pitcher_ids_with_recent_workload`). The closer is a special case: he's used in true
+save/hold situations, and his fit score is cut in half anywhere else, so he mostly only pitches the
+9th with a lead. None of this reads recent *results* — a reliever who blew his last three
+appearances is just as available as one who's been lights out; only *workload*, not performance
+streaks, affects usage.
+
+### Position-player rest is a soft rating, not a hard schedule
+
+There's no real "day off" concept — every eligible player is scored for every game
+(`SimPlayer.player_rest_rating`), and the highest-rated one gets the start. The score is built from
+each player's own **expected games between rest**, itself derived from the player's value (better
+players are expected to play more often between rest days) and position (catchers get an
+automatically shorter expected gap than every other position, i.e. rest more often, independent of
+how good the individual catcher is). Builder-team lineups skip all of this — a user's explicit
+lineup/rotation/bullpen assignments are honored verbatim, with no auto-resting, no auto-swapping,
+and no injuries at all (`SimTeam.roster` stays `None` for a builder team, which every rest/injury
+code path treats as "not applicable").
+
+### Roster construction is coverage-first, not best-players-available
+
+`Roster.select` fills the 8 defensive positions one at a time by the best eligible player left before
+ever topping the roster up by raw point value — a team stacked at one position and thin at another in
+real life won't automatically play that way in the sim. A backup catcher is a hard requirement
+(`CA.valid_positions` is only `[CA]`, so nobody else can quietly cover it), and reserve-pool cutoffs
+(minimum real games/PA/IP to even be considered a callup option) scale down for shortened real
+seasons rather than staying fixed at a 162-game-season threshold. If a real player pool genuinely
+can't fill out a 40-man (a very old/thin season), the sim logs a warning and plays on short rather
+than failing the whole run.
+
+When a lineup genuinely can't be filled the normal way — active roster and reserves both exhausted,
+usually only possible on a long injury-enabled season with a team that started thin — the engine
+works through a five-step fallback before ever raising an error: normal eligible starter → emergency
+reserve callup → an out-of-position active player → force-activating the injured player closest to
+returning → only then does it give up. A legal lineup always outranks a legal roster or a legal IL
+stint.
+
+### Injuries are opt-in and self-calibrating, not scripted
+
+With `enable_injuries` on, every player on a real-season 40-man gets an `InjuryProfile` built once at
+roster construction time, calibrated so that a player's *simulated expected missed games* matches the
+gap between his real career games played and a role-adjusted healthy baseline — a player who actually
+played nearly every game in real life is modeled as durable; one who missed a lot of time is modeled
+as fragile. That gap is scaled by a "confidence" factor tied to real playing-time volume specifically
+so a bench bat or September call-up doesn't read as *chronically hurt* purely because his role gives
+him a low game count. Per-team-game injury hazard is capped at a flat 25% no matter how fragile a
+player's profile is, and every player — even the healthiest iron-man profile — carries at least a
+small floor of risk. IL stints are drawn from three length buckets (short/medium/long, roughly
+3-10/11-25/26-75 days), weighted so short stints dominate and long, season-altering ones stay rare.
+Injuries are re-rolled once per calendar day per active player (doubleheader-safe — a second game the
+same day doesn't double the risk), and the postseason only processes IL *returns*, never new injury
+rolls, since the hazard rates are calibrated against a 162-game regular-season cadence, not October's
+sparser one.
+
+### Season takeover and awards
+
+A season takeover offers real clubs worst-record-first by default — replacing the season's worst
+team is the intended "uphill" version of the mode, though any club can be picked. The takeover team
+is swapped into the replaced club's schedule/standings/division slot *under that club's own key*, so
+it inherits everything about that club's season without any special-casing elsewhere in the engine.
+
+End-of-season awards are deterministic formulas, not simulated ballots — there's no all-star voting
+model. MVP is wRC+ scaled by playing time with small bonuses for defensive rating and net stolen
+bases; Cy Young is *runs saved below league-average ERA, scaled by innings pitched* rather than raw
+ERA, specifically so a reliever's small dominant sample can't out-rank a full, excellent starter's
+season; Rookie of the Year reuses those two scores but ranks rookie candidates by percentile within
+their own player-type pool so a hitter and a pitcher can be compared on the same footing; Silver
+Sluggers split the card's combined `LF/RF` position by which of the two a player actually logged more
+plate appearances at *this season*, and widen DH eligibility to anyone whose season was majority-DH
+by plate appearances, regardless of what position is actually printed on the card.
+
 ## Entry points
 
 | Mode | Class | Driven by |
