@@ -1048,21 +1048,25 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                             <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
+                                {showEditControls && !isLg && <div className="h-48" />}
                             </Tabs.Content>
 
                             <Tabs.Content value="lineup" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
                                 {lineupPanelContent}
+                                {showEditControls && !isLg && <div className="h-48" />}
                             </Tabs.Content>
 
                             {!isMlbTeam && (
                                 <Tabs.Content value="draft" className="focus:outline-none">
                                     {draftHistoryContent}
+                                    {showEditControls && !isLg && <div className="h-48" />}
                                 </Tabs.Content>
                             )}
 
                             {hasSims && (
                                 <Tabs.Content value="sims" className="focus:outline-none">
                                     {simsContent}
+                                    {showEditControls && !isLg && <div className="h-48" />}
                                 </Tabs.Content>
                             )}
                         </Tabs.Root>
