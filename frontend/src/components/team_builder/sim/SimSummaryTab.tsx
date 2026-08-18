@@ -5,6 +5,7 @@ import Standings from '../../seasons/Standings';
 import { TeamChip } from '../../shared/TeamChip';
 import { fromSimTeamIdentity, fallbackIdentity } from '../../../domain/adapters/fromSim';
 import { useStandingsEntries, useIdentity, hashId, computePtsEfficiency } from './simStandings';
+import { useClubSeason } from './simClubSeason';
 import { SimWinPctChart } from './SimWinPctChart';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS } from './simStatColumns';
@@ -36,13 +37,13 @@ type Props = {
 };
 
 export function SimSummaryTab({ summary, teamKey }: Props) {
-    const team = summary.team;
+    const { team, games, players } = useClubSeason(summary, teamKey);
     const identityFor = useIdentity(summary);
     const standingsEntries = useStandingsEntries(summary);
 
     const divisionEntries = useMemo(
-        () => standingsEntries.filter(([, groups]) => groups[0]?.division?.name === team.division),
-        [standingsEntries, team.division],
+        () => standingsEntries.filter(([, groups]) => groups[0]?.division?.name === team?.division),
+        [standingsEntries, team],
     );
 
     const playoffCutlinePct = useMemo(() => {
@@ -57,7 +58,7 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
         [summary.postseason, teamKey],
     );
 
-    const myPlayerIds = useMemo(() => new Set(summary.players.map(p => p.id)), [summary.players]);
+    const myPlayerIds = useMemo(() => new Set(players.map(p => p.id)), [players]);
     const myAwards = useMemo(() => {
         const awards = summary.awards;
         if (!awards) return [];
@@ -66,26 +67,34 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
     }, [summary.awards, myPlayerIds]);
 
     const topHitters = useMemo(
-        () => summary.players.filter(p => p.player_type === 'Hitter').slice(0, TOP_PERFORMERS_COUNT),
-        [summary.players],
+        () => players.filter(p => p.player_type === 'Hitter').slice(0, TOP_PERFORMERS_COUNT),
+        [players],
     );
     const topPitchers = useMemo(
-        () => summary.players.filter(p => p.player_type === 'Pitcher').slice(0, TOP_PERFORMERS_COUNT),
-        [summary.players],
+        () => players.filter(p => p.player_type === 'Pitcher').slice(0, TOP_PERFORMERS_COUNT),
+        [players],
     );
 
-    const ptsEfficiency = useMemo(() => computePtsEfficiency(summary), [summary]);
+    const ptsEfficiency = useMemo(() => computePtsEfficiency(summary, team), [summary, team]);
+
+    // A rest-of-season projection's streaks only ever see the simulated games, not the real
+    // season leading up to the resume date - so the label needs to say so, or a "best win streak"
+    // of 3 reads as the whole season's high point rather than just what's been simulated.
+    const isResumed = Object.keys(summary.seeded_records ?? {}).length > 0;
+    const streakSuffix = isResumed ? ' (since resume)' : '';
 
     const kpis = useMemo(() => [
-        { label: 'Win %', value: team.win_pct.toFixed(3).replace(/^0\./, '.') },
+        { label: 'Win %', value: (team?.win_pct ?? 0).toFixed(3).replace(/^0\./, '.') },
         {
             label: 'PTS+',
             value: ptsEfficiency != null ? String(ptsEfficiency) : '—',
             info: 'Wins per roster point, indexed to the league average that season (100 = average, like OPS+/wRC+). Higher means the points were spent more wisely.',
         },
-        { label: 'Best W Streak', value: String(team.longest_win_streak) },
-        { label: 'Worst L Streak', value: String(team.longest_losing_streak) },
-    ], [team, ptsEfficiency]);
+        { label: `Best W Streak${streakSuffix}`, value: String(team?.longest_win_streak ?? 0) },
+        { label: `Worst L Streak${streakSuffix}`, value: String(team?.longest_losing_streak ?? 0) },
+    ], [team, ptsEfficiency, streakSuffix]);
+
+    if (!team) return null;
 
     return (
         <div className="flex flex-col gap-4">
@@ -105,7 +114,7 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                 </SectionCard>
 
                 <SectionCard title="Win % Over Time" >
-                    <SimWinPctChart games={summary.games} playoffCutlinePct={playoffCutlinePct} />
+                    <SimWinPctChart games={games} playoffCutlinePct={playoffCutlinePct} />
                 </SectionCard>
             </div>
 

@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fa6';
 import type { SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
+import CustomSelect from '../../shared/CustomSelect';
 import { SimAwardsList } from './SimAwardsList';
 import { SimBracket } from './SimBracket';
 import { SimSummaryTab } from './SimSummaryTab';
@@ -13,6 +14,7 @@ import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis } from './simStatColumns';
 import { KpiTile } from './KpiTile';
 import { useStandingsEntries, useIdentity, hashId, label } from './simStandings';
+import { useClubSeason } from './simClubSeason';
 import { describePostseasonExit } from './postseasonExit';
 import { radixTabTriggerClass } from '../../shared/tabStyles';
 
@@ -29,25 +31,48 @@ type Props = {
     /** Set only when this season was a Team Challenge attempt. */
     challengeResult?: 'passed' | 'failed' | null;
     onRunAgain?: () => void;
+    /** Club to focus on. Only meaningful for an open sim (no single team) - a takeover/challenge
+     *  run always shows its own fixed team regardless of this prop. */
+    focusAbbr?: string;
+    /** Called when the user switches focus club via the header dropdown. The dropdown only
+     *  renders for an open sim (`season_games` populated), so this is otherwise unused. */
+    onFocusChange?: (abbr: string) => void;
 };
 
-export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
+export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onFocusChange }: Props) {
     const identityFor = useIdentity(summary);
-    const team = summary.team;
-    const teamKey = team.replaced_abbr ?? '';
-    const teamName = team.identity?.name || team.identity?.abbreviation || 'Your team';
+    const isOpenSim = (summary.season_games?.length ?? 0) > 0;
+    const isResumed = Object.keys(summary.seeded_records ?? {}).length > 0;
+    const clubAbbr = focusAbbr ?? summary.team?.replaced_abbr ?? Object.keys(summary.identities)[0] ?? '';
+    const { team, games, players } = useClubSeason(summary, clubAbbr);
+    const teamKey = team?.replaced_abbr ?? clubAbbr;
+    const teamName = team?.identity?.name || team?.identity?.abbreviation || 'Your team';
 
-    const hitters = useMemo(() => summary.players.filter(p => p.player_type === 'Hitter'), [summary.players]);
-    const pitchers = useMemo(() => summary.players.filter(p => p.player_type === 'Pitcher'), [summary.players]);
+    const hitters = useMemo(() => players.filter(p => p.player_type === 'Hitter'), [players]);
+    const pitchers = useMemo(() => players.filter(p => p.player_type === 'Pitcher'), [players]);
     const hitterKpis = useMemo(() => buildHitterTeamKpis(hitters), [hitters]);
     const pitcherKpis = useMemo(() => buildPitcherTeamKpis(pitchers), [pitchers]);
     const standingsEntries = useStandingsEntries(summary);
     const postseasonExit = useMemo(() => describePostseasonExit(summary, teamKey), [summary, teamKey]);
 
+    const clubOptions = useMemo(() => (
+        Object.entries(summary.identities)
+            .map(([abbr, identity]) => ({
+                value: abbr,
+                label: `${identity.name || identity.abbreviation}${summary.takeover_abbrs?.includes(abbr) ? ' ★' : ''}`,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label))
+    ), [summary.identities, summary.takeover_abbrs]);
+
     const hasAwards = useMemo(() => {
         const awards = summary.awards;
         return !!awards && (awards.mvp.length + awards.cy_young.length + awards.rookie_of_year.length + awards.silver_sluggers.length) > 0;
     }, [summary.awards]);
+
+    // GUARD AFTER EVERY HOOK CALL ABOVE, NEVER BEFORE - team CAN ONLY BE NULL IF clubAbbr DOESN'T
+    // MATCH ANY STANDINGS ROW, WHICH SHOULDN'T HAPPEN IN PRACTICE, BUT AN EARLY RETURN AMONG HOOK
+    // CALLS WOULD BREAK THE RULES OF HOOKS THE MOMENT IT DID.
+    if (!team) return null;
 
     const outcome = team.is_champion
         ? 'Won the World Series'
@@ -68,11 +93,23 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
             {/* Headline */}
             <div className="px-4 flex items-center justify-between gap-3">
                 <div >
-                    <p className="text-[12px] text-(--text-tertiary)">
-                        {summary.year} · Set {summary.set}
-                        {team.replaced_abbr ? ` · took over ${team.replaced_abbr}` : ''}
-                        {summary.seed !== null ? ` · seed ${summary.seed}` : ''}
-                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[12px] text-(--text-tertiary)">
+                            {summary.year} · Set {summary.set}
+                            {!isOpenSim && team.replaced_abbr ? ` · took over ${team.replaced_abbr}` : ''}
+                            {summary.seed !== null ? ` · seed ${summary.seed}` : ''}
+                            {isResumed ? ' · resumed mid-season' : ''}
+                            {summary.real_stats_as_of ? ` · stats as of ${new Date(summary.real_stats_as_of).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
+                        </p>
+                        {isOpenSim && onFocusChange && (
+                            <CustomSelect
+                                value={clubAbbr}
+                                onChange={onFocusChange}
+                                options={clubOptions}
+                                buttonClassName="text-[11px] py-0.5 px-2 rounded-md bg-(--background-tertiary) text-(--text-primary) text-nowrap cursor-pointer"
+                            />
+                        )}
+                    </div>
                     <h1 className="text-[24px] font-black text-(--text-primary) leading-tight">
                         {team.wins}<span className="text-(--text-tertiary)">-</span>{team.losses}
                         {team.is_champion && <FaTrophy className="inline ml-2 text-[18px] text-(--secondary)" />}
@@ -96,18 +133,18 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                             : ''}
                     </div>
                     <div className={`text-[12px] text-tertiary`}>{outcome}</div>
-                    
+                    {onRunAgain && (
+                        <button
+                            type="button"
+                            onClick={onRunAgain}
+                            className="flex items-center gap-1.5 px-3 py-1 mt-1 rounded-lg bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                        >
+                            <FaArrowRotateLeft className="text-[10px]" />
+                            Run again
+                        </button>
+                    )}
                 </div>
-                {onRunAgain && (
-                    <button
-                        type="button"
-                        onClick={onRunAgain}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer shrink-0"
-                    >
-                        <FaArrowRotateLeft className="text-[10px]" />
-                        Run again
-                    </button>
-                )}
+                
             </div>
 
             <Tabs.Root defaultValue="summary" className="flex flex-col">
@@ -134,7 +171,7 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                 {/* Schedule */}
                 <Tabs.Content value="schedule" className="focus:outline-none px-4 pt-3">
                     <div className="flex flex-wrap gap-1 mb-4">
-                        {summary.games.map((game, i) => (
+                        {games.map((game, i) => (
                             <div
                                 key={i}
                                 title={`${game.date} ${game.is_home ? 'vs' : '@'} ${label(identityFor(game.opponent), game.opponent)} — ${game.runs_scored}-${game.runs_allowed}`}
@@ -154,7 +191,7 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {summary.games.map((game, i) => (
+                                {games.map((game, i) => (
                                     <tr key={i} className="border-b border-(--divider)/50">
                                         <td className="py-1.5 pr-3 text-(--text-tertiary)">{game.date}</td>
                                         <td className="py-1.5 pr-3 text-(--text-primary)">
@@ -221,7 +258,7 @@ export function SimResult({ summary, challengeResult, onRunAgain }: Props) {
 
                 {/* Awards */}
                 {hasAwards && summary.awards && (
-                    <Tabs.Content value="awards" className="focus:outline-none px-4 pt-3">
+                    <Tabs.Content value="awards" className="focus:outline-none px-2 pt-3">
                         <SimAwardsList awards={summary.awards} identities={summary.identities} />
                     </Tabs.Content>
                 )}

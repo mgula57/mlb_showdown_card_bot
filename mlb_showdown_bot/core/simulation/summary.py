@@ -65,6 +65,18 @@ class SimSeriesLine(BaseModel):
     games: list[SimPostseasonGameLine] = []
 
 
+class SimSeasonGameLine(BaseModel):
+    """One game of the season, trimmed the same way `SimGameLine` trims a single team's games -
+    no linescore/log/box score. Populated only in open-sim mode (`team_abbr` is None), where it
+    backs every club's schedule/streak view instead of just one team's `SimGameLine` list."""
+
+    date: str
+    home_team: str
+    away_team: str
+    home_score: int = 0
+    away_score: int = 0
+
+
 class SimTeamSeason(BaseModel):
     """How the user's team finished."""
 
@@ -101,9 +113,30 @@ class SeasonSimSummary(BaseModel):
     original_schedule_length: int = 0
     generated_at: datetime
 
-    team: SimTeamSeason
+    # NONE IN OPEN-SIM MODE (`team_abbr` UNSET) - THERE IS NO SINGLE FOCUS TEAM, SO THE CLIENT
+    # PICKS ONE VIA `useClubSeason` INSTEAD. SET FOR A TAKEOVER/CHALLENGE RUN, AS BEFORE.
+    team: Optional[SimTeamSeason] = None
     games: list[SimGameLine] = []
     players: list[SimStatLine] = []
+
+    # EVERY GAME OF THE SEASON, ONCE - ONLY POPULATED IN OPEN-SIM MODE. BACKS THE CLUB BROWSER
+    # (`useClubSeason`) SO SWITCHING FOCUS CLUB NEVER NEEDS A REFETCH. EMPTY FOR A TAKEOVER RUN,
+    # WHICH ALREADY HAS ITS OWN TEAM-SCOPED `games` LIST ABOVE.
+    season_games: list[SimSeasonGameLine] = []
+
+    # SCHEDULE KEY -> (WINS, LOSSES) EACH CLUB STARTED THE SIM WITH - POPULATED ONLY FOR A
+    # REST-OF-SEASON PROJECTION. EMPTY (EVERY CLUB STARTED 0-0) FOR A FULL-SEASON SIM.
+    seeded_records: dict[str, tuple[int, int]] = {}
+
+    # LEAST-STALE stats_modified_date ACROSS EVERY PLAYER WHOSE REAL STATS WERE MERGED IN. NONE
+    # UNLESS THE RUN USED `config.merge_real_stats` - THE ARCHIVE HOLDS ONE CURRENT SNAPSHOT PER
+    # PLAYER-YEAR, NOT A HISTORY, SO THIS MAY LAG THE RUN'S OWN resume_as_of_date. SHOW THIS DATE,
+    # NOT THAT ONE, WHEN DESCRIBING WHAT THE MERGED STATS COVER.
+    real_stats_as_of: Optional[datetime] = None
+
+    # SCHEDULE KEYS OF EVERY CLUB REPLACED BY A BUILDER TEAM THIS RUN, FOR BADGING THEM IN A
+    # CLUB PICKER. EMPTY FOR A PLAIN SIM.
+    takeover_abbrs: list[str] = []
 
     standings: StandingsResult
     postseason: list[SimSeriesLine] = []
@@ -131,28 +164,33 @@ class SeasonSummaryBuilder:
     web tables and the CLI tables never drift.
     """
 
-    def __init__(self, result: SeasonSimulationResult, team_abbr: str) -> None:
+    def __init__(self, result: SeasonSimulationResult, team_abbr: Optional[str] = None) -> None:
         self.result = result
-        self.team_abbr = team_abbr  # SCHEDULE KEY OF THE TEAM THE SUMMARY IS CENTERED ON
+        # SCHEDULE KEY OF THE TEAM THE SUMMARY IS CENTERED ON. NONE MEANS OPEN-SIM MODE - THE
+        # SUMMARY COVERS EVERY CLUB AND THE CLIENT PICKS A FOCUS CLUB ITSELF.
+        self.team_abbr = team_abbr
 
     @property
-    def roster_player_ids(self) -> Optional[set[str]]:
-        """Player ids on a takeover team's roster.
+    def roster_player_ids(self) -> dict[str, set[str]]:
+        """Schedule key -> card ids on that club's takeover roster, for every takeover this run
+        (see `SeasonSimulationConfig.all_takeovers`).
 
         Statlines report the builder team's own abbreviation, which is deliberately not the
         schedule key the takeover runs under, so matching on team would find nothing here.
         Roster slot `card_id`s are the ids `from_builder_team` assigns its players, so membership
-        is the exact filter. None for a plain season sim, where matching on team is correct.
+        is the exact filter. Empty when there is no takeover.
         """
-        takeover_team = self.result.config.takeover_team
-        if takeover_team is None:
-            return None
-        return {slot.card_id for slot in takeover_team.roster}
+        return {
+            abbr: {slot.card_id for slot in team.roster}
+            for abbr, team in self.result.config.all_takeovers.items()
+        }
 
     def build(self) -> SeasonSimSummary:
         result = self.result
-        record, division, rank, size = self._find_record()
-        games = self._build_games()
+        is_open_sim = self.team_abbr is None
+        record, division, rank, size = (None, None, None, None) if is_open_sim else self._find_record()
+        games = [] if is_open_sim else self._build_games()
+        season_games = self._build_season_games() if is_open_sim else []
         postseason = self._build_postseason()
 
         return SeasonSimSummary(
@@ -163,8 +201,9 @@ class SeasonSummaryBuilder:
             schedule_length=result.schedule_length,
             original_schedule_length=result.original_schedule_length,
             generated_at=result.ended_at,
-            team=self._build_team_season(record, division, rank, size, games, postseason),
+            team=None if is_open_sim else self._build_team_season(record, division, rank, size, games, postseason),
             games=games,
+            season_games=season_games,
             players=self._build_players(),
             standings=result.standings,
             postseason=postseason,
@@ -174,6 +213,9 @@ class SeasonSummaryBuilder:
             league_totals=self._league_lines(result.league_totals),
             real_league_averages=self._league_lines(result.real_league_averages),
             awards=AwardsBuilder(result=result).build(),
+            takeover_abbrs=list(self.roster_player_ids.keys()),
+            seeded_records=result.seeded_records,
+            real_stats_as_of=result.real_stats_as_of,
         )
 
     # ------------------------------------------------------------------
@@ -194,9 +236,8 @@ class SeasonSummaryBuilder:
             for record in records
             if record.identity is not None
         }
-        takeover_team = self.result.config.takeover_team
-        if takeover_team is not None:
-            replaced_identity = identities.get(self.team_abbr)
+        for replaces_abbr, takeover_team in self.result.config.all_takeovers.items():
+            replaced_identity = identities.get(replaces_abbr)
             if replaced_identity is not None:
                 identities[takeover_team.abbreviation] = replaced_identity
         return identities
@@ -258,7 +299,9 @@ class SeasonSummaryBuilder:
 
     def _build_games(self) -> list[SimGameLine]:
         lines: list[SimGameLine] = []
-        wins = losses = 0
+        # 0-0 UNLESS THIS IS A REST-OF-SEASON PROJECTION, IN WHICH CASE THE RUNNING RECORD PICKS
+        # UP FROM WHERE THE REAL SEASON LEFT OFF - SEE `SeasonSimulationConfig.resume_from_real_season`.
+        wins, losses = self.result.seeded_records.get(self.team_abbr, (0, 0))
         for game in self.result.games:
             is_home = game.home_team == self.team_abbr
             if not is_home and game.away_team != self.team_abbr:
@@ -279,6 +322,21 @@ class SeasonSummaryBuilder:
                 losses=losses,
             ))
         return lines
+
+    def _build_season_games(self) -> list[SimSeasonGameLine]:
+        """Every game of the season, once - the club browser (`useClubSeason` on the frontend)
+        derives each club's own schedule/streaks from this instead of a `SimGameLine` list per
+        club, which would duplicate every game 30x over."""
+        return [
+            SimSeasonGameLine(
+                date=str(game.date),
+                home_team=game.home_team,
+                away_team=game.away_team,
+                home_score=game.home_score,
+                away_score=game.away_score,
+            )
+            for game in self.result.games
+        ]
 
     # ------------------------------------------------------------------
     # STATS
@@ -302,17 +360,37 @@ class SeasonSummaryBuilder:
         )
 
     def _build_players(self) -> list[SimStatLine]:
-        """Only the team's own players - the other 29 clubs' statlines are dropped."""
-        roster_ids = self.roster_player_ids
-        on_team = (
-            (lambda stats: stats.id in roster_ids) if roster_ids is not None
-            else (lambda stats: stats.team == self.team_abbr)
-        )
-        lines = [
-            self._line(stats, stats.player_type)
-            for stats in self.result.player_stats
-            if stats.player_type is not None and on_team(stats)
-        ]
+        """In open-sim mode (`team_abbr` is None), every player in the season - and every
+        takeover roster's statlines get their `team` rewritten from the builder team's own
+        abbreviation to the schedule key it actually plays under, so the club browser can filter
+        on `team` the same way for a takeover club as for a real one (see `roster_player_ids`).
+
+        Otherwise, unchanged: only the focus team's own players, `team` left as reported.
+        """
+        is_open_sim = self.team_abbr is None
+        if is_open_sim:
+            selected = [stats for stats in self.result.player_stats if stats.player_type is not None]
+            card_id_to_abbr = {
+                card_id: abbr
+                for abbr, card_ids in self.roster_player_ids.items()
+                for card_id in card_ids
+            }
+        else:
+            roster_ids = self.roster_player_ids.get(self.team_abbr)
+            on_team = (
+                (lambda stats: stats.id in roster_ids) if roster_ids is not None
+                else (lambda stats: stats.team == self.team_abbr)
+            )
+            selected = [stats for stats in self.result.player_stats if stats.player_type is not None and on_team(stats)]
+            card_id_to_abbr = {}
+
+        lines: list[SimStatLine] = []
+        for stats in selected:
+            line = self._line(stats, stats.player_type)
+            resolved_abbr = card_id_to_abbr.get(stats.id)
+            if resolved_abbr is not None and resolved_abbr != line.team:
+                line = line.model_copy(update={'team': resolved_abbr})
+            lines.append(line)
         return sorted(lines, key=lambda line: (line.player_type or '', -line.points))
 
     def _leaderboard(self, player_sub_type: PlayerSubType) -> list[SimStatLine]:

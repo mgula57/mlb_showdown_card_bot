@@ -4492,11 +4492,11 @@ class PostgresDB:
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year
             FROM card_bot  WHERE card_id = r.card_id LIMIT 1
         ) cb ON r.card_source = 'BOT'
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::int AS year
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year AS year
             FROM card_wotc WHERE card_id = r.card_id LIMIT 1
         ) cw ON r.card_source = 'WOTC'
         LEFT JOIN LATERAL (
@@ -7946,6 +7946,8 @@ class PostgresDB:
 
         Readable when the team is public or the viewer owns the season, matching the leaderboard's
         visibility rule so a link shared from the board resolves for whoever can already see it.
+        An open sim has no `team_id` at all (no roster to own), so it is always readable - a
+        `LEFT JOIN` rather than an inner join, or the row would never resolve for anyone.
         """
         if not self.connection:
             return None
@@ -7954,9 +7956,9 @@ class PostgresDB:
             SELECT {self._SIM_SEASON_LIST_COLUMNS}, s.summary,
                    (s.user_id IS NOT DISTINCT FROM %s) AS is_own
               FROM internal.sim_season s
-              JOIN internal.user_teams t ON t.team_id = s.team_id
+              LEFT JOIN internal.user_teams t ON t.team_id = s.team_id
              WHERE s.job_id = %s
-               AND (t.is_public = TRUE OR s.user_id IS NOT DISTINCT FROM %s)
+               AND (s.team_id IS NULL OR t.is_public = TRUE OR s.user_id IS NOT DISTINCT FROM %s)
             """,
             (user_id, job_id, user_id),
         )
@@ -8005,6 +8007,177 @@ class PostgresDB:
             {'team_id': team_id, 'viewer': viewer_user_id, 'limit': limit},
         )
         return self._stringify_sim_season_ids(rows)
+
+    # ----------------------------------------------------------
+    # MARK: - SIM LOBBY (MULTIPLAYER)
+    # ----------------------------------------------------------
+
+    # UNCLAIMED/ABANDONED LOBBIES DON'T LINGER THE WAY A PLAYED SEASON DOES - THEY EXPIRE FAST.
+    SIM_LOBBY_TTL_HOURS = 24 * 3
+
+    def build_sim_lobby_tables(self) -> None:
+        """Create the sim_lobby + sim_lobby_member tables.
+
+        `sim_season` stays one row per job with `team_id NULL` for a lobby's run, same as a solo
+        open sim - membership (who claimed which club, with which team) lives entirely here.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_lobby (
+                    lobby_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    host_user_id    TEXT NOT NULL,
+                    join_code       TEXT NOT NULL UNIQUE,
+                    year            INT  NOT NULL,
+                    showdown_set    TEXT NOT NULL,
+                    config          JSONB,
+                    status          TEXT NOT NULL DEFAULT 'open',  -- open | running | finished
+                    job_id          UUID,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    expires_at      TIMESTAMP WITHOUT TIME ZONE
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_lobby_host ON internal.sim_lobby (host_user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_lobby_status ON internal.sim_lobby (status) WHERE status IN ('open','running');")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_lobby_member (
+                    lobby_id    UUID NOT NULL REFERENCES internal.sim_lobby(lobby_id) ON DELETE CASCADE,
+                    user_id     TEXT NOT NULL,
+                    club_abbr   TEXT NOT NULL,
+                    team_id     UUID REFERENCES internal.user_teams(team_id) ON DELETE SET NULL,  -- NULL = follow only
+                    joined_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    UNIQUE (lobby_id, club_abbr),  -- ONE CLAIMANT PER CLUB
+                    UNIQUE (lobby_id, user_id)     -- ONE CLUB PER MEMBER
+                );
+            """)
+
+    def create_sim_lobby(self, host_user_id: str, join_code: str, year: int, showdown_set: str, config: dict) -> str:
+        """Insert a new open lobby and return its id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_lobby (host_user_id, join_code, year, showdown_set, config, expires_at)
+                VALUES (%s, %s, %s, %s, %s, NOW() + %s * INTERVAL '1 hour')
+                RETURNING lobby_id
+                """,
+                (host_user_id, join_code, year, showdown_set, extras.Json(config), self.SIM_LOBBY_TTL_HOURS),
+            )
+            return str(cur.fetchone()[0])
+
+    @staticmethod
+    def _stringify_sim_lobby_ids(row: dict) -> dict:
+        row['lobby_id'] = str(row['lobby_id'])
+        row['job_id'] = str(row['job_id']) if row.get('job_id') else None
+        return row
+
+    def get_sim_lobby(self, lobby_id: str) -> dict | None:
+        """One lobby's own row. Visibility/membership checks belong to the caller - a lobby is
+        joined by code/link, so there is no owner-only read restriction here."""
+        if not self.connection:
+            return None
+        self.reap_stale_sim_lobbies()
+        rows = self.execute_query(
+            """
+            SELECT lobby_id, host_user_id, join_code, year, showdown_set, config, status, job_id, created_at, expires_at
+              FROM internal.sim_lobby WHERE lobby_id = %s::uuid
+            """,
+            (lobby_id,),
+        )
+        if not rows:
+            return None
+        return self._stringify_sim_lobby_ids(dict(rows[0]))
+
+    def get_sim_lobby_by_code(self, join_code: str) -> dict | None:
+        if not self.connection:
+            return None
+        self.reap_stale_sim_lobbies()
+        rows = self.execute_query("SELECT lobby_id FROM internal.sim_lobby WHERE join_code = %s", (join_code,))
+        if not rows:
+            return None
+        return self.get_sim_lobby(str(rows[0]['lobby_id']))
+
+    def get_sim_lobby_members(self, lobby_id: str) -> list[dict]:
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT m.user_id, m.club_abbr, m.team_id, m.joined_at,
+                   t.name AS team_name, t.abbreviation AS team_abbreviation
+              FROM internal.sim_lobby_member m
+              LEFT JOIN internal.user_teams t ON t.team_id = m.team_id
+             WHERE m.lobby_id = %s::uuid
+             ORDER BY m.joined_at ASC
+            """,
+            (lobby_id,),
+        )
+        for row in rows:
+            row['team_id'] = str(row['team_id']) if row['team_id'] else None
+        return rows
+
+    def claim_sim_lobby_club(self, lobby_id: str, user_id: str, club_abbr: str, team_id: str | None) -> bool:
+        """Insert or update the caller's own claim, so a member can switch clubs/teams before
+        start. Returns False (instead of raising) when another member already holds `club_abbr` -
+        the `(lobby_id, club_abbr)` unique constraint catches a race the app-level check can't
+        (two members claiming the same club at once). The connection pool runs in autocommit
+        mode, so a caught violation here doesn't leave the connection's next query stuck behind
+        an aborted transaction.
+        """
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO internal.sim_lobby_member (lobby_id, user_id, club_abbr, team_id)
+                    VALUES (%s::uuid, %s, %s, %s::uuid)
+                    ON CONFLICT (lobby_id, user_id) DO UPDATE
+                       SET club_abbr = EXCLUDED.club_abbr, team_id = EXCLUDED.team_id
+                    """,
+                    (lobby_id, user_id, club_abbr, team_id),
+                )
+            except psycopg2.errors.UniqueViolation:
+                return False
+        return True
+
+    def leave_sim_lobby(self, lobby_id: str, user_id: str) -> None:
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.sim_lobby_member WHERE lobby_id = %s::uuid AND user_id = %s",
+                (lobby_id, user_id),
+            )
+
+    def set_sim_lobby_running(self, lobby_id: str, job_id: str) -> None:
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.sim_lobby SET status = 'running', job_id = %s::uuid WHERE lobby_id = %s::uuid",
+                (job_id, lobby_id),
+            )
+
+    def finish_sim_lobby(self, lobby_id: str) -> None:
+        """Marks a running lobby's job as done. Called lazily from the lobby-state route once the
+        underlying `sim_job` resolves, rather than from the worker thread - the worker doesn't
+        know it's running for a lobby, only `sim_job.config`/`sim_lobby.job_id` link the two."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("UPDATE internal.sim_lobby SET status = 'finished' WHERE lobby_id = %s::uuid", (lobby_id,))
+
+    def reap_stale_sim_lobbies(self) -> None:
+        """Expire lobbies nobody ever started - a running/finished lobby is left alone even past
+        its `expires_at`, since its job/result rows are the durable record at that point."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("DELETE FROM internal.sim_lobby WHERE status = 'open' AND expires_at IS NOT NULL AND expires_at < NOW()")
 
     # ----------------------------------------------------------
     # MARK: - SIMULATED MLB GAMES

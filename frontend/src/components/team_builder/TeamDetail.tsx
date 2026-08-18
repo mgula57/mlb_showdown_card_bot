@@ -778,11 +778,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     <FaUsers /> {draft.roster.length}
                                 </span>
                             )}
-                            {isTeamDrafting(draft) && (
-                                <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                                    DRAFTING
-                                </span>
-                            )}
 
                             {/* Showdown Sets */}
                             <div className="flex items-center gap-0.5 ">
@@ -917,9 +912,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {teamMode !== 'complete' && (
-                <div className="flex items-center gap-3 px-4 py-2.5 shrink-0" style={bannerStyle}>
+                <div className="flex items-center gap-1 px-4 py-2.5 shrink-0" style={bannerStyle}>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
-                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm flex items-center gap-4" style={{ color: bannerLeft.fill }}>
+                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm flex items-center gap-2" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting'
                             ? <>DRAFTING<span className="hidden md:inline"> — fill all required positions to complete your team</span></>
                             : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
@@ -942,7 +937,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && (
                             <>
-                                <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
+                                <div className="w-18 md:w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
                                     <div
                                         className="h-full rounded-full transition-all"
                                         style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: bannerRight.fill }}
@@ -950,7 +945,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 </div>
                                 <span className="text-[11px] font-black" style={{ color: bannerRight.fill }}>
                                     {rosterProgress.filled}/{rosterProgress.total}
-                                    {draft.pts_limit != null && ` • ${pointsBreakdown.total}/${draft.pts_limit} pts`}
                                 </span>
                             </>
                         )}
@@ -1125,7 +1119,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     onClick={() => setConfirmCard(null)}
                 >
                     <div
-                        className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden"
+                        className="bg-(--background-primary) rounded-2xl w-full max-w-md shadow-2xl border border-(--divider) overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header */}

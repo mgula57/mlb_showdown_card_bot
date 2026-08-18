@@ -225,10 +225,12 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
 
     return (
         <>
-            {/* Backdrop */}
+            {/* Backdrop — height uses the large viewport (lvh) rather than inset-0's
+                visual-viewport sizing so it overshoots the visible area and bleeds
+                under Safari mobile's translucent URL bar instead of leaving a gap. */}
             <div
                 className={`
-                    lg:hidden fixed inset-0 bg-black/50 z-40
+                    lg:hidden fixed top-0 left-0 right-0 h-lvh bg-black/50 z-40
                     transition-opacity duration-300
                     ${backdropVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
                 `}
@@ -245,7 +247,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
             {/* Sheet — starts off-screen; JS drives all position changes */}
             <div
                 ref={sheetRef}
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-49 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
                 style={{ height: '90dvh', transform: 'translateY(100%)', willChange: 'transform' }}
             >
                 {/* Drag handle */}

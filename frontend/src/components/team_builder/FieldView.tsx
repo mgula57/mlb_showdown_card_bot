@@ -263,7 +263,7 @@ export function FieldView({
                                         onClick={() => setDetailCard(card)}
                                         isSelected={isActive}
                                         actionButton={!readOnly ? {
-                                            icon: <FaPencil className="w-2.5 h-2.5" />,
+                                            icon: <FaPencil />,
                                             onClick: () => onSlotClick(pos, slot),
                                             label: 'Replace card',
                                             placement: 'left'
@@ -306,7 +306,7 @@ export function FieldView({
                                             ptsMultiplier={ptsMultiplier}
                                             onClick={() => setDetailCard(card)}
                                             actionButton={onItemClick ? {
-                                                icon: <FaPencil className="w-2.5 h-2.5" />,
+                                                icon: <FaPencil className="bg-primary p-3" />,
                                                 onClick: () => onItemClick(role),
                                                 label: 'Replace card',
                                             } : undefined}

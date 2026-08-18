@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from random import Random
 from typing import Callable, Optional
 
@@ -15,6 +15,7 @@ from .roster import RESERVE_MIN_IP_PITCHER, RESERVE_MIN_PA_POSITION
 from .schedule import Schedule
 from .standings import Standings
 from .stats import PlayerStatsGroup, load_real_league_avgs, load_woba_weights
+from .takeover import TakeoverOptions
 from .team import SimTeam
 
 
@@ -128,6 +129,27 @@ class PlayerLoader:
 
         return SeasonCardPool(cards=list(cards_by_player_id.values()), archive_card_ids=archive_card_ids)
 
+    def load_real_season_stats(self, year: int) -> tuple[dict[str, dict], Optional[datetime]]:
+        """Every player's raw real-stats archive row for the season, keyed by id.
+
+        Backs a rest-of-season projection's stat merge (`PlayerStatsGroup.merge_real_season_stats`).
+        The archive holds one current snapshot per player-year, not a history, so this can only
+        ever reflect stats as of the archive's last scrape - which may lag whatever date the
+        caller intends to resume from. The second return value is the least-stale
+        `stats_modified_date` seen across every row, for callers to surface honestly rather than
+        implying the data is precisely as of the resume date itself.
+        """
+        archives = self.db.fetch_all_stats_from_archive(year_list=[int(year)], exclude_records_with_stats=False)
+        raw_by_id: dict[str, dict] = {}
+        as_of: Optional[datetime] = None
+        for archive in archives:
+            if not archive.stats:
+                continue
+            raw_by_id[archive.id] = archive.stats
+            if archive.stats_modified_date and (as_of is None or archive.stats_modified_date < as_of):
+                as_of = archive.stats_modified_date
+        return raw_by_id, as_of
+
 
 class Season:
     """Simulates a full season (real MLB year or custom-team tournament) and returns structured results."""
@@ -141,6 +163,12 @@ class Season:
         self.standings: Optional[Standings] = None
         self.league_stats: Optional[PlayerStatsGroup] = None
         self.postseason: Optional[Postseason] = None
+        # SCHEDULE ABBREVIATION -> (WINS, LOSSES) EACH CLUB STARTED WITH - POPULATED BY
+        # `_build_season_teams` ONLY WHEN `config.resume_from_real_season`.
+        self.seeded_records: dict[str, tuple[int, int]] = {}
+        # LEAST-STALE stats_modified_date ACROSS EVERY MERGED PLAYER - POPULATED IN `simulate()`
+        # ONLY WHEN `config.merge_real_stats`.
+        self.real_stats_as_of: Optional[datetime] = None
 
     def simulate(
         self,
@@ -162,6 +190,10 @@ class Season:
 
         config = self.config
         started_at = datetime.now()
+        # POPULATED BELOW ONLY FOR A REAL-SEASON RUN WITH `config.merge_real_stats` - DEFINED
+        # HERE (NOT INSIDE THE `else` BRANCH BELOW) SO IT'S ALWAYS IN SCOPE WHEN `PlayerStatsGroup`
+        # IS BUILT FURTHER DOWN, REGARDLESS OF TOURNAMENT VS. REAL-SEASON MODE.
+        real_stats_by_id: dict[str, dict] = {}
 
         # SETUP TEAMS + SCHEDULE
         if config.is_tournament:
@@ -187,12 +219,21 @@ class Season:
                     min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
                     status_callback=status_callback,
                 )
+                # FETCHED HERE, WHILE THE LOADER'S ARCHIVE CONNECTION IS STILL OPEN - THE MERGE
+                # ITSELF HAPPENS LATER, ONCE `PlayerStatsGroup` EXISTS TO MERGE INTO, BY WHICH
+                # POINT THIS CONNECTION HAS CLOSED. NO DB ACCESS IS NEEDED FOR THAT LATER STEP.
+                if config.resume_from_real_season and config.merge_real_stats:
+                    status(f"Loading real {config.year} stats to merge...")
+                    real_stats_by_id, self.real_stats_as_of = loader.load_real_season_stats(year=config.year)
             status(f"Building {config.year} MLB schedule...")
             self.schedule = Schedule(
                 year=config.year,
                 pct_limit=config.pct_of_games,
                 game_limit=config.games_limit,
                 mlb_stats_api=self.mlb_stats_api,
+                # `resume_as_of_date` DEFAULTS TO TODAY WHEN UNSET - RESOLVED HERE RATHER THAN ON
+                # THE CONFIG SO A STORED/REPLAYED CONFIG NEVER SILENTLY PICKS A DIFFERENT "TODAY".
+                start_date=(config.resume_as_of_date or date.today()) if config.resume_from_real_season else None,
             )
             status(f"Building rosters for {len(self.schedule.unique_team_names)} team(s)...")
             teams = self._build_season_teams(
@@ -208,6 +249,9 @@ class Season:
             mlb_stats_api=self.mlb_stats_api,
         )
         self.league_stats = PlayerStatsGroup(players=self.standings.all_players, year=config.year, name="LEAGUE")
+        if real_stats_by_id:
+            merged_count = self.league_stats.merge_real_season_stats(real_stats_by_id)
+            status(f"Merged real season stats for {merged_count} player(s)")
 
         # SIMULATE GAMES
         total_games = len(self.schedule.games)
@@ -294,6 +338,23 @@ class Season:
 
         real_games_per_team = self.schedule.original_games_per_team or 162
 
+        # REST-OF-SEASON PROJECTION: EVERY CLUB'S REAL RECORD AS OF THE SCHEDULE'S start_date,
+        # FETCHED ONCE. APPLIED TO EACH SimTeam BELOW, RIGHT AFTER IT'S BUILT - INCLUDING A
+        # TAKEOVER TEAM, WHICH `from_builder_team` CONSTRUCTS AS A FRESH 0-0 OBJECT THAT WOULD
+        # OTHERWISE DISCARD THE REAL-SEASON TEAM'S SEED IT REPLACES.
+        seed_records: dict[str, tuple[int, int]] = {}
+        if config.resume_from_real_season:
+            status(f"Loading real {config.year} standings to resume from...")
+            seed_records = {
+                club.abbreviation: (club.wins, club.losses)
+                for club in TakeoverOptions(year=config.year, mlb_stats_api=self.mlb_stats_api).clubs
+            }
+
+        def seed(team: SimTeam) -> None:
+            record = seed_records.get(team.name)
+            if record is not None:
+                team.wins, team.losses = record
+
         teams: dict[str, SimTeam] = {}
         missing_teams: list[str] = []
         for team_name in self.schedule.unique_team_names:
@@ -315,6 +376,7 @@ class Season:
                 enable_injuries=config.enable_injuries,
                 games_per_season=real_games_per_team,
             )
+            seed(team)
             teams[team_name] = team
             for warning in team.roster.warnings:
                 status(f"{team_name}: {warning}")
@@ -322,26 +384,30 @@ class Season:
         if missing_teams:
             raise ValueError(f"No player cards found for scheduled team(s): {missing_teams}. Check team abbreviation mappings.")
 
-        # TAKEOVER: SWAP THE BUILDER TEAM INTO THE REPLACED CLUB'S SLOT. THE SCHEDULE BINDS GAMES
-        # TO TEAMS BY ABBREVIATION AND `Standings` KEYS OFF THE SAME DICT, SO KEEPING THE CLUB'S
-        # KEY IS ALL IT TAKES TO INHERIT ITS SCHEDULE, DIVISION AND OPPONENTS. ONLY THE DISPLAY
-        # IDENTITY (NAME/COLORS) DIFFERS, AND `from_builder_team` ALREADY SETS THAT.
-        if config.is_takeover:
-            replaced_abbr = config.takeover_replaces_abbr
+        # TAKEOVER: SWAP EACH BUILDER TEAM INTO ITS REPLACED CLUB'S SLOT. THE SCHEDULE BINDS
+        # GAMES TO TEAMS BY ABBREVIATION AND `Standings` KEYS OFF THE SAME DICT, SO KEEPING THE
+        # CLUB'S KEY IS ALL IT TAKES TO INHERIT ITS SCHEDULE, DIVISION AND OPPONENTS. ONLY THE
+        # DISPLAY IDENTITY (NAME/COLORS) DIFFERS, AND `from_builder_team` ALREADY SETS THAT.
+        # `all_takeovers` MERGES THE LEGACY SINGLE-TAKEOVER FIELDS (A TEAM CHALLENGE RUN) WITH
+        # `takeovers` (AN OPEN SIM), SO A SINGLE LOOP HANDLES ANY NUMBER OF SWAPS.
+        for replaced_abbr, builder_team in config.all_takeovers.items():
             if replaced_abbr not in teams:
                 raise ValueError(
                     f"Cannot take over '{replaced_abbr}' in {config.year} - not a team that season. "
                     f"Options: {sorted(teams.keys())}"
                 )
-            cards = self._load_builder_team_cards(config.takeover_team)
-            status(f"Replacing {replaced_abbr} with '{config.takeover_team.name}' ({len(cards)} cards)")
+            cards = self._load_builder_team_cards(builder_team)
+            status(f"Replacing {replaced_abbr} with '{builder_team.name}' ({len(cards)} cards)")
             teams[replaced_abbr] = SimTeam.from_builder_team(
-                team=config.takeover_team,
+                team=builder_team,
                 cards=cards,
                 year=config.year,
                 league=self.schedule.team_leagues.get(replaced_abbr),
                 name_override=replaced_abbr,
             )
+            seed(teams[replaced_abbr])
+
+        self.seeded_records = seed_records
 
         if config.enable_injuries:
             for team in teams.values():
@@ -370,9 +436,16 @@ class Season:
 
         schedule_length = self.schedule.schedule_length or len(self.schedule.games)
         original_schedule_length = self.schedule.original_schedule_length or schedule_length
-        stats_min_ip = int(60 * schedule_length / max(original_schedule_length, 1))
-        stats_min_ip_rp = int(30 * schedule_length / max(original_schedule_length, 1))
-        stats_min_pa = int(250 * schedule_length / max(original_schedule_length, 1))
+        if config.resume_from_real_season and config.merge_real_stats:
+            # A MERGED STAT LINE COVERS THE WHOLE SEASON (REAL PORTION + SIMULATED REMAINDER), NOT
+            # JUST THE GAMES ACTUALLY SIMULATED HERE - SO UNLIKE A PLAIN RESUME (SEEDED STANDINGS,
+            # NO STAT MERGE), QUALIFYING THRESHOLDS STAY AT THEIR FULL-SEASON VALUES RATHER THAN
+            # SCALING DOWN BY schedule_length / original_schedule_length.
+            stats_min_ip, stats_min_ip_rp, stats_min_pa = 60, 30, 250
+        else:
+            stats_min_ip = int(60 * schedule_length / max(original_schedule_length, 1))
+            stats_min_ip_rp = int(30 * schedule_length / max(original_schedule_length, 1))
+            stats_min_pa = int(250 * schedule_length / max(original_schedule_length, 1))
 
         league_totals = {
             player_type.value: self.league_stats.aggregated_stats(type=player_type)
@@ -414,4 +487,6 @@ class Season:
             games=[game.as_result() for game in self.schedule.games if game.is_game_over],
             postseason=self.postseason.as_result() if self.postseason else None,
             transactions=transactions,
+            seeded_records=self.seeded_records,
+            real_stats_as_of=self.real_stats_as_of,
         )

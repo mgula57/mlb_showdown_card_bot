@@ -244,7 +244,7 @@ export const CardItemCompact = ({
             )}
 
             {card?.source === 'WOTC' && (
-                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="WOTC Card" />
+                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary) bg-(--background-primary)/50" title="WOTC Card" />
             )}
             {card?.source === 'CUSTOM' && (
                 <FaWandMagicSparkles className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="Custom Card" />
@@ -260,14 +260,14 @@ export const CardItemCompact = ({
                 />
             </div>
 
-            {/* Optional action button — top-right corner */}
+            {/* Optional action button — top corner */}
             {actionButton && (
                 <button
                     type="button"
                     aria-label={actionButton.label}
                     onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
                     className={`
-                        absolute top-0.5 ${actionButton.placement === 'left' ? '-left-0.5' : 'right-0.5'}
+                        absolute -top-2 ${actionButton.placement === 'left' ? '-left-2' : '-right-2'}
                         flex items-center justify-center
                         w-5 h-5 rounded
                         text-(--text-tertiary)

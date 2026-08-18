@@ -43,6 +43,7 @@ import Seasons from "./components/seasons/Seasons";
 import Privacy from "./components/Privacy";
 import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
 import TeamBuilder from "./components/team_builder/TeamBuilder";
+import SeasonSimulator from "./components/simulate/SeasonSimulator";
 
 // MLB seasons selectable on the Seasons page: current season first, then prior years.
 const MLB_SEASONS_EARLIEST_YEAR = 2000;
@@ -94,6 +95,7 @@ const AppContent = () => {
         if (path === '/explore') return '/cards';
         if (path.startsWith('/teams/')) return '/teams';
         if (path.startsWith('/seasons/')) return '/seasons';
+        if (path.startsWith('/simulate/')) return '/simulate';
         return path;
     };
     
@@ -186,6 +188,13 @@ const AppContent = () => {
                         staticSports={[{ id: 1, name: 'MLB' }]}
                         staticSeasons={mlbSeasons}
                     />
+                </div>
+            )}
+
+            {/* Simulate - Mount when first visited */}
+            {mountedRoutes.has('/simulate') && (
+                <div className={isActive('/simulate') ? 'block' : 'hidden'}>
+                    <SeasonSimulator />
                 </div>
             )}
 

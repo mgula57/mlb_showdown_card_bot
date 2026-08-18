@@ -129,7 +129,7 @@ export function SimAwardsList({ awards, identities }: Props) {
                     <p className="text-[12px] font-bold uppercase tracking-wide text-(--text-tertiary) mb-3">
                         {CATEGORY_LABELS.SILVER_SLUGGER}
                     </p>
-                    <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6">
                         {leagues.filter(league => silverSluggers.some(w => w.league === league)).map(league => (
                             <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
                                 <span className="text-[10px] font-semibold uppercase tracking-wide px-3 text-(--text-tertiary)">

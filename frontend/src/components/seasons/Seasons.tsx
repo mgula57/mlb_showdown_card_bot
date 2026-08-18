@@ -29,7 +29,7 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal
+    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal, FaDice
 } from "react-icons/fa6";
 
 // import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -812,6 +812,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                             onChange={(value) => setSelectedLeagueGroup(value || null)}
                             options={leagueGroups.map(group => ({ value: group, label: group }))}
                         />
+                    )}
+                    {type === "mlb" && selectedSeason && (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/simulate?year=${selectedSeason.season_id}`)}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-(--background-quaternary) text-[12px] font-semibold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                        >
+                            <FaDice className="text-[11px]" />
+                            Simulate this season
+                        </button>
                     )}
                 </div>
             ),

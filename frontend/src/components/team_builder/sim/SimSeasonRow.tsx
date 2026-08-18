@@ -1,23 +1,12 @@
 import { FaTrophy, FaLock } from 'react-icons/fa6';
 import type { SimSeasonListItem } from '../../../api/sim';
+import { relativeTime } from '../../../functions/formatters';
 
 function medalClass(rank: number): string {
     if (rank === 1) return 'text-yellow-300';
     if (rank === 2) return 'text-(--text-secondary)';
     if (rank === 3) return 'text-orange-400';
     return 'text-(--text-tertiary)';
-}
-
-function relativeTime(iso: string): string {
-    const ms = Date.now() - new Date(iso).getTime();
-    const mins = Math.round(ms / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.round(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.round(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    return new Date(iso).toLocaleDateString();
 }
 
 type Props = {

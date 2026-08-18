@@ -78,6 +78,18 @@ export type SimGameLine = {
     losses: number;
 };
 
+/** One game of the season, from neither club's point of view — the backing data for
+ *  `useClubSeason`, which derives every club's own `SimGameLine` list from this instead of the
+ *  backend duplicating it per club. Populated only for an open sim (`SeasonSimSummary.team` is
+ *  null); empty for a takeover/challenge run, which already has its own `games` above. */
+export type SimSeasonGameLine = {
+    date: string;
+    home_team: string;
+    away_team: string;
+    home_score: number;
+    away_score: number;
+};
+
 export type SimPostseasonGameLine = {
     date: string;
     home_team: string;
@@ -138,7 +150,10 @@ export type SeasonSimSummary = {
     schedule_length: number;
     original_schedule_length: number;
     generated_at: string;
-    team: SimTeamSeason;
+    /** Null for an open sim, which has no single focus team — use `useClubSeason` to derive a
+     *  club's own team/games/players instead of reading these fields directly. Non-null (never
+     *  absent) for a takeover/challenge run, as before. */
+    team: SimTeamSeason | null;
     games: SimGameLine[];
     players: SimStatLine[];
     standings: { divisions: Record<string, SimTeamRecord[]> };
@@ -151,6 +166,20 @@ export type SeasonSimSummary = {
     real_league_averages: Record<string, SimStatLine>;
     /** Absent for summaries persisted before awards existed. */
     awards?: SeasonAwards | null;
+    /** Every game of the season, once. Absent for summaries persisted before open sims existed,
+     *  and empty for a takeover/challenge run — see `useClubSeason`. */
+    season_games?: SimSeasonGameLine[];
+    /** Schedule key -> [wins, losses] each club started the sim with. Absent/empty outside a
+     *  rest-of-season projection, where every club started 0-0. */
+    seeded_records?: Record<string, [number, number]>;
+    /** Schedule keys of every club replaced by a builder team this run. Absent for summaries
+     *  persisted before open sims existed. */
+    takeover_abbrs?: string[];
+    /** For a rest-of-season projection with real stats merged in: the least-stale date the
+     *  merged players' archive rows were last scraped. The archive holds one current snapshot
+     *  per player-year, not a history, so this may lag the run's own resume date — show this
+     *  date, not that one, when describing what the merged stats cover. Null otherwise. */
+    real_stats_as_of?: string | null;
 };
 
 export type SimJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
@@ -253,6 +282,41 @@ export type StartSeasonSimPayload = {
     challenge_instance_id?: string;
 };
 
+/** One of the caller's own teams taking over a real club for an open sim. */
+export type OpenSimTakeover = {
+    team_id: string;
+    /** Era-correct club abbreviation. Omitted means the season's worst club (mirrors `resolve()`
+     *  on the backend, same as `StartSeasonSimPayload.replaces`). */
+    replaces?: string;
+};
+
+export type OpenSimPayload = {
+    year: number;
+    set?: string;
+    /** Club to center the result screen on at launch — still switchable afterward via
+     *  `useClubSeason`, since the summary covers every club regardless. Omitted means the
+     *  season's worst club. */
+    focus_abbr?: string;
+    seed?: number | null;
+    /** Any number of clubs replaced by one of the caller's own teams. Omitted/empty plays every
+     *  club with its real roster. */
+    takeovers?: OpenSimTakeover[];
+    games_limit?: number;
+    pct_of_games?: number;
+    enable_injuries?: boolean;
+    injury_severity_multiplier?: number;
+    simulate_postseason?: boolean;
+    postseason_format?: string;
+    /** Rest-of-season projection: every club's real record as of this date (YYYY-MM-DD) seeds
+     *  its simulated one, and only games after it are simulated. Omitted means a plain
+     *  full-season sim, starting every club 0-0. */
+    resume_as_of_date?: string;
+    /** Additionally merge each player's real season stats to date into their simulated totals.
+     *  Only takes effect alongside `resume_as_of_date` — a separate toggle since the merged
+     *  stats reflect the archive's last scrape, which may not land exactly on the resume date. */
+    merge_real_stats?: boolean;
+};
+
 export type ChallengeGoalType = 'made_playoffs' | 'win_pennant' | 'win_world_series' | 'min_wins';
 
 /** A live challenge instance joined to its template. */
@@ -340,6 +404,23 @@ export async function fetchSimSeasonTeams(year: number): Promise<{ teams: Takeov
 
 export async function startSeasonSim(payload: StartSeasonSimPayload, token: string): Promise<{ job_id: string; replaces: string }> {
     const res = await fetch(`${API_BASE}/sim/season`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    });
+    if (res.status === 429) {
+        const err = await res.json().catch(() => ({}));
+        if (err.job_id) throw new SimAlreadyRunningError(err.error ?? 'A simulation is already running.', err.job_id, err.team_id ?? null);
+    }
+    if (!res.ok) await parseError(res, 'Failed to start simulation');
+    return res.json();
+}
+
+/** Queues an open sim - every club plays a season, with any requested clubs taken over by one of
+ *  the caller's own teams. Separate from `startSeasonSim`, which is scoped to a single takeover
+ *  and Team Challenge validation that doesn't apply here. */
+export async function startOpenSim(payload: OpenSimPayload, token: string): Promise<{ job_id: string; focus_abbr: string | null }> {
+    const res = await fetch(`${API_BASE}/sim/open_season`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
@@ -477,4 +558,123 @@ export async function fetchTeamSimSeasons(teamId: string, token?: string, limit 
     if (!res.ok) await parseError(res, 'Failed to load simulations for this team');
     const data = await res.json();
     return data.seasons ?? [];
+}
+
+// =============================================================================
+// MARK: - SIM LOBBY (MULTIPLAYER)
+// =============================================================================
+
+export type SimLobbyStatus = 'open' | 'running' | 'finished';
+
+export type SimLobby = {
+    lobby_id: string;
+    host_user_id: string;
+    join_code: string;
+    year: number;
+    showdown_set: string;
+    config: Record<string, unknown> | null;
+    status: SimLobbyStatus;
+    /** Set once the host starts the lobby. Once set, `/simulate/:job_id` (the same screen a solo
+     *  open sim uses) takes over — the lobby room itself is only the waiting phase. */
+    job_id: string | null;
+    created_at: string;
+    expires_at: string | null;
+};
+
+export type SimLobbyMember = {
+    user_id: string;
+    club_abbr: string;
+    /** Null means following only — not taking the club over with a built team. */
+    team_id: string | null;
+    team_name: string | null;
+    team_abbreviation: string | null;
+    joined_at: string;
+};
+
+/** `{ lobby, members, job }` returned by every lobby route — `job` is only ever non-null while
+ *  reconciling a running lobby against its (possibly just-finished) `sim_job`. */
+export type SimLobbyState = {
+    lobby: SimLobby;
+    members: SimLobbyMember[];
+    job: SimJob | null;
+};
+
+export type CreateSimLobbyPayload = {
+    year: number;
+    set?: string;
+    seed?: number | null;
+    games_limit?: number;
+    pct_of_games?: number;
+    enable_injuries?: boolean;
+    injury_severity_multiplier?: number;
+    simulate_postseason?: boolean;
+    postseason_format?: string;
+    resume_as_of_date?: string;
+    merge_real_stats?: boolean;
+};
+
+export async function createSimLobby(payload: CreateSimLobbyPayload, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) await parseError(res, 'Failed to create lobby');
+    return res.json();
+}
+
+/** Resolves a join code to lobby state. Works signed out — claiming a club is the actual join
+ *  action, so browsing a lobby before deciding needs no token. */
+export async function joinSimLobby(code: string): Promise<SimLobbyState | null> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${encodeURIComponent(code)}/join`, { method: 'POST' });
+    if (res.status === 404) return null;
+    if (!res.ok) await parseError(res, 'Failed to join lobby');
+    return res.json();
+}
+
+/** Current lobby state — poll this (~2s) while waiting in the room. */
+export async function fetchSimLobby(lobbyId: string): Promise<SimLobbyState | null> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}`);
+    if (res.status === 404) return null;
+    if (!res.ok) await parseError(res, 'Failed to load lobby');
+    return res.json();
+}
+
+export type ClaimSimLobbyPayload = {
+    club_abbr: string;
+    /** Omit to just follow the club rather than take it over. */
+    team_id?: string;
+};
+
+export async function claimSimLobbyClub(lobbyId: string, payload: ClaimSimLobbyPayload, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) await parseError(res, 'Failed to claim club');
+    return res.json();
+}
+
+export async function leaveSimLobby(lobbyId: string, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}/leave`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to leave lobby');
+    return res.json();
+}
+
+/** Host-only: builds takeovers from every member's claim and launches the sim. */
+export async function startSimLobby(lobbyId: string, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}/start`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 429) {
+        const err = await res.json().catch(() => ({}));
+        if (err.job_id) throw new SimAlreadyRunningError(err.error ?? 'A simulation is already running.', err.job_id, err.team_id ?? null);
+    }
+    if (!res.ok) await parseError(res, 'Failed to start lobby');
+    return res.json();
 }

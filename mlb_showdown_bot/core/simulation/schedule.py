@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from itertools import combinations
 from typing import Optional
 
@@ -41,7 +41,10 @@ class Schedule:
       - Generated round robin for tournaments/custom leagues
     """
 
-    def __init__(self, year: int, tournament: str = None, pct_limit: float = None, game_limit: int = None, team_names: list[str] = None, mlb_stats_api: Optional[MLBStatsAPI] = None) -> None:
+    def __init__(
+        self, year: int, tournament: str = None, pct_limit: float = None, game_limit: int = None,
+        team_names: list[str] = None, mlb_stats_api: Optional[MLBStatsAPI] = None, start_date: Optional[date] = None,
+    ) -> None:
         self.year = year
         self.tournament = tournament
 
@@ -49,9 +52,12 @@ class Schedule:
             self.generate_schedule(teams=team_names, games=game_limit)
             return
 
-        self.load_schedule_from_mlb_api(year=year, game_limit=game_limit, pct_limit=pct_limit, mlb_stats_api=mlb_stats_api)
+        self.load_schedule_from_mlb_api(year=year, game_limit=game_limit, pct_limit=pct_limit, mlb_stats_api=mlb_stats_api, start_date=start_date)
 
-    def _finalize_games_list(self, scheduled_games: list[dict], game_limit: int, pct_limit: float, original_games_per_team: int = None) -> None:
+    def _finalize_games_list(
+        self, scheduled_games: list[dict], game_limit: int, pct_limit: float,
+        original_games_per_team: int = None, start_date: Optional[date] = None,
+    ) -> None:
         """Shared tail end of schedule loading: apply limits and build Game objects.
 
         Each dict in scheduled_games needs: date, home_team, away_team, home_game_number, away_game_number, home_league, away_league.
@@ -60,9 +66,16 @@ class Schedule:
           original_games_per_team: Max games any team plays in the pre-limit schedule. Used to
             calibrate per-team roster/injury math against the *unlimited* schedule length even
             when `game_limit`/`pct_limit` shorten the simulated run.
+          start_date: A rest-of-season projection's cutoff - only games after this date are kept.
+            Applied before `game_limit`/`pct_limit`, so the two combine ("the next 20 games from
+            here") rather than one overriding the other.
         """
 
         self.original_schedule_length = len(scheduled_games)
+        if start_date:
+            scheduled_games = [g for g in scheduled_games if g['date'] > start_date]
+            if len(scheduled_games) == 0:
+                raise ValueError(f"No games remain to simulate in {self.year} after {start_date}.")
         if game_limit:
             scheduled_games = scheduled_games[:game_limit]
         elif pct_limit:
@@ -104,7 +117,7 @@ class Schedule:
         """Average games a team plays per calendar day of the season (schedule density)."""
         return self.games_per_team / max(self.season_span_days, 1)
 
-    def load_schedule_from_mlb_api(self, year: int, game_limit: int, pct_limit: float, mlb_stats_api: Optional[MLBStatsAPI] = None) -> None:
+    def load_schedule_from_mlb_api(self, year: int, game_limit: int, pct_limit: float, mlb_stats_api: Optional[MLBStatsAPI] = None, start_date: Optional[date] = None) -> None:
 
         client = mlb_stats_api or MLBStatsAPI()
         season_schedule = client.games.get_season_schedule(season=year)
@@ -141,7 +154,10 @@ class Schedule:
             raise ValueError(f"MLB Stats API returned no schedule data for {year}")
 
         original_games_per_team = max(games_played_count.values()) if games_played_count else 0
-        self._finalize_games_list(scheduled_games=scheduled_games, game_limit=game_limit, pct_limit=pct_limit, original_games_per_team=original_games_per_team)
+        self._finalize_games_list(
+            scheduled_games=scheduled_games, game_limit=game_limit, pct_limit=pct_limit,
+            original_games_per_team=original_games_per_team, start_date=start_date,
+        )
 
     def generate_schedule(self, teams: list[str], games: int) -> None:
 

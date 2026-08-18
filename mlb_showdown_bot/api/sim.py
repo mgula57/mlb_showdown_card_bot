@@ -1,6 +1,8 @@
+import random
+import string
 import threading
 import traceback
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
 
@@ -9,7 +11,7 @@ from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
-from ..core.simulation.models import PostseasonRound, SeasonSimulationConfig
+from ..core.simulation.models import PostseasonFormat, PostseasonRound, SeasonSimulationConfig
 from ..core.simulation.season import Season
 from ..core.simulation.summary import SeasonSummaryBuilder
 from ..core.simulation.takeover import TakeoverOptions
@@ -231,6 +233,525 @@ def start_season_sim():
         return jsonify({'error': str(exc)}), 500
 
 
+# GAMES_LIMIT BELOW THIS PRODUCES A SEASON SO SHORT THE STANDINGS/AWARDS SCREENS ARE MEANINGLESS.
+_MIN_GAMES_LIMIT = 20
+_MAX_INJURY_SEVERITY = 3.0
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def _parse_engine_settings(payload: dict) -> dict:
+    """Parses the engine settings shared by a solo open sim and a sim lobby's creation payload:
+    year, set, postseason toggle/format, schedule length, injuries, and rest-of-season projection
+    options. Raises ValueError (callers turn this into a 400) for anything malformed.
+
+    Returns a dict with typed values (`showdown_set: Set`, `postseason_format: PostseasonFormat`,
+    `resume_as_of_date: date | None`), NOT ready to hand to `SeasonSimulationConfig` directly -
+    callers still need to add `year`/`set`/`takeovers`.
+    """
+    try:
+        year = int(payload.get('year'))
+    except (TypeError, ValueError):
+        raise ValueError('year is required')
+    if year < _EARLIEST_SEASON:
+        raise ValueError(f'Seasons before {_EARLIEST_SEASON} cannot be simulated yet.')
+
+    try:
+        showdown_set = Set(str(payload.get('set') or '2000'))
+    except ValueError:
+        raise ValueError(f"unknown set '{payload.get('set')}'")
+
+    try:
+        postseason_format = PostseasonFormat(str(payload.get('postseason_format') or PostseasonFormat.DYNAMIC.value))
+    except ValueError:
+        raise ValueError(f"unknown postseason format '{payload.get('postseason_format')}'")
+
+    games_limit = payload.get('games_limit')
+    if games_limit is not None:
+        try:
+            games_limit = max(int(games_limit), _MIN_GAMES_LIMIT)
+        except (TypeError, ValueError):
+            raise ValueError('games_limit must be a number')
+
+    pct_of_games = payload.get('pct_of_games')
+    if pct_of_games is not None:
+        try:
+            pct_of_games = _clamp(float(pct_of_games), 0.05, 1.0)
+        except (TypeError, ValueError):
+            raise ValueError('pct_of_games must be a number')
+
+    injury_severity_multiplier = _clamp(float(payload.get('injury_severity_multiplier') or 1.0), 0.0, _MAX_INJURY_SEVERITY)
+
+    # REST-OF-SEASON PROJECTION. PRESENCE OF resume_as_of_date IS THE TOGGLE - AN EMPTY/NULL
+    # VALUE MEANS A PLAIN FULL-SEASON SIM, THE DEFAULT.
+    raw_resume_date = payload.get('resume_as_of_date')
+    resume_from_real_season = bool(raw_resume_date)
+    resume_as_of_date = None
+    if raw_resume_date:
+        try:
+            resume_as_of_date = date.fromisoformat(str(raw_resume_date))
+        except ValueError:
+            raise ValueError(f"invalid resume_as_of_date '{raw_resume_date}' - use YYYY-MM-DD")
+
+    # ONLY MEANINGFUL ALONGSIDE resume_as_of_date - THE ENGINE ITSELF GATES ON BOTH
+    # (`config.resume_from_real_season and config.merge_real_stats`), SO A STRAY
+    # merge_real_stats=True WITH NO RESUME DATE IS SILENTLY A NO-OP RATHER THAN AN ERROR.
+    merge_real_stats = resume_from_real_season and bool(payload.get('merge_real_stats'))
+
+    return {
+        'year': year, 'showdown_set': showdown_set, 'postseason_format': postseason_format,
+        'games_limit': games_limit, 'pct_of_games': pct_of_games,
+        'enable_injuries': bool(payload.get('enable_injuries')),
+        'injury_severity_multiplier': injury_severity_multiplier,
+        'seed': payload.get('seed'), 'simulate_postseason': payload.get('simulate_postseason', True),
+        'resume_from_real_season': resume_from_real_season, 'resume_as_of_date': resume_as_of_date,
+        'merge_real_stats': merge_real_stats,
+    }
+
+
+def _settings_to_stored_config(settings: dict) -> dict:
+    """JSON-serializable echo of `_parse_engine_settings`'s output, storable on `sim_lobby.config`
+    - the inverse of `_config_kwargs_from_stored`, which rebuilds a `SeasonSimulationConfig` from
+    this at start time. `year`/`showdown_set` are dropped since `sim_lobby` already carries them
+    as their own columns.
+    """
+    return {
+        'seed': settings['seed'], 'games_limit': settings['games_limit'], 'pct_of_games': settings['pct_of_games'],
+        'enable_injuries': settings['enable_injuries'], 'injury_severity_multiplier': settings['injury_severity_multiplier'],
+        'simulate_postseason': settings['simulate_postseason'], 'postseason_format': settings['postseason_format'].value,
+        'resume_from_real_season': settings['resume_from_real_season'],
+        'resume_as_of_date': settings['resume_as_of_date'].isoformat() if settings['resume_as_of_date'] else None,
+        'merge_real_stats': settings['merge_real_stats'],
+    }
+
+
+def _config_kwargs_from_stored(stored: dict) -> dict:
+    """Inverse of `_settings_to_stored_config` - rebuilds `SeasonSimulationConfig` kwargs (minus
+    `year`/`set`/`takeovers`, which the caller supplies separately) from a lobby's stored config."""
+    resume_as_of_date = date.fromisoformat(stored['resume_as_of_date']) if stored.get('resume_as_of_date') else None
+    return {
+        'seed': stored.get('seed'), 'games_limit': stored.get('games_limit'), 'pct_of_games': stored.get('pct_of_games'),
+        'enable_injuries': bool(stored.get('enable_injuries')),
+        'injury_severity_multiplier': stored.get('injury_severity_multiplier', 1.0),
+        'simulate_postseason': stored.get('simulate_postseason', True),
+        'postseason_format': PostseasonFormat(stored.get('postseason_format', PostseasonFormat.DYNAMIC.value)),
+        'resume_from_real_season': bool(stored.get('resume_from_real_season')),
+        'resume_as_of_date': resume_as_of_date,
+        'merge_real_stats': bool(stored.get('merge_real_stats')),
+    }
+
+
+def _launch_open_sim_job(
+    user_id: str, config: SeasonSimulationConfig, focus_abbr: str | None, job_config_echo: dict,
+) -> tuple[str | None, tuple[dict, int] | None]:
+    """Creates the `sim_job` row and starts the worker thread - the shared tail of a solo open sim
+    and a lobby's start, once each has its own `SeasonSimulationConfig` ready.
+
+    Returns `(job_id, None)` on success, or `(None, (json_body, status_code))` on failure (the
+    simulator is at capacity) - the caller re-raises that as its own response.
+    """
+    with PostgresDB() as db:
+        job_id = db.create_sim_job(user_id=user_id, team_id=None, config=job_config_echo)
+
+    if not _sim_slots.acquire(blocking=False):
+        with PostgresDB() as db:
+            db.finish_sim_job(job_id, error='The simulator is busy right now. Try again in a minute.')
+        return None, ({'error': 'The simulator is busy right now. Try again in a minute.'}, 429)
+
+    try:
+        threading.Thread(
+            target=_run_sim_job, args=(job_id, config, focus_abbr, user_id, None),
+            name=f'sim-{job_id[:8]}', daemon=True,
+        ).start()
+    except Exception:
+        # THE WORKER RELEASES THE SLOT IN ITS OWN `finally`, SO IT IS ONLY OURS TO RELEASE
+        # WHEN IT NEVER STARTED.
+        _sim_slots.release()
+        raise
+
+    return job_id, None
+
+
+class _RequestError(Exception):
+    """A validation failure that already knows its HTTP status - lets a helper called from
+    several routes raise the right status code without the caller having to guess from message
+    text. Callers catch this and `return jsonify({'error': str(exc)}), exc.status`.
+    """
+    def __init__(self, message: str, status: int = 400) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def _resolve_takeovers(raw_takeovers: list, requester_user_id: str, db: PostgresDB) -> list[tuple[BuilderTeam, str | None]]:
+    """Validates ownership/roster completeness for each `{team_id, replaces}` entry (DB-bound,
+    called with a connection already open). Returns `(team, requested_replaces)` rows - resolving
+    `replaces` against the real season is an external MLB Stats API call that must NOT happen
+    while holding a DB connection, so that step is left to the caller. Raises `_RequestError`
+    with the appropriate status on any validation failure.
+    """
+    rows: list[tuple[BuilderTeam, str | None]] = []
+    for entry in raw_takeovers:
+        if not isinstance(entry, dict) or not entry.get('team_id'):
+            raise _RequestError('each takeover needs a team_id', 400)
+        row = db.get_team(entry['team_id'], requester_user_id)
+        if row is None:
+            raise _RequestError(f"team {entry['team_id']} not found", 404)
+        team = BuilderTeam.from_db_row(row)
+        roster_error = _roster_error(team)
+        if roster_error:
+            raise _RequestError(f"{team.name}: {roster_error}", 422)
+        rows.append((team, entry.get('replaces')))
+    return rows
+
+
+@sim_bp.route('/sim/open_season', methods=['POST'])
+@require_auth
+def start_open_sim():
+    """Queue an open sim: every club plays a season, with any number of clubs optionally taken
+    over by one of the caller's own teams. Returns a job id to poll.
+
+    Deliberately separate from `start_season_sim` - that route's challenge-instance, pts-budget
+    and `PlayerFilterSet` validation belongs to a Team Challenge run and does not apply here.
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        try:
+            settings = _parse_engine_settings(payload)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        year, showdown_set = settings['year'], settings['showdown_set']
+
+        raw_takeovers = payload.get('takeovers') or []
+        if not isinstance(raw_takeovers, list):
+            return jsonify({'error': 'takeovers must be a list'}), 400
+
+        # DB-BOUND CHECKS FIRST, IN ONE SHORT-LIVED CONNECTION: THE PER-USER CAP, PLUS OWNERSHIP
+        # AND ROSTER VALIDATION FOR EACH REQUESTED TAKEOVER (MIRRORING `start_season_sim`'s
+        # SINGLE-TEAM CHECKS - NO PTS-BUDGET OR PlayerFilterSet CHECK, THOSE ARE CHALLENGE-ONLY).
+        with PostgresDB() as db:
+            active = db.get_active_sim_job(g.user_id)
+            if active:
+                return jsonify({
+                    'error': 'You already have a simulation running. Wait for it to finish.',
+                    'job_id': active['job_id'],
+                    'team_id': active['team_id'],
+                }), 429
+
+            try:
+                takeover_rows = _resolve_takeovers(raw_takeovers, g.user_id, db)
+            except _RequestError as exc:
+                return jsonify({'error': str(exc)}), exc.status
+
+        # NO DB CONNECTION HELD DURING ANY OF THIS - EACH `TakeoverOptions` HITS THE MLB STATS API
+        # (UP TO ~90S WORST CASE WITH RETRIES) AND MUST NOT SIT ON A POOLED CONNECTION WHILE IT
+        # DOES. RESULTS ARE 12H-CACHED PER YEAR AT THE ROUTE LAYER, SO REPEAT REQUESTS ARE CHEAP.
+        try:
+            options = TakeoverOptions(year=year)
+            takeover_teams: dict[str, BuilderTeam] = {}
+            for team, requested_replaces in takeover_rows:
+                replaces = options.resolve(requested_replaces)
+                if replaces is None:
+                    return jsonify({'error': f'No club data available for {year}.'}), 400
+                if replaces in takeover_teams:
+                    return jsonify({'error': f"'{replaces}' is being taken over more than once."}), 400
+                takeover_teams[replaces] = team
+
+            focus_abbr = payload.get('focus_abbr')
+            if focus_abbr:
+                focus_abbr = options.resolve(focus_abbr)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        config = SeasonSimulationConfig(
+            year=year,
+            set=showdown_set,
+            takeovers=takeover_teams,
+            **_config_kwargs_from_stored(_settings_to_stored_config(settings)),
+            # NEVER ACCEPTED FROM THE CLIENT - 3.2 MB OF THE 6.1 MB RESULT, AND NOTHING ON THE
+            # OPEN-SIM RESULT SCREEN READS THEM. SEE `start_season_sim`'s SAME OMISSION.
+            include_game_logs=False,
+            include_box_scores=False,
+        )
+
+        job_id, error = _launch_open_sim_job(
+            user_id=g.user_id, config=config, focus_abbr=focus_abbr,
+            # BUILDER TEAMS ARE DROPPED FROM THE STORED CONFIG - EACH IS A FULL ROSTER THE TEAM
+            # ITSELF ALREADY HOLDS, AND ONLY THE SETUP ECHO IS NEEDED FOR DISPLAY.
+            job_config_echo={
+                'year': year, 'set': showdown_set.value, 'focus_abbr': focus_abbr,
+                'takeovers': [{'replaces': abbr, 'team_name': team.name} for abbr, team in takeover_teams.items()],
+                **_settings_to_stored_config(settings),
+            },
+        )
+        if error:
+            body, status = error
+            return jsonify(body), status
+
+        return jsonify({'job_id': job_id, 'status': 'queued', 'focus_abbr': focus_abbr}), 202
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+# ----------------------------------------------------------
+# MARK: - SIM LOBBY (MULTIPLAYER)
+# ----------------------------------------------------------
+#
+# Several users share one simulated season: each member follows a real club or takes it over with
+# a team they built, the host starts it, and everyone reads the same result from their own club's
+# perspective via `useClubSeason` on the frontend - no per-member sim runs, no per-member result
+# rows. This is almost entirely lobby lifecycle around the open-sim machinery above, not new
+# simulation logic. See `Season._build_season_teams`'s `all_takeovers` loop for how N takeovers in
+# one run were already made to work before this existed.
+
+# EXCLUDES VISUALLY AMBIGUOUS CHARACTERS (0/O, 1/I) SINCE A JOIN CODE IS READ ALOUD/TYPED BY HAND.
+_JOIN_CODE_ALPHABET = ''.join(c for c in string.ascii_uppercase + string.digits if c not in 'O0I1')
+_JOIN_CODE_LENGTH = 6
+
+
+def _generate_unique_join_code(db: PostgresDB, attempts: int = 5) -> str:
+    for _ in range(attempts):
+        code = ''.join(random.choices(_JOIN_CODE_ALPHABET, k=_JOIN_CODE_LENGTH))
+        if db.get_sim_lobby_by_code(code) is None:
+            return code
+    # ASTRONOMICALLY UNLIKELY AT ~30^6 COMBINATIONS - THIS IS A CIRCUIT BREAKER, NOT A REAL PATH.
+    raise _RequestError('Could not generate a join code. Try again.', 500)
+
+
+def _lobby_state_payload(db: PostgresDB, lobby: dict) -> dict:
+    """Shared `{lobby, members, job}` response shape for the create/join/claim/leave/get routes.
+
+    Lazily reconciles a 'running' lobby with its underlying `sim_job`: the worker thread that
+    actually runs the sim has no idea it's running for a lobby (it just sees a job id), so this is
+    the only place that link is ever followed. `sim_job` is owner-scoped to the host (whoever
+    pressed start - see the "Job ownership" note on `/start` below), so the lookup must pass the
+    host's id explicitly rather than the viewer's, or a non-host member would never see it resolve.
+    """
+    job = None
+    if lobby['status'] == 'running' and lobby['job_id']:
+        job = db.get_sim_job(lobby['job_id'], user_id=lobby['host_user_id'])
+        if job and job['status'] in ('succeeded', 'failed', 'cancelled'):
+            db.finish_sim_lobby(lobby['lobby_id'])
+            lobby['status'] = 'finished'
+    members = db.get_sim_lobby_members(lobby['lobby_id'])
+    return {'lobby': lobby, 'members': members, 'job': job}
+
+
+@sim_bp.route('/sim/lobby', methods=['POST'])
+@require_auth
+def create_sim_lobby():
+    """Create a new open sim lobby other users can join by code. The host's engine settings
+    (year, set, schedule length, injuries, rest-of-season projection, ...) are fixed at creation -
+    the same options a solo open sim's setup form collects. Which clubs get taken over, and by
+    whom, is decided by member claims later, at start time."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        try:
+            settings = _parse_engine_settings(payload)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        with PostgresDB() as db:
+            try:
+                join_code = _generate_unique_join_code(db)
+            except _RequestError as exc:
+                return jsonify({'error': str(exc)}), exc.status
+            lobby_id = db.create_sim_lobby(
+                host_user_id=g.user_id, join_code=join_code, year=settings['year'],
+                showdown_set=settings['showdown_set'].value, config=_settings_to_stored_config(settings),
+            )
+            lobby = db.get_sim_lobby(lobby_id)
+
+        return jsonify(_lobby_state_payload(db, lobby)), 201
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/lobby/<code>/join', methods=['POST'])
+def join_sim_lobby(code: str):
+    """Resolves a join code to a lobby's current state. Doesn't create membership itself - claiming
+    a club (`POST /sim/lobby/<id>/claim`) is the actual join action, so this works even signed out,
+    same as browsing a challenge before deciding to take it on."""
+    try:
+        with PostgresDB() as db:
+            lobby = db.get_sim_lobby_by_code(code.strip().upper())
+            if lobby is None:
+                return jsonify({'error': 'Lobby not found or expired.'}), 404
+            return jsonify(_lobby_state_payload(db, lobby)), 200
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/lobby/<lobby_id>', methods=['GET'])
+def get_sim_lobby(lobby_id: str):
+    """Current lobby state - polled by every member's client (~2s) while waiting/running, the
+    lobby's equivalent of a solo sim's job-progress poll."""
+    try:
+        with PostgresDB() as db:
+            lobby = db.get_sim_lobby(lobby_id)
+            if lobby is None:
+                return jsonify({'error': 'Lobby not found or expired.'}), 404
+            return jsonify(_lobby_state_payload(db, lobby)), 200
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/lobby/<lobby_id>/claim', methods=['POST'])
+@require_auth
+def claim_sim_lobby(lobby_id: str):
+    """Claim (or change) a club in an open lobby - optionally with one of the caller's own teams
+    (a takeover) or none (follow only). Re-validated for real at start time (roster completeness
+    can drift after claiming, and the lobby can fill up around a slow claimant), so this is a
+    best-effort check, not the final word."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        club_abbr = payload.get('club_abbr')
+        if not club_abbr:
+            return jsonify({'error': 'club_abbr is required'}), 400
+        team_id = payload.get('team_id') or None
+
+        with PostgresDB() as db:
+            lobby = db.get_sim_lobby(lobby_id)
+            if lobby is None:
+                return jsonify({'error': 'Lobby not found or expired.'}), 404
+            if lobby['status'] != 'open':
+                return jsonify({'error': f"This lobby is {lobby['status']} and no longer accepting claims."}), 400
+
+            if team_id:
+                row = db.get_team(team_id, g.user_id)
+                if row is None:
+                    return jsonify({'error': 'team not found'}), 404
+                team = BuilderTeam.from_db_row(row)
+                roster_error = _roster_error(team)
+                if roster_error:
+                    return jsonify({'error': roster_error}), 422
+
+        # NO DB CONNECTION HELD - SAME REASONING AS start_open_sim's TakeoverOptions CALL.
+        try:
+            resolved_abbr = TakeoverOptions(year=lobby['year']).resolve(club_abbr)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        if resolved_abbr is None:
+            return jsonify({'error': f"No club data available for {lobby['year']}."}), 400
+
+        with PostgresDB() as db:
+            claimed = db.claim_sim_lobby_club(lobby_id, g.user_id, resolved_abbr, team_id)
+            if not claimed:
+                return jsonify({'error': f"'{resolved_abbr}' is already claimed by another player."}), 409
+            lobby = db.get_sim_lobby(lobby_id)
+            return jsonify(_lobby_state_payload(db, lobby)), 200
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/lobby/<lobby_id>/leave', methods=['POST'])
+@require_auth
+def leave_sim_lobby(lobby_id: str):
+    """Drop the caller's own claim. The host can't leave their own lobby - there's no route to
+    transfer or delete it, so that would strand it in a state nobody can ever start."""
+    try:
+        with PostgresDB() as db:
+            lobby = db.get_sim_lobby(lobby_id)
+            if lobby is None:
+                return jsonify({'error': 'Lobby not found or expired.'}), 404
+            if lobby['host_user_id'] == g.user_id:
+                return jsonify({'error': "The host can't leave their own lobby."}), 400
+            db.leave_sim_lobby(lobby_id, g.user_id)
+            return jsonify(_lobby_state_payload(db, lobby)), 200
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/lobby/<lobby_id>/start', methods=['POST'])
+@require_auth
+def start_sim_lobby(lobby_id: str):
+    """Host-only: build `takeovers` from every member's claim, launch the sim, and record which
+    job the lobby is now watching.
+
+    Job ownership: the job is created under the HOST's `user_id`, exactly like a solo open sim -
+    so the per-user concurrency cap (`get_active_sim_job`) applies to the host for the run's
+    duration, and every other member keeps their own independent cap untouched. A host who tries
+    to start a personal sim while their lobby sim is running gets the same `SimAlreadyRunningError`
+    → "view existing" path a solo run's cap already provides, for free.
+    """
+    try:
+        with PostgresDB() as db:
+            lobby = db.get_sim_lobby(lobby_id)
+            if lobby is None:
+                return jsonify({'error': 'Lobby not found or expired.'}), 404
+            if lobby['host_user_id'] != g.user_id:
+                return jsonify({'error': 'Only the host can start this lobby.'}), 403
+            if lobby['status'] != 'open':
+                return jsonify({'error': f"This lobby is already {lobby['status']}."}), 400
+
+            active = db.get_active_sim_job(g.user_id)
+            if active:
+                return jsonify({
+                    'error': 'You already have a simulation running. Wait for it to finish.',
+                    'job_id': active['job_id'], 'team_id': active['team_id'],
+                }), 429
+
+            # RE-VALIDATED HERE, NOT JUST AT CLAIM TIME - A MEMBER'S TEAM CAN CHANGE (OR THE TEAM
+            # ITSELF DISAPPEAR) BETWEEN CLAIMING AND THE HOST PRESSING START.
+            members = db.get_sim_lobby_members(lobby_id)
+            takeover_teams: dict[str, BuilderTeam] = {}
+            for member in members:
+                if not member['team_id']:
+                    continue
+                row = db.get_team(member['team_id'], member['user_id'])
+                if row is None:
+                    return jsonify({'error': f"{member['club_abbr']}'s team is no longer available."}), 422
+                team = BuilderTeam.from_db_row(row)
+                roster_error = _roster_error(team)
+                if roster_error:
+                    return jsonify({'error': f"{member['club_abbr']} ({team.name}): {roster_error}"}), 422
+                takeover_teams[member['club_abbr']] = team
+
+        config = SeasonSimulationConfig(
+            year=lobby['year'],
+            set=Set(lobby['showdown_set']),
+            takeovers=takeover_teams,
+            **_config_kwargs_from_stored(lobby['config'] or {}),
+            include_game_logs=False,
+            include_box_scores=False,
+        )
+
+        job_id, error = _launch_open_sim_job(
+            user_id=g.user_id, config=config, focus_abbr=None,
+            job_config_echo={
+                'year': lobby['year'], 'set': lobby['showdown_set'], 'lobby_id': lobby_id,
+                'takeovers': [{'replaces': abbr, 'team_name': team.name} for abbr, team in takeover_teams.items()],
+                **(lobby['config'] or {}),
+            },
+        )
+        if error:
+            body, status = error
+            return jsonify(body), status
+
+        with PostgresDB() as db:
+            db.set_sim_lobby_running(lobby_id, job_id)
+            lobby = db.get_sim_lobby(lobby_id)
+            return jsonify(_lobby_state_payload(db, lobby)), 202
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 def _friendly_phase(message: str) -> str | None:
     """Coarse user-facing stage for a `status_callback` message.
 
@@ -269,13 +790,17 @@ def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_
 
 
 def _run_sim_job(
-    job_id: str, config: SeasonSimulationConfig, team_abbr: str, user_id: str | None = None, team_id: str | None = None,
+    job_id: str, config: SeasonSimulationConfig, team_abbr: str | None, user_id: str | None = None, team_id: str | None = None,
     roster_points: int | None = None, challenge: dict | None = None,
 ) -> None:
     """Run one simulation to completion and record the result.
 
     Runs in a background thread with its own DB connections - it must never share the one the
     request used, and the progress writer needs one separate from the simulation's own reads.
+
+    `team_abbr=None` is an open sim: `SeasonSummaryBuilder` covers every club instead of one, and
+    `team_id`/`challenge`/`roster_points` are all naturally None/absent for this kind of run - a
+    challenge is by definition scoped to one team's own attempt.
     """
     try:
         last_write = datetime.min

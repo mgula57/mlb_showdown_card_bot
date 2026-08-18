@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { SeasonSimSummary, SimTeamIdentity } from '../../../api/sim';
+import type { SeasonSimSummary, SimTeamIdentity, SimTeamSeason } from '../../../api/sim';
 import type { Standings as StandingsGroup, TeamRecords } from '../../../api/mlbAPI';
 
 /** Standings.tsx keys teams by numeric id; sim teams only have schedule-key strings, so derive one. */
@@ -55,9 +55,12 @@ export function label(identity: SimTeamIdentity | null, fallback: string): strin
  * built roster's point cost (bench-multiplier-adjusted), so the league baseline needs no extra
  * data beyond what the standings already report. Null when there's no meaningful baseline (e.g.
  * a season with no roster point costs at all).
+ *
+ * Takes the resolved focus team explicitly rather than reading `summary.team` - that field is
+ * null for an open sim, where the caller resolves a team via `useClubSeason` first.
  */
-export function computePtsEfficiency(summary: SeasonSimSummary): number | null {
-    if (summary.team.points <= 0) return null;
+export function computePtsEfficiency(summary: SeasonSimSummary, team: SimTeamSeason | null): number | null {
+    if (!team || team.points <= 0) return null;
 
     let leagueWins = 0;
     let leaguePoints = 0;
@@ -72,6 +75,6 @@ export function computePtsEfficiency(summary: SeasonSimSummary): number | null {
     const leagueRate = leagueWins / leaguePoints;
     if (leagueRate <= 0) return null;
 
-    const teamRate = summary.team.wins / summary.team.points;
+    const teamRate = team.wins / team.points;
     return Math.round((teamRate / leagueRate) * 100);
 }

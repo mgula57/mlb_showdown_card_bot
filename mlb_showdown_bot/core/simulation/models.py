@@ -134,14 +134,32 @@ class SeasonSimulationConfig(BaseModel):
     tournament_name: Optional[str] = None
     tournament_games: Optional[int] = None
 
-    # SEASON TAKEOVER. THE BUILDER TEAM REPLACES ONE REAL CLUB IN AN OTHERWISE REAL MLB SEASON,
+    # SEASON TAKEOVER. A BUILDER TEAM REPLACES ONE REAL CLUB IN AN OTHERWISE REAL MLB SEASON,
     # INHERITING ITS SCHEDULE, DIVISION AND OPPONENTS. DELIBERATELY SEPARATE FROM `custom_teams`,
     # WHICH SWAPS THE ENTIRE LEAGUE OUT FOR A ROUND ROBIN - THE TWO ARE MUTUALLY EXCLUSIVE.
+    #
+    # `takeover_team`/`takeover_replaces_abbr` ARE THE ORIGINAL SINGLE-TAKEOVER FIELDS (STILL
+    # HOW A TEAM CHALLENGE RUN POPULATES THIS). `takeovers` IS THE OPEN-SIM GENERALIZATION - ANY
+    # NUMBER OF CLUBS REPLACED IN ONE RUN, KEYED BY ERA-CORRECT SCHEDULE ABBREVIATION. USE
+    # `all_takeovers` TO READ EITHER FORM WITHOUT CARING WHICH POPULATED IT.
     takeover_team: Optional[BuilderTeam] = None
     takeover_replaces_abbr: Optional[str] = None  # ERA-CORRECT ABBREVIATION, E.G. "TBD" FOR 1998
+    takeovers: dict[str, BuilderTeam] = {}  # ERA-CORRECT ABBREVIATION -> BUILDER TEAM
 
     include_game_logs: bool = False
     include_box_scores: bool = False
+
+    # REST-OF-SEASON PROJECTION. WHEN ENABLED, EVERY CLUB'S REAL RECORD AS OF `resume_as_of_date`
+    # (DEFAULT: TODAY) SEEDS ITS SIMULATED ONE, AND ONLY GAMES AFTER THAT DATE ARE SIMULATED - SEE
+    # `Schedule`'s `start_date` AND `Season._build_season_teams`'s SEEDING.
+    resume_from_real_season: bool = False
+    resume_as_of_date: Optional[date] = None
+    # ADDITIONALLY MERGE EACH PLAYER'S REAL SEASON STATS TO DATE INTO THEIR SIMULATED TOTALS -
+    # ONLY MEANINGFUL WHEN `resume_from_real_season` IS ALSO SET. A SEPARATE FLAG FROM THAT ONE
+    # SINCE THE ARCHIVE HOLDS ONE CURRENT SNAPSHOT PER PLAYER-YEAR, NOT A HISTORY - THE MERGED
+    # STATS REFLECT "AS OF THE ARCHIVE'S LAST SCRAPE", WHICH MAY NOT LINE UP WITH
+    # `resume_as_of_date` EXACTLY, SO A USER WHO ONLY WANTS SEEDED STANDINGS CAN SKIP THIS.
+    merge_real_stats: bool = False
 
     # STANDINGS PTS DISPLAY. A BUILDER/TOURNAMENT TEAM'S BENCH SLOTS COST LESS THAN THEIR CARD'S
     # FULL POINTS AT DRAFT TIME (SEE `Team.bench_pts_multiplier`), SO THE RAW SUM OF EVERY ACTIVE
@@ -155,13 +173,28 @@ class SeasonSimulationConfig(BaseModel):
         return len(self.custom_teams) > 0
 
     @property
+    def all_takeovers(self) -> dict[str, BuilderTeam]:
+        """Every club replaced by a builder team this run, keyed by schedule abbreviation.
+
+        Merges the legacy single-takeover fields with `takeovers` so every existing caller (a
+        Team Challenge run, which only ever sets `takeover_team`/`takeover_replaces_abbr`) keeps
+        working unchanged, while an open sim can populate `takeovers` directly with any number of
+        clubs. `takeovers` wins on a key collision.
+        """
+        merged: dict[str, BuilderTeam] = {}
+        if self.takeover_team is not None and self.takeover_replaces_abbr:
+            merged[self.takeover_replaces_abbr] = self.takeover_team
+        merged.update(self.takeovers)
+        return merged
+
+    @property
     def is_takeover(self) -> bool:
-        return self.takeover_team is not None
+        return len(self.all_takeovers) > 0
 
     @property
     def card_sources(self) -> dict[str, str]:
         """card_id -> CardSource.value for every builder-drafted player in this sim (tournament
-        custom teams and/or a takeover roster). Every other statline belongs to a real-season
+        custom teams and/or any takeover roster). Every other statline belongs to a real-season
         card straight from the bot archive - `CardSource.BOT` is the correct default for those,
         not just an absence of data, so callers resolving a player's source should fall back to
         it rather than leaving `card_source` unset.
@@ -169,8 +202,8 @@ class SeasonSimulationConfig(BaseModel):
         sources: dict[str, str] = {}
         for team in self.custom_teams:
             sources.update({slot.card_id: slot.card_source.value for slot in team.roster})
-        if self.takeover_team is not None:
-            sources.update({slot.card_id: slot.card_source.value for slot in self.takeover_team.roster})
+        for team in self.all_takeovers.values():
+            sources.update({slot.card_id: slot.card_source.value for slot in team.roster})
         return sources
 
     @property
@@ -479,6 +512,15 @@ class SeasonSimulationResult(BaseModel):
     games: list[GameResult] = []
     postseason: Optional[PostseasonResult] = None
     transactions: list[Transaction] = []
+
+    # SCHEDULE ABBREVIATION -> (WINS, LOSSES) EACH CLUB STARTED THIS RUN WITH. EMPTY (EVERY CLUB
+    # STARTED 0-0) UNLESS `config.resume_from_real_season` - SEE `Season._build_season_teams`.
+    seeded_records: dict[str, tuple[int, int]] = {}
+
+    # LEAST-STALE stats_modified_date ACROSS EVERY MERGED PLAYER'S REAL STATLINE. NONE UNLESS
+    # `config.merge_real_stats` - SEE `PlayerLoader.load_real_season_stats`. SURFACE THIS RATHER
+    # THAN `config.resume_as_of_date` WHEN DESCRIBING WHAT THE MERGED STATS COVER.
+    real_stats_as_of: Optional[datetime] = None
 
     @property
     def runtime_seconds(self) -> float:

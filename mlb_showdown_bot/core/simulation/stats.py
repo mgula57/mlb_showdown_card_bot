@@ -424,6 +424,37 @@ class StatsGroup:
         return [stats for stats in self.stats.values() if (stats.player_type == type)]
 
 
+def _real_stats_to_totals(raw_stats: dict, player_type: PlayerType) -> dict[str, float]:
+    """Archive-style raw stats (uppercase bref keys, e.g. `PlayerArchive.stats`) -> a
+    `Stats.totals`-shaped counting-stat dict, ready for `Stats.merge_totals`.
+
+    Filters down to `StatCategory` keys and lowercases them; for a pitcher, also converts bref's
+    `.1`/`.2` partial-inning IP notation to thirds and derives `er` from `earned_run_avg`, since
+    not every archive row carries a raw ER counting field. Shared by `real_life_stats_to_compare_to_sim`
+    (a full season's real stats, for the CLI's `--show_real_life_comparison`) and
+    `PlayerStatsGroup.merge_real_season_stats` (a rest-of-season projection's real-to-date stats).
+    """
+    allowed_stats_str = [s.value.lower() for s in StatCategory] + ['earned_run_avg']
+    stats = {k.lower(): v for k, v in raw_stats.items() if k.lower() in allowed_stats_str and isinstance(v, (int, float))}
+    if player_type == PlayerType.PITCHER:
+        ip = stats.get('ip', 0.0)
+        integer_part = int(ip)
+        # ROUNDED - bref's FRACTIONAL NOTATION IS ALWAYS EXACTLY .0/.1/.2, BUT e.g. `62.1 - 62`
+        # LANDS ON 0.10000000000000142 IN FLOATING POINT, SO AN UNROUNDED `== 0.1` CHECK MISSES IT
+        # AND SILENTLY DROPS THE PARTIAL INNING.
+        fractional_part = round(ip - integer_part, 2)
+        if fractional_part == 0.1:
+            ip = integer_part + (1 / 3)
+        elif fractional_part == 0.2:
+            ip = integer_part + (2 / 3)
+        else:
+            ip = integer_part
+        stats['er'] = int(round((stats.get('earned_run_avg', 0.0) * ip / 9)))
+        stats['ip'] = ip
+        stats.pop('earned_run_avg', None)
+    return stats
+
+
 class PlayerStatsGroup(StatsGroup):
     """StatsGroup seeded with identity statlines for a list of live SimPlayers."""
 
@@ -448,25 +479,33 @@ class PlayerStatsGroup(StatsGroup):
     def real_life_stats_to_compare_to_sim(self, type: PlayerType, name: str = "REAL") -> Stats:
         total_stats = Stats(id=name, name=name, player_type=type)
         players_in_sim = list(self.stats.keys())
-        allowed_stats_str = [s.value.lower() for s in StatCategory] + ['earned_run_avg']
         for player in self.players:
             is_included = player.player_type == type and player.id in players_in_sim
             if is_included:
-                stats = {k.lower(): v for k, v in player.stats.items() if k.lower() in allowed_stats_str and isinstance(v, (int, float))}
-                if type == PlayerType.PITCHER:
-                    ip = stats.get('ip', 0.0)
-                    integer_part = int(ip)
-                    fractional_part = ip - integer_part
-                    if fractional_part == 0.1:
-                        ip = integer_part + (1/3)
-                    elif fractional_part == 0.2:
-                        ip = integer_part + (2/3)
-                    else:
-                        ip = integer_part
-                    stats['er'] = int(round((stats.get('earned_run_avg', 0.0) * ip / 9)))
-                    stats.pop('earned_run_avg', None)
-                total_stats.merge_totals(stats)
+                total_stats.merge_totals(_real_stats_to_totals(player.stats, type))
         return total_stats
+
+    def merge_real_season_stats(self, raw_stats_by_id: dict[str, dict]) -> int:
+        """Merge each player's real archive statline into their totals - a rest-of-season
+        projection's seed for individual stat lines, the counterpart to `Season._build_season_teams`
+        seeding each club's win-loss record. Simulated games accumulate on top afterward.
+
+        Only players already in this group (i.e. on a simulated roster) are affected - anything
+        else in `raw_stats_by_id` is ignored. Team attribution needs no special handling: both a
+        player's sim roster placement (`ShowdownPlayerCard.team`) and their archive row's team are
+        independently derived from the same `stats['team_ID']`, so a mid-season-traded player's
+        merged totals land on the same club the sim already has them rostered under.
+
+        Returns how many players were merged, for a status message.
+        """
+        merged = 0
+        for player_id, stats_obj in self.stats.items():
+            raw = raw_stats_by_id.get(player_id)
+            if not raw:
+                continue
+            stats_obj.merge_totals(_real_stats_to_totals(raw, stats_obj.player_type))
+            merged += 1
+        return merged
 
 
 class PitchingLog(BaseModel):
