@@ -141,7 +141,7 @@ export const CardItemCompact = ({
                 relative @container
                 w-full min-w-0
                 flex items-top gap-2
-                rounded-lg px-1.5 py-1
+                rounded-lg pl-1 py-1
                 bg-secondary
                 ${borderSettings}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
@@ -165,7 +165,7 @@ export const CardItemCompact = ({
                         : 
                             <>
                                 {/* First Initial */}
-                                <span className={`hidden @[70px]:flex @[100px]:hidden`}>{getFirstInitial(card?.name)}. </span>
+                                <span className={`hidden @[85px]:flex @[100px]:hidden`}>{getFirstInitial(card?.name)}. </span>
 
                                 {/* Full First Name */}
                                 <span className={`hidden @[100px]:flex`}>{getFirstName(card?.name)} </span>
@@ -184,17 +184,17 @@ export const CardItemCompact = ({
                     
                 </div>
                 {!hideTeamPoints && (
-                    <div className="flex items-center gap-1 min-w-0">
+                    <div className="flex items-center gap-1 min-w-0 overflow-x-scroll">
                         <div
                             className={`text-[9px] flex leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : teamStyle}
                         >
                             {card?.team || 'N/A'}
-                            <span className="hidden @[80px]:block @[120px]:hidden ml-0.5"> {formatYear(card?.year || '-', true)}</span>
+                            <span className="hidden @[90px]:block @[120px]:hidden ml-0.5"> {formatYear(card?.year || '-', true)}</span>
                             <span className="hidden @[120px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                         </div>
                         <div
-                            className={`hidden @[80px]:flex shrink-0 text-[9px] leading-none font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold tracking-tight text-nowrap rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : pointsBadgeStyle}
                         >
                             {hasPtsMultiplier ? (
@@ -210,7 +210,7 @@ export const CardItemCompact = ({
                     </div>
                 )}
                 {!hideDetails && (
-                    <div className={`hidden @[70px]:flex py-0.5 text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                    <div className={`hidden @[75px]:flex py-0.5 text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                         {isRedacted ? '--- • ---' : (
                             <>
                                 {/* STAT 1 */}
@@ -238,7 +238,7 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && (
-                <div className="hidden @[70px]:block absolute bottom-1.5 left-1 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                <div className="hidden @[75px]:block absolute bottom-1.5 left-1 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
                 </div>
             )}
