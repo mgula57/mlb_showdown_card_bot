@@ -238,9 +238,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 setIsOpen={setIsSideMenuOpen} 
             />
 
-            {/* Mobile Overlay Sidebar - Full-screen overlay with backdrop */}
+            {/* Mobile Overlay Sidebar - Full-screen overlay with backdrop.
+                Uses top/left/right + h-lvh rather than inset-0 — inset-0 implies
+                bottom-0, which anchors to the current dynamic viewport and shrinks
+                as Safari's URL bar animates, leaving a gap (a black bar) at the
+                bottom edge. h-lvh is fixed to the large/max viewport, so this
+                (and the backdrop nested inside it) always overshoots past the
+                visible area and bleeds under the URL bar instead. */}
             {isSideMenuOpenMobile && (
-                <div className="fixed inset-0 z-40 md:hidden">
+                <div className="fixed top-0 left-0 right-0 h-lvh z-40 md:hidden">
                     {/* Backdrop - Click to close sidebar */}
                     <div
                         className="absolute inset-0 bg-black/40"

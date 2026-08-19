@@ -973,7 +973,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     return (
         <div className="w-full bg-(--background-primary)">
-            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
+            <div className="max-w-full lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
@@ -1033,7 +1033,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
                                 <div className="min-w-0 order-2 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
                                     <div className="lg:hidden mb-4 rounded-2xl space-y-4">
-                                        <div className="space-y-2">
+                                        <div className="space-y-2 px-4">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center font-bold text-2xl">
@@ -1105,7 +1105,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        <div className="space-y-2 pb-24 lg:pt-6 lg:pr-6">
+                                        <div className="px-3 md:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <div className="space-y-2 flex justify-between items-top">
                                                 <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
                                                     Standings
@@ -1154,7 +1154,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        <div className="space-y-5 lg:pt-6 lg:pr-6">
+                                        <div className="px-3 sm:px-0 space-y-5 lg:pt-6 lg:pr-6">
                                                 <div className="rounded-xl bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
@@ -1241,7 +1241,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="teams"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="lg:pt-6 lg:pr-6">
+                                        <div className="px-3 sm:px-0 lg:pt-6 lg:pr-6">
                                             {selectedTeam && (
                                                 <ShowdownTeamPanel
                                                     showdownTeam={selectedRoster}
@@ -1257,7 +1257,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="leaders"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="lg:pt-6">
+                                        <div className="px-3 sm:px-0 lg:pt-6">
                                             <SeasonLeaders
                                                 seasonId={selectedSeason.season_id}
                                                 season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
@@ -1273,7 +1273,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="awards"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="lg:pt-6">
+                                        <div className="px-3 sm:px-0 lg:pt-6">
                                             <AwardWinners
                                                 seasonId={selectedSeason.season_id}
                                                 season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}

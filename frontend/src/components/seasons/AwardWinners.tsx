@@ -281,7 +281,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                 Gold Glove
                             </span>
                         </div>
-                        <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
+                        <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                             {LEAGUES.map(league => (
                                 <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
                                     <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>

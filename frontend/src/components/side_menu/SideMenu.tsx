@@ -202,10 +202,15 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
     }, [isOpen, isMobile]);
 
     return (
-        <aside className={`min-h-dvh fixed left-0 top-0 ${className}`}>
+        // min-h-lvh (not dvh) — dvh shrinks/grows live as Safari's URL bar animates,
+        // and since this is a top-anchored full-screen mobile overlay, that live
+        // resize can lag a frame and expose a gap (a black bar) at the bottom edge.
+        // lvh is fixed to the large/max viewport, so it always overshoots past the
+        // visible area and bleeds under the URL bar instead of leaving a gap.
+        <aside className={`min-h-lvh fixed left-0 top-0 ${className}`}>
             {/* Main navigation container with responsive width and smooth transitions */}
             <nav className={`
-                min-h-dvh ${isOpen ? 'w-64 md:w-48' : 'w-14'} space-y-4
+                min-h-lvh ${isOpen ? 'w-64 md:w-48' : 'w-14'} space-y-4
                 bg-secondary border-r-divider shadow-sm
                 transition-all duration-300 ease-in-out
                 flex flex-col
