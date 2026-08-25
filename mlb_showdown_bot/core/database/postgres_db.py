@@ -35,7 +35,7 @@ def _get_pool(env_var_name: str) -> 'psycopg2_pool.ThreadedConnectionPool | None
             print(f"Error creating connection pool for {env_var_name}: {e}")
             return None
     return _pools.get(env_var_name)
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
 from enum import Enum
@@ -7091,6 +7091,158 @@ class PostgresDB:
             return leaderboard_records
         except Exception as e:
             print(f"ERROR fetching {league} stats for seasons {seasons}: {e}")
+            return []
+        finally:
+            cursor.close()
+
+    def store_fangraphs_fielding_stats(self, season: int, data: list[dict]) -> None:
+        """Append a snapshot of Fangraphs MLB fielding leaderboard stats (including DRS) to the database.
+
+        Used so card generation can read a cached snapshot instead of hitting Fangraphs live every time
+        (Fangraphs blocks requests from some hosts, e.g. GitHub Actions runners, with a Cloudflare challenge).
+
+        Every call appends a brand-new snapshot (all rows sharing one snapshot_date) rather than overwriting
+        the previous one, so historical snapshots build up over time — mirrors internal.dim_roster_history.
+
+        Args:
+            season: The season these fielding stats are for.
+            data: List of raw dictionaries as returned from FangraphsAPIClient.fetch_leaderboard_stats(stat_type="fld", ...).
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return
+
+        print(f"Storing {len(data)} rows of MLB fielding stats for {season} in the database...")
+        cursor = self.connection.cursor()
+        table_name = "internal.dim_fangraphs_leaderboard_mlb_fld"
+
+        create_table_sql = f'''
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id VARCHAR(255),
+                player_id INT,
+                player_name VARCHAR(255),
+                team VARCHAR(255),
+                position VARCHAR(50),
+                season INT,
+                stats JSONB,
+                snapshot_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        '''
+        index_sql = f'''
+            CREATE INDEX IF NOT EXISTS idx_fangraphs_fld_player_season
+            ON {table_name} (player_id, season);
+            CREATE INDEX IF NOT EXISTS idx_fangraphs_fld_season_snapshot_date
+            ON {table_name} (season, snapshot_date);
+        '''
+
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(index_sql)
+            self.connection.commit()
+        except Exception as e:
+            traceback.print_exc()
+            print(f"ERROR creating {table_name} table: {e}")
+            return
+
+        insert_sql = f'''
+            INSERT INTO {table_name} (
+                id, player_id, player_name, team, position, season, stats, snapshot_date, modified_date
+            )
+            VALUES %s
+        '''
+        snapshot_timestamp = datetime.now()
+        rows = []
+        for player_stats in data:
+            player_id = player_stats.get('playerid')
+            position = player_stats.get('Pos')
+            if not player_id or not position:
+                continue
+            rows.append((
+                f"{season}-{position}-{player_id}",
+                player_id,
+                player_stats.get('PlayerName', 'Unknown Player'),
+                player_stats.get('TeamName', 'Unknown Team'),
+                position,
+                season,
+                json.dumps(player_stats),
+                snapshot_timestamp,
+            ))
+
+        try:
+            execute_values(cursor, insert_sql, rows, template="(%s, %s, %s, %s, %s, %s, %s, %s, NOW())", page_size=500)
+            self.connection.commit()
+            print(f"✓ Successfully stored {len(rows)} rows of MLB fielding stats in the database (snapshot_date={snapshot_timestamp}).")
+        except Exception as e:
+            traceback.print_exc()
+            print(f"ERROR storing MLB fielding stats: {e}")
+            self.connection.rollback()
+        finally:
+            cursor.close()
+
+    def fetch_fangraphs_fielding_stats(self, player_ids: Optional[list[int]] = None, season: Optional[int] = None, as_of_date: Optional[date] = None) -> list[dict]:
+        """Fetch a cached snapshot of Fangraphs MLB fielding stats (including DRS) from the database.
+
+        Multiple historical snapshots may exist per season (see store_fangraphs_fielding_stats). This
+        returns rows from a single snapshot_date: the latest one if as_of_date is omitted, or otherwise
+        the snapshot_date closest to as_of_date (whichever direction) — e.g. for a DATE_RANGE stats period,
+        pass the period's end_date to get the fielding profile as of that point in the season.
+
+        Returns raw dicts in the same shape as FangraphsAPIClient.fetch_leaderboard_stats(stat_type="fld", ...)
+        (i.e. Fangraphs' original field names, e.g. "DRS", "xMLBAMID", "Pos") so callers can use them as a
+        drop-in replacement for a live fetch.
+
+        Args:
+            player_ids: Optional list of Fangraphs player ids to filter to.
+            season: Season to filter to. Required to resolve "latest"/"closest" snapshot_date.
+            as_of_date: Optional date to find the closest snapshot_date to. Defaults to the latest snapshot.
+
+        Returns:
+            A list of raw Fangraphs fielding stat dicts, or an empty list if none are cached / on error.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return []
+        if season is None:
+            print("ERROR: season is required to fetch a Fangraphs fielding stats snapshot")
+            return []
+
+        cursor = self.connection.cursor()
+        table_name = "internal.dim_fangraphs_leaderboard_mlb_fld"
+
+        filters = ["season = %s"]
+        filter_values: list = [season]
+        if player_ids:
+            filters.append("player_id IN %s")
+            filter_values.append(tuple(player_ids))
+        where_clause = " AND ".join(filters)
+
+        if as_of_date is not None:
+            snapshot_date_subquery = f'''
+                SELECT snapshot_date FROM {table_name}
+                WHERE season = %s
+                ORDER BY ABS(snapshot_date::date - %s::date) ASC
+                LIMIT 1
+            '''
+            snapshot_date_filter_values = (season, as_of_date)
+        else:
+            snapshot_date_subquery = f'''
+                SELECT MAX(snapshot_date) FROM {table_name}
+                WHERE season = %s
+            '''
+            snapshot_date_filter_values = (season,)
+
+        query_sql = f'''
+            SELECT stats
+            FROM {table_name}
+            WHERE {where_clause}
+            AND snapshot_date = ({snapshot_date_subquery})
+        '''
+        try:
+            results = self.execute_query(query=query_sql, filter_values=tuple(filter_values) + snapshot_date_filter_values)
+            return [row['stats'] for row in results]
+        except Exception as e:
+            print(f"ERROR fetching MLB fielding stats for player_ids {player_ids}, season {season}: {e}")
             return []
         finally:
             cursor.close()

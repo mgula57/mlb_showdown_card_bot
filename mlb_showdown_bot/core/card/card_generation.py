@@ -209,14 +209,28 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 defense_empty_warning = "Failed to fetch defensive stats. Using league avg for defense instead."
                 if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_mlb:
                     try:
-                        fangraphs_api = FangraphsAPIClient()
-                        fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
-                            stat_type="fld",
-                            season_start=stats_period.first_year,
-                            season_end=stats_period.last_year,
-                            position="all",
-                            fangraphs_player_ids=[str(player_data.fangraphs_id)],
-                        )
+                        # CHECK FOR A CACHED SNAPSHOT FIRST (Fangraphs blocks some hosts, e.g. GitHub Actions, with a Cloudflare challenge)
+                        fielding_stats_list = []
+                        if not stats_period.is_multi_year:
+                            try:
+                                with PostgresDB(is_archive=True) as snapshot_db:
+                                    fielding_stats_list = snapshot_db.fetch_fangraphs_fielding_stats(
+                                        player_ids=[player_data.fangraphs_id],
+                                        season=stats_period.last_year,
+                                        as_of_date=stats_period.end_date if stats_period.is_date_range else None,
+                                    )
+                            except Exception:
+                                fielding_stats_list = []
+
+                        if not fielding_stats_list:
+                            fangraphs_api = FangraphsAPIClient()
+                            fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+                                stat_type="fld",
+                                season_start=stats_period.first_year,
+                                season_end=stats_period.last_year,
+                                position="all",
+                                fangraphs_player_ids=[str(player_data.fangraphs_id)],
+                            )
                         # INJECT INTO NORMALIZED STATS
                         position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list]
                         normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
@@ -726,19 +740,38 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
     statcast_api_client = StatcastAPIClient()
     sprint_speed_data = statcast_api_client.fetch_sprint_speed_leaderboard(years[0])
 
-    # Get Fangraphs defensive stats for all players if applicable
-    try:
-        fangraphs_api = FangraphsAPIClient()
-        fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
-            stat_type="fld",
-            season_start=years[0],
-            season_end=years[-1],
-            position="all",
-            fangraphs_player_ids=player_stats.fangraphs_ids,
-        )
-    except Exception as e:
-        print("Error fetching Fangraphs defensive stats: ", e)
-        fielding_stats_list = []
+    # Get Fangraphs defensive stats for all players if applicable.
+    # Check for a cached snapshot first (Fangraphs blocks some hosts, e.g. GitHub Actions, with a Cloudflare
+    # challenge), and only live-fetch the player ids the snapshot didn't cover.
+    fielding_stats_list = []
+    missing_fangraphs_ids = [fid for fid in player_stats.fangraphs_ids if fid]
+    if len(years) == 1 and missing_fangraphs_ids:
+        try:
+            with PostgresDB(is_archive=True) as snapshot_db:
+                fielding_stats_list = snapshot_db.fetch_fangraphs_fielding_stats(
+                    player_ids=missing_fangraphs_ids,
+                    season=years[0],
+                )
+            found_ids = {pos_stats.get('playerid') for pos_stats in fielding_stats_list}
+            missing_fangraphs_ids = [fid for fid in missing_fangraphs_ids if fid not in found_ids]
+            print(f"Found {len(fielding_stats_list)} cached Fangraphs defensive stat rows, {len(missing_fangraphs_ids)} player(s) still missing")
+        except Exception as e:
+            print("Error fetching cached Fangraphs defensive stats: ", e)
+
+    if missing_fangraphs_ids:
+        try:
+            fangraphs_api = FangraphsAPIClient()
+            live_fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+                stat_type="fld",
+                season_start=years[0],
+                season_end=years[-1],
+                position="all",
+                fangraphs_player_ids=missing_fangraphs_ids,
+            )
+            fielding_stats_list += live_fielding_stats_list
+        except Exception as e:
+            print("Error fetching Fangraphs defensive stats: ", e)
+    print("Found Fangraphs defensive stats for players: ", len(fielding_stats_list))
 
     # Generate cards for each player
     final_cards: list[dict] = []

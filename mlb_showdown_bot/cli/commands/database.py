@@ -150,15 +150,38 @@ def database_feature_status(
 # -------------------------------
 # MARK: - Fangraphs
 # -------------------------------
-@app.command("store_fielding_stats")
-def store_fielding_stats_in_db():
-    """Fetch fielding stats from Fangraphs and store in Postgres DB"""
+@app.command("snapshot_fangraphs_fielding")
+def snapshot_fangraphs_fielding(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    season: int = typer.Option(..., "--season", "-s", help="Season year to fetch MLB fielding stats for"),
+):
+    """Fetch the full MLB fielding leaderboard (including DRS) from Fangraphs and store a snapshot in Postgres DB.
+
+    Fangraphs blocks some hosts (e.g. GitHub Actions runners) with a Cloudflare challenge (403). When that
+    happens, this command emits a GitHub Actions warning annotation and exits without failing the step —
+    the snapshot just doesn't get refreshed that run. Any other error still fails normally.
+    """
     from ...core.fangraphs.client import FangraphsAPIClient
+    from ...core.fangraphs.exceptions import FanGraphsError
     from ...core.archive.player_stats_archive import PostgresDB
 
-    print("Fetching fielding stats from Fangraphs...")
+    print(f"Fetching MLB fielding stats from Fangraphs for {season}...")
     fg_api = FangraphsAPIClient()
-    df = fg_api.fetch_leaderboard_stats(season=2025, position="LF", fangraphs_player_ids=[])
+    try:
+        fielding_stats = fg_api.fetch_leaderboard_stats(stat_type="fld", season_start=season, season_end=season, position="all")
+    except FanGraphsError as e:
+        if "403" in str(e):
+            print(
+                f"::warning title=Fangraphs snapshot skipped::Fangraphs returned a 403 for this host "
+                f"(likely a Cloudflare block) — skipping the fielding stats snapshot for {season}. "
+                f"Run 'showdown_bot database snapshot_fangraphs_fielding --season {season} --env prod' "
+                f"manually from a host Fangraphs doesn't block to refresh it. Error: {e}"
+            )
+            return
+        raise
+
+    with PostgresDB(is_archive=env.lower() == "prod") as db:
+        db.store_fangraphs_fielding_stats(season=season, data=fielding_stats)
 
 @app.command("store_leaderboard_stats_fangraphs")
 def store_leaderboard_stats_fangraphs(
