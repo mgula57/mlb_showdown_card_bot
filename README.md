@@ -18,8 +18,10 @@
 Create custom MLB Showdown cards in seconds! Just provide a **player name**, **season**, and optionally an **image** - Showdown Bot handles all the complex calculations.
 
 ```bash
-# Install from PyPI
-pip install mlb-showdown-bot
+# Clone the repo and install dependencies
+git clone https://github.com/mgula57/mlb_showdown_card_bot.git
+cd mlb_showdown_card_bot
+pip install -e .
 
 # Create a card instantly
 showdown_bot card -n "Mike Piazza" -y 1997 -s 2001
@@ -84,10 +86,44 @@ card = generate_card(
 - **(Optional)** Virtual environment manager like [pyenv](https://github.com/pyenv/pyenv) or [virtualenv](https://virtualenv.pypa.io/en/latest/)
 - **(For local development)** [Node.js 18+](https://nodejs.org/) and npm 9+
 
-### Install via PyPI (Recommended)
+### Install the CLI
 
 ```bash
-pip install mlb-showdown-bot
+git clone https://github.com/mgula57/mlb_showdown_card_bot.git
+cd mlb_showdown_card_bot
+
+# (Optional) create a virtual environment
+python -m venv env
+source env/bin/activate  # On Windows: env\Scripts\activate
+
+# Install dependencies
+pip install -e .
+```
+
+The CLI works out of the box for card generation — no `.env` file required. If you want database-backed commands (e.g. `showdown_bot database ...`) or image uploads, create a `.env` file in the repo root (it's gitignored) with the variables listed in [Environment Variables](#environment-variables) — the CLI loads it automatically via `python-dotenv`. Postgres connections are opened lazily and only when a command actually needs one, so an unset or unreachable `DATABASE_URL_LOGS`/`DATABASE_URL_ARCHIVE` never blocks card generation.
+
+### Install the Frontend (Web Interface)
+
+The `frontend/` folder is a standalone React + Vite app. It talks to the Flask API, so you'll also want the backend running (see [Development & Local Setup](#-development--local-setup)).
+
+```bash
+cd frontend
+npm install
+```
+
+Create a `frontend/.env` file with values for these two variables — the app fails to start without *something* set here:
+
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+A Supabase project is **optional** — you don't need a real one to run the app locally. If you don't have one, any URL-shaped value and any non-empty key will do; login/auth and other Supabase-backed features (e.g. saved card history) just won't work. To get real credentials, create a free project at [supabase.com](https://supabase.com) and copy the URL/anon key from Project Settings → API.
+
+Then start the dev server:
+
+```bash
+npm run dev   # runs on http://localhost:5173
 ```
 
 ### Quick Usage Examples
@@ -1085,19 +1121,81 @@ Tips for uploading your own custom images:
 - Node.js 18+ and npm 9+ (for web interface)
 - Git
 
-### Quick Setup
+This assumes you've already followed the [CLI](#install-the-cli) and [Frontend](#install-the-frontend-web-interface) install steps above.
+
+### Environment Variables
+
+All of these are **optional** — the Flask backend and CLI start up fine with none of them set, and each one only gates a specific feature. Create a `.env` file in the repo root (it's gitignored, so it stays local) with whichever ones you need — both `app.py` and the CLI load it automatically via `python-dotenv`:
+
 ```bash
-# Clone repository
-git clone https://github.com/mgula57/mlb_showdown_card_bot.git
-cd mlb_showdown_card_bot
-
-# Create virtual environment (recommended)
-python -m venv env
-source env/bin/activate  # On Windows: env\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
+DATABASE_URL_LOGS       # PostgreSQL connection string for the logs DB
+DATABASE_URL_ARCHIVE    # PostgreSQL connection string for the archive DB
+SUPABASE_URL            # Supabase project URL
+SUPABASE_KEY            # Supabase anon/service key
+GOOGLE_CREDENTIALS      # JSON string for Google service account (Drive image uploads)
+FRONTEND_ORIGIN         # CORS allowed origin (default: http://localhost:5173)
+AUTO_IMAGE_PATH         # Absolute path to a local folder of auto player images (see below)
 ```
+
+| Unset | Effect |
+|-------|--------|
+| `DATABASE_URL_LOGS` | Request logging is skipped |
+| `DATABASE_URL_ARCHIVE` | Archive lookups are skipped; historical seasons are re-scraped instead |
+| `SUPABASE_URL` / `SUPABASE_KEY` | Server-side Supabase Storage uploads fail if invoked; doesn't affect card generation |
+| `GOOGLE_CREDENTIALS` | Google Drive image uploads are unavailable |
+| `FRONTEND_ORIGIN` | Falls back to `http://localhost:5173` |
+| `AUTO_IMAGE_PATH` | Auto images fall back to Google Drive (if configured), then a silhouette — see [Automated Images from a Local Folder](#automated-images-from-a-local-folder) |
+
+You don't need your own Postgres or Supabase instance to run the app or generate cards — these only matter if you're working on the features they back. The frontend has its own separate `frontend/.env` with `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (see [Install the Frontend](#install-the-frontend-web-interface)), which behaves differently — it needs *some* value set to avoid a startup error, even a placeholder.
+
+### Automated Images from a Local Folder
+
+By default, "auto" images (the ones the bot picks automatically instead of a user upload) are pulled from a shared Google Drive folder, which requires `GOOGLE_CREDENTIALS` (see above). If you maintain your own local library of player art, you can point the bot at it instead — this is checked *before* Google Drive.
+
+**Setup**
+
+Set `AUTO_IMAGE_PATH` to the absolute path of your local image folder (in your `.env`, or exported in your shell):
+
+```bash
+AUTO_IMAGE_PATH=/absolute/path/to/your/image/library
+```
+
+This is read directly by [`showdown_player_card.py`](mlb_showdown_bot/core/card/showdown_player_card.py) (`_query_local_drive_for_auto_images` / `_img_file_matches_dict`) — no other setup is required. Card generation falls back to a silhouette if no match is found, so a partially-filled library is fine.
+
+**File Naming**
+
+Every image variant needs **2 files** — one per layer — sharing the same suffix but a different prefix:
+
+```
+BG-{year}-{identifier}-({bref_id or mlb_id})-({TEAM}).png
+CUT-{year}-{identifier}-({bref_id or mlb_id})-({TEAM}).png
+```
+
+**Example** (Mike Trout, 2019 Angels):
+```
+BG-2019-Trout-(troutmi01)-(LAA).png
+CUT-2019-Trout-(troutmi01)-(LAA).png
+```
+
+Rules the bot relies on when matching:
+
+- **Prefix** (`BG`/`CUT`): must be the first `-`-delimited segment. `BG` is the background/cutout layer; `CUT` is the raw player cutout the bot derives the glow and shadow effects from.
+- **Year**: must be the second `-`-delimited segment, e.g. `2019`. Closer year matches are preferred when a player has multiple images.
+- **Identifier**: third `-`-delimited segment (e.g. last name) — its first two characters should match the first two characters of the player's Baseball Reference ID (case-insensitive). This is just a sanity-check convention, not a hard requirement for matching.
+- **Player ID**: the player's `bref_id` (historical players) or `mlb_id` (2026+ players) must appear in parentheses somewhere in the filename, e.g. `(troutmi01)` or `(545361)`.
+- **Team**: the team abbreviation in parentheses, e.g. `(LAA)`, improves match accuracy when a player has images from multiple teams/years and is required to be considered a full match.
+
+Optional parenthesized tags boost match accuracy for special cases, but aren't required: `(SS)` Super Season, `(CC)` Cooperstown Collection, `(ASG)` All-Star Game, `(RS)` Rookie Season, `(NAT)` Nationality, `(POST)` Postseason, `(WBC_{year})` WBC, `(DARK)` dark mode.
+
+**Validating Your Library**
+
+With `AUTO_IMAGE_PATH` set, run the compliance checker:
+
+```bash
+python tests/test_img_library.py
+```
+
+It flags files with an invalid prefix, an identifier/bref_id mismatch, and any suffix that's missing one of the 4 required prefixes.
 
 ### Running Options
 
@@ -1105,7 +1203,6 @@ pip install -r requirements.txt
 ```bash
 # Terminal 1: Frontend (React + Vite)
 cd frontend
-npm install
 npm run dev
 
 # Terminal 2: Backend (Flask with CORS)
@@ -1116,7 +1213,7 @@ python app.py
 **Option B: Production Mode** *(Single server)*
 ```bash
 # Build frontend
-cd frontend && npm install && npm run build && cd ..
+cd frontend && npm run build && cd ..
 
 # Run combined server
 python app.py
