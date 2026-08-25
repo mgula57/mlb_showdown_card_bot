@@ -32,6 +32,11 @@ jobs:
       # ---------------------------------------------
       # Mid Season Updates
       # ---------------------------------------------
+      - name: Snapshot Fangraphs fielding stats (DRS)
+        run: |
+          showdown_bot database snapshot_fangraphs_fielding \
+            --season 2026
+
       - name: Snapshot 2026 rosters and generate cards
         run: |
           showdown_bot database snapshot_rosters \

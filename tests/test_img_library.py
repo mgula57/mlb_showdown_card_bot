@@ -1,8 +1,11 @@
 import argparse
 import os
+from dotenv import load_dotenv
 
 parser = argparse.ArgumentParser(description="Test automated images folder for compliance.")
 args = parser.parse_args()
+
+load_dotenv()
 
 # PATH
 path = os.getenv('AUTO_IMAGE_PATH', None)
@@ -14,18 +17,18 @@ files_list = [file for file in files_list if file not in ['.DS_Store'] and not (
 total_files = len(files_list)
 
 # 1. TEST PREFIXES
-prefix_list = ['CUT', 'GLOW', 'SHADOW', 'BG']
+prefix_list = ['BG', 'CUT']
 for file in files_list:
     first_item = file.split('-')[0]
     if first_item not in prefix_list:
         print(f"ERROR (PREFIX): {file}")
 
-# 2. TEST MATCHING ID'S WITH LAST NAME
+# 2. TEST MATCHING ID'S WITH LAST NAME (SKIP NUMERIC IDS, EX: MLB ID)
 for file in files_list:
     id = file.split('(')[1].split(')')[0].lower()
-    name = file.split('-')[2].lower()
-    if id[0:2] != name[0:2]:
-        print(f"ERROR (NAME/ID MISMATCH): {file} ----")
+    name = file.split('-')[2].lower().replace("'", '')
+    if id[0:2].isalpha() and id[0:2] != name[0:2]:
+        print(f"WARNING (NAME/ID MISMATCH): {file} ----")
 
 # 3. MAKE SURE EACH COMPONENT
 components_dict = {}
