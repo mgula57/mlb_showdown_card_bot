@@ -461,9 +461,7 @@ export default function TeamBuilder() {
             </div>
 
             {/* Tabs */}
-            <div className={`${px}`}>
-                <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} fullWidth />
-            </div>
+            <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} className={px} fullWidth />
 
             {showCreateModal && (
                 <NewTeamModal

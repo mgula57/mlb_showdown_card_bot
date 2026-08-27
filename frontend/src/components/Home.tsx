@@ -578,7 +578,7 @@ export default function Home() {
                         </span>
                         <div className={`leading-tight inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
                             <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
-                            <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
+                            <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards<span className='hidden sm:inline ml-0'>created</span></span>
                         </div>
                     </div>
                     <h1 className="text-4xl md:text-5xl font-extrabold leading-tight">

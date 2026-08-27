@@ -302,11 +302,18 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // Schedule browsing only applies while the selected season is ongoing
     const isSelectedSeasonOver = isSeasonOver(selectedSeason);
 
+    // Awards aren't announced until after the season ends — hide the tab for the
+    // current year until Nov 1, when award coverage becomes meaningful.
+    const nowForAwards = new Date();
+    const selectedSeasonYear = selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : null;
+    const hideAwardWinners = selectedSeasonYear === nowForAwards.getFullYear()
+        && nowForAwards < new Date(nowForAwards.getFullYear(), 10, 1);
+
     const tabs = [
         ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
-        { id: "awards", label: "Award Winners", icon: <FaMedal /> },
+        ...(hideAwardWinners ? [] : [{ id: "awards", label: "Awards", icon: <FaMedal /> }]),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
@@ -1085,7 +1092,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         {/* Radix's Tabs.Content below reads its active state from Tabs.Root's
                                             controlled value, not from Tabs.Trigger — so the shared button
                                             group can drive it directly via onChange/setActiveTab. */}
-                                        <TabButtons tabs={tabs} value={activeTab} onChange={setActiveTab} fullWidth />
+                                        <TabButtons tabs={tabs} value={activeTab} onChange={setActiveTab} className='px-4' fullWidth />
 
                                         {activeTab === "teams" && (
                                             <CustomSelect
