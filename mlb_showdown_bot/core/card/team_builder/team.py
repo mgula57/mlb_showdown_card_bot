@@ -66,7 +66,11 @@ class PitcherAssignment(BaseModel):
 # Lineups (batting order only) are the one piece that is stored, and only when the user
 # creates one — the "Default" lineup below is always recomputed.
 FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
-ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5']
+# The builder supports up to MAX_STARTERS rotation slots (SP1..SP10). A team's active
+# rotation is ROTATION_ROLES[:num_starters]; num_starters defaults to 5 but larger
+# rosters allow more. Keep in sync with ROTATION_ROLES in frontend/src/api/userTeams.ts.
+MAX_STARTERS    = 10
+ROTATION_ROLES  = [f'SP{i}' for i in range(1, MAX_STARTERS + 1)]
 BULLPEN_ROLES   = ['RP', 'CL']
 PITCHER_ROLES   = ROTATION_ROLES + BULLPEN_ROLES
 DEFAULT_LINEUP_NAME = 'Default'

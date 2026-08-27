@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting, uploadTeamLogo, deleteTeamLogo } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, uploadTeamLogo, deleteTeamLogo, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
 import { AutofillPanel } from './AutofillPanel';
 import { TeamLogo } from './TeamLogo';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -61,9 +61,6 @@ type TeamDetailProps = {
     challenge?: ChallengeInstance;
 };
 
-const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
-const BULLPEN_ROLES  = ['RP', 'CL'] as const;
-
 
 function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, string[]> {
     if (!slot) return {};
@@ -119,9 +116,9 @@ function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[
     return lines;
 }
 
-function getEligiblePositions(card: CardDatabaseRecord): string[] {
+function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): string[] {
     if (card.is_pitcher) {
-        if ('STARTER' in card.positions_and_defense) return [...ROTATION_ROLES];
+        if ('STARTER' in card.positions_and_defense) return ROTATION_ROLES.slice(0, Math.min(numStarters, MAX_STARTERS));
         return [...BULLPEN_ROLES];
     }
     const positions = Object.keys(card.positions_and_defense);
@@ -739,7 +736,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     // Eligible positions split into groups for the confirmation modal
-    const confirmPositions = confirmCard ? getEligiblePositions(confirmCard) : [];
+    const confirmPositions = confirmCard ? getEligiblePositions(confirmCard, draft.num_starters) : [];
     const confirmFieldPositions   = confirmPositions.filter(p => !([...ROTATION_ROLES, ...BULLPEN_ROLES] as string[]).includes(p));
     const confirmRotationPositions = confirmPositions.filter(p => (ROTATION_ROLES as readonly string[]).includes(p));
     const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));

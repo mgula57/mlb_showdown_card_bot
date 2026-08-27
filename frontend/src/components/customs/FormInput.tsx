@@ -130,6 +130,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                         "
                         autoComplete="off"
                         spellCheck="false"
+                        autoCorrect="off"
                     />
                 ) : (
                     <>

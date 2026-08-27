@@ -14,8 +14,9 @@ class ShowdownTeamBuilder:
     started, and the closer role goes to the reliever with the most saves.
     """
 
-    # The team builder UI only has SP1-SP5 role slots (ROTATION_ROLES is hardcoded
-    # app-wide), so a starter beyond the 5th by games started is folded into the bullpen.
+    # Real rosters are presented with a fixed 5-man rotation: a starter beyond the 5th by
+    # games started is folded into the bullpen. (User-built teams can carry more — see
+    # ROTATION_ROLES / num_starters — but a synthesized real roster deliberately caps here.)
     MAX_ROTATION_SLOTS = 5
 
     def __init__(

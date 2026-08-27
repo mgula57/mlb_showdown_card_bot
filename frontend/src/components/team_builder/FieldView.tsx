@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../../api/userTeams';
+import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus, FaPencil } from 'react-icons/fa6';
@@ -26,7 +27,6 @@ export const POSITION_COORDS: Record<string, [number, number]> = {
 };
 
 export const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
-const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 
 export type FieldViewRosterData = {
     roster: TeamRosterSlot[];

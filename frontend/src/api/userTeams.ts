@@ -107,7 +107,16 @@ export type TeamSummary = {
 };
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
-const STARTER_ROLES   = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
+
+/**
+ * Rotation role slots, SP1..SP10. The builder supports up to `MAX_STARTERS` starters
+ * (`num_starters`); a team's active rotation is `ROTATION_ROLES.slice(0, num_starters)`.
+ * Keep in sync with ROTATION_ROLES / MAX_STARTERS in
+ * mlb_showdown_bot/core/card/team_builder/team.py.
+ */
+export const MAX_STARTERS = 10;
+export const ROTATION_ROLES: string[] = Array.from({ length: MAX_STARTERS }, (_, i) => `SP${i + 1}`);
+export const BULLPEN_ROLES: string[] = ['RP', 'CL'];
 
 export function isTeamDrafting(team: Team): boolean {
     if (team.source === 'mlb') return false;
@@ -116,14 +125,14 @@ export function isTeamDrafting(team: Team): boolean {
     const filledLineup = FIELD_POSITIONS.filter(pos => slots.some(s => s.field_position === pos)).length;
     if (filledLineup < 9) return true;
 
-    const starterRoles = STARTER_ROLES.slice(0, team.num_starters);
-    const filledStarters = team.rotation.filter(r => (starterRoles as readonly string[]).includes(r.role)).length;
+    const starterRoles = ROTATION_ROLES.slice(0, team.num_starters);
+    const filledStarters = team.rotation.filter(r => starterRoles.includes(r.role)).length;
     if (filledStarters < team.num_starters) return true;
 
     const filledBench = team.roster.filter(s => s.roster_position === 'BE').length;
     if (filledBench < team.min_bench) return true;
 
-    const filledBullpen = team.rotation.filter(r => !(STARTER_ROLES as readonly string[]).includes(r.role)).length;
+    const filledBullpen = team.rotation.filter(r => !ROTATION_ROLES.includes(r.role)).length;
     if (filledBullpen < team.min_bullpen) return true;
 
     return false;

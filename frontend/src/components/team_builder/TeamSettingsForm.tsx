@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Team, TeamUpdatePayload } from '../../api/userTeams';
+import { MAX_STARTERS } from '../../api/userTeams';
 import FormInput from '../customs/FormInput';
 import NumberInput from '../customs/NumberInput';
 import FormEnabler from '../customs/FormEnabler';
@@ -215,9 +216,9 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
                     </div>
                 )}
                 <NumberInput
-                    label="Starting Pitchers"
+                    label={`Starting Pitchers (1–${MAX_STARTERS})`}
                     value={numStarters}
-                    onChange={v => onChange({ num_starters: v })}
+                    onChange={v => onChange({ num_starters: Math.max(1, Math.min(MAX_STARTERS, Math.round(v))) })}
                 />
                 <NumberInput
                     label="Min Bullpen"

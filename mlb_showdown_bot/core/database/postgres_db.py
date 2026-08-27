@@ -2107,7 +2107,7 @@ class PostgresDB:
             'mlb'::text AS source,
             COUNT(r.mlb_id) AS roster_count,
             COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
-            COUNT(*) FILTER (WHERE r.roster_position IN ('SP1','SP2','SP3','SP4','SP5'))               AS filled_starters,
+            COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
             COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
             COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
             COALESCE(SUM(cb.points), 0)::int AS total_points,
@@ -4535,7 +4535,7 @@ class PostgresDB:
             t.origin_template_id,
             COUNT(r.card_id) AS roster_count,
             COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
-            COUNT(*) FILTER (WHERE r.roster_position IN ('SP1','SP2','SP3','SP4','SP5'))               AS filled_starters,
+            COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
             COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
             COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
             COALESCE(SUM(

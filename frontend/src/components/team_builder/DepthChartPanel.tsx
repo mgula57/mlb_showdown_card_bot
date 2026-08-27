@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot, TeamUpdatePayload } from '../../api/userTeams';
+import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { FaPlus, FaPencil, FaChevronUp, FaChevronDown } from 'react-icons/fa6';
@@ -11,7 +12,6 @@ import { SectionHeader } from '../shared/SectionHeader';
 import { CardDetail } from '../cards/CardDetail';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
-const ROTATION_ROLES  = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
 
 type DepthChartPanelProps = {
     team: Team;
