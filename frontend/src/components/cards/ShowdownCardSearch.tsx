@@ -64,6 +64,12 @@ type ShowdownCardSearchProps = {
     source: CardSource;
     /** Optional default filters merged on top of source defaults */
     defaultFilters?: Partial<FilterSelections>;
+    /**
+     * When true (default), `defaultFilters` keys are locked: their controls are disabled and
+     * they're hidden from the "Selected Filters" chip row. Set to false to have them show up
+     * as normal, removable chips — they're still re-applied whenever `defaultFilters` changes.
+     */
+    lockDefaultFilters?: boolean;
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
     /**
@@ -84,6 +90,11 @@ type ShowdownCardSearchProps = {
     };
     /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
     excludeIds?: string[];
+    /**
+     * Change this value (e.g. bump a counter) to clear the search text and reset all filters
+     * back to source defaults — used by callers to start fresh after a pick completes.
+     */
+    resetTrigger?: unknown;
 };
 
 // =============================================================================
@@ -572,7 +583,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false, compact = false, actionButton, excludeIds }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockDefaultFilters = true, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -626,7 +637,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         () => new Set(Object.keys(lockedDefaultFilters) as (keyof FilterSelections)[]),
         [lockedDefaultFilters]
     );
-    const isFilterLocked = (key: keyof FilterSelections) => lockedFilterKeys.has(key);
+    const isFilterLocked = (key: keyof FilterSelections) => lockDefaultFilters && lockedFilterKeys.has(key);
     const applyLockedFilters = useCallback(
         (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...lockedDefaultFilters }),
         [lockedDefaultFilters]
@@ -1015,6 +1026,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             setFiltersForEditing(defaultFiltersForSource);
         }
     }
+
+    // Let callers force a clean slate (e.g. after a pick completes) by bumping resetTrigger.
+    useEffect(() => {
+        if (resetTrigger === undefined) return;
+        setSearchText('');
+        resetFilters(['filters', 'editing']);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resetTrigger]);
 
     const makeRemoveFilter = (
         state: FilterSelections,

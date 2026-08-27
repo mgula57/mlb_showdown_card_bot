@@ -306,7 +306,7 @@ export function FieldView({
                                             ptsMultiplier={ptsMultiplier}
                                             onClick={() => setDetailCard(card)}
                                             actionButton={onItemClick ? {
-                                                icon: <FaPencil className="bg-primary p-3" />,
+                                                icon: <FaPencil />,
                                                 onClick: () => onItemClick(role),
                                                 label: 'Replace card',
                                             } : undefined}

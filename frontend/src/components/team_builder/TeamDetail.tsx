@@ -15,14 +15,14 @@ import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
 import { LineupPanel } from './LineupPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
-import { BottomSheet } from '../shared/BottomSheet';
+import { SlideOver } from '../shared/SlideOver';
 import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
-    FaRobot, FaBaseball, FaHatWizard
+    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass
 } from 'react-icons/fa6';
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
@@ -68,7 +68,7 @@ const BULLPEN_ROLES  = ['RP', 'CL'] as const;
 function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, string[]> {
     if (!slot) return {};
     if (slot.kind === 'field') {
-        if (slot.position === 'SP') return { positions: ['STARTER'], player_type: ['PITCHER'] };
+        if (slot.position === 'SP') return { positions: ['STARTER'] };
         const posMap: Record<string, string[]> = {
             C: ['C'], '1B': ['1B'], '2B': ['2B'], '3B': ['3B'],
             SS: ['SS'], LF: ['LF/RF'], RF: ['LF/RF'], CF: ['CF'], DH: ['DH'],
@@ -77,8 +77,8 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
         return { ...(positions ? { positions } : {}), player_type: ['HITTER'] };
     }
     if (slot.kind === 'rotation') {
-        if (slot.role.startsWith('SP')) return { positions: ['STARTER'], player_type: ['PITCHER'] };
-        return { positions: ['RELIEVER', 'STARTER'], player_type: ['PITCHER'] };
+        if (slot.role.startsWith('SP')) return { positions: ['STARTER'] };
+        return { positions: ['RELIEVER', 'CLOSER'] };
     }
     if (slot.kind === 'bench') {
         return { player_type: ['HITTER'] };
@@ -140,6 +140,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
+    // Bumped after each successful draft pick to clear the mobile search's leftover text/filters.
+    const [draftSearchResetKey, setDraftSearchResetKey] = useState(0);
     const [dirty, setDirty] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [stale, setStale] = useState(false);
@@ -189,9 +191,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         const mq = window.matchMedia('(min-width: 1024px)');
         const handler = (e: MediaQueryListEvent) => {
             setIsLg(e.matches);
-            // Crossing down into the BottomSheet layout: clear any pending slot left over from
-            // the desktop panel so the sheet mounts fresh (peek) instead of springing straight
-            // to expanded via its expandTrigger.
+            // Crossing down into the mobile SlideOver layout: clear any pending slot left over
+            // from the desktop panel so the slideover doesn't spring open immediately.
             if (!e.matches) setPendingSlot(null);
         };
         mq.addEventListener('change', handler);
@@ -391,6 +392,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         setDraftToast({ name: card.name, position });
         setConfirmCard(null);
         setPendingSlot(null);
+        setDraftSearchResetKey(k => k + 1);
     }
 
     const isDrafting = isTeamDrafting(draft);
@@ -515,9 +517,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         />
     );
 
-    // Bot/WOTC/WBC source selector rendered in the BottomSheet handle so it stays
-    // reachable at the peek snap point. stopPropagation keeps taps from triggering
-    // the handle's drag/toggle gesture.
+    // Bot/WOTC/WBC source selector rendered in the SlideOver's fixed header so it stays
+    // reachable alongside the search results. stopPropagation avoids interfering with
+    // taps elsewhere in the header.
     const draftSourceTabs = (
         <div
             className="flex items-center w-full justify-start gap-x-1 px-3 overflow-x-auto scrollbar-hide"
@@ -1082,24 +1084,56 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             </div>
 
             {showEditControls && !isLg && (
-                <BottomSheet
-                    isOpen={true}
-                    onClose={() => setPendingSlot(null)}
-                    dismissible={false}
-                    expandTrigger={pendingSlot}
-                    handleContent={draftSourceTabs}
-                >
-                    <DraftPanel
-                        draftSource={draftSource}
-                        onSourceChange={setDraftSource}
-                        allowedSources={allowedSources}
-                        pendingLabel={pendingLabel}
-                        searchFilters={searchFilters}
-                        draftedCardIds={draftedCardIds}
-                        onCardPicked={handleCardPicked}
-                        hideSourceTabs
-                    />
-                </BottomSheet>
+                <>
+                    {/* Search FAB — hidden while the slideover is open, since the slideover's
+                        own dismiss button occupies the same corner. A larger halo sits behind
+                        it (same treatment as SlideOver's dismiss button) so it stays legible
+                        over busy content, fading out via a radial mask rather than a hard edge. */}
+                    {!pendingSlot && (
+                        <div
+                            className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none"
+                            style={{
+                                background: 'radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0) 72%)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                maskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
+                                WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setPendingSlot({ kind: 'roster' })}
+                                aria-label="Search cards"
+                                className="
+                                    pointer-events-auto
+                                    w-12 h-12 rounded-full flex items-center justify-center
+                                    bg-(--showdown-red) text-white
+                                    shadow-lg cursor-pointer hover:opacity-90 transition-opacity
+                                "
+                            >
+                                <FaMagnifyingGlass className="text-[16px]" />
+                            </button>
+                        </div>
+                    )}
+
+                    <SlideOver
+                        isOpen={pendingSlot !== null}
+                        onClose={() => setPendingSlot(null)}
+                        handleContent={draftSourceTabs}
+                    >
+                        <DraftPanel
+                            draftSource={draftSource}
+                            onSourceChange={setDraftSource}
+                            allowedSources={allowedSources}
+                            pendingLabel={pendingLabel}
+                            searchFilters={searchFilters}
+                            draftedCardIds={draftedCardIds}
+                            onCardPicked={handleCardPicked}
+                            resetTrigger={draftSearchResetKey}
+                            hideSourceTabs
+                        />
+                    </SlideOver>
+                </>
             )}
 
             <ToastMessage
@@ -1383,13 +1417,15 @@ type DraftPanelProps = {
     draftedCardIds: string[];
     onCardPicked: (card: CardDatabaseRecord) => void;
     /** When true, hides the internal Bot/WOTC/WBC tab list — used when the tabs are
-     *  rendered elsewhere (e.g. the BottomSheet handle) while source is controlled externally. */
+     *  rendered elsewhere (e.g. the SlideOver header) while source is controlled externally. */
     hideSourceTabs?: boolean;
     /** Clears the pending slot — shown as an X on the "Filling" badge. */
     onDismissPending?: () => void;
+    /** Forwarded to ShowdownCardSearch — bump to clear search text/filters after a pick completes. */
+    resetTrigger?: unknown;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
@@ -1434,7 +1470,9 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                         disableLocalStorage={true}
                         verticalOffset="36"
                         defaultFilters={searchFilters}
+                        lockDefaultFilters={false}
                         excludeIds={draftedCardIds}
+                        resetTrigger={resetTrigger}
                         actionButton={{
                             icon: <FaPlus />,
                             label: 'Select',
