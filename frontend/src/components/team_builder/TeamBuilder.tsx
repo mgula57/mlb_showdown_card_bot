@@ -21,6 +21,7 @@ import { TeamPreviewCard } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
 import { TeamDetail } from './TeamDetail';
 import { NewTeamModal } from './NewTeamModal';
+import { TeamBuilderWelcome } from './TeamBuilderWelcome';
 import { CommunityTeams } from './CommunityTeams';
 import { HistoricalTeams, asgIdentity, type HistoricalNavState } from './HistoricalTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
@@ -502,9 +503,12 @@ export default function TeamBuilder() {
                     ) : (
                         <section className={`${px}`}>
                             {userTeams.length === 0 ? (
-                                <p className="text-[13px] text-(--text-tertiary) py-4">
-                                    You haven't created any teams yet.
-                                </p>
+                                <TeamBuilderWelcome
+                                    px=""
+                                    onCreate={() => setShowCreateModal(true)}
+                                    onGoToTab={setActiveTab}
+                                    onOpenTeam={openTeam}
+                                />
                             ) : (
                                 <div className="space-y-3" >
                                     <h3 className="text-[15px] font-black text-(--text-primary) truncate">All Teams</h3>
