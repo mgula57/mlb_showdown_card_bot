@@ -690,7 +690,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         [excludeIds?.join(',')]
     );
     const displayedCards = useMemo(
-        () => (excludeSet && showdownCards ? showdownCards.filter(c => !excludeSet.has(c.id)) : showdownCards),
+        // Roster slots key on `card_id` (the showdown card's own id), which is what callers pass
+        // in `excludeIds`. Fall back to `id` (the archive row identity) for sources like CUSTOM
+        // whose search rows don't carry a separate `card_id`.
+        () => (excludeSet && showdownCards
+            ? showdownCards.filter(c => !excludeSet.has(c.card_id) && !excludeSet.has(c.id))
+            : showdownCards),
         [showdownCards, excludeSet]
     );
 
