@@ -12,9 +12,12 @@ import { BasesDiamond } from "../BasesDiamond";
 type ScoreHeaderProps = {
     game: GameView;
     className?: string;
+    /** Edge-to-edge variant for the mobile field view: drops the rounded card framing and side
+     *  margins so the bug spans the full width of the screen above the field. */
+    fullBleed?: boolean;
 };
 
-export default function ScoreHeader({ game, className = "" }: ScoreHeaderProps) {
+export default function ScoreHeader({ game, className = "", fullBleed = false }: ScoreHeaderProps) {
     const { away, home } = game;
     const situation = game.situation;
     const isInProgress = game.state === "LIVE";
@@ -39,7 +42,11 @@ export default function ScoreHeader({ game, className = "" }: ScoreHeaderProps) 
     const bases = { first: situation?.bases.first ?? null, second: situation?.bases.second ?? null, third: situation?.bases.third ?? null };
 
     return (
-        <div className={`rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
+        <div
+            className={`border-(--divider) bg-(--background-secondary)/30 p-4 ${
+                fullBleed ? "border-b" : "rounded-xl border mx-2"
+            } ${className}`}
+        >
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
                 {/* Away team - left aligned, score next to the badge rather than in the center */}
                 <div className="flex flex-col gap-1">

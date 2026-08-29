@@ -19,7 +19,6 @@ import { defenseAtPosition, IF_POSITIONS, OF_POSITIONS } from "../shared/Defense
 import { usePresenceList } from "../../hooks/usePresenceList";
 import type { PlayPhase } from "../../hooks/useGamePlayback";
 import IconButton from "../shared/IconButton";
-import { BasesDiamond } from "./BasesDiamond";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -384,38 +383,6 @@ function DefenseTotals({ defense, cardMap }: { defense: DefenseAlignment; cardMa
     );
 }
 
-/** Score, inning, bases and outs — the always-visible state summary, as in the mockup's corner bug. */
-function ScoreBug({ game }: { game: GameView }) {
-    const situation = game.situation;
-    const isLive = game.state === "LIVE";
-
-    return (
-        <div className="absolute flex right-0 top-0 w-max overflow-hidden rounded-lg border border-(--divider) bg-(--background-secondary)/90 text-[11px] shadow-sm lg:hidden">
-            <div className='flex-col'>
-                {[game.away, game.home].map((side, index) => (
-                    <div
-                        key={side.team.key}
-                        className={`flex items-center justify-between gap-3 px-2 py-1 ${index === 0 ? "border-b border-(--divider)" : ""}`}
-                    >
-                        <span className="font-bold text-(--primary)">{side.team.abbreviation}</span>
-                        <span className="font-black tabular-nums text-(--primary)">{side.score ?? 0}</span>
-                    </div>
-                ))}
-            </div>
-
-            {situation && (
-                <div className="flex items-center gap-2 px-2 py-1">
-                    {isLive && <span className="live-pulse h-1.5 w-1.5 rounded-full bg-(--live)" />}
-                    <span className="font-bold text-(--secondary)">
-                        {situation.isTop ? "▲" : "▼"} {situation.inningLabel}
-                    </span>
-                    <BasesDiamond bases={situation.bases} outs={situation.outs} size="sm" />
-                </div>
-            )}
-        </div>
-    );
-}
-
 export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", className = "" }: GameFieldProps) {
     const situation = game.situation;
     // if (!situation) return null;
@@ -435,7 +402,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
     return (
         <div className={`@container relative w-full ${className}`}>
-            {/* Padded so outfielder/catcher cards and the score bug have room to sit above and
+            {/* Padded so outfielder/catcher cards have room to sit above and
                 below the field art without overlapping whatever follows in the DOM. Expanded
                 needs noticeably more of both — the fielder cards carry a defense-rating row, and
                 the catcher/corner outfielders sit right at the edges with nothing to spare
@@ -549,8 +516,6 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
                     <ResultFlash play={pendingPlay} phase={phase} severity={transition?.severity} />
                 </div>
-
-                <ScoreBug game={game} />
 
                 {defense && (
                     <div className="absolute bottom-0 left-0 flex items-center gap-2">

@@ -1,5 +1,6 @@
 import type { CardSource } from '../types/cardSource';
 import type { CardDatabaseRecord } from './card_db/cardDatabase';
+import { activeSources, allowedSetsForSource } from '../domain/teamSets';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -136,6 +137,27 @@ export function isTeamDrafting(team: Team): boolean {
     if (filledBullpen < team.min_bullpen) return true;
 
     return false;
+}
+
+/**
+ * Whether a team's settings are internally consistent enough to move on from the setup step
+ * into drafting: it has an identity, the required roster buckets fit inside the roster size,
+ * the points budget can cover a minimal roster, and every drafted-from source has ≥1 set.
+ */
+export function isTeamSetupValid(team: Partial<Team>): boolean {
+    const name = (team.name ?? '').trim();
+    const abbreviation = (team.abbreviation ?? '').trim();
+    const rosterSize = team.roster_size ?? 20;
+    const numStarters = team.num_starters ?? 4;
+    const minBullpen = team.min_bullpen ?? 5;
+    const minBench = team.min_bench ?? 2;
+
+    const rosterUsed = 9 + numStarters + minBullpen + minBench;
+    const rosterValid = rosterUsed <= rosterSize;
+    const ptsValid = team.pts_limit == null || team.pts_limit >= rosterSize * 10;
+    const setsValid = activeSources(team).every(source => allowedSetsForSource(team, source).length > 0);
+
+    return name.length > 0 && abbreviation.length > 0 && rosterValid && ptsValid && setsValid;
 }
 
 export type TeamCreatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at'>> & {

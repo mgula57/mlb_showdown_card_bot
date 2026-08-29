@@ -4,7 +4,6 @@ import { bannerTokens, getReadableTextColor } from "../../functions/colors";
 import { ordinal } from "../../functions/formatters";
 import { Modal } from "../shared/Modal";
 import { ModeBanner } from "../shared/ModeBanner";
-import { BottomSheet, type SnapPoint } from "../shared/BottomSheet";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardDetail } from "../cards/CardDetail";
 import * as Tabs from '@radix-ui/react-tabs';
@@ -32,7 +31,10 @@ import { FaTerminal } from "react-icons/fa";
 import { FaClockRotateLeft } from "react-icons/fa6";
 import IconButton from "../shared/IconButton";
 
-const MOBILE_SHEET_TABS: TabItem<'playbyplay' | 'boxscore'>[] = [
+type MobileTab = 'field' | 'playbyplay' | 'boxscore';
+
+const MOBILE_TABS: TabItem<MobileTab>[] = [
+    { id: 'field', label: 'Field View' },
     { id: 'playbyplay', label: 'Play By Play' },
     { id: 'boxscore', label: 'Boxscore' },
 ];
@@ -51,8 +53,7 @@ type GameDetailProps = {
 export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, className, onBack }: GameDetailProps) {
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
-    const [sheetSnap, setSheetSnap] = useState<SnapPoint>('closed');
-    const [mobileSheetTab, setMobileSheetTab] = useState<'playbyplay' | 'boxscore'>('playbyplay');
+    const [mobileTab, setMobileTab] = useState<MobileTab>('field');
     // The transport strip (play/pause/scrub) is opt-in — collapsed by default so a plain live or
     // finished-game view isn't cluttered with controls most visits never touch.
     const [showPlaybackControls, setShowPlaybackControls] = useState(false);
@@ -118,7 +119,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     // Whether the real game still has innings left to play. A finished game can only be re-watched.
     const realState = realView?.state;
-    const canSimulate = realState === "PREVIEW" || realState === "LIVE";
+    // const canSimulate = realState === "PREVIEW" || realState === "LIVE";
+    const canSimulate = false; // TODO: Enable simulation when appropriate
 
     async function handleStartSim(payload: StartGameSimPayload) {
         const token = session?.access_token;
@@ -339,14 +341,25 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
                         {hasLiveField ? (
                             <>
+                                {/* Mobile: one tab strip swaps between the three columns that sit
+                                    side-by-side on desktop. Above `lg` the strip is hidden and all
+                                    three columns show at once. */}
+                                <div className="lg:hidden shrink-0 border-b border-(--divider) px-4 py-2">
+                                    <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} fullWidth />
+                                </div>
+
                                 <div className="flex-1 min-h-0 lg:grid lg:grid-cols-[3fr_4fr_3fr] lg:gap-4 lg:p-4 lg:overflow-hidden">
 
-                                    <div className="hidden lg:block lg:h-full lg:min-w-0 lg:overflow-y-auto lg:pb-4">
+                                    <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-24 lg:block lg:p-0 lg:pb-4`}>
                                         {panels}
                                     </div>
 
-                                    {/* Spotlight column — the whole screen on mobile, with the sheet parked over it. */}
-                                    <div className="h-full overflow-y-auto space-y-4 p-0 pb-[22vh] lg:p-0 lg:pb-4 lg:min-w-0">
+                                    {/* Spotlight column — field, playback bar and matchup. */}
+                                    <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-24 lg:block lg:p-0 lg:pb-4 lg:min-w-0`}>
+                                        {/* Mobile scoreboard — the desktop bug, edge-to-edge above the field.
+                                            (Desktop keeps its copy inside the grass group below.) */}
+                                        <ScoreHeader game={headerView} fullBleed className="lg:hidden" />
+
                                         {/* Grass backdrop behind the scoreboard, field and matchup as one group —
                                             faded top/bottom so it blends into the page instead of a hard edge.
                                             The image is the first child with no z-index of its own, and the
@@ -366,7 +379,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                             />
 
                                             <div className="relative space-y-4 p-1">
-                                                {/* The field's own score bug carries this on mobile. */}
+                                                {/* Mobile shows the full-bleed bug above this group instead. */}
                                                 <div className="hidden lg:block">{scoreHeader}</div>
 
                                                 <GameField
@@ -394,41 +407,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         </div>
                                     </div>
 
-                                    {/* Play-by-play column — desktop only; it rides in the bottom sheet on mobile. */}
-                                    <div className="hidden lg:block lg:h-full lg:min-w-0 lg:overflow-y-auto">
+                                    {/* Play-by-play column */}
+                                    <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-24 lg:block lg:p-0 lg:pb-0`}>
                                         {playByPlayPanelDesktop}
                                     </div>
                                 </div>
-
-                                {/* BottomSheet is lg:hidden internally, so this is the mobile half of the split.
-                                    Non-dismissible: the panels are the only way to reach the box score here.
-                                    The handle grows to include the pitcher/batter matchup once expanded — at
-                                    peek it's just the title, matching the desktop field's own compact bug. */}
-                                <BottomSheet
-                                    isOpen
-                                    onClose={() => {}}
-                                    dismissible={false}
-                                    onSnapChange={setSheetSnap}
-                                    handleContent={
-                                        sheetSnap === 'expanded' && activeView.situation
-                                            ? <GameMatchup game={activeView} plays={activePlays} cardMap={cardMap} isLoadingCards={isLoadingCards} className="mt-2" isCompactCards={true} />
-                                            : undefined
-                                    }
-                                >
-                                    <div className="px-4 pb-[calc(2rem+var(--safe-bottom))] pt-2 h-full flex flex-col">
-                                        <Tabs.Root value={mobileSheetTab} onValueChange={v => setMobileSheetTab(v as 'playbyplay' | 'boxscore')} className="flex flex-col h-full min-h-0">
-                                            <div className="mb-3 shrink-0">
-                                                <TabButtons tabs={MOBILE_SHEET_TABS} value={mobileSheetTab} onChange={setMobileSheetTab} fullWidth />
-                                            </div>
-                                            <Tabs.Content value="playbyplay" className="data-[state=inactive]:hidden">
-                                                {playByPlayPanelMobile}
-                                            </Tabs.Content>
-                                            <Tabs.Content value="boxscore" className="data-[state=inactive]:hidden">
-                                                {panels}
-                                            </Tabs.Content>
-                                        </Tabs.Root>
-                                    </div>
-                                </BottomSheet>
                             </>
                         ) : (
                             <div className="flex-1 overflow-y-auto">
