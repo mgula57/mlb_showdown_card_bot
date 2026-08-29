@@ -735,11 +735,41 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }
 
+    /** Team total PTS if `confirmCard` were dropped into `position` — mirrors the roster
+     *  mutation in handleConfirmPosition (BE appends and is multiplied; every other slot
+     *  replaces whatever currently holds that roster_position). */
+    const projectedTotalForPosition = (position: string): number => {
+        if (!confirmCard) return pointsBreakdown.total;
+        const addedPts = position === 'BE'
+            ? Math.round(confirmCard.points * draft.bench_pts_multiplier)
+            : confirmCard.points;
+        const removedPts = position === 'BE'
+            ? 0
+            : draft.roster
+                .filter(s => s.roster_position === position)
+                .reduce((sum, s) => sum + (cardMap[s.card_id]?.points ?? 0), 0);
+        return pointsBreakdown.total + addedPts - removedPts;
+    };
+
     // Eligible positions split into groups for the confirmation modal
     const confirmPositions = confirmCard ? getEligiblePositions(confirmCard, draft.num_starters) : [];
     const confirmFieldPositions   = confirmPositions.filter(p => !([...ROTATION_ROLES, ...BULLPEN_ROLES] as string[]).includes(p));
     const confirmRotationPositions = confirmPositions.filter(p => (ROTATION_ROLES as readonly string[]).includes(p));
     const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));
+
+    const renderPositionButton = (pos: string) => {
+        const projected = projectedTotalForPosition(pos);
+        return (
+            <PositionButton
+                key={pos}
+                label={pos}
+                onClick={() => handleConfirmPosition(pos)}
+                currentPts={pointsBreakdown.total}
+                projectedPts={projected}
+                overLimit={draft.pts_limit != null && projected > draft.pts_limit}
+            />
+        );
+    };
 
     return (
         <div className={`flex flex-col ${embedded ? '' : 'lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden'}`}>
@@ -1177,18 +1207,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <div className="px-4 py-3 flex flex-col gap-2">
                             {confirmFieldPositions.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5">
-                                    {confirmFieldPositions.map(pos => (
-                                        <PositionButton key={pos} label={pos} onClick={() => handleConfirmPosition(pos)} />
-                                    ))}
+                                    {confirmFieldPositions.map(renderPositionButton)}
                                 </div>
                             )}
                             {confirmRotationPositions.length > 0 && (
                                 <>
                                     <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Rotation</div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {confirmRotationPositions.map(pos => (
-                                            <PositionButton key={pos} label={pos} onClick={() => handleConfirmPosition(pos)} />
-                                        ))}
+                                        {confirmRotationPositions.map(renderPositionButton)}
                                     </div>
                                 </>
                             )}
@@ -1196,9 +1222,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <>
                                     <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Bullpen</div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {confirmBullpenPositions.map(pos => (
-                                            <PositionButton key={pos} label={pos} onClick={() => handleConfirmPosition(pos)} />
-                                        ))}
+                                        {confirmBullpenPositions.map(renderPositionButton)}
                                     </div>
                                 </>
                             )}
@@ -1483,17 +1507,28 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
     );
 });
 
-function PositionButton({ label, onClick }: { label: string; onClick: () => void }) {
+function PositionButton({ label, onClick, currentPts, projectedPts, overLimit }: {
+    label: string;
+    onClick: () => void;
+    currentPts?: number;
+    projectedPts?: number;
+    overLimit?: boolean;
+}) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className="px-3 py-2 rounded-lg text-[12px] font-bold
+            className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg text-[12px] font-bold
                 bg-(--background-secondary) border border-(--divider)
                 text-(--text-primary) hover:border-(--secondary) hover:text-(--secondary)
                 transition-colors"
         >
             {label}
+            {currentPts != null && projectedPts != null && (
+                <span className={`text-[10px] font-semibold tabular-nums ${overLimit ? 'text-red-500' : 'text-(--text-tertiary)'}`}>
+                    {currentPts.toLocaleString()} → {projectedPts.toLocaleString()}
+                </span>
+            )}
         </button>
     );
 }
