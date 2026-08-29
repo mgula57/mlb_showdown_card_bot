@@ -7,10 +7,12 @@ import {
     createTeam,
     updateTeam,
     forkTeam,
+    deleteTeam,
     type Team,
     type TeamSummary,
     type TeamUpdatePayload,
 } from '../../api/userTeams';
+import { buildDefaultTeamPayload } from '../../domain/newTeam';
 import {
     fetchShowdownTeam, fetchAsgShowdownTeam,
     type Season,
@@ -20,7 +22,6 @@ import { TeamCard } from './TeamCard';
 import { TeamPreviewCard } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
 import { TeamDetail } from './TeamDetail';
-import { NewTeamModal } from './NewTeamModal';
 import { TeamBuilderWelcome } from './TeamBuilderWelcome';
 import { CommunityTeams } from './CommunityTeams';
 import { HistoricalTeams, asgIdentity, type HistoricalNavState } from './HistoricalTeams';
@@ -29,9 +30,7 @@ import { SimulationsTab } from './sim/SimulationsTab';
 import { ChallengeDetail } from './sim/ChallengeDetail';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaClockRotateLeft, FaRankingStar } from 'react-icons/fa6';
-import type { TeamCreatePayload } from '../../api/userTeams';
 import type { ChallengeInstance } from '../../api/sim';
-import { CardSource } from '../../types/cardSource';
 
 // A team can be addressed by URL three ways: a saved UUID, a historical MLB team, or an All-Star team.
 type TeamRef =
@@ -83,6 +82,13 @@ export function trackRecentTeam(teamId: string) {
     } catch {}
 }
 
+function untrackRecentTeam(teamId: string) {
+    try {
+        const ids: string[] = JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) ?? '[]');
+        localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(ids.filter(id => id !== teamId)));
+    } catch { /* localStorage unavailable */ }
+}
+
 function getRecentTeamIds(): string[] {
     try { return JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) ?? '[]'); }
     catch { return []; }
@@ -116,10 +122,10 @@ export default function TeamBuilder() {
     const [loading, setLoading] = useState(true);
     const [listLoaded, setListLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    // Set only when "Build from Scratch" was opened from a challenge card - pre-fills the new
-    // team's budget/origin tag and, once created, carries the challenge through to the team page.
-    const [challengeForNewTeam, setChallengeForNewTeam] = useState<ChallengeInstance | null>(null);
+    const [creatingTeam, setCreatingTeam] = useState(false);
+    // Teams created in this session — an untouched (0-pick) one is auto-deleted if the user
+    // backs out of it, so abandoned "New Team" clicks don't litter the list.
+    const createdThisSessionRef = useRef<Set<string>>(new Set());
     const [activeTab, setActiveTab] = useState<TabId>(() => {
         const stored = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_TAB_KEY) : null;
         return TAB_IDS.includes(stored as TabId) ? (stored as TabId) : 'mine';
@@ -258,7 +264,28 @@ export default function TeamBuilder() {
         navigate('/teams/' + team.team_id);
     }
 
+    // A team created this session that the user leaves without drafting anyone is treated as an
+    // abandoned "New Team" click and removed, so it doesn't linger in the list. Best-effort:
+    // only fires on the explicit back action, not a tab close or browser-back. The roster is
+    // re-checked server-side first so a pick made just before an auto-save fired isn't lost.
+    function maybeDeleteAbandonedTeam() {
+        if (view.mode !== 'editor' || !token) return;
+        const t = view.team;
+        if (view.readOnly || t.source !== 'user') return;
+        if (!createdThisSessionRef.current.has(t.team_id)) return;
+        createdThisSessionRef.current.delete(t.team_id);
+        const teamId = t.team_id;
+        fetchTeam(teamId, token)
+            .then(fresh => {
+                if (fresh.roster.length > 0) return;
+                untrackRecentTeam(teamId);
+                return deleteTeam(teamId, token).then(() => setListLoaded(false));
+            })
+            .catch(() => {});
+    }
+
     function goBack() {
+        maybeDeleteAbandonedTeam();
         navigate('/teams');
         setView({ mode: 'list' });
     }
@@ -275,58 +302,44 @@ export default function TeamBuilder() {
             .catch(() => {});
     }
 
-    async function handleCreate(payload: TeamCreatePayload) {
-        if (!token) return;
-        const newTeam = await createTeam(payload, token);
-        setShowCreateModal(false);
-        setListLoaded(false); // list must refresh to include the new team
-        trackRecentTeam(newTeam.team_id);
-        // "Build from Scratch" opened this modal from a challenge card - carry the challenge
-        // through so the team page can offer "Play Challenge" as soon as the roster is ready.
-        const challenge = challengeForNewTeam;
-        setChallengeForNewTeam(null);
-        navigate('/teams/' + newTeam.team_id, challenge ? { state: { challenge } } : undefined);
-        setView({ mode: 'editor', team: newTeam, readOnly: false });
+    // Prefer the profile username (a single handle, not a full name) over the email's local
+    // part, matching how AccountAvatar derives a display identity elsewhere in the app.
+    const displayName = username || session?.user?.email?.split('@')[0] || 'My';
+
+    // Create an already-configured (but empty) team with sensible defaults and drop the user
+    // straight onto the team page's setup step — there's no pre-creation modal anymore.
+    // `challenge`, when set, is carried through so the page can offer "Play Challenge" as soon
+    // as the roster is ready and pre-fills the budget / player filters.
+    async function createAndOpenTeam(challenge?: ChallengeInstance) {
+        if (!token || creatingTeam) return;
+        setCreatingTeam(true);
+        try {
+            const payload = buildDefaultTeamPayload({
+                displayName,
+                showdownSet: userShowdownSet,
+                overrides: challenge ? {
+                    is_public: false,
+                    pts_limit: challenge.pts_limit,
+                    origin_template_id: challenge.template_id,
+                    player_filters: challenge.player_filters,
+                } : undefined,
+            });
+            const newTeam = await createTeam(payload, token);
+            createdThisSessionRef.current.add(newTeam.team_id);
+            setListLoaded(false); // list must refresh to include the new team
+            trackRecentTeam(newTeam.team_id);
+            navigate('/teams/' + newTeam.team_id, { state: { isNewTeam: true, ...(challenge ? { challenge } : {}) } });
+            setView({ mode: 'editor', team: newTeam, readOnly: false });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create team.');
+        } finally {
+            setCreatingTeam(false);
+        }
     }
 
-    // Quick Start: skip the New Team modal entirely and create an already-configured (but empty)
-    // team, landing straight on the team page where autofill is one click away - the strategy/
-    // filter controls there are already the "guided" draft experience, no separate UI needed.
-    async function handleQuickStart(challenge: ChallengeInstance) {
-        if (!token) return;
-        // Prefer the profile username (a single handle, not a full name) over the email's local
-        // part, matching how AccountAvatar derives a display identity elsewhere in the app.
-        const displayName = username || session?.user?.email?.split('@')[0] || 'My';
-        const abbreviation = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase() || challenge.replaces_abbr.slice(0, 5);
-        const payload: TeamCreatePayload = {
-            name: `${displayName}'s Team`,
-            abbreviation,
-            primary_color: 'rgb(0, 0, 0)',
-            secondary_color: 'rgb(255, 255, 255)',
-            is_public: false,
-            pts_limit: challenge.pts_limit,
-            roster_size: 20,
-            min_bench: 2,
-            min_bullpen: 5,
-            num_starters: 4,
-            bench_pts_multiplier: 0.2,
-            allowed_card_sources: [CardSource.BOT],
-            allowed_sets: [userShowdownSet],
-            allowed_sets_by_source: { [CardSource.BOT]: [userShowdownSet] },
-            origin_template_id: challenge.template_id,
-            player_filters: challenge.player_filters,
-        };
-        const newTeam = await createTeam(payload, token);
-        setListLoaded(false);
-        trackRecentTeam(newTeam.team_id);
-        navigate('/teams/' + newTeam.team_id, { state: { challenge } });
-        setView({ mode: 'editor', team: newTeam, readOnly: false });
-    }
-
-    function handleBuildFromScratch(challenge: ChallengeInstance) {
-        setChallengeForNewTeam(challenge);
-        setShowCreateModal(true);
-    }
+    const handleNewTeam = () => createAndOpenTeam();
+    const handleQuickStart = (challenge: ChallengeInstance) => createAndOpenTeam(challenge);
+    const handleBuildFromScratch = (challenge: ChallengeInstance) => createAndOpenTeam(challenge);
 
     function handleUseExistingTeam(challenge: ChallengeInstance, teamId: string) {
         trackRecentTeam(teamId);
@@ -433,6 +446,7 @@ export default function TeamBuilder() {
                     token={token}
                     onFork={canFork ? () => handleFork(team.team_id) : undefined}
                     challenge={challenge}
+                    isNewTeam={(location.state as { isNewTeam?: boolean } | null)?.isNewTeam}
                 />
             </div>
         );
@@ -451,10 +465,11 @@ export default function TeamBuilder() {
                 {token && (
                     <button
                         type="button"
-                        onClick={() => setShowCreateModal(true)}
-                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-xl bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer`}
+                        onClick={handleNewTeam}
+                        disabled={creatingTeam}
+                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-xl bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                        <FaPlus />
+                        {creatingTeam ? <FaSpinner className="animate-spin" /> : <FaPlus />}
                         New
                         <span className="hidden md:inline">Team</span>
                     </button>
@@ -463,18 +478,6 @@ export default function TeamBuilder() {
 
             {/* Tabs */}
             <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} className={px} fullWidth />
-
-            {showCreateModal && (
-                <NewTeamModal
-                    onConfirm={handleCreate}
-                    onCancel={() => { setShowCreateModal(false); setChallengeForNewTeam(null); }}
-                    initialPayload={challengeForNewTeam ? {
-                        pts_limit: challengeForNewTeam.pts_limit,
-                        origin_template_id: challengeForNewTeam.template_id,
-                        player_filters: challengeForNewTeam.player_filters,
-                    } : undefined}
-                />
-            )}
 
             {error && (
                 <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
@@ -505,7 +508,7 @@ export default function TeamBuilder() {
                             {userTeams.length === 0 ? (
                                 <TeamBuilderWelcome
                                     px=""
-                                    onCreate={() => setShowCreateModal(true)}
+                                    onCreate={handleNewTeam}
                                     onGoToTab={setActiveTab}
                                     onOpenTeam={openTeam}
                                 />

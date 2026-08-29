@@ -27,6 +27,9 @@ type FormSectionProps = {
     onToggle?: () => void;
     /** Summary content to show when section is collapsed */
     childrenWhenClosed?: React.ReactNode;
+    /** When false, the section is always expanded with no toggle — for content that's too
+     *  essential to hide (e.g. an Identity section). Defaults to true. */
+    collapsible?: boolean;
 };
 
 /**
@@ -58,16 +61,17 @@ type FormSectionProps = {
  * @param childrenWhenClosed - Summary content when collapsed
  * @returns Collapsible form section container
  */
-const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle }) => {
+const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle, collapsible=true }) => {
 
     /** Internal state for section expand/collapse */
-    const [isOpen, setIsOpen] = useState(isOpenByDefault);
+    const [isOpen, setIsOpen] = useState(collapsible ? isOpenByDefault : true);
 
     /**
      * Toggle section visibility and notify parent component
      * Updates internal state and calls optional callback
      */
     const toggleCollapse = () => {
+        if (!collapsible) return;
         setIsOpen(!isOpen);
         if (onToggle) {
             onToggle();
@@ -77,18 +81,19 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
     return (
         <div className="w-full px-4 py-3 border-2 border-form-element rounded-2xl overflow-hidden bg-secondary">
 
-            {/* Clickable section header with title, icon, and toggle indicator */}
+            {/* Section header with title and icon — clickable toggle only when collapsible */}
             <button
                 type='button'
-                className="flex justify-between items-center w-full cursor-pointer"
+                className={`flex justify-between items-center w-full ${collapsible ? 'cursor-pointer' : 'cursor-default'}`}
                 onClick={toggleCollapse}
+                aria-expanded={collapsible ? isOpen : undefined}
             >
                 <div className="flex justify-between items-center w-full text-secondary text-lg font-black">
                     <span className='flex items-center gap-2'>
                         {icon} {title}
                     </span>
                     {/* Toggle caret indicating section state */}
-                    <span>{isOpen ? <FaCaretUp /> : <FaCaretDown />}</span>
+                    {collapsible && <span>{isOpen ? <FaCaretUp /> : <FaCaretDown />}</span>}
                 </div>
             </button>
 

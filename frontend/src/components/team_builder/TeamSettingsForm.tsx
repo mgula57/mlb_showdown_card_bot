@@ -58,14 +58,9 @@ function SectionSummary({ items }: { items: SummaryItem[] }) {
 type TeamSettingsFormProps = {
     team: Partial<Team>;
     onChange: (updates: TeamUpdatePayload) => void;
-    /** Which sections start collapsed. Default: all open. */
-    collapsedSections?: Array<'identity' | 'set' | 'sources' | 'rules' | 'player_filters'>;
 };
 
-export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: TeamSettingsFormProps) {
-    const isOpen = (section: 'identity' | 'set' | 'sources' | 'rules' | 'player_filters') =>
-        !collapsedSections.includes(section);
-
+export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
     const [hierarchyData, setHierarchyData] = useState<TeamHierarchyRecord[]>([]);
     useEffect(() => {
         fetchTeamHierarchy().then(setHierarchyData).catch(() => {});
@@ -152,7 +147,7 @@ export function TeamSettingsForm({ team, onChange, collapsedSections = [] }: Tea
 
     return (
         <div className="flex flex-col gap-6 p-4">
-            <FormSection title="Identity" icon={<FaUser />} isOpenByDefault={isOpen('identity')}>
+            <FormSection title="Identity" icon={<FaUser />} isOpenByDefault={true}>
                 <FormInput
                     label="Team Name"
                     className="col-span-full"

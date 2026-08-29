@@ -12,7 +12,7 @@ type WelcomeTab = 'simulations' | 'community' | 'historical';
 type TeamBuilderWelcomeProps = {
     /** Horizontal padding class shared with the rest of the Team Builder page. */
     px: string;
-    /** Opens the New Team modal. */
+    /** Creates a new team and opens it on its setup step. */
     onCreate: () => void;
     /** Switches the Team Builder to another tab. */
     onGoToTab: (tab: WelcomeTab) => void;

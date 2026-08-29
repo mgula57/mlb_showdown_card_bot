@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting, uploadTeamLogo, deleteTeamLogo, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
 import { AutofillPanel } from './AutofillPanel';
 import { TeamLogo } from './TeamLogo';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -22,7 +22,7 @@ import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
-    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass
+    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight
 } from 'react-icons/fa6';
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
@@ -59,6 +59,9 @@ type TeamDetailProps = {
      *  in place of the plain "Play" action. Not stored on the team itself: a refresh drops back
      *  to the normal action, and the team can still be freely reused for other challenges/sims. */
     challenge?: ChallengeInstance;
+    /** True when the user just created this team (no pre-creation modal anymore) — starts them
+     *  on the "Team Settings" setup step instead of straight into the draft. */
+    isNewTeam?: boolean;
 };
 
 
@@ -131,9 +134,14 @@ function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): st
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, challenge }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, challenge, isNewTeam = false }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
+    // Setup flow: a freshly created (or still-empty) team opens on the "Team Settings" step;
+    // otherwise straight into "Drafting". Steps are freely navigable via the banner chips.
+    const [setupStep, setSetupStep] = useState<'settings' | 'draft'>(
+        () => (isNewTeam || team.roster.length === 0) ? 'settings' : 'draft',
+    );
 
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
@@ -206,6 +214,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); setShowSettingsModal(false); }, [team]);
 
+    // Re-pick the setup step only when the underlying team actually changes (e.g. forking into a
+    // different team), never on the same-team prop churn from an auto-save round-trip — that
+    // would kick the user back to Settings mid-edit.
+    useEffect(() => {
+        setSetupStep((isNewTeam || team.roster.length === 0) ? 'settings' : 'draft');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [team.team_id]);
+
     useEffect(() => {
         if (!draftToast) return;
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -274,6 +290,21 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }, 1500);
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
     }, [draft, dirty]);
+
+    // Flush any pending debounced save before navigating away, so a change made in the last
+    // 1.5s isn't lost — and, for a just-created team, so the abandon-cleanup on the parent sees
+    // the real roster rather than deleting a team that does have picks.
+    async function handleBack() {
+        if (dirty && !readOnly) {
+            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { team_id, user_id, created_at, updated_at, total_points, ...payload } = draft;
+                await onSave(payload);
+            } catch { /* leaving anyway */ }
+        }
+        onBack?.();
+    }
 
 
     // Set restrictions are per card source, so the draft panel's filters follow the active tab.
@@ -790,7 +821,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                     {onBack && (
-                        <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
+                        <button type="button" onClick={handleBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
                             <FaArrowLeft />
                         </button>
                     )}
@@ -955,7 +986,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
                     <span className="text-[11px] font-bold flex-1 drop-shadow-sm flex items-center gap-2" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting'
-                            ? <>DRAFTING<span className="hidden md:inline"> — fill all required positions to complete your team</span></>
+                            ? <SetupStepChips
+                                step={setupStep}
+                                onStep={setSetupStep}
+                                settingsDone={draft.roster.length > 0}
+                                draftProgress={`${rosterProgress.filled}/${rosterProgress.total}`}
+                                color={bannerLeft.fill}
+                              />
                             : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
                         {teamMode === 'editing' && (
                             <>
@@ -974,7 +1011,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         )}
                     </span>
                     <div className="flex items-center gap-2 shrink-0">
-                        {teamMode === 'drafting' && (
+                        {teamMode === 'drafting' && setupStep === 'draft' && (
                             <>
                                 <div className="w-18 md:w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
                                     <div
@@ -987,7 +1024,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 </span>
                             </>
                         )}
-                        {token && (
+                        {token && (setupStep === 'draft' || teamMode === 'editing') && (
                             <>
                                 {lastAutofillStrategy && (
                                     <button
@@ -1026,7 +1063,27 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
             {/* Team Roster Content */}
             <div className={`flex flex-1 ${embedded ? '' : 'lg:min-h-0 lg:overflow-hidden'}`}>
-                {isLg && teamMode === 'complete' ? (
+                {showEditControls && setupStep === 'settings' ? (
+                    /* Setup step 1: team settings, edited inline (auto-saved) before drafting */
+                    <div className="flex flex-col flex-1 min-w-0 lg:min-h-0 lg:overflow-y-auto scrollbar-hide">
+                        <div className="flex-1">
+                            <TeamSettingsForm team={draft} onChange={updates => update(updates)} />
+                        </div>
+                        <div className="sticky bottom-0 flex items-center justify-end gap-3 px-4 py-3 border-t border-(--divider) bg-(--background-primary)">
+                            {!isTeamSetupValid(draft) && (
+                                <span className="text-[11px] text-(--text-tertiary) mr-auto">Resolve the highlighted settings to continue.</span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setSetupStep('draft')}
+                                disabled={!isTeamSetupValid(draft)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                            >
+                                Continue to Draft <FaArrowRight className="text-[11px]" />
+                            </button>
+                        </div>
+                    </div>
+                ) : isLg && teamMode === 'complete' ? (
                     /* Filled + large screen: FieldView fixed on left, Depth/Draft/Settings tabs on right */
                     <>
                         <div className="flex flex-col shrink-0 overflow-y-auto scrollbar-hide w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-164 3xl:w-184 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
@@ -1120,7 +1177,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 )}
             </div>
 
-            {showEditControls && !isLg && (
+            {showEditControls && !isLg && setupStep === 'draft' && (
                 <>
                     {/* Search FAB — hidden while the slideover is open, since the slideover's
                         own dismiss button occupies the same corner. A larger halo sits behind
@@ -1516,6 +1573,38 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
         </Tabs.Root>
     );
 });
+
+/** The two-step "Team Settings → Drafting" indicator shown in the drafting banner. Both steps
+ *  are always clickable — the marks (check / number) are just progress hints. */
+function SetupStepChips({ step, onStep, settingsDone, draftProgress, color }: {
+    step: 'settings' | 'draft';
+    onStep: (s: 'settings' | 'draft') => void;
+    settingsDone: boolean;
+    draftProgress: string;
+    color: string;
+}) {
+    const chip = (id: 'settings' | 'draft', label: string, trailing: string | null, done: boolean) => (
+        <button
+            type="button"
+            onClick={() => onStep(id)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
+            style={{ color }}
+        >
+            <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[8px] shrink-0" style={{ borderColor: color }}>
+                {done ? <FaCircleCheck /> : id === 'settings' ? '1' : '2'}
+            </span>
+            <span className="hidden sm:inline">{label}</span>
+            {trailing && <span className="font-black tabular-nums">{trailing}</span>}
+        </button>
+    );
+    return (
+        <span className="flex items-center gap-0.5">
+            {chip('settings', 'Team Settings', null, settingsDone)}
+            <FaArrowRight className="text-[8px] opacity-40 shrink-0" style={{ color }} />
+            {chip('draft', 'Drafting', step === 'draft' ? draftProgress : null, false)}
+        </span>
+    );
+}
 
 function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, replacingName }: {
     label: string;
