@@ -1,3 +1,4 @@
+import json
 import random
 import string
 import threading
@@ -11,7 +12,7 @@ from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
-from ..core.simulation.models import PostseasonFormat, PostseasonRound, SeasonSimulationConfig
+from ..core.simulation.models import GameStuckError, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
 from ..core.simulation.season import Season
 from ..core.simulation.summary import SeasonSummaryBuilder
 from ..core.simulation.takeover import TakeoverOptions
@@ -874,6 +875,17 @@ def _run_sim_job(
 
     except SimCancelled:
         pass  # THE ROW IS ALREADY TERMINAL ('cancelled') - finish_sim_job WOULD BE A NO-OP
+    except GameStuckError as exc:
+        # A GAME THAT COULD NOT END. WITHOUT THIS GUARD THE WORKER WOULD SPIN UNTIL THE STALE-JOB
+        # REAPER KILLED IT WITH A GENERIC "STOPPED RESPONDING". `exc.context` IS THE STRUCTURED
+        # GAME STATE - LOGGED HERE, AND FOLDED INTO THE STORED ERROR SO THE JOB ROW EXPLAINS ITSELF.
+        traceback.print_exc()
+        print(f"sim job {job_id} stuck game context: {json.dumps(exc.context, default=str)}")
+        try:
+            with PostgresDB() as db:
+                db.finish_sim_job(job_id, error=str(exc), error_context=exc.context)
+        except Exception:
+            traceback.print_exc()
     except Exception as exc:
         traceback.print_exc()
         try:
@@ -1180,6 +1192,14 @@ def start_game_sim(game_pk: int):
             sim_id = db.record_sim_game(user_id=g.user_id, result=result_payload)
 
         return jsonify({'sim_id': sim_id, 'result': result_payload}), 201
+
+    except GameStuckError as exc:
+        # THE GAME COULD NOT FINISH. NOTHING IS STORED IN `sim_game` (THAT TABLE ONLY HOLDS
+        # COMPLETED GAMES) - THE STRUCTURED STATE IS LOGGED AND THE MESSAGE IS RETURNED SO THE
+        # CLIENT CAN SHOW WHY.
+        traceback.print_exc()
+        print(f"stuck game sim (game_pk={game_pk}) context: {json.dumps(exc.context, default=str)}")
+        return jsonify({'error': str(exc), 'context': exc.context}), 422
 
     except Exception as exc:
         traceback.print_exc()

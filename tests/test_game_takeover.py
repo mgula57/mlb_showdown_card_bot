@@ -25,10 +25,12 @@ from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.core.card.stats.stats_period import StatsPeriod, StatsPeriodType
 from mlb_showdown_bot.core.data.replacement_season_averages import build_replacement_level_stats_for_card
 from mlb_showdown_bot.core.shared.player_position import Position
+from mlb_showdown_bot.core.simulation import game as game_module
 from mlb_showdown_bot.core.simulation.game import Game
 from mlb_showdown_bot.core.simulation.models import (
     CompletedHalfInning,
     GameStartState,
+    GameStuckError,
     PitcherAppearance,
     SimTeamIdentity,
     TeamStartState,
@@ -291,6 +293,29 @@ for seed in range(6):
           f"home {result.home_score} away {result.away_score}, last frame home_runs {result.linescore.innings[-1].home_runs}")
     check(f"walk-off {label}: never ends tied", result.home_score != result.away_score,
           f"{result.away_score}-{result.home_score}")
+
+
+print("\nA game that never ends is caught instead of spinning forever")
+
+# THE GUARD CANNOT BE PROVOKED WITH REAL DICE - IT SITS AN ORDER OF MAGNITUDE ABOVE ANY REAL
+# GAME - SO THE CEILINGS ARE PINNED LOW AND A NORMAL GAME IS RUN INTO THEM.
+_real_per_game = game_module._MAX_PLATE_APPEARANCES_PER_GAME
+_real_per_half = game_module._MAX_PLATE_APPEARANCES_PER_HALF_INNING
+game_module._MAX_PLATE_APPEARANCES_PER_HALF_INNING = 3
+game_module._MAX_PLATE_APPEARANCES_PER_GAME = 5
+try:
+    play(seed=42)
+    check("a stuck game raises GameStuckError", False)
+except GameStuckError as exc:
+    check("a stuck game raises GameStuckError", True)
+    check("the error names the reason", "third out" in str(exc), str(exc))
+    check("the error carries diagnostic context",
+          exc.context.get("inning") == 1 and exc.context.get("half") == "top"
+          and "plate_appearances" in exc.context,
+          str(exc.context))
+finally:
+    game_module._MAX_PLATE_APPEARANCES_PER_GAME = _real_per_game
+    game_module._MAX_PLATE_APPEARANCES_PER_HALF_INNING = _real_per_half
 
 
 print()

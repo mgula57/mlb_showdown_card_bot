@@ -12,6 +12,7 @@ from .models import (
     GameLogEntry,
     GameResult,
     GameStartState,
+    GameStuckError,
     InningLineScore,
     LineScoreResult,
     RunnerRef,
@@ -24,6 +25,12 @@ from .stats import StatCategory
 _RUNS_SCORED = StatCategory.RUNS_SCORED.value
 
 _ORDINAL_SUFFIXES = {1: "st", 2: "nd", 3: "rd"}
+
+# STUCK-GAME GUARDS. A NINE-INNING GAME IS ~75 PLATE APPEARANCES; THE LONGEST GAME IN MLB HISTORY
+# (26 INNINGS) WAS ~225. THESE CEILINGS SIT AN ORDER OF MAGNITUDE ABOVE ANYTHING PLAUSIBLE, SO
+# HITTING ONE MEANS THE PLAY LOOP CAN NO LONGER END THE INNING - A LOGIC BUG, NOT A LONG GAME.
+_MAX_PLATE_APPEARANCES_PER_GAME = 2000
+_MAX_PLATE_APPEARANCES_PER_HALF_INNING = 150
 
 
 def _ordinal(n: int) -> str:
@@ -170,10 +177,26 @@ class Game:
 
         self._collect_box_score = collect_box_score
 
+        total_pa = 0
+        half_inning_pa = 0
+        guarded_inning = None
+
         while not self.is_game_over:
 
             # DEFINE CURRENT PLATE APPEARANCE OBJECTS
             inning = self.innings[-1]
+
+            # STUCK-GAME GUARD. `half_inning_pa` RESETS EACH TIME THE LOOP MOVES TO A NEW `Inning`
+            # OBJECT (A NEW ONE IS APPENDED ON THE THIRD OUT), SO A HALF-INNING THAT NEVER RECORDS
+            # ITS THIRD OUT TRIPS THE PER-INNING CEILING WHILE A GAME THAT KEEPS OPENING NEW INNINGS
+            # WITHOUT A WINNER TRIPS THE PER-GAME ONE. EITHER WAY THE LOOP CANNOT TERMINATE ON ITS
+            # OWN - RAISE WITH ENOUGH STATE FOR THE SIM LOG TO EXPLAIN WHAT HAPPENED.
+            total_pa += 1
+            half_inning_pa = half_inning_pa + 1 if inning is guarded_inning else 1
+            guarded_inning = inning
+            if total_pa > _MAX_PLATE_APPEARANCES_PER_GAME or half_inning_pa > _MAX_PLATE_APPEARANCES_PER_HALF_INNING:
+                raise self._stuck_error(inning=inning, total_pa=total_pa, half_inning_pa=half_inning_pa)
+
             team_pitching = self.home_team if inning.is_top else self.away_team
             team_hitting = self.away_team if inning.is_top else self.home_team
             team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0))
@@ -258,6 +281,44 @@ class Game:
 
             if inning.inning >= 9 and (not inning.is_top) and home_score > away_score:
                 self.finalize_game()
+
+    def _stuck_error(self, inning: Inning, total_pa: int, half_inning_pa: int) -> GameStuckError:
+        """Build the exception raised when `simulate`'s play loop can no longer end the game. The
+        `context` dict is what the sim log persists - it has to stand on its own, since the full
+        game log is usually not collected for the runs where this matters (season sims)."""
+
+        away_score = int(self.away_team.current_game_stats.totals.get(_RUNS_SCORED, 0))
+        home_score = int(self.home_team.current_game_stats.totals.get(_RUNS_SCORED, 0))
+        last_play = self.logs[-1].summary if self.logs else None
+        reason = (
+            "a half-inning never recorded its third out"
+            if half_inning_pa > _MAX_PLATE_APPEARANCES_PER_HALF_INNING
+            else "the game ran past every plausible extra-inning length without a winner"
+        )
+        context = {
+            "reason": reason,
+            "game_index": self.index,
+            "date": self.date.isoformat(),
+            "away_team": self.away_team_name,
+            "home_team": self.home_team_name,
+            "inning": inning.inning,
+            "half": "top" if inning.is_top else "bottom",
+            "outs": inning.outs,
+            "bases": inning.runners.base_squares_str(),
+            "away_score": away_score,
+            "home_score": home_score,
+            "plate_appearances": total_pa,
+            "half_inning_plate_appearances": half_inning_pa,
+            "last_play": last_play,
+        }
+        message = (
+            f"Simulated game got stuck: {reason}. "
+            f"{self.away_team_name} @ {self.home_team_name} on {self.date.isoformat()}, "
+            f"{context['half']} {_ordinal(inning.inning)}, {inning.outs} out, bases {context['bases']}, "
+            f"score {away_score}-{home_score} after {total_pa} plate appearances "
+            f"({half_inning_pa} this half-inning)."
+        )
+        return GameStuckError(message, context=context)
 
     def finalize_game(self):
 

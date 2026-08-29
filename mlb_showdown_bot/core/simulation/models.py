@@ -11,6 +11,22 @@ from .runners import Runners
 from .stats import Stats
 
 
+class GameStuckError(RuntimeError):
+    """Raised by `Game.simulate` when the play loop fails to make progress - a half-inning that
+    never records its third out, or a game that runs far past any plausible extra-inning length.
+
+    Almost always a bug in the chart/steal/advance logic that leaves an inning unable to end.
+    Rather than let the worker thread spin until the stale-job reaper kills it with a generic
+    "stopped responding" message, this fails fast and carries `context` - a small dict of game
+    state (teams, inning, score, counts, last play) that the sim log stores so the failure can be
+    diagnosed without the full game log.
+    """
+
+    def __init__(self, message: str, *, context: dict) -> None:
+        super().__init__(message)
+        self.context = context
+
+
 class PostseasonRound(Enum):
     WILDCARD = "WC"
     DIVISIONAL = "DIV"

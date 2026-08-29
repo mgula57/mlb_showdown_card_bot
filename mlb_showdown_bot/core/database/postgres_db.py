@@ -7495,6 +7495,9 @@ class PostgresDB:
                     expires_at      TIMESTAMP WITHOUT TIME ZONE
                 );
             """)
+            # STRUCTURED DETAIL FOR A FAILURE THE `error` TEXT ONLY SUMMARIZES - CURRENTLY THE
+            # GAME STATE CAPTURED WHEN A SIMULATED GAME GETS STUCK (SEE `GameStuckError`).
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS error_context JSONB;")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_user_id ON internal.sim_job (user_id, created_at DESC);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_team_id ON internal.sim_job (team_id, created_at DESC);")
             # DRIVES BOTH THE STALE-JOB REAPER AND TTL CLEANUP
@@ -7828,24 +7831,44 @@ class PostgresDB:
             )
             return cur.rowcount > 0
 
-    def finish_sim_job(self, job_id: str, error: str | None = None) -> None:
+    def finish_sim_job(self, job_id: str, error: str | None = None, error_context: dict | None = None) -> None:
         """Terminal update. The result itself lives on `sim_season`, not here.
+
+        `error_context` is optional structured detail for the failure (e.g. the game state a
+        `GameStuckError` carries), stored alongside the human-readable `error` summary. The
+        `error_context` column is added lazily here rather than by a migration step so a deploy
+        that hasn't run `build_sim_job_table` still completes jobs normally.
 
         Excludes an already-cancelled job so a race can't stomp it back to failed/succeeded.
         """
         if not self.connection:
             return
         status = 'failed' if error else 'succeeded'
+        phase = 'Failed' if error else 'Complete'
         with self.connection.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE internal.sim_job
-                   SET status = %s, error = %s, phase = %s,
-                       updated_at = NOW(), finished_at = NOW()
-                 WHERE job_id = %s AND status <> 'cancelled'
-                """,
-                (status, error, 'Failed' if error else 'Complete', job_id),
-            )
+            if error_context is not None:
+                # ONLY TOUCHED ON A STRUCTURED FAILURE - THE COMMON SUCCESS/CANCEL PATHS NEVER
+                # NAME THIS COLUMN, SO A DEPLOY THAT HASN'T RUN `build_sim_job_table` STILL WORKS.
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS error_context JSONB;")
+                cur.execute(
+                    """
+                    UPDATE internal.sim_job
+                       SET status = %s, error = %s, error_context = %s, phase = %s,
+                           updated_at = NOW(), finished_at = NOW()
+                     WHERE job_id = %s AND status <> 'cancelled'
+                    """,
+                    (status, error, extras.Json(error_context), phase, job_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE internal.sim_job
+                       SET status = %s, error = %s, phase = %s,
+                           updated_at = NOW(), finished_at = NOW()
+                     WHERE job_id = %s AND status <> 'cancelled'
+                    """,
+                    (status, error, phase, job_id),
+                )
 
     def cancel_sim_job(self, job_id: str, user_id: str) -> bool:
         """User-initiated cancel. Only affects a job still in flight and owned by this user.
