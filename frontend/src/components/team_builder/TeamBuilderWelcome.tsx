@@ -91,8 +91,7 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam }: Team
                                 Your dugout is empty
                             </h2>
                             <p className="text-[13px] text-(--text-secondary) mt-1.5">
-                                Draft a roster from any era, set a points budget, and put your lineup
-                                to the test. Start from a blank slate or take inspiration from the
+                                Draft a roster using ANY player and ANY season in MLB History. Start from a blank slate or take inspiration from the
                                 community below.
                             </p>
                         </div>
@@ -109,7 +108,7 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam }: Team
             </div>
 
             {/* Guided paths */}
-            <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 ${px}`}>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${px}`}>
                 {PATHS.map(path => (
                     <button
                         key={path.tab}

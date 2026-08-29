@@ -757,6 +757,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const confirmRotationPositions = confirmPositions.filter(p => (ROTATION_ROLES as readonly string[]).includes(p));
     const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));
 
+    /** Name of the player currently holding `position`, if the pick would replace someone.
+     *  Mirrors handleConfirmPosition: 'BE' appends (no replacement); every other slot
+     *  swaps out whatever roster entry currently holds that roster_position. */
+    const replacedPlayerName = (position: string): string | null => {
+        if (position === 'BE') return null;
+        const slot = draft.roster.find(s => s.roster_position === position);
+        return slot ? cardMap[slot.card_id]?.name ?? null : null;
+    };
+
     const renderPositionButton = (pos: string) => {
         const projected = projectedTotalForPosition(pos);
         return (
@@ -767,6 +776,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 currentPts={pointsBreakdown.total}
                 projectedPts={projected}
                 overLimit={draft.pts_limit != null && projected > draft.pts_limit}
+                replacingName={replacedPlayerName(pos)}
             />
         );
     };
@@ -1507,12 +1517,14 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
     );
 });
 
-function PositionButton({ label, onClick, currentPts, projectedPts, overLimit }: {
+function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, replacingName }: {
     label: string;
     onClick: () => void;
     currentPts?: number;
     projectedPts?: number;
     overLimit?: boolean;
+    /** When set, this pick replaces an existing player — shown under the label. */
+    replacingName?: string | null;
 }) {
     return (
         <button
@@ -1524,9 +1536,14 @@ function PositionButton({ label, onClick, currentPts, projectedPts, overLimit }:
                 transition-colors"
         >
             {label}
+            {replacingName && (
+                <span className="text-[9px] font-semibold text-(--text-tertiary) normal-case">
+                    Replaces {replacingName}
+                </span>
+            )}
             {currentPts != null && projectedPts != null && (
                 <span className={`text-[10px] font-semibold tabular-nums ${overLimit ? 'text-red-500' : 'text-(--text-tertiary)'}`}>
-                    {currentPts.toLocaleString()} → {projectedPts.toLocaleString()}
+                    {currentPts} → {projectedPts}
                 </span>
             )}
         </button>
