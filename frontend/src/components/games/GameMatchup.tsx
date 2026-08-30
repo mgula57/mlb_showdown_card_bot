@@ -41,7 +41,7 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     if (change == null || change === 0) return null;
     return (
         <span className={`text-[10px] font-semibold ${change >= 0 ? "text-(--green)" : "text-(--red)"}`}>
-            {change >= 0 ? "+" : ""}{change} PTS today
+            {change >= 0 ? "+" : ""}{change} PTS
         </span>
     );
 }
@@ -67,7 +67,7 @@ function MatchupSide({
                     <PointsTrend card={response} />
                 </div>
                 {advantage != null && (
-                    <div className="text-[11px] font-bold text-(--secondary)">
+                    <div className="text-[11px] font-bold text-(--secondary) text-nowrap">
                         <span className="text-(--primary)">{advantage}%</span> advantage
                     </div>
                 )}
@@ -122,7 +122,7 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
     const latestRoll = hasCount ? undefined : plays?.[0]?.roll;
 
     return (
-        <div className={`@container rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-4 p-4 ${className}`}>
+        <div className={`@container rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
             <div 
                 className={`
                     ${isCompactCards ? "grid grid-cols-2" : "grid grid-cols-1 @[600px]:grid-cols-2 "}
@@ -151,17 +151,11 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
                     />
             </div>
 
-            {(hasCount || latestRoll) && (
-                <div className="mt-3 flex items-center justify-center gap-2 border-t border-(--divider) pt-2 text-[11px]">
-                    {hasCount ? (
-                        <span className="font-bold tabular-nums text-(--primary)">
-                            {situation.balls}-{situation.strikes}
-                        </span>
-                    ) : (
-                        <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 font-bold tracking-wide text-(--secondary)">
-                            P {latestRoll!.pitchRoll} · S {latestRoll!.swingRoll}
-                        </span>
-                    )}
+            {(latestRoll) && (
+                <div className="mt-3 flex items-center justify-center gap-2 border-t border-(--divider) text-[11px]">
+                    <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 font-bold tracking-wide text-(--secondary)">
+                        P {latestRoll!.pitchRoll} · S {latestRoll!.swingRoll}
+                    </span>
                 </div>
             )}
 

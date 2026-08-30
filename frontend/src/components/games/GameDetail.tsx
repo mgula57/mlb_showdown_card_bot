@@ -27,16 +27,16 @@ import ProbableStartingPitchers from "./detail/ProbableStartingPitchers";
 import BattingTable from "./detail/BattingTable";
 import PitchingTable from "./detail/PitchingTable";
 import GameInfo from "./detail/GameInfo";
-import { FaTerminal } from "react-icons/fa";
+import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
 import { FaClockRotateLeft } from "react-icons/fa6";
 import IconButton from "../shared/IconButton";
 
 type MobileTab = 'field' | 'playbyplay' | 'boxscore';
 
 const MOBILE_TABS: TabItem<MobileTab>[] = [
-    { id: 'field', label: 'Field View' },
-    { id: 'playbyplay', label: 'Play By Play' },
-    { id: 'boxscore', label: 'Boxscore' },
+    { id: 'field', label: 'Field View', icon: <FaRing />},
+    { id: 'playbyplay', label: 'Play By Play', icon: <FaList /> },
+    { id: 'boxscore', label: 'Boxscore', icon: <FaTable /> },
 ];
 
 type GameDetailProps = {
@@ -85,7 +85,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     if (isLoading) {
         return (
-            <div className={`flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+            <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                 <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
                     <BackButton onBack={onBack} />
                 </div>
@@ -98,7 +98,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     if (error || !boxscore || !view) {
         return (
-            <div className={`flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+            <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                 <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
                     <BackButton onBack={onBack} />
                 </div>
@@ -119,8 +119,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     // Whether the real game still has innings left to play. A finished game can only be re-watched.
     const realState = realView?.state;
-    // const canSimulate = realState === "PREVIEW" || realState === "LIVE";
-    const canSimulate = false; // TODO: Enable simulation when appropriate
+    const canSimulate = realState === "PREVIEW" || realState === "LIVE";
+    // const canSimulate = false; // TODO: Enable simulation when appropriate
 
     async function handleStartSim(payload: StartGameSimPayload) {
         const token = session?.access_token;
@@ -291,8 +291,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 ) : null;
 
                 return (
-                    <div className={`flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
-                        <div className="relative z-50 px-4 py-2.5 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
+                    <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+                        <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
                             <BackButton onBack={onBack} />
                             {canSimulate && !simResult && (
                                 <button
@@ -344,22 +344,18 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 {/* Mobile: one tab strip swaps between the three columns that sit
                                     side-by-side on desktop. Above `lg` the strip is hidden and all
                                     three columns show at once. */}
-                                <div className="lg:hidden shrink-0 border-b border-(--divider) px-4 py-2">
-                                    <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} fullWidth />
+                                <div className="lg:hidden shrink-0">
+                                    <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} className="px-2" fullWidth />
                                 </div>
 
-                                <div className="flex-1 min-h-0 lg:grid lg:grid-cols-[3fr_4fr_3fr] lg:gap-4 lg:p-4 lg:overflow-hidden">
+                                <div className="flex-1 min-h-0 lg:grid lg:grid-cols-[3fr_4fr_3fr] lg:gap-4 lg:px-4 lg:overflow-hidden">
 
-                                    <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-24 lg:block lg:p-0 lg:pb-4`}>
+                                    <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide lg:block lg:py-4 lg:px-0 lg:pb-4`}>
                                         {panels}
                                     </div>
 
                                     {/* Spotlight column — field, playback bar and matchup. */}
-                                    <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-24 lg:block lg:p-0 lg:pb-4 lg:min-w-0`}>
-                                        {/* Mobile scoreboard — the desktop bug, edge-to-edge above the field.
-                                            (Desktop keeps its copy inside the grass group below.) */}
-                                        <ScoreHeader game={headerView} fullBleed className="lg:hidden" />
-
+                                    <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide lg:block lg:py-4 lg:px-0 lg:min-w-0`}>
                                         {/* Grass backdrop behind the scoreboard, field and matchup as one group —
                                             faded top/bottom so it blends into the page instead of a hard edge.
                                             The image is the first child with no z-index of its own, and the
@@ -379,7 +375,9 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                             />
 
                                             <div className="relative space-y-4 p-1">
-                                                {/* Mobile shows the full-bleed bug above this group instead. */}
+                                                {/* Scoreboard bleeds over the grass on both breakpoints — compact
+                                                    (no records, smaller type) on mobile, full-size on desktop. */}
+                                                <ScoreHeader game={headerView} compact className="lg:hidden" />
                                                 <div className="hidden lg:block">{scoreHeader}</div>
 
                                                 <GameField
@@ -392,6 +390,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                     transition={playbackState.transition}
                                                     pendingPlay={playbackState.pendingPlay}
                                                     phase={playbackState.phase}
+                                                    lastPlay={activePlays[0]}
                                                 />
 
                                                 {showPlaybackControls && playbackBar}
@@ -408,14 +407,14 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                     </div>
 
                                     {/* Play-by-play column */}
-                                    <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-24 lg:block lg:p-0 lg:pb-0`}>
+                                    <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide lg:block lg:py-4 lg:px-0 lg:pb-0`}>
                                         {playByPlayPanelDesktop}
                                     </div>
                                 </div>
                             </>
                         ) : (
                             <div className="flex-1 overflow-y-auto">
-                                <div className="space-y-4 p-4 pb-24 lg:mx-auto lg:max-w-5xl">
+                                <div className="space-y-4 p-4 pb-[calc(6rem+var(--safe-bottom))] lg:mx-auto lg:max-w-5xl">
                                     {scoreHeader}
                                     {playByPlayPanelMobile}
                                     {panels}

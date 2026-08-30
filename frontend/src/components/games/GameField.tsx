@@ -18,7 +18,6 @@ import { CardItemCompact, CardItemCompactFromCard } from "../cards/CardItemCompa
 import { defenseAtPosition, IF_POSITIONS, OF_POSITIONS } from "../shared/DefenseUtils";
 import { usePresenceList } from "../../hooks/usePresenceList";
 import type { PlayPhase } from "../../hooks/useGamePlayback";
-import IconButton from "../shared/IconButton";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -46,6 +45,9 @@ type GameFieldProps = {
      *  during "result"/"runners") and nothing else here; the runner animations themselves are
      *  driven purely by `game`/`transition` changing, not by watching `phase`. */
     phase?: PlayPhase;
+    /** The most recent completed play — its text description sits in the field's bottom-right
+     *  corner, opposite the defense summary. Undefined before the first play of the game. */
+    lastPlay?: PlayEntry;
     className?: string;
 };
 
@@ -272,7 +274,7 @@ const TONE_ACCENT: Record<"offense" | "defense", string | undefined> = {
  * placeholder card while the real one is still being fetched. */
 function FieldMarker({
     player, role, cardMap, onCardSelect, isLoadingCards, tone,
-    hideCommand = false, hideTeamPoints = hideCommand, detailStat1Category, liveIp, fieldPosition,
+    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition,
 }: {
     player: PlayerRef;
     role: "H" | "P";
@@ -317,7 +319,7 @@ function FieldMarker({
     };
 
     return (
-        <div className="w-28 @[420px]:w-32">
+        <div className="w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-36">
             {response?.card ? (
                 <CardItemCompactFromCard
                     card={response.card}
@@ -344,9 +346,17 @@ function FieldMarker({
     );
 }
 
-/** OF / IF / CA totals for the fielding side, as in the mockup's left rail. Null when no
- * alignment is available (pre-first-pitch, or a sim game). */
-function DefenseTotals({ defense, cardMap }: { defense: DefenseAlignment; cardMap: CardMap }) {
+/** OF / IF / CA totals for the fielding side plus the expand/collapse toggle, gathered into one
+ * container in the field's bottom-left corner. Null when no alignment is available
+ * (pre-first-pitch, or a sim game). */
+function DefenseSummary({
+    defense, cardMap, expanded, onToggleExpanded,
+}: {
+    defense: DefenseAlignment;
+    cardMap: CardMap;
+    expanded: boolean;
+    onToggleExpanded?: () => void;
+}) {
     const ratingFor = (slot: keyof DefenseAlignment): number | null => {
         const player = defense[slot];
         const card = cardMap[resolveCardKey(player?.id, "H") ?? ""]?.card;
@@ -368,22 +378,72 @@ function DefenseTotals({ defense, cardMap }: { defense: DefenseAlignment; cardMa
 
     if (rows.every(([, value]) => value == null)) return null;
 
-    return (
-        <div className="flex-col p-1 items-center gap-1.5">
-            {rows.map(([label, value]) => (
-                <div
-                    key={label}
-                    className="flex items-center gap-1.5 rounded-md border border-(--divider) bg-(--background-secondary)/90 px-1.5 py-0.5 text-[10px] font-bold"
-                >
+    // OF / IF / CA totals plus the toggle, packed into a 2x2 block so the summary claims a
+    // compact corner instead of a wide strip. Borders are drawn per grid position: a right edge
+    // on the left column, a bottom edge on the top row.
+    const cells: { key: string; content: React.ReactNode; onClick?: () => void; label?: string }[] = [
+        ...rows.map(([label, value]) => ({
+            key: label,
+            content: (
+                <>
                     <span className="text-(--secondary)">{label}</span>
                     <span className="text-(--primary)">{value == null ? "–" : `+${value}`}</span>
-                </div>
-            ))}
+                </>
+            ),
+        })),
+    ];
+    if (onToggleExpanded) {
+        cells.push({
+            key: "toggle",
+            content: expanded ? <FaCompress size={12} /> : <FaExpand size={12} />,
+            onClick: onToggleExpanded,
+            label: expanded ? "Show battery only" : "Show all fielders",
+        });
+    }
+
+    return (
+        <div className="inline-grid grid-cols-2 overflow-hidden rounded-md border border-(--divider) bg-(--background-secondary)/30 text-[10px] font-bold">
+            {cells.map((cell, i) => {
+                const edges = `${i % 2 === 0 ? "border-r " : ""}${i < 2 ? "border-b " : ""}border-(--divider)`;
+                const base = `flex items-center justify-center gap-1 px-1.5 py-1 ${edges}`;
+                return cell.onClick ? (
+                    <button
+                        key={cell.key}
+                        type="button"
+                        onClick={cell.onClick}
+                        aria-label={cell.label}
+                        className={`${base} cursor-pointer text-(--secondary) transition-colors hover:text-(--primary)`}
+                    >
+                        {cell.content}
+                    </button>
+                ) : (
+                    <div key={cell.key} className={base}>
+                        {cell.content}
+                    </div>
+                );
+            })}
         </div>
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", className = "" }: GameFieldProps) {
+/** Plain-text recap of the most recent completed play, tucked into the field's bottom-right
+ * corner opposite the defense summary. Clamped to two lines so a wordy description never pushes
+ * into the field art. */
+function LastPlaySummary({ play }: { play: PlayEntry }) {
+    const description = play.description?.trim();
+    if (!description && !play.event) return null;
+
+    return (
+        <div className="max-w-[40%] rounded-md border border-(--divider) bg-(--background-secondary)/30 px-1.5 py-1 text-right text-[10px] leading-snug text-(--primary)">
+            <p className="line-clamp-3">
+                {play.event && <span className="font-extrabold text-(--primary)">{play.event}</span>}
+                {description && description !== play.event && <span className="ml-0.5">{description}</span>}
+            </p>
+        </div>
+    );
+}
+
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // if (!situation) return null;
 
@@ -408,7 +468,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 the catcher/corner outfielders sit right at the edges with nothing to spare
                 otherwise. The padding transition is what makes the expand/collapse feel like the
                 field is growing rather than snapping to a new size. */}
-            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-28 pb-12" : "pt-4 pb-0"}`}>
+            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-28 pb-12" : "pt-0 pb-0"}`}>
                 <div className="relative aspect-703/369 w-full overflow-visible">
                     <div className="absolute inset-0 overflow-hidden rounded-lg">
                         <img src="/images/teams/Field No BG.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
@@ -440,6 +500,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                         isLoadingCards={isLoadingCards}
                                         tone="defense"
                                         hideCommand={!isBattery}
+                                        hideTeamPoints={!isBattery}
                                         detailStat1Category="defense"
                                         fieldPosition={DEFENSE_POSITIONS[slot]}
                                         liveIp={isBattery ? pitcherLine?.inningsPitched : undefined}
@@ -508,6 +569,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     isLoadingCards={isLoadingCards}
                                     tone="offense"
                                     hideCommand={occ.spot !== "plate"}
+                                    hideTeamPoints={occ.spot !== "plate"}
                                     detailStat1Category={occ.spot === "plate" ? "hr" : "speed"}
                                 />
                             </div>
@@ -518,15 +580,19 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 </div>
 
                 {defense && (
-                    <div className="absolute bottom-0 left-0 flex items-center gap-2">
-                        <DefenseTotals defense={defense} cardMap={cardMap} />
-                        {onToggleExpanded && (
-                            <IconButton
-                                icon={expanded ? <FaCompress size={12} /> : <FaExpand size={12} />}
-                                onClick={onToggleExpanded}
-                                label={expanded ? "Show battery only" : "Show all fielders"}
-                            />
-                        )}
+                    <div className="absolute bottom-0 left-0">
+                        <DefenseSummary
+                            defense={defense}
+                            cardMap={cardMap}
+                            expanded={expanded}
+                            onToggleExpanded={onToggleExpanded}
+                        />
+                    </div>
+                )}
+
+                {lastPlay && (
+                    <div className="absolute bottom-0 right-0 flex justify-end">
+                        <LastPlaySummary play={lastPlay} />
                     </div>
                 )}
             </div>

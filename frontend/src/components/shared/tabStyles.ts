@@ -16,8 +16,8 @@ const SIZE_CLASSES: Record<TabSize, string> = {
 const BASE_TRIGGER_CLASS = 'flex items-center justify-center gap-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer';
 
 // Wraps a row of tab triggers: bottom border, horizontal scroll on mobile instead of wrapping.
-export function tabListClass(fullWidth = false, className = ''): string {
-    return `${fullWidth ? 'flex' : 'inline-flex'} items-center gap-x-1 border-b border-(--divider) py-1 overflow-x-auto scrollbar-hide ${className}`;
+export function tabListClass(fullWidth = false, className = '', hideBorder = false): string {
+    return `${fullWidth ? 'flex' : 'inline-flex'} items-center gap-x-1 ${hideBorder ? '' : 'border-b border-(--divider)'} py-1 overflow-x-auto scrollbar-hide ${className}`;
 }
 
 export function tabButtonClass(active: boolean, size: TabSize = 'md', fullWidth = false): string {
