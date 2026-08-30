@@ -78,7 +78,7 @@ const BASES = {
 const HOME: readonly [number, number] = [49.9, 85.4];
 
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
-    pitcher: [49.9, 53.5],
+    pitcher: [49.9, 50.5],
     catcher: [49.9, 105],
     first: [90, 24],
     second: [70, 12],
@@ -319,7 +319,7 @@ function FieldMarker({
     };
 
     return (
-        <div className="w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-36">
+        <div className="w-18 @[380px]:w-28 @[520px]:w-32 @[650px]:w-40">
             {response?.card ? (
                 <CardItemCompactFromCard
                     card={response.card}

@@ -154,21 +154,21 @@ export const CardItemCompact = ({
                     secondaryColor={secondaryColor}
                     command={card?.command}
                     team={card?.team || 'N/A'}
-                    className={`w-6.5 h-6.5 shrink-0 mt-1 ${hideDetails ? '' : '@[70px]:mt-1.5'}`}
+                    className={`w-5 h-5 @[75px]:w-6 @[75px]:h-6 shrink-0 mt-1 ${hideDetails ? '' : '@[70px]:mt-1.5'}`}
                 />
             )}
 
-            <div className="min-w-0 flex-1 space-y-0.5 text-left">
+            <div className="min-w-0 items-center flex-1 space-y-0.5 text-left">
                 <div className={`flex gap-x-0.5 text-[12px] font-black text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
                     {isRedacted 
                         ? 'REDACTED NAME' 
                         : 
                             <>
                                 {/* First Initial */}
-                                <span className={`hidden @[85px]:flex @[100px]:hidden`}>{getFirstInitial(card?.name)}. </span>
+                                <span className={`hidden @[95px]:flex @[110px]:hidden`}>{getFirstInitial(card?.name)}. </span>
 
                                 {/* Full First Name */}
-                                <span className={`hidden @[100px]:flex`}>{getFirstName(card?.name)} </span>
+                                <span className={`hidden @[110px]:flex`}>{getFirstName(card?.name)} </span>
                             
                                 {/* Last Name */}
                                 {getLastName(card?.name)}
@@ -184,14 +184,14 @@ export const CardItemCompact = ({
                     
                 </div>
                 {!hideTeamPoints && (
-                    <div className="flex items-center gap-1 min-w-0 overflow-x-scroll">
+                    <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll">
                         <div
-                            className={`text-[9px] flex leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`flex text-[9px] leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : teamStyle}
                         >
                             {card?.team || 'N/A'}
-                            <span className="hidden @[90px]:block @[120px]:hidden ml-0.5"> {formatYear(card?.year || '-', true)}</span>
-                            <span className="hidden @[120px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
+                            <span className="hidden @[100px]:block @[130px]:hidden ml-0.5"> {formatYear(card?.year || '-', true)}</span>
+                            <span className="hidden @[130px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                         </div>
                         <div
                             className={`hidden @[80px]:flex text-[9px] leading-none font-semibold tracking-tight text-nowrap rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
@@ -210,7 +210,7 @@ export const CardItemCompact = ({
                     </div>
                 )}
                 {!hideDetails && (
-                    <div className={`hidden @[75px]:flex py-0.5 text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                    <div className={`hidden @[95px]:flex py-0.5 text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                         {isRedacted ? '--- • ---' : (
                             <>
                                 {/* STAT 1 */}
@@ -238,7 +238,7 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && (
-                <div className="hidden @[75px]:block absolute bottom-1.5 left-1 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
                 </div>
             )}
