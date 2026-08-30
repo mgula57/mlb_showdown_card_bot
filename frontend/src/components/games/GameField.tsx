@@ -184,9 +184,16 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
     // `setState` call here happens inside a `setTimeout` callback, never synchronously in the
     // effect body itself, so a stale-transition guard (comparing `transition` at read time) does
     // the resetting instead of an unconditional `setLaterOverrides({})` at the top of the effect.
-    const [laterState, setLaterState] = useState<{ transition: FrameTransition | undefined; overrides: Record<string, RunnerSpot> }>(
-        { transition: undefined, overrides: {} },
-    );
+    //
+    // `settled` holds the keys whose full path has finished playing — their override is gone from
+    // `overrides`, and they must ALSO be dropped from `initialOverrides` in the merge below, or
+    // the (permanent, transition-keyed) initial waypoint would snap a runner who just reached
+    // home all the way back to `path[0]` (first base) the instant the animation completes.
+    const [laterState, setLaterState] = useState<{
+        transition: FrameTransition | undefined;
+        overrides: Record<string, RunnerSpot>;
+        settled: Set<string>;
+    }>({ transition: undefined, overrides: {}, settled: new Set() });
     const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
     useEffect(() => {
@@ -204,20 +211,27 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
             path.forEach((stop, i) => {
                 if (i === 0) return;
                 timers.push(setTimeout(() => {
-                    setLaterState((prev) => ({
-                        transition,
-                        overrides: { ...(prev.transition === transition ? prev.overrides : {}), [move.key]: stop },
-                    }));
+                    setLaterState((prev) => {
+                        const base = prev.transition === transition ? prev : { overrides: {}, settled: new Set<string>() };
+                        return {
+                            transition,
+                            overrides: { ...base.overrides, [move.key]: stop },
+                            settled: base.settled,
+                        };
+                    });
                 }, i * BASE_HOP_MS));
             });
             // Once the full path has played out, drop the override — by then the occupant's own
-            // `spot` (computed from the now-current `situation`) already matches the final stop.
+            // `spot` (computed from the now-current `situation`) already matches the final stop —
+            // and mark the key `settled` so the stale `initialOverrides` entry stops applying too.
             timers.push(setTimeout(() => {
                 setLaterState((prev) => {
                     if (prev.transition !== transition) return prev;
                     const next = { ...prev.overrides };
                     delete next[move.key];
-                    return { transition, overrides: next };
+                    const settled = new Set(prev.settled);
+                    settled.add(move.key);
+                    return { transition, overrides: next, settled };
                 });
             }, path.length * BASE_HOP_MS));
         }
@@ -226,8 +240,14 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
         return () => timers.forEach(clearTimeout);
     }, [transition]);
 
-    const laterOverrides = laterState.transition === transition ? laterState.overrides : {};
-    return { ...initialOverrides, ...laterOverrides };
+    const active = laterState.transition === transition;
+    const merged: Record<string, RunnerSpot> = {};
+    for (const [key, stop] of Object.entries(initialOverrides)) {
+        if (active && laterState.settled.has(key)) continue;
+        merged[key] = stop;
+    }
+    if (active) Object.assign(merged, laterState.overrides);
+    return merged;
 }
 
 /** Temporary badge announcing the result of the play that's resolving — "Double", "Home Run",
@@ -434,8 +454,8 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     if (!description && !play.event) return null;
 
     return (
-        <div className="max-w-[40%] rounded-md border border-(--divider) bg-(--background-secondary)/30 px-1.5 py-1 text-right text-[10px] leading-snug text-(--primary)">
-            <p className="line-clamp-3">
+        <div className="max-w-[35%] rounded-md border border-(--divider) bg-(--background-secondary)/30 px-1.5 py-1 text-right text-[10px] leading-snug text-(--primary)">
+            <p className="line-clamp-3 w-full">
                 {play.event && <span className="font-extrabold text-(--primary)">{play.event}</span>}
                 {description && description !== play.event && <span className="ml-0.5">{description}</span>}
             </p>
