@@ -318,6 +318,7 @@ export function FieldView({
                                                 icon: <FaPencil />,
                                                 onClick: () => onItemClick(role),
                                                 label: 'Replace card',
+                                                placement: 'left',
                                             } : undefined}
                                         />
                                     </div>
