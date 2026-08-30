@@ -570,7 +570,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     tone="offense"
                                     hideCommand={occ.spot !== "plate"}
                                     hideTeamPoints={occ.spot !== "plate"}
-                                    detailStat1Category={occ.spot === "plate" ? "hr" : "speed"}
+                                    detailStat1Category={occ.spot === "plate" ? "hr" : "hr"}
                                 />
                             </div>
                         );

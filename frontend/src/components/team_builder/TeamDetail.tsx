@@ -1122,8 +1122,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {teamMode !== 'complete' && (
-                <div className="flex items-center gap-1 px-4 py-2.5 shrink-0" style={bannerStyle}>
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
+                <div className="flex items-center gap-1 px-2 py-2.5 shrink-0" style={bannerStyle}>
+                    <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
                     <span className="text-[11px] font-bold flex-1 drop-shadow-sm flex items-center gap-2" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting'
                             ? <SetupStepChips
@@ -1152,7 +1152,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && setupStep === 'draft' && (
                             <>
-                                <div className="w-18 md:w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
+                                <div className="w-12 sm:w-18 md:w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
                                     <div
                                         className="h-full rounded-full transition-all"
                                         style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: bannerRight.fill }}

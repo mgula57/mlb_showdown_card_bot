@@ -6,7 +6,7 @@ type BackButtonProps = {
     className?: string;
 };
 
-export default function BackButton({ onBack, label = "Back to Games", className = "" }: BackButtonProps) {
+export default function BackButton({ onBack, label = "Back", className = "" }: BackButtonProps) {
     return (
         <button
             type="button"

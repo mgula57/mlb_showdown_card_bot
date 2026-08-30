@@ -210,7 +210,7 @@ export const CardItemCompact = ({
                     </div>
                 )}
                 {!hideDetails && (
-                    <div className={`hidden @[95px]:flex py-0.5 text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                    <div className={`hidden @[95px]:flex ${hideTeamPoints ? 'py-0': 'py-0.5'} text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                         {isRedacted ? '--- • ---' : (
                             <>
                                 {/* STAT 1 */}
