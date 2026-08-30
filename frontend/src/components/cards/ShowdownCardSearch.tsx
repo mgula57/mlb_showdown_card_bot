@@ -771,16 +771,30 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
     }, [source]);
 
+    // Re-seed whenever the injected `defaultFilters` change. A key that was seeded before but
+    // is gone from the new seed (e.g. the caller dismissed a "fill this position" flow) is
+    // reset to the source default so it doesn't linger in the search.
+    const prevSeedRef = useRef<Partial<FilterSelections>>(seededDefaultFilters);
     useEffect(() => {
-        setFilters((prev) => {
-            const next = applyLockedFilters(prev);
+        const removedKeys = Object.keys(prevSeedRef.current).filter(k => !(k in seededDefaultFilters));
+        prevSeedRef.current = seededDefaultFilters;
+        const reseed = (prev: FilterSelections): FilterSelections => {
+            const sourceDefaults = getDefaultFilterSelections(source);
+            const cleared = { ...prev } as FilterSelections;
+            for (const k of removedKeys) {
+                cleared[k as keyof FilterSelections] = sourceDefaults[k as keyof FilterSelections] as never;
+            }
+            return applyLockedFilters(cleared);
+        };
+        setFilters(prev => {
+            const next = reseed(prev);
             return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
         });
-        setFiltersForEditing((prev) => {
-            const next = applyLockedFilters(prev);
+        setFiltersForEditing(prev => {
+            const next = reseed(prev);
             return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
         });
-    }, [applyLockedFilters]);
+    }, [applyLockedFilters, seededDefaultFilters, source]);
 
     // On initial load
     useEffect(() => {
