@@ -425,6 +425,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     const isDrafting = isTeamDrafting(draft);
+    // The Lineup tab is only meaningful once every roster spot is filled — hide it while the
+    // roster is still being built out.
+    const rosterFull = draft.roster.length >= draft.roster_size;
     const teamMode: 'drafting' | 'editing' | 'complete' = readOnly ? 'complete' : isDrafting ? 'drafting' : editMode ? 'editing' : 'complete';
     const showEditControls = !readOnly && teamMode !== 'complete';
     // Real MLB/WBC rosters are synthesized read-only from the card archive — there's no draft history or editable settings to show
@@ -1098,7 +1101,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {!isMlbTeam && (
                                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
                                     <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1" /><span>Depth <span className="hidden sm:inline"> Chart</span></span></Tabs.Trigger>
-                                    <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>
+                                    {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
                                     <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" /> Draft</Tabs.Trigger>
                                     {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" /> Sims</Tabs.Trigger>}
                                 </Tabs.List>
@@ -1106,9 +1109,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
                             </Tabs.Content>
-                            <Tabs.Content value="lineup" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
-                                {lineupPanelContent}
-                            </Tabs.Content>
+                            {rosterFull && (
+                                <Tabs.Content value="lineup" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
+                                    {lineupPanelContent}
+                                </Tabs.Content>
+                            )}
                             {!isMlbTeam && (
                                 <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
                                     {draftHistoryContent}
@@ -1136,7 +1141,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0 overflow-x-auto scrollbar-hide">
                                 <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}><FaRing className="inline mr-1" /> <span>Field<span className="hidden sm:inline ml-1">View</span></span></Tabs.Trigger>
                                 <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1" /> <span>Depth<span className="hidden sm:inline ml-1">Chart</span></span></Tabs.Trigger>
-                                <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>
+                                {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
                                 {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" />Draft</Tabs.Trigger>}
                                 {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" />Sims</Tabs.Trigger>}
                             </Tabs.List>
@@ -1150,10 +1155,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {showEditControls && !isLg && <div className="h-48" />}
                             </Tabs.Content>
 
-                            <Tabs.Content value="lineup" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
-                                {lineupPanelContent}
-                                {showEditControls && !isLg && <div className="h-48" />}
-                            </Tabs.Content>
+                            {rosterFull && (
+                                <Tabs.Content value="lineup" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
+                                    {lineupPanelContent}
+                                    {showEditControls && !isLg && <div className="h-48" />}
+                                </Tabs.Content>
+                            )}
 
                             {!isMlbTeam && (
                                 <Tabs.Content value="draft" className="focus:outline-none">
@@ -1275,14 +1282,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {/* Position buttons */}
                         <div className="px-4 py-3 flex flex-col gap-2">
                             {confirmFieldPositions.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
                                     {confirmFieldPositions.map(renderPositionButton)}
                                 </div>
                             )}
                             {confirmRotationPositions.length > 0 && (
                                 <>
                                     <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Rotation</div>
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
                                         {confirmRotationPositions.map(renderPositionButton)}
                                     </div>
                                 </>
@@ -1623,7 +1630,7 @@ function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, r
         <button
             type="button"
             onClick={onClick}
-            className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg text-[12px] font-bold
+            className="flex flex-col items-center justify-between gap-0.5 px-3 py-2 rounded-lg text-[12px] font-bold
                 bg-(--background-secondary) border border-(--divider)
                 text-(--text-primary) hover:border-(--secondary) hover:text-(--secondary)
                 transition-colors"
