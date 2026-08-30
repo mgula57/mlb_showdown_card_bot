@@ -479,7 +479,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         const filledBullpen = draft.rotation.filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).length;
         const filled = filledLineup + Math.min(filledStarters, draft.num_starters) + Math.min(filledBench, benchTarget) + Math.min(filledBullpen, bullpenTarget);
         const total = 9 + draft.num_starters + benchTarget + bullpenTarget;
-        return { filled, total };
+        // Per-bucket fill. Lineup is a hard 9; rotation/bench/bullpen have no fixed cap, so the
+        // target is the minimum plus this bucket's share of the leftover roster slots — exactly
+        // what `effectiveBenchBullpenMinimums` already worked out for bench/bullpen.
+        const buckets = {
+            lineup:   { filled: filledLineup,   target: 9 },
+            bench:    { filled: filledBench,     target: benchTarget },
+            rotation: { filled: filledStarters,  target: draft.num_starters },
+            bullpen:  { filled: filledBullpen,   target: bullpenTarget },
+        };
+        return { filled, total, buckets };
     }, [draft, effectiveBucketMins]);
 
     const activeFieldPosition = pendingSlot?.kind === 'field' ? pendingSlot.position : null;
@@ -857,7 +866,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             
             {/* Header */}
             <div
-                className="@container flex flex-col @lg:flex-row @lg:items-center gap-2 px-4 py-2.5 border-b border-(--divider) shrink-0"
+                className="@container flex flex-col @lg:flex-row @lg:items-center gap-2 pl-4 py-1 border-b border-(--divider) shrink-0"
             >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                     {onBack && (
@@ -881,7 +890,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex-1 min-w-0 space-y-1">
                         {/* Name + total pts */}
                         <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
-                            <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
+                            <div className="text-xl md:text-3xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
                             
                             {draft.roster.length === draft.roster_size && (
                                 <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
@@ -897,7 +906,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         const img = imageForSet(s);
                                         return (
                                             <span key={s} className="flex items-center">
-                                                {img && <img src={img} alt={s} className="h-4.5 w-auto object-fill" />}
+                                                {img && <img src={img} alt={s} className="h-5 md:h-6 w-auto object-fill" />}
                                             </span>
                                         );
                                     })
@@ -906,27 +915,40 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                         {/* Subtitle row: PTS Breakdown */}
                         <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
-                            <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
-                                {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS
+                            <span className={`text-[12px] lg:text-[13px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
+                                {editMode ? `${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS` : `${pointsBreakdown.total} PTS`}
                             </span>
                             <div className="hidden @[350px]:flex gap-1.5 items-center text-nowrap">
                                 {([
-                                    { label: 'LINEUP', value: pointsBreakdown.lineup },
-                                    { label: 'BENCH', value: pointsBreakdown.bench },
-                                    { label: 'ROTATION', value: pointsBreakdown.rotation },
-                                    { label: 'BULLPEN', value: pointsBreakdown.bullpen },
-                                ] as const).map(({ label, value }) => (
-                                    <span key={label} className="flex gap-1 text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}>
-                                        {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
-                                    </span>
-                                ))}
+                                    { label: 'LINEUP', value: pointsBreakdown.lineup, bucket: rosterProgress.buckets.lineup },
+                                    { label: 'BENCH', value: pointsBreakdown.bench, bucket: rosterProgress.buckets.bench },
+                                    { label: 'ROTATION', value: pointsBreakdown.rotation, bucket: rosterProgress.buckets.rotation },
+                                    { label: 'BULLPEN', value: pointsBreakdown.bullpen, bucket: rosterProgress.buckets.bullpen },
+                                ] as const).map(({ label, value, bucket }) => {
+                                    const bucketComplete = bucket.filled >= bucket.target;
+                                    return (
+                                        <span
+                                            key={label}
+                                            className="flex items-center gap-1 text-[10px] lg:text-[11px] font-bold rounded-xl px-1.5"
+                                            style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}
+                                            title={teamMode !== 'complete' ? `${label}: ${bucket.filled}/${bucket.target} slots filled` : undefined}
+                                        >
+                                            {teamMode !== 'complete' && (
+                                                bucketComplete
+                                                    ? <FaCircleCheck className="shrink-0 text-[11px] text-green-400" />
+                                                    : <ProgressRing filled={bucket.filled} target={bucket.target} />
+                                            )}
+                                            {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
+                                        </span>
+                                    );
+                                })}
                             </div>
 
                         </div>
                     </div>
 
-                    {/* {!readOnly && ( */}
-                        <div className="flex items-center justify-center @lg:h-full gap-2 text-sm font-semibold">
+                    {!readOnly && (
+                        <div className="absolute top-1 right-1 items-center justify-center @lg:h-full gap-2 text-sm font-semibold">
                             {saveStatus === 'saving' && (
                                 <span className="flex items-center gap-1 text-(--text-tertiary)">
                                     <FaSpinner className="animate-spin text-[10px]" /> Saving
@@ -935,22 +957,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
                             {saveStatus === 'error' && <span className="text-red-500">Error</span>}
                             {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
-                            {teamMode === 'complete' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setEditMode(true)}
-                                    className="
-                                        flex items-center justify-center 
-                                        gap-1 px-2 py-1 h-8 w-full rounded-lg bg-quaternary
-                                        text-md text-(--text-secondary) font-bold hover:text-(--text-primary) 
-                                        cursor-pointer transition-colors
-                                    "
-                                >
-                                    <FaPenToSquare /> Edit
-                                </button>
-                            )}
                         </div>
-                    {/* )} */}
+                    )}
                 </div>
 
                 {/* Action buttons: wrap into a grid below the team info on narrow views, sit inline to the right once there's room */}
@@ -989,6 +997,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             >
                                 {forking ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaCodeFork className="h-3 w-3" />}
                                 Make a copy
+                            </button>
+                        )}
+                        {!readOnly && teamMode === 'complete' && (
+                            <button
+                                type="button"
+                                onClick={() => setEditMode(true)}
+                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--text-secondary) bg-(--background-tertiary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                                aria-label={`Edit ${draft.name}`}
+                            >
+                                <FaPenToSquare className="h-3 w-3" /> Edit
                             </button>
                         )}
                         {canSimulate && teamMode === 'complete' && (
@@ -1668,6 +1686,30 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
         </Tabs.Root>
     );
 });
+
+/** Tiny donut showing how full a roster bucket is. Inherits the chip's text color via
+ *  `currentColor`, and shows a full ring once the bucket meets (or exceeds) its target. */
+function ProgressRing({ filled, target, size = 12, stroke = 2 }: {
+    filled: number;
+    target: number;
+    size?: number;
+    stroke?: number;
+}) {
+    const pct = target > 0 ? Math.min(1, filled / target) : (filled > 0 ? 1 : 0);
+    const r = (size - stroke) / 2;
+    const circumference = 2 * Math.PI * r;
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 -rotate-90" aria-hidden>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity={0.3} strokeWidth={stroke} />
+            <circle
+                cx={size / 2} cy={size / 2} r={r}
+                fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference * (1 - pct)}
+            />
+        </svg>
+    );
+}
 
 /** The two-step "Team Settings → Drafting" indicator shown in the drafting banner. Both steps
  *  are always clickable — the marks (check / number) are just progress hints. */

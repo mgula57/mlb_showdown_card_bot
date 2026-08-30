@@ -1168,11 +1168,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
             {/* Search Bar and Filters */}
             <div
-                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur p-3 transition-[width] duration-300 ease-in-out"
+                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur py-3 transition-[width] duration-300 ease-in-out"
                 style={{ width: `calc(100% - ${showPlayerDetailSidebar ? sidebarWidth : 0}px)` }}
             >
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 px-3">
 
                     <div className="flex flex-1 items-center gap-2">
                         {/* Search Input */}
@@ -1231,7 +1231,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 {/* Show selected filters with X to remove */}
                 <div className="relative flex flex-row gap-2">
 
-                    <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
+                    <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide px-3">
                         {/* Sorting Summary */}
                         <SortButton
                             selectedOption={selectedSortOption}

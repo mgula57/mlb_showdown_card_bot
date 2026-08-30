@@ -132,12 +132,18 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
         { label: 'Bench Pts', value: `${team.bench_pts_multiplier ?? 0.2}x` },
     ];
 
-    const playerFiltersSummary: SummaryItem[] = (() => {
+    const playerRestrictionsSummary: SummaryItem[] = (() => {
         if (Object.keys(pf).length === 0) return [];
         const items: SummaryItem[] = [];
         if (pf.min_year !== undefined || pf.max_year !== undefined) {
-            items.push({ label: 'Year', value: `${pf.min_year ?? 'Any'}–${pf.max_year ?? 'Any'}` });
+            if (pf.min_year === pf.max_year) {
+                // Single year restriction
+                items.push({ label: 'Year', value: `${pf.min_year}` });
+            } else {
+                items.push({ label: 'Year', value: `${pf.min_year ?? 'Any'}–${pf.max_year ?? 'Any'}` });
+            }
         }
+        
         (pf.organization ?? []).forEach(o => items.push({ label: 'Org', value: o }));
         (pf.league ?? []).forEach(l => items.push({ label: 'League', value: l }));
         (pf.team ?? []).forEach(t => items.push({ label: 'Team', value: t }));
@@ -295,10 +301,10 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
             </FormSection>
 
             <FormSection
-                title="Player Filters"
+                title="Player Restrictions"
                 icon={<FaFilter />}
                 isOpenByDefault={false}
-                childrenWhenClosed={playerFiltersSummary.length > 0 ? <SectionSummary items={playerFiltersSummary} /> : undefined}
+                childrenWhenClosed={playerRestrictionsSummary.length > 0 ? <SectionSummary items={playerRestrictionsSummary} /> : undefined}
             >
                 <RangeFilter
                     label="Year"
