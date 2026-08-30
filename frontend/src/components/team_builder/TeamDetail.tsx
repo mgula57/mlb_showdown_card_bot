@@ -22,7 +22,7 @@ import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
-    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight
+    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash
 } from 'react-icons/fa6';
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
@@ -146,6 +146,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
+    // Roster slot the user is about to drop from the draft history — drives the confirm modal.
+    const [dropCandidate, setDropCandidate] = useState<TeamRosterSlot | null>(null);
     // Bumped after each successful draft pick to clear the mobile search's leftover text/filters.
     const [draftSearchResetKey, setDraftSearchResetKey] = useState(0);
     const [dirty, setDirty] = useState(false);
@@ -424,6 +426,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         setDraftSearchResetKey(k => k + 1);
     }
 
+    /** Remove a drafted player entirely — off the roster and out of any lineup/rotation slot
+     *  that references it. Lineups/rotation are re-derived from the roster on save, but we prune
+     *  them here too so the UI updates immediately. */
+    function handleDropCard(slot: TeamRosterSlot) {
+        const roster = draft.roster.filter(s => s.card_id !== slot.card_id);
+        const lineups = draft.lineups.map(ln => ({ ...ln, slots: ln.slots.filter(s => s.card_id !== slot.card_id) }));
+        const rotation = draft.rotation.filter(r => r.card_id !== slot.card_id);
+        update({ roster, lineups, rotation });
+        setDraftToast({ name: cardMap[slot.card_id]?.name ?? 'Player', position: 'Dropped' });
+        setDropCandidate(null);
+    }
+
     const isDrafting = isTeamDrafting(draft);
     // The Lineup tab is only meaningful once every roster spot is filled — hide it while the
     // roster is still being built out.
@@ -485,6 +499,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             .reduce((sum, r) => sum + pts(r.card_id), 0);
         return { lineup, bench, rotation, bullpen, total: lineup + bench + rotation + bullpen };
     }, [draft, cardMap, defaultLineup]);
+
+    // Points effect of dropping `dropCandidate` — bench slots count at the bench multiplier,
+    // everything else at face value, mirroring `pointsBreakdown`.
+    const dropPointsEffect = useMemo(() => {
+        if (!dropCandidate) return null;
+        const cardPts = cardMap[dropCandidate.card_id]?.points ?? 0;
+        const removed = dropCandidate.roster_position === 'BE'
+            ? Math.round(cardPts * draft.bench_pts_multiplier)
+            : cardPts;
+        return { current: pointsBreakdown.total, projected: pointsBreakdown.total - removed, removed };
+    }, [dropCandidate, cardMap, draft.bench_pts_multiplier, pointsBreakdown.total]);
 
     const draftHistory = useMemo(() =>
         [...draft.roster]
@@ -669,6 +694,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 : <span className="text-[11px] text-(--text-tertiary)">{slot.card_id}</span>
                             }
                         </div>
+                        {showEditControls && (
+                            <button
+                                type="button"
+                                onClick={() => setDropCandidate(slot)}
+                                className="shrink-0 p-1.5 rounded-lg text-(--text-tertiary) hover:text-red-500 hover:bg-red-500/10 cursor-pointer transition-colors"
+                                aria-label={`Drop ${card?.name ?? 'player'}`}
+                                title="Drop from roster"
+                            >
+                                <FaTrash className="text-[11px]" />
+                            </button>
+                        )}
                     </div>
                 );
             })}
@@ -1499,6 +1535,52 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         isLoadingCards={isLoadingCards}
                         showTotalPoints={true}
                     />
+                </Modal>
+            )}
+
+            {/* Drop confirmation: remove a drafted player, with the PTS effect spelled out. */}
+            {dropCandidate && dropPointsEffect && (
+                <Modal
+                    title="Drop player"
+                    subtitle="This removes the player from your roster and any lineup or rotation slot."
+                    onClose={() => setDropCandidate(null)}
+                    size="sm"
+                    footer={
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setDropCandidate(null)}
+                                className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDropCard(dropCandidate)}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-red-500 hover:opacity-90 transition-opacity cursor-pointer"
+                            >
+                                <FaTrash className="text-[11px]" /> Drop
+                            </button>
+                        </div>
+                    }
+                >
+                    <div className="flex flex-col gap-3 p-3">
+                        <CardItemCompactFromCardDatabaseRecord
+                            card={cardMap[dropCandidate.card_id] ?? undefined}
+                            isLoading={!(dropCandidate.card_id in cardMap)}
+                            fieldPosition={dropCandidate.roster_position}
+                            ptsMultiplier={dropCandidate.roster_position === 'BE' ? draft.bench_pts_multiplier : undefined}
+                        />
+                        <div className="flex items-center justify-between text-[12px] px-3 py-2 ">
+                            <span className="font-semibold text-(--text-secondary)">Team PTS</span>
+                            <span className="tabular-nums font-bold text-(--text-primary)">
+                                {dropPointsEffect.current}
+                                <span className="mx-1.5 text-(--text-tertiary)">→</span>
+                                {dropPointsEffect.projected}
+                                <span className="ml-2 text-red-500">−{dropPointsEffect.removed}</span>
+                            </span>
+                        </div>
+                    </div>
                 </Modal>
             )}
         </div>
