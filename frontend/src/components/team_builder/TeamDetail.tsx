@@ -699,7 +699,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </span>
                         <div className="flex-1 min-w-0">
                             {card
-                                ? <CardItemCompactFromCardDatabaseRecord card={card} />
+                                ? <div className="relative">
+                                    <CardItemCompactFromCardDatabaseRecord card={card} />
+                                    <div className="absolute right-3 top-3 text-[11px] text-(--text-tertiary)">
+                                        {slot.roster_position ?? 'N/A'}
+                                    </div>
+                                </div>
                                 : <span className="text-[11px] text-(--text-tertiary)">{slot.card_id}</span>
                             }
                         </div>
