@@ -1031,7 +1031,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 step={setupStep}
                                 onStep={setSetupStep}
                                 settingsDone={draft.roster.length > 0}
-                                draftProgress={`${rosterProgress.filled}/${rosterProgress.total}`}
                                 color={bannerLeft.fill}
                               />
                             : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
@@ -1110,7 +1109,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <div className="flex-1">
                             <TeamSettingsForm team={draft} onChange={updates => update(updates)} />
                         </div>
-                        <div className="sticky bottom-0 flex items-center justify-end gap-3 px-4 py-3 border-t border-(--divider) bg-(--background-primary)">
+                        {/* Spacer so the last form fields clear the fixed action bar on mobile,
+                            where the page (not this panel) is the scroll container. */}
+                        <div className="h-20 shrink-0 lg:hidden" />
+                        <div className="fixed inset-x-0 bottom-0 z-40 lg:sticky lg:inset-x-auto lg:z-auto flex items-center justify-end gap-3 px-4 py-3 border-t border-(--divider) bg-(--background-primary)">
                             {!isTeamSetupValid(draft) && (
                                 <span className="text-[11px] text-(--text-tertiary) mr-auto">Resolve the highlighted settings to continue.</span>
                             )}
@@ -1669,11 +1671,10 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
 
 /** The two-step "Team Settings → Drafting" indicator shown in the drafting banner. Both steps
  *  are always clickable — the marks (check / number) are just progress hints. */
-function SetupStepChips({ step, onStep, settingsDone, draftProgress, color }: {
+function SetupStepChips({ step, onStep, settingsDone, color }: {
     step: 'settings' | 'draft';
     onStep: (s: 'settings' | 'draft') => void;
     settingsDone: boolean;
-    draftProgress: string;
     color: string;
 }) {
     const chip = (id: 'settings' | 'draft', label: string, trailing: string | null, done: boolean) => (
@@ -1692,9 +1693,9 @@ function SetupStepChips({ step, onStep, settingsDone, draftProgress, color }: {
     );
     return (
         <span className="flex items-center gap-0.5">
-            {chip('settings', 'Team Settings', null, settingsDone)}
+            {chip('settings', 'Settings', null, settingsDone)}
             <FaArrowRight className="text-[8px] opacity-40 shrink-0" style={{ color }} />
-            {chip('draft', 'Drafting', step === 'draft' ? draftProgress : null, false)}
+            {chip('draft', 'Drafting', null, false)}
         </span>
     );
 }
