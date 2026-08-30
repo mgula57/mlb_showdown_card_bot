@@ -29,7 +29,6 @@ import PitchingTable from "./detail/PitchingTable";
 import GameInfo from "./detail/GameInfo";
 import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
 import { FaClockRotateLeft } from "react-icons/fa6";
-import IconButton from "../shared/IconButton";
 
 type MobileTab = 'field' | 'playbyplay' | 'boxscore';
 
@@ -70,7 +69,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     const {
         boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
-        isLivePaused, setLivePaused, applyBuffer,
+        setLivePaused, applyBuffer,
     } = useGameDetailData({ gamePk, sportId, season, showdownSet, isActive, simResult });
 
     // The new panels all render from the canonical GameView; the raw boxscore stays the source
@@ -121,6 +120,24 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const realState = realView?.state;
     const canSimulate = realState === "PREVIEW" || realState === "LIVE";
     // const canSimulate = false; // TODO: Enable simulation when appropriate
+
+    // "Replay mode" = the transport bar is open. Entering it freezes a live game's
+    // cursor so you can scrub back; the colored REPLAY banner then shows and its
+    // "Exit Replay" is the only way out (the toolbar button hides while it's on),
+    // so users always know where they are. Exiting resumes live and flushes the
+    // plays that buffered while paused.
+    const isLiveReal = !simResult && realView?.state === "LIVE";
+    const enterReplay = () => {
+        setShowPlaybackControls(true);
+        if (isLiveReal) setLivePaused(true);
+    };
+    const exitReplay = () => {
+        setShowPlaybackControls(false);
+        if (isLiveReal) {
+            if (bufferedBoxscore) applyBuffer();
+            setLivePaused(false);
+        }
+    };
 
     async function handleStartSim(payload: StartGameSimPayload) {
         const token = session?.access_token;
@@ -273,16 +290,22 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                             </button>
                         </div>
                     </ModeBanner>
-                ) : isReplaying ? (
+                ) : (isReplaying || showPlaybackControls) ? (
                     <ModeBanner
                         primaryColor={away.team.primary_color ?? '#374151'}
                         secondaryColor={home.team.secondary_color ?? '#374151'}
                         label="REPLAY"
-                        detail="— reviewing an earlier point in the game"
+                        detail={
+                            isReplaying
+                                ? "— reviewing an earlier point in the game"
+                                : isLiveReal
+                                    ? "— live updates paused while you scrub"
+                                    : "— playback controls open"
+                        }
                     >
                         <button
                             type="button"
-                            onClick={playbackControls.seekToLive}
+                            onClick={() => { playbackControls.seekToLive(); exitReplay(); }}
                             className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
                         >
                             Exit Replay
@@ -312,26 +335,18 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 </svg>
                             )}
                             <div className="ml-auto flex items-center gap-2">
-                                <IconButton
-                                    icon={<FaClockRotateLeft size={12} />}
-                                    onClick={() => setShowPlaybackControls((shown) => !shown)}
-                                    label={showPlaybackControls ? "Hide playback controls" : "Show playback controls"}
-                                    className={showPlaybackControls ? "text-(--primary) border-(--showdown-blue)" : ""}
-                                />
-                                {!simResult && realView?.state === "LIVE" && (
+                                {/* Enters replay: reveals the transport bar and, on a live game,
+                                    freezes the live cursor so you can scrub back. Once active the
+                                    colored REPLAY banner takes over — its "Exit Replay" is the way
+                                    out — so this button hides to keep a single, obvious control. */}
+                                {!isReplaying && !showPlaybackControls && (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            // Resuming applies whatever built up in the buffer immediately —
-                                            // the timeline growing is what makes `useGamePlayback`'s already-
-                                            // playing live cursor walk forward through the new plays on its
-                                            // own; without this it would just sit stale until the next poll.
-                                            if (isLivePaused && bufferedBoxscore) applyBuffer();
-                                            setLivePaused(!isLivePaused);
-                                        }}
+                                        onClick={enterReplay}
                                         className="flex items-center gap-x-1 cursor-pointer rounded-lg border border-(--divider) px-2.5 py-1.5 text-[11px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
                                     >
-                                        {isLivePaused ? "Resume Live" : "Pause Live"}
+                                        <FaClockRotateLeft size={12} />
+                                        Replay
                                     </button>
                                 )}
                             </div>

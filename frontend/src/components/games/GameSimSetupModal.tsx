@@ -216,7 +216,39 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
     const title = setup?.is_takeover ? 'Take Over This Game' : 'Simulate This Game';
 
     return (
-        <Modal title={title} size="xl" onClose={onCancel}>
+        <Modal 
+            title={title} 
+            size="xl" 
+            onClose={onCancel}
+            footer={(
+                <div className="space-y-1">
+                    {error && (
+                        <div className="rounded-lg border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="cursor-pointer rounded-lg bg-tertiary px-3 py-2 text-[12px] font-semibold text-(--secondary) transition-colors hover:text-(--primary)"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleStart}
+                            disabled={!setup || starting || setup.is_final}
+                            className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-(--secondary) px-3 py-2 text-[12px] font-bold text-(--background-primary) transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
+                            {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}
+                        </button>
+                    </div>
+                </div>
+            )}
+        >
             <div className="p-4 space-y-4">
                 {loading && (
                     <div className="flex items-center justify-center gap-2 py-10 text-(--secondary)">
@@ -276,30 +308,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                     </>
                 )}
 
-                {error && (
-                    <div className="rounded-lg border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
-                        {error}
-                    </div>
-                )}
-
-                <div className="flex justify-end gap-2 border-t border-(--divider) pt-3">
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        className="cursor-pointer rounded-lg px-3 py-2 text-[12px] font-semibold text-(--secondary) transition-colors hover:text-(--primary)"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleStart}
-                        disabled={!setup || starting || setup.is_final}
-                        className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-(--secondary) px-3 py-2 text-[12px] font-bold text-(--background-primary) transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                        {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
-                        {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}
-                    </button>
-                </div>
+                
             </div>
         </Modal>
     );
