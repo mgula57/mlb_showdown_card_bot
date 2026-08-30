@@ -151,14 +151,18 @@ class SimPitcher(SimPlayer):
     def innings_pitched(self, inning) -> float:
         return (self.end_inning or inning.inning_num_full) - (self.start_inning or 0)
 
-    def is_tired(self, inning) -> bool:
+    def is_tired(self, inning, ip_adjustment: float = 0.0) -> bool:
+        """Args:
+          ip_adjustment: Innings added to the fatigue threshold by the manager's bullpen hook.
+            Negative pulls a starter sooner; 0.0 (a neutral manager) is the original behavior.
+        """
 
         if self.start_inning == 0 and self.runs_allowed == 0 and self.ip == self.innings_pitched(inning):
             return False
 
-        return (self.innings_pitched(inning) + int(self.runs_allowed / 3.0)) >= self.ip
+        return (self.innings_pitched(inning) + int(self.runs_allowed / 3.0)) >= (self.ip + ip_adjustment)
 
-    def situational_fit(self, ops_index: int, total_pitchers: int, run_diff: int, inning: int, recent_ip: float, is_save_situation: bool = False, is_closer: bool = False) -> float:
+    def situational_fit(self, ops_index: int, total_pitchers: int, run_diff: int, inning: int, recent_ip: float, is_save_situation: bool = False, is_closer: bool = False, closer_nonsave_fit_multiplier: float = 0.5) -> float:
         """ Creates a situational fit rating, 1.0 being the best and 0.0 the worst fit
 
         Factors:
@@ -181,8 +185,9 @@ class SimPitcher(SimPlayer):
 
         rest_multiplier = 1 - min(recent_ip / 3.1, 0.9)
 
-        # REDUCE LIKELIHOOD OF PITCHING THE CLOSER IN A NON-SAVE SITUATION
-        closer_fit_multiplier = 0.5 if is_closer and not is_save_situation else 1.0
+        # REDUCE LIKELIHOOD OF PITCHING THE CLOSER IN A NON-SAVE SITUATION. THE MANAGER'S CLOSER
+        # USAGE SETS HOW MUCH (`closer_nonsave_fit_multiplier` DEFAULTS TO 0.5, THE OLD CONSTANT).
+        closer_fit_multiplier = closer_nonsave_fit_multiplier if is_closer and not is_save_situation else 1.0
 
         final_score = (score_tightness_score + game_completion_score) / 2.0 * rest_multiplier * closer_fit_multiplier
 

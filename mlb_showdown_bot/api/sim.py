@@ -6,13 +6,14 @@ import traceback
 from datetime import date, datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
+from pydantic import ValidationError as PydanticValidationError
 
 from ..core.card.sets import Set
 from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
-from ..core.simulation.models import GameStuckError, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
+from ..core.simulation.models import GameStuckError, ManagerPreference, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
 from ..core.simulation.season import Season
 from ..core.simulation.summary import SeasonSummaryBuilder
 from ..core.simulation.takeover import TakeoverOptions
@@ -121,6 +122,11 @@ def start_season_sim():
         except ValueError:
             return jsonify({'error': f"unknown set '{payload.get('set')}'"}), 400
 
+        try:
+            manager_preference = _parse_manager_preference(payload.get('manager'))
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
         with PostgresDB() as db:
             challenge = db.get_challenge_instance(challenge_instance_id) if challenge_instance_id else None
             if challenge_instance_id and (challenge is None or challenge['expires_at'] <= datetime.now()):
@@ -198,7 +204,9 @@ def start_season_sim():
             seed=payload.get('seed'),
             takeover_team=team,
             takeover_replaces_abbr=replaces,
+            manager_preference=manager_preference,
         )
+        manager_echo = manager_preference.model_dump() if manager_preference and not manager_preference.is_neutral else None
         with PostgresDB() as db:
             job_id = db.create_sim_job(
                 user_id=g.user_id,
@@ -206,7 +214,7 @@ def start_season_sim():
                 # THE BUILDER TEAM IS DROPPED FROM THE STORED CONFIG - IT IS A FULL ROSTER THE
                 # TEAM ITSELF ALREADY HOLDS, AND ONLY THE SETUP ECHO IS NEEDED FOR DISPLAY.
                 config={'year': year, 'set': showdown_set.value, 'replaces': replaces, 'seed': payload.get('seed'),
-                        'team_name': team.name, 'team_abbreviation': team.abbreviation,
+                        'team_name': team.name, 'team_abbreviation': team.abbreviation, 'manager': manager_echo,
                         'challenge_instance_id': challenge['instance_id'] if challenge is not None else None},
             )
 
@@ -241,6 +249,19 @@ _MAX_INJURY_SEVERITY = 3.0
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
+
+
+def _parse_manager_preference(raw) -> ManagerPreference | None:
+    """A `ManagerPreference` from a request payload, or None when absent. Raises `ValueError`
+    (callers turn this into a 400) for a level outside 1-5 or a malformed shape."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError('manager must be an object')
+    try:
+        return ManagerPreference(**raw)
+    except PydanticValidationError as exc:
+        raise ValueError(f'invalid manager preference: {exc.errors()[0]["msg"]}')
 
 
 def _parse_engine_settings(payload: dict) -> dict:
@@ -452,13 +473,19 @@ def start_open_sim():
         try:
             options = TakeoverOptions(year=year)
             takeover_teams: dict[str, BuilderTeam] = {}
-            for team, requested_replaces in takeover_rows:
+            manager_prefs: dict[str, ManagerPreference] = {}
+            # `_resolve_takeovers` KEEPS `raw_takeovers` ORDER, SO THE MANAGER ON EACH REQUEST ENTRY
+            # LINES UP WITH ITS RESOLVED TEAM.
+            for raw_entry, (team, requested_replaces) in zip(raw_takeovers, takeover_rows):
                 replaces = options.resolve(requested_replaces)
                 if replaces is None:
                     return jsonify({'error': f'No club data available for {year}.'}), 400
                 if replaces in takeover_teams:
                     return jsonify({'error': f"'{replaces}' is being taken over more than once."}), 400
                 takeover_teams[replaces] = team
+                manager_pref = _parse_manager_preference(raw_entry.get('manager') if isinstance(raw_entry, dict) else None)
+                if manager_pref is not None and not manager_pref.is_neutral:
+                    manager_prefs[replaces] = manager_pref
 
             focus_abbr = payload.get('focus_abbr')
             if focus_abbr:
@@ -470,6 +497,7 @@ def start_open_sim():
             year=year,
             set=showdown_set,
             takeovers=takeover_teams,
+            manager_preferences=manager_prefs,
             **_config_kwargs_from_stored(_settings_to_stored_config(settings)),
             # NEVER ACCEPTED FROM THE CLIENT - 3.2 MB OF THE 6.1 MB RESULT, AND NOTHING ON THE
             # OPEN-SIM RESULT SCREEN READS THEM. SEE `start_season_sim`'s SAME OMISSION.
@@ -483,7 +511,11 @@ def start_open_sim():
             # ITSELF ALREADY HOLDS, AND ONLY THE SETUP ECHO IS NEEDED FOR DISPLAY.
             job_config_echo={
                 'year': year, 'set': showdown_set.value, 'focus_abbr': focus_abbr,
-                'takeovers': [{'replaces': abbr, 'team_name': team.name} for abbr, team in takeover_teams.items()],
+                'takeovers': [
+                    {'replaces': abbr, 'team_name': team.name,
+                     'manager': manager_prefs[abbr].model_dump() if abbr in manager_prefs else None}
+                    for abbr, team in takeover_teams.items()
+                ],
                 **_settings_to_stored_config(settings),
             },
         )
@@ -1143,6 +1175,10 @@ def _apply_lineup_overrides(setup: MLBGameSetup, payload: dict) -> None:
             if starter_id not in {option.player_id for option in team.bullpen}:
                 raise ValueError(f"'{starter_id}' is not a pitcher available to {team.identity.abbreviation}.")
             team.starting_pitcher_id = starter_id
+
+        manager = _parse_manager_preference(override.get('manager'))
+        if manager is not None:
+            team.manager = manager
 
 
 @sim_bp.route('/sim/game/<int:game_pk>', methods=['POST'])

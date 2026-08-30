@@ -27,6 +27,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
 import { SimSetupModal } from './sim/SimSetupModal';
+import type { ManagerPreference } from '../../api/manager';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -735,7 +736,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     /** Queue a season and hand off to the job's own URL, which owns polling and the result. */
-    async function handleStartSim(options: { year: number; set: string; replaces: string }) {
+    async function handleStartSim(options: { year: number; set: string; replaces: string; manager?: ManagerPreference }) {
         if (!token) return;
         const { job_id } = await startSeasonSim({ team_id: team.team_id, ...options }, token);
         setShowSimModal(false);
@@ -884,6 +885,33 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                         </div>
                     </div>
+
+                    {/* {!readOnly && ( */}
+                        <div className="flex items-center justify-center @lg:h-full gap-2 text-sm font-semibold">
+                            {saveStatus === 'saving' && (
+                                <span className="flex items-center gap-1 text-(--text-tertiary)">
+                                    <FaSpinner className="animate-spin text-[10px]" /> Saving
+                                </span>
+                            )}
+                            {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
+                            {saveStatus === 'error' && <span className="text-red-500">Error</span>}
+                            {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
+                            {teamMode === 'complete' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setEditMode(true)}
+                                    className="
+                                        flex items-center justify-center 
+                                        gap-1 px-2 py-1 h-8 w-full rounded-lg bg-quaternary
+                                        text-md text-(--text-secondary) font-bold hover:text-(--text-primary) 
+                                        cursor-pointer transition-colors
+                                    "
+                                >
+                                    <FaPenToSquare /> Edit
+                                </button>
+                            )}
+                        </div>
+                    {/* )} */}
                 </div>
 
                 {/* Action buttons: wrap into a grid below the team info on narrow views, sit inline to the right once there's room */}
@@ -923,32 +951,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {forking ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaCodeFork className="h-3 w-3" />}
                                 Make a copy
                             </button>
-                        )}
-                        {!readOnly && (
-                            <div className="flex items-center justify-center @lg:h-full gap-2 text-sm font-semibold">
-                                {saveStatus === 'saving' && (
-                                    <span className="flex items-center gap-1 text-(--text-tertiary)">
-                                        <FaSpinner className="animate-spin text-[10px]" /> Saving
-                                    </span>
-                                )}
-                                {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
-                                {saveStatus === 'error' && <span className="text-red-500">Error</span>}
-                                {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
-                                {teamMode === 'complete' && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditMode(true)}
-                                        className="
-                                            flex items-center justify-center 
-                                            gap-1 px-2 py-1 h-8 w-full rounded-lg bg-quaternary
-                                            text-md text-(--text-secondary) font-bold hover:text-(--text-primary) 
-                                            cursor-pointer transition-colors
-                                        "
-                                    >
-                                        <FaPenToSquare /> Edit
-                                    </button>
-                                )}
-                            </div>
                         )}
                         {canSimulate && teamMode === 'complete' && (
                             <button
@@ -1451,7 +1453,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     title="Autofill Preview"
                     subtitle="Reshuffle for a different result, or use this roster as-is."
                     onClose={() => setAutofillPreview(null)}
-                    size="lg"
+                    size="md"
                     footer={
                         <div className="flex gap-2">
                             <button
@@ -1480,6 +1482,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                     }
                 >
+                    {/* Field Value */}
                     <FieldView
                         lineup={previewLineup}
                         cardMap={cardMap}
@@ -1487,6 +1490,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         readOnly
                         rosterData={previewRosterData}
                         isLoadingCards={isLoadingCards}
+                        showTotalPoints={true}
                     />
                 </Modal>
             )}
@@ -1593,7 +1597,7 @@ function SetupStepChips({ step, onStep, settingsDone, draftProgress, color }: {
             <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[8px] shrink-0" style={{ borderColor: color }}>
                 {done ? <FaCircleCheck /> : id === 'settings' ? '1' : '2'}
             </span>
-            <span className="hidden sm:inline">{label}</span>
+            <span className="inline">{label}</span>
             {trailing && <span className="font-black tabular-nums">{trailing}</span>}
         </button>
     );

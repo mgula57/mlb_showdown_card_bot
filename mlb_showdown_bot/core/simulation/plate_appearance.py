@@ -4,6 +4,7 @@ from typing import Optional
 
 from ..shared.player_position import PlayerType, PositionSlot
 from .inning import Inning
+from .models import NEUTRAL_MANAGER, ManagerPreference
 from .narration import PlateAppearanceNarrator
 from .player import SimPitcher, SimPlayer
 from .result import Result
@@ -64,11 +65,14 @@ class Roll:
 
 class PlateAppearance:
 
-    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False) -> None:
+    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None) -> None:
         self.state = PlateAppearanceState.PITCH
         self.hitter = hitter
         self.pitcher = pitcher
         self.rng = rng
+        # THE HITTING TEAM'S MANAGER - GOVERNS THE DECISION TO ATTEMPT A STEAL OR SEND A RUNNER,
+        # NEVER THE FAIRNESS ROLL. A NEUTRAL MANAGER IS AN EXACT NO-OP.
+        self.manager = manager or NEUTRAL_MANAGER
         self.pitch = Roll()
         self.swing = Roll()
         self.double_play_roll = None
@@ -166,10 +170,11 @@ class PlateAppearance:
                     # START AT 1% CHANCE
                     probability_of_steal_attempt = 1
 
-                    # ADD RUNNER'S PROBABILITY OF SUCCESS
+                    # ADD RUNNER'S PROBABILITY OF SUCCESS, SCALED BY THE MANAGER'S STEAL AGGRESSION
+                    # (`steal_attempt_factor` IS EXACTLY 1.0 FOR A NEUTRAL MANAGER).
                     runner_bonus = -5 if runner.base == 2 else 0
                     probability_of_safe = self.probability_of_advance(defense=catcher_arm, speed=runner.speed, runner_bonus=runner_bonus)
-                    probability_of_steal_attempt += (probability_of_safe * 85)
+                    probability_of_steal_attempt += (probability_of_safe * 85) * self.manager.steal_attempt_factor
 
                     # REMOVE IF 2 OUTS AND RUNNER IS ON SECOND
                     if self.outs_start == 2 and runner.base == 2:
@@ -187,7 +192,11 @@ class PlateAppearance:
                         else:
                             self.runners.remove_runner(runner.base)
 
-    def check_and_execute_advance(self, outfield_defense:int, probability_threshold:float = 0.5) -> None:
+    def check_and_execute_advance(self, outfield_defense:int, probability_threshold: Optional[float] = None) -> None:
+
+        # THE MANAGER'S BASERUNNING AGGRESSION SETS THE SEND THRESHOLD; `advance_probability_threshold`
+        # IS EXACTLY 0.5 (THE OLD DEFAULT) FOR A NEUTRAL MANAGER. AN EXPLICIT ARG STILL WINS.
+        threshold = self.manager.advance_probability_threshold if probability_threshold is None else probability_threshold
 
         result_is_advancable = self.total_outs < 3 if self.swing.result == Result.FB else self.swing.result.is_advanceable
         if self.runners.count() < 1 or not result_is_advancable or self.runners.bases_occupied == [1]:
@@ -206,7 +215,7 @@ class PlateAppearance:
                         case _: runner_bonus = 0
 
                     probability_of_safe = self.probability_of_advance(defense=outfield_defense, speed=runner.speed, runner_bonus=runner_bonus)
-                    if probability_of_safe >= probability_threshold:
+                    if probability_of_safe >= threshold:
                         dice_roll = self.__random_dice_roll()
                         advance_result = Result.OUT if ( (outfield_defense + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
                         advance_roll = Roll(roll=dice_roll, result=advance_result, runner=runner, base=runner.base)

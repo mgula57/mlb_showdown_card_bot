@@ -56,6 +56,8 @@ type FieldViewProps = {
     headerLabel?: string;
     /** Hides the OF/IF/CA defense badges and points totals — off by default for read-only showcases where they don't apply */
     showDefenseSummary?: boolean;
+    /** Shows the total points banner above the field — off by default for read-only showcases where it doesn't apply */
+    showTotalPoints?: boolean;
     /** Which detail stat to show on the cards (defaults to 'defense') */
     detailStat1Category?: 'defense' | 'hr' | 'outs';
     /** card_id -> a simulated season's statline (`SimStatLine.stats`) - when a slot's card_id has
@@ -82,7 +84,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 export function FieldView({
     lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition,
     rosterData, hoveredCardId, onCardHover, isLoadingCards,
-    positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, detailStat1Category = 'defense',
+    positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
     simStatsMap, simStatsTooltip,
 }: FieldViewProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
@@ -126,6 +128,7 @@ export function FieldView({
     const benchPts    = benchRoles.reduce((sum, role) => { const s = benchByRole[role]; return s ? sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)) : sum; }, 0);
     const rotationPts = (ROTATION_ROLES as readonly string[]).reduce((sum, role) => { const r = rotByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
     const bullpenPts  = bullpenRoles.reduce((sum, role) => { const r = bullByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
+    const totalPts    = lineupPts + benchPts + rotationPts + bullpenPts;
 
     // ---- KPI computations ----
 
@@ -187,6 +190,12 @@ export function FieldView({
 
     return (
         <div className="flex flex-col @container">
+            {showTotalPoints && (
+                <div className="flex items-center justify-center gap-2 p-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-(--text-tertiary)">Total Points</span>
+                    <span className="text-sm font-black tabular-nums text-(--text-primary)">{totalPts}</span>
+                </div>
+            )}
             <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
                 <img
                     src="/images/teams/Field.png"

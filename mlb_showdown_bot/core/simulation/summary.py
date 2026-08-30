@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
-from .models import SeasonSimulationResult, SimTeamIdentity, StandingsResult, TeamRecord
+from .models import ManagerPreference, SeasonSimulationResult, SimTeamIdentity, StandingsResult, TeamRecord
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
 from .stats import SimStatLine, StatCategory, Stats
 
@@ -138,6 +138,11 @@ class SeasonSimSummary(BaseModel):
     # CLUB PICKER. EMPTY FOR A PLAIN SIM.
     takeover_abbrs: list[str] = []
 
+    # SCHEDULE KEY -> THE CUSTOM MANAGER TENDENCIES THAT CLUB PLAYED WITH THIS RUN. ONLY NON-NEUTRAL
+    # PROFILES ARE RECORDED (EMPTY FOR A PLAIN SIM), SO THE RESULT/LEADERBOARD SCREENS CAN SHOW
+    # WHAT STRATEGY A RUN USED.
+    manager_preferences: dict[str, ManagerPreference] = {}
+
     standings: StandingsResult
     postseason: list[SimSeriesLine] = []
     champion: Optional[str] = None
@@ -214,6 +219,10 @@ class SeasonSummaryBuilder:
             real_league_averages=self._league_lines(result.real_league_averages),
             awards=AwardsBuilder(result=result).build(),
             takeover_abbrs=list(self.roster_player_ids.keys()),
+            manager_preferences={
+                abbr: pref for abbr, pref in result.config.all_manager_preferences.items()
+                if not pref.is_neutral
+            },
             seeded_records=result.seeded_records,
             real_stats_as_of=result.real_stats_as_of,
         )

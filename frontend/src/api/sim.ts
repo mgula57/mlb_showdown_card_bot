@@ -1,3 +1,5 @@
+import type { ManagerPreference } from './manager';
+
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
 // =============================================================================
@@ -175,6 +177,9 @@ export type SeasonSimSummary = {
     /** Schedule keys of every club replaced by a builder team this run. Absent for summaries
      *  persisted before open sims existed. */
     takeover_abbrs?: string[];
+    /** Schedule key -> the non-neutral manager profile that club played with this run. Absent
+     *  for a plain sim and for summaries persisted before manager preference existed. */
+    manager_preferences?: Record<string, ManagerPreference>;
     /** For a rest-of-season projection with real stats merged in: the least-stale date the
      *  merged players' archive rows were last scraped. The archive holds one current snapshot
      *  per player-year, not a history, so this may lag the run's own resume date — show this
@@ -277,6 +282,8 @@ export type StartSeasonSimPayload = {
     /** Era-correct club abbreviation. Omitted means the season's worst club. */
     replaces?: string;
     seed?: number | null;
+    /** Per-run manager tendencies for the takeover club. Omitted (or neutral) plays the default. */
+    manager?: ManagerPreference;
     /** When set, the backend pulls year/replaces from the instance itself (ignoring the fields
      *  above) and enforces the instance's pts_limit against the team's actual roster cost. */
     challenge_instance_id?: string;
@@ -288,6 +295,8 @@ export type OpenSimTakeover = {
     /** Era-correct club abbreviation. Omitted means the season's worst club (mirrors `resolve()`
      *  on the backend, same as `StartSeasonSimPayload.replaces`). */
     replaces?: string;
+    /** Per-run manager tendencies for this takeover club. Omitted (or neutral) plays the default. */
+    manager?: ManagerPreference;
 };
 
 export type OpenSimPayload = {

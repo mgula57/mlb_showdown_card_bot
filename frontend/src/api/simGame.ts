@@ -8,6 +8,7 @@
  * UI reads `is_takeover` rather than branching on which call it made.
  */
 import type { SimGameResultJson } from "../domain/adapters/fromSim";
+import type { ManagerPreference } from "./manager";
 import type { MostRecentPlay } from "./mlbAPI";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
@@ -116,10 +117,12 @@ export type SimGameRecord = {
     result?: SimGameResult;
 };
 
-/** One side's overrides. Omit either field to keep what the setup proposed. */
+/** One side's overrides. Omit any field to keep what the setup proposed. */
 export type SimGameTeamOverride = {
     lineup?: { player_id: string; position?: string }[];
     starting_pitcher_id?: string;
+    /** Manager tendencies for this side. Omitted (or neutral) plays the default style. */
+    manager?: ManagerPreference;
 };
 
 export type StartGameSimPayload = {

@@ -404,6 +404,7 @@ class Season:
                 year=config.year,
                 league=self.schedule.team_leagues.get(replaced_abbr),
                 name_override=replaced_abbr,
+                manager=config.all_manager_preferences.get(replaced_abbr),
             )
             seed(teams[replaced_abbr])
 

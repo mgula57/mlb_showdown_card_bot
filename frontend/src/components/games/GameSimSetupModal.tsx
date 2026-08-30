@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { FaSpinner, FaTriangleExclamation, FaTerminal } from 'react-icons/fa6';
 import { Modal } from '../shared/Modal';
 import FormDropdown from '../customs/FormDropdown';
+import ManagerStyleFields from '../simulate/ManagerStyleFields';
+import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
 import { ordinal } from '../../functions/formatters';
 import {
     fetchGameSimSetup,
@@ -69,11 +71,13 @@ function LineupRow({
 }
 
 function TeamPanel({
-    team, onLineupChange, onStarterChange,
+    team, manager, onLineupChange, onStarterChange, onManagerChange,
 }: {
     team: SimGameTeamSetup;
+    manager: ManagerPreference;
     onLineupChange: (battingOrder: number, playerId: string) => void;
     onStarterChange: (playerId: string) => void;
+    onManagerChange: (next: ManagerPreference) => void;
 }) {
     // A player already in the order can't also fill another spot, so each dropdown offers the
     // unused pool plus whoever currently holds that spot.
@@ -119,6 +123,8 @@ function TeamPanel({
                     No lineup has been posted yet. The simulation will pick one from the active roster.
                 </div>
             )}
+
+            <ManagerStyleFields title="Manager style" value={manager} onChange={onManagerChange} />
         </div>
     );
 }
@@ -145,6 +151,9 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
     const [loading, setLoading] = useState(true);
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [managers, setManagers] = useState<{ away: ManagerPreference; home: ManagerPreference }>({
+        away: NEUTRAL_MANAGER, home: NEUTRAL_MANAGER,
+    });
 
     useEffect(() => {
         const controller = new AbortController();
@@ -189,10 +198,12 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                 away: {
                     lineup: setup.away.lineup.map((slot) => ({ player_id: slot.player_id, position: slot.position })),
                     starting_pitcher_id: setup.away.starting_pitcher_id,
+                    manager: managerPayload(managers.away),
                 },
                 home: {
                     lineup: setup.home.lineup.map((slot) => ({ player_id: slot.player_id, position: slot.position })),
                     starting_pitcher_id: setup.home.starting_pitcher_id,
+                    manager: managerPayload(managers.home),
                 },
             });
         } catch (err: unknown) {
@@ -238,13 +249,17 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                         <div className="flex flex-col gap-6 md:flex-row">
                             <TeamPanel
                                 team={setup.away}
+                                manager={managers.away}
                                 onLineupChange={(order, id) => changeLineup('away', order, id)}
                                 onStarterChange={(id) => changeStarter('away', id)}
+                                onManagerChange={(next) => setManagers((m) => ({ ...m, away: next }))}
                             />
                             <TeamPanel
                                 team={setup.home}
+                                manager={managers.home}
                                 onLineupChange={(order, id) => changeLineup('home', order, id)}
                                 onStarterChange={(id) => changeStarter('home', id)}
+                                onManagerChange={(next) => setManagers((m) => ({ ...m, home: next }))}
                             />
                         </div>
 

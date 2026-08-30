@@ -18,7 +18,7 @@ from enum import Enum
 from random import Random
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..card.sets import Set
 from ..card.showdown_player_card import ShowdownPlayerCard
@@ -35,6 +35,7 @@ from .models import (
     CompletedHalfInning,
     GameResult,
     GameStartState,
+    ManagerPreference,
     PitcherAppearance,
     SimTeamIdentity,
     TeamStartState,
@@ -293,6 +294,9 @@ class MLBGameTeamSetup(BaseModel):
     starting_pitcher_id: str = ""
     position_players: list[MLBGamePlayerOption] = []
     bullpen: list[MLBGamePlayerOption] = []
+    # PER-SIDE MANAGER TENDENCIES. NEUTRAL BY DEFAULT; THE CLIENT SUPPLIES A CUSTOM ONE THROUGH
+    # THE SAME OVERRIDE PATH AS A LINEUP EDIT (SEE `_apply_lineup_overrides`).
+    manager: ManagerPreference = Field(default_factory=ManagerPreference)
 
 
 class LineupSource(str, Enum):
@@ -895,4 +899,5 @@ class MLBGameSimulator:
                 option.player_id for option in setup.position_players if not option.is_unavailable
             ],
             bullpen_ids=[option.player_id for option in setup.bullpen],
+            manager=setup.manager,
         )

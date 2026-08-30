@@ -121,6 +121,65 @@ class PostseasonFormat(Enum):
             case _: return []
 
 
+class ManagerPreference(BaseModel):
+    """Per-run, team-wide manager tendencies for ONE club.
+
+    Every field is a 1-5 level with 3 = neutral. A neutral instance is a mathematical no-op at
+    every decision point it touches (each derived scalar below returns the exact constant the
+    engine hardcodes today), so a sim where every club is neutral is byte-identical to one with
+    no manager preferences at all. Deliberately NOT persisted to a `BuilderTeam` or a DB team
+    row - it is chosen per simulation, in the setup form.
+    """
+
+    steal_aggression: int = Field(default=3, ge=1, le=5)         # 1 = rarely runs, 5 = runs constantly
+    baserunning_aggression: int = Field(default=3, ge=1, le=5)   # taking the extra base on hits / tag-ups
+    bullpen_hook: int = Field(default=3, ge=1, le=5)             # 1 = quick hook, 5 = slow hook
+    closer_usage: int = Field(default=3, ge=1, le=5)            # 1 = save-only, 5 = earlier / non-save spots
+
+    @property
+    def is_neutral(self) -> bool:
+        return (
+            self.steal_aggression == 3 and self.baserunning_aggression == 3
+            and self.bullpen_hook == 3 and self.closer_usage == 3
+        )
+
+    # DERIVED SCALARS - EACH RETURNS ITS EXACT NO-OP VALUE AT LEVEL 3, SO THE NEUTRAL CASE IS AN
+    # IDENTITY FOR EVERY DECISION POINT (SEE `PlateAppearance` / `SimPitcher` / `Bullpen`).
+
+    @property
+    def steal_attempt_factor(self) -> float:
+        """Multiplies the runner's success-probability contribution to the steal-attempt %.
+        {1: 0.40, 2: 0.70, 3: 1.00, 4: 1.30, 5: 1.60}"""
+        return 1.0 + (self.steal_aggression - 3) * 0.30
+
+    @property
+    def advance_probability_threshold(self) -> float:
+        """Minimum P(safe) at which a runner is sent for the extra base. Lower = more aggressive.
+        {1: 0.74, 2: 0.62, 3: 0.50, 4: 0.38, 5: 0.26}"""
+        return 0.50 - (self.baserunning_aggression - 3) * 0.12
+
+    @property
+    def hook_ip_adjustment(self) -> float:
+        """Innings added to a pitcher's fatigue threshold. Negative = quicker hook.
+        {1: -1.0, 2: -0.5, 3: 0.0, 4: +0.5, 5: +1.0}"""
+        return (self.bullpen_hook - 3) * 0.5
+
+    @property
+    def closer_nonsave_fit_multiplier(self) -> float:
+        """Replaces the hardcoded 0.5 closer-in-non-save penalty in `SimPitcher.situational_fit`.
+        {1: 0.00, 2: 0.25, 3: 0.50, 4: 0.75, 5: 1.00}"""
+        return 0.50 + (self.closer_usage - 3) * 0.25
+
+    @property
+    def closer_save_inning(self) -> int:
+        """Earliest inning that counts as a save situation for automatic closer entry.
+        {1-3: 9, 4: 8, 5: 7}"""
+        return 9 - max(0, self.closer_usage - 3)
+
+
+NEUTRAL_MANAGER = ManagerPreference()
+
+
 class SeasonSimulationConfig(BaseModel):
     """User-facing inputs for a season simulation. JSON-serializable so it can back an API endpoint."""
 
@@ -183,6 +242,24 @@ class SeasonSimulationConfig(BaseModel):
     # REAL-SEASON TEAMS (NO `bench_player_ids`/`bench_pts_multiplier` IS EVER SET FOR THOSE), SO
     # THIS ONLY CHANGES DISPLAYED PTS FOR BUILDER/TOURNAMENT/TAKEOVER ROSTERS.
     apply_bench_pts_multiplier_to_points: bool = True
+
+    # MANAGER PREFERENCE. PER-RUN ONLY - NEVER PERSISTED TO A BuilderTeam OR A DB TEAM ROW.
+    # `manager_preference` PAIRS WITH `takeover_team` (A TEAM CHALLENGE RUN); `manager_preferences`
+    # PAIRS WITH `takeovers` (AN OPEN SIM), KEYED BY THE SAME ERA-CORRECT SCHEDULE ABBREVIATION.
+    # A CLUB WITH NO ENTRY (EVERY REAL CLUB, ALWAYS) PLAYS NEUTRAL, WHICH IS A NO-OP. USE
+    # `all_manager_preferences` TO READ EITHER FORM.
+    manager_preference: Optional[ManagerPreference] = None
+    manager_preferences: dict[str, ManagerPreference] = {}
+
+    @property
+    def all_manager_preferences(self) -> dict[str, ManagerPreference]:
+        """Every club with a custom manager this run, keyed by schedule abbreviation. Mirrors
+        `all_takeovers` - merges the legacy single field with the dict, dict wins on collision."""
+        merged: dict[str, ManagerPreference] = {}
+        if self.manager_preference is not None and self.takeover_replaces_abbr:
+            merged[self.takeover_replaces_abbr] = self.manager_preference
+        merged.update(self.manager_preferences)
+        return merged
 
     @property
     def is_tournament(self) -> bool:

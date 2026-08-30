@@ -122,8 +122,13 @@ class Bullpen(PlayerGroup):
 
         return sorted(available, key=sort_key, reverse=reverse_sort)
 
-    def suggested_reliever(self, game_date: date, inning: Inning, runs_scored: int, runs_allowed: int, available_ids: Optional[set[str]] = None) -> Optional[SimPitcher]:
-        """ Uses context of the game situation to suggest which reliever is the best fit. """
+    def suggested_reliever(self, game_date: date, inning: Inning, runs_scored: int, runs_allowed: int, available_ids: Optional[set[str]] = None, closer_nonsave_fit_multiplier: float = 0.5, closer_save_inning: int = 9) -> Optional[SimPitcher]:
+        """ Uses context of the game situation to suggest which reliever is the best fit.
+
+        Args:
+          closer_nonsave_fit_multiplier / closer_save_inning: The pitching team's manager closer
+            usage. Both default to the engine's original constants (0.5 and inning 9).
+        """
 
         # CHECK IF THERE ARE AVAILABLE RELIEVERS
         available_pitchers = self.pitchers_available(game_date=game_date, available_ids=available_ids)
@@ -134,7 +139,7 @@ class Bullpen(PlayerGroup):
         # DEFINE VARIABLES USED IN ALGORITHM
         is_closer_available = self.closer in available_pitchers
         run_diff = runs_scored - runs_allowed
-        is_save_situation = inning.inning >= 9 and runs_scored >= runs_allowed and run_diff >= 0
+        is_save_situation = inning.inning >= closer_save_inning and runs_scored >= runs_allowed and run_diff >= 0
 
         # --- CLOSER ---
         # PLAY THE CLOSER WHEN IT'S THE 9TH INNING AND IT'S A SAVE SITUATION OR HOLD SITUATION
@@ -150,6 +155,7 @@ class Bullpen(PlayerGroup):
                     ops_index=index, total_pitchers=num_available_pitchers, run_diff=run_diff,
                     inning=inning.inning, recent_ip=recent_ip.get(pitcher.id, 0.0),
                     is_save_situation=is_save_situation, is_closer=closer is pitcher,
+                    closer_nonsave_fit_multiplier=closer_nonsave_fit_multiplier,
                 ),
                 index,
                 pitcher,

@@ -5,6 +5,8 @@ import FormInput from '../customs/FormInput';
 import NumberInput from '../customs/NumberInput';
 import FormSection from '../customs/FormSection';
 import FormEnabler from '../customs/FormEnabler';
+import ManagerStyleFields from './ManagerStyleFields';
+import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
 import { setOptionsForSource } from '../../domain/teamSets';
 import { CardSource } from '../../types/cardSource';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
@@ -78,6 +80,7 @@ export function SeasonSimSetupForm(props: Props) {
     const [userTeams, setUserTeams] = useState<TeamSummary[] | null>(null);
     const [takeoverTeamId, setTakeoverTeamId] = useState<string>('');
     const [takeoverReplaces, setTakeoverReplaces] = useState<string>('');
+    const [manager, setManager] = useState<ManagerPreference>(NEUTRAL_MANAGER);
 
     const [scheduleMode, setScheduleMode] = useState<'full' | 'custom'>('full');
     const [gamesLimit, setGamesLimit] = useState(81);
@@ -161,7 +164,9 @@ export function SeasonSimSetupForm(props: Props) {
                 await props.onStart({
                     ...engineSettings,
                     focus_abbr: focusAbbr || undefined,
-                    takeovers: takeoverEnabled ? [{ team_id: takeoverTeamId, replaces: takeoverReplaces || undefined }] : undefined,
+                    takeovers: takeoverEnabled
+                        ? [{ team_id: takeoverTeamId, replaces: takeoverReplaces || undefined, manager: managerPayload(manager) }]
+                        : undefined,
                 });
             }
         } catch (err: unknown) {
@@ -236,6 +241,7 @@ export function SeasonSimSetupForm(props: Props) {
                                 disabled={loadingClubs || clubs.length === 0}
                                 placeholder={loadingClubs ? 'Loading teams…' : 'Select a team'}
                             />
+                            <ManagerStyleFields value={manager} onChange={setManager} className="col-span-full" />
                         </>
                     )}
                 </FormSection>

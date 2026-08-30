@@ -11,7 +11,7 @@ except ImportError:
 
 from ...core.card.team_builder.team import Team as BuilderTeam
 from ...core.database.postgres_db import PostgresDB
-from ...core.simulation.models import PostseasonFormat, SeasonSimulationConfig
+from ...core.simulation.models import ManagerPreference, PostseasonFormat, SeasonSimulationConfig
 from ...core.simulation.reporting import SeasonReport
 from ...core.simulation.season import Season
 from ...core.simulation.takeover import TakeoverOptions
@@ -40,6 +40,10 @@ def sim_main(
     tournament_games: int = typer.Option(None, "--tournament_games", "-tg", help="Number of round robin games in tournament mode"),
     takeover_team_id: str = typer.Option(None, "--takeover_team_id", "-to", help="Saved team_builder team UUID to drop into the season, replacing a real club"),
     takeover_replaces: str = typer.Option(None, "--takeover_replaces", "-tr", help="Abbreviation of the club the takeover team replaces (era-correct, e.g. TBD for 1998). Defaults to the season's worst team."),
+    manager_steal: int = typer.Option(3, "--manager_steal", "-mst", min=1, max=5, help="Takeover team steal aggression, 1 (rarely runs) to 5 (runs constantly). 3 = neutral. Requires --takeover_team_id."),
+    manager_baserunning: int = typer.Option(3, "--manager_baserunning", "-mbr", min=1, max=5, help="Takeover team extra-base aggression, 1 (station to station) to 5 (always taking the extra base). 3 = neutral."),
+    manager_hook: int = typer.Option(3, "--manager_hook", "-mhk", min=1, max=5, help="Takeover team bullpen hook, 1 (quick hook) to 5 (slow hook). 3 = neutral."),
+    manager_closer: int = typer.Option(3, "--manager_closer", "-mcl", min=1, max=5, help="Takeover team closer usage, 1 (save situations only) to 5 (earlier / non-save spots). 3 = neutral."),
     export_data: bool = typer.Option(False, "--export_data", "-ex", help="Export player stats to CSV"),
     json_path: str = typer.Option(None, "--json_path", "-js", help="Write the full simulation result to a JSON file"),
     enable_injuries: bool = typer.Option(False, "--enable_injuries", "-inj", help="Enable random injuries, IL stints, and callups (real-season teams only)"),
@@ -60,6 +64,7 @@ def sim_main(
 
     takeover_team = None
     takeover_replaces_abbr = None
+    manager_preference = None
     if takeover_team_id:
         with PostgresDB() as db:
             row = db.get_team(takeover_team_id, None)
@@ -68,7 +73,13 @@ def sim_main(
             raise typer.Exit(code=1)
         takeover_team = BuilderTeam.from_db_row(row)
         takeover_replaces_abbr = TakeoverOptions(year=year).resolve(takeover_replaces)
+        manager_preference = ManagerPreference(
+            steal_aggression=manager_steal, baserunning_aggression=manager_baserunning,
+            bullpen_hook=manager_hook, closer_usage=manager_closer,
+        )
         typer.echo(f"TAKEOVER: '{takeover_team.name}' replaces {takeover_replaces_abbr} in {year}")
+        if not manager_preference.is_neutral:
+            typer.echo(f"MANAGER: {manager_preference.model_dump()}")
 
     config = SeasonSimulationConfig(
         year=year,
@@ -83,6 +94,7 @@ def sim_main(
         tournament_games=tournament_games,
         takeover_team=takeover_team,
         takeover_replaces_abbr=takeover_replaces_abbr,
+        manager_preference=manager_preference,
         include_game_logs=show_game_log,
         enable_injuries=enable_injuries,
         injury_severity_multiplier=injury_severity,

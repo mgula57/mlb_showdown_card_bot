@@ -8,7 +8,7 @@ from ..shared.player_position import PlayerType, PositionSlot
 from ..shared.team import Team as ShowdownTeam
 from .game import Game
 from .inning import Inning
-from .models import SimTeamIdentity, TeamRecord, TeamStartState
+from .models import NEUTRAL_MANAGER, ManagerPreference, SimTeamIdentity, TeamRecord, TeamStartState
 from .player import SimPitcher, SimPlayer
 from .player_group import Bullpen, PositionEligibility, Rotation
 from .roster import Roster
@@ -65,11 +65,16 @@ class SimTeam:
     def __init__(
         self, year: int, name: str, position_players: list[SimPlayer], rotation: Rotation, bullpen: Bullpen,
         league: str = None, bench_pts_multiplier: float = 1.0, bench_player_ids: Optional[set[str]] = None,
+        manager: Optional[ManagerPreference] = None,
     ) -> None:
         self.year = year
         self.name = name
         self.league = league
         self.identity = SimTeamIdentity(abbreviation=name, name=name, league=league)
+
+        # PER-RUN MANAGER TENDENCIES. NEUTRAL FOR EVERY REAL CLUB; SET ONLY FOR A USER'S TAKEOVER
+        # TEAM (SEASON/OPEN SIM) OR EITHER SIDE OF A SINGLE-GAME SIM. NEUTRAL IS A NO-OP.
+        self.manager = manager or NEUTRAL_MANAGER
 
         self.position_players = position_players
         self.rotation = rotation
@@ -164,7 +169,7 @@ class SimTeam:
         return team
 
     @classmethod
-    def from_builder_team(cls, team: BuilderTeam, cards: dict[str, ShowdownPlayerCard], year: int, league: str = None, name_override: str = None) -> 'SimTeam':
+    def from_builder_team(cls, team: BuilderTeam, cards: dict[str, ShowdownPlayerCard], year: int, league: str = None, name_override: str = None, manager: Optional[ManagerPreference] = None) -> 'SimTeam':
         """Build from a user-created team_builder Team, honoring its explicit lineup and pitcher roles.
 
         Args:
@@ -230,6 +235,7 @@ class SimTeam:
             league=league,
             bench_pts_multiplier=team.bench_pts_multiplier,
             bench_player_ids=bench_player_ids,
+            manager=manager,
         )
         # BUILDER TEAMS CARRY THEIR OWN USER-CHOSEN COLORS - NOT RESOLVED VIA THE ShowdownTeam
         # ENUM, SINCE A BUILDER ABBREVIATION (E.G. "MYTM") ISN'T A MEMBER OF IT.
@@ -247,6 +253,7 @@ class SimTeam:
         cls, year: int, cards: dict[str, ShowdownPlayerCard], identity: SimTeamIdentity,
         lineup: list[tuple[str, str]], starting_pitcher_id: str,
         position_player_ids: list[str], bullpen_ids: list[str], league: str = None,
+        manager: Optional[ManagerPreference] = None,
     ) -> 'SimTeam':
         """Build one side of a real MLB game.
 
@@ -311,6 +318,7 @@ class SimTeam:
             rotation=Rotation(players=[starter]),
             bullpen=Bullpen(players=relievers),
             league=league,
+            manager=manager,
         )
         sim_team.identity = identity
         return sim_team
@@ -487,11 +495,14 @@ class SimTeam:
 
     def check_for_pitcher_sub(self, game_date: date, inning: Inning, runs_allowed: int) -> None:
         """ Check if current pitcher is tired and needs a sub"""
-        if self.current_pitcher().is_tired(inning=inning) and len(self.available_reliever_ids) > 0:
+        manager = self.manager
+        if self.current_pitcher().is_tired(inning=inning, ip_adjustment=manager.hook_ip_adjustment) and len(self.available_reliever_ids) > 0:
             suggested_reliever = self.bullpen.suggested_reliever(
                 game_date=game_date, inning=inning,
                 runs_scored=self.current_game_stats.stat(StatCategory.RUNS_SCORED), runs_allowed=runs_allowed,
                 available_ids=self.available_reliever_ids,
+                closer_nonsave_fit_multiplier=manager.closer_nonsave_fit_multiplier,
+                closer_save_inning=manager.closer_save_inning,
             )
             if suggested_reliever:
                 self.mark_pitcher_entered(suggested_reliever, inning.inning_num_full)
