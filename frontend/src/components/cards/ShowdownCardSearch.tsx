@@ -25,7 +25,7 @@ import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
     FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical,
-    FaChartLine
+    FaChartLine, FaLock
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -62,14 +62,18 @@ type ShowdownCardSearchProps = {
     verticalOffset?: string;
     /** Source of the card data */
     source: CardSource;
-    /** Optional default filters merged on top of source defaults */
+    /**
+     * Optional default filters merged on top of source defaults. Seeded on mount and
+     * re-applied whenever this prop changes; the user can still remove them unless the
+     * key is also listed in `lockedFilters`.
+     */
     defaultFilters?: Partial<FilterSelections>;
     /**
-     * When true (default), `defaultFilters` keys are locked: their controls are disabled and
-     * they're hidden from the "Selected Filters" chip row. Set to false to have them show up
-     * as normal, removable chips — they're still re-applied whenever `defaultFilters` changes.
+     * Keys from `defaultFilters` the user cannot clear: their controls in the filter
+     * modal are disabled and their chip in the "Selected Filters" row shows a lock icon
+     * instead of an ✕. Keys not listed here seed as normal, removable chips.
      */
-    lockDefaultFilters?: boolean;
+    lockedFilters?: string[];
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
     /**
@@ -583,7 +587,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockDefaultFilters = true, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -629,18 +633,20 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     // Filters
     const defaultFiltersForSource = { ...getDefaultFilterSelections(source), ...defaultFilters };
-    const lockedDefaultFilters = useMemo(
+    // Every provided default filter is seeded and re-applied whenever `defaultFilters` changes.
+    const seededDefaultFilters = useMemo(
         () => Object.fromEntries(Object.entries(defaultFilters).filter(([, value]) => value !== undefined)) as Partial<FilterSelections>,
         [defaultFilters]
     );
+    // The subset of those the user isn't allowed to remove.
     const lockedFilterKeys = useMemo(
-        () => new Set(Object.keys(lockedDefaultFilters) as (keyof FilterSelections)[]),
-        [lockedDefaultFilters]
+        () => new Set(lockedFilters ?? []),
+        [lockedFilters]
     );
-    const isFilterLocked = (key: keyof FilterSelections) => lockDefaultFilters && lockedFilterKeys.has(key);
+    const isFilterLocked = (key: keyof FilterSelections) => lockedFilterKeys.has(key);
     const applyLockedFilters = useCallback(
-        (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...lockedDefaultFilters }),
-        [lockedDefaultFilters]
+        (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...seededDefaultFilters }),
+        [seededDefaultFilters]
     );
     const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
@@ -1243,18 +1249,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             disableSortDirection={isFilterLocked('sort_direction')}
                         />
 
-                        {/* Selected Filters */}
+                        {/* Selected Filters — locked ones stay visible but can't be removed */}
                         {/* The last element should add lots of padding */}
                         {Object.entries(filtersWithoutSorting)
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
-                            .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
+                            .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                             .map(([key, value]) => {
                                 const displayText = filterDisplayText(key, value, filtersWithoutSorting);
                                 if (!displayText) return null;
+                                const locked = isFilterLocked(key as keyof FilterSelections);
                                 return (
-                                    <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSorting)}</span>
-                                        {!isFilterLocked(key as keyof FilterSelections) && (
+                                    <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
+                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
+                                        {locked ? (
+                                            <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
+                                        ) : (
                                             <button onClick={() => removeFilter(key)} className="ml-1 cursor-pointer">
                                                 <FaTimes />
                                             </button>
@@ -1499,14 +1508,17 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                                 {Object.entries(filtersWithoutSortingForEditing)
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
-                                    .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
+                                    .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                                     .map(([key, value]) => {
                                         const displayText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
                                         if (!displayText) return null;
+                                        const locked = isFilterLocked(key as keyof FilterSelections);
                                         return (
-                                            <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
+                                            <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
                                                 <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
-                                                {!isFilterLocked(key as keyof FilterSelections) && (
+                                                {locked ? (
+                                                    <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
+                                                ) : (
                                                     <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
                                                         <FaTimes />
                                                     </button>

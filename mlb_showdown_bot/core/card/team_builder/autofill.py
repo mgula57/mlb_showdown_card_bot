@@ -478,18 +478,15 @@ def _fill_rotation(
 
 def _fill_bullpen(
     candidates: list[dict],
-    filled_roles: set[str],
+    already_filled: int,
     min_bullpen: int,
     pts_target: int,
     pts_tolerance: int,
     source_counts: dict[str, int] | None = None,
 ) -> _BucketResult | None:
-    # Roles: one CL + remaining as RP
-    all_roles = ['CL'] + ['RP'] * (min_bullpen - 1)
-    # Count already-filled bullpen slots
-    already_filled = sum(
-        1 for r in filled_roles if r in ('CL', 'RP') or r.startswith('RP')
-    )
+    # The bullpen is drafted free-form now — no closer slot, every arm is a generic 'RP', so
+    # the caller passes how many arms are already on the roster rather than a set of roles.
+    all_roles = ['RP'] * min_bullpen
     open_count = max(0, min_bullpen - already_filled)
     if open_count == 0:
         return _BucketResult()
@@ -594,7 +591,7 @@ def autofill_team(
         filled_lineup_pos = {s.field_position for s in team.lineups[0].slots}
 
     filled_rotation_roles = {p.role for p in team.rotation if p.role.startswith('SP')}
-    filled_bullpen_roles  = {p.role for p in team.rotation if not p.role.startswith('SP')}
+    filled_bullpen_count  = sum(1 for p in team.rotation if not p.role.startswith('SP'))
     bench_count = sum(1 for s in team.roster if s.roster_position == 'BE')
 
     # roster_size may allow more than the fixed minimums (9 lineup + num_starters + min_bench
@@ -669,7 +666,7 @@ def autofill_team(
             continue
 
         bullpen_result = _fill_bullpen(
-            sorted_candidates['bullpen'], filled_bullpen_roles,
+            sorted_candidates['bullpen'], filled_bullpen_count,
             effective_min_bullpen, bullpen_target, pts_tolerance, source_counts,
         )
         if bullpen_result is None:

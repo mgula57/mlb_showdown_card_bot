@@ -5,7 +5,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { FaPlus, FaPencil, FaChevronUp, FaChevronDown } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
-import { effectiveBenchBullpenMinimums } from '../../domain/roster';
+import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { Modal } from '../shared/Modal';
 import { SectionHeader } from '../shared/SectionHeader';
@@ -18,8 +18,11 @@ type DepthChartPanelProps = {
     cardMap: Record<string, CardDatabaseRecord | null>;
     onSlotClick: (position: string, slot: LineupSlot | null) => void;
     onRoleClick: (role: string, current: PitcherAssignment | null) => void;
-    onBenchClick: (role: string, current: TeamRosterSlot | null) => void;
-    /** Called when a reorder changes the roster or rotation. Partial update merged into the team. */
+    /** Bullpen is free-form: `current` is the arm being replaced, or null to add a new one. */
+    onBullpenClick: (current: PitcherAssignment | null) => void;
+    /** Bench is free-form: `current` is the row being replaced, or null to add a new one. */
+    onBenchClick: (current: TeamRosterSlot | null) => void;
+    /** Called when a rotation reorder changes the roster. Partial update merged into the team. */
     onReorder?: (updates: Pick<TeamUpdatePayload, 'roster' | 'rotation'>) => void;
     readOnly?: boolean;
     activePosition?: string | null;
@@ -131,6 +134,7 @@ export function DepthChartPanel({
     cardMap,
     onSlotClick,
     onRoleClick,
+    onBullpenClick,
     onBenchClick,
     onReorder,
     readOnly = false,
@@ -146,21 +150,31 @@ export function DepthChartPanel({
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
     const roleByKey = Object.fromEntries(team.rotation.map(r => [r.role, r]));
 
-    // Row counts must cover whatever is actually on the roster, not just the configured
-    // minimums — roster_size slack (see effectiveBenchBullpenMinimums) and manually-drafted
-    // extras can both push the real count past min_bench/min_bullpen.
-    const { bench: benchMin, bullpen: bullpenMin } = effectiveBenchBullpenMinimums(team);
-    const benchSlots  = team.roster.filter(s => s.roster_position.toUpperCase() === 'BE');
-    const BENCH_ROLES = Array.from({ length: Math.max(benchMin, benchSlots.length) }, (_, i) => `BE${i + 1}`);
-    const benchByRole = Object.fromEntries(BENCH_ROLES.flatMap((role, i) => benchSlots[i] ? [[role, benchSlots[i]]] : []));
-
-    const bullpenSlots  = team.rotation.filter(r => !r.role.startsWith('SP'));
-    const BULLPEN_ROLES = Array.from({ length: Math.max(bullpenMin, bullpenSlots.length) }, (_, i) => `RP${i + 1}`);
-    const bullpenByRole = Object.fromEntries(BULLPEN_ROLES.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
     const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
 
+    // Bench and bullpen are free-form: sorted by card points descending, with a fixed number
+    // of rows (filled cards + trailing empty "add" placeholders). The placeholder count comes
+    // from `benchBullpenSlotCounts` while editing; a read-only view just shows the filled rows.
+    const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
+    const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
+    const { bench: benchMin, bullpen: bullpenMin } = effectiveBenchBullpenMinimums(team);
+    const benchSlots   = team.roster.filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
+    const bullpenSlots = team.rotation.filter(r => !r.role.startsWith('SP')).slice().sort(byPointsDesc);
+
+    const filledStarters = ACTIVE_ROTATION_ROLES.filter(role => roleByKey[role]).length;
+    const draftRows = readOnly ? null : benchBullpenSlotCounts({
+        rosterSize: team.roster_size,
+        rosterCount: team.roster.length,
+        lineup: { filled: lineup.slots.length, target: 9 },
+        rotation: { filled: filledStarters, target: team.num_starters ?? 5 },
+        bench: { filled: benchSlots.length, target: benchMin },
+        bullpen: { filled: bullpenSlots.length, target: bullpenMin },
+    });
+    const benchRowCount   = draftRows ? draftRows.bench   : benchSlots.length;
+    const bullpenRowCount  = draftRows ? draftRows.bullpen : bullpenSlots.length;
+
     // -------------------------------------------------------------------------
-    // Reorder helpers
+    // Reorder helpers (rotation only — bench/bullpen order is always by points)
     // -------------------------------------------------------------------------
 
     function swapRotation(roleA: string, roleB: string) {
@@ -172,18 +186,6 @@ export function DepthChartPanel({
             return s;
         });
         onReorder({ roster });
-    }
-
-    function moveBullpen(fromIdx: number, toIdx: number) {
-        if (!onReorder) return;
-        // Reorder by moving within the non-SP portion of the roster array;
-        // sort_order is the array index so the order is preserved on save.
-        const nonBullpen = team.roster.filter(s => s.roster_position.startsWith('SP') || !['RP', 'CL'].includes(s.roster_position));
-        const bpSlots = team.roster.filter(s => ['RP', 'CL'].includes(s.roster_position));
-        const reordered = [...bpSlots];
-        const [moved] = reordered.splice(fromIdx, 1);
-        reordered.splice(toIdx, 0, moved);
-        onReorder({ roster: [...nonBullpen, ...reordered] });
     }
 
     // Defense totals for lineup KPIs
@@ -202,20 +204,16 @@ export function DepthChartPanel({
     const filledLineupCards = lineup.slots
         .map(s => cardMap[s.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
-    const filledBenchCards = BENCH_ROLES
-        .map(role => benchByRole[role])
-        .filter(Boolean)
-        .map(s => cardMap[s!.card_id])
+    const filledBenchCards = benchSlots
+        .map(s => cardMap[s.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
     const filledRotCards = ACTIVE_ROTATION_ROLES
         .map(role => roleByKey[role])
         .filter(Boolean)
         .map(r => cardMap[r!.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
-    const filledBullCards = BULLPEN_ROLES
-        .map(role => bullpenByRole[role])
-        .filter(Boolean)
-        .map(r => cardMap[r!.card_id])
+    const filledBullCards = bullpenSlots
+        .map(r => cardMap[r.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
 
     // Point totals
@@ -257,19 +255,19 @@ export function DepthChartPanel({
                     })}
 
                     <div className="shrink-0"><SectionHeader label="Bench" filledCount={filledBenchCards.length} total={benchPts} kpis={benchKpis} /></div>
-                    {BENCH_ROLES.map(pos => {
-                        const slot = benchByRole[pos] ?? null;
+                    {Array.from({ length: benchRowCount }).map((_, i) => {
+                        const slot = benchSlots[i] ?? null;
                         const card = slot ? cardMap[slot.card_id] : null;
                         return (
                             <PositionRow
-                                key={pos}
-                                label={pos}
+                                key={`bench-${i}`}
+                                label="BE"
                                 card={card}
                                 isPending={!card && !!slot && isLoadingCards}
-                                onClick={() => onBenchClick(pos, slot)}
+                                onClick={() => onBenchClick(slot)}
                                 onDetailClick={card ? () => setDetailCard(card) : undefined}
                                 readOnly={readOnly}
-                                isActive={activeRole === pos}
+                                isActive={!card && activeRole === 'BE'}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
@@ -307,25 +305,22 @@ export function DepthChartPanel({
                     })}
 
                     <div className="shrink-0"><SectionHeader label="Bullpen" filledCount={filledBullCards.length} total={bullpenPts} kpis={bullpenKpis} /></div>
-                    {BULLPEN_ROLES.map((role, i) => {
-                        const assignment = bullpenByRole[role] ?? null;
-                        const actualRole = bullpenSlots[i]?.role ?? role;
+                    {Array.from({ length: bullpenRowCount }).map((_, i) => {
+                        const assignment = bullpenSlots[i] ?? null;
                         const card = assignment ? cardMap[assignment.card_id] : null;
                         return (
                             <PositionRow
-                                key={`depth-${actualRole}-${i}`}
-                                label={actualRole}
+                                key={`bullpen-${i}`}
+                                label="RP"
                                 card={card}
                                 isPending={!card && !!assignment && isLoadingCards}
-                                onClick={() => onRoleClick(actualRole, assignment)}
+                                onClick={() => onBullpenClick(assignment)}
                                 onDetailClick={card ? () => setDetailCard(card) : undefined}
                                 readOnly={readOnly}
-                                isActive={activeRole === actualRole}
+                                isActive={!card && activeRole === 'RP'}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
-                                onMoveUp={i > 0 ? () => moveBullpen(i, i - 1) : undefined}
-                                onMoveDown={i < bullpenSlots.length - 1 ? () => moveBullpen(i, i + 1) : undefined}
                             />
                         );
                     })}

@@ -33,14 +33,15 @@ import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
-import { effectiveBenchBullpenMinimums } from '../../domain/roster';
+import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
 import { Modal } from '../shared/Modal';
 
 type PendingSlot =
     | { kind: 'field'; position: string; current: LineupSlot | null }
     | { kind: 'rotation'; role: string; current: PitcherAssignment | null }
-    | { kind: 'bench'; role: string; current: TeamRosterSlot | null }
+    | { kind: 'bench'; current: { card_id: string } | null }
+    | { kind: 'bullpen'; current: { card_id: string } | null }
     | { kind: 'roster' };
 
 type TeamDetailProps = {
@@ -79,6 +80,9 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
     }
     if (slot.kind === 'rotation') {
         if (slot.role.startsWith('SP')) return { positions: ['STARTER'] };
+        return { positions: ['RELIEVER', 'CLOSER'] };
+    }
+    if (slot.kind === 'bullpen') {
         return { positions: ['RELIEVER', 'CLOSER'] };
     }
     if (slot.kind === 'bench') {
@@ -123,7 +127,8 @@ function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[
 function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): string[] {
     if (card.is_pitcher) {
         if ('STARTER' in card.positions_and_defense) return ROTATION_ROLES.slice(0, Math.min(numStarters, MAX_STARTERS));
-        return [...BULLPEN_ROLES];
+        // The bullpen is free-form — every reliever is a generic 'RP', no closer slot.
+        return ['RP'];
     }
     const positions = Object.keys(card.positions_and_defense);
     const expanded = positions.flatMap(pos => {
@@ -312,14 +317,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     // Set restrictions are per card source, so the draft panel's filters follow the active tab.
     const { allowed_sets, allowed_sets_by_source, player_filters } = draft;
-    const searchFilters = useMemo(() => {
+    // Team-settings player restrictions + allowed sets — locked, the drafter can't clear these.
+    const teamRestrictionFilters = useMemo(() => {
         const sets = allowedSetsForSource({ allowed_sets, allowed_sets_by_source }, draftSource);
         return {
             ...(player_filters ?? {}),
-            ...getSearchFiltersForSlot(pendingSlot),
             ...(sets.length ? { showdown_set: sets } : {}),
         };
-    }, [pendingSlot, draftSource, allowed_sets, allowed_sets_by_source, player_filters]);
+    }, [draftSource, allowed_sets, allowed_sets_by_source, player_filters]);
+    // Position/type constraints for the slot being filled — seeded but still clearable.
+    const slotFilters = useMemo(() => getSearchFiltersForSlot(pendingSlot), [pendingSlot]);
+    const searchFilters = useMemo(
+        () => ({ ...teamRestrictionFilters, ...slotFilters }),
+        [teamRestrictionFilters, slotFilters],
+    );
+    const lockedFilterKeys = useMemo(
+        () => Object.keys(teamRestrictionFilters).filter(k => !(k in slotFilters)),
+        [teamRestrictionFilters, slotFilters],
+    );
 
     function update(updates: TeamUpdatePayload) {
         setDraft(prev => ({ ...prev, ...updates } as Team));
@@ -384,41 +399,75 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const handleCardPicked = useCallback((card: CardDatabaseRecord) => {
         if (pendingSlot?.kind === 'bench') {
-            handleConfirmPosition(pendingSlot.role, card);
+            addGenericSlot('BE', card, pendingSlot.current);
+            return;
+        }
+        if (pendingSlot?.kind === 'bullpen') {
+            addGenericSlot('RP', card, pendingSlot.current);
             return;
         }
         setConfirmCard(card);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pendingSlot]);
 
-    function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
-        if (!card) return;
+    function nextDraftOrder(): number {
+        return Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
+    }
 
+    /** Bench and bullpen are drafted free-form: the pick is appended with a generic
+     *  roster_position ('BE' / 'RP'), and — when replacing an existing row — the old card is
+     *  pruned from the roster and any lineup/rotation slot first. The server re-derives the
+     *  rotation (points-ordered) on save; we mirror the bullpen change locally so it shows
+     *  immediately. */
+    function addGenericSlot(position: 'BE' | 'RP', card: CardDatabaseRecord, replacing: { card_id: string } | null) {
         addCard(card);
-
-        const nextDraftOrder = Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
         const rosterSlot: TeamRosterSlot = {
             card_id: card.card_id,
             card_source: draftSource,
             roster_position: position,
-            draft_order: nextDraftOrder,
+            draft_order: nextDraftOrder(),
+            pick_source: 'MANUAL',
+        };
+        const roster = [
+            ...draft.roster.filter(s => !replacing || s.card_id !== replacing.card_id),
+            rosterSlot,
+        ];
+        const lineups = replacing
+            ? draft.lineups.map(ln => ({ ...ln, slots: ln.slots.filter(s => s.card_id !== replacing.card_id) }))
+            : draft.lineups;
+        let rotation = replacing ? draft.rotation.filter(r => r.card_id !== replacing.card_id) : draft.rotation;
+        if (position === 'RP') {
+            rotation = [...rotation, { card_id: card.card_id, card_source: draftSource, role: 'RP' }];
+        }
+        update({ roster, lineups, rotation });
+        setDraftToast({ name: card.name, position: position === 'BE' ? 'Bench' : 'Bullpen' });
+        setConfirmCard(null);
+        setPendingSlot(null);
+        setDraftSearchResetKey(k => k + 1);
+    }
+
+    function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
+        if (!card) return;
+
+        if (position === 'BE' || position === 'RP') {
+            addGenericSlot(position, card, null);
+            return;
+        }
+
+        addCard(card);
+
+        const rosterSlot: TeamRosterSlot = {
+            card_id: card.card_id,
+            card_source: draftSource,
+            roster_position: position,
+            draft_order: nextDraftOrder(),
             pick_source: 'MANUAL',
         };
 
-        const pitcherSlots = [...ROTATION_ROLES, ...BULLPEN_ROLES] as string[];
-        if (pitcherSlots.includes(position)) {
-            const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ roster });
-        } else if (/^BE\d+$/.test(position)) {
-            const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ roster });
-        } else if (position === 'BE') {
-            update({ roster: [...draft.roster, rosterSlot] });
-        } else {
-            // Field position: update roster only — lineups/rotation are re-derived from the roster on save.
-            const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ roster });
-        }
+        // SP1..SPn and field positions each own a single slot — replace whoever holds it.
+        // Lineups/rotation are re-derived from the roster on save.
+        const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
+        update({ roster });
 
         setDraftToast({ name: card.name, position });
         setConfirmCard(null);
@@ -492,7 +541,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }, [draft, effectiveBucketMins]);
 
     const activeFieldPosition = pendingSlot?.kind === 'field' ? pendingSlot.position : null;
-    const activeRole = (pendingSlot?.kind === 'rotation' || pendingSlot?.kind === 'bench') ? pendingSlot.role : null;
+    const activeRole = pendingSlot?.kind === 'rotation' ? pendingSlot.role
+        : pendingSlot?.kind === 'bullpen' ? 'RP'
+        : pendingSlot?.kind === 'bench' ? 'BE'
+        : null;
 
     const pointsBreakdown = useMemo(() => {
         const pts = (id: string) => cardMap[id]?.points ?? 0;
@@ -527,6 +579,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         [draft.roster]
     );
 
+    // How many bench / bullpen rows the draft UI should render (filled + trailing empty
+    // "add" placeholders). Only meaningful while editing — a complete/read-only view just
+    // shows the filled cards.
+    const draftSlotCounts = useMemo(() => benchBullpenSlotCounts({
+        rosterSize: draft.roster_size,
+        rosterCount: draft.roster.length,
+        lineup: rosterProgress.buckets.lineup,
+        rotation: rosterProgress.buckets.rotation,
+        bench: rosterProgress.buckets.bench,
+        bullpen: rosterProgress.buckets.bullpen,
+    }), [draft.roster_size, draft.roster.length, rosterProgress.buckets]);
+
     const rosterData: FieldViewRosterData = useMemo(() => ({
         roster: draft.roster,
         rotation: draft.rotation,
@@ -534,7 +598,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         minBench: effectiveBucketMins.bench,
         minBullpen: effectiveBucketMins.bullpen,
         maxRotation: draft.num_starters,
-    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters]);
+        draftSlots: showEditControls ? draftSlotCounts : undefined,
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
 
     const previewRosterData: FieldViewRosterData | null = useMemo(() => {
         if (!autofillPreview) return null;
@@ -560,7 +625,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const pendingLabel = pendingSlot
         ? pendingSlot.kind === 'field'    ? `Filling: ${pendingSlot.position}`
         : pendingSlot.kind === 'rotation' ? `Filling: ${pendingSlot.role}`
-        : pendingSlot.kind === 'bench'    ? `Filling: ${pendingSlot.role}`
+        : pendingSlot.kind === 'bullpen'  ? (pendingSlot.current ? 'Replacing bullpen arm' : 'Adding to Bullpen')
+        : pendingSlot.kind === 'bench'    ? (pendingSlot.current ? 'Replacing bench player' : 'Adding to Bench')
         : 'Adding to roster'
         : null;
 
@@ -577,6 +643,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             allowedSources={allowedSources}
             pendingLabel={pendingLabel}
             searchFilters={searchFilters}
+            lockedFilterKeys={lockedFilterKeys}
             draftedCardIds={draftedCardIds}
             onCardPicked={handleCardPicked}
             onDismissPending={() => setPendingSlot(null)}
@@ -629,9 +696,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 if (!showEditControls) return;
                 setPendingSlot({ kind: 'field', position: pos, current: slot });
             }}
-            onBenchClick={(role, current) => {
+            onBenchClick={current => {
                 if (!showEditControls) return;
-                setPendingSlot({ kind: 'bench', role, current });
+                setPendingSlot({ kind: 'bench', current });
+            }}
+            onBullpenClick={current => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'bullpen', current });
             }}
             onRoleClick={(role, current) => {
                 if (!showEditControls) return;
@@ -658,9 +729,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 if (!showEditControls) return;
                 setPendingSlot({ kind: 'rotation', role, current });
             }}
-            onBenchClick={(role, current) => {
+            onBullpenClick={current => {
                 if (!showEditControls) return;
-                setPendingSlot({ kind: 'bench', role, current });
+                setPendingSlot({ kind: 'bullpen', current });
+            }}
+            onBenchClick={current => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'bench', current });
             }}
             onReorder={showEditControls ? updates => update(updates) : undefined}
             readOnly={!showEditControls}
@@ -821,14 +896,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     /** Team total PTS if `confirmCard` were dropped into `position` — mirrors the roster
-     *  mutation in handleConfirmPosition (BE appends and is multiplied; every other slot
-     *  replaces whatever currently holds that roster_position). */
+     *  mutation in handleConfirmPosition: 'BE' / 'RP' append (bench is multiplied); every
+     *  other slot replaces whatever currently holds that roster_position. */
     const projectedTotalForPosition = (position: string): number => {
         if (!confirmCard) return pointsBreakdown.total;
+        const appends = position === 'BE' || position === 'RP';
         const addedPts = position === 'BE'
             ? Math.round(confirmCard.points * draft.bench_pts_multiplier)
             : confirmCard.points;
-        const removedPts = position === 'BE'
+        const removedPts = appends
             ? 0
             : draft.roster
                 .filter(s => s.roster_position === position)
@@ -846,7 +922,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
      *  Mirrors handleConfirmPosition: 'BE' appends (no replacement); every other slot
      *  swaps out whatever roster entry currently holds that roster_position. */
     const replacedPlayerName = (position: string): string | null => {
-        if (position === 'BE') return null;
+        if (position === 'BE' || position === 'RP') return null;
         const slot = draft.roster.find(s => s.roster_position === position);
         return slot ? cardMap[slot.card_id]?.name ?? null : null;
     };
@@ -1291,6 +1367,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             allowedSources={allowedSources}
                             pendingLabel={pendingLabel}
                             searchFilters={searchFilters}
+                            lockedFilterKeys={lockedFilterKeys}
                             draftedCardIds={draftedCardIds}
                             onCardPicked={handleCardPicked}
                             resetTrigger={draftSearchResetKey}
@@ -1620,6 +1697,8 @@ type DraftPanelProps = {
     allowedSources: readonly { key: CardSourceType; label: string }[];
     pendingLabel: string | null;
     searchFilters: Record<string, string[]>;
+    /** Keys within `searchFilters` the drafter can't clear (team-settings restrictions). */
+    lockedFilterKeys: string[];
     draftedCardIds: string[];
     onCardPicked: (card: CardDatabaseRecord) => void;
     /** When true, hides the internal Bot/WOTC/WBC tab list — used when the tabs are
@@ -1631,7 +1710,7 @@ type DraftPanelProps = {
     resetTrigger?: unknown;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
@@ -1676,7 +1755,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                         disableLocalStorage={true}
                         verticalOffset="36"
                         defaultFilters={searchFilters}
-                        lockDefaultFilters={false}
+                        lockedFilters={lockedFilterKeys}
                         excludeIds={draftedCardIds}
                         resetTrigger={resetTrigger}
                         actionButton={{

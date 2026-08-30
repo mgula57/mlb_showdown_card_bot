@@ -35,13 +35,19 @@ export type FieldViewRosterData = {
     minBench: number;
     minBullpen: number;
     maxRotation: number;
+    /** How many bench / bullpen rows to render (filled + trailing empty "add" placeholders).
+     *  Set only while drafting/editing; omitted for read-only views, which show filled only. */
+    draftSlots?: { bench: number; bullpen: number };
 };
 
 type FieldViewProps = {
     lineup: Lineup;
     cardMap: Record<string, CardDatabaseRecord | null>;
     onSlotClick: (position: string, currentSlot: LineupSlot | null) => void;
-    onBenchClick?: (role: string, current: TeamRosterSlot | null) => void;
+    /** Bench is free-form: `current` is the row being replaced, or null to add a new one. */
+    onBenchClick?: (current: TeamRosterSlot | null) => void;
+    /** Bullpen is free-form: `current` is the arm being replaced, or null to add a new one. */
+    onBullpenClick?: (current: PitcherAssignment | null) => void;
     onRoleClick?: (role: string, current: PitcherAssignment | null) => void;
     readOnly?: boolean;
     activePosition?: string | null;
@@ -82,7 +88,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 }
 
 export function FieldView({
-    lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition,
+    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition,
     rosterData, hoveredCardId, onCardHover, isLoadingCards,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
     simStatsMap, simStatsTooltip,
@@ -113,21 +119,21 @@ export function FieldView({
 
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
 
-    // Build role-indexed maps so each slot renders in order (filled or placeholder).
-    // Role counts must cover whatever is actually on the roster, not just minBench/minBullpen —
-    // roster_size slack and manually-drafted extras can both push the real count higher.
-    const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE');
-    const benchRoles    = rosterData ? Array.from({ length: Math.max(rosterData.minBench, benchSlots.length) },   (_, i) => `BE${i + 1}`) : [];
-    const benchByRole   = Object.fromEntries(benchRoles.flatMap((role, i) => benchSlots[i] ? [[role, benchSlots[i]]] : []));
+    // Rotation stays slot-precise (SP1..SPn). Bench and bullpen are free-form: sorted by card
+    // points descending, with a fixed number of rows (filled cards + trailing empty "add"
+    // placeholders) — `rosterData.draftSlots` while editing, else just the filled count.
+    const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
+    const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
-    const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role));
-    const bullpenRoles  = rosterData ? Array.from({ length: Math.max(rosterData.minBullpen, bullpenSlots.length) }, (_, i) => `RP${i + 1}`) : [];
-    const bullByRole    = Object.fromEntries(bullpenRoles.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
+    const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).slice().sort(byPointsDesc);
+
+    const benchRowCount   = rosterData ? (rosterData.draftSlots?.bench   ?? benchSlots.length)   : 0;
+    const bullpenRowCount = rosterData ? (rosterData.draftSlots?.bullpen ?? bullpenSlots.length) : 0;
 
     const lineupPts = lineup.slots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
-    const benchPts    = benchRoles.reduce((sum, role) => { const s = benchByRole[role]; return s ? sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)) : sum; }, 0);
+    const benchPts    = benchSlots.reduce((sum, s) => sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)), 0);
     const rotationPts = (ROTATION_ROLES as readonly string[]).reduce((sum, role) => { const r = rotByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
-    const bullpenPts  = bullpenRoles.reduce((sum, role) => { const r = bullByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
+    const bullpenPts  = bullpenSlots.reduce((sum, r) => sum + pts(r.card_id), 0);
     const totalPts    = lineupPts + benchPts + rotationPts + bullpenPts;
 
     // ---- KPI computations ----
@@ -137,10 +143,8 @@ export function FieldView({
         .filter((c): c is CardDatabaseRecord => !!c);
     const lineupKpis = buildLineupKpis(filledLineupCards, lineupPts, totalDefIF, totalDefOF);
 
-    const filledBenchCards = benchRoles
-        .map(role => benchByRole[role])
-        .filter(Boolean)
-        .map(s => cardMap[s!.card_id])
+    const filledBenchCards = benchSlots
+        .map(s => cardMap[s.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
     const benchKpis = buildBenchKpis(filledBenchCards, rosterData?.benchPtsMultiplier ?? 1);
 
@@ -152,17 +156,20 @@ export function FieldView({
         .filter((c): c is CardDatabaseRecord => !!c);
     const rotationKpis = buildPitcherKpis(filledRotCards, rotationPts);
 
-    const filledBullCards = bullpenRoles
-        .map(role => bullByRole[role])
-        .filter(Boolean)
-        .map(r => cardMap[r!.card_id])
+    const filledBullCards = bullpenSlots
+        .map(r => cardMap[r.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
     const bullpenKpis = buildPitcherKpis(filledBullCards, bullpenPts);
+
+    // A single generic section shape drives all three groups. Rotation keys off its real role
+    // slots; bench/bullpen key off a synthetic index (label is always the generic 'BE' / 'RP').
+    const genericRoles = (n: number, prefix: string) => Array.from({ length: n }, (_, i) => `${prefix}${i + 1}`);
 
     const sections = rosterData ? [
         {
             label: 'Rotation', total: rotationPts, maxPlayers: rosterData.maxRotation,
             roles: [...ROTATION_ROLES].slice(0, rosterData?.maxRotation) as string[],
+            placeholderLabel: undefined as string | undefined,
             kpis: rotationKpis,
             getCard:    (role: string) => { const r = rotByRole[role]; return r ? cardMap[r.card_id] : null; },
             hasAssignment: (role: string) => !!rotByRole[role],
@@ -170,20 +177,22 @@ export function FieldView({
         },
         {
             label: 'Bullpen', total: bullpenPts,
-            roles: bullpenRoles,
+            roles: genericRoles(bullpenRowCount, 'RP'),
+            placeholderLabel: 'RP',
             kpis: bullpenKpis,
-            getCard:    (role: string) => { const r = bullByRole[role]; return r ? cardMap[r.card_id] : null; },
-            hasAssignment: (role: string) => !!bullByRole[role],
-            onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, bullByRole[role] ?? null) : undefined,
+            getCard:    (role: string) => { const r = bullpenSlots[Number(role.slice(2)) - 1]; return r ? cardMap[r.card_id] : null; },
+            hasAssignment: (role: string) => !!bullpenSlots[Number(role.slice(2)) - 1],
+            onItemClick: onBullpenClick && !readOnly ? (role: string) => onBullpenClick(bullpenSlots[Number(role.slice(2)) - 1] ?? null) : undefined,
         },
         {
             label: 'Bench',
             total: benchPts,
-            roles: benchRoles,
+            roles: genericRoles(benchRowCount, 'BE'),
+            placeholderLabel: 'BE',
             kpis: benchKpis,
-            getCard:    (role: string) => { const s = benchByRole[role]; return s ? cardMap[s.card_id] : null; },
-            hasAssignment: (role: string) => !!benchByRole[role],
-            onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(role, benchByRole[role] ?? null) : undefined,
+            getCard:    (role: string) => { const s = benchSlots[Number(role.slice(2)) - 1]; return s ? cardMap[s.card_id] : null; },
+            hasAssignment: (role: string) => !!benchSlots[Number(role.slice(2)) - 1],
+            onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(benchSlots[Number(role.slice(2)) - 1] ?? null) : undefined,
             ptsMultiplier: rosterData?.benchPtsMultiplier,
         },
     ] : [];
@@ -293,7 +302,7 @@ export function FieldView({
                 })}
             </div>
 
-            {sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier }) => {
+            {sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier, placeholderLabel }) => {
                 const filledCount = roles.filter(r => getCard(r)).length;
                 return (
                     <div key={label} className="border-t border-(--divider)" onClick={onItemClick ? e => e.stopPropagation() : undefined}>
@@ -325,15 +334,12 @@ export function FieldView({
                                 ) : isPending ? (
                                     <SlotLoadingPlaceholder key={role} />
                                 ) : (
-                                    <>
                                     <PositionSlotPlaceholder
-                                        position={role}
+                                        key={role}
+                                        position={placeholderLabel ?? role}
                                         onClick={onItemClick ? () => onItemClick(role) : undefined}
                                         isActive={isPeerHovered}
                                     />
-                                    
-                                    </>
-                                    
                                 );
                             })}
                         </div>

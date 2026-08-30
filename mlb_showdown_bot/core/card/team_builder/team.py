@@ -135,11 +135,15 @@ def derive_lineups_rotation(roster: list[dict], stored_lineups: Optional[list[di
 
     starters = [s for s in roster if s.get('roster_position') in ROTATION_ROLES]
     starters.sort(key=lambda s: ROTATION_ROLES.index(s['roster_position']))
+    # The bullpen has no meaningful per-slot role or order — it's drafted free-form and any
+    # legacy 'CL' collapses to a plain 'RP'. Ordered by card points descending so every read
+    # path (builder, sim, MLB-derived teams) sees the same alignment.
     bullpen = [s for s in roster if s.get('roster_position') in BULLPEN_ROLES]
-    rotation = [
-        {'card_id': s['card_id'], 'card_source': s['card_source'], 'role': s['roster_position']}
-        for s in starters + bullpen
-    ]
+    bullpen.sort(key=lambda s: s.get('points') or 0, reverse=True)
+    rotation = (
+        [{'card_id': s['card_id'], 'card_source': s['card_source'], 'role': s['roster_position']} for s in starters]
+        + [{'card_id': s['card_id'], 'card_source': s['card_source'], 'role': 'RP'} for s in bullpen]
+    )
 
     return lineups, rotation
 

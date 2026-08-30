@@ -45,3 +45,35 @@ export function effectiveBenchBullpenMinimums(team: {
 
     return { bench: team.min_bench + benchExtra, bullpen: team.min_bullpen + bullpenExtra };
 }
+
+type BucketFill = { filled: number; target: number };
+
+/**
+ * How many bench / bullpen rows the draft UI should render (filled cards + trailing empty
+ * "add" placeholders). Placeholders are shown up to each bucket's minimum; once the minimum
+ * is met, one extra "add another" slot appears — but only while the roster still has room for
+ * it after reserving every other bucket's unmet minimum. The lineup target is always 9; the
+ * rotation target is `num_starters`; bench/bullpen targets come from
+ * `effectiveBenchBullpenMinimums`.
+ */
+export function benchBullpenSlotCounts(args: {
+    rosterSize: number;
+    /** Total roster.length (every drafted slot, all buckets). */
+    rosterCount: number;
+    lineup: BucketFill;
+    rotation: BucketFill;
+    bench: BucketFill;
+    bullpen: BucketFill;
+}): { bench: number; bullpen: number } {
+    const rowsFor = (self: BucketFill, others: BucketFill[]): number => {
+        const base = Math.max(self.target, self.filled);
+        if (self.filled < self.target) return base;
+        const otherDeficit = others.reduce((sum, o) => sum + Math.max(0, o.target - o.filled), 0);
+        const free = args.rosterSize - args.rosterCount - otherDeficit;
+        return base + (free >= 1 ? 1 : 0);
+    };
+    return {
+        bench: rowsFor(args.bench, [args.lineup, args.rotation, args.bullpen]),
+        bullpen: rowsFor(args.bullpen, [args.lineup, args.rotation, args.bench]),
+    };
+}
