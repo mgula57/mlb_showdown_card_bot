@@ -367,7 +367,7 @@ class PlayerStatsNormalizer:
             'year_ID': stats_period.year,
             'team_ID': PlayerStatsNormalizer._select_team_id(team_gpd, stats_period),
             'team_games_played_dict': team_gpd,
-            'team_id_list': sorted(team_gpd, key=team_gpd.get) if team_gpd else [],
+            'team_id_list': list(team_gpd) if team_gpd else [],
             'lg_ID': PlayerStatsNormalizer._extract_league_id(player, stats_period),
             'type': player_type,
             'player_type_override': player_type_override,
@@ -853,6 +853,12 @@ class PlayerStatsNormalizer:
                 games_played = split.stat.get('gamesPlayed', 0)
                 bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation)
                 team_games_played[bref_id] = team_games_played.get(bref_id, 0) + games_played
+
+        # REVERSE ORDER OF THE DICT
+        # MLB API DOES DESC ORDER, BREF DID ASC ORDER
+        # HELPS PROPERLY SELECT THE FIRST/MOST RECENT TEAM BASED ON CHRONOLOGICAL ORDER
+        team_games_played = dict(reversed(list(team_games_played.items())))
+
         return team_games_played
 
     @staticmethod
