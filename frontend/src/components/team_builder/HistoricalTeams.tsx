@@ -8,7 +8,8 @@ import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
-import { FaSpinner, FaMagnifyingGlass, FaXmark } from 'react-icons/fa6';
+import { FaSpinner } from 'react-icons/fa6';
+import { TeamSearchInput } from './TeamSearchInput';
 
 // League team-colors for the All-Star tiles / detail header.
 export const ASG_COLORS: Record<string, { primary: string; secondary: string }> = {
@@ -236,26 +237,12 @@ export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: str
         <div className="relative flex flex-col gap-5">
             {/* Search across every season — replaces the old season/sport dropdowns */}
             <div className={horizontalPadding ?? ''}>
-                <div className="relative w-full sm:max-w-xs">
-                    <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-(--text-tertiary)" />
-                    <input
-                        type="text"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        placeholder="Search by team or season (e.g. 1998)…"
-                        className="w-full pl-9 pr-9 py-2 rounded-xl bg-(--background-secondary) border border-(--divider) text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--text-tertiary)"
-                    />
-                    {query && (
-                        <button
-                            type="button"
-                            onClick={() => setQuery('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-(--text-tertiary) hover:bg-(--divider) cursor-pointer"
-                            aria-label="Clear search"
-                        >
-                            <FaXmark className="text-[12px]" />
-                        </button>
-                    )}
-                </div>
+                <TeamSearchInput
+                    value={query}
+                    onChange={setQuery}
+                    placeholder="Search by team or season (e.g. 1998)…"
+                    className="w-full sm:max-w-xs"
+                />
             </div>
 
             {error && (

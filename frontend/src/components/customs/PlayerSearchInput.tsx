@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { FaXmark } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
+import { SearchGradientBorder } from '../shared/SearchGradientBorder';
 
 /**
  * Player search result option with comprehensive metadata
@@ -365,7 +366,7 @@ export function PlayerSearchInput({
                 {label}
             </label>
 
-            <div className="relative bg-linear-to-r from-blue-500 to-red-500 p-0.5 rounded-lg">
+            <SearchGradientBorder className="relative">
 
                 <div className="bg-primary rounded-md relative">
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary">
@@ -422,9 +423,9 @@ export function PlayerSearchInput({
                             <FaXmark />
                         </button>
                     )}
-            
+
                 </div>
-            </div>
+            </SearchGradientBorder>
 
             {isOpen && options.length > 0 && typeof document !== 'undefined' && (
                 createPortal(

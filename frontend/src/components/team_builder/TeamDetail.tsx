@@ -16,6 +16,7 @@ import { DepthChartPanel } from './DepthChartPanel';
 import { LineupPanel } from './LineupPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { SlideOver } from '../shared/SlideOver';
+import { SearchGradientBorder } from '../shared/SearchGradientBorder';
 import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import {
@@ -1340,19 +1341,20 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
                             }}
                         >
-                            <button
-                                type="button"
-                                onClick={() => setPendingSlot({ kind: 'roster' })}
-                                aria-label="Search cards"
-                                className="
-                                    pointer-events-auto
-                                    w-12 h-12 rounded-full flex items-center justify-center
-                                    bg-(--showdown-red) text-white
-                                    shadow-lg cursor-pointer hover:opacity-90 transition-opacity
-                                "
-                            >
-                                <FaMagnifyingGlass className="text-[16px]" />
-                            </button>
+                            <SearchGradientBorder rounded="rounded-full" className="pointer-events-auto shadow-lg">
+                                <button
+                                    type="button"
+                                    onClick={() => setPendingSlot({ kind: 'roster' })}
+                                    aria-label="Search cards"
+                                    className="
+                                        w-12 h-12 rounded-full flex items-center justify-center
+                                        bg-primary text-primary
+                                        cursor-pointer hover:opacity-90 transition-opacity
+                                    "
+                                >
+                                    <FaMagnifyingGlass className="text-[16px]" />
+                                </button>
+                            </SearchGradientBorder>
                         </div>
                     )}
 

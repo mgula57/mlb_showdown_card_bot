@@ -91,6 +91,9 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
 
+    /** Search inputs get the shared red→blue gradient frame (see PlayerSearchInput / SearchGradientBorder). */
+    const useSearchGradient = showSearchIcon && !isFileInput;
+
     /**
      * Handle file selection for upload inputs
      * Extracts the first selected file and passes it to the callback
@@ -107,7 +110,14 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
             <label className="text-sm font-medium text-secondary">{label}</label>
 
             {/* Input container with border styling */}
-            <div className="flex items-stretch focus:outline-none border-2 border-form-element rounded-xl mt-1">
+            <div
+                className={
+                    useSearchGradient
+                        ? "flex items-stretch focus:outline-none rounded-xl mt-1 bg-linear-to-r from-blue-500 to-red-500 p-0.5"
+                        : "flex items-stretch focus:outline-none border-2 border-form-element rounded-xl mt-1"
+                }
+            >
+              <div className={useSearchGradient ? "flex items-stretch w-full bg-primary rounded-[10px]" : "contents"}>
 
                 {/* File upload input with custom styling */}
                 {isFileInput ? (
@@ -178,9 +188,10 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                         )}
                     </>
                 )}
-                
+              </div>
+
             </div>
-            
+
         </div>
     );
 }
