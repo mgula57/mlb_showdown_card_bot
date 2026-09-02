@@ -388,10 +388,17 @@ class GameStartState(BaseModel):
 
 class RunnerRef(BaseModel):
     """A baserunner's identity and associated base. `base` is 1-3 for a runner still on, 4 for one
-    who scored, and the base they were retired trying to reach for one who was thrown/forced out."""
+    who scored, and the base they were retired trying to reach for one who was thrown/forced out.
+
+    `reason` is only meaningful on `GameLogEntry.scored` / `.retired` and tells a replay which of a
+    plate appearance's beats the event belongs to: "steal" (pre-pitch) | "advance" (post-hit
+    extra-base send) | "forced" (erased on the swing itself, e.g. a DP or fielder's choice) for a
+    retired runner; "swing" | "advance" for one who scored. Empty on logs written before the
+    per-beat split existed - consumers then treat the whole entry as a single beat."""
     id: str
     name: str
     base: int
+    reason: str = ""
 
 
 class GameLogEntry(BaseModel):
@@ -425,6 +432,13 @@ class GameLogEntry(BaseModel):
     bases_detail: list[RunnerRef] = Field(default_factory=list)
     scored: list[RunnerRef] = Field(default_factory=list)
     retired: list[RunnerRef] = Field(default_factory=list)
+    # POST-PHASE BASE SNAPSHOTS FOR A REPLAY THAT ANIMATES BASERUNNING APART FROM THE SWING. SAME
+    # SHAPE AS `bases_detail`, EMITTED ONLY WHEN THAT PHASE ACTUALLY MOVED SOMEONE SO SIMPLE PLAYS
+    # AND OLDER STORED SIMS STAY BYTE-FOR-BYTE THE SAME (None = "no split needed, use one beat").
+    #   bases_after_steal - after pre-pitch steal attempts resolve
+    #   bases_after_swing  - after the ball-in-play advancement + any DP, BEFORE extra-base sends
+    bases_after_steal: Optional[list[RunnerRef]] = None
+    bases_after_swing: Optional[list[RunnerRef]] = None
 
 
 class InningLineScore(BaseModel):

@@ -259,7 +259,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 const panels = boxScorePanels(activeView);
 
                 /* Mode strip: sim banner gets a "Watch" button that jumps to the first pitch and
-                   autoplays; a finished real game under active review gets its own REPLAY strip
+                   starts playback; a finished real game under active review gets its own REPLAY strip
                    with an "Exit Replay" action that jumps back to the live/final edge. Only one of
                    the two is ever relevant at once — a sim result is never mid-live-review. */
                 const modeBanner = simResult ? (
@@ -276,7 +276,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         <div className="flex items-center gap-2">
                             <button
                                 type="button"
-                                onClick={playbackControls.seekToStart}
+                                onClick={() => { playbackControls.seekToStart(); playbackControls.play(); }}
                                 className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
                             >
                                 Watch
@@ -408,7 +408,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                     lastPlay={activePlays[0]}
                                                 />
 
-                                                {showPlaybackControls && playbackBar}
+                                                {/* A takeover sim is a finished game the user will want to scrub
+                                                    through play by play, so its transport strip is shown up front
+                                                    rather than hidden behind the Replay toggle. */}
+                                                {(showPlaybackControls || simResult?.is_takeover) && playbackBar}
 
                                                 <GameMatchup
                                                     game={activeView}

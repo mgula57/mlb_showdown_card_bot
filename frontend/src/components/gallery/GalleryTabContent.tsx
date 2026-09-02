@@ -338,7 +338,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                 data.filter(r => r.organization === 'MLB').map(r => r.team)
             )].sort();
             setTeamOptions([
-                { value: '', label: 'All Teams' },
+                { value: '', label: 'My Teams' },
                 ...mlbTeams.map(t => ({ value: t, label: t })),
             ]);
         });

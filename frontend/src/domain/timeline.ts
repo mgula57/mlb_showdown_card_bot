@@ -61,6 +61,10 @@ export type FrameTransition = {
     outsRecorded: number;
     isHalfInningChange: boolean;
     severity: TransitionSeverity;
+    /** Set only on the synthetic HALF_INNING_BREAK transition — the half-inning just finished and
+     *  the one about to begin, so the field's flash can play an arrow-flip from one to the other
+     *  while the bases clear, instead of flashing nothing on a play-less frame. */
+    halfInningBreak?: { fromInning: number; fromIsTop: boolean; toInning: number; toIsTop: boolean };
 };
 
 export type FramePhaseKind = "PRE_GAME" | "PLAY" | "HALF_INNING_BREAK" | "AT_BAT" | "FINAL";

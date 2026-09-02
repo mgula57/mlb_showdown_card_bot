@@ -7,10 +7,11 @@
  * can't fill (defense alignment, runner identity) degrade to markers rather than disappearing.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaCompress, FaExpand } from "react-icons/fa6";
+import { FaCaretUp, FaCompress, FaExpand } from "react-icons/fa6";
 
 import type { DefenseAlignment, GameView, PlayerRef } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
+import { ordinal } from "../../functions/formatters";
 import { basePathBetween, runnerKey, type FrameTransition, type RunnerSpot } from "../../domain/timeline";
 import type { PlayEntry } from "../../domain/play";
 import type { ShowdownBotCardAPIResponse, ShowdownBotCardCompact } from "../../api/showdownBotCard";
@@ -100,27 +101,62 @@ const atPercent = ([x, y]: readonly [number, number]): React.CSSProperties => ({
     top: `${y}%`,
 });
 
+/** Linear blend between two field coordinates — parks a retiring player a fraction of the way
+ *  along the path they were running (toward first on a ground out, toward the next base on a
+ *  runner thrown out) before they fade out, instead of teleporting or vanishing on the spot. */
+const lerpSpot = (
+    [ax, ay]: readonly [number, number],
+    [bx, by]: readonly [number, number],
+    t: number,
+): [number, number] => [ax + (bx - ax) * t, ay + (by - ay) * t];
+
 /** Every spot an offensive occupant (runner or batter) can render at — the three bases plus the
  *  plate, used both as "about to bat" and as "just scored" (a different visual moment, same x/y). */
 const SPOTS: Record<RunnerSpot, readonly [number, number]> = {
     first: BASES.first, second: BASES.second, third: BASES.third, plate: HOME, home: HOME,
 };
 
-type FieldOccupant = { key: string; player: PlayerRef; spot: RunnerSpot; isOut?: boolean };
+type FieldOccupant = {
+    key: string;
+    player: PlayerRef;
+    spot: RunnerSpot;
+    isOut?: boolean;
+    /** Playback-only exit choreography for a retirement:
+     *   - "poof"  — fade out in place, promptly (a strikeout: the batter just leaves the box).
+     *   - "drift" — break a fraction of the way toward `driftTo` while fading (a ball put in
+     *               play for an out heads up the first-base line; a runner thrown out
+     *               advancing/stealing breaks for the next base).
+     *  Undefined = the pre-existing behaviour (the presence list fades them where they stand). */
+    exit?: "poof" | "drift";
+    /** Destination for `exit: "drift"` — the runner covers part of the way there, then fades. */
+    driftTo?: RunnerSpot;
+};
+
+const STRIKEOUT_EVENT = /strikeout/;
+const IN_PLAY_OUT_EVENT = /(groundout|flyout|lineout|pop\s?out|forceout|force out|field out|fielders? choice|grounded into|double play|triple play|sac fly|sac bunt|bunt)/;
 
 /**
  * One offensive occupant per base PLUS the batter, keyed by player identity rather than by base
  * slot. Keying the batter with the exact identity they'll have as a runner (`runnerKey` ignores
  * which spot it's asked about when the player has an id) is what turns a single or a walk into
  * one DOM node whose `left`/`top` changes — the card runs to first — instead of two markers
- * swapping out. `transition` (playback only) adds back a scoring or retired runner for one beat
- * so their departure has something to animate: a retired runner's `spot` is the base they were
- * ATTEMPTING to reach (`move.attemptedTo`) when known, so they visibly run the bases before being
- * shown out — falling back to `move.from` (fade in place, no travel) only when the attempt isn't
- * known (a stranded runner at a half-inning's end, or a data gap). Without a transition at all
- * (live polling) a departure simply disappears when `situation` stops reporting it, same as today.
+ * swapping out. `transition`/`pendingPlay` (playback only) also add back a departing player for a
+ * beat so their exit has something to animate:
+ *   - a scoring runner sits at "home" and fades;
+ *   - a runner retired on the bases starts at `move.from` and, when the base they were breaking
+ *     for is known (`move.attemptedTo`), gets `exit: "drift"` toward the next base along that
+ *     path — otherwise (stranded at a half-inning's end, or a data gap) they just fade in place;
+ *   - the batter's own retirement isn't a `move` at all (they were never on a base to leave), so
+ *     it's read straight off `pendingPlay.event`: a strikeout "poof"s in place, anything else put
+ *     in play for an out "drift"s toward first.
+ * Without a transition (live polling) a departure simply disappears when `situation` stops
+ * reporting it, same as today.
  */
-function buildFieldOccupants(situation: GameView["situation"], transition: FrameTransition | undefined): FieldOccupant[] {
+function buildFieldOccupants(
+    situation: GameView["situation"],
+    transition: FrameTransition | undefined,
+    pendingPlay: PlayEntry | undefined,
+): FieldOccupant[] {
     if (!situation) return [];
     const occupants = new Map<string, FieldOccupant>();
 
@@ -140,7 +176,27 @@ function buildFieldOccupants(situation: GameView["situation"], transition: Frame
         if (move.to === "home") {
             occupants.set(move.key, { key: move.key, player: move.player, spot: "home" });
         } else if (move.to === null && move.from) {
-            occupants.set(move.key, { key: move.key, player: move.player, spot: move.attemptedTo ?? move.from, isOut: true });
+            const driftTo = move.attemptedTo && move.attemptedTo !== move.from
+                ? basePathBetween(move.from, move.attemptedTo)[0]
+                : undefined;
+            occupants.set(move.key, {
+                key: move.key, player: move.player, spot: move.from, isOut: true,
+                exit: driftTo ? "drift" : undefined, driftTo,
+            });
+        }
+    }
+
+    // The batter's retirement — classified from the resolving play, since it produces no `move`.
+    if (situation.batter && transition && pendingPlay) {
+        const key = runnerKey(situation.batter, "plate");
+        const batterMoved = transition.moves.some((m) => m.key === key);
+        if (!batterMoved) {
+            const event = (pendingPlay.event ?? "").toLowerCase();
+            if (STRIKEOUT_EVENT.test(event)) {
+                occupants.set(key, { key, player: situation.batter, spot: "plate", isOut: true, exit: "poof" });
+            } else if (IN_PLAY_OUT_EVENT.test(event)) {
+                occupants.set(key, { key, player: situation.batter, spot: "plate", isOut: true, exit: "drift", driftTo: "first" });
+            }
         }
     }
 
@@ -152,18 +208,16 @@ function buildFieldOccupants(situation: GameView["situation"], transition: Frame
 const BASE_HOP_MS = 220;
 
 /**
- * Steps a multi-base move through its intermediate stops instead of letting the CSS transition
+ * Steps a multi-base ADVANCE through its intermediate stops instead of letting the CSS transition
  * interpolate `left`/`top` directly between start and end — a direct interpolation would cut a
  * diagonal line across the infield grass on a double or triple. Returns a per-runner-key override
  * of which stop to render at RIGHT NOW; a single-hop move (the common case — batter to first,
  * runner to the next base over) isn't stepped at all, since one direct CSS transition already
  * looks correct for a single leg.
  *
- * A retired runner's "destination" is `attemptedTo` rather than `to` (which is always null for an
- * out) — this is what makes a runner thrown out stretching from first to third actually run
- * through second on the way, instead of freezing at first the instant the play resolves. A
- * stranded/unattributed out (no `attemptedTo` known) has no destination at all here and is left
- * for `buildFieldOccupants` to render in place, same as before.
+ * Only moves with a real `move.to` (advance / arrive / score) are stepped. A runner retired on
+ * the bases has `to: null` and is handled by `buildFieldOccupants` + `GameField` instead — they
+ * break a short way toward the base they were going for and fade, rather than completing the trip.
  */
 function useBasePathAnimation(transition: FrameTransition | undefined): Record<string, RunnerSpot> {
     // The FIRST waypoint of every multi-hop move is known synchronously from `transition` alone —
@@ -172,8 +226,8 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
     const initialOverrides = useMemo(() => {
         const initial: Record<string, RunnerSpot> = {};
         for (const move of transition?.moves ?? []) {
-            const destination = move.to ?? move.attemptedTo;
-            if (!move.from || !destination) continue; // no path to animate (fresh arrival, or an unattributed out)
+            const destination = move.to;
+            if (!move.from || !destination) continue; // no path to step (fresh arrival, or any out)
             const path = basePathBetween(move.from, destination);
             if (path.length > 1) initial[move.key] = path[0]; // one leg needs no stepping at all
         }
@@ -183,17 +237,18 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
     // Later waypoints land on a delay, which genuinely needs an effect+timers — but every
     // `setState` call here happens inside a `setTimeout` callback, never synchronously in the
     // effect body itself, so a stale-transition guard (comparing `transition` at read time) does
-    // the resetting instead of an unconditional `setLaterOverrides({})` at the top of the effect.
+    // the resetting instead of an unconditional reset at the top of the effect.
     //
-    // `settled` holds the keys whose full path has finished playing — their override is gone from
-    // `overrides`, and they must ALSO be dropped from `initialOverrides` in the merge below, or
-    // the (permanent, transition-keyed) initial waypoint would snap a runner who just reached
-    // home all the way back to `path[0]` (first base) the instant the animation completes.
+    // Each waypoint, including the LAST one, is held until `transition` itself changes — i.e.
+    // until the frame commits or the next play starts — never cleared on a timer. `buildFieldOccupants`
+    // reflects a `home` or an out move on the occupant's own `spot` right away, but an
+    // arrive/advance ONTO a base isn't mirrored there until the frame commits and `situation`
+    // catches up; dropping the override before then would snap a doubled runner (occupant `spot`
+    // still "plate") back to the plate for the rest of the beat.
     const [laterState, setLaterState] = useState<{
         transition: FrameTransition | undefined;
         overrides: Record<string, RunnerSpot>;
-        settled: Set<string>;
-    }>({ transition: undefined, overrides: {}, settled: new Set() });
+    }>({ transition: undefined, overrides: {} });
     const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
     useEffect(() => {
@@ -203,7 +258,7 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
 
         const timers: ReturnType<typeof setTimeout>[] = [];
         for (const move of transition.moves) {
-            const destination = move.to ?? move.attemptedTo;
+            const destination = move.to;
             if (!move.from || !destination) continue;
             const path = basePathBetween(move.from, destination);
             if (path.length <= 1) continue;
@@ -212,53 +267,90 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
                 if (i === 0) return;
                 timers.push(setTimeout(() => {
                     setLaterState((prev) => {
-                        const base = prev.transition === transition ? prev : { overrides: {}, settled: new Set<string>() };
-                        return {
-                            transition,
-                            overrides: { ...base.overrides, [move.key]: stop },
-                            settled: base.settled,
-                        };
+                        const base = prev.transition === transition ? prev.overrides : {};
+                        return { transition, overrides: { ...base, [move.key]: stop } };
                     });
                 }, i * BASE_HOP_MS));
             });
-            // Once the full path has played out, drop the override — by then the occupant's own
-            // `spot` (computed from the now-current `situation`) already matches the final stop —
-            // and mark the key `settled` so the stale `initialOverrides` entry stops applying too.
-            timers.push(setTimeout(() => {
-                setLaterState((prev) => {
-                    if (prev.transition !== transition) return prev;
-                    const next = { ...prev.overrides };
-                    delete next[move.key];
-                    const settled = new Set(prev.settled);
-                    settled.add(move.key);
-                    return { transition, overrides: next, settled };
-                });
-            }, path.length * BASE_HOP_MS));
         }
 
         timersRef.current = timers;
         return () => timers.forEach(clearTimeout);
     }, [transition]);
 
-    const active = laterState.transition === transition;
-    const merged: Record<string, RunnerSpot> = {};
-    for (const [key, stop] of Object.entries(initialOverrides)) {
-        if (active && laterState.settled.has(key)) continue;
-        merged[key] = stop;
-    }
-    if (active) Object.assign(merged, laterState.overrides);
+    // `laterState.overrides` (once it's for this transition) wins over the permanent `path[0]`
+    // waypoint from `initialOverrides`, so a completed multi-hop resolves to its final stop and
+    // stays there until the frame commits.
+    const merged: Record<string, RunnerSpot> = { ...initialOverrides };
+    if (laterState.transition === transition) Object.assign(merged, laterState.overrides);
     return merged;
 }
 
-/** Temporary badge announcing the result of the play that's resolving — "Double", "Home Run",
- *  "Strikeout" — visible for the stretch of the phase machine where the runners are actually
- *  moving, then it fades. Absent entirely outside playback (`phase` stays "idle" when there's
- *  nothing to reveal), so a plain live view never shows it. */
-function ResultFlash({ play, phase, severity }: { play: PlayEntry | undefined; phase: PlayPhase; severity?: FrameTransition["severity"] }) {
-    if (!play) return null;
+const FLASH_SHELL = `
+    absolute left-1/2 top-[6%] z-30 -translate-x-1/2
+    pointer-events-none select-none whitespace-nowrap
+    rounded-full border font-black uppercase tracking-wide shadow-lg
+    transition-[opacity,transform] duration-300 ease-out
+`;
+
+/** The half-inning changeover, shown on the play-less break frame: a caret + inning number that
+ *  flips from the half just finished to the half about to start as the bases clear. `▲` = top
+ *  (visitors bat), `▼` = bottom (home bats); when the inning number itself changes (a bottom half
+ *  ending) the digit rolls up to the next one. Driven by `phase` so it tracks playback speed —
+ *  the outgoing half holds through "result", then flips on "runners" as the bases clear. */
+function HalfInningFlash({ brk, phase, visible }: {
+    brk: NonNullable<FrameTransition["halfInningBreak"]>;
+    phase: PlayPhase;
+    visible: boolean;
+}) {
+    const flipped = phase === "runners" || phase === "settle";
+    const isTop = flipped ? brk.toIsTop : brk.fromIsTop;
+    const inningChanges = brk.fromInning !== brk.toInning;
+
+    return (
+        <div
+            key={`brk-${brk.toInning}-${brk.toIsTop}`}
+            aria-hidden={!visible}
+            className={`
+                ${FLASH_SHELL}
+                flex items-center gap-2 px-4 py-1.5 text-sm
+                bg-(--background-secondary)/95 border-(--divider) text-(--primary)
+                ${visible ? "opacity-100 translate-y-0 result-pop" : "opacity-0 -translate-y-2"}
+            `}
+        >
+            <FaCaretUp
+                className="text-(--live) transition-transform duration-500 ease-out"
+                style={{ transform: isTop ? "rotate(0deg)" : "rotate(180deg)" }}
+            />
+            <span className="inline-block h-[1.15em] overflow-hidden tabular-nums">
+                <span
+                    className="block transition-transform duration-500 ease-out"
+                    style={{ transform: flipped && inningChanges ? "translateY(-50%)" : "translateY(0)" }}
+                >
+                    <span className="block h-[1.15em] leading-[1.15em]">{ordinal(brk.fromInning)}</span>
+                    <span className="block h-[1.15em] leading-[1.15em]">{ordinal(brk.toInning)}</span>
+                </span>
+            </span>
+        </div>
+    );
+}
+
+/** Temporary badge announcing what's resolving — a play result ("Double", "Home Run",
+ *  "Strikeout"), or the inning changeover on the half-inning break (see `HalfInningFlash`).
+ *  Visible for the stretch of the phase machine where the field is actually animating, then it
+ *  fades. Absent entirely outside playback (`phase` stays "idle" when there's nothing to reveal),
+ *  so a plain live view never shows it. */
+function ResultFlash({ play, phase, transition }: { play: PlayEntry | undefined; phase: PlayPhase; transition?: FrameTransition }) {
     const visible = phase === "result" || phase === "runners";
 
-    const isBig = severity === "big";
+    // The half-inning-break frame carries no `play` — flip the inning arrow instead.
+    if (!play && transition?.halfInningBreak) {
+        return <HalfInningFlash brk={transition.halfInningBreak} phase={phase} visible={visible} />;
+    }
+
+    if (!play) return null;
+
+    const isBig = transition?.severity === "big";
     const label = isBig && play.isScoringPlay && !/[!?]$/.test(play.event) ? `${play.event}!` : play.event;
 
     return (
@@ -266,10 +358,7 @@ function ResultFlash({ play, phase, severity }: { play: PlayEntry | undefined; p
             key={play.id}
             aria-hidden={!visible}
             className={`
-                absolute left-1/2 top-[6%] z-30 -translate-x-1/2
-                pointer-events-none select-none whitespace-nowrap
-                rounded-full border font-black uppercase tracking-wide shadow-lg
-                transition-[opacity,transform] duration-300 ease-out
+                ${FLASH_SHELL}
                 ${visible ? "opacity-100 translate-y-0 result-pop" : "opacity-0 -translate-y-2"}
                 ${isBig
                     ? "bg-(--live) border-(--live) text-white text-base px-5 py-2"
@@ -472,7 +561,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
     const pitcherLine = fieldingSide.boxscore?.pitching.find((line) => line.id === situation?.pitcher?.id);
     const defense = situation?.defense;
 
-    const occupants = useMemo(() => buildFieldOccupants(situation, transition), [situation, transition]);
+    const occupants = useMemo(
+        () => buildFieldOccupants(situation, transition, pendingPlay),
+        [situation, transition, pendingPlay],
+    );
     // Exit hold covers the longest possible base-running path (plate→home, 4 hops) plus a fade
     // tail, so a runner scoring or getting thrown out has time to finish the whole trip and fade
     // before `usePresenceList` drops them — this is a JS-side mirror of that timing, not a second
@@ -556,29 +648,61 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         across the infield — the position transition duration matches one hop
                         (`BASE_HOP_MS`) so each leg of a multi-base run reads as a distinct step. */}
                     {presentOccupants.map((occ) => {
-                        // Still stepping through `pathOverrides` = still mid-run — an "out" runner
-                        // reads as a normal (safe-looking) card while covering ground, same as any
-                        // other runner, and only visibly "gets tagged" (grayscale, dimmed) once
-                        // they've arrived at the base they were attempting, one beat before
-                        // `usePresenceList`'s exit hold removes them entirely.
+                        // Still stepping through `pathOverrides` = still mid-run on a real advance.
                         const isMidPath = pathOverrides[occ.key] !== undefined;
                         const renderSpot = pathOverrides[occ.key] ?? occ.spot;
-                        const taggedOut = occ.isOut && occ.presence === "present" && !isMidPath;
+
+                        // A retirement's exit choreography ("poof" / "drift", set in
+                        // `buildFieldOccupants`) only plays once the result has been revealed —
+                        // through the "pitch" beat everyone still stands where they were at first
+                        // pitch. After the frame commits the occupant is "leaving" and we keep
+                        // playing it out until the presence list drops it.
+                        const exiting = !!occ.exit
+                            && (phase === "result" || phase === "runners" || phase === "settle" || occ.presence === "leaving");
+
+                        let [x, y] = SPOTS[renderSpot];
+                        if (exiting && occ.exit === "drift" && occ.driftTo) {
+                            // Batter grounds/flies out → a step up the first-base line. Runner
+                            // gunned down advancing → a break toward the next base. Then they fade.
+                            [x, y] = lerpSpot(SPOTS[occ.spot], SPOTS[occ.driftTo], occ.spot === "plate" ? 0.4 : 0.45);
+                        }
+
+                        // The next hitter walks in from the third-base side rather than fading in
+                        // on the spot — paired with the outgoing batter's prompt exit above.
+                        const walkingIn = occ.presence === "entering" && occ.spot === "plate";
+                        if (walkingIn) x -= 16;
+
+                        // A retired runner with no exit of their own (stranded at inning's end)
+                        // still reads as "tagged" where they stood.
+                        const taggedOut = occ.isOut && !occ.exit && occ.presence === "present" && !isMidPath;
+
+                        const posDur = walkingIn ? 450 : occ.exit === "drift" ? 600 : BASE_HOP_MS;
+                        const opacityDur = occ.exit === "poof" ? 200 : occ.exit === "drift" ? 520 : 300;
+
+                        const stateClass = occ.presence === "entering"
+                            ? (walkingIn ? "opacity-0" : "opacity-0 scale-90")
+                            : exiting
+                                ? (occ.exit === "poof" ? "opacity-0 scale-95"
+                                    : occ.spot === "plate" ? "opacity-0 scale-90"
+                                    : "opacity-0 scale-90 grayscale")
+                                : occ.presence === "leaving"
+                                    ? (occ.isOut ? "opacity-0 scale-75 grayscale" : "opacity-0 scale-110")
+                                    : taggedOut ? "opacity-50 scale-90 grayscale"
+                                    : "opacity-100 scale-100";
+
                         return (
                             <div
                                 key={occ.key}
                                 style={{
-                                    ...atPercent(SPOTS[renderSpot]),
+                                    left: `${x}%`,
+                                    top: `${y}%`,
                                     zIndex: renderSpot === "plate" ? 2 : 1,
-                                    transitionDuration: `${BASE_HOP_MS}ms, ${BASE_HOP_MS}ms, 300ms, 300ms`,
+                                    transitionDuration: `${posDur}ms, ${posDur}ms, ${opacityDur}ms, 300ms`,
                                 }}
                                 className={`
                                     absolute -translate-x-1/2 -translate-y-1/2
                                     transition-[left,top,opacity,transform] ease-in-out
-                                    ${occ.presence === "entering" ? "opacity-0 scale-90"
-                                        : occ.presence === "leaving" ? (occ.isOut ? "opacity-0 scale-75 grayscale" : "opacity-0 scale-110")
-                                        : taggedOut ? "opacity-50 scale-90 grayscale"
-                                        : "opacity-100 scale-100"}
+                                    ${stateClass}
                                 `}
                             >
                                 <FieldMarker
@@ -596,7 +720,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         );
                     })}
 
-                    <ResultFlash play={pendingPlay} phase={phase} severity={transition?.severity} />
+                    <ResultFlash play={pendingPlay} phase={phase} transition={transition} />
                 </div>
 
                 {defense && (

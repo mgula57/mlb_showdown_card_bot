@@ -97,6 +97,14 @@ class PlateAppearance:
         # AFTER ANY STEALS, SO A RUNNER WHO STOLE SECOND AND THEN TOOK THIRD ON A HIT IS DESCRIBED
         # AS DOING BOTH.
         self.runners_before_swing: list[tuple[str, str, int]] = []
+        # POST-PHASE BASE SNAPSHOTS - (id, name, base) TUPLES - CONSUMED BY THE GAME LOG SO A REPLAY
+        # CAN ANIMATE STEALS (PRE-PITCH) AND EXTRA-BASE SENDS (POST-HIT) AS THEIR OWN BEATS. STAY
+        # None UNLESS THAT PHASE ACTUALLY HAPPENED.
+        self.bases_snapshot_after_steal: Optional[list[tuple[str, str, int]]] = None
+        self.bases_snapshot_after_swing: Optional[list[tuple[str, str, int]]] = None
+        # RUNNERS WHO SCORED ON A POST-HIT EXTRA-BASE SEND SPECIFICALLY (NOT ON THE SWING ITSELF) -
+        # LETS THE LOG TAG `scored` WITH WHICH BEAT THE RUN BELONGS TO.
+        self.scored_on_advance: list[Runner] = []
 
     def execute_pitch(self) -> None:
         if self.total_outs < 3:
@@ -192,7 +200,16 @@ class PlateAppearance:
                         else:
                             self.runners.remove_runner(runner.base)
 
+        if self.steal_attempts:
+            self.bases_snapshot_after_steal = [(r.id, r.name, r.base) for r in self.runners.runners]
+
     def check_and_execute_advance(self, outfield_defense:int, probability_threshold: Optional[float] = None) -> None:
+
+        # BASE STATE AS THE BALL-IN-PLAY ADVANCEMENT (AND ANY DOUBLE PLAY) LEFT IT, BEFORE ANY
+        # EXTRA-BASE SEND ROLLED HERE - THE REPLAY DIFFS THE SWING BEAT AGAINST THIS, THEN THE
+        # SEND BEAT FROM THIS TO THE FINAL STATE. ONLY SURFACED IN THE LOG WHEN A SEND ACTUALLY
+        # HAPPENED (SEE `Game.simulate`).
+        self.bases_snapshot_after_swing = [(r.id, r.name, r.base) for r in self.runners.runners]
 
         # THE MANAGER'S BASERUNNING AGGRESSION SETS THE SEND THRESHOLD; `advance_probability_threshold`
         # IS EXACTLY 0.5 (THE OLD DEFAULT) FOR A NEUTRAL MANAGER. AN EXPLICIT ARG STILL WINS.
@@ -226,6 +243,7 @@ class PlateAppearance:
                                 self.runs_scored += 1
                                 self.update_pitcher_runs_dict(pitcher_id=runner.pitcher_id)
                                 self.runners_scored.append(runner)
+                                self.scored_on_advance.append(runner)
                                 self.runners.remove_runner(runner.base)
                             else:
                                 self.runners.advance_runner(runner.base)

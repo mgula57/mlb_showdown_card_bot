@@ -260,8 +260,19 @@ class Game:
                     detail=plate_appearance.detail_str.strip(),
                     summary=f"{inning.summary_str}  {self.away_team.name}:{away_score}|{self.home_team.name}:{home_score}  {plate_appearance.summary_str()}",
                     bases_detail=[RunnerRef(id=r.id, name=r.name, base=r.base) for r in plate_appearance.runners.runners],
-                    scored=[RunnerRef(id=r.id, name=r.name, base=4) for r in plate_appearance.runners_scored],
-                    retired=[RunnerRef(id=i, name=n, base=b) for i, n, b, _reason in plate_appearance.retired_runners],
+                    scored=[
+                        RunnerRef(id=r.id, name=r.name, base=4, reason=("advance" if r in plate_appearance.scored_on_advance else "swing"))
+                        for r in plate_appearance.runners_scored
+                    ],
+                    retired=[RunnerRef(id=i, name=n, base=b, reason=reason) for i, n, b, reason in plate_appearance.retired_runners],
+                    bases_after_steal=(
+                        [RunnerRef(id=i, name=n, base=b) for i, n, b in plate_appearance.bases_snapshot_after_steal]
+                        if plate_appearance.bases_snapshot_after_steal is not None else None
+                    ),
+                    bases_after_swing=(
+                        [RunnerRef(id=i, name=n, base=b) for i, n, b in plate_appearance.bases_snapshot_after_swing]
+                        if plate_appearance.advance_attempts else None
+                    ),
                 )
                 if collect_log:
                     self.logs.append(log_entry)

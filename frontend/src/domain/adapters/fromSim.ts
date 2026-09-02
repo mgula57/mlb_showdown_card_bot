@@ -145,9 +145,21 @@ export type SimGameLogEntryJson = {
     bases_detail?: SimRunnerRefJson[];
     scored?: SimRunnerRefJson[];
     retired?: SimRunnerRefJson[];
+    /** Post-phase base snapshots that let a replay animate baserunning APART from the swing —
+     *  the steal (before the pitch) and the extra-base send (after the ball is in play) each get
+     *  their own beat. Same shape as `bases_detail`. Each is present only when that phase actually
+     *  moved someone; absent on logs written before the per-beat split, where `fromSimTimeline`
+     *  falls back to a single beat per plate appearance.
+     *   - `bases_after_steal` — after pre-pitch steal attempts resolve
+     *   - `bases_after_swing`  — after the ball-in-play advancement + any DP, before extra-base sends */
+    bases_after_steal?: SimRunnerRefJson[] | null;
+    bases_after_swing?: SimRunnerRefJson[] | null;
 };
 
-export type SimRunnerRefJson = { id: string; name: string; base: number };
+/** `reason` is set only on `scored` / `retired` and tells the replay which beat of the plate
+ *  appearance the event belongs to — "steal" | "advance" | "forced" for a retired runner,
+ *  "swing" | "advance" for one who scored. Empty on pre-split logs. */
+export type SimRunnerRefJson = { id: string; name: string; base: number; reason?: string };
 
 export type SimGameResultJson = {
     index: number;
@@ -347,6 +359,18 @@ const runnerSpotFor = (base: number): RunnerSpot => (base >= 4 ? "home" : baseSl
 const toPlayerRef = (r: SimRunnerRefJson): PlayerRef => ({ id: r.id, name: r.name });
 const toRetiredRunner = (r: SimRunnerRefJson): RetiredRunner => ({ player: toPlayerRef(r), attemptedSpot: runnerSpotFor(r.base) });
 
+/** A `bases_detail`-shaped list of `RunnerRef`s → the by-slot base map the timeline threads
+ *  through `buildRunnerMoves`. Shared by the final post-PA state and the intermediate
+ *  post-steal / post-swing snapshots. */
+const mapDetailBases = (refs: SimRunnerRefJson[]): Record<BaseSlot, PlayerRef | null> => {
+    const bases: Record<BaseSlot, PlayerRef | null> = { ...EMPTY_BASES };
+    for (const r of refs) {
+        const slot = baseSlotFor(r.base);
+        if (slot) bases[slot] = toPlayerRef(r);
+    }
+    return bases;
+};
+
 /**
  * Reconstructs a frame-by-frame `GameTimeline` from a sim's `GameResult` log. Each `GameLogEntry`
  * already IS a post-play state snapshot (`Game.simulate` in `game.py` appends it after mutating
@@ -410,56 +434,66 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
         });
     }
 
+    // Outs in the current half-inning as each plate appearance begins — the prior PA's ending
+    // count, reset to 0 on a half-inning flip. Lets a pre-pitch steal beat show the right out
+    // total rather than the post-PA one.
+    let carryOuts = startState?.outs ?? 0;
+
     for (let i = 0; i < log.length; i++) {
         const entry = log[i];
         const nextEntry = log[i + 1];
         inning = entry.inning;
         isTop = entry.is_top;
-        const outs = entry.outs;
 
-        let nextBases: Record<BaseSlot, PlayerRef | null>;
-        let scored: PlayerRef[];
-        let retired: RetiredRunner[];
+        const entryBatter: PlayerRef = { id: entry.hitter_id || undefined, name: entry.hitter };
+        const entryPitcher: PlayerRef = { id: entry.pitcher_id || undefined, name: entry.pitcher };
+        const nextBatter: PlayerRef | undefined = nextEntry ? { id: nextEntry.hitter_id || undefined, name: nextEntry.hitter } : undefined;
+        const nextPitcher: PlayerRef | undefined = nextEntry ? { id: nextEntry.pitcher_id || undefined, name: nextEntry.pitcher } : entryPitcher;
+
+        const runsScored = entry.runs_scored ?? 0;
+        const swingResult = entry.swing_result.toLowerCase();
+        const isHomeRun = swingResult === "hr";
+        const isHit = ["1b", "1b+", "2b", "3b", "hr"].includes(swingResult);
+        const swingIsEmpty = swingResult === "na"; // a pure steal/CS that ended the half-inning
+        const isHalfInningChange = !!nextEntry && (nextEntry.inning !== inning || nextEntry.is_top !== isTop);
+        const isLastEntry = i === log.length - 1;
+        const outsStart = carryOuts;
+
+        // Final post-PA base state. Identity comes from the backend (`bases_detail`); a legacy
+        // occupancy-only sim degrades to per-slot fades (no split beats either — the snapshots
+        // that drive them are absent).
+        let finalBases: Record<BaseSlot, PlayerRef | null>;
+        let hasDetail: boolean;
         if (entry.bases_detail !== undefined) {
-            const detailed: Record<BaseSlot, PlayerRef | null> = { ...EMPTY_BASES };
-            for (const r of entry.bases_detail) {
-                const slot = baseSlotFor(r.base);
-                if (slot) detailed[slot] = toPlayerRef(r);
-            }
-            nextBases = detailed;
-            scored = (entry.scored ?? []).map(toPlayerRef);
-            // `retired[].base` is exact from the backend (unlike MLB's heuristic) — no guessing
-            // needed for where a caught-stealing/thrown-out/forced-out sim runner was headed.
-            retired = (entry.retired ?? []).map(toRetiredRunner);
+            hasDetail = true;
+            finalBases = mapDetailBases(entry.bases_detail);
         } else {
-            // Legacy stored sim — occupancy only, no identity. `runnerKey`'s `anon:${slot}`
-            // fallback (inside `buildRunnerMoves`) means these fade in/out per slot rather than
-            // sliding, since there's no identity to track a runner across a move.
+            hasDetail = false;
             hasRunnerIdentity = false;
-            nextBases = parseSimBases(entry.bases);
-            scored = [];
-            retired = [];
+            finalBases = parseSimBases(entry.bases);
         }
 
-        const batter: PlayerRef = { id: entry.hitter_id || undefined, name: entry.hitter };
-        const pitcher: PlayerRef = { id: entry.pitcher_id || undefined, name: entry.pitcher };
-        const runsScored = entry.runs_scored ?? 0;
-        const isHomeRun = entry.swing_result.toLowerCase() === "hr";
+        const scoredWhere = (pred: (r: SimRunnerRefJson) => boolean): PlayerRef[] =>
+            (entry.scored ?? []).filter(pred).map(toPlayerRef);
+        const retiredWhere = (reasons: string[]): RetiredRunner[] =>
+            (entry.retired ?? []).filter((r) => reasons.includes(r.reason ?? "")).map(toRetiredRunner);
 
-        const moves = buildRunnerMoves({ prevBases, nextBases, scored, retired, batter });
-        const isHalfInningChange = !!nextEntry && (nextEntry.inning !== inning || nextEntry.is_top !== isTop);
-        const isHit = ["1b", "1b+", "2b", "3b", "hr"].includes(entry.swing_result.toLowerCase());
+        // Split the plate appearance into up to three beats: the pre-pitch steal, the swing
+        // result, then the post-hit extra-base send — each animated on its own, rather than one
+        // transition where a steal plays on top of the hit. The two intermediate base snapshots
+        // are only present when that phase actually moved someone (see the backend), so a plain
+        // PA collapses back to the single result beat below.
+        const canSplit = hasDetail && !swingIsEmpty;
+        const stealSnap = canSplit ? entry.bases_after_steal ?? null : null;
+        const swingSnap = canSplit ? entry.bases_after_swing ?? null : null;
 
-        accumulator.apply(inning, isTop, entry.away_score, entry.home_score, isHit);
-        const severity = severityFor({
-            moves, runsScored, isHomeRun,
-            isWalkOff: !nextEntry && runsScored > 0,
-        });
-
-        const isLastEntry = i === log.length - 1;
-        const kind: FramePhaseKind = isLastEntry ? "FINAL" : "PLAY";
-        const nextBatter: PlayerRef | undefined = nextEntry ? { id: nextEntry.hitter_id || undefined, name: nextEntry.hitter } : undefined;
-        const nextPitcher: PlayerRef | undefined = nextEntry ? { id: nextEntry.pitcher_id || undefined, name: nextEntry.pitcher } : pitcher;
+        const advanceScored = scoredWhere((r) => r.reason === "advance");
+        const advanceRuns = advanceScored.length;
+        const advanceOuts = retiredWhere(["advance"]).length;
+        const swingRuns = Math.max(0, runsScored - advanceRuns);
+        // Batting-side cumulative score after the swing but before any extra-base send scores.
+        const awayAfterSwing = isTop ? entry.away_score - advanceRuns : entry.away_score;
+        const homeAfterSwing = isTop ? entry.home_score : entry.home_score - advanceRuns;
 
         const playEntry: PlayEntry = {
             id: `sim-${i}`,
@@ -471,7 +505,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             event: entry.event || SIM_EVENT_LABELS[entry.swing_result] || entry.swing_result.toUpperCase(),
             description: entry.description || entry.summary || entry.detail || "",
             isScoringPlay: runsScored > 0,
-            outs,
+            outs: entry.outs,
             source: "SIM",
             roll: {
                 pitchRoll: entry.pitch_roll, pitchResult: entry.pitch_result,
@@ -479,29 +513,125 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             },
         };
 
-        frames.push({
+        type SimLeg = {
+            id: string;
+            bases: Record<BaseSlot, PlayerRef | null>;
+            scored: PlayerRef[];
+            retired: RetiredRunner[];
+            /** Only the swing beat carries a `play` — steal/advance beats animate without adding
+             *  a play-by-play row (`GameDetailPlayback` filters on `frame.play`). */
+            play?: PlayEntry;
+            /** Batter identity fed to `buildRunnerMoves` — only the swing beat resolves a batter. */
+            moveBatter?: PlayerRef;
+            /** Who stands in the box on this frame. The steal beat keeps the current hitter there;
+             *  the swing/advance beats use the offset next hitter, as every frame does today. */
+            standingBatter?: PlayerRef;
+            pitcher?: PlayerRef;
+            outs: number;
+            away: number;
+            home: number;
+            runs: number;
+            isHomeRun: boolean;
+        };
+
+        const legs: SimLeg[] = [];
+
+        if (stealSnap != null) {
+            const stealRetired = retiredWhere(["steal"]);
+            legs.push({
+                id: `sim-${i}-steal`,
+                bases: mapDetailBases(stealSnap),
+                scored: [],
+                retired: stealRetired,
+                standingBatter: entryBatter,
+                pitcher: entryPitcher,
+                outs: outsStart + stealRetired.length,
+                away: isTop ? entry.away_score - runsScored : entry.away_score,
+                home: isTop ? entry.home_score : entry.home_score - runsScored,
+                runs: 0,
+                isHomeRun: false,
+            });
+        }
+
+        const hasAdvanceLeg = swingSnap != null;
+        legs.push({
             id: `sim-${i}`,
-            index: frames.length,
-            kind,
-            source: "SIM",
+            bases: hasAdvanceLeg ? mapDetailBases(swingSnap) : finalBases,
+            scored: swingIsEmpty ? (entry.scored ?? []).map(toPlayerRef) : scoredWhere((r) => (r.reason ?? "") !== "advance"),
+            retired: swingIsEmpty ? (entry.retired ?? []).map(toRetiredRunner) : retiredWhere(["forced", ""]),
             play: playEntry,
-            runners: { bases: nextBases, scored, retired, batter: nextBatter },
-            transition: {
-                fromIndex: frames.length - 1, toIndex: frames.length,
-                moves, runsScored, outsRecorded: outs, isHalfInningChange, severity,
-            },
-            view: baseView({
-                state: kind === "FINAL" ? "FINAL" : "LIVE",
-                away: { ...view.away, score: entry.away_score, isWinner: kind === "FINAL" ? view.away.isWinner : undefined },
-                home: { ...view.home, score: entry.home_score, isWinner: kind === "FINAL" ? view.home.isWinner : undefined },
-                linescore: accumulator.snapshot(),
-                situation: {
-                    inning, isTop, inningLabel: ordinal(inning), outs,
-                    bases: nextBases, batter: nextBatter, pitcher: nextPitcher,
-                },
-                lastPlay: kind === "FINAL" ? view.lastPlay : undefined,
-            }),
+            moveBatter: entryBatter,
+            standingBatter: nextBatter,
+            pitcher: nextPitcher,
+            outs: hasAdvanceLeg ? entry.outs - advanceOuts : entry.outs,
+            away: hasAdvanceLeg ? awayAfterSwing : entry.away_score,
+            home: hasAdvanceLeg ? homeAfterSwing : entry.home_score,
+            runs: hasAdvanceLeg ? swingRuns : runsScored,
+            isHomeRun,
         });
+
+        if (hasAdvanceLeg) {
+            legs.push({
+                id: `sim-${i}-adv`,
+                bases: finalBases,
+                scored: advanceScored,
+                retired: retiredWhere(["advance"]),
+                standingBatter: nextBatter,
+                pitcher: nextPitcher,
+                outs: entry.outs,
+                away: entry.away_score,
+                home: entry.home_score,
+                runs: advanceRuns,
+                isHomeRun: false,
+            });
+        }
+
+        let legCursor = prevBases;
+        for (let li = 0; li < legs.length; li++) {
+            const leg = legs[li];
+            const isLastLeg = li === legs.length - 1;
+            // Fold runs into the linescore beat by beat: the swing beat gets what scored on the
+            // swing, the extra-base-send beat gets what scored going the extra base. An earlier
+            // steal beat still shows the pre-PA linescore (no apply).
+            if (leg.play || (isLastLeg && hasAdvanceLeg)) {
+                accumulator.apply(inning, isTop, leg.away, leg.home, leg.play ? isHit : false);
+            }
+
+            const moves = buildRunnerMoves({
+                prevBases: legCursor, nextBases: leg.bases, scored: leg.scored, retired: leg.retired, batter: leg.moveBatter,
+            });
+            const legKind: FramePhaseKind = isLastEntry && isLastLeg ? "FINAL" : "PLAY";
+            const severity = severityFor({
+                moves, runsScored: leg.runs, isHomeRun: leg.isHomeRun,
+                isWalkOff: !nextEntry && isLastLeg && runsScored > 0,
+            });
+
+            frames.push({
+                id: leg.id,
+                index: frames.length,
+                kind: legKind,
+                source: "SIM",
+                play: leg.play,
+                runners: { bases: leg.bases, scored: leg.scored, retired: leg.retired, batter: leg.standingBatter },
+                transition: {
+                    fromIndex: frames.length - 1, toIndex: frames.length,
+                    moves, runsScored: leg.runs, outsRecorded: leg.outs,
+                    isHalfInningChange: isLastLeg && isHalfInningChange, severity,
+                },
+                view: baseView({
+                    state: legKind === "FINAL" ? "FINAL" : "LIVE",
+                    away: { ...view.away, score: leg.away, isWinner: legKind === "FINAL" ? view.away.isWinner : undefined },
+                    home: { ...view.home, score: leg.home, isWinner: legKind === "FINAL" ? view.home.isWinner : undefined },
+                    linescore: accumulator.snapshot(),
+                    situation: {
+                        inning, isTop, inningLabel: ordinal(inning), outs: leg.outs,
+                        bases: leg.bases, batter: leg.standingBatter, pitcher: leg.pitcher,
+                    },
+                    lastPlay: legKind === "FINAL" ? view.lastPlay : undefined,
+                }),
+            });
+            legCursor = leg.bases;
+        }
 
         if (isHalfInningChange && nextEntry) {
             const breakInning = nextEntry.inning;
@@ -515,8 +645,9 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 runners: { bases: EMPTY_BASES, scored: [], retired: [], batter: nextBatter },
                 transition: {
                     fromIndex: frames.length - 1, toIndex: frames.length,
-                    moves: strandedRunnerMoves(nextBases), runsScored: 0, outsRecorded: 0,
+                    moves: strandedRunnerMoves(finalBases), runsScored: 0, outsRecorded: 0,
                     isHalfInningChange: true, severity: "quiet",
+                    halfInningBreak: { fromInning: inning, fromIsTop: isTop, toInning: breakInning, toIsTop: breakIsTop },
                 },
                 view: baseView({
                     state: "LIVE",
@@ -530,8 +661,10 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 }),
             });
             prevBases = EMPTY_BASES;
+            carryOuts = 0;
         } else {
-            prevBases = nextBases;
+            prevBases = finalBases;
+            carryOuts = entry.outs;
         }
     }
 

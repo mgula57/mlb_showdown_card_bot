@@ -67,8 +67,12 @@ export type GamePlaybackControls = {
     submitInput: (payload: unknown) => void;
 };
 
+// Per-phase beat lengths at 1x. Deliberately unhurried: 1x here plays close to what "0.5x" used
+// to feel like so the default replay reads as watchable rather than a flip-book — the speed
+// control is there for anyone who wants to move quicker. `result` is kept short so the runners
+// start moving promptly after the event badge reveals, rather than hanging on a static frame.
 const PHASE_MS: Record<"pitch" | "result" | "runners" | "settle", number> = {
-    pitch: 450, result: 500, runners: 700, settle: 350,
+    pitch: 900, result: 550, runners: 1400, settle: 700,
 };
 const SEVERITY_SCALE: Record<TransitionSeverity, number> = { quiet: 0.7, notable: 1, big: 1.4 };
 /** A live game's cursor gets a 2x boost once it's this many frames behind the live edge, so

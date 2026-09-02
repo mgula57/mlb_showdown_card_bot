@@ -534,6 +534,7 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
                     fromIndex: frames.length - 1, toIndex: frames.length,
                     moves: strandedRunnerMoves(nextBases), runsScored: 0, outsRecorded: 0,
                     isHalfInningChange: true, severity: "quiet",
+                    halfInningBreak: { fromInning: inning, fromIsTop: isTop, toInning: breakInning, toIsTop: breakIsTop },
                 },
                 view: baseView({
                     state: "LIVE",

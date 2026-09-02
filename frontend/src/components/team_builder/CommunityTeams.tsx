@@ -3,7 +3,9 @@ import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { TeamPreviewCard } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
-import { FaMagnifyingGlass, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { TeamSearchInput } from './TeamSearchInput';
+import { matchesTeamQuery } from './teamSearch';
+import { FaSpinner } from 'react-icons/fa6';
 
 // Set ordering for the "by set" shelves — newest curated sets first.
 const SET_ORDER = ['2000', '2001', '2002', '2003', '2004', '2005', 'EXPANDED', 'CLASSIC'];
@@ -27,13 +29,6 @@ function sortTeams(list: TeamSummary[], sortBy: SortKey): TeamSummary[] {
         default: sorted.sort((a, b) => (b.created_at ?? '') > (a.created_at ?? '') ? 1 : -1); break;
     }
     return sorted;
-}
-
-/** Matches a team by name/abbreviation or by Showdown set (e.g. "Expanded" matches allowed_sets: ["EXPANDED"]). */
-function matchesQuery(team: TeamSummary, q: string): boolean {
-    if (team.name.toLowerCase().includes(q)) return true;
-    if (team.abbreviation.toLowerCase().includes(q)) return true;
-    return (team.allowed_sets ?? []).some(set => set.toLowerCase().includes(q));
 }
 
 type CommunityTeamsProps = {
@@ -68,9 +63,9 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
 
     // Client-side search over the loaded pool — matches by name/abbreviation or by Showdown set.
     const results = useMemo(() => {
-        const q = query.trim().toLowerCase();
+        const q = query.trim();
         if (!q) return null;
-        return sortTeams(completeTeams.filter(t => matchesQuery(t, q)), sortBy);
+        return sortTeams(completeTeams.filter(t => matchesTeamQuery(t, q)), sortBy);
     }, [completeTeams, query, sortBy]);
 
     const shelves = useMemo(() => {
@@ -101,26 +96,11 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
     return (
         <div className={`flex flex-col gap-5 ${className ?? ''}`}>
             {/* Search bar */}
-            <div className="relative">
-                <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-(--text-tertiary)" />
-                <input
-                    type="text"
-                    value={query}
-                    onChange={e => setQuery(e.target.value)}
-                    placeholder="Search public teams by name or set (e.g. Expanded)…"
-                    className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-(--background-secondary) border border-(--divider) text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--text-tertiary)"
-                />
-                {query && (
-                    <button
-                        type="button"
-                        onClick={() => setQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-(--text-tertiary) hover:bg-(--divider) cursor-pointer"
-                        aria-label="Clear search"
-                    >
-                        <FaXmark className="text-[12px]" />
-                    </button>
-                )}
-            </div>
+            <TeamSearchInput
+                value={query}
+                onChange={setQuery}
+                placeholder="Search public teams by name or set (e.g. Expanded)…"
+            />
 
             {error && (
                 <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">

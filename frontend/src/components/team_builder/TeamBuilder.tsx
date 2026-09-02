@@ -19,6 +19,8 @@ import {
 } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamCard } from './TeamCard';
+import { TeamSearchInput } from './TeamSearchInput';
+import { matchesTeamQuery } from './teamSearch';
 import { TeamPreviewCard } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
 import { TeamDetail } from './TeamDetail';
@@ -29,6 +31,7 @@ import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
 import { ChallengeDetail } from './sim/ChallengeDetail';
 import { Tabs, type TabItem } from '../shared/Tabs';
+import BackButton from '../shared/BackButton';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaClockRotateLeft, FaRankingStar } from 'react-icons/fa6';
 import type { ChallengeInstance } from '../../api/sim';
 
@@ -47,7 +50,7 @@ function parseTeamRef(pathname: string): TeamRef | null {
     if (parts[1] === 'asg' && parts[3] !== undefined) {
         return { kind: 'asg', season: parts[2], league: parts[3].toUpperCase() };
     }
-    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges') {
+    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges' && parts[1] !== 'all') {
         return { kind: 'saved', teamId: parts[1] };
     }
     return null;
@@ -65,6 +68,13 @@ function parseSimJobId(pathname: string): string | null {
 function parseChallengeInstanceId(pathname: string): string | null {
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'challenges' && parts[2] ? parts[2] : null;
+}
+
+// The full "My Teams" list (with search) is its own screen at /teams/all — shareable, and the
+// browser back button returns to the tabbed list.
+function isAllTeamsView(pathname: string): boolean {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'all';
 }
 
 // =============================================================================
@@ -99,6 +109,10 @@ type ViewState =
     | { mode: 'loading' }
     | { mode: 'editor'; team: Team; readOnly: boolean };
 
+// The "All Teams" list on the My Teams tab collapses to this many (most recently updated)
+// until the user hits "Show all", which also reveals a search bar over the full list.
+const TEAM_LIST_PREVIEW_COUNT = 10;
+
 type TabId = 'mine' | 'community' | 'historical' | 'simulations';
 const ACTIVE_TAB_KEY = 'teams.activeTab';
 const TAB_IDS: TabId[] = ['mine', 'community', 'historical', 'simulations'];
@@ -126,6 +140,8 @@ export default function TeamBuilder() {
     // Teams created in this session — an untouched (0-pick) one is auto-deleted if the user
     // backs out of it, so abandoned "New Team" clicks don't litter the list.
     const createdThisSessionRef = useRef<Set<string>>(new Set());
+    // Search query for the full "My Teams" list screen (/teams/all).
+    const [teamSearch, setTeamSearch] = useState('');
     const [activeTab, setActiveTab] = useState<TabId>(() => {
         const stored = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_TAB_KEY) : null;
         return TAB_IDS.includes(stored as TabId) ? (stored as TabId) : 'mine';
@@ -158,10 +174,22 @@ export default function TeamBuilder() {
             .slice(0, 8);
     }, [userTeams, recentTeamIds]);
 
+    // All of the user's teams, most recently updated first. The My Teams tab shows the first
+    // TEAM_LIST_PREVIEW_COUNT of these; the full, search-filtered list lives on its own screen.
+    const sortedUserTeams = useMemo(
+        () => [...userTeams].sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1),
+        [userTeams],
+    );
+    const filteredUserTeams = useMemo(() => {
+        const q = teamSearch.trim();
+        return q ? sortedUserTeams.filter(t => matchesTeamQuery(t, q)) : sortedUserTeams;
+    }, [sortedUserTeams, teamSearch]);
+
     // Parse the team addressed by the current URL (saved UUID, historical, or All-Star).
     const teamRef = parseTeamRef(location.pathname);
     const simJobId = parseSimJobId(location.pathname);
     const challengeInstanceId = parseChallengeInstanceId(location.pathname);
+    const allTeamsView = isAllTeamsView(location.pathname);
     // The team currently resolved into the editor, so we don't re-resolve on re-render. Keyed on
     // the ref rather than the pathname so entering/leaving a sim URL doesn't refetch the team.
     const teamRefKey = teamRef ? JSON.stringify(teamRef) : null;
@@ -398,6 +426,60 @@ export default function TeamBuilder() {
         );
     }
 
+    // The full "My Teams" list with search is its own screen (/teams/all) — shareable, and the
+    // back button returns to the tabbed list. Only the signed-in user's own teams live here.
+    if (allTeamsView) {
+        const q = teamSearch.trim();
+        return (
+            <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
+                <div className={`flex items-center gap-3 ${px}`}>
+                    <BackButton onBack={() => { setTeamSearch(''); navigate('/teams'); }} />
+                    <div>
+                        <h1 className="text-[20px] font-black text-(--text-primary)">My Teams</h1>
+                        <p className="text-[12px] text-(--text-secondary)">
+                            {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
+                        </p>
+                    </div>
+                </div>
+
+                <div className={px}>
+                    <TeamSearchInput
+                        value={teamSearch}
+                        onChange={setTeamSearch}
+                        placeholder="Search your teams by name or set…"
+                        autoFocus
+                    />
+                </div>
+
+                {error && (
+                    <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {error}
+                    </div>
+                )}
+
+                {loading ? (
+                    <div className="flex justify-center py-12">
+                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                    </div>
+                ) : !token ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
+                        Sign in to view your teams.
+                    </p>
+                ) : filteredUserTeams.length === 0 ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
+                        {q ? `No teams match “${q}”.` : 'You haven’t created any teams yet.'}
+                    </p>
+                ) : (
+                    <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 ${px}`}>
+                        {filteredUserTeams.map(team => (
+                            <TeamCard key={team.team_id} team={team} onClick={() => openTeam(team)} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     if (view.mode === 'loading') {
         return (
             <div className="flex flex-col h-full items-center justify-center py-12">
@@ -514,9 +596,20 @@ export default function TeamBuilder() {
                                 />
                             ) : (
                                 <div className="space-y-3" >
-                                    <h3 className="text-[15px] font-black text-(--text-primary) truncate">All Teams</h3>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <h3 className="text-[15px] font-black text-(--text-primary) truncate">My Teams</h3>
+                                        {userTeams.length > TEAM_LIST_PREVIEW_COUNT && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setTeamSearch(''); navigate('/teams/all'); }}
+                                                className="shrink-0 text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer"
+                                            >
+                                                Show all ({userTeams.length})
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                                        {userTeams.map(team => (
+                                        {sortedUserTeams.slice(0, TEAM_LIST_PREVIEW_COUNT).map(team => (
                                             <TeamCard
                                                 key={team.team_id}
                                                 team={team}
