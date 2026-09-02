@@ -591,10 +591,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             // Prepare payload based on image source
             let finalPayload = { ...card_payload };
 
-            // Team selection only applies to multi-year stats periods; force the default otherwise
-            // so a stale preference from a prior multi-year search can't affect a single-year card.
+            // Team selection only applies to multi-year stats periods. For single-year cards the
+            // dropdown is hidden, so default to the player's last team (and force it, so a stale
+            // preference from a prior multi-year search can't affect a single-year card).
             if (!isMultiYearInput(finalPayload.year || '')) {
-                finalPayload.team_selection = FORM_DEFAULTS.team_selection;
+                finalPayload.team_selection = 'LAST_TEAM';
             }
 
             // Handle image source logic
