@@ -3,7 +3,7 @@
  * `GameTimeline`, plus (live games only) a buffered-plays badge and a jump back to the live edge.
  * Pure controls component — all state lives in `useGamePlayback` / `useGameDetailData`.
  */
-import { FaBackwardStep, FaForwardStep, FaPause, FaPlay } from "react-icons/fa6";
+import { FaBackwardFast, FaBackwardStep, FaForwardFast, FaForwardStep, FaPause, FaPlay } from "react-icons/fa6";
 
 import type { GamePlaybackControls, GamePlaybackState, PlaybackSpeed } from "../../hooks/useGamePlayback";
 import IconButton from "../shared/IconButton";
@@ -43,6 +43,12 @@ export default function GamePlaybackBar({
         <div className={`rounded-xl border border-(--divider) bg-(--background-secondary)/90 px-3 py-2.5 ${className}`}>
             <div className="flex items-center gap-2">
                 <IconButton
+                    icon={<FaBackwardFast size={11} />}
+                    onClick={controls.seekToStart}
+                    label="Jump to start of game"
+                    disabled={atStart}
+                />
+                <IconButton
                     icon={<FaBackwardStep size={11} />}
                     onClick={controls.stepBack}
                     label="Previous play"
@@ -58,6 +64,12 @@ export default function GamePlaybackBar({
                     icon={<FaForwardStep size={11} />}
                     onClick={controls.stepForward}
                     label="Next play"
+                    disabled={atEnd}
+                />
+                <IconButton
+                    icon={<FaForwardFast size={11} />}
+                    onClick={() => controls.seek(frameCount - 1)}
+                    label="Jump to end of game"
                     disabled={atEnd}
                 />
 
