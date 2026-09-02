@@ -174,7 +174,7 @@ class StatsPeriod(BaseModel):
     # OVERRIDES
     team_override: Optional[Team] = None
     player_type_override: Optional[PlayerType] = None
-    team_selection: TeamSelection = TeamSelection.GAMES_PLAYED  # How to choose the card's team when stats span multiple teams
+    team_selection: TeamSelection = TeamSelection.LAST_TEAM  # How to choose the card's team when stats span multiple teams
 
     # SOURCE
     source: str = 'Unknown'
