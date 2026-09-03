@@ -12,7 +12,7 @@ from .models import NEUTRAL_MANAGER, ManagerPreference, SimTeamIdentity, TeamRec
 from .player import SimPitcher, SimPlayer
 from .player_group import Bullpen, PositionEligibility, Rotation
 from .roster import Roster
-from .stats import StatCategory, Stats, StatsGroup
+from .stats import StatCategory, Stats, StatsGroup, builder_sim_id
 
 # LINEUP FIELD POSITIONS -> SIM POSITION SLOTS. THE VOCABULARY A LINEUP CAN BE EXPRESSED IN,
 # SHARED BY BUILDER TEAMS AND REAL MLB GAMES.
@@ -192,6 +192,14 @@ class SimTeam:
         # REPLACED CLUB'S SCHEDULE KEY, BUT ITS PLAYERS BELONG TO THE USER'S TEAM.
         team_abbreviation = team.abbreviation
 
+        # STAT-ENGINE id FOR A ROSTER SLOT - PREFIXED WITH THE SCHEDULE KEY THIS TEAM RUNS UNDER SO
+        # A DRAFTED BOT CARD NEVER SHARES AN id WITH THE SAME CARD FIELDED BY ITS REAL CLUB IN THE
+        # SAME SIM (SEE `builder_sim_id`). LINEUP / CLOSER / BENCH WIRING BELOW KEYS OFF THE SAME id.
+        schedule_key = name_override or team.abbreviation
+
+        def pid(card_id: str) -> str:
+            return builder_sim_id(schedule_key, card_id)
+
         # ROSTER POSITIONS ARE THE CANONICAL SOURCE FOR PITCHER ROLES - `Team.from_db_row` DERIVES
         # `rotation` FROM THEM. THE VOCABULARY IS SP1-SP5 AND RP/CL, NEVER A BARE "SP".
         for slot in team.roster:
@@ -200,11 +208,11 @@ class SimTeam:
                 continue
             roster_position = slot.roster_position.upper()
             if roster_position in ROTATION_ROLES:
-                sp_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.SP, team_override=team_abbreviation)
+                sp_players[slot.card_id] = SimPitcher(card=card, id=pid(slot.card_id), position_slot=PositionSlot.SP, team_override=team_abbreviation)
             elif roster_position in BULLPEN_ROLES:
-                bullpen_players[slot.card_id] = SimPitcher(card=card, id=slot.card_id, position_slot=PositionSlot.BP, team_override=team_abbreviation)
+                bullpen_players[slot.card_id] = SimPitcher(card=card, id=pid(slot.card_id), position_slot=PositionSlot.BP, team_override=team_abbreviation)
             else:
-                position_players.append(SimPlayer(card=card, id=slot.card_id, team_override=team_abbreviation))
+                position_players.append(SimPlayer(card=card, id=pid(slot.card_id), team_override=team_abbreviation))
 
         # ROTATION ORDER FROM THE SP1..SP5 SLOT NUMBERS
         sp_slot_by_card_id = {slot.card_id: slot.roster_position.upper() for slot in team.roster if slot.roster_position.upper() in ROTATION_ROLES}
@@ -213,18 +221,18 @@ class SimTeam:
         # THE 'CL' SLOT IS THE CLOSER. THE BUILDER HAS NO SETUP/MIDDLE/LONG ROLES, SO THE REST OF
         # THE BULLPEN IS LEFT TO `pitchers_available`'s OPS-BASED LEVERAGE SORT.
         closer_id: Optional[str] = next(
-            (slot.card_id for slot in team.roster if slot.roster_position.upper() == 'CL' and slot.card_id in bullpen_players),
+            (pid(slot.card_id) for slot in team.roster if slot.roster_position.upper() == 'CL' and slot.card_id in bullpen_players),
             None,
         )
 
         # PRESET LINEUP (FIRST DEFINED LINEUP)
         if len(team.lineups) > 0:
             _apply_preset_lineup(position_players, {
-                slot.card_id: (slot.batting_order, slot.field_position)
+                pid(slot.card_id): (slot.batting_order, slot.field_position)
                 for slot in team.lineups[0].slots
             })
 
-        bench_player_ids = {slot.card_id for slot in team.roster if slot.roster_position.upper() == 'BE'}
+        bench_player_ids = {pid(slot.card_id) for slot in team.roster if slot.roster_position.upper() == 'BE'}
 
         sim_team = cls(
             year=year,

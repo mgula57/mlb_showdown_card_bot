@@ -8,7 +8,7 @@ from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
 from .models import ManagerPreference, SeasonSimulationResult, SimTeamIdentity, StandingsResult, TeamRecord
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
-from .stats import SimStatLine, StatCategory, Stats
+from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_id
 
 # LEADERBOARD DEPTH. SMALL ON PURPOSE - THE FULL 1100-PLAYER `player_stats` LIST IS ~390 KB AND
 # THE RESULT SCREEN ONLY EVER SHOWS A TOP TEN.
@@ -177,16 +177,17 @@ class SeasonSummaryBuilder:
 
     @property
     def roster_player_ids(self) -> dict[str, set[str]]:
-        """Schedule key -> card ids on that club's takeover roster, for every takeover this run
-        (see `SeasonSimulationConfig.all_takeovers`).
+        """Schedule key -> stat-engine player ids on that club's takeover roster, for every
+        takeover this run (see `SeasonSimulationConfig.all_takeovers`).
 
         Statlines report the builder team's own abbreviation, which is deliberately not the
         schedule key the takeover runs under, so matching on team would find nothing here.
-        Roster slot `card_id`s are the ids `from_builder_team` assigns its players, so membership
-        is the exact filter. Empty when there is no takeover.
+        `from_builder_team` keys each drafted player under `builder_sim_id(schedule_key, card_id)`
+        (the schedule key being the replaced club's abbr), so membership is the exact filter.
+        Empty when there is no takeover.
         """
         return {
-            abbr: {slot.card_id for slot in team.roster}
+            abbr: {builder_sim_id(abbr, slot.card_id) for slot in team.roster}
             for abbr, team in self.result.config.all_takeovers.items()
         }
 
@@ -365,7 +366,7 @@ class SeasonSummaryBuilder:
             categories=self._categories(player_type),
             league_stats=self.result.league_totals.get(player_type.value),
             woba_weights=self.result.woba_weights,
-            card_source=self.result.config.card_sources.get(stats.id, CardSource.BOT.value),
+            card_source=self.result.config.card_sources.get(real_card_id(stats.id), CardSource.BOT.value),
         )
 
     def _build_players(self) -> list[SimStatLine]:

@@ -11,6 +11,34 @@ from pydantic import BaseModel, Field
 from ..shared.player_position import PlayerSubType, PlayerType, PositionSlot
 
 
+# ------------------------------------------------------------------------
+# BUILDER / TAKEOVER PLAYER IDS
+# ------------------------------------------------------------------------
+# A builder-drafted player (a tournament custom team or a season takeover roster) is keyed in the
+# stat engine under a schedule-key-prefixed id rather than the bare `card_id` its roster slot
+# carries. A BOT slot's `card_id` IS the archive card's `dim_card.id`, and a real-pool player's
+# sim id resolves to that same id via `card_ids` - so without the prefix a drafted card and the
+# very same card fielded by its real club in the same sim would share one id, `PlayerStatsGroup`
+# would seed a single line for them, and every game either one plays would merge into it,
+# doubling that player's season. The prefix is stripped back off at the `SimStatLine` boundary
+# (`real_card_id`) so the frontend still links each row to its real card by `card_id`.
+_BUILDER_ID_PREFIX = "builder@"
+_BUILDER_ID_SEP = "@"
+
+
+def builder_sim_id(schedule_key: str, card_id: str) -> str:
+    """The stat-engine id for a builder/takeover roster slot's player."""
+    return f"{_BUILDER_ID_PREFIX}{schedule_key}{_BUILDER_ID_SEP}{card_id}"
+
+
+def real_card_id(sim_id: str) -> str:
+    """The bare `card_id` behind a sim player id - the identity for a real-pool player, and the
+    original roster-slot `card_id` for a builder-prefixed one."""
+    if sim_id.startswith(_BUILDER_ID_PREFIX):
+        return sim_id.rsplit(_BUILDER_ID_SEP, 1)[-1]
+    return sim_id
+
+
 class StatCategory(Enum):
     PA = "pa"
     AB = "ab"
@@ -358,7 +386,9 @@ class SimStatLine(BaseModel):
             if isinstance(value, (int, float)):
                 values[category.value] = round(float(value), 3)
         return cls(
-            id=stats.id, name=stats.name, team=stats.team, position=stats.position,
+            # A BUILDER/TAKEOVER PLAYER IS KEYED INTERNALLY UNDER A PREFIXED id (SEE `builder_sim_id`);
+            # THE FRONTEND LINKS ROWS TO REAL CARDS BY `card_id`, SO EXPOSE THE BARE ONE HERE.
+            id=real_card_id(stats.id), name=stats.name, team=stats.team, position=stats.position,
             points=stats.points, command=stats.command,
             player_type=stats.player_type.value if stats.player_type else None,
             stats=values, card_source=card_source,

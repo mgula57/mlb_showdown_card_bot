@@ -6,7 +6,7 @@ from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
 from .models import SeasonSimulationResult
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
-from .stats import SimStatLine, StatCategory, Stats
+from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_id
 
 
 class AwardWinner(BaseModel):
@@ -89,12 +89,13 @@ class AwardsBuilder:
         `SeasonSummaryBuilder.roster_player_ids`.
         """
         takeover_team = self.result.config.takeover_team
-        if takeover_team is None:
+        replaced_abbr = self.result.config.takeover_replaces_abbr
+        if takeover_team is None or replaced_abbr is None:
             return {}
-        league = self._team_leagues.get(self.result.config.takeover_replaces_abbr)
+        league = self._team_leagues.get(replaced_abbr)
         if league is None:
             return {}
-        return {slot.card_id: league for slot in takeover_team.roster}
+        return {builder_sim_id(replaced_abbr, slot.card_id): league for slot in takeover_team.roster}
 
     def _players_in_league(self, league: str, player_type: PlayerType) -> list[Stats]:
         team_leagues = self._team_leagues
@@ -128,7 +129,7 @@ class AwardsBuilder:
             categories=HITTER_CATEGORIES if player_type == PlayerType.HITTER else PITCHER_CATEGORIES,
             league_stats=self.result.league_totals.get(player_type.value),
             woba_weights=self.result.woba_weights,
-            card_source=self.result.config.card_sources.get(stats.id, CardSource.BOT.value),
+            card_source=self.result.config.card_sources.get(real_card_id(stats.id), CardSource.BOT.value),
         )
 
     def _mvp_score(self, stats: Stats) -> float:

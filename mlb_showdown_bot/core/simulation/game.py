@@ -20,7 +20,7 @@ from .models import (
     TeamLineScoreTotals,
 )
 from .plate_appearance import PlateAppearance
-from .stats import StatCategory
+from .stats import StatCategory, real_card_id
 
 _RUNS_SCORED = StatCategory.RUNS_SCORED.value
 
@@ -405,7 +405,7 @@ class Game:
         for order_index, player in enumerate(team.batting_order, start=1):
             s = team.stats.stats_for_id(player.id)
             batting.append(BoxScoreBatter(
-                id=player.id,
+                id=real_card_id(player.id),
                 name=player.name,
                 position=player.position_slot.value,
                 batting_order=order_index,
@@ -434,7 +434,7 @@ class Game:
             s = team.stats.stats_for_id(pitcher.id)
             outs = int(round(s.stat(StatCategory.IP) * 3))
             pitching.append(BoxScorePitcher(
-                id=pitcher.id,
+                id=real_card_id(pitcher.id),
                 name=pitcher.name,
                 position="SP" if order_index == 0 else "RP",
                 order=order_index,
