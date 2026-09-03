@@ -26,9 +26,13 @@ type Props = {
     bucketSizes: BucketSizes;
     /** Points already spent per bucket from manual draft picks — acts as a floor for each slider. */
     existingPts: BucketPts;
+    /** Number of players already on the roster. Non-zero enables the "replace existing" toggle. */
+    existingPickCount: number;
     onConfirm: (strategy: AutofillStrategy) => Promise<void>;
     onClose: () => void;
 };
+
+const ZERO_PTS: BucketPts = { offense: 0, rotation: 0, bullpen: 0, bench: 0 };
 
 const BUCKET_LABELS: { key: keyof PtsDistribution; label: string }[] = [
     { key: 'offense', label: 'Lineup' },
@@ -73,9 +77,14 @@ function StrategyPill({ label, active, onClick }: { label: string; active: boole
     );
 }
 
-export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, onClose }: Props) {
+export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPickCount, onConfirm, onClose }: Props) {
     const hasCap = ptsLimit != null;
-    const totalFloors = existingPts.offense + existingPts.rotation + existingPts.bullpen + existingPts.bench;
+
+    // When "replace existing" is on the server wipes the roster first, so manual picks no
+    // longer act as per-bucket floors — the whole budget is free to allocate.
+    const [replaceExisting, setReplaceExisting] = useState(false);
+    const floors = replaceExisting ? ZERO_PTS : existingPts;
+    const totalFloors = floors.offense + floors.rotation + floors.bullpen + floors.bench;
 
     // When the team has no points cap, the user picks a one-off target budget first.
     const [customTarget, setCustomTarget] = useState<number>(Math.max(1000, totalFloors));
@@ -83,7 +92,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
     const effectiveLimit = hasCap ? ptsLimit : customTarget;
 
     const [bucketPts, setBucketPts] = useState<BucketPts>(
-        () => defaultBucketPts(effectiveLimit, DEFAULT_PTS_DISTRIBUTION, existingPts)
+        () => defaultBucketPts(effectiveLimit, DEFAULT_PTS_DISTRIBUTION, floors)
     );
     const [activePreset, setActivePreset] = useState<string>('Balanced');
     const [pitchingStrategy, setPitchingStrategy] = useState<string | null>(null);
@@ -102,46 +111,55 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
 
     // Highest a bucket can go without pushing the total past effectiveLimit, given the other buckets' floors
     function bucketMax(key: keyof PtsDistribution): number {
-        const otherFloorsTotal = totalFloors - existingPts[key];
-        return Math.max(existingPts[key], effectiveLimit - otherFloorsTotal);
+        const otherFloorsTotal = totalFloors - floors[key];
+        return Math.max(floors[key], effectiveLimit - otherFloorsTotal);
     }
 
     function applyPreset(label: string, dist: PtsDistribution) {
-        setBucketPts(defaultBucketPts(effectiveLimit, dist, existingPts));
+        setBucketPts(defaultBucketPts(effectiveLimit, dist, floors));
         setActivePreset(label);
     }
 
+    function toggleReplaceExisting() {
+        const next = !replaceExisting;
+        setReplaceExisting(next);
+        // Re-seed the sliders against the new floors (zero when wiping, manual-pick pts otherwise).
+        const dist = AUTOFILL_PRESETS.find(p => p.label === activePreset)?.distribution ?? DEFAULT_PTS_DISTRIBUTION;
+        setBucketPts(defaultBucketPts(effectiveLimit, dist, next ? ZERO_PTS : existingPts));
+        if (activePreset === 'Custom') setActivePreset('Balanced');
+    }
+
     function confirmTarget() {
-        setBucketPts(defaultBucketPts(customTarget, DEFAULT_PTS_DISTRIBUTION, existingPts));
+        setBucketPts(defaultBucketPts(customTarget, DEFAULT_PTS_DISTRIBUTION, floors));
         setActivePreset('Balanced');
         setTargetConfirmed(true);
     }
 
     function updateBucket(changedKey: keyof PtsDistribution, rawNewPts: number) {
         setBucketPts(prev => {
-            const newPts = Math.min(Math.max(rawNewPts, existingPts[changedKey]), bucketMax(changedKey));
+            const newPts = Math.min(Math.max(rawNewPts, floors[changedKey]), bucketMax(changedKey));
             const otherKeys = (Object.keys(prev) as (keyof PtsDistribution)[]).filter(k => k !== changedKey);
             const remaining = effectiveLimit - newPts;
-            const otherFloorsTotal = otherKeys.reduce((sum, k) => sum + existingPts[k], 0);
+            const otherFloorsTotal = otherKeys.reduce((sum, k) => sum + floors[k], 0);
             // Points left to freely distribute among the other buckets, above their floors
             const distributable = Math.max(0, remaining - otherFloorsTotal);
-            const otherAboveFloorTotal = otherKeys.reduce((sum, k) => sum + Math.max(0, prev[k] - existingPts[k]), 0);
+            const otherAboveFloorTotal = otherKeys.reduce((sum, k) => sum + Math.max(0, prev[k] - floors[k]), 0);
             const updated = { ...prev, [changedKey]: newPts };
             const lastKey = otherKeys[otherKeys.length - 1];
 
             if (otherAboveFloorTotal === 0) {
                 const share = Math.round(distributable / otherKeys.length / 10) * 10;
-                otherKeys.forEach(k => { updated[k] = existingPts[k] + share; });
-                updated[lastKey] = existingPts[lastKey] + (distributable - share * (otherKeys.length - 1));
+                otherKeys.forEach(k => { updated[k] = floors[k] + share; });
+                updated[lastKey] = floors[lastKey] + (distributable - share * (otherKeys.length - 1));
             } else {
                 let distributed = 0;
                 for (const k of otherKeys.slice(0, -1)) {
-                    const share = Math.round((prev[k] - existingPts[k]) / otherAboveFloorTotal * distributable / 10) * 10;
-                    updated[k] = existingPts[k] + share;
+                    const share = Math.round((prev[k] - floors[k]) / otherAboveFloorTotal * distributable / 10) * 10;
+                    updated[k] = floors[k] + share;
                     distributed += share;
                 }
                 // Last bucket absorbs remainder — may not be a multiple of 10 but stays exact
-                updated[lastKey] = existingPts[lastKey] + (distributable - distributed);
+                updated[lastKey] = floors[lastKey] + (distributable - distributed);
             }
 
             return updated;
@@ -159,6 +177,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                 hitting_strategy: hittingStrategy,
                 defense_strategy: defenseStrategy,
                 catcher_defense_strategy: catcherDefenseStrategy,
+                replace_existing: replaceExisting,
                 ...(hasCap ? {} : { pts_target: effectiveLimit }),
             });
             onClose();
@@ -203,6 +222,38 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                         <FaXmark />
                     </button>
                 </div>
+
+                {existingPickCount > 0 && (
+                    <div className="px-4 pt-3">
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={replaceExisting}
+                            onClick={toggleReplaceExisting}
+                            className="w-full flex items-center gap-3 rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2.5 text-left cursor-pointer hover:border-(--text-tertiary) transition-colors"
+                        >
+                            <span className={[
+                                'relative shrink-0 w-9 h-5 rounded-full transition-colors',
+                                replaceExisting ? 'bg-(--showdown-red)' : 'bg-(--divider)',
+                            ].join(' ')}>
+                                <span className={[
+                                    'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+                                    replaceExisting ? 'translate-x-4' : 'translate-x-0',
+                                ].join(' ')} />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block text-[12px] font-bold text-(--text-primary)">
+                                    Replace existing roster
+                                </span>
+                                <span className="block text-[10.5px] text-(--text-tertiary) leading-snug">
+                                    {replaceExisting
+                                        ? `All ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''} will be cleared and re-drafted.`
+                                        : `Keep the ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''} and fill the rest.`}
+                                </span>
+                            </span>
+                        </button>
+                    </div>
+                )}
 
                 {!targetConfirmed ? (
                     <div className="px-4 py-4 space-y-3">
@@ -259,7 +310,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, onConfirm, o
                                 const pts = bucketPts[key];
                                 const slots = bucketSizes[key];
                                 const avg = slots > 0 ? Math.round(pts / slots) : 0;
-                                const floor = existingPts[key];
+                                const floor = floors[key];
                                 return (
                                     <div key={key}>
                                         <div className="flex items-baseline justify-between mb-1">

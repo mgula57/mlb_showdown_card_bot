@@ -316,6 +316,9 @@ export type AutofillStrategy = {
     catcher_defense_strategy: string | null;
     /** Only sent when the team has no pts_limit — the one-off target the user picked in the modal. */
     pts_target?: number;
+    /** When true, the server wipes the current roster before filling so autofill drafts a clean
+     *  team against the full budget instead of topping up around existing picks. */
+    replace_existing?: boolean;
 };
 
 export type AutofillResult = {
@@ -385,6 +388,7 @@ export async function autofillTeam(
             pitching_strategy: strategy.pitching_strategy,
             hitting_strategy: strategy.hitting_strategy,
             pts_target: strategy.pts_target,
+            replace_existing: strategy.replace_existing ?? false,
             active_filters: activeFilters ?? {},
         }),
     });

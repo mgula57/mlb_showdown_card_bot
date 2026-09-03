@@ -1535,7 +1535,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     type="button"
                                     title={disableBuildButton ? "Please enter player name and year" : ""}
                                     className={`
-                                        flex flex-1 items-center justify-center
+                                        flex flex-1 items-center justify-center gap-x-2
                                         rounded-xl py-4
                                         text-white
                                         bg-(--showdown-blue)

@@ -206,6 +206,7 @@ def autofill_team_route(team_id: str):
         defense_strategy      = payload.get('defense_strategy', None)
         catcher_defense_strategy = payload.get('catcher_defense_strategy', None)
         active_filters        = payload.get('active_filters', {})
+        replace_existing      = bool(payload.get('replace_existing', False))
 
         pts_target = payload.get('pts_target')
         if pts_target is not None:
@@ -220,6 +221,15 @@ def autofill_team_route(team_id: str):
                 return jsonify({'error': 'Team not found or access denied'}), 404
 
             team = Team.from_db_row(team_row) if isinstance(team_row, dict) else team_row
+
+            # "Replace existing" wipes the current roster before filling, so autofill drafts a
+            # clean team against the full budget instead of topping up around manual picks. Only
+            # the in-memory Team is cleared here — the wipe is persisted when the frontend saves
+            # the returned roster.
+            if replace_existing:
+                team.roster = []
+                team.rotation = []
+                team.lineups = []
 
             if not team.pts_limit and not pts_target:
                 return jsonify({'error': 'Team must have a points limit set, or a target must be provided, to use autofill'}), 400

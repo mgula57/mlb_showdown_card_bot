@@ -362,9 +362,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         if (!autofillPreview) return;
         const { strategy, result } = autofillPreview;
         update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
-        const added = result.roster.length - draft.roster.length;
         setLastAutofillStrategy(strategy);
-        setDraftToast({ name: 'Roster Autofilled', position: `${added} player${added !== 1 ? 's' : ''} added` });
+        if (strategy.replace_existing) {
+            const n = result.roster.length;
+            setDraftToast({ name: 'Roster Replaced', position: `${n} player${n !== 1 ? 's' : ''} drafted` });
+        } else {
+            const added = result.roster.length - draft.roster.length;
+            setDraftToast({ name: 'Roster Autofilled', position: `${added} player${added !== 1 ? 's' : ''} added` });
+        }
         setAutofillPreview(null);
     }
 
@@ -1588,6 +1593,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         bench: pointsBreakdown.bench,
                         bullpen: pointsBreakdown.bullpen,
                     }}
+                    existingPickCount={draft.roster.length}
                     onConfirm={generateAutofillPreview}
                     onClose={() => setShowAutofill(false)}
                 />

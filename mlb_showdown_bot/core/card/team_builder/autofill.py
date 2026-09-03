@@ -266,6 +266,45 @@ def _pos_matches(card: dict, position: str) -> bool:
     return position in pos_list
 
 
+# Completed-season small-sample thresholds — mirror the card_bot SQL definition in
+# PostgresDB.build_card_bot_view (postgres_db.py, "SMALL SAMPLE" case expression).
+_SMALL_SAMPLE_PA = 250
+_SMALL_SAMPLE_IP_SP = 75
+_SMALL_SAMPLE_IP_RP = 30
+# 2020 played ~1/3 of a normal schedule; its completed-season is_small_sample_size flag
+# isn't schedule-adjusted, so recompute against 1/3 thresholds from the card's raw counts.
+_SHORT_SEASON_YEARS = {2020}
+_SHORT_SEASON_FRACTION = 1 / 3
+
+
+def _is_small_sample(card: dict) -> bool:
+    """True if the card should be treated as a small-sample season. Uses the precomputed
+    `is_small_sample_size` flag (None for non-BOT sources -> False), except for 2020, where
+    the raw `pa` / `real_ip` counts are checked against 1/3 thresholds. Falls back to the
+    flag when the raw counts aren't present (e.g. WOTC rows carry no real stats)."""
+    flag = bool(card.get('is_small_sample_size'))
+    if card.get('year') not in _SHORT_SEASON_YEARS:
+        return flag
+    positions = set(card.get('positions_list') or [])
+    if {'STARTER', 'RELIEVER', 'CLOSER'} & positions:
+        ip = card.get('real_ip')
+        if ip is None:
+            return flag
+        limit = _SMALL_SAMPLE_IP_SP if 'STARTER' in positions else _SMALL_SAMPLE_IP_RP
+        return ip < limit * _SHORT_SEASON_FRACTION
+    pa = card.get('pa')
+    if pa is None:
+        return flag
+    return pa < _SMALL_SAMPLE_PA * _SHORT_SEASON_FRACTION
+
+
+def _prefer_full_sample(candidates: list[dict]) -> list[dict]:
+    """Drop small-sample-size cards, but only if that leaves something to pick from.
+    Applied to starters (lineup / rotation / bullpen); the bench keeps small-sample cards."""
+    full = [c for c in candidates if not _is_small_sample(c)]
+    return full or candidates
+
+
 def _diagnose_bucket_failure(
     bucket: str,
     candidates: list[dict],
@@ -342,7 +381,7 @@ def _fill_offense(
             return None, set()
 
         picked = _pick_balanced(
-            affordable,
+            _prefer_full_sample(affordable),
             lambda c: abs((c.get('points') or 0) - target_per_slot),
             source_counts,
         )
@@ -450,7 +489,7 @@ def _fill_rotation(
             return None
 
         picked = _pick_balanced(
-            affordable,
+            _prefer_full_sample(affordable),
             lambda c: abs((c.get('points') or 0) - target_per_slot),
             source_counts,
         )
@@ -508,7 +547,7 @@ def _fill_bullpen(
             return None
 
         picked = _pick_balanced(
-            affordable,
+            _prefer_full_sample(affordable),
             lambda c: abs((c.get('points') or 0) - target_per_slot),
             source_counts,
         )
