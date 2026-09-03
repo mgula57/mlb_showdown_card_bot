@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { type GameScheduled } from "../../api/mlbAPI";
 import { fetchCardData, type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardSource } from "../../types/cardSource";
@@ -95,13 +95,44 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         return () => { cancelled = true; };
     }, [idsKey, season, showdownSet, sportId]);
 
-    // Refresh the schedule whenever the user returns to this tab, since Seasons stays
-    // mounted (CSS-toggled, not remounted) while navigating away and back.
+    // Refresh the schedule whenever this component actually becomes visible again:
+    // returning to the browser tab, switching back to the Games tab, or navigating
+    // back to Seasons — which stays mounted (CSS-toggled, not remounted) while the
+    // user is on other screens. An IntersectionObserver covers the CSS-toggle and
+    // scroll cases (a `display: none` element never intersects), so we never refresh
+    // while the schedule is off-screen; `visibilitychange` covers the browser tab.
     const onRefreshRef = useRef(onRefresh);
     useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
+
+    const isVisibleRef = useRef(false);
+    const observerRef = useRef<IntersectionObserver | null>(null);
+
+    // Ref callback rather than a mount effect: the root node is only rendered once
+    // `games` arrives (the component returns null while empty), so we must (re)attach
+    // the observer whenever that node appears or disappears.
+    const containerRef = useCallback((el: HTMLDivElement | null) => {
+        observerRef.current?.disconnect();
+        observerRef.current = null;
+        isVisibleRef.current = false;
+        if (!el) return;
+
+        let isFirstCallback = true;
+        const observer = new IntersectionObserver(([entry]) => {
+            const nowVisible = entry.isIntersecting;
+            const wasVisible = isVisibleRef.current;
+            isVisibleRef.current = nowVisible;
+            // The first callback just syncs current visibility (data is already
+            // fresh from mount); only later hidden → visible transitions refresh.
+            if (isFirstCallback) { isFirstCallback = false; return; }
+            if (nowVisible && !wasVisible && !document.hidden) onRefreshRef.current?.();
+        });
+        observer.observe(el);
+        observerRef.current = observer;
+    }, []);
+
     useEffect(() => {
         const onVisibility = () => {
-            if (!document.hidden) onRefreshRef.current?.();
+            if (!document.hidden && isVisibleRef.current) onRefreshRef.current?.();
         };
         document.addEventListener("visibilitychange", onVisibility);
         return () => document.removeEventListener("visibilitychange", onVisibility);
@@ -124,7 +155,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
     });
 
     return (
-        <div className="space-y-3">
+        <div ref={containerRef} className="space-y-3">
             <div className="flex justify-between items-center">
                 <div>
                     <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>

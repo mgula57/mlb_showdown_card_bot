@@ -748,7 +748,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 )}
 
                 {lastPlay && (
-                    <div className="absolute bottom-0 left-2/3 right-0 pl-1">
+                    <div className="absolute bottom-0 left-3/4 right-0 pl-1">
                         <LastPlaySummary play={lastPlay} />
                     </div>
                 )}
