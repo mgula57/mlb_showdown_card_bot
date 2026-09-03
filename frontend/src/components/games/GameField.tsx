@@ -142,7 +142,9 @@ const IN_PLAY_OUT_EVENT = /(groundout|flyout|lineout|pop\s?out|forceout|force ou
  * one DOM node whose `left`/`top` changes — the card runs to first — instead of two markers
  * swapping out. `transition`/`pendingPlay` (playback only) also add back a departing player for a
  * beat so their exit has something to animate:
- *   - a scoring runner sits at "home" and fades;
+ *   - a scoring runner holds on their base through the pre-result beats, then (once `phase` is
+ *     "runners"/"settle") travels to "home" and fades — `useRunnerMovement` animates the trip so
+ *     they leave at the same instant as everyone else advancing on the play;
  *   - a runner retired on the bases starts at `move.from` and, when the base they were breaking
  *     for is known (`move.attemptedTo`), gets `exit: "drift"` toward the next base along that
  *     path — otherwise (stranded at a half-inning's end, or a data gap) they just fade in place;
@@ -156,9 +158,13 @@ function buildFieldOccupants(
     situation: GameView["situation"],
     transition: FrameTransition | undefined,
     pendingPlay: PlayEntry | undefined,
+    phase: PlayPhase,
 ): FieldOccupant[] {
     if (!situation) return [];
     const occupants = new Map<string, FieldOccupant>();
+    // Runners don't leave their base until the "runners" beat — before then a scoring runner
+    // holds where they stood at first pitch, so the whole play breaks at once.
+    const moving = phase === "runners" || phase === "settle";
 
     (["first", "second", "third"] as const).forEach((slot) => {
         const player = situation.bases[slot];
@@ -174,7 +180,10 @@ function buildFieldOccupants(
 
     for (const move of transition?.moves ?? []) {
         if (move.to === "home") {
-            occupants.set(move.key, { key: move.key, player: move.player, spot: "home" });
+            occupants.set(move.key, {
+                key: move.key, player: move.player,
+                spot: moving ? "home" : (move.from ?? "home"),
+            });
         } else if (move.to === null && move.from) {
             const driftTo = move.attemptedTo && move.attemptedTo !== move.from
                 ? basePathBetween(move.from, move.attemptedTo)[0]
@@ -208,43 +217,51 @@ function buildFieldOccupants(
 const BASE_HOP_MS = 220;
 
 /**
- * Steps a multi-base ADVANCE through its intermediate stops instead of letting the CSS transition
- * interpolate `left`/`top` directly between start and end — a direct interpolation would cut a
- * diagonal line across the infield grass on a double or triple. Returns a per-runner-key override
- * of which stop to render at RIGHT NOW; a single-hop move (the common case — batter to first,
- * runner to the next base over) isn't stepped at all, since one direct CSS transition already
- * looks correct for a single leg.
+ * Drives the on-field position of every ADVANCING / ARRIVING / SCORING runner for the duration of
+ * a transition, returning a per-runner-key override of which stop to render at RIGHT NOW. Two jobs:
  *
- * Only moves with a real `move.to` (advance / arrive / score) are stepped. A runner retired on
- * the bases has `to: null` and is handled by `buildFieldOccupants` + `GameField` instead — they
- * break a short way toward the base they were going for and fade, rather than completing the trip.
+ *  1. Nothing moves until the "runners" phase begins. Before then the cards hold where they were at
+ *     first pitch — so when they DO push off, the batter leaving the box and every runner ahead of
+ *     them start at the same instant, rather than a two-base runner jumping the moment the
+ *     transition is assembled while the batter waits for the frame to commit.
+ *  2. A move spanning more than one base is stepped through its intermediate stops (`BASE_HOP_MS`
+ *     apart) so the card rounds each base instead of cutting a diagonal across the infield grass. A
+ *     single-base move is left to one direct CSS transition.
+ *
+ * Every override is HELD until `transition` itself changes (the frame commits, or the next play
+ * starts) — `situation` doesn't reflect an arrival ONTO a base until commit, so releasing the
+ * override sooner would snap the card back to where it started for the rest of the beat.
+ *
+ * Retirements (`move.to === null`) are NOT handled here — `buildFieldOccupants` + `GameField` play
+ * those: a short break toward the base the runner was going for, then a fade.
  */
-function useBasePathAnimation(transition: FrameTransition | undefined): Record<string, RunnerSpot> {
-    // The FIRST waypoint of every multi-hop move is known synchronously from `transition` alone —
-    // computed directly during render rather than via an effect, so there's no frame where a
-    // runner briefly renders at its old spot before the animation has had a chance to start.
+function useRunnerMovement(
+    transition: FrameTransition | undefined,
+    phase: PlayPhase,
+): Record<string, RunnerSpot> {
+    // "runners" is when the cards translate; "settle" holds them at their destination while the
+    // score/outs catch up, until the frame commits and `situation` takes over. Before "runners"
+    // there are no overrides at all, so the cards sit at their first-pitch spots.
+    const moving = phase === "runners" || phase === "settle";
+
+    // The FIRST stop of every move is known synchronously — computed during render, not in an
+    // effect, so a card never renders one frame at its old spot after "runners" begins before the
+    // animation has a target.
     const initialOverrides = useMemo(() => {
         const initial: Record<string, RunnerSpot> = {};
-        for (const move of transition?.moves ?? []) {
-            const destination = move.to;
-            if (!move.from || !destination) continue; // no path to step (fresh arrival, or any out)
-            const path = basePathBetween(move.from, destination);
-            if (path.length > 1) initial[move.key] = path[0]; // one leg needs no stepping at all
+        if (!transition || !moving) return initial;
+        for (const move of transition.moves) {
+            if (!move.to || !move.from) continue; // an out, or a fresh off-field arrival — not stepped
+            const path = basePathBetween(move.from, move.to); // excludes `from`, includes `to`
+            initial[move.key] = path[0] ?? move.to;
         }
         return initial;
-    }, [transition]);
+    }, [transition, moving]);
 
-    // Later waypoints land on a delay, which genuinely needs an effect+timers — but every
-    // `setState` call here happens inside a `setTimeout` callback, never synchronously in the
-    // effect body itself, so a stale-transition guard (comparing `transition` at read time) does
-    // the resetting instead of an unconditional reset at the top of the effect.
-    //
-    // Each waypoint, including the LAST one, is held until `transition` itself changes — i.e.
-    // until the frame commits or the next play starts — never cleared on a timer. `buildFieldOccupants`
-    // reflects a `home` or an out move on the occupant's own `spot` right away, but an
-    // arrive/advance ONTO a base isn't mirrored there until the frame commits and `situation`
-    // catches up; dropping the override before then would snap a doubled runner (occupant `spot`
-    // still "plate") back to the plate for the rest of the beat.
+    // Later stops of a multi-base move land on a delay — an effect + timers, with every `setState`
+    // happening inside a `setTimeout` callback (never synchronously in the effect body). Each stop,
+    // the last included, is held until `transition` itself changes; `situation` doesn't reflect an
+    // arrival onto a base until the frame commits, so releasing sooner would snap the card back.
     const [laterState, setLaterState] = useState<{
         transition: FrameTransition | undefined;
         overrides: Record<string, RunnerSpot>;
@@ -254,17 +271,14 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
     useEffect(() => {
         timersRef.current.forEach(clearTimeout);
         timersRef.current = [];
-        if (!transition) return;
+        if (!transition || !moving) return;
 
         const timers: ReturnType<typeof setTimeout>[] = [];
         for (const move of transition.moves) {
-            const destination = move.to;
-            if (!move.from || !destination) continue;
-            const path = basePathBetween(move.from, destination);
-            if (path.length <= 1) continue;
-
+            if (!move.to || !move.from) continue;
+            const path = basePathBetween(move.from, move.to);
             path.forEach((stop, i) => {
-                if (i === 0) return;
+                if (i === 0) return; // first leg is the synchronous `initialOverrides` entry
                 timers.push(setTimeout(() => {
                     setLaterState((prev) => {
                         const base = prev.transition === transition ? prev.overrides : {};
@@ -276,11 +290,8 @@ function useBasePathAnimation(transition: FrameTransition | undefined): Record<s
 
         timersRef.current = timers;
         return () => timers.forEach(clearTimeout);
-    }, [transition]);
+    }, [transition, moving]);
 
-    // `laterState.overrides` (once it's for this transition) wins over the permanent `path[0]`
-    // waypoint from `initialOverrides`, so a completed multi-hop resolves to its final stop and
-    // stays there until the frame commits.
     const merged: Record<string, RunnerSpot> = { ...initialOverrides };
     if (laterState.transition === transition) Object.assign(merged, laterState.overrides);
     return merged;
@@ -536,15 +547,17 @@ function DefenseSummary({
 }
 
 /** Plain-text recap of the most recent completed play, tucked into the field's bottom-right
- * corner opposite the defense summary. Clamped to two lines so a wordy description never pushes
- * into the field art. */
+ * corner opposite the defense summary. Its wrapper spans from the field's horizontal center
+ * (roughly where the batter stands) to the right edge, so the box widens with its parent
+ * instead of being pinned to a fixed fraction. Clamped to three lines so a wordy description
+ * never pushes into the field art. */
 function LastPlaySummary({ play }: { play: PlayEntry }) {
     const description = play.description?.trim();
     if (!description && !play.event) return null;
 
     return (
-        <div className="max-w-[35%] rounded-md border border-(--divider) bg-(--background-secondary)/30 px-1.5 py-1 text-right text-[10px] leading-snug text-(--primary)">
-            <p className="line-clamp-3 w-full">
+        <div className="w-full rounded-md border border-(--divider) bg-(--background-secondary)/30 px-2 py-1 text-right text-[10px] leading-snug text-(--primary)">
+            <p className="line-clamp-3">
                 {play.event && <span className="font-extrabold text-(--primary)">{play.event}</span>}
                 {description && description !== play.event && <span className="ml-0.5">{description}</span>}
             </p>
@@ -562,15 +575,15 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
     const defense = situation?.defense;
 
     const occupants = useMemo(
-        () => buildFieldOccupants(situation, transition, pendingPlay),
-        [situation, transition, pendingPlay],
+        () => buildFieldOccupants(situation, transition, pendingPlay, phase),
+        [situation, transition, pendingPlay, phase],
     );
     // Exit hold covers the longest possible base-running path (plate→home, 4 hops) plus a fade
     // tail, so a runner scoring or getting thrown out has time to finish the whole trip and fade
     // before `usePresenceList` drops them — this is a JS-side mirror of that timing, not a second
     // source of truth for how long the actual CSS transitions run.
     const presentOccupants = usePresenceList(occupants, BASE_HOP_MS * 4 + 300);
-    const pathOverrides = useBasePathAnimation(transition);
+    const pathOverrides = useRunnerMovement(transition, phase);
 
     return (
         <div className={`@container relative w-full ${className}`}>
@@ -735,7 +748,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 )}
 
                 {lastPlay && (
-                    <div className="absolute bottom-0 right-0 flex justify-end">
+                    <div className="absolute bottom-0 left-2/3 right-0 pl-1">
                         <LastPlaySummary play={lastPlay} />
                     </div>
                 )}

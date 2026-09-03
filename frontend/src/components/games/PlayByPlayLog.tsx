@@ -119,8 +119,8 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                                     {inningLabel(play.inning, play.isTop)}
                                 </div>
                             )}
-                            <div className="flex items-start gap-3 p-3 rounded-xl border border-(--divider)/50">
-                                <div className="grid grid-cols-1 @[300px]:grid-cols-2 gap-1">
+                            <div className="flex items-start gap-3 p-3 rounded-xl bg-primary border border-(--divider)/50">
+                                <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-1 min-w-24 @[300px]:min-w-32">
                                     <MiniCard cardResponse={pitcherCardResponse} fallbackName={play.pitcherName} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                                     <MiniCard cardResponse={batterCardResponse} fallbackName={play.batterName} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                                 </div>

@@ -28,7 +28,8 @@ export type PlayPhase =
     | "pitch"         // pre-result beat — matchup emphasis, a dice slot if interactive
     | "result"        // event badge reveals, log row enters
     | "runners"       // runner cards translate to their new spots
-    | "settle";       // score ticks, outs update, linescore cell fills
+    | "settle"        // score ticks, outs update, linescore cell fills
+    | "hold";         // frame committed; a quiet beat before autoplay starts the next play
 
 export type GamePlaybackState = {
     frame: GameFrame;
@@ -74,6 +75,12 @@ export type GamePlaybackControls = {
 const PHASE_MS: Record<"pitch" | "result" | "runners" | "settle", number> = {
     pitch: 900, result: 550, runners: 1400, settle: 700,
 };
+
+// A quiet pause after each play COMMITS before autoplay schedules the next one — this is the
+// "time between events" dial, kept separate from the phase beats above so slowing the gap
+// between plays doesn't also slow the animation of any single play. Only applied while
+// `isPlaying` (the Play button); a manual stepForward lands on the next frame with no wait.
+const PLAY_GAP_MS = 1100;
 const SEVERITY_SCALE: Record<TransitionSeverity, number> = { quiet: 0.7, notable: 1, big: 1.4 };
 /** A live game's cursor gets a 2x boost once it's this many frames behind the live edge, so
  *  resuming from a long pause doesn't take minutes to catch up. */
@@ -131,7 +138,7 @@ export function useGamePlayback(options: {
 
     useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-    function scheduleAdvance() {
+    function scheduleAdvance(autoplay = false) {
         const nextIndex = cursorIndex + 1;
         const nextFrame = frames[nextIndex];
         if (!nextFrame) return;
@@ -164,12 +171,22 @@ export function useGamePlayback(options: {
 
         const commit = () => {
             setCursorId(nextFrame.id);
-            setPhase("idle");
             setTransition(undefined);
             setPendingPlay(undefined);
             onFrameEnter?.(nextFrame, nextFrame.transition);
             const reachedEnd = nextIndex >= frames.length - 1;
             if (reachedEnd && mode !== "live" && mode !== "interactive") setIsPlaying(false);
+
+            // During autoplay, sit on the freshly-committed frame for a quiet beat before the
+            // advance effect is allowed to schedule the next play — "hold" keeps the effect's
+            // `phase !== "idle"` guard engaged for that long. A manual step (`autoplay` false)
+            // or the last frame drops straight to "idle".
+            if (autoplay && !reachedEnd) {
+                setPhase("hold");
+                timerRef.current = setTimeout(() => setPhase("idle"), PLAY_GAP_MS / effectiveSpeed);
+            } else {
+                setPhase("idle");
+            }
         };
 
         runPhase("pitch");
@@ -184,7 +201,7 @@ export function useGamePlayback(options: {
         if (!isPlaying) return;
         if (phase !== "idle") return;
         if (cursorIndex >= frames.length - 1) return;
-        scheduleAdvance();
+        scheduleAdvance(true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPlaying, phase, cursorIndex, frames.length]);
 
