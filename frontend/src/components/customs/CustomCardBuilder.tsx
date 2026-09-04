@@ -52,9 +52,10 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaAddressCard, FaStar,
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaStar,
     FaClockRotateLeft, FaGear
 } from 'react-icons/fa6';
+import CardBuildIcon from './CardBuildIcon';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -1083,7 +1084,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
-                    { tab: 'preview' as PreviewTab, icon: <FaAddressCard />, label: 'Card' },
+                    { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Card' },
                     { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
                 ]).map(({ tab, icon, label }) => (
                     <button
@@ -1517,38 +1518,45 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         </div>
 
                         {/* Form Buttons */}
-                        {/* Make sticky at bottom */}
+                        {/* Mobile: floating circular CTA pinned bottom-right. Desktop (@2xl): full-width sticky bar. */}
                         <footer className={`
-                            fixed bottom-0 left-0 right-0 z-20
-                            -mx-4 px-10 py-3 @2xl:p-6
-                            @2xl:sticky @2xl:bottom-0 @2xl:left-auto @2xl:right-auto @2xl:z-auto
-                            bg-background-secondary/95 backdrop-blur
-                            border-t border-form-element
-                            shadow-md
+                            fixed bottom-0 right-0 z-30
+                            p-4 pb-[calc(1rem+var(--safe-bottom))]
+                            pointer-events-none
+                            @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
+                            @2xl:-mx-4 @2xl:px-10 @2xl:py-3 @2xl:pb-3
+                            @2xl:pointer-events-auto
+                            @2xl:bg-background-secondary/95 @2xl:backdrop-blur
+                            @2xl:border-t @2xl:border-form-element
+                            @2xl:shadow-md
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex gap-2 items-center">
+                            <div className="flex justify-end @2xl:block">
 
                                 {/* Build Card */}
                                 <button
                                     type="button"
-                                    title={disableBuildButton ? "Please enter player name and year" : ""}
+                                    aria-label="Build Card"
+                                    title={disableBuildButton ? "Please enter player name and year" : "Build Card"}
                                     className={`
-                                        flex flex-1 items-center justify-center gap-x-2
-                                        rounded-xl py-4
-                                        text-white
-                                        bg-(--showdown-blue)
+                                        pointer-events-auto
+                                        ${disableBuildButton ? 'bg-(--showdown-blue)' : 'animated-showdown-gradient'}
+                                        flex items-center justify-center gap-x-2
+                                        text-white font-black
+                                        h-16 w-16 rounded-full shadow-xl shadow-black/25
+                                        @2xl:h-auto @2xl:w-full @2xl:flex-1 @2xl:gap-x-1
+                                        @2xl:rounded-xl @2xl:py-4 @2xl:shadow-none
+                                        transition-transform
                                         ${disableBuildButton
                                             ? 'cursor-not-allowed opacity-25'
-                                            : 'hover:bg-(--showdown-blue)/50 cursor-pointer'
+                                            : 'cursor-pointer hover:brightness-110 active:scale-95'
                                         }
-                                        font-black
                                     `}
                                     onClick={handleBuild}
                                 >
-                                    <FaBaseballBall className="mr-1" />
-                                    Build Card
+                                    <CardBuildIcon size="2rem" className='mr-0.5' />
+                                    <span className="hidden @2xl:inline">Build Card</span>
                                 </button>
 
                             </div>
@@ -1576,7 +1584,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {/* Tab bar — desktop only */}
                         <div className="hidden @2xl:flex shrink-0 border-b border-form-element bg-background-secondary/80 backdrop-blur sticky top-0 z-10">
                             {([
-                                { tab: 'preview' as PreviewTab, icon: <FaAddressCard />, label: 'Preview' },
+                                { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Preview' },
                                 { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
                             ]).map(({ tab, icon, label }) => (
                                 <button

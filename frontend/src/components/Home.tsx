@@ -2,9 +2,10 @@ import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
     FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
-    FaCompass, FaCalendar, FaUser, FaImages, FaIdBadge,
+    FaCompass, FaCalendar, FaUser, FaImages,
     FaChartBar
 } from 'react-icons/fa';
+import CardBuildIcon from './customs/CardBuildIcon';
 import { FaXmark, FaCloudArrowUp, FaArrowsRotate } from 'react-icons/fa6';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -325,7 +326,7 @@ export default function Home() {
             <div className="max-w-7xl mx-auto w-full py-4 block sm:hidden">
                 <div className="grid grid-cols-3 gap-3">
                     {([
-                        { label: 'Card Builder', desc: 'Build and customize your own cards', Icon: FaIdBadge,   to: '/customs', iconColor: 'text-red-500' },
+                        { label: 'Card Builder', desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
                         { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
                         { label: 'MLB Season',        desc: 'Follow the 2026 season using Showdown',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500' },
                     ] as const).map(({ label, desc, Icon, to, iconColor }) => (
