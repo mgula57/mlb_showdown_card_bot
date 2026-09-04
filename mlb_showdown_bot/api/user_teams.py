@@ -263,9 +263,9 @@ def autofill_team_route(team_id: str):
                 # Price bands with card limits per band. Cheaper tiers get more cards
                 # to ensure autofill has options when budget-constrained.
                 price_bands = [
-                    {'min': 10,  'max': 100,  'limit': 100, 'player_type': 'HITTER'},  # Cheap tier: max options for bench fill
-                    {'min': 10,  'max': 100,  'limit': 50, 'positions_list': ['STARTER']},  # Cheap tier: options for bullpen
-                    
+                    {'min': 10,  'max': 100,  'limit': 100, 'player_type': 'HITTER'},   # Cheap tier: max options for bench fill
+                    {'min': 10,  'max': 100,  'limit': 50,  'player_type': 'PITCHER'},  # Cheap tier: options for rotation + bullpen
+
                     {'min': 100, 'max': 200,  'limit': 150},  # Low-mid tier
                     {'min': 200, 'max': 350,  'limit': 150},  # Mid tier (avg ~250)
                     {'min': 350, 'max': 550,  'limit': 100},  # High-mid tier

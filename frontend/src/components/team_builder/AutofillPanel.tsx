@@ -280,7 +280,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                         </div>
                     </div>
                 ) : (
-                <div className="px-4 py-3 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="px-4 py-3 space-y-4 max-h-[60vh] overflow-y-auto">
                     {/* Layer 1: Points Distribution */}
                     <section>
                         <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
@@ -430,6 +430,11 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                         </div>
                     </section>
 
+                </div>
+                )}
+
+                {/* Footer */}
+                <div className="flex flex-col gap-2 px-4 pb-4 pt-3 border-t border-(--divider)">
                     {error && (
                         <div className="bg-red-500/15 border border-red-500/30 rounded-lg px-3 py-2.5 space-y-2">
                             <div className="text-[12px] font-semibold text-red-600">
@@ -440,11 +445,6 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                             </p>
                         </div>
                     )}
-                </div>
-                )}
-
-                {/* Footer */}
-                <div className="px-4 pb-4 pt-3 border-t border-(--divider)">
                     {!targetConfirmed ? (
                         <button
                             type="button"

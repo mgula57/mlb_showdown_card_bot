@@ -15,7 +15,9 @@ BUCKET_QUERY_FILTERS: dict[str, dict] = {
     'offense': {'player_type': ['HITTER'], 'positions': ['C', '1B', '2B', '3B', 'SS', 'LF/RF', 'CF', 'DH']},
     'rotation': {'player_type': ['PITCHER'], 'positions': ['STARTER']},
     'bench':    {'player_type': ['HITTER']},
-    'bullpen':  {'player_type': ['PITCHER'], 'positions': ['RELIEVER']},
+    # Closers carry their own 'CLOSER' position (mutually exclusive with 'RELIEVER'), so the
+    # pen pool has to ask for both or it can never draft an actual closer.
+    'bullpen':  {'player_type': ['PITCHER'], 'positions': ['RELIEVER', 'CLOSER']},
 }
 
 # ---------------------------------------------------------------------------
@@ -305,6 +307,49 @@ def _prefer_full_sample(candidates: list[dict]) -> list[dict]:
     return full or candidates
 
 
+def _prefer_closers(candidates: list[dict]) -> list[dict]:
+    """Narrow to cards that carry the 'CLOSER' position, unless none are available — used for
+    the bullpen's anchor slot so the pen leads with a real closer, not a pricey setup arm."""
+    closers = [c for c in candidates if 'CLOSER' in (c.get('positions_list') or [])]
+    return closers or candidates
+
+
+# Bullpen spend shape: draft one premium closer, then a committee that fans out from mid down
+# to low tier instead of n arms all priced near the average.
+_BULLPEN_CLOSER_WEIGHT = 2.2       # closer slot targets this * (pen budget / n arms)...
+_BULLPEN_CLOSER_MAX_SHARE = 0.7    # ...but never more than this fraction of the whole pen budget
+_BULLPEN_COMMITTEE_HI = 1.3        # first committee arm, as a multiple of the committee average
+_BULLPEN_COMMITTEE_LO = 0.5        # last committee arm
+
+
+def _committee_ramp(m: int) -> list[float]:
+    """`m` descending weights ramping from `_BULLPEN_COMMITTEE_HI` down to `_BULLPEN_COMMITTEE_LO`
+    (both as multiples of the average), before any rescale."""
+    if m <= 0:
+        return []
+    if m == 1:
+        return [1.0]
+    span = _BULLPEN_COMMITTEE_HI - _BULLPEN_COMMITTEE_LO
+    return [_BULLPEN_COMMITTEE_HI - span * j / (m - 1) for j in range(m)]
+
+
+def _bullpen_slot_weights(n: int, with_closer: bool = True) -> list[float]:
+    """Per-slot spend weights (mean 1.0, summing to `n`) for the bullpen. With `with_closer`,
+    slot 0 is a heavy closer weight and the rest ramp down from above-average to well below so
+    the committee spans mid to low tier; without it (a closer is already on the roster) every
+    slot is committee-shaped. Feeds the same `_next_target` machinery as every other bucket."""
+    if n <= 1:
+        return [1.0] * max(n, 0)
+    if not with_closer:
+        ramp = _committee_ramp(n)
+        scale = n / sum(ramp)
+        return [r * scale for r in ramp]
+    closer = min(_BULLPEN_CLOSER_WEIGHT, n * _BULLPEN_CLOSER_MAX_SHARE)
+    ramp = _committee_ramp(n - 1)
+    scale = (n - closer) / sum(ramp)
+    return [closer] + [r * scale for r in ramp]
+
+
 def _diagnose_bucket_failure(
     bucket: str,
     candidates: list[dict],
@@ -523,8 +568,9 @@ def _fill_bullpen(
     pts_tolerance: int,
     source_counts: dict[str, int] | None = None,
 ) -> _BucketResult | None:
-    # The bullpen is drafted free-form now — no closer slot, every arm is a generic 'RP', so
-    # the caller passes how many arms are already on the roster rather than a set of roles.
+    # Every arm is a generic 'RP' slot, but the spend is shaped like a real pen: the first pick
+    # is the closer (a premium arm, ideally CLOSER-tagged) and the rest are a mid-to-low
+    # committee. The caller passes how many arms are already on the roster.
     all_roles = ['RP'] * min_bullpen
     open_count = max(0, min_bullpen - already_filled)
     if open_count == 0:
@@ -536,18 +582,50 @@ def _fill_bullpen(
     pts_remaining = pts_target
     used_ids: set[str] = set()
     n_open = len(roles_to_fill)
-    weights, max_price = _slot_plan(pts_target, n_open, candidates)
+    # If the caller already drafted a pen arm, assume the closer is covered and fill the rest
+    # committee-shaped rather than handing another slot the closer's heavy weight.
+    closer_still_open = already_filled == 0
+    weights = _bullpen_slot_weights(n_open, with_closer=closer_still_open)
+
+    sorted_prices = sorted(c.get('points') or 0 for c in candidates)
+    # Priciest arm in the pool — the closer slot may reach for it; committee targets stay well under.
+    max_price = sorted_prices[-1] if sorted_prices else float('inf')
+    # Flatten the closer-led shape toward uniform when the budget barely clears the cost of the
+    # cheapest possible pen, so the weighting itself never turns a fillable pen into a failure.
+    min_pen_cost = sum(sorted_prices[:n_open])
+    headroom = max(0.0, (pts_target - min_pen_cost) / pts_target) if pts_target > 0 else 0.0
+    shape_strength = min(1.0, headroom / 0.35)
+    if shape_strength < 1.0:
+        weights = [1.0 + (w - 1.0) * shape_strength for w in weights]
 
     for i, role in enumerate(roles_to_fill):
-        target_per_slot = min(_next_target(pts_remaining, weights, i), max_price)
+        slots_after = n_open - i - 1
 
         eligible = [c for c in candidates if c['card_id'] not in used_ids]
         affordable = [c for c in eligible if (c.get('points') or 0) <= pts_remaining]
         if not affordable:
             return None
 
+        # Reserve the cost of the cheapest still-available arm for every slot after this one,
+        # so a closer-heavy (or just unlucky) early pick can never spend the pen into a corner
+        # where a later slot has nothing affordable left. A genuine "budget can't cover the pen"
+        # case still surfaces via `not affordable` above / the tolerance check below.
+        cheapest_after = sorted(c.get('points') or 0 for c in eligible)[:slots_after]
+        reserve = sum(cheapest_after)
+        floor_price = cheapest_after[0] if cheapest_after else 0
+        spend_ceiling = max(pts_remaining - reserve, floor_price)
+        target_per_slot = min(_next_target(pts_remaining, weights, i), max_price, spend_ceiling)
+
+        pool = _prefer_full_sample(affordable)
+        # Keep the reserve intact: prefer arms at or under the spend ceiling, fall back only if
+        # none exist (then a later slot may fail — a real budget failure, not the weighting).
+        reserve_safe = [c for c in pool if (c.get('points') or 0) <= spend_ceiling]
+        pool = reserve_safe or pool
+        if i == 0 and closer_still_open:
+            pool = _prefer_closers(pool)
+
         picked = _pick_balanced(
-            _prefer_full_sample(affordable),
+            pool,
             lambda c: abs((c.get('points') or 0) - target_per_slot),
             source_counts,
         )
