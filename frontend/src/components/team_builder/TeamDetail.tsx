@@ -1442,7 +1442,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {/* Confirmation modal: choose which position to assign the picked card */}
             {confirmCard && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                    // `pointer-events-auto` is required: this modal renders as a sibling of the
+                    // draft-search SlideOver, which pins `body { pointer-events: none }` while
+                    // open. Without it, touches on mobile fall through to the panel underneath.
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto"
                     onClick={() => setConfirmCard(null)}
                 >
                     <div
