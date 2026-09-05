@@ -824,7 +824,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         <button
                             type="button"
                             onClick={() => navigate(`/simulate?year=${selectedSeason.season_id}`)}
-                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-(--background-quaternary) text-[12px] font-semibold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                            className="
+                                w-full flex items-center justify-center gap-1.5 px-3 py-2
+                                rounded-lg animated-showdown-gradient
+                                text-[12px] font-semibold text-(--text-primary) 
+                                hover:opacity-90 transition-opacity cursor-pointer
+                            "
                         >
                             <FaDice className="text-[11px]" />
                             Simulate this season
@@ -1102,6 +1107,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     setSelectedTeam(team);
                                                 }}
                                                 options={teamOptions}
+                                                className="px-2"
                                             />
                                         )}
                                     </div>

@@ -169,7 +169,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                     <button
                         className="
                             hidden md:flex ml-4 px-4 py-2 items-center gap-1
-                            bg-(--showdown-blue) text-white rounded-lg
+                            bg-secondary text-white rounded-lg
                             hover:bg-(--showdown-blue)/50 transition-colors
                             cursor-pointer
                         "
