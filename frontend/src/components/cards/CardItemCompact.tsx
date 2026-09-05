@@ -174,8 +174,7 @@ export const CardItemCompact = ({
                                 <span className={`hidden @[110px]:flex`}>{getFirstName(card?.name)} </span>
                             
                                 {/* Last Name */}
-                                {getLastName(card?.name)}
-
+                                <span className={`max-w-15 truncate @[95px]:max-w-full`}>{getLastName(card?.name)} </span>
                             </>
                     }
                     <CardItemCompactIcons
@@ -213,29 +212,36 @@ export const CardItemCompact = ({
                     </div>
                 )}
                 {!hideDetails && (
-                    <div className={`hidden @[95px]:flex ${hideTeamPoints ? 'py-0': 'py-0.5'} text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
-                        {isRedacted ? '--- • ---' : (
-                            <>
-                                {/* STAT 1 */}
+                    <>
+                        {(detailStat1Category === 'defense' && !card?.is_pitcher) && (
+                            <div className="hidden @[70px]:block @[95px]:hidden fixed top-1/2 translate-y-[-50%] right-0 text-[9px] bg-(--text-primary)/50 backdrop-blur tracking-tight font-bold text-(--text-tertiary) truncate text-nowrap px-1">
                                 {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
-                                {detailStat1Category === 'hr' && (`${card?.hr_range?.split('-')[0].split('+')[0]}+ HR`)}
-                                {detailStat1Category === 'outs' && (`${card?.outs} OUT`)}
-                                {detailStat1Category === 'speed' && (`SPD ${card?.speed ?? '-'}`)}
-
-                                {/* OUTS/SPEED */}
-                                <span className="hidden @[90px]:flex">
-                                    <span className="px-0.5 opacity-50">•</span>
-                                    {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
-                                </span>
-
-                                {/* HANDEDNESS */}
-                                <span className="hidden @[110px]:flex">
-                                    <span className="px-0.5 opacity-50">•</span>
-                                    {card?.is_pitcher ? `${card?.hand}HP` : `${card?.hand}H`}
-                                </span>
-                            </>
+                            </div>
                         )}
-                    </div>
+                        <div className={`hidden @[95px]:flex ${hideTeamPoints ? 'py-0': 'py-0.5'} text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                            {isRedacted ? '--- • ---' : (
+                                <>
+                                    {/* STAT 1 */}
+                                    {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
+                                    {detailStat1Category === 'hr' && (`${card?.hr_range?.split('-')[0].split('+')[0]}+ HR`)}
+                                    {detailStat1Category === 'outs' && (`${card?.outs} OUT`)}
+                                    {detailStat1Category === 'speed' && (`SPD ${card?.speed ?? '-'}`)}
+
+                                    {/* OUTS/SPEED */}
+                                    <span className="hidden @[90px]:flex">
+                                        <span className="px-0.5 opacity-50">•</span>
+                                        {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                                    </span>
+
+                                    {/* HANDEDNESS */}
+                                    <span className="hidden @[110px]:flex">
+                                        <span className="px-0.5 opacity-50">•</span>
+                                        {card?.is_pitcher ? `${card?.hand}HP` : `${card?.hand}H`}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                    </>
                 )}
             </div>
 

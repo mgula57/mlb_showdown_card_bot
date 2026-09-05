@@ -441,7 +441,7 @@ function FieldMarker({
     };
 
     return (
-        <div className="w-18 @[380px]:w-28 @[520px]:w-32 @[650px]:w-40">
+        <div className="w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40">
             {response?.card ? (
                 <CardItemCompactFromCard
                     card={response.card}
