@@ -4,7 +4,7 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { getContrastTextColor } from '../../functions/colors';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { FaCircle, FaHatWizard, FaRobot } from 'react-icons/fa6';
+import { FaCircle, FaHatWizard, FaRobot, FaUsers } from 'react-icons/fa6';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
 // historical MLB teams, and All-Star teams alike.
@@ -181,6 +181,16 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                         ) : team.subtitle ? (
                             <div className="text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>
                                 {team.subtitle}
+                            </div>
+                        ) : null}
+                        {team.roster_size ? (
+                            <div
+                                className="flex items-center gap-0.5 text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none"
+                                style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
+                                title={`${team.roster_size}-player roster`}
+                            >
+                                <FaUsers className="w-2.5 h-2.5" />
+                                {team.roster_size}
                             </div>
                         ) : null}
                     </div>
