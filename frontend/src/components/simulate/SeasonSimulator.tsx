@@ -91,7 +91,13 @@ export default function SeasonSimulator() {
 
     if (jobId) {
         return (
-            <SeasonSimView jobId={jobId} token={token} initialFocusAbbr={focusAbbrParam} onRunAgain={handleRunAgain} />
+            <SeasonSimView
+                jobId={jobId}
+                token={token}
+                initialFocusAbbr={focusAbbrParam}
+                onRunAgain={handleRunAgain}
+                onBack={() => navigate('/seasons?sim=1')}
+            />
         );
     }
 

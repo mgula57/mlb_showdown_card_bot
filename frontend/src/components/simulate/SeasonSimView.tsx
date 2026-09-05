@@ -3,6 +3,7 @@ import { FaTriangleExclamation } from 'react-icons/fa6';
 import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../api/sim';
 import { SimProgress } from '../team_builder/sim/SimProgress';
 import { SimResult } from '../team_builder/sim/SimResult';
+import BackButton from '../shared/BackButton';
 
 // Setup phases report no game counts, so polling a little faster keeps the phase label moving.
 const POLL_INTERVAL_MS = 1000;
@@ -14,6 +15,8 @@ type Props = {
      *  result screen's own club switcher takes over from here. */
     initialFocusAbbr?: string;
     onRunAgain?: () => void;
+    /** Leave the sim entirely (back to wherever the run was started from). */
+    onBack?: () => void;
 };
 
 function progressLabel(job: SimJob | null): string {
@@ -31,7 +34,7 @@ function progressLabel(job: SimJob | null): string {
  * this is simpler: just poll the job until it succeeds, then render the result with a club
  * switcher instead of a fixed team.
  */
-export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain }: Props) {
+export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBack }: Props) {
     const [job, setJob] = useState<SimJob | null>(null);
     const [summary, setSummary] = useState<SeasonSimSummary | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -108,6 +111,11 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain }: Pr
 
     return (
         <div className="flex flex-col h-full overflow-y-auto">
+            {onBack && (
+                <div className="px-4 pt-3 shrink-0">
+                    <BackButton onBack={onBack} label="Back to seasons" />
+                </div>
+            )}
             {error ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
                     <FaTriangleExclamation className="text-red-400 text-2xl" />
