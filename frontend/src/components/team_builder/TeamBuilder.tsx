@@ -535,6 +535,9 @@ export default function TeamBuilder() {
     }
 
     return (
+        // `@container` here spans the full content region, so shelves flagged `bleedRight` can
+        // run to the screen edge past the centered max-width below.
+        <div className="@container w-full">
         <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
@@ -571,7 +574,7 @@ export default function TeamBuilder() {
             {activeTab === 'mine' && (
                 <>
                     {!loading && recentTeams.length > 0 && (
-                        <TeamShelf title="Recent Teams" className={px}>
+                        <TeamShelf title="Recent Teams" className={px} bleedRight>
                             {recentTeams.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => openTeam(team)} />
                             ))}
@@ -649,6 +652,7 @@ export default function TeamBuilder() {
                     onOpenChallenge={openChallenge}
                 />
             )}
+        </div>
         </div>
     );
 }

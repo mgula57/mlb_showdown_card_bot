@@ -1517,11 +1517,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             
                         </div>
 
-                        {/* Form Buttons */}
                         {/* Mobile: floating circular CTA pinned bottom-right. Desktop (@2xl): full-width sticky bar. */}
                         <footer className={`
                             fixed bottom-0 right-0 z-30
-                            p-4 pb-[calc(1rem+var(--safe-bottom))]
+                            p-4 pb-[calc(0.5rem+var(--safe-bottom))]
                             pointer-events-none
                             @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
                             @2xl:-mx-4 @2xl:px-10 @2xl:py-3 @2xl:pb-3

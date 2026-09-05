@@ -7,11 +7,17 @@ type TeamShelfProps = {
     className?: string;
     /** Optional "See all" affordance shown on the right of the header. */
     onSeeAll?: () => void;
+    /**
+     * Let the scrolling row run flush to the right edge of the nearest `@container`
+     * ancestor (the full content region), ignoring the page's centered max-width and
+     * right padding. The header keeps its normal alignment.
+     */
+    bleedRight?: boolean;
     children: ReactNode;
 };
 
 /** A titled, horizontally-scrolling row of team tiles — the music-app "shelf" pattern. */
-export function TeamShelf({ title, subtitle, onSeeAll, children, className }: TeamShelfProps) {
+export function TeamShelf({ title, subtitle, onSeeAll, children, className, bleedRight }: TeamShelfProps) {
     return (
         <section className="flex flex-col">
             <div className={`flex items-baseline justify-between mb-1.5 ${className ?? ''}`}>
@@ -31,7 +37,12 @@ export function TeamShelf({ title, subtitle, onSeeAll, children, className }: Te
             </div>
             <div
                 className={`flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 scrollbar-hide ${className ?? ''}`}
-                style={{ touchAction: 'pan-x' }}
+                style={{
+                    touchAction: 'pan-x',
+                    // Keep the left inset (from `className`) but drop the right one and pull the
+                    // row out to the container edge so it reaches the end of the screen.
+                    ...(bleedRight ? { paddingRight: 0, marginRight: 'calc((100% - 100cqw) / 2)' } : {}),
+                }}
             >
                 {children}
             </div>

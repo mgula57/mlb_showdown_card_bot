@@ -113,8 +113,8 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
                 results.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams match “{query.trim()}”.</p>
                 ) : (
-                    <div className="px-4">
-                        <div className="flex items-center justify-between mb-3">
+                    <div>
+                        <div className="flex items-center justify-between mb-3 px-4">
                             <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
                                 {results.length} result{results.length === 1 ? '' : 's'}
                             </div>
