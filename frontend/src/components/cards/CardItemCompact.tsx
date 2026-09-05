@@ -47,6 +47,8 @@ type CardItemCompactProps = {
     liveIp?: number | string | null;
     /** Override the card's border color, e.g. to distinguish offense/defense on a field diagram. Any CSS color value. */
     accentColor?: string;
+    /** Optional background settings for the card container, e.g., "bg-secondary" */
+    backgroundSettings?: string;
 };
 
 // =============================================================================
@@ -94,6 +96,7 @@ export const CardItemCompact = ({
     hideTeamPoints,
     liveIp,
     accentColor,
+    backgroundSettings
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
@@ -121,8 +124,8 @@ export const CardItemCompact = ({
     const borderSettings = isSelected
         ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
         : (isDark
-            ? `border-3 border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
-            : `border-3 border-gray-200 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+            ? `border-2 border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
+            : `border-2 border-(--text-tertiary) shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     const isRedacted = card?.isEmpty || false;
 
@@ -142,7 +145,7 @@ export const CardItemCompact = ({
                 w-full min-w-0
                 flex items-top gap-2
                 rounded-lg pl-1 py-1
-                bg-secondary
+                ${backgroundSettings || 'bg-secondary'}
                 ${borderSettings}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
             `}
@@ -307,9 +310,10 @@ type CardItemCompactFromCardProps = {
     hideTeamPoints?: boolean;
     liveIp?: number | string | null;
     accentColor?: string;
+    backgroundSettings?: string;
 };
 
-export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -353,6 +357,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideD
             hideTeamPoints={hideTeamPoints}
             liveIp={liveIp}
             accentColor={accentColor}
+            backgroundSettings={backgroundSettings}
         />
     );
 };
@@ -368,9 +373,10 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     detailStat1Category?: 'defense' | 'hr' | 'outs';
     hideDetails?: boolean;
     ptsMultiplier?: number;
+    backgroundSettings?: string;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, ptsMultiplier }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, ptsMultiplier, backgroundSettings }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -412,6 +418,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             hideDetails={hideDetails}
             detailStat1Category={detailStat1Category}
             ptsMultiplier={ptsMultiplier}
+            backgroundSettings={backgroundSettings}
         />
     );
 };

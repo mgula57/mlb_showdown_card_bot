@@ -80,14 +80,14 @@ const HOME: readonly [number, number] = [49.9, 85.4];
 
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
     pitcher: [49.9, 50.5],
-    catcher: [49.9, 105],
-    first: [90, 24],
-    second: [70, 12],
-    third: [10, 24],
-    shortstop: [30, 12],
-    left: [19, -10],
-    center: [49.9, -15],
-    right: [81, -10],
+    catcher: [49.9, 115],
+    first: [88, 30],
+    second: [70, 5],
+    third: [12, 30],
+    shortstop: [30, 5],
+    left: [19, -20],
+    center: [49.9, -28],
+    right: [81, -20],
 };
 
 /** Position abbreviations for the defense slots, used for the card's defensive rating lookup. */
@@ -394,7 +394,7 @@ const TONE_ACCENT: Record<"offense" | "defense", string | undefined> = {
  * placeholder card while the real one is still being fetched. */
 function FieldMarker({
     player, role, cardMap, onCardSelect, isLoadingCards, tone,
-    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition,
+    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings,
 }: {
     player: PlayerRef;
     role: "H" | "P";
@@ -408,6 +408,8 @@ function FieldMarker({
     detailStat1Category?: "defense" | "speed" | "hr";
     liveIp?: string | number | null;
     fieldPosition?: string;
+    /** Optional background settings for the card container, e.g., "bg-secondary" */
+    backgroundSettings?: string;
 }) {
     if (!player.name) {
         return <span className="block h-3 w-3 rotate-45 rounded-xs bg-(--live) shadow-sm" />;
@@ -451,6 +453,7 @@ function FieldMarker({
                     liveIp={liveIp}
                     fieldPosition={fieldPosition}
                     accentColor={accentColor}
+                    backgroundSettings={backgroundSettings}
                 />
             ) : (
                 <CardItemCompact
@@ -460,6 +463,7 @@ function FieldMarker({
                     hideTeamPoints={hideTeamPoints}
                     hideDetails
                     accentColor={accentColor}
+                    backgroundSettings={backgroundSettings}
                 />
             )}
         </div>
@@ -608,6 +612,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             if (!player) return null;
                             const isBattery = slot === "pitcher";
                             const isVisible = expanded || isBattery;
+                            const backgroundSettings = isBattery ? `bg-secondary` : 'backdrop-blur';
                             return (
                                 <div
                                     key={slot}
@@ -629,6 +634,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                         detailStat1Category="defense"
                                         fieldPosition={DEFENSE_POSITIONS[slot]}
                                         liveIp={isBattery ? pitcherLine?.inningsPitched : undefined}
+                                        backgroundSettings={backgroundSettings}
                                     />
                                 </div>
                             );
