@@ -629,7 +629,7 @@ export default function TeamBuilder() {
 
             {/* Community tab */}
             {activeTab === 'community' && (
-                <CommunityTeams onOpen={openTeam} className={px} currentUserId={session?.user?.id} />
+                <CommunityTeams onOpen={openTeam} horizontalPadding={px} currentUserId={session?.user?.id} />
             )}
 
             {/* Historical tab */}

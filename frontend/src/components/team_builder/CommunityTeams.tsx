@@ -33,13 +33,14 @@ function sortTeams(list: TeamSummary[], sortBy: SortKey): TeamSummary[] {
 
 type CommunityTeamsProps = {
     onOpen: (team: TeamSummary) => void;
-    className?: string;
+    /** Horizontal page padding — applied to headers/search, while shelves bleed to the screen edge. */
+    horizontalPadding?: string;
     /** Signed-in user's id — their own public teams are hidden here (they live under "My Teams"). */
     currentUserId?: string | null;
 };
 
 /** Browse other users' public teams music-app style: shelves of preview tiles, with search-as-a-mode. */
-export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTeamsProps) {
+export function CommunityTeams({ onOpen, horizontalPadding, currentUserId }: CommunityTeamsProps) {
     const [query, setQuery] = useState('');
     const [sortBy, setSortBy] = useState<SortKey>('recent');
     const [allTeams, setAllTeams] = useState<TeamSummary[]>([]);
@@ -93,18 +94,24 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
         return { recentlyAdded, topPoints, setShelves };
     }, [completeTeams]);
 
+    const px = horizontalPadding ?? '';
+
     return (
-        <div className={`flex flex-col gap-5 ${className ?? ''}`}>
+        <div className="flex flex-col gap-5">
             {/* Search bar */}
-            <TeamSearchInput
-                value={query}
-                onChange={setQuery}
-                placeholder="Search public teams by name or set (e.g. Expanded)…"
-            />
+            <div className={px}>
+                <TeamSearchInput
+                    value={query}
+                    onChange={setQuery}
+                    placeholder="Search public teams by name or set (e.g. Expanded)…"
+                />
+            </div>
 
             {error && (
-                <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
-                    {error}
+                <div className={`${px} text-[12px] text-red-400`}>
+                    <div className="px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {error}
+                    </div>
                 </div>
             )}
 
@@ -113,8 +120,8 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
                 results.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams match “{query.trim()}”.</p>
                 ) : (
-                    <div>
-                        <div className="flex items-center justify-between mb-3 px-4">
+                    <div className={px}>
+                        <div className="flex items-center justify-between mb-3">
                             <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
                                 {results.length} result{results.length === 1 ? '' : 's'}
                             </div>
@@ -138,16 +145,16 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
             ) : shelves.recentlyAdded.length === 0 ? (
                 <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams yet.</p>
             ) : (
-                /* Browse (shelves) mode */
+                /* Browse (shelves) mode — headers indented by `px`, tile rows bleed to the screen edge. */
                 <>
-                    <TeamShelf title="Recently Added">
+                    <TeamShelf title="Recently Added" className={px} bleedRight>
                         {shelves.recentlyAdded.map(team => (
                             <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                         ))}
                     </TeamShelf>
 
                     {shelves.topPoints.length > 0 && (
-                        <TeamShelf title="Heavy Hitters" subtitle="Most points">
+                        <TeamShelf title="Heavy Hitters" subtitle="Most points" className={px} bleedRight>
                             {shelves.topPoints.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
@@ -155,7 +162,7 @@ export function CommunityTeams({ onOpen, className, currentUserId }: CommunityTe
                     )}
 
                     {shelves.setShelves.map(([set, list]) => (
-                        <TeamShelf key={set} title={set === 'Other' ? 'Other Sets' : `${set} Set`}>
+                        <TeamShelf key={set} title={set === 'Other' ? 'Other Sets' : `${set} Set`} className={px} bleedRight>
                             {list.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
