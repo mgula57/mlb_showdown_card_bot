@@ -328,7 +328,7 @@ export default function Home() {
                     {([
                         { label: 'Card Builder', desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
                         { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
-                        { label: 'MLB Season',        desc: 'Follow the 2026 season using Showdown',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500' },
+                        { label: 'Seasons',        desc: 'Follow the 2026 season using Showdown',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500' },
                     ] as const).map(({ label, desc, Icon, to, iconColor }) => (
                         <Link
                             key={to}

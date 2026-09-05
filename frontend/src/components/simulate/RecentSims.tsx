@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FaSpinner, FaTrophy } from 'react-icons/fa6';
 import { fetchSimHistory, type SimSeasonListItem } from '../../api/sim';
 import { relativeTime } from '../../functions/formatters';
@@ -8,6 +8,8 @@ const RECENT_LIMIT = 8;
 type Props = {
     token?: string;
     onOpen: (jobId: string) => void;
+    /** When set, only runs from this season show by default; a toggle reveals every season. */
+    seasonYear?: number;
 };
 
 /**
@@ -16,9 +18,10 @@ type Props = {
  * team's own Sims tab, so this stays scoped to the plain "simulate a season" path. Deliberately
  * minimal for now; can grow filters/grouping later if it gets used.
  */
-export function RecentSims({ token, onOpen }: Props) {
+export function RecentSims({ token, onOpen, seasonYear }: Props) {
     const [seasons, setSeasons] = useState<SimSeasonListItem[] | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showAllSeasons, setShowAllSeasons] = useState(false);
 
     useEffect(() => {
         if (!token) return;
@@ -28,6 +31,23 @@ export function RecentSims({ token, onOpen }: Props) {
             .catch(err => { if (!stale) setError(err instanceof Error ? err.message : 'Failed to load your simulations.'); });
         return () => { stale = true; };
     }, [token]);
+
+    const canFilterBySeason = seasonYear !== undefined && !showAllSeasons;
+    const visibleSeasons = useMemo(() => {
+        if (!seasons) return seasons;
+        return canFilterBySeason ? seasons.filter(entry => entry.year === seasonYear) : seasons;
+    }, [seasons, canFilterBySeason, seasonYear]);
+    const hiddenByFilter = seasons && visibleSeasons ? seasons.length - visibleSeasons.length : 0;
+
+    const seasonToggle = seasonYear !== undefined && seasons && seasons.length > 0 && (hiddenByFilter > 0 || showAllSeasons) ? (
+        <button
+            type="button"
+            onClick={() => setShowAllSeasons(prev => !prev)}
+            className="text-[11px] font-semibold text-(--text-secondary) hover:text-(--text-primary) underline underline-offset-2 cursor-pointer"
+        >
+            {showAllSeasons ? `Show only ${seasonYear}` : `Show all seasons${hiddenByFilter > 0 ? ` (${hiddenByFilter} more)` : ''}`}
+        </button>
+    ) : null;
 
     if (!token || error) {
         return error ? (
@@ -53,9 +73,21 @@ export function RecentSims({ token, onOpen }: Props) {
         );
     }
 
+    if (!visibleSeasons || visibleSeasons.length === 0) {
+        return (
+            <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
+                <p className="text-[13px] text-(--text-tertiary)">
+                    No simulations for {seasonYear} yet.
+                </p>
+                {seasonToggle}
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col gap-1.5">
-            {seasons.slice(0, RECENT_LIMIT).map(entry => (
+            {seasonToggle && <div className="flex justify-end pb-0.5">{seasonToggle}</div>}
+            {visibleSeasons.slice(0, RECENT_LIMIT).map(entry => (
                 <button
                     key={entry.entry_id}
                     type="button"

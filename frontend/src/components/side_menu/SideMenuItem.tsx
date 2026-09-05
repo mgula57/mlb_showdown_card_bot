@@ -33,7 +33,8 @@ import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import { FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
 import CardBuildIcon from "../customs/CardBuildIcon";
-import { FaPeopleGroup, FaDice } from "react-icons/fa6";
+import { FaPeopleGroup } from "react-icons/fa6";
+// import { FaDice } from "react-icons/fa6"; // re-add with the Simulate nav item below
 
 /**
  * Props for the SideMenuItem component
@@ -150,7 +151,6 @@ export const sideMenuItems: SideMenuItemType[] = [
         text: "Card Builder",
         icon: CardBuildIcon,  // Card/profile icon representing custom card creation
         path: "/customs",
-        isNew: true
     },
     {
         text: "Card Explorer",
@@ -161,18 +161,21 @@ export const sideMenuItems: SideMenuItemType[] = [
         text: "Team Builder",
         icon: FaPeopleGroup,      // Group icon representing teams/rosters
         path: "/teams",
-    },
-    {
-        text: "MLB Season",
-        icon: FaCalendar,      // Calendar icon representing seasons/schedules
-        path: "/seasons"
-    },
-    {
-        text: "Simulate",
-        icon: FaDice,      // Dice icon representing a simulated season
-        path: "/simulate",
         isNew: true
     },
+    {
+        text: "Seasons",
+        icon: FaCalendar,      // Calendar icon representing seasons/schedules
+        path: "/seasons",
+        isNew: true
+    },
+    // Hidden for this release — the Simulate flow is reached from the Seasons page instead.
+    // {
+    //     text: "Simulate",
+    //     icon: FaDice,      // Dice icon representing a simulated season
+    //     path: "/simulate",
+    //     isNew: true
+    // },
     {
         text: "Account",
         icon: FaUserCircle,

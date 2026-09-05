@@ -38,6 +38,11 @@ import GameDetail from "../games/GameDetail";
 import SeasonLeaders from "./SeasonLeaders";
 import AwardWinners from "./AwardWinners";
 import { getReadableTextColor } from "../../functions/colors";
+import { Modal } from "../shared/Modal";
+import { SignInPrompt } from "../shared/SignInPrompt";
+import { SeasonSimSetupForm } from "../simulate/SeasonSimSetupForm";
+import { RecentSims } from "../simulate/RecentSims";
+import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
@@ -127,7 +132,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const getTeamsCacheKey = (seasonId: string) => `${type}.seasons.teams.${seasonId}`;
 
     const { userShowdownSet } = useSiteSettings();
-    const { userSettings, settingsLoaded, syncSetting } = useAuth();
+    const { userSettings, settingsLoaded, syncSetting, session } = useAuth();
+    const simToken = session?.access_token;
     const hasStaticSeasons = staticSeasons !== undefined;
     const hasStaticSports = staticSports !== undefined;
 
@@ -191,12 +197,36 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGamePk]);
 
+    // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab, then clears the param.
+    useEffect(() => {
+        if (new URLSearchParams(location.search).get('sim') === '1') {
+            setActiveTab('simulate');
+            navigate('/seasons', { replace: true });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search]);
+
     const handleGameSelect = (gamePk: number) => {
         navigate(`/seasons/game/${gamePk}`);
     };
 
     const handleGameBack = () => {
         navigate('/seasons', { replace: true });
+    };
+
+    // Season simulation: the setup form opens in a modal here (the standalone /simulate nav entry
+    // is hidden for this release), and a running/finished sim still gets its own /simulate/:jobId page.
+    const [isSimModalOpen, setIsSimModalOpen] = useState(false);
+
+    const handleOpenSim = (jobId: string) => {
+        navigate(`/simulate/${jobId}`);
+    };
+
+    const handleSimStart = async (payload: OpenSimPayload) => {
+        if (!simToken) throw new Error('Sign in to simulate a season.');
+        const { job_id, focus_abbr } = await startOpenSim(payload, simToken);
+        setIsSimModalOpen(false);
+        navigate(`/simulate/${job_id}${focus_abbr ? `?focus=${focus_abbr}` : ''}`);
     };
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
@@ -299,6 +329,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         return (a.abbreviation || a.name || "").localeCompare(b.abbreviation || b.name || "");
     });
 
+    // Franchise-level (id only, any season) starred abbreviations — feeds the sim form's club sort.
+    const starredTeamIds = new Set(starredTeamKeys.map((key) => key.split('-')[0]));
+    const starredTeamAbbrs = teams
+        .filter((team) => starredTeamIds.has(String(team.id)))
+        .map((team) => team.abbreviation)
+        .filter((abbr): abbr is string => !!abbr);
+
     // Schedule browsing only applies while the selected season is ongoing
     const isSelectedSeasonOver = isSeasonOver(selectedSeason);
 
@@ -314,6 +351,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
         ...(hideAwardWinners ? [] : [{ id: "awards", label: "Awards", icon: <FaMedal /> }]),
+        ...(type === "mlb" ? [{ id: "simulate", label: "Simulate", icon: <FaDice /> }] : []),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
@@ -823,7 +861,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     {type === "mlb" && selectedSeason && (
                         <button
                             type="button"
-                            onClick={() => navigate(`/simulate?year=${selectedSeason.season_id}`)}
+                            onClick={() => setIsSimModalOpen(true)}
                             className="
                                 w-full flex items-center justify-center gap-1.5 px-3 py-2
                                 rounded-lg animated-showdown-gradient
@@ -1069,7 +1107,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         {type === "mlb" && selectedSeason && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => navigate(`/simulate?year=${selectedSeason.season_id}`)}
+                                                                onClick={() => setIsSimModalOpen(true)}
                                                                 className="
                                                                     flex items-center gap-1.5 px-2.5 py-1.5
                                                                     rounded-lg animated-showdown-gradient
@@ -1272,6 +1310,47 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         </div>
                                     </Tabs.Content>
 
+                                    {/* Simulate Tab */}
+                                    <Tabs.Content
+                                        value="simulate"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6 space-y-4 pb-24">
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                        Simulations
+                                                    </p>
+                                                    <p className="text-xs text-(--text-secondary) mt-1">
+                                                        Play out any MLB season, then jump back to your past runs here.
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsSimModalOpen(true)}
+                                                    className="
+                                                        flex items-center gap-1.5 px-3 py-2
+                                                        rounded-lg animated-showdown-gradient
+                                                        text-[12px] font-semibold text-(--text-primary)
+                                                        hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
+                                                    "
+                                                >
+                                                    <FaDice className="text-[11px]" />
+                                                    New simulation
+                                                </button>
+                                            </div>
+                                            {simToken ? (
+                                                <RecentSims token={simToken} onOpen={handleOpenSim} seasonYear={selectedSeasonYear ?? undefined} />
+                                            ) : (
+                                                <SignInPrompt
+                                                    className="py-12"
+                                                    icon={<FaDice size={32} />}
+                                                    message="Sign in to run a season simulation and see your past runs."
+                                                />
+                                            )}
+                                        </div>
+                                    </Tabs.Content>
+
                                     {/* Leaders Tab */}
                                     <Tabs.Content
                                         value="leaders"
@@ -1332,6 +1411,27 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     </>
                 )}
             </div>
+
+            {isSimModalOpen && (
+                <Modal onClose={() => setIsSimModalOpen(false)} size="md">
+                    {simToken ? (
+                        <SeasonSimSetupForm
+                            mode="solo"
+                            token={simToken}
+                            onStart={handleSimStart}
+                            onViewExisting={handleOpenSim}
+                            initialYear={selectedSeasonYear ?? undefined}
+                            starredAbbrs={starredTeamAbbrs}
+                        />
+                    ) : (
+                        <SignInPrompt
+                            className="py-16"
+                            icon={<FaDice size={32} />}
+                            message="Sign in to run a season simulation."
+                        />
+                    )}
+                </Modal>
+            )}
 
             {isLoading && activeTab !== "players" && (
                 <div className="

@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FaSpinner, FaPlay, FaUserGroup, FaGears } from 'react-icons/fa6';
 import FormDropdown from '../customs/FormDropdown';
 import FormInput from '../customs/FormInput';
-import NumberInput from '../customs/NumberInput';
 import FormSection from '../customs/FormSection';
 import FormEnabler from '../customs/FormEnabler';
 import ManagerStyleFields from './ManagerStyleFields';
@@ -21,11 +20,6 @@ function errorMessage(err: unknown): string {
 }
 
 const CARD_SET_OPTIONS = setOptionsForSource(CardSource.BOT).map(set => ({ label: set, value: set }));
-
-const SCHEDULE_OPTIONS = [
-    { label: 'Full season', value: 'full' },
-    { label: 'Custom length', value: 'custom' },
-];
 
 const POSTSEASON_FORMAT_OPTIONS = [
     { value: 'DYNAMIC', label: 'Era-accurate (default)' },
@@ -48,6 +42,9 @@ type Props =
            *  Falls back to the usual default (most recent completed season) if unset or not
            *  simulatable. */
           initialYear?: number;
+          /** Franchise abbreviations the user has starred — sorted to the top of the Follow /
+           *  Replaces club pickers. */
+          starredAbbrs?: string[];
       }
     | {
           mode: 'lobby';
@@ -82,11 +79,7 @@ export function SeasonSimSetupForm(props: Props) {
     const [takeoverReplaces, setTakeoverReplaces] = useState<string>('');
     const [manager, setManager] = useState<ManagerPreference>(NEUTRAL_MANAGER);
 
-    const [scheduleMode, setScheduleMode] = useState<'full' | 'custom'>('full');
-    const [gamesLimit, setGamesLimit] = useState(81);
-    const [seedDraft, setSeedDraft] = useState('');
-    const [enableInjuries, setEnableInjuries] = useState(false);
-    const [injurySeverity, setInjurySeverity] = useState(1.0);
+    const [enableInjuries, setEnableInjuries] = useState(true);
     const [simulatePostseason, setSimulatePostseason] = useState(true);
     const [postseasonFormat, setPostseasonFormat] = useState('DYNAMIC');
     const [resumeEnabled, setResumeEnabled] = useState(false);
@@ -113,6 +106,10 @@ export function SeasonSimSetupForm(props: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Latest starred abbreviations, read (not depended on) inside the club fetch so a starred-list
+    // update never clobbers a club the user has already picked.
+    const starredAbbrsRef = useRef<string[]>([]);
+
     useEffect(() => {
         // The focus/takeover club pickers this feeds don't exist in lobby mode, so skip the fetch.
         if (year === null || isLobby) return;
@@ -121,7 +118,11 @@ export function SeasonSimSetupForm(props: Props) {
             .then(({ teams, default: worst }) => {
                 if (stale) return;
                 setClubsFor({ year, teams });
-                setFocusAbbr(worst ?? teams[0]?.abbreviation ?? '');
+                // "Follow" defaults to the user's starred club if one played this season, else the
+                // best record. "Replaces" stays on the worst club — that's the club worth taking over.
+                const byRecord = [...teams].sort((a, b) => b.wins - a.wins);
+                const starredPick = byRecord.find(club => starredAbbrsRef.current.includes(club.abbreviation));
+                setFocusAbbr(starredPick?.abbreviation ?? byRecord[0]?.abbreviation ?? '');
                 setTakeoverReplaces(worst ?? teams[0]?.abbreviation ?? '');
             })
             .catch(err => { if (!stale) setError(errorMessage(err)); });
@@ -136,6 +137,17 @@ export function SeasonSimSetupForm(props: Props) {
     const clubs = !isLobby && clubsFor?.year === year ? clubsFor.teams : [];
     const loadingClubs = !isLobby && year !== null && clubsFor?.year !== year;
 
+    // Club pickers ("Follow" / "Replaces") list the user's starred franchises first, then the rest
+    // by record, best to worst.
+    const starredAbbrs = props.mode === 'solo' ? props.starredAbbrs ?? [] : [];
+    starredAbbrsRef.current = starredAbbrs;
+    const sortedClubs = [...clubs].sort((a, b) => {
+        const aStarred = starredAbbrs.includes(a.abbreviation);
+        const bStarred = starredAbbrs.includes(b.abbreviation);
+        if (aStarred !== bStarred) return aStarred ? -1 : 1;
+        return b.wins - a.wins;
+    });
+
     async function handleSubmit() {
         if (year === null) return;
         if (!isLobby && takeoverEnabled && !takeoverTeamId) {
@@ -146,13 +158,13 @@ export function SeasonSimSetupForm(props: Props) {
         setError(null);
         setRunningJob(null);
         try {
-            const seed = seedDraft.trim() === '' ? undefined : Number(seedDraft);
             const engineSettings = {
                 year, set,
-                seed: Number.isFinite(seed) ? seed : undefined,
-                games_limit: scheduleMode === 'custom' ? gamesLimit : undefined,
+                seed: undefined,
+                games_limit: undefined,
                 enable_injuries: enableInjuries,
-                injury_severity_multiplier: enableInjuries ? injurySeverity : undefined,
+                // Injury severity isn't user-configurable for now — the backend defaults to 1.0 (realistic).
+                injury_severity_multiplier: undefined,
                 simulate_postseason: simulatePostseason,
                 postseason_format: simulatePostseason ? postseasonFormat : undefined,
                 resume_as_of_date: resumeEnabled ? resumeAsOfDate : undefined,
@@ -200,7 +212,7 @@ export function SeasonSimSetupForm(props: Props) {
                 {!isLobby && (
                     <FormDropdown
                         label="Follow"
-                        options={clubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
+                        options={sortedClubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
                         selectedOption={focusAbbr}
                         onChange={setFocusAbbr}
                         disabled={loadingClubs || clubs.length === 0}
@@ -235,7 +247,7 @@ export function SeasonSimSetupForm(props: Props) {
                             />
                             <FormDropdown
                                 label="Replaces"
-                                options={clubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
+                                options={sortedClubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
                                 selectedOption={takeoverReplaces}
                                 onChange={setTakeoverReplaces}
                                 disabled={loadingClubs || clubs.length === 0}
@@ -247,23 +259,7 @@ export function SeasonSimSetupForm(props: Props) {
                 </FormSection>
             )}
 
-            <FormSection title="Advanced settings" icon={<FaGears />}>
-                <FormDropdown
-                    label="Schedule"
-                    options={SCHEDULE_OPTIONS}
-                    selectedOption={scheduleMode}
-                    onChange={value => setScheduleMode(value as 'full' | 'custom')}
-                />
-                {scheduleMode === 'custom' && (
-                    <NumberInput label="Games" value={gamesLimit} onChange={setGamesLimit} />
-                )}
-                <FormInput
-                    label="Random seed (optional)"
-                    value={seedDraft}
-                    onChange={value => setSeedDraft(value ?? '')}
-                    placeholder="Leave blank for random"
-                    isClearable
-                />
+            <FormSection title="Settings" icon={<FaGears />} isOpenByDefault={true}>
                 <FormEnabler
                     label="Resume from real standings"
                     isEnabled={resumeEnabled}
@@ -305,7 +301,11 @@ export function SeasonSimSetupForm(props: Props) {
                     className="col-span-full"
                 />
                 {enableInjuries && (
-                    <NumberInput label="Injury severity" value={injurySeverity} onChange={setInjurySeverity} step={0.1} />
+                    <p className="text-[11px] text-(--text-tertiary) col-span-full">
+                        Players on each club's 40-man can hit the IL and get replaced by call-ups,
+                        calibrated to how durable each player really was that season. Only
+                        regular-season games roll injuries.
+                    </p>
                 )}
                 <FormEnabler
                     label="Simulate postseason"
@@ -338,12 +338,12 @@ export function SeasonSimSetupForm(props: Props) {
                 </div>
             )}
 
-            <div className="flex justify-end pt-1">
+            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex justify-end border-t border-form-element backdrop-blur-2xl px-4 py-3">
                 <button
                     type="button"
                     onClick={handleSubmit}
                     disabled={starting || loadingClubs || year === null}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-(--secondary) text-[13px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg animated-showdown-gradient text-[13px] font-bold text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     {starting ? <FaSpinner className="animate-spin text-[11px]" /> : isLobby ? <FaUserGroup className="text-[11px]" /> : <FaPlay className="text-[11px]" />}
                     {isLobby ? 'Create Lobby' : 'Simulate Season'}
