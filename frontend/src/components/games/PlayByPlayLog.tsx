@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayEntry } from "../../domain/play";
+import type { LiveSituation } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
 import { ordinal } from "../../functions/formatters";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
@@ -12,6 +13,10 @@ type PlayByPlayLogProps = {
     cardMap: CardMap;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
     isLoadingCards?: boolean;
+    /** The plate appearance in progress (no result yet). When supplied it's pinned above the
+     * newest completed play and styled as "live" so it never reads as just another finished row.
+     * Omit it for finished games or while scrubbing an earlier point in the game. */
+    currentMatchup?: LiveSituation;
     /** True when nested inside another panel — drops the outer border/background/heading so it
      * reads as one continuous surface with its parent. */
     embedded?: boolean;
@@ -48,7 +53,66 @@ function MiniCard({
     );
 }
 
-export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingCards, embedded, maxHeightClassName = "max-h-64" }: PlayByPlayLogProps) {
+/** The in-progress plate appearance, pinned to the top of the log and styled as "live" so it
+ * reads as the current matchup rather than a completed play. */
+function CurrentMatchupRow({
+    situation, cardMap, onCardSelect, isLoadingCards,
+}: {
+    situation: LiveSituation;
+    cardMap: CardMap;
+    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+    isLoadingCards?: boolean;
+}) {
+    const batterCardResponse = cardMap[resolveCardKey(situation.batter?.id, 'H') ?? ''];
+    const pitcherCardResponse = cardMap[resolveCardKey(situation.pitcher?.id, 'P') ?? ''];
+    const hasCount = situation.balls != null && situation.strikes != null;
+
+    return (
+        <div className="sticky top-0 z-10 -mx-1 px-1 pb-1 bg-primary">
+            <div className="text-sm w-full text-center font-black text-(--green) pt-1 pb-2 flex items-center justify-center gap-2">
+                <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--green) opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-(--green)" />
+                </span>
+                Now Batting · {inningLabel(situation.inning, situation.isTop)}
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-primary border border-(--green)/50 ring-1 ring-(--green)/20">
+                <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-1 min-w-24 @[300px]:min-w-32">
+                    <MiniCard cardResponse={pitcherCardResponse} fallbackName={situation.pitcher?.name ?? 'Unknown'} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                    <MiniCard cardResponse={batterCardResponse} fallbackName={situation.batter?.name ?? 'Unknown'} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="inline-block rounded-full border border-(--green)/40 px-2 py-0.5 text-[11px] font-bold text-(--green)">
+                            At Bat
+                        </span>
+                        {hasCount && (
+                            <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                                {situation.balls}-{situation.strikes}
+                            </span>
+                        )}
+                        <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                            {situation.outs} out{situation.outs !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+                    <p className="text-sm text-(--primary) mt-1">
+                        <span className="font-bold">{situation.pitcher?.name ?? 'Unknown'}</span>
+                        {' pitching to '}
+                        <span className="font-bold">{situation.batter?.name ?? 'Unknown'}</span>
+                        {(situation.onDeck || situation.inHole) && (
+                            <span className="text-(--secondary)">
+                                {situation.onDeck && <> · On deck: {situation.onDeck.name}</>}
+                                {situation.inHole && <> · In hole: {situation.inHole.name}</>}
+                            </span>
+                        )}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingCards, currentMatchup, embedded, maxHeightClassName = "max-h-64" }: PlayByPlayLogProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [showBottomFade, setShowBottomFade] = useState(false);
     const [scoringOnly, setScoringOnly] = useState(false);
@@ -89,13 +153,28 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
         </button>
     );
 
-    const list = visiblePlays.length === 0 ? (
+    const currentMatchupRow = currentMatchup?.batter ? (
+        <CurrentMatchupRow
+            situation={currentMatchup}
+            cardMap={cardMap}
+            onCardSelect={onCardSelect}
+            isLoadingCards={isLoadingCards}
+        />
+    ) : null;
+
+    const list = visiblePlays.length === 0 && !currentMatchupRow ? (
         <div className="py-6 text-center text-sm text-(--secondary)">
             {scoringOnly && plays.length > 0 ? 'No scoring plays yet.' : 'No plays yet.'}
         </div>
     ) : (
         <div className="relative @container">
             <div ref={scrollRef} onScroll={checkScroll} className={`${maxHeightClassName} overflow-y-auto space-y-3 pr-1`}>
+                {currentMatchupRow}
+                {visiblePlays.length === 0 && (
+                    <div className="py-6 text-center text-sm text-(--secondary)">
+                        {scoringOnly && plays.length > 0 ? 'No scoring plays yet.' : 'No completed plays yet.'}
+                    </div>
+                )}
                 {visiblePlays.map((play, index) => {
                     const previous = visiblePlays[index - 1];
                     const showDivider = !previous || previous.inning !== play.inning || previous.isTop !== play.isTop;

@@ -235,6 +235,13 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 const headerView = { ...activeView, detailedState };
                 const scoreHeader = <ScoreHeader game={headerView} />;
 
+                /* The in-progress plate appearance, pinned atop the log. Only while the game is
+                   genuinely live at the cursor's position — a finished game has no "current"
+                   matchup, and scrubbing back to an earlier point (`isReplaying`) would otherwise
+                   pin that frame's on-deck batter as if it were happening now. */
+                const currentMatchup = !isReplaying && activeView.state === "LIVE" && activeView.situation?.batter
+                    ? activeView.situation
+                    : undefined;
                 const playByPlayPanelDesktop = (
                     <PlayByPlayLog
                         key={gamePk}
@@ -242,6 +249,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         cardMap={cardMap}
                         onCardSelect={setSelectedCard}
                         isLoadingCards={isLoadingCards}
+                        currentMatchup={currentMatchup}
                         maxHeightClassName="max-h-none"
                     />
                 );
@@ -252,6 +260,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         cardMap={cardMap}
                         onCardSelect={setSelectedCard}
                         isLoadingCards={isLoadingCards}
+                        currentMatchup={currentMatchup}
                         maxHeightClassName="max-h-[26rem]"
                     />
                 );
@@ -317,16 +326,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                         <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
                             <BackButton onBack={onBack} />
-                            {canSimulate && !simResult && (
-                                <button
-                                    type="button"
-                                    onClick={() => { setSimError(null); setShowSimSetup(true); }}
-                                    className="flex items-center gap-x-1 cursor-pointer rounded-lg bg-(--secondary) px-3 py-1.5 text-[11px] font-bold text-(--background-primary) transition-opacity hover:opacity-90"
-                                >
-                                    <FaTerminal />
-                                    {realState === "LIVE" ? "Take Over" : "Simulate"}
-                                </button>
-                            )}
+
                             {simError && <span className="text-[11px] text-(--red)">{simError}</span>}
                             {isRefreshing && (
                                 <svg className="animate-spin h-3.5 w-3.5 text-(--secondary)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -335,6 +335,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 </svg>
                             )}
                             <div className="ml-auto flex items-center gap-2">
+                                
                                 {/* Enters replay: reveals the transport bar and, on a live game,
                                     freezes the live cursor so you can scrub back. Once active the
                                     colored REPLAY banner takes over — its "Exit Replay" is the way
@@ -347,6 +348,16 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                     >
                                         <FaClockRotateLeft size={12} />
                                         Replay
+                                    </button>
+                                )}
+                                {canSimulate && !simResult && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSimError(null); setShowSimSetup(true); }}
+                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg animated-showdown-gradient px-3 py-1.5 text-[11px] font-bold text-white transition-opacity hover:opacity-90"
+                                    >
+                                        <FaTerminal />
+                                        {realState === "LIVE" ? "Take Over" : "Simulate"}
                                     </button>
                                 )}
                             </div>
