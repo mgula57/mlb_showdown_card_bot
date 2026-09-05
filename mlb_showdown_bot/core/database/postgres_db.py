@@ -1365,7 +1365,11 @@ class PostgresDB:
                         FROM unnest(%s::int[], %s::int[]) AS input(mlb_id, year)
                         LEFT JOIN internal.dim_player_id_map ON dim_player_id_map.mlb_id = input.mlb_id
                         LEFT JOIN internal.dim_card 
-                            ON dim_card.player_id = (input.year::text || '-' || dim_player_id_map.bref_id)
+                            ON dim_card.player_id = 
+                                case
+                                    when input.year >= 2026 then (input.year::text || '-' || input.mlb_id::text)
+                                    else (input.year::text || '-' || dim_player_id_map.bref_id)
+                                end
                             AND dim_card.showdown_set = %s
                     """)
                     results = self.execute_query(query=query, filter_values=(mlb_api_ids, years, showdown_set))
