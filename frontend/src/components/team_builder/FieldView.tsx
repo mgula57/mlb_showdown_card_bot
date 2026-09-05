@@ -9,6 +9,7 @@ import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtil
 import { SectionHeader } from '../shared/SectionHeader';
 import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
+import { SlotSavingOverlay } from './SlotSavingOverlay';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
@@ -56,6 +57,9 @@ type FieldViewProps = {
     onCardHover?: (cardId: string | null) => void;
     /** True while cardMap entries are still being fetched — shows loading placeholders for filled-but-unresolved slots */
     isLoadingCards?: boolean;
+    /** Field positions / rotation roles whose draft pick just landed but whose lineup/rotation
+     *  the server hasn't re-derived yet — the slot gets a spinner overlay until the save lands. */
+    pendingPositions?: ReadonlySet<string>;
     /** Which field slots to render, e.g. append 'P'/'UT' for a Gold Glove/Silver Slugger showcase. Defaults to the standard 9-man lineup. */
     positions?: readonly string[];
     /** Label shown in the header above the field (defaults to "Starting Lineup") */
@@ -89,7 +93,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 
 export function FieldView({
     lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition,
-    rosterData, hoveredCardId, onCardHover, isLoadingCards,
+    rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
     simStatsMap, simStatsTooltip,
 }: FieldViewProps) {
@@ -271,7 +275,7 @@ export function FieldView({
                             onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                             onMouseLeave={() => onCardHover?.(null)}
                         >
-                            <div className={isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}>
+                            <div className={`relative ${isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}`}>
                                 {card ? (
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
@@ -296,6 +300,7 @@ export function FieldView({
                                         onClick={readOnly ? undefined : () => onSlotClick(pos, null)}
                                     />
                                 )}
+                                {pendingPositions?.has(pos) && <SlotSavingOverlay variant="field" />}
                             </div>
                         </div>
                     );
@@ -312,34 +317,40 @@ export function FieldView({
                                 const card = getCard(role);
                                 const isPeerHovered = !!card && card.card_id === hoveredCardId;
                                 const isPending = !card && hasAssignment(role) && isLoadingCards;
-                                return card ? (
-                                    <div
-                                        key={role}
-                                        onMouseEnter={() => onCardHover?.(card.card_id)}
-                                        onMouseLeave={() => onCardHover?.(null)}
-                                    >
-                                        <CardItemCompactFromCardDatabaseRecord
-                                            card={card}
-                                            className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
-                                            ptsMultiplier={ptsMultiplier}
-                                            onClick={() => setDetailCard(card)}
-                                            actionButton={onItemClick ? {
-                                                icon: <FaPencil />,
-                                                onClick: () => onItemClick(role),
-                                                label: 'Replace card',
-                                                placement: 'left',
-                                            } : undefined}
-                                        />
+                                // Bench/bullpen key off a synthetic 'BE1'/'RP1' index, so only real
+                                // rotation roles ('SP1'…) ever match a pending pick here.
+                                const isSaving = !!pendingPositions?.has(role);
+                                return (
+                                    <div key={role} className="relative">
+                                        {card ? (
+                                            <div
+                                                onMouseEnter={() => onCardHover?.(card.card_id)}
+                                                onMouseLeave={() => onCardHover?.(null)}
+                                            >
+                                                <CardItemCompactFromCardDatabaseRecord
+                                                    card={card}
+                                                    className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
+                                                    ptsMultiplier={ptsMultiplier}
+                                                    onClick={() => setDetailCard(card)}
+                                                    actionButton={onItemClick ? {
+                                                        icon: <FaPencil />,
+                                                        onClick: () => onItemClick(role),
+                                                        label: 'Replace card',
+                                                        placement: 'left',
+                                                    } : undefined}
+                                                />
+                                            </div>
+                                        ) : isPending ? (
+                                            <SlotLoadingPlaceholder />
+                                        ) : (
+                                            <PositionSlotPlaceholder
+                                                position={placeholderLabel ?? role}
+                                                onClick={onItemClick ? () => onItemClick(role) : undefined}
+                                                isActive={isPeerHovered}
+                                            />
+                                        )}
+                                        {isSaving && <SlotSavingOverlay variant="row" />}
                                     </div>
-                                ) : isPending ? (
-                                    <SlotLoadingPlaceholder key={role} />
-                                ) : (
-                                    <PositionSlotPlaceholder
-                                        key={role}
-                                        position={placeholderLabel ?? role}
-                                        onClick={onItemClick ? () => onItemClick(role) : undefined}
-                                        isActive={isPeerHovered}
-                                    />
                                 );
                             })}
                         </div>

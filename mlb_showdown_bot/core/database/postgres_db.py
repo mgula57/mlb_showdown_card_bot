@@ -2102,6 +2102,13 @@ class PostgresDB:
     # can never go stale when cards are rebuilt. The card year is resolved per row —
     # before May 1st a season's cards are still built from the prior year's stats.
     _HISTORICAL_CARD_YEAR = "CASE WHEN CURRENT_DATE < make_date(t.season, 5, 1) THEN t.season - 1 ELSE t.season END"
+
+    # Historical rosters carry stored 'BE' bench slots but no per-team bench_pts_multiplier
+    # column (unlike internal.user_teams). Bench cards are auto-discounted by this factor when
+    # summing a team's points, mirroring how the team builder prices its own bench bucket and
+    # how _TEAM_SUMMARY_SELECT applies t.bench_pts_multiplier.
+    _HISTORICAL_BENCH_PTS_MULTIPLIER = 0.2
+
     _HISTORICAL_TEAM_SUMMARY_SELECT = f"""
         SELECT
             t.season, t.sport_id, t.team_id,
@@ -2114,7 +2121,13 @@ class PostgresDB:
             COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
             COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
             COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
-            COALESCE(SUM(cb.points), 0)::int AS total_points,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position = 'BE'
+                    THEN COALESCE(cb.points, 0) * {_HISTORICAL_BENCH_PTS_MULTIPLIER}
+                    ELSE COALESCE(cb.points, 0)
+                END
+            ), 0)::int AS total_points,
             COALESCE(tp.refs, '[]'::jsonb) AS top_player_refs
         FROM internal.dim_historical_team t
         LEFT JOIN internal.dim_historical_roster r

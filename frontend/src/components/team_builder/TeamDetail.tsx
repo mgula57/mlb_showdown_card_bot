@@ -186,6 +186,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [showAutofill, setShowAutofill] = useState(false);
     const [lastAutofillStrategy, setLastAutofillStrategy] = useState<AutofillStrategy | null>(null);
     const [reshuffling, setReshuffling] = useState(false);
+    // Field positions / rotation roles the user just drafted into. The roster has the pick
+    // immediately, but the lineup/rotation are only re-derived server-side on the next save,
+    // so until that round-trips these slots still show their old occupant — a spinner overlay
+    // (via FieldView / DepthChartPanel) keeps the pick from looking like it did nothing.
+    const [pendingPickPositions, setPendingPickPositions] = useState<ReadonlySet<string>>(() => new Set());
     // Staged autofill result, shown as a preview (with a reshuffle option) before it's
     // committed to the draft and picked up by the auto-save effect.
     const [autofillPreview, setAutofillPreview] = useState<{ strategy: AutofillStrategy; result: AutofillResult } | null>(null);
@@ -242,7 +247,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }, [draft.allowed_card_sources]);
 
-    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); setShowSettingsModal(false); }, [team]);
+    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); setShowSettingsModal(false); setPendingPickPositions(new Set()); }, [team]);
+
+    // Safety net: never leave a "saving" spinner stuck on a slot if a save fails or the team
+    // prop somehow doesn't refresh. The normal clear is the [team] effect above, on the
+    // server's re-derived roster coming back.
+    useEffect(() => {
+        if (pendingPickPositions.size === 0) return;
+        const t = setTimeout(() => setPendingPickPositions(new Set()), 10000);
+        return () => clearTimeout(t);
+    }, [pendingPickPositions]);
 
     // Re-pick the setup step only when the underlying team actually changes (e.g. forking into a
     // different team), never on the same-team prop churn from an auto-save round-trip — that
@@ -283,6 +297,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // `teamSeasons` staying null already means the Sims tab doesn't render.
     useEffect(() => {
         if (!team.team_id) return;
+        if (team.source !== 'user') return;
         let stale = false;
         fetchTeamSimSeasons(team.team_id, token)
             .then(seasons => { if (!stale) setTeamSeasons(seasons); })
@@ -316,6 +331,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 setTimeout(() => setSaveStatus(s => s === 'saved' ? 'idle' : s), 2000);
             } catch {
                 setSaveStatus('error');
+                setPendingPickPositions(new Set());
             }
         }, 1500);
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
@@ -495,6 +511,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         // Lineups/rotation are re-derived from the roster on save.
         const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
         update({ roster });
+        // The lineup/rotation slot for this position won't reflect the pick until the save
+        // round-trips — flag it so FieldView/DepthChartPanel can show a spinner there meanwhile.
+        setPendingPickPositions(prev => new Set(prev).add(position));
 
         setDraftToast({ name: card.name, position });
         setConfirmCard(null);
@@ -741,6 +760,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
             isLoadingCards={isLoadingCards}
+            pendingPositions={pendingPickPositions}
         />
     );
 
@@ -771,6 +791,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
             isLoadingCards={isLoadingCards}
+            pendingPositions={pendingPickPositions}
         />
     );
 

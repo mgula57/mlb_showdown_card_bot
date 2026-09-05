@@ -10,6 +10,7 @@ import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtil
 import { Modal } from '../shared/Modal';
 import { SectionHeader } from '../shared/SectionHeader';
 import { CardDetail } from '../cards/CardDetail';
+import { SlotSavingOverlay } from './SlotSavingOverlay';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 
@@ -31,12 +32,16 @@ type DepthChartPanelProps = {
     onCardHover?: (cardId: string | null) => void;
     /** True while cardMap entries are still being fetched — shows a skeleton for filled-but-unresolved slots */
     isLoadingCards?: boolean;
+    /** Field positions / rotation roles whose draft pick just landed but whose lineup/rotation
+     *  the server hasn't re-derived yet — the row gets a spinner overlay until the save lands. */
+    pendingPositions?: ReadonlySet<string>;
 };
 
 function PositionRow({
     label,
     card,
     isPending,
+    isSaving,
     onClick,
     onDetailClick,
     readOnly,
@@ -51,6 +56,8 @@ function PositionRow({
     label: string;
     card: CardDatabaseRecord | null | undefined;
     isPending?: boolean;
+    /** A just-picked slot whose lineup/rotation reflection is still saving — overlays a spinner. */
+    isSaving?: boolean;
     onClick: () => void;
     onDetailClick?: () => void;
     readOnly: boolean;
@@ -62,7 +69,7 @@ function PositionRow({
     onMoveUp?: () => void;
     onMoveDown?: () => void;
 }) {
-    if (!card && isPending) {
+    if (!card && isPending && !isSaving) {
         return (
             <div className="flex items-center gap-3 min-h-9 shrink-0">
                 <span className="text-[11px] font-bold w-6 shrink-0 text-right text-(--text-tertiary)">{label}</span>
@@ -74,7 +81,7 @@ function PositionRow({
     return (
         <div
             className={`
-                flex items-center gap-3 min-h-9 rounded-lg shrink-0
+                relative flex items-center gap-3 min-h-9 rounded-lg shrink-0
                 transition-all duration-200
                 ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`}
                 onClick={e => e.stopPropagation()}
@@ -125,6 +132,7 @@ function PositionRow({
                     </button>
                 </div>
             )}
+            {isSaving && <SlotSavingOverlay variant="row" />}
         </div>
     );
 }
@@ -143,6 +151,7 @@ export function DepthChartPanel({
     hoveredCardId,
     onCardHover,
     isLoadingCards,
+    pendingPositions,
 }: DepthChartPanelProps) {
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
 
@@ -243,6 +252,7 @@ export function DepthChartPanel({
                                 label={pos}
                                 card={card}
                                 isPending={!card && !!slot && isLoadingCards}
+                                isSaving={pendingPositions?.has(pos)}
                                 onClick={() => onSlotClick(pos, slot)}
                                 onDetailClick={card ? () => setDetailCard(card) : undefined}
                                 readOnly={readOnly}
@@ -291,6 +301,7 @@ export function DepthChartPanel({
                                 label={role}
                                 card={card}
                                 isPending={!card && !!assignment && isLoadingCards}
+                                isSaving={pendingPositions?.has(role)}
                                 onClick={() => onRoleClick(role, assignment)}
                                 onDetailClick={card ? () => setDetailCard(card) : undefined}
                                 readOnly={readOnly}

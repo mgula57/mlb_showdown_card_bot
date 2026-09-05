@@ -4,7 +4,7 @@ from .team import (
     Team, TeamSource, CardSource, TeamRosterSlot, Lineup, PitcherAssignment,
     PickSource, ROTATION_ROLES, BULLPEN_ROLES, derive_lineups_rotation,
 )
-from ...database.postgres_db import ExploreDataRecord
+from ...database.postgres_db import ExploreDataRecord, PostgresDB
 
 
 class StoredRosterToTeamConverter:
@@ -108,6 +108,7 @@ class StoredRosterToTeamConverter:
             is_public=True,
             source=self.source,
             pts_limit=None,
+            bench_pts_multiplier=PostgresDB._HISTORICAL_BENCH_PTS_MULTIPLIER,
             roster_size=len(roster),
             min_bench=num_bench,
             min_bullpen=num_bullpen,
@@ -127,5 +128,11 @@ class StoredRosterToTeamConverter:
         team = self.build()
         data = team.model_dump(mode='json')
         points_by_card_id = {c.card_id: (c.points or 0) for c in self.cards}
-        data['total_points'] = sum(points_by_card_id.get(slot.card_id, 0) for slot in team.roster)
+        # Bench cards are discounted to match _HISTORICAL_TEAM_SUMMARY_SELECT, so the shelf
+        # tile and the opened roster always show the same total.
+        bench_mult = PostgresDB._HISTORICAL_BENCH_PTS_MULTIPLIER
+        data['total_points'] = round(sum(
+            points_by_card_id.get(slot.card_id, 0) * (bench_mult if slot.roster_position == 'BE' else 1)
+            for slot in team.roster
+        ))
         return data
