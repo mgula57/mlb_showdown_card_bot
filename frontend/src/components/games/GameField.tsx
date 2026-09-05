@@ -80,7 +80,7 @@ const HOME: readonly [number, number] = [49.9, 85.4];
 
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
     pitcher: [49.9, 50.5],
-    catcher: [49.9, 115],
+    catcher: [49.9, 110],
     first: [88, 30],
     second: [70, 5],
     third: [12, 30],

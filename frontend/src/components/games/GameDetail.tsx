@@ -31,12 +31,17 @@ import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
 import { FaClockRotateLeft } from "react-icons/fa6";
 
 type MobileTab = 'field' | 'playbyplay' | 'boxscore';
+// The `md`–`lg` two-column view keeps the field pinned on the left and tabs only between the two
+// panels that share the right column.
+type MidTab = Exclude<MobileTab, 'field'>;
 
 const MOBILE_TABS: TabItem<MobileTab>[] = [
     { id: 'field', label: 'Field View', icon: <FaRing />},
     { id: 'playbyplay', label: 'Play By Play', icon: <FaList /> },
     { id: 'boxscore', label: 'Boxscore', icon: <FaTable /> },
 ];
+
+const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
 
 type GameDetailProps = {
     gamePk: number;
@@ -53,6 +58,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
     const [mobileTab, setMobileTab] = useState<MobileTab>('field');
+    const [midTab, setMidTab] = useState<MidTab>('playbyplay');
     // The transport strip (play/pause/scrub) is opt-in — collapsed by default so a plain live or
     // finished-game view isn't cluttered with controls most visits never touch.
     const [showPlaybackControls, setShowPlaybackControls] = useState(false);
@@ -367,21 +373,20 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
                         {hasLiveField ? (
                             <>
-                                {/* Mobile: one tab strip swaps between the three columns that sit
-                                    side-by-side on desktop. Above `lg` the strip is hidden and all
-                                    three columns show at once. */}
-                                <div className="lg:hidden shrink-0">
+                                {/* Below `md`: one strip swaps between all three columns. `md`–`lg`:
+                                    a 50/50 split — the field pinned left, `MID_TABS` (box score /
+                                    play-by-play) swapping on the right. `lg`+: the strip is gone and
+                                    all three columns show at once. */}
+                                <div className="md:hidden shrink-0">
                                     <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} className="px-2" fullWidth />
                                 </div>
 
-                                <div className="flex-1 min-h-0 lg:grid lg:grid-cols-[3fr_4fr_3fr] lg:gap-4 lg:px-4 lg:overflow-hidden">
+                                <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden lg:grid-cols-[3fr_4fr_3fr]">
 
-                                    <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide lg:block lg:py-4 lg:px-0 lg:pb-4`}>
-                                        {panels}
-                                    </div>
-
-                                    {/* Spotlight column — field, playback bar and matchup. */}
-                                    <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide lg:block lg:py-4 lg:px-0 lg:min-w-0`}>
+                                    {/* Spotlight column — field, playback bar and matchup. Pinned left
+                                        from `md` up; `lg:order-2` slides it back to the centre once the
+                                        box score gets its own column again. */}
+                                    <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:block md:order-1 md:py-4 md:px-0 md:min-w-0 lg:order-2`}>
                                         {/* Grass backdrop behind the scoreboard, field and matchup as one group —
                                             faded top/bottom so it blends into the page instead of a hard edge.
                                             The image is the first child with no z-index of its own, and the
@@ -435,9 +440,23 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         </div>
                                     </div>
 
-                                    {/* Play-by-play column */}
-                                    <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide lg:block lg:py-4 lg:px-0 lg:pb-0`}>
-                                        {playByPlayPanelDesktop}
+                                    {/* Right column — box score + play-by-play. `contents` below `md`
+                                        (each panel just obeys the mobile strip); a real flex column
+                                        with its own `MID_TABS` strip between `md` and `lg`; `contents`
+                                        again at `lg` so both panels rejoin the outer grid as their own
+                                        columns. */}
+                                    <div className="contents md:flex md:flex-col md:order-2 md:min-h-0 md:min-w-0 md:overflow-hidden lg:contents">
+                                        <div className="hidden md:block lg:hidden shrink-0 pt-4">
+                                            <TabButtons tabs={MID_TABS} value={midTab} onChange={setMidTab} fullWidth />
+                                        </div>
+
+                                        <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} ${midTab === 'boxscore' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-4 lg:block lg:h-full lg:order-1`}>
+                                            {panels}
+                                        </div>
+
+                                        <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} ${midTab === 'playbyplay' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-0 lg:block lg:h-full lg:order-3`}>
+                                            {playByPlayPanelDesktop}
+                                        </div>
                                     </div>
                                 </div>
                             </>
