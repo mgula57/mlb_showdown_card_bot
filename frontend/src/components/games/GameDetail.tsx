@@ -20,6 +20,7 @@ import GameMatchup from "./GameMatchup";
 import GameLinescore from "./GameLinescore";
 import { useGameDetailData } from "./useGameDetailData";
 import GameDetailPlayback from "./GameDetailPlayback";
+import GameDetailSkeleton from "./GameDetailSkeleton";
 import BackButton from "../shared/BackButton";
 import ScoreHeader from "./detail/ScoreHeader";
 import Decisions from "./detail/Decisions";
@@ -37,8 +38,8 @@ type MidTab = Exclude<MobileTab, 'field'>;
 
 const MOBILE_TABS: TabItem<MobileTab>[] = [
     { id: 'field', label: 'Field View', icon: <FaRing />},
-    { id: 'playbyplay', label: 'Play By Play', icon: <FaList /> },
     { id: 'boxscore', label: 'Boxscore', icon: <FaTable /> },
+    { id: 'playbyplay', label: 'Play By Play', icon: <FaList /> },
 ];
 
 const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
@@ -89,16 +90,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const view = simView ?? realView;
 
     if (isLoading) {
-        return (
-            <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
-                <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
-                    <BackButton onBack={onBack} />
-                </div>
-                <div className="flex-1 flex items-center justify-center text-(--secondary) text-sm">
-                    Loading boxscore…
-                </div>
-            </div>
-        );
+        return <GameDetailSkeleton className={className} onBack={onBack} />;
     }
 
     if (error || !boxscore || !view) {
@@ -428,6 +420,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                     through play by play, so its transport strip is shown up front
                                                     rather than hidden behind the Replay toggle. */}
                                                 {(showPlaybackControls || simResult?.is_takeover) && playbackBar}
+
+                                                {!simResult && isNotStarted && boxscore.probable_pitchers && (
+                                                    <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
+                                                )}
 
                                                 <GameMatchup
                                                     game={activeView}

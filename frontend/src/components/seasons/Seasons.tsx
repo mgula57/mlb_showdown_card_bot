@@ -1047,10 +1047,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     <div className="lg:hidden mb-4 rounded-2xl space-y-4">
                                         <div className="space-y-2 px-4">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center font-bold text-2xl">
-                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2" /> : <FaCalendarDays className="inline-block mr-2" />}
-                                                        {title}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center font-bold text-2xl min-w-0">
+                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0" /> : <FaCalendarDays className="inline-block mr-2 shrink-0" />}
+                                                        <span className="truncate">{title}</span>
                                                         {!(hasStaticSeasons && seasonOptions.length <= 1) && (
                                                             <CustomSelect
                                                                 buttonClassName="
@@ -1065,16 +1065,23 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             />
                                                         )}
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => loadAll()}
-                                                        disabled={isLoading}
-                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        aria-label="Refresh data"
-                                                        title="Refresh data"
-                                                    >
-                                                        <FaArrowsRotate className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
-                                                    </button>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        {type === "mlb" && selectedSeason && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => navigate(`/simulate?year=${selectedSeason.season_id}`)}
+                                                                className="
+                                                                    flex items-center gap-1.5 px-2.5 py-1.5
+                                                                    rounded-lg animated-showdown-gradient
+                                                                    text-[12px] font-semibold text-(--text-primary)
+                                                                    hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
+                                                                "
+                                                            >
+                                                                <FaDice className="text-[11px]" />
+                                                                Simulate
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
                                             
@@ -1107,7 +1114,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     setSelectedTeam(team);
                                                 }}
                                                 options={teamOptions}
-                                                className="px-2"
+                                                className="px-4"
                                             />
                                         )}
                                     </div>
@@ -1118,7 +1125,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        <div className="px-3 md:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
+                                        <div className="px-3 lg:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <div className="space-y-2 flex justify-between items-top">
                                                 <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
                                                     Standings
@@ -1167,7 +1174,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        <div className="px-3 sm:px-0 space-y-5 lg:pt-6 lg:pr-6">
+                                        <div className="px-3 lg:px-0 space-y-5 lg:pt-6 lg:pr-6">
                                                 <div className="rounded-xl bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
@@ -1254,7 +1261,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="teams"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="px-3 sm:px-0 lg:pt-6 lg:pr-6">
+                                        <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6">
                                             {selectedTeam && (
                                                 <ShowdownTeamPanel
                                                     showdownTeam={selectedRoster}
@@ -1270,7 +1277,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="leaders"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="px-3 sm:px-0 lg:pt-6">
+                                        <div className="px-3 lg:px-0 lg:pt-6">
                                             <SeasonLeaders
                                                 seasonId={selectedSeason.season_id}
                                                 season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
@@ -1286,7 +1293,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="awards"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="px-3 sm:px-0 lg:pt-6">
+                                        <div className="px-3 lg:px-0 lg:pt-6">
                                             <AwardWinners
                                                 seasonId={selectedSeason.season_id}
                                                 season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}

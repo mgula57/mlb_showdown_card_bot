@@ -45,7 +45,7 @@ export default function ProbableStartingPitchers({
 
     return (
         <div className="@container">
-            <div className="flex flex-col @[500px]:grid @[500px]:grid-cols-2 p-3 gap-x-6 gap-y-2 rounded-xl border border-(--divider) bg-(--background-secondary) text-sm">
+            <div className="flex flex-col @[500px]:grid @[500px]:grid-cols-2 p-3 gap-x-6 gap-y-2 rounded-xl border border-(--divider) backdrop-blur bg-(--background-secondary)/50 text-sm">
                 <div className="col-span-full mb-1">
                     <span className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Probable Starting Pitchers</span>
                 </div>
