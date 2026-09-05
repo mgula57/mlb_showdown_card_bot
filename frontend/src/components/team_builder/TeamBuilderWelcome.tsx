@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { TeamShelf } from './TeamShelf';
 import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
+import { LoginModal } from '../auth/LoginModal';
 import {
-    FaPlus, FaArrowRight, FaChevronRight,
+    FaPlus, FaArrowRight, FaChevronRight, FaArrowRightToBracket,
     FaGlobe, FaClockRotateLeft,
 } from 'react-icons/fa6';
 
@@ -18,6 +19,11 @@ type TeamBuilderWelcomeProps = {
     onGoToTab: (tab: WelcomeTab) => void;
     /** Opens a community team in the editor (read-only). */
     onOpenTeam: (team: TeamSummary) => void;
+    /**
+     * When true the visitor is signed out — the hero prompts sign-in (opening the login
+     * modal) instead of creating a team. The guided paths and inspiration shelf still work.
+     */
+    signedOut?: boolean;
 };
 
 type Path = {
@@ -43,12 +49,14 @@ const PATHS: Path[] = [
 ];
 
 /**
- * First-run experience for the "My Teams" tab when a signed-in user has no teams yet.
- * A gradient hero with the primary "create" action, three guided paths into the other
- * tabs, and a shelf of community teams for inspiration (clickable straight into the editor).
+ * First-run experience for the "My Teams" tab — shown when a signed-in user has no teams
+ * yet, or (with `signedOut`) to a logged-out visitor. A gradient hero with the primary
+ * action (create a team, or sign in), two guided paths into the other tabs, and a shelf
+ * of community teams for inspiration (clickable straight into the editor).
  */
-export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam }: TeamBuilderWelcomeProps) {
+export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signedOut = false }: TeamBuilderWelcomeProps) {
     const [inspiration, setInspiration] = useState<TeamSummary[] | null>(null);
+    const [showLogin, setShowLogin] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -88,20 +96,21 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam }: Team
                     <div className="relative flex flex-col gap-4 max-w-xl">
                         <div>
                             <h2 className="text-[22px] sm:text-[26px] font-black text-(--text-primary) leading-tight">
-                                Your dugout is empty
+                                {signedOut ? 'Build your dream roster' : 'Your dugout is empty'}
                             </h2>
                             <p className="text-[13px] text-(--text-secondary) mt-1.5">
-                                Draft a roster using ANY player and ANY season in MLB History. Start from a blank slate or take inspiration from the
-                                community below.
+                                {signedOut
+                                    ? 'Sign in to draft a roster using ANY player and ANY season in MLB history, simulate seasons, and share your team with the community.'
+                                    : 'Draft a roster using ANY player and ANY season in MLB History. Start from a blank slate or take inspiration from the community below.'}
                             </p>
                         </div>
                         <button
                             type="button"
-                            onClick={onCreate}
+                            onClick={signedOut ? () => setShowLogin(true) : onCreate}
                             className="self-start flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-black text-white bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 transition-opacity cursor-pointer"
                         >
-                            <FaPlus className="text-[12px]" />
-                            Create your first team
+                            {signedOut ? <FaArrowRightToBracket className="text-[12px]" /> : <FaPlus className="text-[12px]" />}
+                            {signedOut ? 'Sign in to get started' : 'Create your first team'}
                         </button>
                     </div>
                 </div>
@@ -153,6 +162,8 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam }: Team
                     Browse community teams <FaChevronRight className="text-[9px]" />
                 </button>
             )}
+
+            {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
         </div>
     );
 }

@@ -584,15 +584,12 @@ export default function TeamBuilder() {
                         <div className="flex justify-center py-12">
                             <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
                         </div>
-                    ) : !token ? (
-                        <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                            Sign in to create your own teams.
-                        </p>
                     ) : (
                         <section className={`${px}`}>
-                            {userTeams.length === 0 ? (
+                            {!token || userTeams.length === 0 ? (
                                 <TeamBuilderWelcome
                                     px=""
+                                    signedOut={!token}
                                     onCreate={handleNewTeam}
                                     onGoToTab={setActiveTab}
                                     onOpenTeam={openTeam}
