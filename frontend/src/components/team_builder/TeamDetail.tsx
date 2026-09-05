@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
-import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult } from '../../api/userTeams';
+import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource } from '../../api/userTeams';
 import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
 import { AutofillPanel } from './AutofillPanel';
 import { TeamLogo } from './TeamLogo';
@@ -23,8 +23,10 @@ import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
-    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash
+    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
+    FaHandPointer, FaFileImport
 } from 'react-icons/fa6';
+import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
 import { SimSetupModal } from './sim/SimSetupModal';
@@ -37,6 +39,25 @@ import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../do
 import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
 import { Modal } from '../shared/Modal';
+
+/** Visual treatment for how a roster slot was filled — hand-picked, autofilled, or carried
+ *  over from a forked/imported team. Kept together so the draft history badge stays consistent. */
+const PICK_SOURCE_META: Record<PickSource, { label: string; icon: IconType; className: string }> = {
+    MANUAL:   { label: 'Manual',   icon: FaHandPointer,       className: 'bg-sky-500/15 text-sky-600 dark:text-sky-300' },
+    AUTOFILL: { label: 'Autofill', icon: FaWandMagicSparkles, className: 'bg-violet-500/15 text-violet-600 dark:text-violet-300' },
+    IMPORTED: { label: 'Imported', icon: FaFileImport,        className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
+};
+
+function PickSourceBadge({ source }: { source: PickSource }) {
+    const meta = PICK_SOURCE_META[source] ?? PICK_SOURCE_META.MANUAL;
+    const Icon = meta.icon;
+    return (
+        <div className={`flex items-center gap-1 rounded-lg px-1.5 py-0.5 font-semibold ${meta.className}`}>
+            <Icon className="text-[9px] shrink-0" />
+            {meta.label}
+        </div>
+    );
+}
 
 type PendingSlot =
     | { kind: 'field'; position: string; current: LineupSlot | null }
@@ -783,7 +804,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 ? <div className="relative">
                                     <CardItemCompactFromCardDatabaseRecord card={card} />
                                     <div className="absolute right-3 top-3 text-[11px] text-(--text-tertiary)">
-                                        {slot.roster_position ?? 'N/A'}
+                                        <div className="flex flex-col items-end gap-1" >
+                                            <span className="text-[11px] text-(--text-tertiary)">{slot.roster_position ?? 'N/A'}</span>
+                                            <PickSourceBadge source={slot.pick_source} />
+                                        </div>
                                     </div>
                                 </div>
                                 : <span className="text-[11px] text-(--text-tertiary)">{slot.card_id}</span>
