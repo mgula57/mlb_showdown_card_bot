@@ -44,7 +44,7 @@ const PATHS: Path[] = [
         tab: 'historical',
         icon: <FaClockRotateLeft />,
         title: 'Browse Historical Rosters',
-        blurb: 'Turn any real MLB team or All-Star squad into a Showdown lineup.',
+        blurb: 'Turn any real MLB team or All-Star squad into a Showdown lineup — then fork it to make it your own.',
     },
 ];
 

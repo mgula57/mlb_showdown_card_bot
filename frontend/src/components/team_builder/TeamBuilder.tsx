@@ -380,9 +380,9 @@ export default function TeamBuilder() {
         navigate('/teams/challenges/' + challenge.instance_id, { state: { challenge } });
     }
 
-    async function handleFork(teamId: string) {
+    async function handleFork(source: Team) {
         if (!token) return;
-        const newTeam = await forkTeam(teamId, token);
+        const newTeam = await forkTeam(source, token);
         setListLoaded(false); // list must refresh to include the forked copy
         setActiveTab('mine');
         trackRecentTeam(newTeam.team_id);
@@ -511,8 +511,9 @@ export default function TeamBuilder() {
             );
         }
 
-        // A public team owned by someone else can be forked into the current user's own copy.
-        const canFork = readOnly && !!token && team.source === 'user' && team.is_public;
+        // Any read-only team the builder can open can be forked into the user's own editable copy:
+        // a public community team, or a synthetic historical MLB / All-Star roster.
+        const canFork = readOnly && !!token && (team.source !== 'user' || team.is_public);
         // Set only when this team page was reached from a challenge card - not stored on the
         // team itself, so a team isn't permanently bound to one instance and a page refresh just
         // drops back to the team's normal "Play" action.
@@ -526,7 +527,7 @@ export default function TeamBuilder() {
                     onBack={goBack}
                     onReload={reloadCurrentTeam}
                     token={token}
-                    onFork={canFork ? () => handleFork(team.team_id) : undefined}
+                    onFork={canFork ? () => handleFork(team) : undefined}
                     challenge={challenge}
                     isNewTeam={(location.state as { isNewTeam?: boolean } | null)?.isNewTeam}
                 />

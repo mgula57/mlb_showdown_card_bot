@@ -213,12 +213,11 @@ export async function createTeam(payload: TeamCreatePayload, token: string): Pro
 }
 
 /**
- * Fork a (public) team into a new team owned by the current user. Copies the roster, settings,
- * and any user-created lineups. Roster slots are marked IMPORTED. The copy is always private.
+ * Build the create-payload for a fork of `source`: copies the roster, settings, and any
+ * user-created lineups. Roster slots are marked IMPORTED and the copy is always private.
  */
-export async function forkTeam(teamId: string, token: string): Promise<Team> {
-    const source = await fetchTeam(teamId, token);
-    const payload: TeamCreatePayload = {
+export function buildForkPayload(source: Team): TeamCreatePayload {
+    return {
         name: `${source.name} (Copy)`,
         abbreviation: source.abbreviation,
         primary_color: source.primary_color,
@@ -240,7 +239,15 @@ export async function forkTeam(teamId: string, token: string): Promise<Team> {
         // Only user-created lineups (index > 0) are persisted; the Default (index 0) is computed.
         lineups: source.lineups.filter(l => l.index > 0),
     };
-    return createTeam(payload, token);
+}
+
+/**
+ * Fork an already-loaded team into a new team owned by the current user. Works for any
+ * read-only team the builder can open — a public community team as well as a synthetic
+ * historical MLB / All-Star roster, which have no `/user/teams` record to re-fetch.
+ */
+export async function forkTeam(source: Team, token: string): Promise<Team> {
+    return createTeam(buildForkPayload(source), token);
 }
 
 export async function updateTeam(teamId: string, payload: TeamUpdatePayload, token: string): Promise<Team> {
