@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { FaCamera, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 import { getContrastTextColor } from '../../functions/colors';
+import { TEAM_LOGO_ACCEPT } from '../../api/userTeams';
 
 type TeamLogoSize = 'sm' | 'md' | 'lg';
 
@@ -83,7 +84,7 @@ export function TeamLogo({
                     <input
                         ref={inputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        accept={TEAM_LOGO_ACCEPT}
                         className="hidden"
                         onClick={e => e.stopPropagation()}
                         onChange={e => {

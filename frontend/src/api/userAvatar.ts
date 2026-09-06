@@ -3,8 +3,12 @@ import { supabase } from './supabase';
 const BUCKET = 'avatars';
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
+/** Accepted upload formats — kept in sync with the `accept` attr on the file input. */
+export const AVATAR_ACCEPT = 'image/png,image/jpeg';
+const AVATAR_MIME = new Set(['image/png', 'image/jpeg']);
+
 export function validateAvatarFile(file: File): string | null {
-    if (!file.type.startsWith('image/')) return 'File must be an image';
+    if (!AVATAR_MIME.has(file.type)) return 'Image must be a JPG or PNG';
     if (file.size > MAX_SIZE_BYTES) return 'Image must be under 2 MB';
     return null;
 }

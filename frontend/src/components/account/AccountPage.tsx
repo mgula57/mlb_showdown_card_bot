@@ -24,7 +24,7 @@ import { useSiteSettings, useTheme, showdownSets } from '../shared/SiteSettingsC
 import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import CustomSelect from '../shared/CustomSelect';
-import { uploadAvatar, removeAvatar, validateAvatarFile } from '../../api/userAvatar';
+import { uploadAvatar, removeAvatar, validateAvatarFile, AVATAR_ACCEPT } from '../../api/userAvatar';
 import AvatarCropModal from './AvatarCropModal';
 import { AccountAvatar } from '../auth/AccountIcon';
 
@@ -272,7 +272,7 @@ const AccountPage: React.FC = () => {
                                 ref={avatarInputRef}
                                 id="avatar-upload"
                                 type="file"
-                                accept="image/*"
+                                accept={AVATAR_ACCEPT}
                                 disabled={isUploadingAvatar}
                                 className="hidden"
                                 onChange={handleAvatarFileChange}

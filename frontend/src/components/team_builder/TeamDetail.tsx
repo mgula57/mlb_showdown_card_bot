@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
@@ -230,6 +230,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [challengeError, setChallengeError] = useState<string | null>(null);
     const [challengeRunningJob, setChallengeRunningJob] = useState<{ jobId: string; teamId: string | null } | null>(null);
     const [logoUploading, setLogoUploading] = useState(false);
+    const [logoError, setLogoError] = useState<string | null>(null);
     // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
     // team that's never been played shows no dead tab.
     const [teamSeasons, setTeamSeasons] = useState<SimSeasonListItem[] | null>(null);
@@ -442,12 +443,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     async function handleLogoUpload(file: File) {
         if (!token || !draft.team_id || logoUploading) return;
+        const validationError = validateTeamLogoFile(file);
+        if (validationError) {
+            setLogoError(validationError);
+            return;
+        }
+        setLogoError(null);
         setLogoUploading(true);
         try {
             const updated = await uploadTeamLogo(draft.team_id, file, token);
             setDraft(prev => ({ ...prev, logo_url: updated.logo_url }));
         } catch (err) {
             console.error('Failed to upload team logo', err);
+            setLogoError(err instanceof Error ? err.message : 'Failed to upload logo');
         } finally {
             setLogoUploading(false);
         }
@@ -455,6 +463,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     async function handleLogoRemove() {
         if (!token || !draft.team_id || logoUploading) return;
+        setLogoError(null);
         setLogoUploading(true);
         try {
             const updated = await deleteTeamLogo(draft.team_id, token);
@@ -1105,6 +1114,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {draft.subtitle && <span className="font-semibold text-(--text-secondary)">{draft.subtitle}</span>}
                                 {draft.credit && <span>{draft.credit}</span>}
                             </div>
+                        )}
+                        {logoError && (
+                            <button
+                                type="button"
+                                onClick={() => setLogoError(null)}
+                                className="block text-left text-[11px] text-red-400 px-2 py-1 rounded-lg border border-red-400/30 bg-red-400/5 cursor-pointer"
+                            >
+                                {logoError}
+                            </button>
                         )}
                         {/* Subtitle row: PTS Breakdown */}
                         <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">

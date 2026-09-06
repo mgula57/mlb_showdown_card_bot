@@ -388,6 +388,15 @@ export async function updateTeam(teamId: string, payload: TeamUpdatePayload, tok
     return res.json();
 }
 
+/** Accepted logo formats — kept in sync with the backend's TEAM_LOGO_EXTENSIONS. */
+export const TEAM_LOGO_ACCEPT = 'image/png,image/jpeg';
+const TEAM_LOGO_MIME = new Set(['image/png', 'image/jpeg']);
+
+/** Returns an error message if the file isn't an accepted logo format, else null. */
+export function validateTeamLogoFile(file: File): string | null {
+    return TEAM_LOGO_MIME.has(file.type) ? null : 'Logo must be a JPG or PNG image';
+}
+
 export async function uploadTeamLogo(teamId: string, file: File, token: string): Promise<Team> {
     const formData = new FormData();
     formData.append('logo', file);

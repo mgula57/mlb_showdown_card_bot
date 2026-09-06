@@ -14,6 +14,31 @@ user_teams_bp = Blueprint('user_teams', __name__)
 
 TEAM_LOGO_BUCKET = 'team_logos'
 
+# Only JPG/PNG are accepted for team logos. `jpeg` is normalized to `jpg` so a
+# team never ends up with two logo objects that differ only by that spelling.
+TEAM_LOGO_EXTENSIONS = {'jpg': 'jpg', 'jpeg': 'jpg', 'png': 'png'}
+
+
+def _delete_team_logo_files(team_id: str, keep: str | None = None) -> None:
+    """Delete stored logo objects for a team, optionally keeping one path.
+
+    Logos are stored as `<team_id>/logo.<ext>`. When someone replaces a PNG with a
+    JPG (or vice versa) the old object would otherwise be orphaned in the bucket and,
+    depending on CDN caching, keep shadowing the new one. Best-effort — failures here
+    must not block the upload/removal that triggered the cleanup.
+    """
+    try:
+        manager = SupabaseClientManager()
+        for item in manager.list_files(TEAM_LOGO_BUCKET, team_id) or []:
+            name = item.get('name') or ''
+            if not name.startswith('logo.'):
+                continue
+            path = f'{team_id}/{name}'
+            if path != keep:
+                manager.delete_file(TEAM_LOGO_BUCKET, path)
+    except Exception:
+        traceback.print_exc()
+
 
 def normalize_lineups(payload: dict) -> str | None:
     """Validate and normalize payload['lineups'] in place. Returns an error message, or None.
@@ -151,21 +176,35 @@ def upload_team_logo(team_id: str):
     if not file or file.filename == '':
         return jsonify({'error': 'No logo file provided'}), 400
 
+    raw_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    # Fall back to the MIME type when the filename carries no usable extension.
+    mime_ext = (file.mimetype or '').lower().removeprefix('image/').replace('jpeg', 'jpg')
+    ext = TEAM_LOGO_EXTENSIONS.get(raw_ext) or TEAM_LOGO_EXTENSIONS.get(mime_ext)
+    if ext is None:
+        return jsonify({'error': 'Logo must be a JPG or PNG image'}), 400
+
     uploaded_file_data = None
     try:
         uploaded_file_data = process_uploaded_file(file)
-        ext = uploaded_file_data['filename'].rsplit('.', 1)[-1].lower()
         destination_path = f'{team_id}/logo.{ext}'
 
         upload_result = upload_to_supabase(
             bucket_name=TEAM_LOGO_BUCKET,
             file_path=uploaded_file_data['path'],
             destination_path=destination_path,
+            overwrite=True,
+            content_type='image/png' if ext == 'png' else 'image/jpeg',
         )
         if not upload_result.get('success'):
             return jsonify({'error': upload_result.get('error') or 'Failed to upload logo'}), 500
 
-        logo_url = SupabaseClientManager().get_public_url(TEAM_LOGO_BUCKET, destination_path)
+        # Drop any prior logo stored under a different extension so the replacement
+        # fully takes over.
+        _delete_team_logo_files(team_id, keep=destination_path)
+
+        base_url = (SupabaseClientManager().get_public_url(TEAM_LOGO_BUCKET, destination_path) or '').split('?')[0]
+        # Cache-bust: overwriting keeps the same URL, so browsers/CDN would otherwise serve the old image.
+        logo_url = f'{base_url}?v={int(datetime.now(timezone.utc).timestamp())}'
 
         with PostgresDB() as db:
             updated = db.update_team(team_id, g.user_id, {'logo_url': logo_url})
@@ -190,6 +229,7 @@ def delete_team_logo(team_id: str):
             if not updated:
                 return jsonify({'error': 'Team not found or not owned by user'}), 404
             team = db.get_team(team_id, g.user_id)
+        _delete_team_logo_files(team_id)
         return jsonify(team), 200
     except Exception as exc:
         traceback.print_exc()
