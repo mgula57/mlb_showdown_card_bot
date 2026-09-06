@@ -1123,7 +1123,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         setForking(false);
                                     }
                                 }}
-                                className="flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 @lg:py-1 text-[11px] font-semibold text-(--background-primary) bg-(--secondary) hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--background-primary) bg-(--secondary) hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 aria-label="Make a copy of this team"
                                 title="Make an editable copy of this team"
                             >

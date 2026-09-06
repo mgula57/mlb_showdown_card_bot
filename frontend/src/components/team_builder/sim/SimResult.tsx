@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
-    FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark,
+    FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft,
 } from 'react-icons/fa6';
 import type { SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -10,6 +10,7 @@ import CustomSelect from '../../shared/CustomSelect';
 import { SimAwardsList } from './SimAwardsList';
 import { SimBracket } from './SimBracket';
 import { SimSummaryTab } from './SimSummaryTab';
+import { SimTransactionsTab } from './SimTransactionsTab';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis } from './simStatColumns';
 import { KpiTile } from './KpiTile';
@@ -68,6 +69,8 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
         const awards = summary.awards;
         return !!awards && (awards.mvp.length + awards.cy_young.length + awards.rookie_of_year.length + awards.silver_sluggers.length) > 0;
     }, [summary.awards]);
+
+    const hasTransactions = (summary.deadline_trades?.length ?? 0) > 0 || (summary.transactions?.length ?? 0) > 0;
 
     // GUARD AFTER EVERY HOOK CALL ABOVE, NEVER BEFORE - team CAN ONLY BE NULL IF clubAbbr DOESN'T
     // MATCH ANY STANDINGS ROW, WHICH SHOULDN'T HAPPEN IN PRACTICE, BUT AN EARLY RETURN AMONG HOOK
@@ -155,6 +158,9 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
                     <Tabs.Trigger value="pitching" className={TAB_TRIGGER_CLASS}><FaBaseball className={TAB_ICON_CLASS} />Pitching</Tabs.Trigger>
                     <Tabs.Trigger value="standings" className={TAB_TRIGGER_CLASS}><FaTableList className={TAB_ICON_CLASS} />Standings</Tabs.Trigger>
                     <Tabs.Trigger value="leaders" className={TAB_TRIGGER_CLASS}><FaRankingStar className={TAB_ICON_CLASS} />League Leaders</Tabs.Trigger>
+                    {hasTransactions && (
+                        <Tabs.Trigger value="transactions" className={TAB_TRIGGER_CLASS}><FaRightLeft className={TAB_ICON_CLASS} />Transactions</Tabs.Trigger>
+                    )}
                     {hasAwards && (
                         <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
                     )}
@@ -255,6 +261,13 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
                         <SimStatsTable rows={summary.top_players?.relief_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." cardsEnabled identities={summary.identities} />
                     </div>
                 </Tabs.Content>
+
+                {/* Transactions */}
+                {hasTransactions && (
+                    <Tabs.Content value="transactions" className="focus:outline-none px-4 pt-3">
+                        <SimTransactionsTab summary={summary} teamKey={teamKey} />
+                    </Tabs.Content>
+                )}
 
                 {/* Awards */}
                 {hasAwards && summary.awards && (

@@ -85,6 +85,8 @@ export function SeasonSimSetupForm(props: Props) {
     const [resumeEnabled, setResumeEnabled] = useState(false);
     const [resumeAsOfDate, setResumeAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [mergeRealStats, setMergeRealStats] = useState(false);
+    const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(false);
+    const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(false);
 
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -169,6 +171,8 @@ export function SeasonSimSetupForm(props: Props) {
                 postseason_format: simulatePostseason ? postseasonFormat : undefined,
                 resume_as_of_date: resumeEnabled ? resumeAsOfDate : undefined,
                 merge_real_stats: resumeEnabled ? mergeRealStats : undefined,
+                enable_trade_deadline: tradeDeadlineEnabled || undefined,
+                trade_deadline_respects_standings: tradeDeadlineEnabled ? tradeDeadlineRespectsStandings : undefined,
             };
             if (props.mode === 'lobby') {
                 await props.onCreateLobby(engineSettings);
@@ -290,6 +294,33 @@ export function SeasonSimSetupForm(props: Props) {
                                 totals. These reflect however much of the season has been scraped,
                                 which may lag the date above slightly — the result screen shows
                                 the actual as-of date.
+                            </p>
+                        )}
+                    </>
+                )}
+                <FormEnabler
+                    label="Trade deadline"
+                    isEnabled={tradeDeadlineEnabled}
+                    onChange={value => setTradeDeadlineEnabled(!value)}
+                    className="col-span-full"
+                />
+                {tradeDeadlineEnabled && (
+                    <>
+                        <p className="text-[11px] text-(--text-tertiary) col-span-full">
+                            A player who was really traded mid-season starts on his first club and
+                            moves to his next one on that era's deadline date, instead of playing the
+                            whole season for one club.
+                        </p>
+                        <FormEnabler
+                            label="Contending clubs keep their players"
+                            isEnabled={tradeDeadlineRespectsStandings}
+                            onChange={value => setTradeDeadlineRespectsStandings(!value)}
+                            className="col-span-full"
+                        />
+                        {tradeDeadlineRespectsStandings && (
+                            <p className="text-[11px] text-(--text-tertiary) col-span-full">
+                                If the sim has a selling club still in the race at the deadline, it
+                                holds onto its player and the real trade is skipped for this run.
                             </p>
                         )}
                     </>

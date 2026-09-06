@@ -4,7 +4,7 @@ from typing import Optional
 
 from ..card.showdown_player_card import ShowdownPlayerCard
 from ..card.team_builder.team import BULLPEN_ROLES, ROTATION_ROLES, Team as BuilderTeam
-from ..shared.player_position import PlayerType, PositionSlot
+from ..shared.player_position import PlayerSubType, PlayerType, PositionSlot
 from ..shared.team import Team as ShowdownTeam
 from .game import Game
 from .inning import Inning
@@ -548,6 +548,77 @@ class SimTeam:
         if self.roster is None:
             return
         self.roster.process_returns(team=self, game_date=game_date)
+
+    # ------------------------------------------------------------------
+    # TRADE DEADLINE
+    # ------------------------------------------------------------------
+
+    def release_player(self, player_id: str) -> Optional[SimPlayer]:
+        """Remove a player from this roster for a trade-deadline move (`trade_deadline.py`).
+
+        Returns the detached `SimPlayer`/`SimPitcher`, or `None` when he can't be moved - he is
+        on the IL, or simply isn't on the active roster or reserve pool. An active pitcher is
+        backfilled from the reserve pool the same way an injury would fill his slot, so the club
+        isn't left a man short in its rotation or bullpen. No rng.
+        """
+        if self.roster is not None and player_id in self.roster.injured:
+            return None
+        player = self._detach_player(player_id)
+        if player is None:
+            return None
+        self.consecutive_starts.pop(player_id, None)
+        if self.roster is not None:
+            self.roster.profiles.pop(player_id, None)
+        self.points = sum(p.points for p in self.active_players)
+        return player
+
+    def acquire_player(self, player: SimPlayer) -> None:
+        """Add a player received in a trade-deadline move onto the active roster. He joins the
+        rotation, bullpen or position group by his card's sub-type; the active roster may briefly
+        run one over its nominal size, which the lineup machinery already tolerates. When injuries
+        are on, a hazard profile for this club's schedule is registered for him."""
+        sub_type = player.player_sub_type
+        if sub_type == PlayerSubType.STARTING_PITCHER:
+            self.rotation.players.append(player)
+        elif sub_type == PlayerSubType.RELIEF_PITCHER:
+            self.bullpen.add_player(player)
+        else:
+            self.position_players.append(player)
+        self.points = sum(p.points for p in self.active_players)
+        if self.roster is not None and self.roster.injuries_enabled:
+            self.roster.register_profile_for(player)
+
+    def _detach_player(self, player_id: str) -> Optional[SimPlayer]:
+        for index, player in enumerate(self.position_players):
+            if player.id == player_id:
+                return self.position_players.pop(index)
+
+        rotation_index = self.rotation.index_for_id(player_id)
+        if rotation_index is not None:
+            replacement = self.roster._next_sp_replacement() if self.roster is not None else None
+            if replacement is None:
+                # THE ROTATION IS INDEX-ADDRESSED BY THE INJURY SYSTEM (`replace_at_index` off a
+                # slot captured at IL time), SO ITS LENGTH MUST NOT CHANGE. WITH NO ARM TO SLOT IN,
+                # the trade simply doesn't happen for this run.
+                return None
+            removed = self.rotation.players[rotation_index]
+            self.rotation.replace_at_index(rotation_index, replacement)
+            if self.roster is not None and self.roster.injuries_enabled:
+                self.roster.register_profile_for(replacement)
+            return removed
+
+        removed = self.bullpen.remove_player(player_id)
+        if removed is not None:
+            replacement = self.roster._next_rp_replacement() if self.roster is not None else None
+            if replacement is not None:
+                self.bullpen.add_player(replacement)
+                if self.roster is not None and self.roster.injuries_enabled:
+                    self.roster.register_profile_for(replacement)
+            return removed
+
+        if self.roster is not None:
+            return self.roster.pop_reserve(player_id)
+        return None
 
     def add_new_game(self, game: Game, opposing_team: 'SimTeam') -> None:
         self.lineup_index = 0

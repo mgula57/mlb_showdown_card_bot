@@ -198,6 +198,9 @@ class Roster:
         self.transactions: list[Transaction] = []
         self._last_processed_date: Optional[date] = None
         self._games_per_day: float = 1.0
+        # SCHEDULE/SEVERITY INPUTS `build_profiles` WAS CALLED WITH, KEPT SO A PLAYER ACQUIRED
+        # MID-SEASON (A TRADE-DEADLINE MOVE) CAN BE GIVEN A HAZARD PROFILE ON THE SAME BASIS.
+        self._profile_ctx: Optional[dict] = None
 
     @property
     def reserves(self) -> list[SimPlayer]:
@@ -342,6 +345,10 @@ class Roster:
     def build_profiles(self, team: 'SimTeam', games_per_team: int, real_games_per_team: int, games_per_day: float, severity: float, rotation_size: int) -> None:
         """Populate hazard profiles for the whole 40-man (active + reserves)."""
         self._games_per_day = games_per_day
+        self._profile_ctx = {
+            'games_per_team': games_per_team, 'real_games_per_team': real_games_per_team,
+            'games_per_day': games_per_day, 'severity': severity, 'rotation_size': rotation_size,
+        }
         self.profiles = {}
         for p in team.position_players + self.position_reserves:
             self.profiles[p.id] = InjuryProfile.for_position_player(p, games_per_team, real_games_per_team, games_per_day, severity)
@@ -349,6 +356,37 @@ class Roster:
             self.profiles[p.id] = InjuryProfile.for_starter(p, games_per_team, real_games_per_team, games_per_day, severity, rotation_size)
         for p in team.bullpen.players + self.rp_reserves:
             self.profiles[p.id] = InjuryProfile.for_reliever(p, games_per_team, real_games_per_team, games_per_day, severity)
+
+    def register_profile_for(self, player: Union[SimPlayer, SimPitcher]) -> None:
+        """Add a hazard profile for a player who joined this roster after `build_profiles` ran
+        (a trade-deadline acquisition or the reserve promoted to backfill the player he was traded
+        for). No-op until `build_profiles` has captured the schedule inputs. Pure - no rng."""
+        ctx = self._profile_ctx
+        if not ctx:
+            return
+        sub_type = player.player_sub_type
+        if sub_type == PlayerSubType.STARTING_PITCHER:
+            profile = InjuryProfile.for_starter(
+                player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'],
+                ctx['severity'], ctx['rotation_size'],
+            )
+        elif sub_type == PlayerSubType.RELIEF_PITCHER:
+            profile = InjuryProfile.for_reliever(
+                player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'], ctx['severity'],
+            )
+        else:
+            profile = InjuryProfile.for_position_player(
+                player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'], ctx['severity'],
+            )
+        self.profiles[player.id] = profile
+
+    def pop_reserve(self, player_id: str) -> Optional[Union[SimPlayer, SimPitcher]]:
+        """Detach a reserve by id for a trade-deadline move, or `None` if he isn't in the pool."""
+        for pool in (self.position_reserves, self.sp_reserves, self.rp_reserves):
+            for index, player in enumerate(pool):
+                if player.id == player_id:
+                    return pool.pop(index)
+        return None
 
     # ------------------------------------------------------------------
     # PER-DATE PROCESSING

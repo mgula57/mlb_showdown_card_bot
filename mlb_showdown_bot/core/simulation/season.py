@@ -9,7 +9,7 @@ from ..card.stats.stats_period import StatsPeriod, StatsPeriodType
 from ..database.postgres_db import PlayerArchive, PostgresDB
 from ..mlb_stats_api import MLBStatsAPI
 from ..shared.player_position import PlayerType
-from .models import PostseasonFormat, SeasonSimulationConfig, SeasonSimulationResult
+from .models import DeadlineTrade, PostseasonFormat, SeasonSimulationConfig, SeasonSimulationResult
 from .postseason import Postseason
 from .roster import RESERVE_MIN_IP_PITCHER, RESERVE_MIN_PA_POSITION
 from .schedule import Schedule
@@ -17,6 +17,7 @@ from .standings import Standings
 from .stats import PlayerStatsGroup, load_real_league_avgs, load_woba_weights
 from .takeover import TakeoverOptions
 from .team import SimTeam
+from .trade_deadline import TradeDeadline
 
 
 @dataclass
@@ -33,6 +34,12 @@ class SeasonCardPool:
 
     cards: list[ShowdownPlayerCard]
     archive_card_ids: dict[str, str]  # ShowdownPlayerCard.id -> card_bot.card_id
+    # ARCHIVE PLAYER ID ('{year}-{bref_id}') -> CARD. SAME CARD OBJECTS AS `cards`, KEYED SO THE
+    # TRADE DEADLINE CAN LINE A CARD UP WITH ITS `team_history` ENTRY.
+    cards_by_player_id: dict[str, ShowdownPlayerCard]
+    # ARCHIVE PLAYER ID -> (team_id_list, team_games_played_dict) FOR MULTI-TEAM PLAYERS ONLY.
+    # THE CHRONOLOGICAL CLUB HISTORY THE TRADE DEADLINE READS; EMPTY WHEN NO ONE CHANGED CLUBS.
+    team_history: dict[str, tuple[list[str], dict[str, int]]]
 
 
 class PlayerLoader:
@@ -73,7 +80,7 @@ class PlayerLoader:
 
         # FAST PATH: PRE-BUILT CARDS FROM THE card_bot / dim_card TABLES
         status(f"Loading pre-built {year} {set.value} cards from the archive DB...")
-        cards_by_player_id, archive_card_ids = self.db.fetch_season_card_pool(year=year, set=set)
+        cards_by_player_id, archive_card_ids, team_history = self.db.fetch_season_card_pool(year=year, set=set)
         if cards_by_player_id:
             status(f"Loaded {len(cards_by_player_id)} pre-built card(s)")
         else:
@@ -127,7 +134,12 @@ class PlayerLoader:
 
         status(f"Player pool ready: {len(cards_by_player_id)} total card(s)")
 
-        return SeasonCardPool(cards=list(cards_by_player_id.values()), archive_card_ids=archive_card_ids)
+        return SeasonCardPool(
+            cards=list(cards_by_player_id.values()),
+            archive_card_ids=archive_card_ids,
+            cards_by_player_id=cards_by_player_id,
+            team_history=team_history,
+        )
 
     def load_real_season_stats(self, year: int) -> tuple[dict[str, dict], Optional[datetime]]:
         """Every player's raw real-stats archive row for the season, keyed by id.
@@ -169,6 +181,10 @@ class Season:
         # LEAST-STALE stats_modified_date ACROSS EVERY MERGED PLAYER - POPULATED IN `simulate()`
         # ONLY WHEN `config.merge_real_stats`.
         self.real_stats_as_of: Optional[datetime] = None
+        # IN-SIM TRADE DEADLINE - SET IN `simulate()` ONLY WHEN `config.enable_trade_deadline`
+        # (AND NOT A TOURNAMENT). `deadline_trades` HOLDS THE MOVES IT ACTUALLY APPLIED.
+        self._trade_deadline: Optional[TradeDeadline] = None
+        self.deadline_trades: list[DeadlineTrade] = []
 
     def simulate(
         self,
@@ -235,6 +251,10 @@ class Season:
                 # THE CONFIG SO A STORED/REPLAYED CONFIG NEVER SILENTLY PICKS A DIFFERENT "TODAY".
                 start_date=(config.resume_as_of_date or date.today()) if config.resume_from_real_season else None,
             )
+            if config.enable_trade_deadline:
+                self._trade_deadline = TradeDeadline(config=config, schedule=self.schedule, card_pool=card_pool)
+                moves = len(self._trade_deadline.plan.pending_moves)
+                status(f"Trade deadline {self._trade_deadline.deadline_date.isoformat()}: {moves} mid-season move(s) queued")
             status(f"Building rosters for {len(self.schedule.unique_team_names)} team(s)...")
             teams = self._build_season_teams(
                 cards=card_pool.cards, card_ids=card_pool.archive_card_ids, status_callback=status_callback,
@@ -257,6 +277,11 @@ class Season:
         total_games = len(self.schedule.games)
         status(f"Simulating {total_games} game(s)...")
         for index, game in enumerate(self.schedule.games):
+            if self._trade_deadline is not None and not self._trade_deadline.applied and game.date >= self._trade_deadline.deadline_date:
+                self.deadline_trades = self._trade_deadline.apply(self.standings, self.standings.teams, game.date)
+                if self.deadline_trades:
+                    status(f"Trade deadline: {len(self.deadline_trades)} player(s) moved")
+
             home_team = self.standings.teams[game.home_team_name]
             away_team = self.standings.teams[game.away_team_name]
             home_team.update_roster_for_date(game_date=game.date, rng=self.rng)
@@ -330,9 +355,15 @@ class Season:
             if status_callback:
                 status_callback(message)
 
+        # TRADE DEADLINE: A MULTI-TEAM PLAYER IS ROSTERED UNDER HIS REAL *FIRST* CLUB (OR HIS
+        # PRIMARY CLUB, FOR A MOVE TOO SMALL TO MODEL) INSTEAD OF WHATEVER `card.team` RESOLVED TO.
+        # EMPTY WHEN THE FEATURE IS OFF, SO GROUPING - AND THE SEEDED RNG SEQUENCE IT FEEDS - IS
+        # BYTE-IDENTICAL TO BEFORE.
+        initial_team_by_card_id = self._trade_deadline.plan.initial_team_by_card_id if self._trade_deadline is not None else {}
+
         cards_by_team: dict[str, list[ShowdownPlayerCard]] = {}
         for card in cards:
-            team_abbr = card.team.value if card.team else None
+            team_abbr = initial_team_by_card_id.get(card.id) or (card.team.value if card.team else None)
             if team_abbr:
                 cards_by_team.setdefault(team_abbr, []).append(card)
 
@@ -488,6 +519,7 @@ class Season:
             games=[game.as_result() for game in self.schedule.games if game.is_game_over],
             postseason=self.postseason.as_result() if self.postseason else None,
             transactions=transactions,
+            deadline_trades=self.deadline_trades,
             seeded_records=self.seeded_records,
             real_stats_as_of=self.real_stats_as_of,
         )

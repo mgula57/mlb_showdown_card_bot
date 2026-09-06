@@ -43,6 +43,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-inj', '--enable_injuries', action='store_true', help='Enable random injuries, IL stints, and callups (real-season teams only)')
     parser.add_argument('-injs', '--injury_severity', help="Scales every player's injury hazard. 0.0 disables injuries even with --enable_injuries.", type=float, default=1.0)
     parser.add_argument('-tx', '--show_transactions', action='store_true', help='Show the injury/callup transaction log')
+    parser.add_argument('-td', '--trade_deadline', action='store_true', help='Move real mid-season acquisitions to their new club on an era-appropriate deadline date (real-season only)')
+    parser.add_argument('-tds', '--trade_deadline_respects_standings', action='store_true', help='With --trade_deadline: a selling club still contending in the sim keeps its player')
     parser.add_argument('-ars', '--active_roster_size', help='Active roster size for real-season teams', type=int, default=26)
     parser.add_argument('-frs', '--full_roster_size', help='Full (active + reserve) roster size for real-season teams', type=int, default=40)
     return parser.parse_args()
@@ -75,6 +77,8 @@ def main():
         injury_severity_multiplier=args.injury_severity,
         active_roster_size=args.active_roster_size,
         full_roster_size=args.full_roster_size,
+        enable_trade_deadline=args.trade_deadline,
+        trade_deadline_respects_standings=args.trade_deadline_respects_standings,
     )
 
     # WIRE CLI PROGRESS + GAME LOG + SETUP STATUS OUTPUT INTO THE PRINT-FREE CORE
@@ -112,6 +116,8 @@ def main():
         report.print_standings()
     if args.show_transactions:
         report.print_transactions()
+    if args.trade_deadline:
+        report.print_deadline_trades()
     if args.show_top_players:
         report.print_top_players()
     if args.show_real_life_comparison:

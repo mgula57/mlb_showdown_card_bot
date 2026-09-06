@@ -1401,10 +1401,13 @@ class PostgresDB:
             return expression, []
         return sql.SQL("{column} - %s::text[]").format(column=expression), [CARD_DATA_DIAGNOSTIC_KEYS]
 
-    def fetch_season_card_pool(self, year: int, set: Set, strip_diagnostics: bool = True) -> tuple[dict[str, ShowdownPlayerCard], dict[str, str]]:
+    def fetch_season_card_pool(self, year: int, set: Set, strip_diagnostics: bool = True) -> tuple[dict[str, ShowdownPlayerCard], dict[str, str], dict[str, tuple[list[str], dict[str, int]]]]:
         """Every pre-built bot card for a season/set, keyed by archive player id ('{year}-{bref_id}'),
         plus a second map from each card's own computed `ShowdownPlayerCard.id` to the `card_bot.card_id`
-        it's actually archived under.
+        it's actually archived under, plus a third map from archive player id to that player's
+        `(team_id_list, team_games_played_dict)` - the chronological club history the in-sim trade
+        deadline (`enable_trade_deadline`) reads. The history map only carries multi-team players;
+        single-club and history-less rows are omitted.
 
         Those two ids are built by unrelated formulas (`card_id` prefers `mlb_id` over `bref_id`,
         omits the set's `expansion`, and lowercases everything - see `build_card_bot_view`) and
@@ -1432,7 +1435,7 @@ class PostgresDB:
 
         if self.connection is None:
             print("No database connection available for fetching a season card pool.")
-            return {}, {}
+            return {}, {}, {}
 
         card_data_expression, values = self._card_data_select("dim.card_data", strip_diagnostics)
         query = sql.SQL("""
@@ -1440,11 +1443,13 @@ class PostgresDB:
                 SELECT
                     id AS player_id,
                     card_id,
+                    team_id_list,
+                    team_games_played_dict,
                     row_number() OVER (ORDER BY points DESC NULLS LAST, bref_id, year) AS seq
                 FROM card_bot
                 WHERE year = %s AND showdown_set = %s
             )
-            SELECT pool.player_id, pool.card_id, {card_data} AS card_data
+            SELECT pool.player_id, pool.card_id, pool.team_id_list, pool.team_games_played_dict, {card_data} AS card_data
             FROM pool
             JOIN internal.dim_card dim ON dim.id = pool.card_id
             ORDER BY pool.seq
@@ -1453,17 +1458,30 @@ class PostgresDB:
 
         cards: dict[str, ShowdownPlayerCard] = {}
         archive_card_ids: dict[str, str] = {}
+        team_history: dict[str, tuple[list[str], dict[str, int]]] = {}
         try:
             for row in (self.execute_query(query=query, filter_values=tuple(values)) or []):
-                if row.get('card_data'):
-                    card = ShowdownPlayerCard(**row['card_data'])
-                    cards[str(row['player_id'])] = card
-                    archive_card_ids[card.id] = str(row['card_id'])
+                if not row.get('card_data'):
+                    continue
+                player_id = str(row['player_id'])
+                card = ShowdownPlayerCard(**row['card_data'])
+                cards[player_id] = card
+                archive_card_ids[card.id] = str(row['card_id'])
+
+                team_id_list = row.get('team_id_list') or []
+                if len(team_id_list) > 1:
+                    games_dict = row.get('team_games_played_dict')
+                    if isinstance(games_dict, str):
+                        games_dict = json.loads(games_dict) if games_dict else {}
+                    team_history[player_id] = (
+                        list(team_id_list),
+                        {str(k): int(v) for k, v in (games_dict or {}).items()},
+                    )
         except Exception as e:
             print("Error fetching season card pool:", e)
             traceback.print_exc()
 
-        return cards, archive_card_ids
+        return cards, archive_card_ids, team_history
 
     def fetch_archive_playing_time(self, year_list: list[int]) -> list[ArchivePlayingTime]:
         """Playing-time projection of the season archive, for cheaply deciding which players matter."""

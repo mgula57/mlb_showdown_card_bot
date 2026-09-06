@@ -6,7 +6,10 @@ from pydantic import BaseModel
 from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
-from .models import ManagerPreference, SeasonSimulationResult, SimTeamIdentity, StandingsResult, TeamRecord
+from .models import (
+    DeadlineTrade, ManagerPreference, SeasonSimulationResult, SimTeamIdentity, StandingsResult,
+    TeamRecord, TransactionType,
+)
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
 from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_id
 
@@ -77,6 +80,23 @@ class SimSeasonGameLine(BaseModel):
     away_score: int = 0
 
 
+class SimTransaction(BaseModel):
+    """A 40-man roster move, trimmed for the result screen - the stat-engine ids and the
+    `PositionSlotParent` group the CLI `Transaction` also carries are dropped, since nothing on
+    the screen resolves a card from a transaction row."""
+
+    date: str
+    team: str                                # SCHEDULE KEY
+    type: str                                # TransactionType.value: "IL" | "ACT" | "UP" | "DOWN"
+    player_name: str
+    position: str = ""
+    related_player_name: Optional[str] = None  # THE REPLACEMENT / THE PLAYER REPLACED
+    il_days: Optional[int] = None
+    return_date: Optional[str] = None
+    games_missed: Optional[int] = None
+    detail: str = ""
+
+
 class SimTeamSeason(BaseModel):
     """How the user's team finished."""
 
@@ -142,6 +162,19 @@ class SeasonSimSummary(BaseModel):
     # PROFILES ARE RECORDED (EMPTY FOR A PLAIN SIM), SO THE RESULT/LEADERBOARD SCREENS CAN SHOW
     # WHAT STRATEGY A RUN USED.
     manager_preferences: dict[str, ManagerPreference] = {}
+
+    # PLAYERS RELOCATED BY THE IN-SIM TRADE DEADLINE (`config.enable_trade_deadline`), CHRONOLOGICAL.
+    # EMPTY FOR A RUN THAT DIDN'T USE IT OR WHERE NO REAL MID-SEASON TRADE SURVIVED THE FILTERS.
+    deadline_trades: list[DeadlineTrade] = []
+
+    # 40-MAN ROSTER MOVES (IL / ACTIVATION / CALLUP), CHRONOLOGICAL. EMPTY UNLESS THE RUN USED
+    # `config.enable_injuries`. The OPTION ("DOWN") rows are dropped - they only ever say a
+    # backfill went back to the reserve pool, which the matching ACTIVATION row already implies.
+    # `injury_summary` IS THE PER-CLUB ROLL-UP (KEY: SCHEDULE KEY, VALUE: {stints, games_missed,
+    # callups}) FROM `SeasonSimulationResult.injury_summary_by_team` - kept so a club view doesn't
+    # re-aggregate the whole list.
+    transactions: list[SimTransaction] = []
+    injury_summary: dict[str, dict[str, int]] = {}
 
     standings: StandingsResult
     postseason: list[SimSeriesLine] = []
@@ -226,7 +259,29 @@ class SeasonSummaryBuilder:
             },
             seeded_records=result.seeded_records,
             real_stats_as_of=result.real_stats_as_of,
+            deadline_trades=sorted(result.deadline_trades, key=lambda t: (t.date, t.to_team)),
+            transactions=self._build_transactions(),
+            injury_summary=result.injury_summary_by_team(),
         )
+
+    def _build_transactions(self) -> list[SimTransaction]:
+        """Trimmed IL/activation/callup rows (`result.transactions` is already date-sorted).
+        OPTION rows are dropped - see `SeasonSimSummary.transactions`. A takeover/challenge
+        summary is scoped to its one club; an open sim keeps every club's so the club switcher
+        can show any of them."""
+        return [
+            SimTransaction(
+                date=str(t.date), team=t.team, type=t.type.value,
+                player_name=t.player_name, position=t.position,
+                related_player_name=t.related_player_name,
+                il_days=t.il_days,
+                return_date=str(t.return_date) if t.return_date else None,
+                games_missed=t.games_missed, detail=t.detail,
+            )
+            for t in self.result.transactions
+            if t.type != TransactionType.OPTION
+            and (self.team_abbr is None or t.team == self.team_abbr)
+        ]
 
     # ------------------------------------------------------------------
     # TEAM

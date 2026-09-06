@@ -322,6 +322,11 @@ def _parse_engine_settings(payload: dict) -> dict:
     # merge_real_stats=True WITH NO RESUME DATE IS SILENTLY A NO-OP RATHER THAN AN ERROR.
     merge_real_stats = resume_from_real_season and bool(payload.get('merge_real_stats'))
 
+    # TRADE DEADLINE. `trade_deadline_respects_standings` ONLY MATTERS WHEN THE DEADLINE IS ON,
+    # SAME SHAPE AS resume_from_real_season / merge_real_stats ABOVE.
+    enable_trade_deadline = bool(payload.get('enable_trade_deadline'))
+    trade_deadline_respects_standings = enable_trade_deadline and bool(payload.get('trade_deadline_respects_standings'))
+
     return {
         'year': year, 'showdown_set': showdown_set, 'postseason_format': postseason_format,
         'games_limit': games_limit, 'pct_of_games': pct_of_games,
@@ -330,6 +335,8 @@ def _parse_engine_settings(payload: dict) -> dict:
         'seed': payload.get('seed'), 'simulate_postseason': payload.get('simulate_postseason', True),
         'resume_from_real_season': resume_from_real_season, 'resume_as_of_date': resume_as_of_date,
         'merge_real_stats': merge_real_stats,
+        'enable_trade_deadline': enable_trade_deadline,
+        'trade_deadline_respects_standings': trade_deadline_respects_standings,
     }
 
 
@@ -346,6 +353,8 @@ def _settings_to_stored_config(settings: dict) -> dict:
         'resume_from_real_season': settings['resume_from_real_season'],
         'resume_as_of_date': settings['resume_as_of_date'].isoformat() if settings['resume_as_of_date'] else None,
         'merge_real_stats': settings['merge_real_stats'],
+        'enable_trade_deadline': settings['enable_trade_deadline'],
+        'trade_deadline_respects_standings': settings['trade_deadline_respects_standings'],
     }
 
 
@@ -362,6 +371,8 @@ def _config_kwargs_from_stored(stored: dict) -> dict:
         'resume_from_real_season': bool(stored.get('resume_from_real_season')),
         'resume_as_of_date': resume_as_of_date,
         'merge_real_stats': bool(stored.get('merge_real_stats')),
+        'enable_trade_deadline': bool(stored.get('enable_trade_deadline')),
+        'trade_deadline_respects_standings': bool(stored.get('trade_deadline_respects_standings')),
     }
 
 

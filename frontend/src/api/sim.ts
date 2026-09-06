@@ -185,6 +185,42 @@ export type SeasonSimSummary = {
      *  per player-year, not a history, so this may lag the run's own resume date — show this
      *  date, not that one, when describing what the merged stats cover. Null otherwise. */
     real_stats_as_of?: string | null;
+    /** Players relocated by the in-sim trade deadline. Absent for summaries persisted before the
+     *  feature existed, empty for a run that didn't use it. */
+    deadline_trades?: DeadlineTrade[];
+    /** 40-man roster moves (IL / activation / callup) — every club's for an open sim, just the
+     *  focus club's for a takeover/challenge run. Absent unless injuries were enabled. */
+    transactions?: SimTransaction[];
+    /** Schedule key -> { stints, games_missed, callups } roll-up for every club. */
+    injury_summary?: Record<string, { stints: number; games_missed: number; callups: number }>;
+};
+
+/** One player moved by the in-sim trade deadline (`enable_trade_deadline`). */
+export type DeadlineTrade = {
+    date: string;
+    player_id: string;
+    player_name: string;
+    position: string;
+    player_type: string;
+    from_team: string;
+    to_team: string;
+    from_team_record: string;
+    to_team_record: string;
+};
+
+/** A 40-man roster move, trimmed for display. */
+export type SimTransaction = {
+    date: string;
+    team: string;
+    /** "IL" | "ACT" | "UP" */
+    type: string;
+    player_name: string;
+    position: string;
+    related_player_name: string | null;
+    il_days: number | null;
+    return_date: string | null;
+    games_missed: number | null;
+    detail: string;
 };
 
 export type SimJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
@@ -324,6 +360,12 @@ export type OpenSimPayload = {
      *  Only takes effect alongside `resume_as_of_date` — a separate toggle since the merged
      *  stats reflect the archive's last scrape, which may not land exactly on the resume date. */
     merge_real_stats?: boolean;
+    /** Move a player who was really traded mid-season to his real next club on an era-appropriate
+     *  deadline date, instead of playing the whole sim for the one club his card resolved to. */
+    enable_trade_deadline?: boolean;
+    /** With `enable_trade_deadline`: a selling club still contending in the simulated standings at
+     *  the deadline keeps its player (the real trade is cancelled for that run). */
+    trade_deadline_respects_standings?: boolean;
 };
 
 export type ChallengeGoalType = 'made_playoffs' | 'win_pennant' | 'win_world_series' | 'min_wins';
@@ -620,6 +662,8 @@ export type CreateSimLobbyPayload = {
     postseason_format?: string;
     resume_as_of_date?: string;
     merge_real_stats?: boolean;
+    enable_trade_deadline?: boolean;
+    trade_deadline_respects_standings?: boolean;
 };
 
 export async function createSimLobby(payload: CreateSimLobbyPayload, token: string): Promise<SimLobbyState> {

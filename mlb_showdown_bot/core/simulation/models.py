@@ -236,6 +236,17 @@ class SeasonSimulationConfig(BaseModel):
     # `resume_as_of_date` EXACTLY, SO A USER WHO ONLY WANTS SEEDED STANDINGS CAN SKIP THIS.
     merge_real_stats: bool = False
 
+    # TRADE DEADLINE. WHEN ENABLED, A PLAYER WHO WAS REALLY TRADED MID-SEASON STARTS THE SIM ON HIS
+    # REAL FIRST CLUB AND MOVES TO HIS REAL NEXT CLUB ON AN ERA-APPROPRIATE DEADLINE DATE (SEE
+    # `trade_deadline.TradeDeadline`), INSTEAD OF SPENDING THE WHOLE SIM ON THE ONE CLUB HIS CARD
+    # RESOLVED TO. SEASON STAT TOTALS ARE UNCHANGED (ONE CARD, ONE STATLINE) - ONLY WHICH CLUB GETS
+    # HIS PRODUCTION IN WHICH HALF OF THE RACE. NO-OP FOR TOURNAMENTS AND FOR TAKEOVER CLUBS.
+    enable_trade_deadline: bool = False
+    # WHEN TRUE, A SELLING CLUB THAT IS STILL CONTENDING IN THE *SIMULATED* STANDINGS AT THE
+    # DEADLINE KEEPS ITS PLAYER (THE REAL TRADE IS CANCELLED FOR THAT RUN). ONLY MEANINGFUL
+    # ALONGSIDE `enable_trade_deadline`; ONLY THE SELL SIDE IS GATED.
+    trade_deadline_respects_standings: bool = False
+
     # STANDINGS PTS DISPLAY. A BUILDER/TOURNAMENT TEAM'S BENCH SLOTS COST LESS THAN THEIR CARD'S
     # FULL POINTS AT DRAFT TIME (SEE `Team.bench_pts_multiplier`), SO THE RAW SUM OF EVERY ACTIVE
     # PLAYER'S POINTS OVERSTATES WHAT THE TEAM ACTUALLY SPENT. DEFAULT ON - IT IS A NO-OP FOR
@@ -588,6 +599,24 @@ class Transaction(BaseModel):
     detail: str = ""
 
 
+class DeadlineTrade(BaseModel):
+    """One player relocated by the in-sim trade deadline (`config.enable_trade_deadline`).
+
+    Records only trades that were actually applied - a move skipped by the trivial-stint floor or
+    held back by the standings gate never produces one. JSON-serializable for the API/summary.
+    """
+
+    date: date
+    player_id: str                 # BARE card_id (REAL-POOL STAT-ENGINE ID)
+    player_name: str
+    position: str = ""             # PRIMARY POSITION STRING
+    player_type: str = ""          # PlayerType.value
+    from_team: str                 # SCHEDULE KEY THE PLAYER LEFT
+    to_team: str                   # SCHEDULE KEY THE PLAYER JOINED
+    from_team_record: str = ""     # "48-59" AT THE MOMENT OF THE MOVE
+    to_team_record: str = ""
+
+
 class OutlierEntry(BaseModel):
     id: str
     name: str
@@ -619,6 +648,10 @@ class SeasonSimulationResult(BaseModel):
     games: list[GameResult] = []
     postseason: Optional[PostseasonResult] = None
     transactions: list[Transaction] = []
+
+    # PLAYERS RELOCATED BY THE IN-SIM TRADE DEADLINE. EMPTY UNLESS `config.enable_trade_deadline`
+    # AND AT LEAST ONE REAL MID-SEASON TRADE SURVIVED THE STINT FLOOR / STANDINGS GATE.
+    deadline_trades: list[DeadlineTrade] = []
 
     # SCHEDULE ABBREVIATION -> (WINS, LOSSES) EACH CLUB STARTED THIS RUN WITH. EMPTY (EVERY CLUB
     # STARTED 0-0) UNLESS `config.resume_from_real_season` - SEE `Season._build_season_teams`.

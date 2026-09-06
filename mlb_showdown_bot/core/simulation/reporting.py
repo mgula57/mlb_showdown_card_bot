@@ -301,6 +301,22 @@ class SeasonReport:
         if len(transactions) > limit:
             print(f"  ... {len(transactions) - limit} more")
 
+    def print_deadline_trades(self, teams: Optional[list[str]] = None) -> None:
+        self._print_header("TRADE DEADLINE")
+        trades = self.result.deadline_trades
+        if teams:
+            trades = [t for t in trades if t.from_team in teams or t.to_team in teams]
+        if not trades:
+            enabled = self.result.config.enable_trade_deadline
+            print("  NO DEADLINE MOVES" if enabled else "  NO DEADLINE MOVES (TRADE DEADLINE DISABLED)")
+            return
+        tbl = PrettyTable()
+        tbl.field_names = ['Date', 'Player', 'Pos', 'From', 'Record', 'To', 'Record']
+        tbl.align['Player'] = 'l'
+        for t in sorted(trades, key=lambda x: (x.date, x.to_team)):
+            tbl.add_row([t.date, t.player_name, t.position, t.from_team, t.from_team_record, t.to_team, t.to_team_record])
+        print(tbl)
+
     # ------------------------------------------------------------------
     # RUNTIME
     # ------------------------------------------------------------------
