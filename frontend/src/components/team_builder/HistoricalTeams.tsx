@@ -148,7 +148,7 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
 
 /** Browse pre-processed historical MLB rosters and All-Star teams music-app style.
  *  Seasons are shelves ordered newest-first — no dropdowns; each tile opens its own shareable page. */
-export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: string }) {
+export function HistoricalTeams({ horizontalPadding, hideSearch = false }: { horizontalPadding?: string; hideSearch?: boolean }) {
     const { userShowdownSet } = useSiteSettings();
     const navigate = useNavigate();
 
@@ -235,15 +235,18 @@ export function HistoricalTeams({ horizontalPadding }: { horizontalPadding?: str
 
     return (
         <div className="relative flex flex-col gap-5">
-            {/* Search across every season — replaces the old season/sport dropdowns */}
-            <div className={horizontalPadding ?? ''}>
-                <TeamSearchInput
-                    value={query}
-                    onChange={setQuery}
-                    placeholder="Search by team or season (e.g. 1998)…"
-                    className="w-full sm:max-w-xs"
-                />
-            </div>
+            {/* Search across every season — replaces the old season/sport dropdowns. Hidden when
+                embedded in the Browse "All" view, which drives search from its own unified box. */}
+            {!hideSearch && (
+                <div className={horizontalPadding ?? ''}>
+                    <TeamSearchInput
+                        value={query}
+                        onChange={setQuery}
+                        placeholder="Search by team or season (e.g. 1998)…"
+                        className="w-full sm:max-w-xs"
+                    />
+                </div>
+            )}
 
             {error && (
                 <div className={`${horizontalPadding ?? ''} mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>

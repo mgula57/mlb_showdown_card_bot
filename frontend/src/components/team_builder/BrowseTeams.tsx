@@ -4,7 +4,9 @@ import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard } from './TeamPreviewCard';
+import { TeamShelf } from './TeamShelf';
 import { TeamSearchInput } from './TeamSearchInput';
+import { matchesTeamQuery } from './teamSearch';
 import { CommunityTeams } from './CommunityTeams';
 import { FeaturedCollections } from './FeaturedCollections';
 import { HistoricalTeams, type HistoricalNavState } from './HistoricalTeams';
@@ -31,9 +33,11 @@ type BrowseTeamsProps = {
     onOpenTeam: (team: TeamSummary) => void;
     horizontalPadding?: string;
     currentUserId?: string | null;
+    /** The signed-in user's own teams — surfaced as a shelf here and folded into search. */
+    myTeams?: TeamSummary[];
 };
 
-export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId }: BrowseTeamsProps) {
+export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTeams = [] }: BrowseTeamsProps) {
     const navigate = useNavigate();
     const { userShowdownSet } = useSiteSettings();
     const [type, setType] = useState<BrowseType>('all');
@@ -57,8 +61,12 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId }: Br
                     .then(r => r.teams).catch(() => [] as HistoricalTeam[]),
             ]);
             if (cancelled) return;
+            const isOwn = (t: TeamSummary) => !!currentUserId && t.user_id === currentUserId;
             const merged: Hit[] = [
-                ...publicTeams.filter(t => currentUserId ? t.user_id !== currentUserId : true)
+                // The user's own teams (including private ones) aren't in the public payload.
+                ...myTeams.filter(t => matchesTeamQuery(t, q))
+                    .map(team => ({ kind: 'public' as const, team })),
+                ...publicTeams.filter(t => !isOwn(t))
                     .map(team => ({ kind: 'public' as const, team })),
                 ...historical.map(team => ({ kind: 'historical' as const, team })),
             ];
@@ -66,6 +74,9 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId }: Br
                 const an = a.team.name.toLowerCase() === q.toLowerCase() ? 0 : 1;
                 const bn = b.team.name.toLowerCase() === q.toLowerCase() ? 0 : 1;
                 if (an !== bn) return an - bn;
+                const ao = a.kind === 'public' && isOwn(a.team) ? 0 : 1;
+                const bo = b.kind === 'public' && isOwn(b.team) ? 0 : 1;
+                if (ao !== bo) return ao - bo;
                 const at = a.kind === 'public' ? (a.team.source ?? 'user') : 'historical';
                 const bt = b.kind === 'public' ? (b.team.source ?? 'user') : 'historical';
                 if (TYPE_RANK[at] !== TYPE_RANK[bt]) return TYPE_RANK[at] - TYPE_RANK[bt];
@@ -75,7 +86,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId }: Br
             setSearching(false);
         }, 300);
         return () => { cancelled = true; clearTimeout(timer); };
-    }, [type, q, userShowdownSet, currentUserId]);
+    }, [type, q, userShowdownSet, currentUserId, myTeams]);
 
     function openHistorical(team: HistoricalTeam) {
         const state: HistoricalNavState = {
@@ -92,6 +103,9 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId }: Br
         if (hits === null) return null;
         return hits;
     }, [hits]);
+
+    // The user's own teams that have at least one player drafted — empty shells don't belong on a shelf.
+    const myShelfTeams = useMemo(() => myTeams.filter(t => t.roster_count > 0), [myTeams]);
 
     return (
         <div className="flex flex-col gap-5">
@@ -153,6 +167,19 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId }: Br
                 )
             ) : (
                 <>
+                    {type === 'all' && myShelfTeams.length > 0 && (
+                        <TeamShelf
+                            title="My Teams"
+                            subtitle={`${myShelfTeams.length} team${myShelfTeams.length === 1 ? '' : 's'}`}
+                            className={px}
+                            bleedRight
+                            onSeeAll={() => navigate('/teams/all')}
+                        >
+                            {myShelfTeams.map(team => (
+                                <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpenTeam(team)} />
+                            ))}
+                        </TeamShelf>
+                    )}
                     {(type === 'all' || type === 'featured') && (
                         <FeaturedCollections
                             onOpen={onOpenTeam}
@@ -170,17 +197,18 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId }: Br
                             externalQuery={type === 'community' ? q : ''}
                         />
                     )}
-                    {type === 'historical' && <HistoricalTeams horizontalPadding={px} />}
-                    {type === 'all' && !q && (
-                        <div className={px}>
-                            <button
-                                type="button"
-                                onClick={() => setType('historical')}
-                                className="text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer"
-                            >
-                                Browse historical teams by season →
-                            </button>
-                        </div>
+                    {(type === 'all' || type === 'historical') && (
+                        <>
+                            {type === 'all' && (
+                                <div className={px}>
+                                    <h3 className="text-[15px] font-black text-(--text-primary)">Historical Teams</h3>
+                                    <p className="text-[12px] text-(--text-secondary)">
+                                        Real MLB rosters and All-Star squads, season by season.
+                                    </p>
+                                </div>
+                            )}
+                            <HistoricalTeams horizontalPadding={px} hideSearch={type === 'all'} />
+                        </>
                     )}
                 </>
             )}

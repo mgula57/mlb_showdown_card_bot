@@ -656,7 +656,12 @@ export default function TeamBuilder() {
 
             {/* Browse tab — featured collections, community teams, and historical rosters */}
             {activeTab === 'browse' && (
-                <BrowseTeams onOpenTeam={openTeam} horizontalPadding={px} currentUserId={session?.user?.id} />
+                <BrowseTeams
+                    onOpenTeam={openTeam}
+                    horizontalPadding={px}
+                    currentUserId={session?.user?.id}
+                    myTeams={sortedUserTeams}
+                />
             )}
 
             {/* Team Challenges tab */}
