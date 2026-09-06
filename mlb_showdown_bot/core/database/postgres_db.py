@@ -4494,7 +4494,7 @@ class PostgresDB:
             t.is_public, t.source, t.logo_url,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
-            t.origin_template_id,
+            t.origin_template_id, t.creation_source,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -4567,7 +4567,7 @@ class PostgresDB:
             t.is_public, t.source, t.logo_url,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
-            t.origin_template_id,
+            t.origin_template_id, t.creation_source,
             COUNT(r.card_id) AS roster_count,
             COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
             COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
@@ -4729,6 +4729,14 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS logo_url TEXT;
+            """)
+            # How the team was first created, so it can be filtered later. Free-form text set by
+            # the create route: 'new_team' (plain New Team button), 'challenge_quick_start' /
+            # 'challenge_from_scratch' (the ChallengeCard menu buttons), 'fork' (copied from
+            # another team). NULL for teams predating this column and for admin/CLI inserts.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS creation_source TEXT;
             """)
             # lineups/rotation are now derived from the roster (user_team_roster.roster_position),
             # so drop the redundant JSONB columns.
@@ -4998,7 +5006,7 @@ class PostgresDB:
             'is_public', 'source', 'logo_url',
             'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
             'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
-            'origin_template_id',
+            'origin_template_id', 'creation_source',
         }
         return {k: v for k, v in payload.items() if k in ALLOWED}
 
@@ -7616,7 +7624,7 @@ class PostgresDB:
                     slug            TEXT NOT NULL UNIQUE,
                     title           TEXT NOT NULL,
                     description     TEXT NOT NULL,
-                    goal_type       TEXT NOT NULL,   -- 'made_playoffs' | 'win_pennant' | 'win_world_series' | 'min_wins'
+                    goal_type       TEXT NOT NULL,   -- 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins'
                     goal_value      JSONB,           -- e.g. {"min_wins": 90}
                     pts_limit       INT,             -- null = no cap
                     year_pool       TEXT NOT NULL DEFAULT 'any',      -- 'any' | comma list of years | 'random_range:1977,2024'

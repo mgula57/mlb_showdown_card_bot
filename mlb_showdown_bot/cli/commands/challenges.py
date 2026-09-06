@@ -13,6 +13,7 @@ app = typer.Typer()
 
 class GoalType(str, Enum):
     MADE_PLAYOFFS = "made_playoffs"
+    WIN_DIVISION = "win_division"
     WIN_PENNANT = "win_pennant"
     WIN_WORLD_SERIES = "win_world_series"
     MIN_WINS = "min_wins"
@@ -164,6 +165,10 @@ def create_template(
     Example - copy, edit, and run:
 
     showdown_bot challenges create-template --slug small-budget-pennant --title "Cinderella Run" --description "Take over a real club on a shoestring budget and win the pennant." --goal-type win_pennant --pts-limit 3000 --year-pool any --replaces-pool worst_record --env dev
+
+    Example with a win_division goal:
+
+    showdown_bot challenges create-template --slug take-the-division --title "Division Crown" --description "Take over a real club and finish first in your division." --goal-type win_division --pts-limit 4000 --year-pool any --replaces-pool worst_record --env dev
 
     Example with a min_wins goal, limited to one year:
 

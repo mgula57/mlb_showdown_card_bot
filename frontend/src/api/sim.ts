@@ -368,7 +368,7 @@ export type OpenSimPayload = {
     trade_deadline_respects_standings?: boolean;
 };
 
-export type ChallengeGoalType = 'made_playoffs' | 'win_pennant' | 'win_world_series' | 'min_wins';
+export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins';
 
 /** A live challenge instance joined to its template. */
 export type ChallengeInstance = {

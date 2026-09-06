@@ -11,6 +11,7 @@ import {
     type Team,
     type TeamSummary,
     type TeamUpdatePayload,
+    type TeamCreationSource,
 } from '../../api/userTeams';
 import { buildDefaultTeamPayload } from '../../domain/newTeam';
 import {
@@ -338,7 +339,10 @@ export default function TeamBuilder() {
     // straight onto the team page's setup step — there's no pre-creation modal anymore.
     // `challenge`, when set, is carried through so the page can offer "Play Challenge" as soon
     // as the roster is ready and pre-fills the budget / player filters.
-    async function createAndOpenTeam(challenge?: ChallengeInstance) {
+    async function createAndOpenTeam(
+        challenge?: ChallengeInstance,
+        creationSource: TeamCreationSource = 'new_team',
+    ) {
         if (!token || creatingTeam) return;
         setCreatingTeam(true);
         try {
@@ -350,7 +354,8 @@ export default function TeamBuilder() {
                     pts_limit: challenge.pts_limit,
                     origin_template_id: challenge.template_id,
                     player_filters: challenge.player_filters,
-                } : undefined,
+                    creation_source: creationSource,
+                } : { creation_source: creationSource },
             });
             const newTeam = await createTeam(payload, token);
             createdThisSessionRef.current.add(newTeam.team_id);
@@ -365,9 +370,9 @@ export default function TeamBuilder() {
         }
     }
 
-    const handleNewTeam = () => createAndOpenTeam();
-    const handleQuickStart = (challenge: ChallengeInstance) => createAndOpenTeam(challenge);
-    const handleBuildFromScratch = (challenge: ChallengeInstance) => createAndOpenTeam(challenge);
+    const handleNewTeam = () => createAndOpenTeam(undefined, 'new_team');
+    const handleQuickStart = (challenge: ChallengeInstance) => createAndOpenTeam(challenge, 'challenge_quick_start');
+    const handleBuildFromScratch = (challenge: ChallengeInstance) => createAndOpenTeam(challenge, 'challenge_from_scratch');
 
     function handleUseExistingTeam(challenge: ChallengeInstance, teamId: string) {
         trackRecentTeam(teamId);

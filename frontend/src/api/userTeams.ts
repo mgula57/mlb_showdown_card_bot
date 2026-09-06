@@ -41,6 +41,14 @@ export type PitcherAssignment = {
 
 export type TeamSource = 'user' | 'official' | 'asg' | 'mlb';
 
+/** How a team was first created — stored on the row so it can be filtered later.
+ *  `challenge_quick_start` / `challenge_from_scratch` come from the ChallengeCard menu buttons. */
+export type TeamCreationSource =
+    | 'new_team'
+    | 'challenge_quick_start'
+    | 'challenge_from_scratch'
+    | 'fork';
+
 export type Team = {
     team_id: string;
     user_id: string | null;
@@ -64,6 +72,8 @@ export type Team = {
     /** Which challenge_template this team was built for, if any — set by the Quick Start /
      *  Build from Scratch challenge routes, null for teams built outside that flow. */
     origin_template_id: string | null;
+    /** How this team was first created — null for teams built before the field existed. */
+    creation_source: TeamCreationSource | null;
     player_filters: Record<string, unknown> | null;
     roster: TeamRosterSlot[];
     lineups: Lineup[];
@@ -99,6 +109,7 @@ export type TeamSummary = {
     allowed_sets_by_source?: Record<string, string[]> | null;
     allowed_card_sources: string[] | null;
     origin_template_id: string | null;
+    creation_source: TeamCreationSource | null;
     created_at: string | null;
     updated_at: string | null;
     total_points: number;
@@ -228,6 +239,7 @@ export function buildForkPayload(source: Team): TeamCreatePayload {
         primary_color: source.primary_color,
         secondary_color: source.secondary_color,
         is_public: false,
+        creation_source: 'fork',
         pts_limit: source.pts_limit,
         roster_size: source.roster_size,
         min_bench: source.min_bench,

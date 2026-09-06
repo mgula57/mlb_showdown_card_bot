@@ -824,6 +824,8 @@ def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_
     """Evaluate a challenge's goal against the played season's result."""
     if goal_type == 'made_playoffs':
         return team_season.made_playoffs
+    if goal_type == 'win_division':
+        return team_season.division_rank == 1
     if goal_type == 'win_pennant':
         return won_pennant
     if goal_type == 'win_world_series':

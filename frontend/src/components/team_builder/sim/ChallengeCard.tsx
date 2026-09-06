@@ -21,6 +21,7 @@ type Props = {
 function goalLabel(challenge: ChallengeInstance): string {
     switch (challenge.goal_type) {
         case 'made_playoffs': return 'Make the playoffs';
+        case 'win_division': return 'Win the division';
         case 'win_pennant': return 'Win the pennant';
         case 'win_world_series': return 'Win the World Series';
         case 'min_wins': return `Win at least ${(challenge.goal_value?.min_wins as number | undefined) ?? '?'} games`;

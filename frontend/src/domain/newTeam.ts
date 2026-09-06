@@ -12,7 +12,8 @@ type BuildDefaultTeamPayloadArgs = {
     displayName: string;
     /** The user's preferred Showdown set — the team pins to this for its Bot cards. */
     showdownSet: string;
-    /** Merged last — e.g. a challenge's pts_limit / origin_template_id / player_filters. */
+    /** Merged last — e.g. a challenge's pts_limit / origin_template_id / player_filters, or the
+     *  creation_source tag identifying which entry point built the team. */
     overrides?: Partial<TeamCreatePayload>;
 };
 
