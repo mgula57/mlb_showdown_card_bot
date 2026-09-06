@@ -17,8 +17,7 @@ type Props = {
      *  truth, since this page must also resolve for a cold, no-context shared link) resolves. */
     initialChallenge?: ChallengeInstance;
     onBack: () => void;
-    onQuickStart: (challenge: ChallengeInstance) => void;
-    onBuildFromScratch: (challenge: ChallengeInstance) => void;
+    onNewTeam: (challenge: ChallengeInstance) => void;
     onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
     onOpenSeason: (teamId: string, jobId: string) => void;
 };
@@ -35,7 +34,7 @@ const SORT_TABS: TabItem<SimLeaderboardSort>[] = [
  * budget/goal, never the wider "every sim played this year" pool, and the viewer's own attempt
  * (if any) is highlighted inline via `SimSeasonRow`'s `is_own` styling.
  */
-export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, onQuickStart, onBuildFromScratch, onUseExistingTeam, onOpenSeason }: Props) {
+export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, onNewTeam, onUseExistingTeam, onOpenSeason }: Props) {
     const [challenge, setChallenge] = useState<ChallengeInstance | null | undefined>(initialChallenge);
     const [challengeError, setChallengeError] = useState<string | null>(null);
     const [entries, setEntries] = useState<SimLeaderboardEntry[] | null>(null);
@@ -106,8 +105,7 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
             <ChallengeCard
                 challenge={challenge}
                 token={token}
-                onQuickStart={onQuickStart}
-                onBuildFromScratch={onBuildFromScratch}
+                onNewTeam={onNewTeam}
                 onUseExistingTeam={onUseExistingTeam}
             />
 

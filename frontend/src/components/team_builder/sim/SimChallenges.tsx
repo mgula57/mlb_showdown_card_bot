@@ -5,14 +5,13 @@ import { ChallengeCard } from './ChallengeCard';
 
 type Props = {
     token?: string;
-    onQuickStart: (challenge: ChallengeInstance) => void;
-    onBuildFromScratch: (challenge: ChallengeInstance) => void;
+    onNewTeam: (challenge: ChallengeInstance) => void;
     onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
     onSelectChallenge: (challenge: ChallengeInstance) => void;
 };
 
 /** The live, auto-generated list of Team Challenges — the default view of the Team Challenges tab. */
-export function SimChallenges({ token, onQuickStart, onBuildFromScratch, onUseExistingTeam, onSelectChallenge }: Props) {
+export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectChallenge }: Props) {
     const [challenges, setChallenges] = useState<ChallengeInstance[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -55,8 +54,7 @@ export function SimChallenges({ token, onQuickStart, onBuildFromScratch, onUseEx
                     key={challenge.instance_id}
                     challenge={challenge}
                     token={token}
-                    onQuickStart={onQuickStart}
-                    onBuildFromScratch={onBuildFromScratch}
+                    onNewTeam={onNewTeam}
                     onUseExistingTeam={onUseExistingTeam}
                     onViewLeaderboard={onSelectChallenge}
                 />

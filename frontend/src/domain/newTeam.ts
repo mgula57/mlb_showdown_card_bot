@@ -2,7 +2,8 @@
  * @fileoverview Default payload for a brand-new user team. A team is now created immediately
  * (with these defaults) when the user clicks "New Team" — configuration happens on the team
  * page's setup step, not in a pre-creation modal — so the same defaults back the plain
- * "New Team" flow and the challenge Quick Start / Build from Scratch flows.
+ * "New Team" flow and a challenge's "New Team" flow (which layers challenge-specific
+ * overrides — name, budget, 26-man roster — on top).
  */
 import type { TeamCreatePayload } from '../api/userTeams';
 import { CardSource } from '../types/cardSource';

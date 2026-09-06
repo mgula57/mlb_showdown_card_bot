@@ -42,11 +42,10 @@ export type PitcherAssignment = {
 export type TeamSource = 'user' | 'official' | 'asg' | 'mlb';
 
 /** How a team was first created — stored on the row so it can be filtered later.
- *  `challenge_quick_start` / `challenge_from_scratch` come from the ChallengeCard menu buttons. */
+ *  `challenge` is the "New Team" button on a ChallengeCard. */
 export type TeamCreationSource =
     | 'new_team'
-    | 'challenge_quick_start'
-    | 'challenge_from_scratch'
+    | 'challenge'
     | 'fork';
 
 export type Team = {
@@ -69,8 +68,8 @@ export type Team = {
     /** Per-source set restrictions — the source of truth; `allowed_sets` mirrors its union. */
     allowed_sets_by_source?: Record<string, string[]> | null;
     allowed_card_sources: string[] | null;
-    /** Which challenge_template this team was built for, if any — set by the Quick Start /
-     *  Build from Scratch challenge routes, null for teams built outside that flow. */
+    /** Which challenge_template this team was built for, if any — set by the challenge
+     *  "New Team" route, null for teams built outside that flow. */
     origin_template_id: string | null;
     /** How this team was first created — null for teams built before the field existed. */
     creation_source: TeamCreationSource | null;

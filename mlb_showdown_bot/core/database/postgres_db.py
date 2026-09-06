@@ -4731,9 +4731,9 @@ class PostgresDB:
                     ADD COLUMN IF NOT EXISTS logo_url TEXT;
             """)
             # How the team was first created, so it can be filtered later. Free-form text set by
-            # the create route: 'new_team' (plain New Team button), 'challenge_quick_start' /
-            # 'challenge_from_scratch' (the ChallengeCard menu buttons), 'fork' (copied from
-            # another team). NULL for teams predating this column and for admin/CLI inserts.
+            # the create route: 'new_team' (plain New Team button), 'challenge' (the New Team
+            # button on a ChallengeCard), 'fork' (copied from another team). NULL for teams
+            # predating this column and for admin/CLI inserts.
             cur.execute("""
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS creation_source TEXT;

@@ -11,7 +11,6 @@ import {
     type Team,
     type TeamSummary,
     type TeamUpdatePayload,
-    type TeamCreationSource,
 } from '../../api/userTeams';
 import { buildDefaultTeamPayload } from '../../domain/newTeam';
 import {
@@ -339,10 +338,7 @@ export default function TeamBuilder() {
     // straight onto the team page's setup step — there's no pre-creation modal anymore.
     // `challenge`, when set, is carried through so the page can offer "Play Challenge" as soon
     // as the roster is ready and pre-fills the budget / player filters.
-    async function createAndOpenTeam(
-        challenge?: ChallengeInstance,
-        creationSource: TeamCreationSource = 'new_team',
-    ) {
+    async function createAndOpenTeam(challenge?: ChallengeInstance) {
         if (!token || creatingTeam) return;
         setCreatingTeam(true);
         try {
@@ -350,12 +346,19 @@ export default function TeamBuilder() {
                 displayName,
                 showdownSet: userShowdownSet,
                 overrides: challenge ? {
+                    name: `${displayName} - ${challenge.title}`,
                     is_public: false,
                     pts_limit: challenge.pts_limit,
+                    // Challenge teams default to a 26-man roster (3 bench / 5 bullpen) to match
+                    // the modern active-roster shape the challenge flow assumes.
+                    roster_size: 26,
+                    num_starters: 5,
+                    min_bench: 3,
+                    min_bullpen: 5,
                     origin_template_id: challenge.template_id,
                     player_filters: challenge.player_filters,
-                    creation_source: creationSource,
-                } : { creation_source: creationSource },
+                    creation_source: 'challenge',
+                } : { creation_source: 'new_team' },
             });
             const newTeam = await createTeam(payload, token);
             createdThisSessionRef.current.add(newTeam.team_id);
@@ -370,9 +373,8 @@ export default function TeamBuilder() {
         }
     }
 
-    const handleNewTeam = () => createAndOpenTeam(undefined, 'new_team');
-    const handleQuickStart = (challenge: ChallengeInstance) => createAndOpenTeam(challenge, 'challenge_quick_start');
-    const handleBuildFromScratch = (challenge: ChallengeInstance) => createAndOpenTeam(challenge, 'challenge_from_scratch');
+    const handleNewTeam = () => createAndOpenTeam();
+    const handleChallengeNewTeam = (challenge: ChallengeInstance) => createAndOpenTeam(challenge);
 
     function handleUseExistingTeam(challenge: ChallengeInstance, teamId: string) {
         trackRecentTeam(teamId);
@@ -418,8 +420,7 @@ export default function TeamBuilder() {
                         initialChallenge={(location.state as { challenge?: ChallengeInstance } | null)?.challenge}
                         token={token}
                         onBack={() => navigate('/teams')}
-                        onQuickStart={handleQuickStart}
-                        onBuildFromScratch={handleBuildFromScratch}
+                        onNewTeam={handleChallengeNewTeam}
                         onUseExistingTeam={handleUseExistingTeam}
                         onOpenSeason={(teamId, jobId) => {
                             trackRecentTeam(teamId);
@@ -649,8 +650,7 @@ export default function TeamBuilder() {
                         trackRecentTeam(teamId);
                         navigate(`/teams/${teamId}/sim/${jobId}`);
                     }}
-                    onQuickStart={handleQuickStart}
-                    onBuildFromScratch={handleBuildFromScratch}
+                    onNewTeam={handleChallengeNewTeam}
                     onUseExistingTeam={handleUseExistingTeam}
                     onOpenChallenge={openChallenge}
                 />

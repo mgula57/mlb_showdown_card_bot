@@ -216,11 +216,11 @@ class Team(BaseModel):
     allowed_sets: list[str] = []
     allowed_sets_by_source: dict[str, list[str]] = {}
     allowed_card_sources: list[str] = []
-    # Which challenge_template this team was built for, if any (Quick Start / Build from Scratch
-    # routes set this; a team picked via the "use an existing team" route leaves it as-is).
+    # Which challenge_template this team was built for, if any (the challenge "New Team" route
+    # sets this; a team picked via the "use an existing team" route leaves it as-is).
     origin_template_id: Optional[str] = None
-    # How the team was first created, for later filtering: 'new_team', 'challenge_quick_start',
-    # 'challenge_from_scratch', 'fork'. None for teams predating this field / admin inserts.
+    # How the team was first created, for later filtering: 'new_team', 'challenge', 'fork'.
+    # None for teams predating this field / admin inserts.
     creation_source: Optional[str] = None
     # JSONB columns
     player_filters: dict = {}

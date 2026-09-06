@@ -18,8 +18,7 @@ type Props = {
     token?: string;
     horizontalPadding?: string;
     onOpenSeason: (teamId: string, jobId: string) => void;
-    onQuickStart: (challenge: ChallengeInstance) => void;
-    onBuildFromScratch: (challenge: ChallengeInstance) => void;
+    onNewTeam: (challenge: ChallengeInstance) => void;
     onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
     /** Navigates to the challenge's own shareable page (`/teams/challenges/:id`), owned by
      *  TeamBuilder since that's where the route lives. */
@@ -33,7 +32,7 @@ type Props = {
  * single challenge, so they're demoted to a quiet "Browse all sims" escape hatch rather than
  * removed outright.
  */
-export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onQuickStart, onBuildFromScratch, onUseExistingTeam, onOpenChallenge }: Props) {
+export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTeam, onUseExistingTeam, onOpenChallenge }: Props) {
     const [browsing, setBrowsing] = useState(false);
     const [browseView, setBrowseView] = useState<BrowseView>('leaderboard');
 
@@ -67,8 +66,7 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onQuick
             {/* Challenges grid */}
             <SimChallenges
                 token={token}
-                onQuickStart={onQuickStart}
-                onBuildFromScratch={onBuildFromScratch}
+                onNewTeam={onNewTeam}
                 onUseExistingTeam={onUseExistingTeam}
                 onSelectChallenge={onOpenChallenge}
             />

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-    FaDice, FaPen, FaListUl, FaSpinner, FaChevronDown, FaChevronUp,
+    FaPlus, FaListUl, FaSpinner, FaChevronDown, FaChevronUp,
     FaCalendarDays, FaShirt, FaSackDollar, FaFlagCheckered, FaClock, FaTrophy, FaChevronRight, FaFilter,
 } from 'react-icons/fa6';
 import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
@@ -10,8 +10,9 @@ import { TeamCard } from '../TeamCard';
 type Props = {
     challenge: ChallengeInstance;
     token?: string;
-    onQuickStart: (challenge: ChallengeInstance) => void;
-    onBuildFromScratch: (challenge: ChallengeInstance) => void;
+    /** Spins up a fresh team pre-configured for this challenge (budget, player filters,
+     *  26-man roster) and drops the user on the team editor's setup step. */
+    onNewTeam: (challenge: ChallengeInstance) => void;
     onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
     /** Present only in the list view — opens the challenge's own detail + scoped leaderboard.
      *  Omitted when this card is already the detail view's own header. */
@@ -68,13 +69,14 @@ function StatTile({ icon, label, value, fullWidth }: { icon: ReactNode; label: s
 
 /**
  * One live challenge instance: its goal/budget/club, the caller's own pass/fail badge, and the
- * three ways to bring a team to it. All three land on the normal team editor — a challenge team
- * is a real, permanent, editable team, not a throwaway roll.
+ * two ways to bring a team to it — a fresh team pre-configured for the challenge, or one of the
+ * caller's existing teams. Both land on the normal team editor — a challenge team is a real,
+ * permanent, editable team, not a throwaway roll.
  *
  * Sized for a small, high-value set (usually 3-6 live at once) rather than a dense scrolling
  * list, so it spends vertical space generously on a proper info grid instead of a cramped pill row.
  */
-export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScratch, onUseExistingTeam, onViewLeaderboard }: Props) {
+export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, onViewLeaderboard }: Props) {
     const [showExisting, setShowExisting] = useState(false);
     const [existingTeams, setExistingTeams] = useState<TeamSummary[] | null>(null);
     // Only populated when the challenge restricts players — null means "no restriction to
@@ -149,20 +151,13 @@ export function ChallengeCard({ challenge, token, onQuickStart, onBuildFromScrat
                         Build your team:
                     </h5>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                         <button
                             type="button"
-                            onClick={() => onQuickStart(challenge)}
+                            onClick={() => onNewTeam(challenge)}
                             className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[11px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
                         >
-                            <FaDice className="text-[11px]" /> Quick Start
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => onBuildFromScratch(challenge)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
-                        >
-                            <FaPen className="text-[10px]" /> From Scratch
+                            <FaPlus className="text-[10px]" /> New Team
                         </button>
                         <button
                             type="button"
