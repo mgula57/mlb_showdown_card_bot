@@ -170,7 +170,7 @@ export function DepthChartPanel({
     // from `benchBullpenSlotCounts` while editing; a read-only view just shows the filled rows.
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
     const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
-    const { bench: benchMin, bullpen: bullpenMin } = effectiveBenchBullpenMinimums(team);
+    const { bench: benchTarget, bullpen: bullpenTarget } = effectiveBenchBullpenMinimums(team);
     const benchSlots   = team.roster.filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
     const bullpenSlots = team.rotation.filter(r => !r.role.startsWith('SP')).slice().sort(byPointsDesc);
 
@@ -180,8 +180,10 @@ export function DepthChartPanel({
         rosterCount: team.roster.length,
         lineup: { filled: lineup.slots.length, target: 9 },
         rotation: { filled: filledStarters, target: team.num_starters ?? 5 },
-        bench: { filled: benchSlots.length, target: benchMin },
-        bullpen: { filled: bullpenSlots.length, target: bullpenMin },
+        bench: { filled: benchSlots.length, target: benchTarget },
+        bullpen: { filled: bullpenSlots.length, target: bullpenTarget },
+        benchMin: team.min_bench,
+        bullpenMin: team.min_bullpen,
     });
     const benchRowCount   = draftRows ? draftRows.bench   : benchSlots.length;
     const bullpenRowCount  = draftRows ? draftRows.bullpen : bullpenSlots.length;

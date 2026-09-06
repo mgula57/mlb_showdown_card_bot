@@ -50,11 +50,15 @@ type BucketFill = { filled: number; target: number };
 
 /**
  * How many bench / bullpen rows the draft UI should render (filled cards + trailing empty
- * "add" placeholders). Placeholders are shown up to each bucket's minimum; once the minimum
- * is met, one extra "add another" slot appears — but only while the roster still has room for
- * it after reserving every other bucket's unmet minimum. The lineup target is always 9; the
- * rotation target is `num_starters`; bench/bullpen targets come from
- * `effectiveBenchBullpenMinimums`.
+ * "add" placeholders). Placeholders are shown up to each bucket's displayed target; once
+ * every displayed slot is filled, one extra "add another" row appears — but only while the
+ * roster still has room for it after reserving every other bucket's unmet need.
+ *
+ * "Need" for lineup/rotation is the full target (`lineup` = 9, `rotation` = `num_starters`).
+ * For the sibling free-form bucket it's only the *hard* configured minimum (`benchMin` /
+ * `bullpenMin`), not its `effectiveBenchBullpenMinimums` target — so roster slack beyond the
+ * hard minimums is offered to bench AND bullpen, and the drafter decides where the last man
+ * goes. Once one bucket claims that slot the other's "add" row retracts.
  */
 export function benchBullpenSlotCounts(args: {
     rosterSize: number;
@@ -62,18 +66,31 @@ export function benchBullpenSlotCounts(args: {
     rosterCount: number;
     lineup: BucketFill;
     rotation: BucketFill;
+    /** `target` is the displayed (effective) minimum from `effectiveBenchBullpenMinimums`. */
     bench: BucketFill;
     bullpen: BucketFill;
+    /** Hard configured `min_bench` / `min_bullpen` — what the sibling bucket must reserve. */
+    benchMin: number;
+    bullpenMin: number;
 }): { bench: number; bullpen: number } {
-    const rowsFor = (self: BucketFill, others: BucketFill[]): number => {
-        const base = Math.max(self.target, self.filled);
-        if (self.filled < self.target) return base;
-        const otherDeficit = others.reduce((sum, o) => sum + Math.max(0, o.target - o.filled), 0);
-        const free = args.rosterSize - args.rosterCount - otherDeficit;
-        return base + (free >= 1 ? 1 : 0);
+    const deficit = (target: number, filled: number) => Math.max(0, target - filled);
+    const fixedDeficit =
+        deficit(args.lineup.target, args.lineup.filled) +
+        deficit(args.rotation.target, args.rotation.filled);
+
+    const rowsFor = (self: BucketFill, selfMin: number, otherReserved: number): number => {
+        const floor = Math.max(selfMin, self.filled);
+        const free = args.rosterSize - args.rosterCount - otherReserved;
+        if (free <= 0) return floor;
+        const target = Math.max(self.target, floor);
+        const withAdd = self.filled >= self.target ? target + 1 : target;
+        return Math.min(withAdd, floor + free);
     };
+
     return {
-        bench: rowsFor(args.bench, [args.lineup, args.rotation, args.bullpen]),
-        bullpen: rowsFor(args.bullpen, [args.lineup, args.rotation, args.bench]),
+        bench: rowsFor(args.bench, args.benchMin,
+            fixedDeficit + deficit(args.bullpenMin, args.bullpen.filled)),
+        bullpen: rowsFor(args.bullpen, args.bullpenMin,
+            fixedDeficit + deficit(args.benchMin, args.bench.filled)),
     };
 }

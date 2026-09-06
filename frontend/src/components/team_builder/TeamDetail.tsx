@@ -593,8 +593,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         const filledStarters = draft.rotation.filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).length;
         const filledBench = draft.roster.filter(s => s.roster_position === 'BE').length;
         const filledBullpen = draft.rotation.filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).length;
-        const filled = filledLineup + Math.min(filledStarters, draft.num_starters) + Math.min(filledBench, benchTarget) + Math.min(filledBullpen, bullpenTarget);
-        const total = 9 + draft.num_starters + benchTarget + bullpenTarget;
+        // Slack slots beyond the hard minimums can land in bench OR bullpen (drafter's call),
+        // so they count toward progress from whichever bucket ran over — not against each
+        // bucket's effective target individually.
+        const extra = Math.max(0, draft.roster_size - (9 + draft.num_starters + draft.min_bench + draft.min_bullpen));
+        const filledExtra = Math.min(extra,
+            Math.max(0, filledBench - draft.min_bench) + Math.max(0, filledBullpen - draft.min_bullpen));
+        const filled = filledLineup
+            + Math.min(filledStarters, draft.num_starters)
+            + Math.min(filledBench, draft.min_bench)
+            + Math.min(filledBullpen, draft.min_bullpen)
+            + filledExtra;
+        const total = 9 + draft.num_starters + draft.min_bench + draft.min_bullpen + extra;
         // Per-bucket fill. Lineup is a hard 9; rotation/bench/bullpen have no fixed cap, so the
         // target is the minimum plus this bucket's share of the leftover roster slots — exactly
         // what `effectiveBenchBullpenMinimums` already worked out for bench/bullpen.
@@ -656,7 +666,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         rotation: rosterProgress.buckets.rotation,
         bench: rosterProgress.buckets.bench,
         bullpen: rosterProgress.buckets.bullpen,
-    }), [draft.roster_size, draft.roster.length, rosterProgress.buckets]);
+        benchMin: draft.min_bench,
+        bullpenMin: draft.min_bullpen,
+    }), [draft.roster_size, draft.roster.length, draft.min_bench, draft.min_bullpen, rosterProgress.buckets]);
 
     const rosterData: FieldViewRosterData = useMemo(() => ({
         roster: draft.roster,
