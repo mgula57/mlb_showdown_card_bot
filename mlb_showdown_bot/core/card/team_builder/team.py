@@ -222,8 +222,22 @@ class Team(BaseModel):
     # How the team was first created, for later filtering: 'new_team', 'challenge', 'fork'.
     # None for teams predating this field / admin inserts.
     creation_source: Optional[str] = None
+    # Curation metadata — only set on admin-published (`source == 'official'`) teams. A team
+    # belongs to at most one collection (see internal.team_collection); `subtitle` / `credit`
+    # are the display blurb and attribution shown on the tile and detail header. Audit fields
+    # record which admin published it and from which working copy.
+    collection_slug: Optional[str] = None
+    subtitle: Optional[str] = None
+    credit: Optional[str] = None
+    collection_sort_index: Optional[int] = None
+    published_by: Optional[str] = None
+    published_at: Optional[datetime] = None
+    origin_published_from: Optional[str] = None
     # JSONB columns
     player_filters: dict = {}
+    # Strategy-deck card counts for a curated team ({"Great Throw": 3, ...}). Stored as-is;
+    # not modelled further. Empty for teams built in the drafting flow.
+    strategy_deck: dict = {}
     roster: list[TeamRosterSlot] = []
     lineups: list[Lineup] = []
     rotation: list[PitcherAssignment] = []
@@ -285,6 +299,14 @@ class Team(BaseModel):
             'allowed_card_sources': self.allowed_card_sources,
             'origin_template_id': self.origin_template_id,
             'creation_source': self.creation_source,
+            'collection_slug': self.collection_slug,
+            'subtitle': self.subtitle,
+            'credit': self.credit,
+            'collection_sort_index': self.collection_sort_index,
+            'published_by': self.published_by,
+            'published_at': self.published_at,
+            'origin_published_from': self.origin_published_from,
+            'strategy_deck': self.strategy_deck,
             'player_filters': self.player_filters,
             'roster': [s.model_dump() for s in self.roster],
             'lineups': [ln.model_dump() for ln in self.stored_lineups],
@@ -324,6 +346,14 @@ class Team(BaseModel):
             allowed_card_sources=row.get('allowed_card_sources') or [],
             origin_template_id=row.get('origin_template_id'),
             creation_source=row.get('creation_source'),
+            collection_slug=row.get('collection_slug'),
+            subtitle=row.get('subtitle'),
+            credit=row.get('credit'),
+            collection_sort_index=row.get('collection_sort_index'),
+            published_by=row.get('published_by'),
+            published_at=row.get('published_at'),
+            origin_published_from=row.get('origin_published_from'),
+            strategy_deck=row.get('strategy_deck') or {},
             player_filters=row.get('player_filters') or {},
             roster=[TeamRosterSlot(**s) for s in roster_rows],
             lineups=[

@@ -25,14 +25,15 @@ import { TeamPreviewCard } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
 import { TeamDetail } from './TeamDetail';
 import { TeamBuilderWelcome } from './TeamBuilderWelcome';
-import { CommunityTeams } from './CommunityTeams';
-import { HistoricalTeams, asgIdentity, type HistoricalNavState } from './HistoricalTeams';
+import { BrowseTeams } from './BrowseTeams';
+import { CollectionDetail } from './CollectionDetail';
+import { asgIdentity, type HistoricalNavState } from './HistoricalTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
 import { ChallengeDetail } from './sim/ChallengeDetail';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import BackButton from '../shared/BackButton';
-import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaClockRotateLeft, FaRankingStar } from 'react-icons/fa6';
+import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar } from 'react-icons/fa6';
 import type { ChallengeInstance } from '../../api/sim';
 
 // A team can be addressed by URL three ways: a saved UUID, a historical MLB team, or an All-Star team.
@@ -50,7 +51,7 @@ function parseTeamRef(pathname: string): TeamRef | null {
     if (parts[1] === 'asg' && parts[3] !== undefined) {
         return { kind: 'asg', season: parts[2], league: parts[3].toUpperCase() };
     }
-    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges' && parts[1] !== 'all') {
+    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges' && parts[1] !== 'all' && parts[1] !== 'collections') {
         return { kind: 'saved', teamId: parts[1] };
     }
     return null;
@@ -75,6 +76,12 @@ function parseChallengeInstanceId(pathname: string): string | null {
 function isAllTeamsView(pathname: string): boolean {
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'all';
+}
+
+// A curated collection has its own shareable page at /teams/collections/:slug.
+function parseCollectionSlug(pathname: string): string | null {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'collections' && parts[2] ? parts[2] : null;
 }
 
 // =============================================================================
@@ -113,15 +120,15 @@ type ViewState =
 // until the user hits "Show all", which also reveals a search bar over the full list.
 const TEAM_LIST_PREVIEW_COUNT = 10;
 
-type TabId = 'mine' | 'community' | 'historical' | 'simulations';
+type TabId = 'mine' | 'browse' | 'simulations';
 const ACTIVE_TAB_KEY = 'teams.activeTab';
-const TAB_IDS: TabId[] = ['mine', 'community', 'historical', 'simulations'];
-// `shortLabel` keeps four tabs readable on a phone; the full label returns at sm.
+const TAB_IDS: TabId[] = ['mine', 'browse', 'simulations'];
+// Legacy stored values from when Community and Historical were their own tabs.
+const LEGACY_TAB_MAP: Record<string, TabId> = { community: 'browse', historical: 'browse' };
 const TABS: TabItem<TabId>[] = [
     { id: 'mine', label: 'My Teams', shortLabel: 'Mine', icon: <FaUsers /> },
     { id: 'simulations', label: 'Challenges', shortLabel: 'Challenges', icon: <FaRankingStar /> },
-    { id: 'community', label: 'Community', shortLabel: 'Community', icon: <FaGlobe /> },
-    { id: 'historical', label: 'Historical', shortLabel: 'Historical', icon: <FaClockRotateLeft /> },
+    { id: 'browse', label: 'Browse', shortLabel: 'Browse', icon: <FaGlobe /> },
 ];
 
 export default function TeamBuilder() {
@@ -144,7 +151,8 @@ export default function TeamBuilder() {
     const [teamSearch, setTeamSearch] = useState('');
     const [activeTab, setActiveTab] = useState<TabId>(() => {
         const stored = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_TAB_KEY) : null;
-        return TAB_IDS.includes(stored as TabId) ? (stored as TabId) : 'mine';
+        const mapped = (stored && LEGACY_TAB_MAP[stored]) || stored;
+        return TAB_IDS.includes(mapped as TabId) ? (mapped as TabId) : 'mine';
     });
 
     // UX Spacing
@@ -190,6 +198,7 @@ export default function TeamBuilder() {
     const simJobId = parseSimJobId(location.pathname);
     const challengeInstanceId = parseChallengeInstanceId(location.pathname);
     const allTeamsView = isAllTeamsView(location.pathname);
+    const collectionSlug = parseCollectionSlug(location.pathname);
     // The team currently resolved into the editor, so we don't re-resolve on re-render. Keyed on
     // the ref rather than the pathname so entering/leaving a sim URL doesn't refetch the team.
     const teamRefKey = teamRef ? JSON.stringify(teamRef) : null;
@@ -404,6 +413,20 @@ export default function TeamBuilder() {
         setView(prev => prev.mode === 'editor' && prev.team.team_id === teamId
             ? { ...prev, team: saved }
             : prev
+        );
+    }
+
+    // A curated collection's own shareable page.
+    if (collectionSlug) {
+        return (
+            <div className="@container w-full">
+                <CollectionDetail
+                    slug={collectionSlug}
+                    onOpenTeam={openTeam}
+                    onBack={() => { setActiveTab('browse'); navigate('/teams'); }}
+                    horizontalPadding={px}
+                />
+            </div>
         );
     }
 
@@ -631,14 +654,9 @@ export default function TeamBuilder() {
                 </>
             )}
 
-            {/* Community tab */}
-            {activeTab === 'community' && (
-                <CommunityTeams onOpen={openTeam} horizontalPadding={px} currentUserId={session?.user?.id} />
-            )}
-
-            {/* Historical tab */}
-            {activeTab === 'historical' && (
-                <HistoricalTeams horizontalPadding={px} />
+            {/* Browse tab — featured collections, community teams, and historical rosters */}
+            {activeTab === 'browse' && (
+                <BrowseTeams onOpenTeam={openTeam} horizontalPadding={px} currentUserId={session?.user?.id} />
             )}
 
             {/* Team Challenges tab */}

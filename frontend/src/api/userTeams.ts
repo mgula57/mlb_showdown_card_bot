@@ -73,6 +73,12 @@ export type Team = {
     origin_template_id: string | null;
     /** How this team was first created — null for teams built before the field existed. */
     creation_source: TeamCreationSource | null;
+    /** Curation fields — set only on admin-published (`source: 'official'`) teams. */
+    collection_slug?: string | null;
+    subtitle?: string | null;
+    credit?: string | null;
+    collection_sort_index?: number | null;
+    strategy_deck?: Record<string, number> | null;
     player_filters: Record<string, unknown> | null;
     roster: TeamRosterSlot[];
     lineups: Lineup[];
@@ -109,12 +115,29 @@ export type TeamSummary = {
     allowed_card_sources: string[] | null;
     origin_template_id: string | null;
     creation_source: TeamCreationSource | null;
+    collection_slug?: string | null;
+    subtitle?: string | null;
+    credit?: string | null;
+    collection_sort_index?: number | null;
     created_at: string | null;
     updated_at: string | null;
     total_points: number;
     roster_count: number;
     is_drafting: boolean;
     top_players: CardDatabaseRecord[];
+};
+
+/** A browseable grouping of admin-published teams (internal.team_collection). */
+export type TeamCollection = {
+    slug: string;
+    title: string;
+    description: string | null;
+    cover_emoji: string | null;
+    sort_index: number;
+    is_visible: boolean;
+    team_count: number;
+    /** Present on the public /teams/collections payload, absent on the admin list. */
+    teams?: TeamSummary[];
 };
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
@@ -130,7 +153,8 @@ export const ROTATION_ROLES: string[] = Array.from({ length: MAX_STARTERS }, (_,
 export const BULLPEN_ROLES: string[] = ['RP', 'CL'];
 
 export function isTeamDrafting(team: Team): boolean {
-    if (team.source === 'mlb') return false;
+    // Synthesized (mlb) and admin-curated (official) rosters are always shown as finished.
+    if (team.source === 'mlb' || team.source === 'official') return false;
 
     const slots = team.lineups[0]?.slots ?? [];
     const filledLineup = FIELD_POSITIONS.filter(pos => slots.some(s => s.field_position === pos)).length;
@@ -194,13 +218,95 @@ export async function fetchUserTeams(token: string): Promise<TeamSummary[]> {
     return res.json();
 }
 
-export async function fetchPublicTeams(source?: TeamSource, limit = 50, offset = 0, q?: string): Promise<TeamSummary[]> {
+export async function fetchPublicTeams(
+    source?: TeamSource | TeamSource[],
+    limit = 50,
+    offset = 0,
+    q?: string,
+    collection?: string,
+): Promise<TeamSummary[]> {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-    if (source) params.set('source', source);
+    if (source) params.set('source', Array.isArray(source) ? source.join(',') : source);
     if (q) params.set('q', q);
+    if (collection) params.set('collection', collection);
     const res = await fetch(`${API_BASE}/teams/public?${params}`);
     if (!res.ok) throw new Error(`Failed to fetch public teams: ${res.status}`);
     return res.json();
+}
+
+/** Public: visible curated collections, each with its published teams. */
+export async function fetchTeamCollections(): Promise<TeamCollection[]> {
+    const res = await fetch(`${API_BASE}/teams/collections`);
+    if (!res.ok) throw new Error(`Failed to fetch collections: ${res.status}`);
+    return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Admin — curated team publishing (gated server-side by the admin allowlist)
+// ---------------------------------------------------------------------------
+
+function adminHeaders(token: string) {
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+}
+
+export async function fetchAdminCollections(token: string): Promise<TeamCollection[]> {
+    const res = await fetch(`${API_BASE}/admin/collections`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`Failed to fetch collections: ${res.status}`);
+    return res.json();
+}
+
+export async function upsertAdminCollection(
+    token: string,
+    collection: Pick<TeamCollection, 'slug' | 'title'> & Partial<Pick<TeamCollection, 'description' | 'cover_emoji' | 'sort_index' | 'is_visible'>>,
+): Promise<TeamCollection> {
+    const res = await fetch(`${API_BASE}/admin/collections`, {
+        method: 'POST', headers: adminHeaders(token), body: JSON.stringify(collection),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Failed: ${res.status}`);
+    return res.json();
+}
+
+export async function deleteAdminCollection(token: string, slug: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/admin/collections/${slug}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Failed: ${res.status}`);
+}
+
+export type PublishTeamPayload = {
+    source_team_id: string;
+    collection_slug: string | null;
+    subtitle?: string | null;
+    credit?: string | null;
+    collection_sort_index?: number | null;
+    strategy_deck?: Record<string, number> | null;
+};
+
+export async function publishTeam(token: string, payload: PublishTeamPayload): Promise<Team> {
+    const res = await fetch(`${API_BASE}/admin/teams/publish`, {
+        method: 'POST', headers: adminHeaders(token), body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Failed to publish: ${res.status}`);
+    return res.json();
+}
+
+export async function adminUpdateTeam(
+    token: string,
+    teamId: string,
+    updates: Partial<Pick<Team, 'collection_slug' | 'subtitle' | 'credit' | 'collection_sort_index' | 'strategy_deck' | 'name' | 'primary_color' | 'secondary_color'>>,
+): Promise<Team> {
+    const res = await fetch(`${API_BASE}/admin/teams/${teamId}`, {
+        method: 'PUT', headers: adminHeaders(token), body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Failed: ${res.status}`);
+    return res.json();
+}
+
+export async function adminDeleteTeam(token: string, teamId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/admin/teams/${teamId}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Failed: ${res.status}`);
 }
 
 export async function fetchTeam(teamId: string, token?: string): Promise<Team> {

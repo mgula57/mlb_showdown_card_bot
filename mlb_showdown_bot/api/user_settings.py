@@ -6,9 +6,19 @@ import jwt
 from jwt.algorithms import ECAlgorithm
 from flask import Blueprint, g, jsonify, request
 
+from config import Config
 from ..core.database.postgres_db import PostgresDB
 
 user_settings_bp = Blueprint('user_settings', __name__)
+
+
+def is_admin(user_id: str | None, email: str | None = None) -> bool:
+    """True when the Supabase user id (or email) is on the admin allowlist (see config)."""
+    if user_id and user_id in Config.ADMIN_USER_IDS:
+        return True
+    if email and email.lower() in Config.ADMIN_EMAILS:
+        return True
+    return False
 
 
 def require_auth(f):
@@ -65,6 +75,19 @@ def require_auth(f):
         if not user_id:
             return jsonify({'error': 'Token missing sub claim'}), 401
         g.user_id = user_id
+        g.user_email = payload.get('email')
+        g.is_admin = is_admin(user_id, g.user_email)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def require_admin(f):
+    """Like require_auth, but 403s unless the caller is on the admin allowlist."""
+    @wraps(f)
+    @require_auth
+    def decorated(*args, **kwargs):
+        if not getattr(g, 'is_admin', False):
+            return jsonify({'error': 'Admin access required'}), 403
         return f(*args, **kwargs)
     return decorated
 
@@ -118,7 +141,7 @@ def get_user_settings():
     try:
         with PostgresDB() as db:
             settings = db.get_user_settings(g.user_id)
-        return jsonify(settings or {}), 200
+        return jsonify({**(settings or {}), 'is_admin': bool(getattr(g, 'is_admin', False))}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

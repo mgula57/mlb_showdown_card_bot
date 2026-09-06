@@ -26,7 +26,7 @@ export type TeamPreviewData = {
     /** Small ribbon in the top-left, e.g. a year or "ALL-STAR". */
     badge?: string;
     /** Small line under the name (e.g. set name, roster count) shown when there are no points. */
-    subtitle?: string;
+    subtitle?: string | null;
     /** Uploaded team logo image, shown next to the abbreviation. Historical/ASG tiles have none. */
     logo_url?: string | null;
     /** Owner's user id — used to show the viewer's own avatar only on their own teams. */

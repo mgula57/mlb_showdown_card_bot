@@ -37,11 +37,17 @@ type CommunityTeamsProps = {
     horizontalPadding?: string;
     /** Signed-in user's id — their own public teams are hidden here (they live under "My Teams"). */
     currentUserId?: string | null;
+    /** When embedded in the Browse tab, the parent owns the search box — hide the local one. */
+    hideSearch?: boolean;
+    /** Search query supplied by the parent when `hideSearch` is set. */
+    externalQuery?: string;
 };
 
 /** Browse other users' public teams music-app style: shelves of preview tiles, with search-as-a-mode. */
-export function CommunityTeams({ onOpen, horizontalPadding, currentUserId }: CommunityTeamsProps) {
-    const [query, setQuery] = useState('');
+export function CommunityTeams({ onOpen, horizontalPadding, currentUserId, hideSearch = false, externalQuery }: CommunityTeamsProps) {
+    const [internalQuery, setInternalQuery] = useState('');
+    const query = hideSearch ? (externalQuery ?? '') : internalQuery;
+    const setQuery = setInternalQuery;
     const [sortBy, setSortBy] = useState<SortKey>('recent');
     const [allTeams, setAllTeams] = useState<TeamSummary[]>([]);
     const [loading, setLoading] = useState(true);
@@ -98,14 +104,16 @@ export function CommunityTeams({ onOpen, horizontalPadding, currentUserId }: Com
 
     return (
         <div className="flex flex-col gap-5">
-            {/* Search bar */}
-            <div className={px}>
-                <TeamSearchInput
-                    value={query}
-                    onChange={setQuery}
-                    placeholder="Search public teams by name or set (e.g. Expanded)…"
-                />
-            </div>
+            {/* Search bar — hidden when the Browse tab supplies the query */}
+            {!hideSearch && (
+                <div className={px}>
+                    <TeamSearchInput
+                        value={query}
+                        onChange={setQuery}
+                        placeholder="Search public teams by name or set (e.g. Expanded)…"
+                    />
+                </div>
+            )}
 
             {error && (
                 <div className={`${px} text-[12px] text-red-400`}>

@@ -4495,6 +4495,8 @@ class PostgresDB:
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
             t.origin_template_id, t.creation_source,
+            t.collection_slug, t.subtitle, t.credit, t.collection_sort_index,
+            t.published_by, t.published_at, t.origin_published_from, t.strategy_deck,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -4568,6 +4570,7 @@ class PostgresDB:
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
             t.origin_template_id, t.creation_source,
+            t.collection_slug, t.subtitle, t.credit, t.collection_sort_index,
             COUNT(r.card_id) AS roster_count,
             COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
             COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
@@ -4738,6 +4741,27 @@ class PostgresDB:
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS creation_source TEXT;
             """)
+            # Curation metadata for admin-published teams (source = 'official'). `collection_slug`
+            # groups a team under a browseable collection (internal.team_collection); `subtitle` /
+            # `credit` are the display blurb + attribution; `collection_sort_index` orders tiles
+            # within the collection. `strategy_deck` holds card-count JSON for a curated tournament
+            # team. The three `published_*` fields are audit only. All NULL for drafted user teams.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS collection_slug        TEXT,
+                    ADD COLUMN IF NOT EXISTS subtitle               TEXT,
+                    ADD COLUMN IF NOT EXISTS credit                 TEXT,
+                    ADD COLUMN IF NOT EXISTS collection_sort_index  INT,
+                    ADD COLUMN IF NOT EXISTS strategy_deck          JSONB DEFAULT '{}',
+                    ADD COLUMN IF NOT EXISTS published_by           TEXT,
+                    ADD COLUMN IF NOT EXISTS published_at           TIMESTAMP WITHOUT TIME ZONE,
+                    ADD COLUMN IF NOT EXISTS origin_published_from   UUID;
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_teams_collection
+                    ON internal.user_teams (collection_slug)
+                    WHERE collection_slug IS NOT NULL;
+            """)
             # lineups/rotation are now derived from the roster (user_team_roster.roster_position),
             # so drop the redundant JSONB columns.
             cur.execute("""
@@ -4765,6 +4789,94 @@ class PostgresDB:
                     ON internal.user_team_lineups (team_id);
             """)
 
+    def build_team_collection_table(self) -> None:
+        """Create internal.team_collection — the browseable groupings for admin-published teams.
+
+        Hand-authored (via the admin UI or the `teams collections` CLI) and rarely change.
+        A team joins a collection through internal.user_teams.collection_slug. Run after
+        build_user_teams_table.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.team_collection (
+                    slug         TEXT PRIMARY KEY,
+                    title        TEXT NOT NULL,
+                    description  TEXT,
+                    cover_emoji  TEXT,
+                    sort_index   INT NOT NULL DEFAULT 0,
+                    is_visible   BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+
+    # ------------------------------------------------------------------
+    # TEAM COLLECTIONS (admin-curated groupings)
+    # ------------------------------------------------------------------
+
+    def get_team_collections(self, include_hidden: bool = False) -> list[dict]:
+        """Return collections ordered by sort_index, each with a `team_count`.
+
+        `include_hidden=False` (the public path) drops collections flagged is_visible = FALSE.
+        """
+        if not self.connection:
+            return []
+        where = "" if include_hidden else "WHERE c.is_visible = TRUE"
+        query = f"""
+            SELECT c.slug, c.title, c.description, c.cover_emoji, c.sort_index, c.is_visible,
+                   COUNT(t.team_id) FILTER (
+                       WHERE t.is_public = TRUE AND t.source = 'official'
+                   ) AS team_count
+            FROM internal.team_collection c
+            LEFT JOIN internal.user_teams t ON t.collection_slug = c.slug
+            {where}
+            GROUP BY c.slug
+            ORDER BY c.sort_index ASC, c.title ASC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query)
+            rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r['team_count'] = int(r.get('team_count') or 0)
+        return rows
+
+    def upsert_team_collection(self, slug: str, **fields) -> dict:
+        """Insert or update a collection. `fields` may include title, description, cover_emoji,
+        sort_index, is_visible. Returns the stored row."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        allowed = {'title', 'description', 'cover_emoji', 'sort_index', 'is_visible'}
+        data = {k: v for k, v in fields.items() if k in allowed and v is not None}
+        cols = ['slug'] + list(data.keys())
+        vals = [slug] + list(data.values())
+        updates = ', '.join(f"{k} = EXCLUDED.{k}" for k in data) or "slug = EXCLUDED.slug"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""INSERT INTO internal.team_collection ({', '.join(cols)})
+                    VALUES ({', '.join(['%s'] * len(cols))})
+                    ON CONFLICT (slug) DO UPDATE SET {updates}, updated_at = NOW()
+                    RETURNING slug, title, description, cover_emoji, sort_index, is_visible""",
+                vals,
+            )
+            return dict(cur.fetchone())
+
+    def delete_team_collection(self, slug: str) -> str | None:
+        """Delete a collection. Refuses (returns 'in_use') while any team references it, else
+        returns 'deleted', or None if no such collection."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM internal.user_teams WHERE collection_slug = %s LIMIT 1", (slug,)
+            )
+            if cur.fetchone():
+                return 'in_use'
+            cur.execute("DELETE FROM internal.team_collection WHERE slug = %s", (slug,))
+            return 'deleted' if cur.rowcount > 0 else None
+
     def get_user_teams(self, user_id: str) -> list[dict]:
         """Return lightweight summaries for all teams belonging to user_id, newest first."""
         if not self.connection:
@@ -4779,15 +4891,32 @@ class PostgresDB:
             rows = [dict(r) for r in cur.fetchall()]
         return self._serialize_team_summaries(rows)
 
-    def get_public_teams(self, source: str | None = None, limit: int = 50, offset: int = 0, q: str | None = None) -> list[dict]:
-        """Return public teams, optionally filtered by source ('official', 'asg', 'user') and a name search."""
+    def get_public_teams(
+        self,
+        source: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        q: str | None = None,
+        collection: str | None = None,
+    ) -> list[dict]:
+        """Return public teams, optionally filtered by source and a name search.
+
+        `source` accepts a single value ('official', 'asg', 'user') or a comma-separated list
+        ('official,user') for the unified Browse view. `collection` narrows to one curated
+        collection's teams (implies the official source).
+        """
         if not self.connection:
             return []
         conditions = ["t.is_public = TRUE"]
         params: list = []
-        if source:
-            conditions.append("t.source = %s")
-            params.append(source)
+        sources = [s.strip() for s in source.split(',')] if source else []
+        sources = [s for s in sources if s]
+        if sources:
+            conditions.append("t.source = ANY(%s)")
+            params.append(sources)
+        if collection:
+            conditions.append("t.collection_slug = %s")
+            params.append(collection)
         if q:
             conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s)")
             like = f"%{q}%"
@@ -4796,7 +4925,7 @@ class PostgresDB:
         query = self._TEAM_SUMMARY_SELECT + f"""
             WHERE {where}
             GROUP BY t.team_id, tp.refs
-            ORDER BY t.source ASC, t.name ASC
+            ORDER BY t.source ASC, t.collection_sort_index ASC NULLS LAST, t.name ASC
             LIMIT %s OFFSET %s
         """
         params += [limit, offset]
@@ -4894,14 +5023,14 @@ class PostgresDB:
 
     def admin_upsert_team(self, payload: dict) -> str:
         """Insert or update a team with no user_id ownership check (admin/CLI use only).
-        If team_id is present in payload, attempts UPDATE first, then INSERT on miss.
-        Returns team_id."""
+        If team_id is present in payload, attempts UPDATE first, then INSERT on miss (keeping
+        the caller-supplied team_id, so bulk imports are idempotent). Returns team_id."""
         if not self.connection:
             raise RuntimeError("No database connection")
         roster = payload.get('roster', [])
         lineups = payload.get('lineups', [])
         team_id = payload.get('team_id')
-        fields = self._team_payload_fields(payload)
+        fields = self._admin_team_payload_fields(payload)
         with self.connection.cursor() as cur:
             if team_id:
                 set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
@@ -4917,9 +5046,10 @@ class PostgresDB:
                     self._upsert_roster(cur, team_id, roster)
                     self._upsert_lineups(cur, team_id, lineups)
                     return team_id
-            cols = ', '.join(['user_id'] + list(fields.keys()))
-            placeholders = ', '.join(['%s'] * (1 + len(fields)))
-            values = [None] + [
+            has_id = bool(team_id)
+            cols = ', '.join((['team_id'] if has_id else []) + ['user_id'] + list(fields.keys()))
+            placeholders = ', '.join(['%s'] * ((1 if has_id else 0) + 1 + len(fields)))
+            values = ([team_id] if has_id else []) + [None] + [
                 PostgresDB._serialize_team_field(k, v)
                 for k, v in fields.items()
             ]
@@ -4929,7 +5059,94 @@ class PostgresDB:
             )
             team_id = str(cur.fetchone()[0])
             self._upsert_roster(cur, team_id, roster)
+            self._upsert_lineups(cur, team_id, lineups)
             return team_id
+
+    def admin_update_team(self, team_id: str, payload: dict) -> bool:
+        """Update a team by id with no ownership check (admin only). Writes the admin-writable
+        column set plus roster/lineups when present. Returns True if the row exists."""
+        if not self.connection:
+            return False
+        roster = payload.get('roster')
+        lineups = payload.get('lineups')
+        fields = self._admin_team_payload_fields(payload)
+        with self.connection.cursor() as cur:
+            cur.execute("SELECT 1 FROM internal.user_teams WHERE team_id = %s", (team_id,))
+            if not cur.fetchone():
+                return False
+            if fields:
+                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                values = [PostgresDB._serialize_team_field(k, v) for k, v in fields.items()]
+                cur.execute(
+                    f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s",
+                    values + [team_id],
+                )
+            if roster is not None:
+                self._upsert_roster(cur, team_id, roster)
+            if lineups is not None:
+                self._upsert_lineups(cur, team_id, lineups)
+        return True
+
+    def admin_delete_team(self, team_id: str) -> bool:
+        """Delete a team by id with no ownership check (admin only). Returns True if a row went."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("DELETE FROM internal.user_teams WHERE team_id = %s", (team_id,))
+            return cur.rowcount > 0
+
+    def find_published_team_id(self, origin_team_id: str) -> str | None:
+        """The curated ('official') team previously published from `origin_team_id`, if any."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "SELECT team_id FROM internal.user_teams "
+                "WHERE origin_published_from = %s AND source = 'official' LIMIT 1",
+                (origin_team_id,),
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
+    def resolve_wotc_card(
+        self, name: str, showdown_set: str | None = None, year: str | int | None = None,
+        team: str | None = None, limit: int = 8,
+    ) -> list[dict]:
+        """Fuzzy-match a player name against card_wotc for the CLI tournament importer.
+
+        Returns candidate rows (card_id, name, year, showdown_set, team, points, is_pitcher)
+        ranked by match quality then points. `showdown_set` / `year` / `team` narrow the pool
+        when the source file supplies them.
+        """
+        if not self.connection:
+            return []
+        conditions = ["name ILIKE %s"]
+        params: list = [f"%{name}%"]
+        if showdown_set:
+            conditions.append("showdown_set = %s")
+            params.append(str(showdown_set))
+        if year is not None:
+            conditions.append("year = %s")
+            params.append(str(year))
+        if team:
+            conditions.append("team = %s")
+            params.append(team.upper())
+        params.extend([name.lower(), f"{name.lower()}%", limit])
+        query = f"""
+            SELECT card_id, name, year, showdown_set, team, points, is_pitcher,
+                   CASE
+                       WHEN LOWER(name) = %s THEN 1
+                       WHEN LOWER(name) LIKE %s THEN 2
+                       ELSE 3
+                   END AS match_rank
+            FROM card_wotc
+            WHERE {' AND '.join(conditions)} AND card_id IS NOT NULL
+            ORDER BY match_rank ASC, points DESC NULLS LAST
+            LIMIT %s
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            return [dict(r) for r in cur.fetchall()]
 
     @staticmethod
     def _upsert_roster(cur, team_id: str, roster: list) -> None:
@@ -4990,7 +5207,7 @@ class PostgresDB:
             VALUES %s
         """, batch)
 
-    _TEAM_JSONB_FIELDS = frozenset({'player_filters', 'allowed_sets_by_source'})
+    _TEAM_JSONB_FIELDS = frozenset({'player_filters', 'allowed_sets_by_source', 'strategy_deck'})
 
     @staticmethod
     def _serialize_team_field(key: str, value) -> object:
@@ -4999,16 +5216,28 @@ class PostgresDB:
             return extras.Json(value)
         return value
 
+    # Columns a team's owner may write through the normal create/update routes. `source` and the
+    # curation columns are deliberately absent — only the admin routes (_ADMIN_TEAM_FIELDS) set
+    # those, so a user can't self-publish a team as 'official' or slot it into a collection.
+    _USER_TEAM_FIELDS = {
+        'name', 'abbreviation', 'primary_color', 'secondary_color',
+        'is_public', 'logo_url',
+        'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
+        'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
+        'origin_template_id', 'creation_source',
+    }
+    _ADMIN_TEAM_FIELDS = _USER_TEAM_FIELDS | {
+        'source', 'collection_slug', 'subtitle', 'credit', 'collection_sort_index',
+        'strategy_deck', 'published_by', 'published_at', 'origin_published_from',
+    }
+
     @staticmethod
     def _team_payload_fields(payload: dict) -> dict:
-        ALLOWED = {
-            'name', 'abbreviation', 'primary_color', 'secondary_color',
-            'is_public', 'source', 'logo_url',
-            'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
-            'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
-            'origin_template_id', 'creation_source',
-        }
-        return {k: v for k, v in payload.items() if k in ALLOWED}
+        return {k: v for k, v in payload.items() if k in PostgresDB._USER_TEAM_FIELDS}
+
+    @staticmethod
+    def _admin_team_payload_fields(payload: dict) -> dict:
+        return {k: v for k, v in payload.items() if k in PostgresDB._ADMIN_TEAM_FIELDS}
 
     @staticmethod
     def _serialize_team_row(row: dict) -> dict:
@@ -5066,7 +5295,9 @@ class PostgresDB:
     @staticmethod
     def _compute_is_drafting(row: dict) -> bool:
         """Mirror the frontend isTeamDrafting thresholds using roster position counts."""
-        if row.get('source') == 'mlb':
+        # Synthesized (mlb) and admin-curated (official) rosters are presented as finished
+        # regardless of shape — they're never drafted in the builder.
+        if row.get('source') in ('mlb', 'official'):
             return False
         if (row.get('filled_field') or 0) < 9:
             return True

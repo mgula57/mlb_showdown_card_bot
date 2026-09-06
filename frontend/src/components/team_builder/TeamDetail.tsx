@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
+import { useAuth } from '../auth/AuthContext';
+import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
 import { TeamLogo } from './TeamLogo';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -176,6 +178,9 @@ function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): st
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, challenge, isNewTeam = false }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
+    const { isAdmin } = useAuth();
+    const [showPublishModal, setShowPublishModal] = useState(false);
+    const [unpublishing, setUnpublishing] = useState(false);
     // Setup flow: a freshly created (or still-empty) team opens on the "Team Settings" step;
     // otherwise straight into "Drafting". Steps are freely navigable via the banner chips.
     const [setupStep, setSetupStep] = useState<'settings' | 'draft'>(
@@ -568,6 +573,23 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // Scoped to this team so a job started from a different team's page doesn't show up here.
     const activeJobForTeam = activeJob && activeJob.team_id === team.team_id ? activeJob : null;
     const hasSims = (!!teamSeasons && teamSeasons.length > 0) || !!activeJobForTeam;
+    // Admin curation: publish a working copy into a Featured collection, or unpublish an
+    // already-official team. `team_id` + a complete roster are required for both.
+    const isOfficialTeam = team.source === 'official';
+    const adminCanCurate = isAdmin && !!token && !!team.team_id && !isDrafting && !isMlbTeam;
+
+    async function handleUnpublish() {
+        if (!token || !team.team_id || unpublishing) return;
+        if (!window.confirm('Remove this team from its Featured collection? This deletes the published copy.')) return;
+        setUnpublishing(true);
+        try {
+            await adminDeleteTeam(token, team.team_id);
+            (onBack ?? (() => navigate('/teams')))();
+        } catch (err) {
+            console.error('Failed to unpublish team', err);
+            setUnpublishing(false);
+        }
+    }
 
     const settingsDraft = useMemo(
         () => pendingSettings ? { ...draft, ...pendingSettings } as Team : draft,
@@ -1078,6 +1100,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 }
                             </div>
                         </div>
+                        {(draft.subtitle || draft.credit) && (
+                            <div className="flex items-center gap-x-2 text-[11px] text-(--text-tertiary) truncate">
+                                {draft.subtitle && <span className="font-semibold text-(--text-secondary)">{draft.subtitle}</span>}
+                                {draft.credit && <span>{draft.credit}</span>}
+                            </div>
+                        )}
                         {/* Subtitle row: PTS Breakdown */}
                         <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
                             <span className={`text-[12px] lg:text-[13px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
@@ -1127,8 +1155,40 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </div>
 
                 {/* Action buttons: wrap into a grid below the team info on narrow views, sit inline to the right once there's room */}
-                {(onToggleStar || onFork || !readOnly || canSimulate) && (
+                {(onToggleStar || onFork || !readOnly || canSimulate || adminCanCurate) && (
                     <div className="grid grid-cols-2 @sm:grid-cols-3 @lg:grid-cols-4 @lg:items-center gap-2 @lg:w-auto shrink-0">
+                        
+                        {!readOnly && teamMode === 'complete' && (
+                            <button
+                                type="button"
+                                onClick={() => setEditMode(true)}
+                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--text-secondary) bg-(--background-tertiary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                                aria-label={`Edit ${draft.name}`}
+                            >
+                                <FaPenToSquare className="h-3 w-3" /> Edit
+                            </button>
+                        )}
+                        {adminCanCurate && !isOfficialTeam && teamMode == 'complete' && (
+                            <button
+                                type="button"
+                                onClick={() => setShowPublishModal(true)}
+                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--background-primary) bg-amber-500 hover:opacity-90 cursor-pointer transition-colors"
+                                title="Publish this roster into a Featured collection"
+                            >
+                                <FaStar className="h-3 w-3" /> Publish
+                            </button>
+                        )}
+                        {adminCanCurate && isOfficialTeam && teamMode == 'complete' && (
+                            <button
+                                type="button"
+                                onClick={handleUnpublish}
+                                disabled={unpublishing}
+                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-red-400 bg-(--background-tertiary) hover:text-red-300 cursor-pointer disabled:opacity-50 transition-colors"
+                                title="Remove this team from its Featured collection"
+                            >
+                                {unpublishing ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaTrash className="h-3 w-3" />} Unpublish
+                            </button>
+                        )}
                         {onToggleStar && (
                             <button
                                 type="button"
@@ -1164,16 +1224,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 Make a copy
                             </button>
                         )}
-                        {!readOnly && teamMode === 'complete' && (
-                            <button
-                                type="button"
-                                onClick={() => setEditMode(true)}
-                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--text-secondary) bg-(--background-tertiary) hover:text-(--text-primary) cursor-pointer transition-colors"
-                                aria-label={`Edit ${draft.name}`}
-                            >
-                                <FaPenToSquare className="h-3 w-3" /> Edit
-                            </button>
-                        )}
+
                         {canSimulate && teamMode === 'complete' && (
                             <button
                                 type="button"
@@ -1217,21 +1268,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 color={bannerLeft.fill}
                               />
                             : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
-                        {teamMode === 'editing' && (
-                            <>
-                                {!isMlbTeam && editMode && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowSettingsModal(true)}
-                                        className={`flex items-center gap-1 px-2 py-1 h-8 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerLeft.btnClass}`}
-                                        aria-label="Team settings"
-                                        title="Team settings"
-                                    >
-                                        <FaGear /> Settings
-                                    </button>
-                                )}
-                            </>
-                        )}
                     </span>
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && setupStep === 'draft' && (
@@ -1249,6 +1285,21 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         )}
                         {token && (setupStep === 'draft' || teamMode === 'editing') && (
                             <>
+                                {teamMode === 'editing' && (
+                                    <>
+                                        {!isMlbTeam && editMode && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowSettingsModal(true)}
+                                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                                aria-label="Team settings"
+                                                title="Team settings"
+                                            >
+                                                <FaGear /> Settings
+                                            </button>
+                                        )}
+                                    </>
+                                )}
                                 {lastAutofillStrategy && (
                                     <button
                                         type="button"
@@ -1531,6 +1582,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showPublishModal && token && (
+                <PublishToFeaturedModal
+                    token={token}
+                    team={draft}
+                    onClose={() => setShowPublishModal(false)}
+                    onPublished={published => {
+                        setShowPublishModal(false);
+                        navigate(`/teams/${published.team_id}`);
+                    }}
+                />
             )}
 
             {/* Settings modal */}

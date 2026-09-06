@@ -8,7 +8,7 @@ import {
     FaGlobe, FaClockRotateLeft,
 } from 'react-icons/fa6';
 
-type WelcomeTab = 'simulations' | 'community' | 'historical';
+type WelcomeTab = 'simulations' | 'browse';
 
 type TeamBuilderWelcomeProps = {
     /** Horizontal padding class shared with the rest of the Team Builder page. */
@@ -35,13 +35,13 @@ type Path = {
 
 const PATHS: Path[] = [
     {
-        tab: 'community',
+        tab: 'browse',
         icon: <FaGlobe />,
-        title: 'Explore Community Teams',
-        blurb: 'Browse rosters other managers have built and fork your favorites.',
+        title: 'Explore Community & Featured Teams',
+        blurb: 'Browse rosters other managers have built, curated collections, and fork your favorites.',
     },
     {
-        tab: 'historical',
+        tab: 'browse',
         icon: <FaClockRotateLeft />,
         title: 'Browse Historical Rosters',
         blurb: 'Turn any real MLB team or All-Star squad into a Showdown lineup — then fork it to make it your own.',
@@ -147,7 +147,7 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signed
                     title="Get Inspired"
                     subtitle="Popular community teams"
                     className={px}
-                    onSeeAll={() => onGoToTab('community')}
+                    onSeeAll={() => onGoToTab('browse')}
                 >
                     {inspiration.map(team => (
                         <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpenTeam(team)} />
@@ -156,7 +156,7 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signed
             ) : (
                 <button
                     type="button"
-                    onClick={() => onGoToTab('community')}
+                    onClick={() => onGoToTab('browse')}
                     className={`flex items-center gap-1.5 text-[12px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer ${px}`}
                 >
                     Browse community teams <FaChevronRight className="text-[9px]" />

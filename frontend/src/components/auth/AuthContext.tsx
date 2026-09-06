@@ -66,6 +66,8 @@ interface AuthContextType {
     userSettings: UserSettingsDB | null;
     /** True once the first settings fetch completes after login */
     settingsLoaded: boolean;
+    /** Whether the signed-in user is on the server's admin allowlist (from the settings payload). */
+    isAdmin: boolean;
     /** Persist a partial settings update; optimistic local update + debounced API write */
     syncSetting: (partial: Partial<UserSettingsDB>) => void;
 }
@@ -364,6 +366,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         username,
         userSettings,
         settingsLoaded,
+        isAdmin: userSettings?.is_admin ?? false,
         syncSetting,
         signIn,
         signUp,

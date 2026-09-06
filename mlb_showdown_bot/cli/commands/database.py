@@ -553,8 +553,9 @@ def build_user_teams_tables(
     db = PostgresDB(is_archive=env.lower() == "prod")
     db.build_user_teams_table()
     db.build_asg_roster_table()
+    db.build_team_collection_table()
     db.close_connection()
-    typer.echo("Done. internal.user_teams and internal.asg_roster tables are ready.")
+    typer.echo("Done. internal.user_teams, internal.asg_roster and internal.team_collection tables are ready.")
 
 @app.command("build_sim_job_table")
 def build_sim_job_table(

@@ -6,6 +6,8 @@ export interface UserSettingsDB {
     custom_card_form_settings?: Record<string, unknown>;
     starred_teams?: { mlb?: string[]; wbc?: string[] };
     avatar_url?: string;
+    /** Server-derived from the admin allowlist — read-only, never sent back on PUT. */
+    is_admin?: boolean;
 }
 
 export async function getUserSettings(token: string): Promise<UserSettingsDB | null> {

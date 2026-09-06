@@ -1,4 +1,5 @@
 import traceback
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, g, jsonify, request
 
@@ -348,9 +349,35 @@ def get_public_teams():
         limit = min(request.args.get('limit', 50, type=int), 200)
         offset = request.args.get('offset', 0, type=int)
         q = request.args.get('q') or None
+        collection = request.args.get('collection') or None
         with PostgresDB() as db:
-            teams = db.get_public_teams(source=source, limit=limit, offset=offset, q=q)
+            teams = db.get_public_teams(
+                source=source, limit=limit, offset=offset, q=q, collection=collection,
+            )
         return jsonify(teams), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+# In-memory cache for the public collections list — small, changes rarely.
+_collections_cache: dict[str, tuple] = {}
+_COLLECTIONS_TTL = timedelta(minutes=5)
+
+
+@user_teams_bp.route('/teams/collections', methods=['GET'])
+def get_team_collections():
+    """Visible curated collections, each with its published teams as lightweight summaries."""
+    try:
+        cached = _collections_cache.get('all')
+        if cached and datetime.now(timezone.utc) - cached[1] < _COLLECTIONS_TTL:
+            return jsonify(cached[0]), 200
+        with PostgresDB() as db:
+            collections = db.get_team_collections(include_hidden=False)
+            for c in collections:
+                c['teams'] = db.get_public_teams(source='official', collection=c['slug'], limit=100)
+        _collections_cache['all'] = (collections, datetime.now(timezone.utc))
+        return jsonify(collections), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

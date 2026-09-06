@@ -1,5 +1,6 @@
 import json
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -225,6 +226,206 @@ def upload_teams(
         uploaded += 1
     db.close_connection()
     typer.echo(f"Done. {uploaded} team(s) uploaded.")
+
+
+@app.command("build-tables")
+def build_tables(
+    env: str = typer.Option("dev", "--env", "-e", help="Database environment: dev | prod"),
+):
+    """Create/upgrade internal.user_teams and internal.team_collection."""
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_user_teams_table()
+    db.build_team_collection_table()
+    db.close_connection()
+    typer.echo("Done. user_teams + team_collection are ready.")
+
+
+@app.command("collections")
+def collections(
+    action: str = typer.Argument("list", help="list | set | delete"),
+    slug: Optional[str] = typer.Option(None, "--slug", help="Collection slug (required for set/delete)"),
+    title: Optional[str] = typer.Option(None, "--title", help="Display title (set)"),
+    description: Optional[str] = typer.Option(None, "--description", help="Blurb (set)"),
+    emoji: Optional[str] = typer.Option(None, "--emoji", help="Cover emoji (set)"),
+    sort_index: Optional[int] = typer.Option(None, "--sort-index", help="Ordering (set)"),
+    hidden: bool = typer.Option(False, "--hidden", help="Mark not visible (set)"),
+    env: str = typer.Option("dev", "--env", "-e", help="Database environment: dev | prod"),
+):
+    """Manage the curated team collections."""
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    try:
+        if action == "list":
+            rows = db.get_team_collections(include_hidden=True)
+            table = PrettyTable(["slug", "title", "sort", "visible", "teams"])
+            table.align = "l"
+            for r in rows:
+                table.add_row([r["slug"], r["title"][:40], r["sort_index"],
+                               "yes" if r["is_visible"] else "no", r["team_count"]])
+            typer.echo(table)
+        elif action == "set":
+            if not slug or not title:
+                typer.echo("--slug and --title are required for 'set'.", err=True)
+                raise typer.Exit(1)
+            row = db.upsert_team_collection(
+                slug.lower(), title=title, description=description, cover_emoji=emoji,
+                sort_index=sort_index, is_visible=not hidden,
+            )
+            typer.echo(f"Upserted collection '{row['slug']}'.")
+        elif action == "delete":
+            if not slug:
+                typer.echo("--slug is required for 'delete'.", err=True)
+                raise typer.Exit(1)
+            result = db.delete_team_collection(slug.lower())
+            typer.echo({"in_use": "Refused — collection still has teams.",
+                        "deleted": f"Deleted '{slug}'.", None: "No such collection."}[result])
+        else:
+            typer.echo(f"Unknown action '{action}'. Use list | set | delete.", err=True)
+            raise typer.Exit(1)
+    finally:
+        db.close_connection()
+
+
+@app.command("import")
+def import_curated(
+    file: Path = typer.Option(..., "--file", "-f", help="JSON file: { collection, teams: [...] }"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Resolve + report, write nothing"),
+    env: str = typer.Option("dev", "--env", "-e", help="Database environment: dev | prod"),
+):
+    """Bulk-import curated ('official') teams from a JSON file, resolving player names to WOTC cards.
+
+    File shape:
+      {
+        "collection": {"slug": "showdown-league-s1", "title": "...", "cover_emoji": "🏆"},
+        "teams": [
+          {
+            "name": "Gary Quinn", "abbreviation": "GQ",
+            "primary_color": "rgb(...)", "secondary_color": "rgb(...)",
+            "subtitle": "1996 Champion", "credit": "Built by Gary Quinn",
+            "strategy_deck": {"Great Throw": 3, "Insult To Injury": 2},
+            "players": {
+              "lineup":   [{"name": "Derek Jeter", "position": "SS", "order": 2, "set": "2002"}],
+              "rotation": [{"name": "Barry Zito", "set": "2003"}],
+              "bullpen":  [{"name": "John Franco"}],
+              "bench":    [{"name": "Mike Bordick"}]
+            }
+          }
+        ]
+      }
+    Each player may carry "set" / "year" / "team" hints or an explicit "card_id" override.
+    """
+    if not file.exists():
+        typer.echo(f"Error: file not found: {file}", err=True)
+        raise typer.Exit(1)
+    try:
+        doc = json.loads(file.read_text())
+    except json.JSONDecodeError as exc:
+        typer.echo(f"Error parsing JSON: {exc}", err=True)
+        raise typer.Exit(1)
+
+    coll = doc.get("collection") or {}
+    coll_slug = (coll.get("slug") or "").strip().lower()
+    if not coll_slug:
+        typer.echo("Error: collection.slug is required.", err=True)
+        raise typer.Exit(1)
+
+    db = PostgresDB(is_archive=env.lower() == "prod")
+
+    def _resolve(entry: dict) -> tuple[Optional[str], str]:
+        """(card_id, status) — status in OK / OVERRIDE / AMBIGUOUS / MISSING."""
+        if entry.get("card_id"):
+            return entry["card_id"], "OVERRIDE"
+        cands = db.resolve_wotc_card(
+            entry["name"], showdown_set=entry.get("set"),
+            year=entry.get("year"), team=entry.get("team"),
+        )
+        if not cands:
+            return None, "MISSING"
+        if len(cands) > 1 and cands[0]["match_rank"] == cands[1]["match_rank"] \
+                and cands[0]["points"] == cands[1]["points"]:
+            return cands[0]["card_id"], "AMBIGUOUS"
+        return cands[0]["card_id"], "OK"
+
+    report = PrettyTable(["team", "bucket", "player", "status", "card_id"])
+    report.align = "l"
+    teams_payload: list[dict] = []
+    problems = 0
+
+    for t in doc.get("teams", []):
+        team_slug = (t.get("abbreviation") or t.get("name") or "team").strip().lower().replace(" ", "-")
+        roster: list[dict] = []
+        ln_slots: list[dict] = []
+        sp_i = 0
+        for bucket in ("lineup", "rotation", "bullpen", "bench"):
+            for entry in (t.get("players", {}).get(bucket) or []):
+                card_id, status = _resolve(entry)
+                if status in ("MISSING", "AMBIGUOUS"):
+                    problems += 1
+                report.add_row([t.get("name"), bucket, entry.get("name"), status, card_id or "—"])
+                if not card_id:
+                    continue
+                if bucket == "rotation":
+                    sp_i += 1
+                    pos = f"SP{sp_i}"
+                elif bucket == "lineup":
+                    pos = entry.get("position") or "DH"
+                    if entry.get("order"):
+                        ln_slots.append({"card_id": card_id, "card_source": "WOTC",
+                                         "batting_order": entry["order"]})
+                else:
+                    pos = "BE" if bucket == "bench" else "RP"
+                roster.append({
+                    "card_id": card_id, "card_source": "WOTC",
+                    "roster_position": pos, "draft_order": None, "pick_source": "IMPORTED",
+                })
+        num_bench = sum(1 for r in roster if r["roster_position"] == "BE")
+        num_bull = sum(1 for r in roster if r["roster_position"] in ("RP", "CL"))
+        num_sp = sum(1 for r in roster if r["roster_position"].startswith("SP"))
+        # Deterministic id so re-running the import upserts rather than duplicating.
+        team_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"showdown-team:{coll_slug}:{team_slug}"))
+        teams_payload.append({
+            "team_id": team_uuid,
+            "name": t["name"],
+            "abbreviation": t.get("abbreviation") or t["name"][:5],
+            "primary_color": t.get("primary_color") or "rgb(0,0,0)",
+            "secondary_color": t.get("secondary_color") or "rgb(255,255,255)",
+            "source": TeamSource.OFFICIAL.value,
+            "is_public": True,
+            "roster_size": len(roster),
+            "min_bench": num_bench,
+            "min_bullpen": num_bull,
+            "num_starters": max(num_sp, 1),
+            "bench_pts_multiplier": PostgresDB._HISTORICAL_BENCH_PTS_MULTIPLIER,
+            "collection_slug": coll_slug,
+            "subtitle": t.get("subtitle"),
+            "credit": t.get("credit"),
+            "collection_sort_index": t.get("sort_index"),
+            "strategy_deck": t.get("strategy_deck") or {},
+            "roster": roster,
+            "lineups": [{"name": "Imported", "slots": ln_slots}] if ln_slots else [],
+        })
+
+    typer.echo(report)
+    typer.echo(f"\n{len(teams_payload)} team(s), {problems} unresolved/ambiguous player(s).")
+
+    if dry_run:
+        typer.echo("Dry run — nothing written.")
+        db.close_connection()
+        return
+    if problems:
+        typer.confirm(f"{problems} player(s) could not be resolved cleanly. Import anyway?", abort=True)
+
+    db.build_user_teams_table()
+    db.build_team_collection_table()
+    db.upsert_team_collection(
+        coll_slug, title=coll.get("title") or coll_slug, description=coll.get("description"),
+        cover_emoji=coll.get("cover_emoji"), sort_index=coll.get("sort_index"),
+        is_visible=coll.get("is_visible", True),
+    )
+    for payload in teams_payload:
+        tid = db.admin_upsert_team(payload)
+        typer.echo(f"  Upserted {payload['name']} → {tid}")
+    db.close_connection()
+    typer.echo("Done.")
 
 
 @app.command("list")
