@@ -938,7 +938,7 @@ class PostgresDB:
 
                     elif key == 'search':
                         # Handle search text filtering (ILIKE %value%)
-                        filter_clauses.append(sql.SQL("{field} ILIKE %s").format(
+                        filter_clauses.append(sql.SQL("REPLACE(LOWER({field}), '.', '') ILIKE %s").format(
                             field=sql.Identifier("name")
                         ))
                         filter_values.append(f"%{value}%")
