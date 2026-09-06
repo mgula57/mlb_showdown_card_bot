@@ -2,7 +2,7 @@ from typing import Optional
 
 from .team import (
     Team, TeamSource, CardSource, TeamRosterSlot, Lineup, LineupSlot, PitcherAssignment,
-    PickSource, DEFAULT_LINEUP_NAME,
+    PickSource, DEFAULT_LINEUP_NAME, infer_allowed_sets_from_cards,
 )
 from .autofill import OFFENSE_POSITIONS
 from .lineup import LineupBuilder, LineupCandidate
@@ -337,6 +337,12 @@ class RosterToTeamConverter:
             team_kwargs['primary_color'] = self.primary_color
         if self.secondary_color:
             team_kwargs['secondary_color'] = self.secondary_color
+
+        # Scope a fork of this synthesized roster to the sources/sets it's actually built from.
+        rostered_ids = {s.card_id for s in roster_slots}
+        team_kwargs.update(infer_allowed_sets_from_cards(
+            [c for c in self.cards if c.card_id in rostered_ids]
+        ))
 
         return Team(
             team_id=self.team_id,

@@ -892,9 +892,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
 
             // Only include userShowdownSet if filters.showdown_set is not already populated
-        const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
-            ? {} 
-            : { showdown_set: userShowdownSet };
+            const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
+                ? {} 
+                : { showdown_set: userShowdownSet };
 
             const combinedFilters = {
                 ...filters,

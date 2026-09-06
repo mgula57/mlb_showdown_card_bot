@@ -19,6 +19,52 @@ class CardSource(str, Enum):
 WOTC_SETS = ['2000', '2001', '2002', '2003', '2004', '2005']
 BOT_SETS  = WOTC_SETS + ['CLASSIC', 'EXPANDED']
 
+# Card sources the team builder lets you draft from. WBC cards exist in the archive but are
+# not draftable, so a synthesized roster made of them carries no source restriction.
+DRAFTABLE_CARD_SOURCES = (CardSource.BOT.value, CardSource.WOTC.value, CardSource.CUSTOM.value)
+# Bot and Custom cards are each generated against exactly one baseline set, so those sources
+# pin to a single set; WOTC sets were printed alongside each other and combine freely.
+_SINGLE_SET_SOURCES = (CardSource.BOT.value, CardSource.CUSTOM.value)
+
+
+def infer_allowed_sets_from_cards(cards) -> dict:
+    """Derive the set / source restrictions for a synthesized read-only team (a real MLB or
+    All-Star roster) from the cards it is built from.
+
+    Those teams are composed straight from the card archive and would otherwise carry no
+    restrictions at all, so forking one produced an "all sources / all sets" copy. Scoping the
+    copy to what the roster actually uses is almost always what the user wants.
+
+    Only draftable sources are emitted; a single-set source is only pinned when the roster is
+    uniform for it. Returns a dict ready to splat into ``Team(...)`` — empty lists/maps when
+    nothing can be inferred.
+    """
+    by_source: dict[str, list[str]] = {}
+    for card in cards:
+        source = (getattr(card, 'source', None) or CardSource.BOT.value).upper()
+        if source not in DRAFTABLE_CARD_SOURCES:
+            continue
+        card_set = getattr(card, 'showdown_set', None)
+        if not card_set:
+            continue
+        sets = by_source.setdefault(source, [])
+        if card_set not in sets:
+            sets.append(card_set)
+
+    sets_by_source = {
+        source: sets
+        for source, sets in by_source.items()
+        if sets and not (source in _SINGLE_SET_SOURCES and len(sets) != 1)
+    }
+    if not sets_by_source:
+        return {'allowed_card_sources': [], 'allowed_sets_by_source': {}, 'allowed_sets': []}
+
+    return {
+        'allowed_card_sources': sorted(sets_by_source),
+        'allowed_sets_by_source': sets_by_source,
+        'allowed_sets': sorted({s for sets in sets_by_source.values() for s in sets}),
+    }
+
 
 class PickSource(str, Enum):
     MANUAL    = "MANUAL"    # user picked the card themselves

@@ -115,6 +115,16 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
 
 function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[] {
     const lines: string[] = [];
+    if ('name' in pending && pending.name !== original.name)
+        lines.push(`Name: ${original.name || 'Untitled Team'} → ${pending.name || 'Untitled Team'}`);
+    if ('abbreviation' in pending && pending.abbreviation !== original.abbreviation)
+        lines.push(`Abbreviation: ${original.abbreviation || 'none'} → ${pending.abbreviation || 'none'}`);
+    if ('is_public' in pending && pending.is_public !== original.is_public)
+        lines.push(`Visibility: ${original.is_public ? 'Public' : 'Private'} → ${pending.is_public ? 'Public' : 'Private'}`);
+    if ('primary_color' in pending && pending.primary_color !== original.primary_color)
+        lines.push(`Primary color: ${original.primary_color} → ${pending.primary_color}`);
+    if ('secondary_color' in pending && pending.secondary_color !== original.secondary_color)
+        lines.push(`Secondary color: ${original.secondary_color} → ${pending.secondary_color}`);
     if ('pts_limit' in pending && pending.pts_limit !== original.pts_limit)
         lines.push(`PTS limit: ${original.pts_limit ?? 'none'} → ${pending.pts_limit ?? 'none'}`);
     if ('roster_size' in pending && pending.roster_size !== original.roster_size)
@@ -247,7 +257,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }, [draft.allowed_card_sources]);
 
-    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); setShowSettingsModal(false); setPendingPickPositions(new Set()); }, [team]);
+    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setPendingPickPositions(new Set()); }, [team]);
+
+    // Editing-session UI state (edit mode, the settings modal) is only torn down when the
+    // underlying team actually changes — never on the same-team prop churn from an auto-save
+    // round-trip, which would otherwise kick the user out of edit mode after every change.
+    useEffect(() => {
+        setEditMode(false);
+        setPendingSettings(null);
+        setShowSettingsModal(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [team.team_id]);
 
     // Safety net: never leave a "saving" spinner stuck on a slot if a save fails or the team
     // prop somehow doesn't refresh. The normal clear is the [team] effect above, on the

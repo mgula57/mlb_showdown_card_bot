@@ -3,6 +3,7 @@ from typing import Optional
 from .team import (
     Team, TeamSource, CardSource, TeamRosterSlot, Lineup, PitcherAssignment,
     PickSource, ROTATION_ROLES, BULLPEN_ROLES, derive_lineups_rotation,
+    infer_allowed_sets_from_cards,
 )
 from ...database.postgres_db import ExploreDataRecord, PostgresDB
 
@@ -99,6 +100,12 @@ class StoredRosterToTeamConverter:
             team_kwargs['primary_color'] = self.primary_color
         if self.secondary_color:
             team_kwargs['secondary_color'] = self.secondary_color
+
+        # Scope a fork of this synthesized roster to the sources/sets it's actually built from.
+        rostered_ids = {r.card_id for r in roster}
+        team_kwargs.update(infer_allowed_sets_from_cards(
+            [c for c in self.cards if c.card_id in rostered_ids]
+        ))
 
         return Team(
             team_id=self.team_id,
