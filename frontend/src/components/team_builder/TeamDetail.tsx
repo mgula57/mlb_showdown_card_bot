@@ -164,6 +164,7 @@ function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): st
     }
     const positions = Object.keys(card.positions_and_defense);
     const expanded = positions.flatMap(pos => {
+        if (pos === 'CA') return ['C'];  // showdown notation → roster/lineup slot key
         if (pos === 'LF/RF') return ['LF', 'RF'];
         if (pos === 'IF') return ['1B', '2B', '3B', 'SS'];
         if (pos === 'OF') return ['LF', 'CF', 'RF'];
@@ -1837,7 +1838,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                         actionButton={{
                             icon: <FaPlus />,
                             label: 'Select',
-                            bgColorClass: 'bg-(--showdown-red) opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
+                            bgColorClass: 'animated-showdown-gradient opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
                             onClick: onCardPicked,
                         }}
                     />
