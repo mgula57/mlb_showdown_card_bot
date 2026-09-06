@@ -97,7 +97,11 @@ export function FieldView({
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
     simStatsMap, simStatsTooltip,
 }: FieldViewProps) {
-    const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
+    // `onDraft` runs the same handler as the card's inline action button (opens the slot-fill
+    // flow) — surfaced as a "Draft" button inside the CardDetail modal while editing.
+    const [detailCard, setDetailCard] = useState<{ card: CardDatabaseRecord; onDraft?: () => void } | null>(null);
+    const openDetail = (card: CardDatabaseRecord, draft?: () => void) =>
+        setDetailCard({ card, onDraft: readOnly || !draft ? undefined : draft });
 
     const slotByPosition = Object.fromEntries(
         lineup.slots.map(s => [s.field_position, s])
@@ -282,7 +286,7 @@ export function FieldView({
                                         className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
                                         fieldPosition={pos}
                                         detailStat1Category={detailStat1Category}
-                                        onClick={() => setDetailCard(card)}
+                                        onClick={() => openDetail(card, () => onSlotClick(pos, slot))}
                                         isSelected={isActive}
                                         actionButton={!readOnly ? {
                                             icon: <FaPencil />,
@@ -331,7 +335,7 @@ export function FieldView({
                                                     card={card}
                                                     className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
                                                     ptsMultiplier={ptsMultiplier}
-                                                    onClick={() => setDetailCard(card)}
+                                                    onClick={() => openDetail(card, onItemClick ? () => onItemClick(role) : undefined)}
                                                     actionButton={onItemClick ? {
                                                         icon: <FaPencil />,
                                                         onClick: () => onItemClick(role),
@@ -364,10 +368,10 @@ export function FieldView({
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard} size='xl'>
                     <CardDetail
-                        cardId={detailCard?.card_id}
+                        cardId={detailCard?.card.card_id}
                         context="roster"
-                        simStats={detailCard ? simStatsMap?.[detailCard.card_id] : undefined}
-                        tooltip={detailCard && simStatsMap?.[detailCard.card_id] ? simStatsTooltip : undefined}
+                        simStats={detailCard ? simStatsMap?.[detailCard.card.card_id] : undefined}
+                        tooltip={detailCard && simStatsMap?.[detailCard.card.card_id] ? simStatsTooltip : undefined}
                     />
                 </Modal>
             </div>

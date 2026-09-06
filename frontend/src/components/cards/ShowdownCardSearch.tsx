@@ -1424,6 +1424,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 hideTrendGraphs={true}
                                 context='explore'
                                 parent="sidebar"
+                                onDraft={actionButton && selectedCardForSidebar
+                                    ? () => { actionButton.onClick(selectedCardForSidebar); handleCloseSidebar(); }
+                                    : undefined}
                             />
                         </div>
                     </div>
@@ -1454,6 +1457,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         hideTrendGraphs={true}
                         context='explore'
                         parent="modal"
+                        onDraft={actionButton && selectedCardForModal
+                            ? () => { actionButton.onClick(selectedCardForModal); handleCloseModal(); }
+                            : undefined}
                     />
                 </Modal>
             </div>

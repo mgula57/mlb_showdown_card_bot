@@ -1087,7 +1087,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         >
                                             {teamMode !== 'complete' && (
                                                 bucketComplete
-                                                    ? <FaCircleCheck className="shrink-0 text-[11px] text-green-400" />
+                                                    ? <FaCircleCheck className="shrink-0 text-[11px] text-(--success)" />
                                                     : <ProgressRing filled={bucket.filled} target={bucket.target} />
                                             )}
                                             {label} <span className="font-semibold text-(--text-secondary)">{value}</span>

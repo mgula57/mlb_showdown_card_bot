@@ -13,6 +13,7 @@ import { useState, useEffect, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { FaBaseballBall } from 'react-icons/fa';
+import { FaPlus } from 'react-icons/fa6';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 
@@ -63,6 +64,10 @@ type CardDetailProps = {
      * warnings/errata banner above it — e.g. explaining that `simStats` reflects a simulated
      * season rather than the card's own real one. */
     tooltip?: string;
+    /** Team-builder draft/edit mode: when set, renders a "Draft" button pinned to the bottom-right
+     * of the modal. Runs the same handler as the compact card item's action button (opens the
+     * slot-fill flow for the roster slot this card sits in). */
+    onDraft?: () => void;
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
@@ -104,7 +109,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft }: CardDetailProps) {
 
     const { session } = useAuth();
 
@@ -622,6 +627,27 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 </SectionPanel>
 
             </div>
+
+            {/* Draft button — pinned to the bottom-right of the modal (anchors to the Modal's
+                `relative` container, so it stays put as the detail content scrolls). The root's
+                `pb-24` keeps the last panel clear of it. */}
+            {onDraft && (
+                <button
+                    type="button"
+                    onClick={onDraft}
+                    className="
+                        absolute top-10 right-2 z-100
+                        flex items-center gap-1
+                        px-5 py-5 rounded-full
+                        animated-showdown-gradient text-white font-bold text-sm
+                        shadow-lg hover:opacity-90 active:scale-95
+                        transition cursor-pointer
+                    "
+                >
+                    <FaPlus className="w-4 h-4" />
+                    Draft
+                </button>
+            )}
 
         </div>
     );

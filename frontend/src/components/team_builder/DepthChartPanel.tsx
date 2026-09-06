@@ -153,7 +153,11 @@ export function DepthChartPanel({
     isLoadingCards,
     pendingPositions,
 }: DepthChartPanelProps) {
-    const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
+    // `onDraft` runs the same handler as the row's inline action button (opens the slot-fill
+    // flow) — surfaced as a "Draft" button inside the CardDetail modal while editing.
+    const [detailCard, setDetailCard] = useState<{ card: CardDatabaseRecord; onDraft?: () => void } | null>(null);
+    const openDetail = (card: CardDatabaseRecord, draft: () => void) =>
+        setDetailCard({ card, onDraft: readOnly ? undefined : draft });
 
     const lineup = team.lineups[0] ?? { name: 'Default', index: 0, slots: [] };
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
@@ -254,7 +258,7 @@ export function DepthChartPanel({
                                 isPending={!card && !!slot && isLoadingCards}
                                 isSaving={pendingPositions?.has(pos)}
                                 onClick={() => onSlotClick(pos, slot)}
-                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                onDetailClick={card ? () => openDetail(card, () => onSlotClick(pos, slot)) : undefined}
                                 readOnly={readOnly}
                                 isActive={activePosition === pos}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
@@ -275,7 +279,7 @@ export function DepthChartPanel({
                                 card={card}
                                 isPending={!card && !!slot && isLoadingCards}
                                 onClick={() => onBenchClick(slot)}
-                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                onDetailClick={card ? () => openDetail(card, () => onBenchClick(slot)) : undefined}
                                 readOnly={readOnly}
                                 isActive={!card && activeRole === 'BE'}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
@@ -303,7 +307,7 @@ export function DepthChartPanel({
                                 isPending={!card && !!assignment && isLoadingCards}
                                 isSaving={pendingPositions?.has(role)}
                                 onClick={() => onRoleClick(role, assignment)}
-                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                onDetailClick={card ? () => openDetail(card, () => onRoleClick(role, assignment)) : undefined}
                                 readOnly={readOnly}
                                 isActive={activeRole === role}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
@@ -326,7 +330,7 @@ export function DepthChartPanel({
                                 card={card}
                                 isPending={!card && !!assignment && isLoadingCards}
                                 onClick={() => onBullpenClick(assignment)}
-                                onDetailClick={card ? () => setDetailCard(card) : undefined}
+                                onDetailClick={card ? () => openDetail(card, () => onBullpenClick(assignment)) : undefined}
                                 readOnly={readOnly}
                                 isActive={!card && activeRole === 'RP'}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
@@ -341,7 +345,7 @@ export function DepthChartPanel({
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>
                     <CardDetail
-                        cardId={detailCard?.card_id}
+                        cardId={detailCard?.card.card_id}
                         context="roster"
                     />
                 </Modal>
