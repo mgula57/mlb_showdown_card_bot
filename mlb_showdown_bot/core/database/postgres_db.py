@@ -5062,11 +5062,21 @@ class PostgresDB:
             return False
         if (row.get('filled_field') or 0) < 9:
             return True
-        if (row.get('filled_starters') or 0) < (row.get('num_starters') or 0):
+        num_starters = row.get('num_starters') or 0
+        if (row.get('filled_starters') or 0) < num_starters:
             return True
-        if (row.get('filled_bench') or 0) < (row.get('min_bench') or 0):
+        # Bench/bullpen targets aren't the raw configured minimums — roster_size slack beyond
+        # the fixed minimums is distributed across the two buckets (same as autofill and the
+        # progress bar), so a team isn't done until those effective targets are met.
+        from ..card.team_builder.autofill import _split_extra_roster_slots
+        min_bench = row.get('min_bench') or 0
+        min_bullpen = row.get('min_bullpen') or 0
+        base_min = 9 + num_starters + min_bench + min_bullpen
+        extra = max(0, (row.get('roster_size') or 0) - base_min)
+        bench_extra, bullpen_extra = _split_extra_roster_slots(extra, min_bench, min_bullpen)
+        if (row.get('filled_bench') or 0) < min_bench + bench_extra:
             return True
-        if (row.get('filled_bullpen') or 0) < (row.get('min_bullpen') or 0):
+        if (row.get('filled_bullpen') or 0) < min_bullpen + bullpen_extra:
             return True
         return False
 

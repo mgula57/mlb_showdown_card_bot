@@ -1,6 +1,7 @@
 import type { CardSource } from '../types/cardSource';
 import type { CardDatabaseRecord } from './card_db/cardDatabase';
 import { activeSources, allowedSetsForSource } from '../domain/teamSets';
+import { effectiveBenchBullpenMinimums } from '../domain/roster';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -130,11 +131,16 @@ export function isTeamDrafting(team: Team): boolean {
     const filledStarters = team.rotation.filter(r => starterRoles.includes(r.role)).length;
     if (filledStarters < team.num_starters) return true;
 
+    // Bench/bullpen targets aren't the raw configured minimums — roster_size slack beyond the
+    // fixed minimums is distributed across the two buckets (same as autofill and the progress
+    // bar), so a team isn't done until those effective targets are met.
+    const { bench: benchTarget, bullpen: bullpenTarget } = effectiveBenchBullpenMinimums(team);
+
     const filledBench = team.roster.filter(s => s.roster_position === 'BE').length;
-    if (filledBench < team.min_bench) return true;
+    if (filledBench < benchTarget) return true;
 
     const filledBullpen = team.rotation.filter(r => !ROTATION_ROLES.includes(r.role)).length;
-    if (filledBullpen < team.min_bullpen) return true;
+    if (filledBullpen < bullpenTarget) return true;
 
     return false;
 }
