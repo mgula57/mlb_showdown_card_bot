@@ -7,6 +7,7 @@ import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
 import { fetchEligibleTeamIds, type ChallengeInstance } from '../../../api/sim';
 import { TeamCard } from '../TeamCard';
 import { challengeCategoryMeta } from './challengeCategory';
+import { challengeSuccessRate } from './challengeStats';
 
 type Props = {
     challenge: ChallengeInstance;
@@ -95,6 +96,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
         (eligibleTeamIds === null || eligibleTeamIds.has(team.team_id));
     const left = daysLeft(challenge.expires_at);
     const category = challengeCategoryMeta(challenge.category);
+    const successRate = challengeSuccessRate(challenge);
 
     async function toggleExisting() {
         const next = !showExisting;
@@ -155,6 +157,13 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                 <StatTile icon={<FaShirt />} label="Take Over" value={challenge.replaces_abbr} />
                 <StatTile icon={<FaSackDollar />} label="Budget" value={challenge.pts_limit != null ? `${challenge.pts_limit} pts` : 'No limit'} />
                 <StatTile icon={<FaUsers />} label="Min Roster" value={`${challenge.roster_size} players`} />
+                {successRate && (
+                    <StatTile
+                        icon={<FaTrophy />}
+                        label="Success Rate"
+                        value={`${successRate.pct}% · ${successRate.entrants} ${successRate.entrants === 1 ? 'entry' : 'entries'}`}
+                    />
+                )}
                 {restrictionsLabel(challenge) && (
                     <StatTile icon={<FaFilter />} label="Player Restrictions" value={restrictionsLabel(challenge)!} fullWidth />
                 )}

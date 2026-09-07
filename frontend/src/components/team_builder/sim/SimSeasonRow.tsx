@@ -9,6 +9,13 @@ function medalClass(rank: number): string {
     return 'text-(--text-tertiary)';
 }
 
+/** The "Best GM" number, shown per row: wins per 1,000 roster points spent. Higher is a more
+ *  efficient roster. Null when the run has no recorded point cost. */
+function gmEfficiency(entry: SimSeasonListItem): number | null {
+    if (!entry.roster_points || entry.roster_points <= 0) return null;
+    return (entry.wins / entry.roster_points) * 1000;
+}
+
 type Props = {
     entry: SimSeasonListItem;
     onOpen: () => void;
@@ -22,6 +29,7 @@ type Props = {
 /** One played season, as a clickable row. Shared by the leaderboard and personal history so a
  *  result reads identically wherever it's found. */
 export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props) {
+    const efficiency = gmEfficiency(entry);
     return (
         <button
             type="button"
@@ -45,6 +53,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props)
                     {entry.is_own && rank !== undefined && <FaLock className="text-[9px] text-(--text-tertiary) shrink-0" title="Your result" />}
                 </span>
                 <span className="block text-[11px] text-(--text-tertiary) truncate">
+                    {entry.creator_username ? `${entry.creator_username} · ` : ''}
                     {!showTime && `${entry.year} · `}
                     took over {entry.replaced_abbr ?? '—'}
                     {entry.showdown_set ? ` · set ${entry.showdown_set}` : ''}
@@ -61,6 +70,14 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props)
                 <span className="block text-[11px] text-(--text-tertiary) tabular-nums">
                     {entry.win_pct.toFixed(3).replace(/^0\./, '.')}
                 </span>
+                {efficiency !== null && (
+                    <span
+                        className="block text-[10px] text-(--text-tertiary) tabular-nums"
+                        title="Wins per 1,000 roster points spent (Best GM)"
+                    >
+                        {efficiency.toFixed(1)} <span className="font-semibold">Wins/1k PTS</span>
+                    </span>
+                )}
             </span>
         </button>
     );

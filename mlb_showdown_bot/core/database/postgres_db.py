@@ -8033,7 +8033,8 @@ class PostgresDB:
             """
             SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
-                   attempt.challenge_result, attempt.attempted_at
+                   attempt.challenge_result, attempt.attempted_at,
+                   stats.entrants, stats.passes
               FROM internal.challenge_instance i
               JOIN internal.challenge_template t ON t.template_id = i.template_id
               LEFT JOIN LATERAL (
@@ -8043,6 +8044,16 @@ class PostgresDB:
                    ORDER BY (s.challenge_result = 'passed') DESC, s.created_at DESC
                    LIMIT 1
               ) attempt ON TRUE
+              LEFT JOIN LATERAL (
+                  SELECT COUNT(*)::int AS entrants,
+                         COUNT(*) FILTER (WHERE per_team.passed)::int AS passes
+                    FROM (
+                        SELECT bool_or(s.challenge_result = 'passed') AS passed
+                          FROM internal.sim_season s
+                         WHERE s.challenge_instance_id = i.instance_id
+                         GROUP BY s.team_id
+                    ) per_team
+              ) stats ON TRUE
              WHERE i.instance_id = %(instance_id)s
             """,
             {'instance_id': instance_id, 'user_id': user_id},
@@ -8064,7 +8075,8 @@ class PostgresDB:
             """
             SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
-                   attempt.challenge_result, attempt.attempted_at
+                   attempt.challenge_result, attempt.attempted_at,
+                   stats.entrants, stats.passes
               FROM internal.challenge_instance i
               JOIN internal.challenge_template t ON t.template_id = i.template_id
               LEFT JOIN LATERAL (
@@ -8074,6 +8086,16 @@ class PostgresDB:
                    ORDER BY (s.challenge_result = 'passed') DESC, s.created_at DESC
                    LIMIT 1
               ) attempt ON TRUE
+              LEFT JOIN LATERAL (
+                  SELECT COUNT(*)::int AS entrants,
+                         COUNT(*) FILTER (WHERE per_team.passed)::int AS passes
+                    FROM (
+                        SELECT bool_or(s.challenge_result = 'passed') AS passed
+                          FROM internal.sim_season s
+                         WHERE s.challenge_instance_id = i.instance_id
+                         GROUP BY s.team_id
+                    ) per_team
+              ) stats ON TRUE
              WHERE i.expires_at > NOW()
              ORDER BY i.expires_at ASC
             """,
@@ -8558,9 +8580,11 @@ class PostgresDB:
                        l.made_playoffs, l.is_champion, l.longest_win_streak, l.seed, l.created_at,
                        l.roster_points, l.challenge_instance_id, l.challenge_result,
                        ct.title AS challenge_title, ct.slug AS challenge_slug,
+                       p.username AS creator_username,
                        (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
                   FROM internal.sim_season l
                   JOIN internal.user_teams t ON t.team_id = l.team_id
+                  LEFT JOIN public.profiles p ON p.id::text = l.user_id
                   LEFT JOIN internal.challenge_instance ci ON ci.instance_id = l.challenge_instance_id
                   LEFT JOIN internal.challenge_template ct ON ct.template_id = ci.template_id
                  WHERE (t.is_public = TRUE OR l.user_id IS NOT DISTINCT FROM %(user_id)s)
@@ -8589,7 +8613,7 @@ class PostgresDB:
                    wins, losses, win_pct, points, division, division_rank,
                    made_playoffs, is_champion, longest_win_streak, seed, created_at,
                    roster_points, challenge_instance_id, challenge_result,
-                   challenge_title, challenge_slug, is_own, rank, attempts
+                   challenge_title, challenge_slug, creator_username, is_own, rank, attempts
               FROM ranked
              WHERE rank <= %(limit)s
              ORDER BY year DESC, (challenge_instance_id IS NOT NULL) ASC, challenge_title ASC,
@@ -8610,8 +8634,13 @@ class PostgresDB:
         s.primary_color, s.secondary_color, s.year, s.showdown_set, s.replaced_abbr,
         s.wins, s.losses, s.win_pct, s.points, s.division, s.division_rank,
         s.made_playoffs, s.is_champion, s.longest_win_streak, s.seed, s.created_at,
-        s.challenge_instance_id, s.challenge_result, s.won_pennant, s.roster_points
+        s.challenge_instance_id, s.challenge_result, s.won_pennant, s.roster_points,
+        p.username AS creator_username
     """
+
+    # Pairs with `_SIM_SEASON_LIST_COLUMNS` - every query selecting those columns must also carry
+    # this join so `creator_username` resolves (profiles are keyed by the auth user id as text).
+    _SIM_SEASON_LIST_JOINS = "LEFT JOIN public.profiles p ON p.id::text = s.user_id"
 
     @staticmethod
     def _stringify_sim_season_ids(rows: list[dict]) -> list[dict]:
@@ -8637,6 +8666,7 @@ class PostgresDB:
                    (s.user_id IS NOT DISTINCT FROM %s) AS is_own
               FROM internal.sim_season s
               LEFT JOIN internal.user_teams t ON t.team_id = s.team_id
+              {self._SIM_SEASON_LIST_JOINS}
              WHERE s.job_id = %s
                AND (s.team_id IS NULL OR t.is_public = TRUE OR s.user_id IS NOT DISTINCT FROM %s)
             """,
@@ -8723,6 +8753,7 @@ class PostgresDB:
             f"""
             SELECT {self._SIM_SEASON_LIST_COLUMNS}, TRUE AS is_own
               FROM internal.sim_season s
+              {self._SIM_SEASON_LIST_JOINS}
              WHERE s.user_id = %s
                AND (%s IS NULL OR s.team_id = %s::uuid)
              ORDER BY s.created_at DESC
@@ -8748,6 +8779,7 @@ class PostgresDB:
             SELECT {self._SIM_SEASON_LIST_COLUMNS}, (s.user_id IS NOT DISTINCT FROM %(viewer)s) AS is_own
               FROM internal.sim_season s
               JOIN internal.user_teams t ON t.team_id = s.team_id
+              {self._SIM_SEASON_LIST_JOINS}
              WHERE s.team_id = %(team_id)s::uuid
                AND (t.is_public = TRUE OR t.user_id IS NOT DISTINCT FROM %(viewer)s)
              ORDER BY s.created_at DESC

@@ -20,6 +20,8 @@ type Props = {
     /** Challenge runs only: route back into the team editor with this challenge primed so the
      *  user can tweak the roster and re-run. Given the run's challenge instance id (or null). */
     onTryAgain?: (challengeInstanceId: string | null) => void;
+    /** Challenge runs only: open the challenge's own page + scoped leaderboard. */
+    onOpenChallengeLeaderboard?: (challengeInstanceId: string) => void;
 };
 
 /**
@@ -32,7 +34,7 @@ type Props = {
  * run hasn't finished yet — does this fall back to polling the job, then re-fetching the season
  * once it succeeds.
  */
-export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChallenges, onRunAgain, onTryAgain }: Props) {
+export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChallenges, onRunAgain, onTryAgain, onOpenChallengeLeaderboard }: Props) {
     const [job, setJob] = useState<SimJob | null>(null);
     const [summary, setSummary] = useState<SeasonSimSummary | null>(null);
     const [challengeResult, setChallengeResult] = useState<'passed' | 'failed' | null>(null);
@@ -129,6 +131,10 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
         ? () => onTryAgain(challengeInstanceId)
         : undefined;
 
+    const openChallengeLeaderboard = challengeInstanceId && onOpenChallengeLeaderboard
+        ? () => onOpenChallengeLeaderboard(challengeInstanceId)
+        : undefined;
+
     return (
         <div className="flex flex-col h-full overflow-y-auto">
             <div className="px-4 pt-4 flex items-center gap-2">
@@ -157,6 +163,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
                     summary={summary}
                     challengeResult={challengeResult}
                     challengeStanding={challengeStanding}
+                    onOpenChallengeLeaderboard={openChallengeLeaderboard}
                     onRunAgain={onRunAgain}
                     onTryAgain={tryAgain}
                 />

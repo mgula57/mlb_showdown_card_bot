@@ -6,6 +6,7 @@ import {
 } from '../../../api/sim';
 import { ChallengeCard } from './ChallengeCard';
 import { SimSeasonRow } from './SimSeasonRow';
+import { challengeSuccessRate } from './challengeStats';
 import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 
@@ -26,6 +27,17 @@ const SORT_TABS: TabItem<SimLeaderboardSort>[] = [
     { id: 'wins', label: 'Best Record', title: 'Ranked by wins' },
     { id: 'efficiency', label: 'Best GM', title: 'Ranked by wins per roster point spent' },
 ];
+
+/** A labelled rule between the runs that cleared the challenge and the ones that didn't. */
+function OutcomeDivider({ label, tone }: { label: string; tone: 'success' | 'muted' }) {
+    const color = tone === 'success' ? 'text-(--success)' : 'text-(--text-tertiary)';
+    return (
+        <div className="flex items-center gap-2 pt-1">
+            <span className={`text-[10px] font-bold uppercase tracking-wide shrink-0 ${color}`}>{label}</span>
+            <span className="h-px flex-1 bg-(--divider)" />
+        </div>
+    );
+}
 
 /**
  * One challenge, at its own shareable URL: its own details up top — the same card as the list
@@ -66,6 +78,23 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
     }, [token, challenge, sort]);
 
     const backButton = <BackButton onBack={onBack} label="All Challenges" className="self-start" />;
+    const successRate = challenge ? challengeSuccessRate(challenge) : null;
+
+    // Entries arrive rank-sorted from the leaderboard; keep that order within each outcome bucket
+    // but separate the runs that cleared the challenge from the ones that didn't.
+    const passedEntries = entries?.filter(e => e.challenge_result === 'passed') ?? [];
+    const failedEntries = entries?.filter(e => e.challenge_result !== 'passed') ?? [];
+    const splitEntries = passedEntries.length > 0 && failedEntries.length > 0;
+
+    const renderEntry = (entry: SimLeaderboardEntry) => (
+        <SimSeasonRow
+            key={entry.entry_id}
+            entry={entry}
+            rank={entry.rank}
+            attempts={entry.attempts}
+            onOpen={() => entry.team_id && entry.job_id && onOpenSeason(entry.team_id, entry.job_id)}
+        />
+    );
 
     if (challengeError) {
         return (
@@ -113,6 +142,11 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
                 <div className="flex items-center justify-between gap-2">
                     <h3 className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
                         <FaTrophy className="text-[11px] text-(--showdown-blue)" /> Leaderboard
+                        {successRate && (
+                            <span className="text-[11px] font-semibold text-(--text-tertiary)">
+                                · {successRate.pct}% cleared ({successRate.passes}/{successRate.entrants})
+                            </span>
+                        )}
                     </h3>
                     <Tabs tabs={SORT_TABS} value={sort} onChange={setSort} size="sm" />
                 </div>
@@ -134,15 +168,14 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
                 )}
                 {entries !== null && entries.length > 0 && (
                     <div className="flex flex-col gap-1.5">
-                        {entries.map(entry => (
-                            <SimSeasonRow
-                                key={entry.entry_id}
-                                entry={entry}
-                                rank={entry.rank}
-                                attempts={entry.attempts}
-                                onOpen={() => entry.team_id && entry.job_id && onOpenSeason(entry.team_id, entry.job_id)}
-                            />
-                        ))}
+                        {splitEntries && <OutcomeDivider label={`Cleared · ${passedEntries.length}`} tone="success" />}
+                        {(splitEntries ? passedEntries : entries).map(renderEntry)}
+                        {splitEntries && (
+                            <>
+                                <OutcomeDivider label={`Didn't clear · ${failedEntries.length}`} tone="muted" />
+                                {failedEntries.map(renderEntry)}
+                            </>
+                        )}
                     </div>
                 )}
             </div>

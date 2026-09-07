@@ -297,6 +297,9 @@ export type SimSeasonListItem = {
     /** Actual roster cost at sim time - set for every run, challenge or not. Powers the
      *  wins-per-point "GM efficiency" leaderboard sort. */
     roster_points: number | null;
+    /** Username of whoever ran this season. Null for a run by a since-deleted account, or one
+     *  persisted before this was joined in. */
+    creator_username?: string | null;
 };
 
 /** A leaderboard row: one team's best run at a season, ranked against every other team's best. */
@@ -436,6 +439,11 @@ export type ChallengeInstance = {
      *  never attempted. */
     challenge_result?: 'passed' | 'failed' | null;
     attempted_at?: string | null;
+    /** Distinct teams that have run this instance, and how many of them have a passing run —
+     *  backs the "success rate" stat. Counts every entrant, not just the ones visible to the
+     *  viewer, since a rate is anonymous. */
+    entrants?: number;
+    passes?: number;
 };
 
 /** The signed-in user's own in-flight job - at most one can exist at a time. */

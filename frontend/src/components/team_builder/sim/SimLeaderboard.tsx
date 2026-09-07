@@ -45,7 +45,10 @@ export function SimLeaderboard({ token, onOpenSeason }: Props) {
     }, [seasons]);
 
     const sortToggle = (
-        <div className="px-4 flex justify-end">
+        <div className="px-4 flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
+                <FaTrophy className="text-[11px] text-(--showdown-blue)" /> Leaderboard
+            </h3>
             <Tabs tabs={SORT_TABS} value={sort} onChange={setSort} size="sm" />
         </div>
     );

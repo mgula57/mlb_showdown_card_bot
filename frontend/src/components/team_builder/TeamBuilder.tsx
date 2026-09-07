@@ -590,6 +590,7 @@ export default function TeamBuilder() {
                         token={token}
                         onBack={() => navigate('/teams/' + team.team_id)}
                         onBackToChallenges={() => { setActiveTab('simulations'); navigate('/teams'); }}
+                        onOpenChallengeLeaderboard={(instanceId) => navigate('/teams/challenges/' + instanceId)}
                         onTryAgain={(instanceId) => {
                             // Back to the editor with the challenge primed (roster already lives on
                             // the team) so the user can tweak and re-run. Same handoff shape as

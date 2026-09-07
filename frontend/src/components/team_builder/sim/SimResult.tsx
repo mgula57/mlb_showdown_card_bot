@@ -3,6 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
     FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft, FaFire, FaSnowflake,
+    FaChevronRight,
 } from 'react-icons/fa6';
 import type { ChallengeStanding, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -34,6 +35,9 @@ type Props = {
     /** Where this run lands on the challenge's leaderboard - drives the callout under the
      *  headline. Present only on a challenge run. */
     challengeStanding?: ChallengeStanding | null;
+    /** Challenge runs only: open the challenge's own page + scoped leaderboard. When set, the
+     *  "Leaderboard" standing tile becomes a link to it. */
+    onOpenChallengeLeaderboard?: () => void;
     onRunAgain?: () => void;
     /** Challenge runs only: back into the team editor (roster pre-loaded, challenge primed) to
      *  tweak and re-run. Takes precedence over `onRunAgain` when set. */
@@ -46,7 +50,7 @@ type Props = {
     onFocusChange?: (abbr: string) => void;
 };
 
-export function SimResult({ summary, challengeResult, challengeStanding, onRunAgain, onTryAgain, focusAbbr, onFocusChange }: Props) {
+export function SimResult({ summary, challengeResult, challengeStanding, onOpenChallengeLeaderboard, onRunAgain, onTryAgain, focusAbbr, onFocusChange }: Props) {
     const identityFor = useIdentity(summary);
     const isOpenSim = (summary.season_games?.length ?? 0) > 0;
     const isResumed = Object.keys(summary.seeded_records ?? {}).length > 0;
@@ -221,17 +225,35 @@ export function SimResult({ summary, challengeResult, challengeStanding, onRunAg
                             </span>
                         )}
                     </div>
-                    <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Leaderboard</span>
-                        <span className="font-black text-(--text-primary)">
-                            {challengeStanding.rank != null
-                                ? `${ordinal(challengeStanding.rank)} of ${challengeStanding.entrants}`
-                                : `${challengeStanding.entrants} entered`}
-                        </span>
-                        <span className={`text-[10px] font-bold ${challengeStanding.is_best ? 'text-(--success)' : 'text-(--text-tertiary)'}`}>
-                            {challengeStanding.is_best ? 'New personal best' : "Didn't beat your best"}
-                        </span>
-                    </div>
+                    {(() => {
+                        const inner = (
+                            <>
+                                <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">
+                                    Leaderboard
+                                    {onOpenChallengeLeaderboard && <FaChevronRight className="text-[8px]" />}
+                                </span>
+                                <span className="font-black text-(--text-primary)">
+                                    {challengeStanding.rank != null
+                                        ? `${ordinal(challengeStanding.rank)} of ${challengeStanding.entrants}`
+                                        : `${challengeStanding.entrants} entered`}
+                                </span>
+                                <span className={`text-[10px] font-bold ${challengeStanding.is_best ? 'text-(--success)' : 'text-(--text-tertiary)'}`}>
+                                    {challengeStanding.is_best ? 'New personal best' : "Didn't beat your best"}
+                                </span>
+                            </>
+                        );
+                        return onOpenChallengeLeaderboard ? (
+                            <button
+                                type="button"
+                                onClick={onOpenChallengeLeaderboard}
+                                className="flex flex-col text-left rounded-lg bg-(--background-tertiary) px-3 py-2 hover:bg-(--divider) transition-colors cursor-pointer"
+                            >
+                                {inner}
+                            </button>
+                        ) : (
+                            <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">{inner}</div>
+                        );
+                    })()}
                 </div>
             )}
 
