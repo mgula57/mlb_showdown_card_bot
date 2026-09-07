@@ -286,8 +286,8 @@ export function SimResult({ summary, challengeResult, challengeStanding, onRunAg
                                 <tbody key={month.key}>
                                     <tr className="bg-(--background-tertiary)">
                                         <td colSpan={5} className="py-1.5 px-2 font-bold text-(--text-primary)">
-                                            {month.label}
-                                            <span className="ml-4 font-semibold tabular-nums text-(--text-tertiary)">{month.wins}-{month.losses}</span>
+                                            {month.label} 
+                                            <span className="ml-2 font-semibold tabular-nums text-(--text-tertiary)">{month.wins}-{month.losses}</span>
                                             {month.temp === 'hot' && <FaFire className="inline ml-2 -mt-0.5 text-(--error)" title="Hot month" />}
                                             {month.temp === 'cold' && <FaSnowflake className="inline ml-2 -mt-0.5 text-(--showdown-blue)" title="Cold month" />}
                                         </td>

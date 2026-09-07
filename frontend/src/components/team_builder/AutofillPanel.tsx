@@ -459,18 +459,18 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                             type="button"
                             onClick={handleConfirm}
                             disabled={loading || overBudget || totalAllocated > effectiveLimit}
-                            className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                            className="w-full flex transform-gpu cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                         >
                             {loading ? (
-                                <>
+                                <span key="loading" className="flex items-center gap-2">
                                     <FaSpinner className="animate-spin" />
                                     Filling…
-                                </>
+                                </span>
                             ) : (
-                                <>
+                                <span key="idle" className="flex items-center gap-2">
                                     <FaWandMagicSparkles />
                                     Fill Roster
-                                </>
+                                </span>
                             )}
                         </button>
                     )}
