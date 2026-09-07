@@ -17,6 +17,13 @@ from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_i
 # THE RESULT SCREEN ONLY EVER SHOWS A TOP TEN.
 _LEADERBOARD_LIMIT = 10
 
+# The per-team stats tables list anyone past `result.stats_min_pa` (~250 over a full season) - a
+# loose "played enough to show" floor. The League Leaders hitter board holds itself to the real
+# batting-title bar instead: 3.1 PA per team game, ~502 over 162. Scaling off `stats_min_pa`
+# keeps the two in step for shortened / resumed schedules.
+_FULL_SEASON_MIN_PA = 250
+_FULL_SEASON_QUALIFIED_PA = 502
+
 # (STAT, IS_DESC) PER LEADERBOARD - KEYS PlayerSubType.value IN THE BUILT `top_players` DICT.
 _LEADERBOARD_STATS: dict[PlayerSubType, tuple[str, bool]] = {
     PlayerSubType.POSITION_PLAYER: ('ops', True),
@@ -464,10 +471,13 @@ class SeasonSummaryBuilder:
         min_ip = 0
         if player_type == PlayerType.PITCHER:
             min_ip = self.result.stats_min_ip_rp if player_sub_type == PlayerSubType.RELIEF_PITCHER else self.result.stats_min_ip
+        min_pa = 0
+        if player_type == PlayerType.HITTER:
+            # ONLY BATTING-TITLE-QUALIFIED HITTERS, NOT EVERYONE PAST THE PER-TEAM-TABLE FLOOR.
+            min_pa = round(self.result.stats_min_pa * _FULL_SEASON_QUALIFIED_PA / _FULL_SEASON_MIN_PA)
         leaders = self.result.top_players(
             player_type=player_type.value, stat=stat, limit=_LEADERBOARD_LIMIT, is_desc=is_desc,
-            min_pa=self.result.stats_min_pa if player_type == PlayerType.HITTER else 0,
-            min_ip=min_ip, player_sub_type=player_sub_type,
+            min_pa=min_pa, min_ip=min_ip, player_sub_type=player_sub_type,
         )
         return [self._line(stats, player_type) for stats in leaders]
 

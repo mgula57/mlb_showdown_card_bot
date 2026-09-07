@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FaTriangleExclamation } from 'react-icons/fa6';
+import { FaSpinner, FaTriangleExclamation } from 'react-icons/fa6';
 import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../api/sim';
 import { SimProgress } from '../team_builder/sim/SimProgress';
 import { SimResult } from '../team_builder/sim/SimResult';
@@ -39,6 +39,10 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
     const [summary, setSummary] = useState<SeasonSimSummary | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [focusAbbr, setFocusAbbr] = useState<string | undefined>(initialFocusAbbr);
+    // Only true once the season record has 404'd and we're actually polling a live job. Keeps the
+    // "playing the season" progress screen from flashing while the initial season fetch (a
+    // historical run opened from Recent Sims) is still in flight.
+    const [polling, setPolling] = useState(false);
     const cancelled = useRef(false);
 
     useEffect(() => {
@@ -83,6 +87,7 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
         }
 
         async function start() {
+            setPolling(false);
             try {
                 const season = await fetchSimSeason(jobId, token);
                 if (cancelled.current) return;
@@ -94,6 +99,8 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
                 if (!cancelled.current) setError(err instanceof Error ? err.message : 'Failed to load simulation.');
                 return;
             }
+            if (cancelled.current) return;
+            setPolling(true);
             await pollJob();
         }
 
@@ -132,8 +139,12 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
                 </div>
             ) : summary ? (
                 <SimResult summary={summary} onRunAgain={onRunAgain} focusAbbr={focusAbbr} onFocusChange={setFocusAbbr} />
-            ) : (
+            ) : polling ? (
                 <SimProgress job={job} teamName={progressLabel(job)} onCancel={token ? handleCancel : undefined} />
+            ) : (
+                <div className="flex items-center justify-center py-16">
+                    <FaSpinner className="animate-spin text-(--text-tertiary) text-2xl" />
+                </div>
             )}
         </div>
     );

@@ -205,6 +205,12 @@ def start_season_sim():
             takeover_team=team,
             takeover_replaces_abbr=replaces,
             manager_preference=manager_preference,
+            # A CHALLENGE RUN PLAYS AGAINST A LIVE LEAGUE: THE OTHER 29 CLUBS TAKE INJURIES AND
+            # MAKE THEIR REAL DEADLINE MOVES. BOTH ARE NO-OPS FOR THE TAKEOVER CLUB ITSELF (SEE
+            # `SeasonSimulationConfig` - builder rosters are never injured, the deadline skips
+            # takeover clubs), so this only shapes the competition around the user's team.
+            enable_injuries=challenge is not None,
+            enable_trade_deadline=challenge is not None,
         )
         manager_echo = manager_preference.model_dump() if manager_preference and not manager_preference.is_neutral else None
         with PostgresDB() as db:

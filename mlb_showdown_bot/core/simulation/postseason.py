@@ -77,9 +77,14 @@ class PostseasonSeries:
         self.games = games
 
     def is_top_team_home(self, game_index: int) -> bool:
+        # THE WILD CARD SERIES IS PLAYED ENTIRELY AT THE HIGHER SEED'S PARK (MLB, 2022+). EVERY
+        # OTHER ROUND ALTERNATES HOME/AWAY LIKE REAL LIFE - 2-2-1 FOR A BEST-OF-5, 2-3-2 FOR A
+        # BEST-OF-7 - REGARDLESS OF WHICH `PostseasonFormat` PRODUCED IT.
+        if self.round == PostseasonRound.WILDCARD:
+            return True
         match game_index:
             case 1 | 2: return True
-            case 3 | 4: return True if self.format == PostseasonFormat.WILDCARD_3 else False
+            case 3 | 4: return False
             case 5: return False if self.length == 7 else True
             case 6 | 7: return True
             case _: return True
