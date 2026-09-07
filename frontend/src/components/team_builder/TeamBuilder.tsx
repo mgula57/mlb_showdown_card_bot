@@ -162,13 +162,16 @@ export default function TeamBuilder() {
     // most of the list UI works off the active subset.
     const activeUserTeams = useMemo(() => userTeams.filter(t => !t.is_archived), [userTeams]);
     const archivedCount = userTeams.length - activeUserTeams.length;
+    // Challenge-created teams are grouped on their own at the bottom of the My Teams tab and kept
+    // out of the primary list and the Recent Teams shelf, so they don't crowd out hand-built teams.
+    const isChallengeTeam = (t: TeamSummary) => t.creation_source === 'challenge';
     // Whether the /teams/all screen currently reveals archived teams.
     const [showArchived, setShowArchived] = useState(false);
 
     // Recent teams shelf — recently viewed teams (from localStorage) first, then most recently updated.
     const recentTeamIds = useMemo(getRecentTeamIds, []);
     const recentTeams = useMemo(() => {
-        const withPlayers = activeUserTeams.filter(t => t.roster_count > 0);
+        const withPlayers = activeUserTeams.filter(t => t.roster_count > 0 && !isChallengeTeam(t));
 
         if (recentTeamIds.length > 0) {
             const teamById = new Map(withPlayers.map(t => [t.team_id, t]));
@@ -195,6 +198,8 @@ export default function TeamBuilder() {
     const sortByUpdated = (list: TeamSummary[]) =>
         [...list].sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1);
     const sortedUserTeams = useMemo(() => sortByUpdated(activeUserTeams), [activeUserTeams]);
+    const primaryUserTeams = useMemo(() => sortedUserTeams.filter(t => !isChallengeTeam(t)), [sortedUserTeams]);
+    const challengeUserTeams = useMemo(() => sortedUserTeams.filter(isChallengeTeam), [sortedUserTeams]);
     const filteredUserTeams = useMemo(() => {
         // Archived teams (when revealed) sit after the active ones rather than interleaved by date.
         const base = showArchived
@@ -664,33 +669,31 @@ export default function TeamBuilder() {
                                     onOpenTeam={openTeam}
                                 />
                             ) : (
-                                <div className="space-y-3" >
-                                    <div className="flex items-center justify-between gap-3">
-                                        <h3 className="text-[15px] font-black text-(--text-primary) truncate">My Teams</h3>
-                                        {(sortedUserTeams.length > TEAM_LIST_PREVIEW_COUNT || archivedCount > 0) && (
-                                            <button
-                                                type="button"
-                                                onClick={() => { setTeamSearch(''); setShowArchived(archivedCount > 0 && sortedUserTeams.length === 0); navigate('/teams/all'); }}
-                                                className="shrink-0 text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer"
-                                            >
-                                                Show all ({sortedUserTeams.length})
-                                            </button>
-                                        )}
-                                    </div>
-                                    {sortedUserTeams.length === 0 ? (
-                                        <p className="text-[13px] text-(--text-tertiary) py-4">
-                                            All your teams are archived. Use “Show all” to view them.
-                                        </p>
-                                    ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                                        {sortedUserTeams.slice(0, TEAM_LIST_PREVIEW_COUNT).map(team => (
-                                            <TeamCard
-                                                key={team.team_id}
-                                                team={team}
-                                                onClick={() => openTeam(team)}
-                                            />
-                                        ))}
-                                    </div>
+                                <div className="space-y-6">
+                                    {(primaryUserTeams.length > 0 || archivedCount > 0) && (
+                                        <TeamListSection
+                                            title="My Teams"
+                                            teams={primaryUserTeams}
+                                            previewCount={TEAM_LIST_PREVIEW_COUNT}
+                                            onOpen={openTeam}
+                                            emptyNote={primaryUserTeams.length === 0
+                                                ? 'All your teams are archived. Use “Show all” to view them.'
+                                                : undefined}
+                                            showAll={(primaryUserTeams.length > TEAM_LIST_PREVIEW_COUNT || archivedCount > 0)
+                                                ? { count: primaryUserTeams.length, onClick: () => { setTeamSearch(''); setShowArchived(archivedCount > 0 && primaryUserTeams.length === 0); navigate('/teams/all'); } }
+                                                : undefined}
+                                        />
+                                    )}
+                                    {challengeUserTeams.length > 0 && (
+                                        <TeamListSection
+                                            title="Challenge Teams"
+                                            teams={challengeUserTeams}
+                                            previewCount={TEAM_LIST_PREVIEW_COUNT}
+                                            onOpen={openTeam}
+                                            showAll={challengeUserTeams.length > TEAM_LIST_PREVIEW_COUNT
+                                                ? { count: challengeUserTeams.length, onClick: () => { setTeamSearch(''); setShowArchived(false); navigate('/teams/all'); } }
+                                                : undefined}
+                                        />
                                     )}
                                 </div>
                             )}
@@ -724,6 +727,43 @@ export default function TeamBuilder() {
                 />
             )}
         </div>
+        </div>
+    );
+}
+
+/** One titled block of TeamCards on the My Teams tab — the primary list and the challenge-teams
+ *  group share this shape. Collapses to `previewCount` cards with an optional "Show all" link. */
+function TeamListSection({ title, teams, previewCount, onOpen, showAll, emptyNote }: {
+    title: string;
+    teams: TeamSummary[];
+    previewCount: number;
+    onOpen: (team: TeamSummary) => void;
+    showAll?: { count: number; onClick: () => void };
+    emptyNote?: string;
+}) {
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
+                {showAll && (
+                    <button
+                        type="button"
+                        onClick={showAll.onClick}
+                        className="shrink-0 text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer"
+                    >
+                        Show all ({showAll.count})
+                    </button>
+                )}
+            </div>
+            {teams.length === 0 ? (
+                <p className="text-[13px] text-(--text-tertiary) py-4">{emptyNote}</p>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                    {teams.slice(0, previewCount).map(team => (
+                        <TeamCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
