@@ -1723,6 +1723,39 @@ class PostgresDB:
                 
                 results = self.execute_query(query=query, filter_values=filter_values)
 
+                # Pre-2025 seasons have no internal.dim_roster_history snapshots, so the query
+                # above comes back empty. Fall back to the pre-processed historical rosters
+                # (internal.dim_historical_roster, populated by `showdown_bot teams build-historical`),
+                # pricing them the same way _HISTORICAL_TEAM_SUMMARY_SELECT does: bench slots
+                # discounted by _HISTORICAL_BENCH_PTS_MULTIPLIER, card year rolled back before May 1st.
+                if not results and standing.league.abbreviation != 'WBC':
+                    sport_id = standing.league.sport.id if standing.league.sport else 1
+                    historical_query = sql.SQL(f"""
+                        SELECT
+                            r.team_id::int AS team_id,
+                            COALESCE(SUM(
+                                CASE
+                                    WHEN r.roster_position = 'BE'
+                                    THEN COALESCE(cb.points, 0) * {self._HISTORICAL_BENCH_PTS_MULTIPLIER}
+                                    ELSE COALESCE(cb.points, 0)
+                                END
+                            ), 0)::int AS total_points
+                        FROM internal.dim_historical_roster r
+                        LEFT JOIN LATERAL (
+                            SELECT points FROM card_bot
+                            WHERE mlb_id = r.mlb_id
+                                AND year = CASE WHEN CURRENT_DATE < make_date(r.season, 5, 1) THEN r.season - 1 ELSE r.season END
+                                AND showdown_set = %s
+                            LIMIT 1
+                        ) cb ON TRUE
+                        WHERE r.season = %s AND r.sport_id = %s
+                        GROUP BY r.team_id
+                    """)
+                    results = self.execute_query(
+                        query=historical_query,
+                        filter_values=(showdown_set, standing.league.season, sport_id),
+                    )
+
                 points_by_team_id = {row['team_id']: row['total_points'] for row in results}
                 for record in standing.team_records:
                     record.showdown_points = points_by_team_id.get(record.team.id, 0)
