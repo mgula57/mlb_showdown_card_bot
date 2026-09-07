@@ -346,7 +346,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                     freezes the live cursor so you can scrub back. Once active the
                                     colored REPLAY banner takes over — its "Exit Replay" is the way
                                     out — so this button hides to keep a single, obvious control. */}
-                                {!isReplaying && !showPlaybackControls && (
+                                {!isReplaying && !showPlaybackControls && !isNotStarted && (
                                     <button
                                         type="button"
                                         onClick={enterReplay}
