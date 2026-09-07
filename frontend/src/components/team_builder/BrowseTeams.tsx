@@ -137,26 +137,10 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                             {searchModeResults.length} result{searchModeResults.length === 1 ? '' : 's'}
                         </div>
                         <div className="flex flex-wrap gap-3">
-                            {searchModeResults.map(hit => hit.kind === 'public' ? (
+                            {searchModeResults.map(hit => (
                                 <TeamPreviewCard
                                     key={hit.team.team_id}
-                                    team={{ ...hit.team, badge: hit.team.source === 'official' ? (hit.team.subtitle ?? 'Featured') : undefined }}
-                                    onClick={() => openHit(hit)}
-                                />
-                            ) : (
-                                <TeamPreviewCard
-                                    key={`h-${hit.team.season}-${hit.team.team_id}`}
-                                    team={{
-                                        abbreviation: hit.team.abbreviation || hit.team.name,
-                                        name: hit.team.name,
-                                        primary_color: hit.team.primary_color,
-                                        secondary_color: hit.team.secondary_color,
-                                        total_points: hit.team.total_points,
-                                        top_players: hit.team.top_players,
-                                        source: 'mlb',
-                                        badge: String(hit.team.season),
-                                        allowed_sets: userShowdownSet ? [userShowdownSet] : undefined,
-                                    }}
+                                    team={hit.team}
                                     onClick={() => openHit(hit)}
                                 />
                             ))}

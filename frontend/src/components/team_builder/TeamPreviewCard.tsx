@@ -60,7 +60,6 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
     // owner byline is only meaningful for community (user) teams.
     const isUserTeam = !team.source || team.source === 'user';
     const byline = !isUserTeam ? null
-        : isOwnTeam ? 'Your team'
         : team.creator_username ? `@${team.creator_username}`
         : null;
 
@@ -96,7 +95,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                 backgroundClip: 'padding-box, border-box',
             }}
         >
-            <div className="absolute top-0 left-0 z-20 flex flex-col items-end gap-0.5">
+            <div className="absolute top-0 left-0 z-20 flex flex-col items-end gap-0.5 max-w-32">
                 {team.badge && (
                     <span
                         className="text-[9px] font-black rounded-br-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
@@ -125,7 +124,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                         {allowedSets.map(set => {
                             const useAbbreviated = allowedSets.length >= 2;
                             const image = imageForSet(set, useAbbreviated);
-                            const heightClass = useAbbreviated ? 'h-3.5' : 'h-4.5';
+                            const heightClass = useAbbreviated ? 'h-3' : 'h-4';
                             return image ? (
                                 <img key={set} src={image} alt={set} loading="lazy" className={`${heightClass} w-auto object-contain`} />
                             ) : null;
@@ -159,24 +158,26 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
             {/* Content */}
             <div className="relative z-10 flex flex-col h-full p-2.5 gap-1">
                 <div className={`flex-1 flex flex-col justify-start min-h-0 ${team.badge ? 'pt-2' : 'pt-1'}`}>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                        {team.logo_url && (
-                            <img
-                                src={team.logo_url}
-                                alt=""
-                                loading="lazy"
-                                className="w-7 h-7 rounded-md object-cover shrink-0 ring-1 ring-white/20"
-                            />
-                        )}
-                        <div className="text-[38px] leading-none font-black tracking-tight drop-shadow-lg truncate" style={{ color: onPrimary }}>
-                            {team.abbreviation}
+                    <div className="flex items-end gap-1.5 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            {team.logo_url && (
+                                <img
+                                    src={team.logo_url}
+                                    alt=""
+                                    loading="lazy"
+                                    className="w-7 h-7 rounded-md object-cover shrink-0 ring-1 ring-white/20"
+                                />
+                            )}
+                            <div className="text-[38px] leading-none font-black tracking-tight drop-shadow-lg truncate" style={{ color: onPrimary }}>
+                                {team.abbreviation}
+                            </div>
                         </div>
                         {avatarUrl && (
                             <img
                                 src={avatarUrl}
                                 alt="Your avatar"
                                 loading="lazy"
-                                className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white/30"
+                                className="w-5 h-5 mb-1 rounded-full object-cover shrink-0 ring-1 ring-white/30"
                             />
                         )}
                     </div>
@@ -184,20 +185,9 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                         {team.name}
                     </div>
                     {byline && (
-                        isOwnTeam ? (
-                            <div
-                                className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 self-start mt-1 leading-none"
-                                style={{ backgroundColor: secondary, color: onSecondary }}
-                            >
-                                <FaUser className="w-2 h-2" />
-                                {byline}
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-1 text-[9px] font-bold mt-0.5 line-clamp-1 drop-shadow opacity-75" style={{ color: onPrimary }}>
-                                <FaUser className="w-2 h-2 shrink-0" />
-                                {byline}
-                            </div>
-                        )
+                        <div className="flex items-center gap-1 text-[9px] font-bold line-clamp-1 drop-shadow opacity-75" style={{ color: onPrimary }}>
+                            {byline}
+                        </div>
                     )}
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         {team.total_points && team.total_points > 0 ? (
