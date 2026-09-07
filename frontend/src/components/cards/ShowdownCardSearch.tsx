@@ -709,6 +709,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
     const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
+    // Tracks the in-flight card fetch so a new search/filter change cancels the prior run
+    // instead of waiting for it to finish. `cardsRequestIdRef` additionally guards against a
+    // stale (aborted or slow) response landing after a newer one and clobbering it.
+    const cardsAbortControllerRef = useRef<AbortController | null>(null);
+    const cardsRequestIdRef = useRef(0);
+
     // Sidebar resize
     const [sidebarWidth, setSidebarWidth] = useState(384); // matches w-96
     const isResizing = useRef(false);
@@ -826,7 +832,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         setHasMore(true);
         setShowdownCards(null); // Clear existing cards immediately
 
-        if (!userShowdownSet || isLoading) return;
+        // Note: intentionally not guarding on `isLoading` — a filter/search change while a
+        // previous load is still running should start a fresh fetch now (which aborts the
+        // stale one in `getCardsData`), not wait for the old one to finish.
+        if (!userShowdownSet) return;
 
         const timeoutId = setTimeout(() => {
             getCardsData();
@@ -837,6 +846,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // the search) — `authToken` stays a stable `undefined` for other sources so a session
     // resolving/changing (e.g. restoring one from storage on refresh) doesn't refetch every tab.
     }, [userShowdownSet, filters, debouncedSearchText, authToken]);
+
+    // Abort any in-flight card fetch on unmount
+    useEffect(() => () => cardsAbortControllerRef.current?.abort(), []);
 
     // Debounce search text only
     useEffect(() => {
@@ -879,6 +891,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             return;
         }
 
+        // Cancel any in-flight request so a filter/search change doesn't have to wait for the
+        // previous (possibly slow) fetch to finish before its results apply.
+        cardsAbortControllerRef.current?.abort();
+        const abortController = new AbortController();
+        cardsAbortControllerRef.current = abortController;
+        const requestId = ++cardsRequestIdRef.current;
+        const isStale = () => requestId !== cardsRequestIdRef.current;
+
         // Loading indicators
         if (pageNum === 1) {
             setIsLoading(true);
@@ -908,7 +928,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const cleanedFilters = Object.fromEntries(
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
-            const data = await fetchCardData(source, cleanedFilters, authToken);
+            const data = await fetchCardData(source, cleanedFilters, authToken, abortController.signal);
+
+            // A newer request superseded this one — drop the response so it can't clobber it.
+            if (isStale()) return;
 
             console.log("Fetched cards data:", { source, filters: cleanedFilters, data });
 
@@ -946,10 +969,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             }
 
         } catch (error) {
+            // An aborted request was intentionally cancelled by a newer run — not an error.
+            if (error instanceof DOMException && error.name === 'AbortError') return;
             console.error("Error fetching showdown cards:", error);
         } finally {
-            setIsLoading(false);
-            setIsLoadingMore(false);
+            // Only the latest request owns the loading indicators; a stale run finishing later
+            // must not flip them off while the newer fetch is still going.
+            if (!isStale()) {
+                setIsLoading(false);
+                setIsLoadingMore(false);
+            }
         }
     };
 
