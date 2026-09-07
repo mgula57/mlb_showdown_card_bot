@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine, Tooltip } from 'recharts';
-import type { SimGameLine } from '../../../api/sim';
+/** Only the running record is read here, so both a live (streamed) `SimProgressGameLine` and a
+ *  finished `SimGameLine` satisfy it. */
+type GameRecord = { date: string; is_win: boolean; wins: number; losses: number };
 
 type Point = { game: number; winPct: number; date: string; isWin: boolean; wins: number; losses: number };
 
@@ -19,10 +21,14 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payl
 }
 
 type Props = {
-    games: SimGameLine[];
+    games: GameRecord[];
     /** Win% of the lowest-seeded playoff team that season — the cutoff a team needed to clear to
      * make it in. Omitted when nobody in the league has a playoff seeding (e.g. no postseason). */
     playoffCutlinePct?: number | null;
+    /** Fixes the x-axis to the full season length. Pass while streaming a partial season so the
+     * axis holds still and the line just extends into it; omit for a finished season (the axis
+     * then ends at the last game played). */
+    totalGames?: number | null;
 };
 
 /** Cumulative win% across the season — a single series, so no legend box (the section title
@@ -33,7 +39,7 @@ type Props = {
  * properties (`--text-primary`, `--text-tertiary`, …) that are never actually defined anywhere,
  * so they silently resolve via CSS inheritance for ordinary DOM text — a fallback that doesn't
  * reach into an SVG chart's own stroke/fill attributes, which just stayed static across themes. */
-export function SimWinPctChart({ games, playoffCutlinePct }: Props) {
+export function SimWinPctChart({ games, playoffCutlinePct, totalGames }: Props) {
     const data: Point[] = useMemo(() => games.map((g, i) => ({
         game: i + 1,
         winPct: g.wins / (g.wins + g.losses),
@@ -47,6 +53,12 @@ export function SimWinPctChart({ games, playoffCutlinePct }: Props) {
         return <p className="text-[13px] text-tertiary py-6 text-center">No games played.</p>;
     }
 
+    // Streaming (`totalGames` set): pin the axis to the full season and turn off the line's
+    // draw-on animation, so each poll just extends the same line into a frame that never moves
+    // rather than re-animating from scratch. Finished season: default axis + one-time draw.
+    const streaming = totalGames != null;
+    const xMax = Math.max(totalGames ?? 0, data.length);
+
     return (
         // Fixed height floor so ResponsiveContainer has a concrete pixel height to resolve
         // against when this card isn't grid-stretched to match Standings (i.e. below `md`,
@@ -57,7 +69,9 @@ export function SimWinPctChart({ games, playoffCutlinePct }: Props) {
                 <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--divider)" vertical={false} />
                     <XAxis
-                        dataKey="game" tickLine={false} axisLine={{ stroke: 'var(--divider)' }}
+                        dataKey="game" type="number" allowDecimals={false}
+                        domain={streaming ? [1, xMax] : ['dataMin', 'dataMax']}
+                        allowDataOverflow tickLine={false} axisLine={{ stroke: 'var(--divider)' }}
                         tick={{ fill: 'var(--tertiary)', fontSize: 10 }} tickMargin={6}
                     />
                     <YAxis
@@ -75,6 +89,7 @@ export function SimWinPctChart({ games, playoffCutlinePct }: Props) {
                     <Line
                         type="monotone" dataKey="winPct" stroke="var(--showdown-blue)" strokeWidth={2}
                         dot={false} activeDot={{ r: 4, fill: 'var(--showdown-blue)' }}
+                        isAnimationActive={!streaming}
                     />
                 </LineChart>
             </ResponsiveContainer>

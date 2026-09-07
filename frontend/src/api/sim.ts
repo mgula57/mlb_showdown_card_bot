@@ -80,6 +80,18 @@ export type SimGameLine = {
     losses: number;
 };
 
+/** The takeover club's running game-by-game record, streamed onto the job row while the season
+ *  plays so the progress screen can animate a live win% chart. A trimmed `SimGameLine` — just the
+ *  four fields `SimWinPctChart` reads. Absent until the first regular-season game finishes, and on
+ *  an open sim with no focus club. */
+export type SimProgressGameLine = {
+    date: string;
+    is_win: boolean;
+    /** Running record after this game. */
+    wins: number;
+    losses: number;
+};
+
 /** One game of the season, from neither club's point of view — the backing data for
  *  `useClubSeason`, which derives every club's own `SimGameLine` list from this instead of the
  *  backend duplicating it per club. Populated only for an open sim (`SeasonSimSummary.team` is
@@ -239,6 +251,12 @@ export type SimJob = {
     games_total: number;
     config: Record<string, unknown> | null;
     error: string | null;
+    /** Takeover club's game-by-game running record so far — streamed while `status` is 'running'
+     *  so `SimWinPctChart` can animate live. Null/absent for an open sim or before the first game. */
+    progress_games?: SimProgressGameLine[] | null;
+    /** That club's full scheduled game count — the live chart's fixed x-axis max, so it doesn't
+     *  rescale as points stream in. Pairs with `progress_games`. */
+    progress_games_total?: number | null;
     created_at: string;
     updated_at: string;
     finished_at: string | null;

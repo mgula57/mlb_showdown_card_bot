@@ -1,6 +1,8 @@
 import { FaSpinner } from 'react-icons/fa6';
 import type { SimJob } from '../../../api/sim';
+import { SectionCard } from './SectionCard';
 import { SimEngineExplainer } from './SimEngineExplainer';
+import { SimWinPctChart } from './SimWinPctChart';
 
 type Props = {
     job: SimJob | null;
@@ -31,6 +33,10 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
         ? Math.min(100, Math.round(SETUP_MAX_PCT + (completed / total) * (100 - SETUP_MAX_PCT)))
         : setupPct;
 
+    // Streamed once per throttled progress write (~1/s), so the line lengthens in ~15-20 game
+    // steps and recharts animates each extension on its own. Only present for a takeover run.
+    const timeline = job?.progress_games ?? [];
+
     return (
         <div className="flex flex-col items-center justify-center gap-4 py-16 px-4">
             <FaSpinner className="animate-spin text-(--text-tertiary) text-2xl" />
@@ -51,6 +57,14 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                     {total > 0 && <span>{completed.toLocaleString()} / {total.toLocaleString()} games</span>}
                 </div>
             </div>
+
+            {timeline.length > 0 && (
+                <div className="w-full max-w-lg">
+                    <SectionCard title={`Win % Over Time · ${timeline[timeline.length - 1].wins}–${timeline[timeline.length - 1].losses}`}>
+                        <SimWinPctChart games={timeline} totalGames={job?.progress_games_total ?? timeline.length} />
+                    </SectionCard>
+                </div>
+            )}
 
             <p className="text-[11px] text-(--text-tertiary)">This usually takes under a minute.</p>
 

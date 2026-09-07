@@ -856,11 +856,21 @@ def _run_sim_job(
     """
     try:
         last_write = datetime.min
+        # LATEST RUNNING GAME-BY-GAME RECORD FOR `team_abbr` (PLUS THAT CLUB'S TOTAL SCHEDULED
+        # GAMES, SO THE CHART CAN FIX ITS X-AXIS), REFRESHED EVERY FOCUS-TEAM GAME BY `on_timeline`
+        # AND FLUSHED TO THE JOB ROW ON THE NEXT THROTTLED PROGRESS WRITE, SO THE WEB PROGRESS
+        # SCREEN CAN ANIMATE A LIVE WIN% CHART.
+        latest_timeline: list[dict] = []
+        latest_timeline_total = 0
 
         def write_progress(phase: str | None = None, completed: int | None = None, total: int | None = None) -> None:
             try:
                 with PostgresDB() as progress_db:
-                    still_active = progress_db.update_sim_job_progress(job_id, phase=phase, games_completed=completed, games_total=total)
+                    still_active = progress_db.update_sim_job_progress(
+                        job_id, phase=phase, games_completed=completed, games_total=total,
+                        progress_games=latest_timeline or None,
+                        progress_games_total=latest_timeline_total or None,
+                    )
             except Exception:
                 return  # PROGRESS IS COSMETIC - A WRITE FAILURE MUST NEVER KILL THE RUN
             # THE CANCELLATION CHECK MUST STAY OUTSIDE THE try/except ABOVE, OR THE BARE
@@ -876,15 +886,32 @@ def _run_sim_job(
             last_write = now
             write_progress(completed=completed, total=total)
 
+        def on_timeline(timeline: list[dict], total_games: int) -> None:
+            nonlocal latest_timeline, latest_timeline_total
+            # A SHALLOW COPY - THE ENGINE KEEPS MUTATING THE LIST IT PASSES, AND THE DICTS ARE
+            # NEVER TOUCHED AGAIN ONCE APPENDED, SO COPYING THE LIST ALONE IS ENOUGH.
+            latest_timeline = list(timeline)
+            latest_timeline_total = total_games
+
         def on_status(message: str) -> None:
             phase = _friendly_phase(message)
             if phase:
                 write_progress(phase=phase)
 
+        if team_abbr:
+            try:
+                with PostgresDB() as setup_db:
+                    setup_db.ensure_sim_job_progress_column()
+            except Exception:
+                traceback.print_exc()  # WORST CASE THE LIVE CHART IS SKIPPED - THE RUN IS FINE
+
         write_progress(phase='Starting simulation')
         # `log_callback` STAYS UNSET: IT FIRES PER PLATE APPEARANCE (~185k TIMES) AND FORCES
         # GameLogEntry CONSTRUCTION EVEN WHEN THE LOG IS NEVER COLLECTED.
-        result = Season(config=config).simulate(progress_callback=on_progress, status_callback=on_status)
+        result = Season(config=config).simulate(
+            progress_callback=on_progress, status_callback=on_status,
+            focus_team_abbr=team_abbr, timeline_callback=on_timeline,
+        )
 
         with PostgresDB() as check_db:
             # POSTSEASON HAS NO CALLBACK OF ITS OWN, SO A CANCEL DURING IT ONLY SURFACES HERE -

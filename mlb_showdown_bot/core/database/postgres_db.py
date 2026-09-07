@@ -7776,6 +7776,12 @@ class PostgresDB:
             # STRUCTURED DETAIL FOR A FAILURE THE `error` TEXT ONLY SUMMARIZES - CURRENTLY THE
             # GAME STATE CAPTURED WHEN A SIMULATED GAME GETS STUCK (SEE `GameStuckError`).
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS error_context JSONB;")
+            # RUNNING GAME-BY-GAME RECORD FOR THE TAKEOVER CLUB, STREAMED WHILE THE SEASON PLAYS SO
+            # THE WEB PROGRESS SCREEN CAN ANIMATE ITS WIN% CHART LIVE (SEE `update_sim_job_progress`).
+            # `progress_games_total` IS THAT CLUB'S FULL SCHEDULED GAME COUNT, SO THE CHART CAN FIX
+            # ITS X-AXIS INSTEAD OF RESCALING AS POINTS ARRIVE.
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games JSONB;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games_total INT;")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_user_id ON internal.sim_job (user_id, created_at DESC);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_team_id ON internal.sim_job (team_id, created_at DESC);")
             # DRIVES BOTH THE STALE-JOB REAPER AND TTL CLEANUP
@@ -8085,9 +8091,28 @@ class PostgresDB:
             )
             return str(cur.fetchone()[0])
 
-    def update_sim_job_progress(self, job_id: str, phase: str | None = None, games_completed: int | None = None, games_total: int | None = None) -> bool:
+    def ensure_sim_job_progress_column(self) -> None:
+        """Lazily add the `sim_job` live-progress columns so a deploy that hasn't run
+        `build_sim_job_table` still streams progress. Called once per worker run rather than on
+        every progress write, which fires ~once a second."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games JSONB;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games_total INT;")
+
+    def update_sim_job_progress(
+        self, job_id: str, phase: str | None = None, games_completed: int | None = None,
+        games_total: int | None = None, progress_games: list | None = None,
+        progress_games_total: int | None = None,
+    ) -> bool:
         """Mark the job running and record progress. Called from the worker thread on its own
         connection - it cannot share the one the simulation is using.
+
+        `progress_games` is the takeover club's running game-by-game record so far - streamed so
+        the web progress screen can animate a live win% chart - and `progress_games_total` is that
+        club's full scheduled game count (the chart's fixed x-axis max). COALESCE keeps the last
+        value when a write omits either, so a plain progress tick never wipes them.
 
         Returns False if the job was cancelled out from under it (the row is excluded by the
         WHERE clause), which the worker treats as a signal to stop simulating.
@@ -8102,10 +8127,14 @@ class PostgresDB:
                        phase           = COALESCE(%s, phase),
                        games_completed = COALESCE(%s, games_completed),
                        games_total     = COALESCE(%s, games_total),
+                       progress_games  = COALESCE(%s, progress_games),
+                       progress_games_total = COALESCE(%s, progress_games_total),
                        updated_at      = NOW()
                  WHERE job_id = %s AND status <> 'cancelled'
                 """,
-                (phase, games_completed, games_total, job_id),
+                (phase, games_completed, games_total,
+                 extras.Json(progress_games) if progress_games is not None else None,
+                 progress_games_total, job_id),
             )
             return cur.rowcount > 0
 
@@ -8184,7 +8213,7 @@ class PostgresDB:
         rows = self.execute_query(
             """
             SELECT job_id, user_id, team_id, status, phase, games_completed, games_total,
-                   config, error, created_at, updated_at, finished_at
+                   config, error, progress_games, progress_games_total, created_at, updated_at, finished_at
               FROM internal.sim_job
              WHERE job_id = %s AND (user_id IS NULL OR user_id = %s)
             """,

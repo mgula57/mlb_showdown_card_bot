@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
 import { FaTrophy } from 'react-icons/fa6';
 import type { AwardWinner, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -6,6 +6,7 @@ import { TeamChip } from '../../shared/TeamChip';
 import { fromSimTeamIdentity, fallbackIdentity } from '../../../domain/adapters/fromSim';
 import { useStandingsEntries, useIdentity, hashId, computePtsEfficiency } from './simStandings';
 import { useClubSeason } from './simClubSeason';
+import { SectionCard } from './SectionCard';
 import { SimWinPctChart } from './SimWinPctChart';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS } from './simStatColumns';
@@ -20,15 +21,6 @@ const AWARD_LABELS: Record<AwardWinner['category'], string> = {
     ROY: 'Rookie of the Year',
     SILVER_SLUGGER: 'Silver Slugger',
 };
-
-function SectionCard({ title, children }: { title: string; children: ReactNode }) {
-    return (
-        <div className="rounded-xl bg-(--background-tertiary) p-3 flex flex-col gap-2 min-w-0">
-            <p className="text-[12px] font-bold text-(--text-primary)">{title}</p>
-            {children}
-        </div>
-    );
-}
 
 type Props = {
     summary: SeasonSimSummary;

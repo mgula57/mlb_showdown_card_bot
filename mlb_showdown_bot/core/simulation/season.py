@@ -191,6 +191,8 @@ class Season:
         progress_callback: Optional[Callable[[int, int], None]] = None,
         log_callback: Optional[Callable[[str], None]] = None,
         status_callback: Optional[Callable[[str], None]] = None,
+        focus_team_abbr: Optional[str] = None,
+        timeline_callback: Optional[Callable[[list[dict]], None]] = None,
     ) -> SeasonSimulationResult:
         """Run the full simulation.
 
@@ -198,6 +200,13 @@ class Season:
           progress_callback: Called with (games_completed, total_games) after each game.
           log_callback: Called with each play-by-play line (CLI game log).
           status_callback: Called with human-readable progress messages during setup (player loading, roster building, scheduling).
+          focus_team_abbr: Schedule key of one club to emit a running game-by-game record for as
+            the season plays (the replaced-club abbr for a takeover). Enables `timeline_callback`.
+          timeline_callback: Called after each `focus_team_abbr` game with `(running_list, total)` -
+            the full running list of `{date, is_win, wins, losses}` dicts so far, plus that club's
+            total scheduled game count so a live chart can fix its x-axis. Lets a caller stream a
+            live win% chart without waiting for the finished result. No-op unless `focus_team_abbr`
+            is also set.
         """
 
         def status(message: str) -> None:
@@ -276,6 +285,17 @@ class Season:
         # SIMULATE GAMES
         total_games = len(self.schedule.games)
         status(f"Simulating {total_games} game(s)...")
+        # RUNNING GAME-BY-GAME RECORD FOR `focus_team_abbr`, EMITTED THROUGH `timeline_callback`
+        # AS THE SEASON PLAYS SO A LIVE WIN% CHART CAN ANIMATE. MIRRORS
+        # `SeasonSummaryBuilder._build_games`: 0-0, OR THE SEEDED REAL RECORD FOR A REST-OF-SEASON
+        # PROJECTION.
+        stream_timeline = bool(timeline_callback and focus_team_abbr)
+        focus_timeline: list[dict] = []
+        focus_wins, focus_losses = self.seeded_records.get(focus_team_abbr, (0, 0)) if focus_team_abbr else (0, 0)
+        focus_total_games = (
+            sum(1 for g in self.schedule.games if focus_team_abbr in (g.home_team_name, g.away_team_name))
+            if stream_timeline else 0
+        )
         for index, game in enumerate(self.schedule.games):
             if self._trade_deadline is not None and not self._trade_deadline.applied and game.date >= self._trade_deadline.deadline_date:
                 self.deadline_trades = self._trade_deadline.apply(self.standings, self.standings.teams, game.date)
@@ -291,6 +311,18 @@ class Season:
 
             self.league_stats.merge(game.home_team.stats)
             self.league_stats.merge(game.away_team.stats)
+
+            if stream_timeline and game.is_game_over and focus_team_abbr in (game.home_team_name, game.away_team_name):
+                is_home = game.home_team_name == focus_team_abbr
+                scored = game.home_team_final_score if is_home else game.away_team_final_score
+                allowed = game.away_team_final_score if is_home else game.home_team_final_score
+                is_win = scored > allowed
+                if is_win:
+                    focus_wins += 1
+                else:
+                    focus_losses += 1
+                focus_timeline.append({'date': str(game.date), 'is_win': is_win, 'wins': focus_wins, 'losses': focus_losses})
+                timeline_callback(focus_timeline, focus_total_games)
 
             if progress_callback:
                 progress_callback(index + 1, total_games)
