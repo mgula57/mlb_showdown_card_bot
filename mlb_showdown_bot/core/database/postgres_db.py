@@ -7878,6 +7878,7 @@ class PostgresDB:
                     goal_type       TEXT NOT NULL,   -- 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record'
                     goal_value      JSONB,           -- e.g. {"min_wins": 90} or {"target_abbr": "NYY"}
                     pts_limit       INT,             -- null = no cap
+                    roster_size     INT NOT NULL DEFAULT 25,          -- minimum roster size a team needs to take this on
                     year_pool       TEXT NOT NULL DEFAULT 'any',      -- 'any' | comma list of years | 'random_range:1977,2024'
                     replaces_pool   TEXT NOT NULL DEFAULT 'any',      -- 'any' | 'worst_record' | comma list of abbrs
                     -- Same shape/semantics as user_teams.player_filters (min_year/max_year/team/
@@ -7889,6 +7890,10 @@ class PostgresDB:
                 );
             """)
             cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS player_filters JSONB;")
+            # MINIMUM ROSTER SIZE A TEAM NEEDS TO TAKE ON THE CHALLENGE - THE "USE AN EXISTING
+            # TEAM" PICKER FILTERS TO THIS, AND A CHALLENGE'S "NEW TEAM" IS PRE-SIZED TO IT.
+            # COPIED ONTO THE INSTANCE AT GENERATION TIME, SAME AS pts_limit.
+            cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS roster_size INT NOT NULL DEFAULT 25;")
             # PRESENTATION GROUPING FOR THE CHALLENGES LIST (accent color + one-of-each weekly
             # rotation) - 'legendary' | 'budget_cap' | 'themed'. NOT A MECHANIC; THE
             # goal_type/pts_limit/player_filters DO THE ACTUAL WORK. READ VIA A JOIN FROM THE
@@ -7901,6 +7906,7 @@ class PostgresDB:
                     year            INT NOT NULL,
                     replaces_abbr   TEXT NOT NULL,
                     pts_limit       INT,             -- copied from the template at generation time
+                    roster_size     INT NOT NULL DEFAULT 25,  -- copied from the template at generation time
                     player_filters  JSONB,           -- copied from the template at generation time
                     starts_at       TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
                     expires_at      TIMESTAMP WITHOUT TIME ZONE NOT NULL,
@@ -7908,6 +7914,7 @@ class PostgresDB:
                 );
             """)
             cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS player_filters JSONB;")
+            cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS roster_size INT NOT NULL DEFAULT 25;")
             # NOT A PARTIAL INDEX: NOW() ISN'T IMMUTABLE, SO IT CAN'T APPEAR IN AN INDEX
             # PREDICATE (ONLY IN A QUERY'S WHERE CLAUSE). THE TABLE IS TINY (A HANDFUL OF ROWS
             # PER TEMPLATE) SO A PLAIN INDEX ON expires_at IS PLENTY.
@@ -7958,7 +7965,7 @@ class PostgresDB:
             return None
         rows = self.execute_query(
             """
-            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.player_filters, i.expires_at,
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
                    attempt.challenge_result, attempt.attempted_at
               FROM internal.challenge_instance i
@@ -7989,7 +7996,7 @@ class PostgresDB:
             return []
         rows = self.execute_query(
             """
-            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.player_filters, i.expires_at,
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
                    attempt.challenge_result, attempt.attempted_at
               FROM internal.challenge_instance i
@@ -8027,7 +8034,7 @@ class PostgresDB:
     def create_challenge_template(
         self, slug: str, title: str, description: str, goal_type: str, goal_value: dict | None,
         pts_limit: int | None, year_pool: str, replaces_pool: str, active: bool = True,
-        player_filters: dict | None = None, category: str = 'themed',
+        player_filters: dict | None = None, category: str = 'themed', roster_size: int = 25,
     ) -> str:
         if not self.connection:
             raise RuntimeError("No database connection")
@@ -8035,14 +8042,14 @@ class PostgresDB:
             cur.execute(
                 """
                 INSERT INTO internal.challenge_template
-                    (slug, title, description, goal_type, goal_value, pts_limit, year_pool, replaces_pool, active, player_filters, category)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (slug, title, description, goal_type, goal_value, pts_limit, roster_size, year_pool, replaces_pool, active, player_filters, category)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING template_id
                 """,
                 (
                     slug, title, description, goal_type,
                     extras.Json(goal_value) if goal_value is not None else None,
-                    pts_limit, year_pool, replaces_pool, active,
+                    pts_limit, roster_size, year_pool, replaces_pool, active,
                     extras.Json(player_filters) if player_filters is not None else None,
                     category,
                 ),
@@ -8053,7 +8060,7 @@ class PostgresDB:
         """Every template, active or not - for CLI/admin listing (contrast with
         `list_active_challenge_templates`, which the generator uses and only wants active ones)."""
         rows = self.execute_query(
-            "SELECT template_id, slug, title, description, goal_type, goal_value, pts_limit, "
+            "SELECT template_id, slug, title, description, goal_type, goal_value, pts_limit, roster_size, "
             "year_pool, replaces_pool, active, player_filters, category, created_at "
             "FROM internal.challenge_template ORDER BY created_at DESC"
         )
@@ -8068,7 +8075,7 @@ class PostgresDB:
         constraints (e.g. a `beat_team_record` instance must never replace the target club).
         """
         return self.execute_query(
-            "SELECT template_id, slug, title, pts_limit, year_pool, replaces_pool, player_filters, "
+            "SELECT template_id, slug, title, pts_limit, roster_size, year_pool, replaces_pool, player_filters, "
             "category, goal_type, goal_value "
             "FROM internal.challenge_template WHERE active = TRUE"
         )
@@ -8082,19 +8089,19 @@ class PostgresDB:
 
     def create_challenge_instance(
         self, template_id: str, year: int, replaces_abbr: str, pts_limit: int | None,
-        expires_in_days: int = 7, player_filters: dict | None = None,
+        expires_in_days: int = 7, player_filters: dict | None = None, roster_size: int = 25,
     ) -> str:
         if not self.connection:
             raise RuntimeError("No database connection")
         with self.connection.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, player_filters, expires_at)
-                VALUES (%s, %s, %s, %s, %s, NOW() + make_interval(days => %s))
+                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, roster_size, player_filters, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW() + make_interval(days => %s))
                 RETURNING instance_id
                 """,
                 (
-                    template_id, year, replaces_abbr, pts_limit,
+                    template_id, year, replaces_abbr, pts_limit, roster_size,
                     extras.Json(player_filters) if player_filters is not None else None,
                     expires_in_days,
                 ),

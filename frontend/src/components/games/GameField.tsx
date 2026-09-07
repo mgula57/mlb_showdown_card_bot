@@ -347,10 +347,11 @@ function HalfInningFlash({ brk, phase, visible }: {
 }
 
 /** Temporary badge announcing what's resolving — a play result ("Double", "Home Run",
- *  "Strikeout"), or the inning changeover on the half-inning break (see `HalfInningFlash`).
- *  Visible for the stretch of the phase machine where the field is actually animating, then it
- *  fades. Absent entirely outside playback (`phase` stays "idle" when there's nothing to reveal),
- *  so a plain live view never shows it. */
+ *  "Strikeout"), a runner-only beat on a sim ("Stolen Base", "Extra Base" — see
+ *  `transition.beatLabel`), or the inning changeover on the half-inning break (see
+ *  `HalfInningFlash`). Visible for the stretch of the phase machine where the field is actually
+ *  animating, then it fades. Absent entirely outside playback (`phase` stays "idle" when there's
+ *  nothing to reveal), so a plain live view never shows it. */
 function ResultFlash({ play, phase, transition }: { play: PlayEntry | undefined; phase: PlayPhase; transition?: FrameTransition }) {
     const visible = phase === "result" || phase === "runners";
 
@@ -359,21 +360,30 @@ function ResultFlash({ play, phase, transition }: { play: PlayEntry | undefined;
         return <HalfInningFlash brk={transition.halfInningBreak} phase={phase} visible={visible} />;
     }
 
-    if (!play) return null;
+    // A runner-only beat (a sim's pre-pitch steal or post-hit extra-base send) has no `play` of
+    // its own — the flash reads its `beatLabel` so the animation isn't silent.
+    const beatLabel = !play ? transition?.beatLabel : undefined;
+    if (!play && !beatLabel) return null;
 
-    const isBig = transition?.severity === "big";
-    const label = isBig && play.isScoringPlay && !/[!?]$/.test(play.event) ? `${play.event}!` : play.event;
+    const isBig = !!play && transition?.severity === "big";
+    const label = play
+        ? (isBig && play.isScoringPlay && !/[!?]$/.test(play.event) ? `${play.event}!` : play.event)
+        : beatLabel;
+    // A caught-stealing / thrown-out beat gets the accent border so a negative result reads
+    // differently from a clean steal or extra base.
+    const negativeBeat = !play && !!transition?.moves.some((m) => m.kind === "out");
+    const key = play ? play.id : `beat-${transition?.fromIndex}-${transition?.toIndex}`;
 
     return (
         <div
-            key={play.id}
+            key={key}
             aria-hidden={!visible}
             className={`
                 ${FLASH_SHELL}
                 ${visible ? "opacity-100 translate-y-0 result-pop" : "opacity-0 -translate-y-2"}
                 ${isBig
                     ? "bg-(--live) border-(--live) text-white text-base px-5 py-2"
-                    : "bg-(--background-secondary)/95 border-(--divider) text-(--primary) text-xs px-3.5 py-1.5"}
+                    : `bg-(--background-secondary)/95 text-(--primary) text-xs px-3.5 py-1.5 ${negativeBeat ? "border-(--live)" : "border-(--divider)"}`}
             `}
         >
             {label}

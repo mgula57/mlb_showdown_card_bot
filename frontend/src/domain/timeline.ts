@@ -61,6 +61,11 @@ export type FrameTransition = {
     outsRecorded: number;
     isHalfInningChange: boolean;
     severity: TransitionSeverity;
+    /** A short descriptor for a runner-only beat that carries no `play` of its own — a sim's
+     *  pre-pitch steal or post-hit extra-base send. The field's result flash shows this so the
+     *  beat animates with a label instead of silently. Unset when the frame has a `play` (that
+     *  play's own event is what the flash shows). */
+    beatLabel?: string;
     /** Set only on the synthetic HALF_INNING_BREAK transition — the half-inning just finished and
      *  the one about to begin, so the field's flash can play an arrow-flip from one to the other
      *  while the bases clear, instead of flashing nothing on a play-less frame. */

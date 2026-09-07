@@ -20,6 +20,7 @@ import {
     type GameFrame,
     type GameTimeline,
     type RetiredRunner,
+    type RunnerMove,
     type RunnerSpot,
 } from "../timeline";
 
@@ -356,6 +357,23 @@ const baseSlotFor = (base: number): BaseSlot | undefined =>
  *  who reached home scored, and isn't "on base" anymore). */
 const runnerSpotFor = (base: number): RunnerSpot => (base >= 4 ? "home" : baseSlotFor(base) ?? "home");
 
+/** A short flash label for a runner-only beat (the `-steal` / `-adv` legs `fromSimTimeline`
+ *  splits a plate appearance into) — those frames carry no `play`, so the field's result flash
+ *  has nothing to announce without this. Read from the beat's own runner movements. */
+const beatLabelFor = (legId: string, moves: RunnerMove[]): string | undefined => {
+    const outs = moves.filter((m) => m.kind === "out").length;
+    const advances = moves.filter((m) => m.kind === "advance").length;
+    if (legId.endsWith("-steal")) {
+        if (outs > 0 && advances > 0) return "Steal + Caught Stealing";
+        if (outs > 0) return outs > 1 ? "Caught Stealing (x2)" : "Caught Stealing";
+        return advances > 1 ? "Double Steal" : "Stolen Base";
+    }
+    if (legId.endsWith("-adv")) {
+        return outs > 0 ? "Thrown Out Advancing" : "Extra Base";
+    }
+    return undefined;
+};
+
 const toPlayerRef = (r: SimRunnerRefJson): PlayerRef => ({ id: r.id, name: r.name });
 const toRetiredRunner = (r: SimRunnerRefJson): RetiredRunner => ({ player: toPlayerRef(r), attemptedSpot: runnerSpotFor(r.base) });
 
@@ -617,6 +635,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                     fromIndex: frames.length - 1, toIndex: frames.length,
                     moves, runsScored: leg.runs, outsRecorded: leg.outs,
                     isHalfInningChange: isLastLeg && isHalfInningChange, severity,
+                    beatLabel: leg.play ? undefined : beatLabelFor(leg.id, moves),
                 },
                 view: baseView({
                     state: legKind === "FINAL" ? "FINAL" : "LIVE",

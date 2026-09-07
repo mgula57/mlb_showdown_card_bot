@@ -4,7 +4,7 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { getContrastTextColor } from '../../functions/colors';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { FaCircle, FaHatWizard, FaRobot, FaUser, FaUsers } from 'react-icons/fa6';
+import { FaCircle, FaHatWizard, FaRobot, FaUsers } from 'react-icons/fa6';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
 // historical MLB teams, and All-Star teams alike.

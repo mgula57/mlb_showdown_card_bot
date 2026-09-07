@@ -144,6 +144,7 @@ def generate_challenges(
                 template_id=template['template_id'], year=year, replaces_abbr=replaces_abbr,
                 pts_limit=template['pts_limit'], expires_in_days=_INSTANCE_LIFETIME_DAYS,
                 player_filters=template.get('player_filters'),
+                roster_size=template.get('roster_size') or 25,
             )
             typer.echo(f"Generated '{template['slug']}': {year} {replaces_abbr} (instance {instance_id})")
             created += 1
@@ -163,6 +164,7 @@ def create_template(
     beat_team_abbr: str = typer.Option(None, "--beat-team-abbr", help="Required when --goal-type is beat_team_record - the club abbr (e.g. NYY) whose win total must be beaten"),
     category: Category = typer.Option(Category.THEMED, "--category", help="Presentation grouping for the challenges list"),
     pts_limit: int = typer.Option(None, "--pts-limit", help="Team budget cap. Omit for no cap"),
+    roster_size: int = typer.Option(25, "--roster-size", help="Minimum roster size a team needs to take on this challenge (also the size a challenge 'New Team' is pre-built at)"),
     year_pool: str = typer.Option("any", "--year-pool", help="'any' | comma list of years | 'random_range:lo,hi'"),
     replaces_pool: str = typer.Option("any", "--replaces-pool", help="'any' | 'worst_record' | comma list of abbrs"),
     player_filters: str = typer.Option(
@@ -203,6 +205,11 @@ def create_template(
     if goal_type == GoalType.BEAT_TEAM_RECORD and not beat_team_abbr:
         typer.echo("ERROR: --beat-team-abbr is required when --goal-type is beat_team_record.")
         raise typer.Exit(code=1)
+    # 9 FIELDERS + 5 STARTERS + 5 BULLPEN + 3 BENCH IS THE BUCKET SPLIT A CHALLENGE 'NEW TEAM'
+    # IS BUILT WITH - A SMALLER ROSTER CAN'T HOLD IT AND WOULD FAIL THE TEAM SETUP STEP.
+    if roster_size < 22:
+        typer.echo("ERROR: --roster-size must be at least 22.")
+        raise typer.Exit(code=1)
     try:
         _validate_year_pool(year_pool)
     except ValueError as exc:
@@ -232,7 +239,7 @@ def create_template(
             slug=slug, title=title, description=description, goal_type=goal_type.value,
             goal_value=goal_value, pts_limit=pts_limit, year_pool=year_pool,
             replaces_pool=replaces_pool, active=not inactive, player_filters=parsed_player_filters,
-            category=category.value,
+            category=category.value, roster_size=roster_size,
         )
         typer.echo(f"Created template '{slug}' ({template_id}).")
         typer.echo("Run `challenges generate` to produce a live instance from it.")
@@ -255,8 +262,9 @@ def list_templates(
         for t in templates:
             flag = "" if t['active'] else "  (inactive)"
             cap = f"{t['pts_limit']} pts" if t['pts_limit'] is not None else "no cap"
+            roster = f"{t.get('roster_size') or 25}-man"
             filters = f"  filters: {t['player_filters']}" if t.get('player_filters') else ""
             category = t.get('category') or "themed"
-            typer.echo(f"{t['slug']:<28} {t['title']:<30} {category:<12} {t['goal_type']:<18} {cap:<10}{flag}{filters}")
+            typer.echo(f"{t['slug']:<28} {t['title']:<30} {category:<12} {t['goal_type']:<18} {cap:<10} {roster:<8}{flag}{filters}")
     finally:
         db.close_connection()

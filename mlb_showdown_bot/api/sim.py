@@ -154,6 +154,14 @@ def start_season_sim():
                     'error': f"This team costs {roster_points} pts, over the {challenge['pts_limit']} pt challenge limit.",
                 }), 422
 
+            # CHECKED AGAINST THE ROSTER'S ACTUAL CARDS, NOT team.roster_size (A FREELY EDITABLE
+            # SETTING) - THE CHALLENGE NEEDS AT LEAST THIS MANY PLAYERS ON THE FIELD.
+            challenge_roster_min = challenge.get('roster_size') if challenge is not None else None
+            if challenge_roster_min and len(row.get('roster') or []) < challenge_roster_min:
+                return jsonify({
+                    'error': f"This team has {len(row.get('roster') or [])} players, under the challenge's {challenge_roster_min}-player minimum.",
+                }), 422
+
             # CHECKED AGAINST THE ROSTER'S ACTUAL CARDS, NEVER AGAINST team.player_filters - THAT
             # FIELD IS ONLY A PICKER/AUTOFILL DEFAULT AND IS FREELY USER-EDITABLE AFTER CREATION,
             # SO IT CANNOT BE TRUSTED AS PROOF THE ROSTER STILL COMPLIES.
@@ -1052,9 +1060,12 @@ def get_eligible_teams(instance_id):
             if not challenge or challenge['expires_at'] <= datetime.now():
                 return jsonify({'error': 'This challenge is no longer active.'}), 400
 
+            roster_min = challenge.get('roster_size') or 0
             candidates = [
                 t for t in db.get_user_teams(g.user_id)
-                if not t['is_drafting'] and (challenge['pts_limit'] is None or t['total_points'] <= challenge['pts_limit'])
+                if not t['is_drafting']
+                and (challenge['pts_limit'] is None or t['total_points'] <= challenge['pts_limit'])
+                and t['roster_count'] >= roster_min
             ]
 
             player_filters = challenge.get('player_filters')

@@ -369,9 +369,10 @@ export default function TeamBuilder() {
                     name: `${displayName} - ${challenge.title}`,
                     is_public: false,
                     pts_limit: challenge.pts_limit,
-                    // Challenge teams default to a 26-man roster (3 bench / 5 bullpen) to match
-                    // the modern active-roster shape the challenge flow assumes.
-                    roster_size: 26,
+                    // Challenge teams are pre-sized to the challenge's own roster minimum (25 by
+                    // default), with a modern active-roster bucket split (3 bench / 5 bullpen /
+                    // 5 starters) beneath it.
+                    roster_size: challenge.roster_size,
                     num_starters: 5,
                     min_bench: 3,
                     min_bullpen: 5,

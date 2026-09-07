@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
     FaPlus, FaListUl, FaSpinner, FaChevronDown, FaChevronUp,
-    FaCalendarDays, FaShirt, FaSackDollar, FaFlagCheckered, FaClock, FaTrophy, FaChevronRight, FaFilter,
+    FaCalendarDays, FaShirt, FaSackDollar, FaFlagCheckered, FaClock, FaTrophy, FaChevronRight, FaFilter, FaUsers,
 } from 'react-icons/fa6';
 import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
 import { fetchEligibleTeamIds, type ChallengeInstance } from '../../../api/sim';
@@ -11,8 +11,9 @@ import { challengeCategoryMeta } from './challengeCategory';
 type Props = {
     challenge: ChallengeInstance;
     token?: string;
-    /** Spins up a fresh team pre-configured for this challenge (budget, player filters,
-     *  26-man roster) and drops the user on the team editor's setup step. */
+    /** Spins up a fresh team pre-configured for this challenge (budget, player filters, and a
+     *  roster pre-sized to the challenge's minimum) and drops the user on the team editor's
+     *  setup step. */
     onNewTeam: (challenge: ChallengeInstance) => void;
     onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
     /** Present only in the list view — opens the challenge's own detail + scoped leaderboard.
@@ -90,6 +91,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
         !team.is_drafting &&
         !team.is_archived &&
         (challenge.pts_limit == null || team.total_points <= challenge.pts_limit) &&
+        team.roster_count >= challenge.roster_size &&
         (eligibleTeamIds === null || eligibleTeamIds.has(team.team_id));
     const left = daysLeft(challenge.expires_at);
     const category = challengeCategoryMeta(challenge.category);
@@ -148,10 +150,11 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
             </div>
 
             <div className="grid grid-cols-2 gap-2">
+                <StatTile icon={<FaFlagCheckered />} label="Goal" value={goalLabel(challenge)} fullWidth />
                 <StatTile icon={<FaCalendarDays />} label="Season" value={String(challenge.year)} />
                 <StatTile icon={<FaShirt />} label="Take Over" value={challenge.replaces_abbr} />
                 <StatTile icon={<FaSackDollar />} label="Budget" value={challenge.pts_limit != null ? `${challenge.pts_limit} pts` : 'No limit'} />
-                <StatTile icon={<FaFlagCheckered />} label="Goal" value={goalLabel(challenge)} />
+                <StatTile icon={<FaUsers />} label="Min Roster" value={`${challenge.roster_size} players`} />
                 {restrictionsLabel(challenge) && (
                     <StatTile icon={<FaFilter />} label="Player Restrictions" value={restrictionsLabel(challenge)!} fullWidth />
                 )}

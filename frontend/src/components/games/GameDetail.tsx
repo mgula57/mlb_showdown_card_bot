@@ -281,16 +281,24 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         }
                     >
                         <div className="flex items-center gap-2">
+                            {/* "Watch" reveals the transport strip (below the field) and starts
+                                playback from the first pitch — clicking it again re-watches from the
+                                top. A takeover sim always shows the strip, so it only needs the
+                                seek+play. */}
                             <button
                                 type="button"
-                                onClick={() => { playbackControls.seekToStart(); playbackControls.play(); }}
+                                onClick={() => {
+                                    setShowPlaybackControls(true);
+                                    playbackControls.seekToStart();
+                                    playbackControls.play();
+                                }}
                                 className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
                             >
-                                Watch
+                                {showPlaybackControls || simResult.is_takeover ? 'Restart' : 'Watch'}
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setSimResult(null)}
+                                onClick={() => { setSimResult(null); setShowPlaybackControls(false); }}
                                 className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
                             >
                                 Exit Sim

@@ -1656,7 +1656,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {/* Challenge launch confirm - year/club/budget are all already fixed by the
                 challenge, so there's nothing left to pick, just a confirmation. */}
             {showChallengeConfirm && challenge && (() => {
-                const fits = challenge.pts_limit == null || pointsBreakdown.total <= challenge.pts_limit;
+                const ptsFits = challenge.pts_limit == null || pointsBreakdown.total <= challenge.pts_limit;
+                const rosterFits = draft.roster.length >= challenge.roster_size;
+                const fits = ptsFits && rosterFits;
                 return (
                     <div
                         className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -1674,9 +1676,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 </div>
                             </div>
                             <div className="px-4 py-3 flex flex-col gap-2">
-                                {!fits && (
+                                {!ptsFits && (
                                     <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
                                         This team costs {pointsBreakdown.total} pts, over the {challenge.pts_limit} pt challenge limit.
+                                    </div>
+                                )}
+                                {!rosterFits && (
+                                    <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                                        This team has {draft.roster.length} players, under the challenge's {challenge.roster_size}-player minimum.
                                     </div>
                                 )}
                                 {challengeError && (

@@ -418,6 +418,10 @@ export type ChallengeInstance = {
     year: number;
     replaces_abbr: string;
     pts_limit: number | null;
+    /** Minimum roster size a team needs to take on this challenge. The "use an existing team"
+     *  picker filters to teams with at least this many players, and a challenge's "New Team" is
+     *  pre-sized to it. Defaults to 25. */
+    roster_size: number;
     /** Restricts which players are eligible for a team built for this instance (e.g. team/hand/
      *  year), same shape as a team's own `player_filters`. Null = no restriction. */
     player_filters: Record<string, unknown> | null;
