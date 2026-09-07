@@ -168,12 +168,13 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
        tables stay reading the raw, CURRENT boxscore regardless of playback position — the
        timeline freezes them (see `GameTimeline.frozen`) rather than reconstructing per-play
        cumulative stats, so there's nothing playback-aware to swap in here. */
-    const boxScorePanels = (activeView: typeof view, hideResult: boolean) => (
+    const boxScorePanels = (activeView: typeof view, hideResult: boolean, isReplaying: boolean) => (
         <div className="@container space-y-4">
             <GameLinescore game={activeView} />
 
-            {/* Decisions and probables come off the real feed, so they only make sense for it. */}
-            {!simResult && isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+            {/* Decisions and probables come off the real feed, so they only make sense for it. The
+                W/L/SV pitchers are a spoiler while the replay cursor sits before the final out. */}
+            {!simResult && isFinal && !isReplaying && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
 
             {!simResult && isNotStarted && boxscore.probable_pitchers && (
                 <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
@@ -287,7 +288,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                    it and shouldn't see the final score or box score. `isReplaying` goes false only
                    once the cursor sits on the last frame (played to the end, or "Skip to result"). */
                 const simMidReplay = !!simResult && isReplaying;
-                const panels = boxScorePanels(activeView, simMidReplay);
+                const panels = boxScorePanels(activeView, simMidReplay, isReplaying);
 
                 /* Mode strip: sim banner gets a "Watch" button that jumps to the first pitch and
                    starts playback; a finished real game under active review gets its own REPLAY strip
