@@ -206,6 +206,22 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.search]);
 
+    // A game opened from another view (e.g. Home's "Today's Games") can pin the season it
+    // belongs to via `?season=<id>`, so a previously selected season doesn't leak stale
+    // cards into the game view. Apply it, then strip the param (keeping the game path).
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const seasonParam = params.get('season');
+        if (!seasonParam || seasons.length === 0) return;
+        const match = seasons.find((season) => season.season_id.toString() === seasonParam);
+        if (match && match.season_id !== selectedSeason?.season_id) {
+            setSelectedSeason(match);
+        }
+        params.delete('season');
+        navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search, seasons]);
+
     const handleGameSelect = (gamePk: number) => {
         navigate(`/seasons/game/${gamePk}`);
     };

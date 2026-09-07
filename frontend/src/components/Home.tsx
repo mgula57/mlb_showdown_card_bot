@@ -413,7 +413,7 @@ export default function Home() {
                             return (
                                 <Link
                                     key={game.id}
-                                    to={`/seasons/game/${game.id}`}
+                                    to={`/seasons/game/${game.id}${tickerSeason ? `?season=${tickerSeason.season_id}` : ''}`}
                                     className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) hover:brightness-105 transition ${isDark ? 'hover:bg-neutral-800/60' : 'hover:bg-neutral-50'}`}
                                 >
                                     {/* Status badge */}
