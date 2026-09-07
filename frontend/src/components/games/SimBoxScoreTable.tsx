@@ -12,7 +12,7 @@ import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
-const BATTING_COLUMNS = ["AB", "R", "H", "RBI", "BB", "K"] as const;
+const BATTING_COLUMNS = ["AB", "R", "H", "HR", "RBI", "BB", "K"] as const;
 const PITCHING_COLUMNS = ["IP", "H", "R", "ER", "BB", "K", "HR"] as const;
 
 function NameCell({
@@ -75,6 +75,7 @@ export default function SimBoxScoreTable({
                                 <td className={cellClass}>{batter.atBats}</td>
                                 <td className={cellClass}>{batter.runs}</td>
                                 <td className={cellClass}>{batter.hits}</td>
+                                <td className={cellClass}>{batter.homeRuns}</td>
                                 <td className={cellClass}>{batter.rbi}</td>
                                 <td className={cellClass}>{batter.baseOnBalls}</td>
                                 <td className={cellClass}>{batter.strikeOuts}</td>
