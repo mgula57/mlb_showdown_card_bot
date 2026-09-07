@@ -109,13 +109,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
         <div className="flex flex-col gap-5">
             {/* Type filter + unified search */}
             <div className={`${px} flex flex-wrap items-center gap-2`}>
-                <CustomSelect
-                    value={type}
-                    onChange={v => setType(v as BrowseType)}
-                    options={TYPE_OPTIONS}
-                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[13px] text-nowrap cursor-pointer flex items-center"
-                    dropdownArrowSize={12}
-                />
+
                 <div className="flex-1 min-w-48">
                     <TeamSearchInput
                         value={query}
@@ -123,6 +117,13 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         placeholder="Search teams by name or set…"
                     />
                 </div>
+                <CustomSelect
+                    value={type}
+                    onChange={v => setType(v as BrowseType)}
+                    options={TYPE_OPTIONS}
+                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[13px] text-nowrap cursor-pointer flex items-center"
+                    dropdownArrowSize={12}
+                />
             </div>
 
             {/* "All" + query → merged results grid */}
