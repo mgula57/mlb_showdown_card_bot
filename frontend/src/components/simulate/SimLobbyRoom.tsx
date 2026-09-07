@@ -103,7 +103,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
 
     useEffect(() => {
         if (!token || userTeams !== null) return;
-        fetchUserTeams(token).then(setUserTeams).catch(() => setUserTeams([]));
+        fetchUserTeams(token).then(teams => setUserTeams(teams.filter(t => !t.is_archived))).catch(() => setUserTeams([]));
     }, [token, userTeams]);
 
     const claimedAbbrs = new Set((state?.members ?? []).filter(m => m.user_id !== userId).map(m => m.club_abbr));

@@ -17,6 +17,15 @@ class GoalType(str, Enum):
     WIN_PENNANT = "win_pennant"
     WIN_WORLD_SERIES = "win_world_series"
     MIN_WINS = "min_wins"
+    BEAT_TEAM_RECORD = "beat_team_record"
+
+
+class Category(str, Enum):
+    """Presentation grouping for the challenges list - drives the accent color and the
+    one-of-each weekly rotation. Not a mechanic: the goal/cap/filters do the actual work."""
+    LEGENDARY = "legendary"
+    BUDGET_CAP = "budget_cap"
+    THEMED = "themed"
 
 
 def _target_db_label(env: str) -> str:
@@ -80,6 +89,10 @@ def _resolve_replaces(replaces_pool: str, options: TakeoverOptions) -> str | Non
 def _generate_instance_target(template: dict) -> tuple[int, str] | None:
     """Resolve a (year, replaces_abbr) pair for a template, retrying on years with no data.
     Returns None if nothing valid turned up within the attempt budget."""
+    # A `beat_team_record` challenge can never hand the player the very club they must beat.
+    forbidden_abbr = None
+    if template.get('goal_type') == GoalType.BEAT_TEAM_RECORD.value:
+        forbidden_abbr = (template.get('goal_value') or {}).get('target_abbr')
     for _ in range(_MAX_YEAR_ATTEMPTS):
         year = _resolve_year(template['year_pool'])
         if year < _EARLIEST_SEASON:
@@ -88,7 +101,7 @@ def _generate_instance_target(template: dict) -> tuple[int, str] | None:
         if not options.clubs:
             continue
         replaces_abbr = _resolve_replaces(template['replaces_pool'], options)
-        if replaces_abbr:
+        if replaces_abbr and replaces_abbr != forbidden_abbr:
             return year, replaces_abbr
     return None
 
@@ -147,6 +160,8 @@ def create_template(
     description: str = typer.Option(..., "--description", help="Flavor text shown on the challenge card"),
     goal_type: GoalType = typer.Option(..., "--goal-type", help="What the player needs to accomplish"),
     min_wins: int = typer.Option(None, "--min-wins", help="Required when --goal-type is min_wins"),
+    beat_team_abbr: str = typer.Option(None, "--beat-team-abbr", help="Required when --goal-type is beat_team_record - the club abbr (e.g. NYY) whose win total must be beaten"),
+    category: Category = typer.Option(Category.THEMED, "--category", help="Presentation grouping for the challenges list"),
     pts_limit: int = typer.Option(None, "--pts-limit", help="Team budget cap. Omit for no cap"),
     year_pool: str = typer.Option("any", "--year-pool", help="'any' | comma list of years | 'random_range:lo,hi'"),
     replaces_pool: str = typer.Option("any", "--replaces-pool", help="'any' | 'worst_record' | comma list of abbrs"),
@@ -177,16 +192,27 @@ def create_template(
     Example restricted to left-handed Mets/Yankees players:
 
     showdown_bot challenges create-template --slug lefty-subway --title "Lefty Subway Series" --description "Only lefties from the Mets or Yankees allowed." --goal-type made_playoffs --player-filters '{"team": ["NYM", "NYY"], "hand": ["L"]}' --env dev
+
+    Example - beat a specific iconic club's win total in that same simulated season:
+
+    showdown_bot challenges create-template --slug dethrone-27-yankees --title "Dethrone the '27 Yankees" --description "Take over another 1927 club and finish with more wins than Murderers' Row." --goal-type beat_team_record --beat-team-abbr NYY --category legendary --year-pool 1927 --replaces-pool worst_record --env dev
     """
     if goal_type == GoalType.MIN_WINS and min_wins is None:
         typer.echo("ERROR: --min-wins is required when --goal-type is min_wins.")
+        raise typer.Exit(code=1)
+    if goal_type == GoalType.BEAT_TEAM_RECORD and not beat_team_abbr:
+        typer.echo("ERROR: --beat-team-abbr is required when --goal-type is beat_team_record.")
         raise typer.Exit(code=1)
     try:
         _validate_year_pool(year_pool)
     except ValueError as exc:
         typer.echo(f"ERROR: {exc}")
         raise typer.Exit(code=1)
-    goal_value = {"min_wins": min_wins} if goal_type == GoalType.MIN_WINS else None
+    goal_value = None
+    if goal_type == GoalType.MIN_WINS:
+        goal_value = {"min_wins": min_wins}
+    elif goal_type == GoalType.BEAT_TEAM_RECORD:
+        goal_value = {"target_abbr": beat_team_abbr.strip().upper()}
 
     parsed_player_filters = None
     if player_filters is not None:
@@ -206,6 +232,7 @@ def create_template(
             slug=slug, title=title, description=description, goal_type=goal_type.value,
             goal_value=goal_value, pts_limit=pts_limit, year_pool=year_pool,
             replaces_pool=replaces_pool, active=not inactive, player_filters=parsed_player_filters,
+            category=category.value,
         )
         typer.echo(f"Created template '{slug}' ({template_id}).")
         typer.echo("Run `challenges generate` to produce a live instance from it.")
@@ -229,6 +256,7 @@ def list_templates(
             flag = "" if t['active'] else "  (inactive)"
             cap = f"{t['pts_limit']} pts" if t['pts_limit'] is not None else "no cap"
             filters = f"  filters: {t['player_filters']}" if t.get('player_filters') else ""
-            typer.echo(f"{t['slug']:<28} {t['title']:<30} {t['goal_type']:<18} {cap:<10}{flag}{filters}")
+            category = t.get('category') or "themed"
+            typer.echo(f"{t['slug']:<28} {t['title']:<30} {category:<12} {t['goal_type']:<18} {cap:<10}{flag}{filters}")
     finally:
         db.close_connection()

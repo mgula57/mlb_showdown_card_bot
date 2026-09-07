@@ -13,7 +13,7 @@ import {
     TEAM_CARD_SOURCES, activeSources, allowedSetsForSource, isSingleSetSource,
     normalizeSetSettings, setOptionsForSource, toggleSetForSource,
 } from '../../domain/teamSets';
-import { FaUser, FaLayerGroup, FaGears, FaFilter } from 'react-icons/fa6';
+import { FaUser, FaLayerGroup, FaGears, FaFilter, FaBoxArchive, FaSpinner } from 'react-icons/fa6';
 
 const TEAM_NAME_MAX_LENGTH = 25;
 
@@ -58,9 +58,12 @@ function SectionSummary({ items }: { items: SummaryItem[] }) {
 type TeamSettingsFormProps = {
     team: Partial<Team>;
     onChange: (updates: TeamUpdatePayload) => void;
+    /** When provided, renders the Archive / Unarchive control at the bottom of the form. */
+    onArchive?: () => void;
+    archiving?: boolean;
 };
 
-export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
+export function TeamSettingsForm({ team, onChange, onArchive, archiving = false }: TeamSettingsFormProps) {
     const [hierarchyData, setHierarchyData] = useState<TeamHierarchyRecord[]>([]);
     useEffect(() => {
         fetchTeamHierarchy().then(setHierarchyData).catch(() => {});
@@ -347,6 +350,28 @@ export function TeamSettingsForm({ team, onChange }: TeamSettingsFormProps) {
                     })}
                 </div>
             </FormSection>
+
+            {onArchive && (
+                <div className="flex flex-col gap-2 rounded-lg border border-(--divider) p-3">
+                    <div className="flex items-center gap-2 text-sm font-bold text-(--text-secondary)">
+                        <FaBoxArchive /> {team.is_archived ? 'Archived' : 'Archive'}
+                    </div>
+                    <p className="text-[12px] text-(--text-tertiary)">
+                        {team.is_archived
+                            ? 'This team is hidden from your team list and from Browse. Unarchive it to restore its previous visibility.'
+                            : 'Hide this team from your team list and from Browse without deleting it. You can unarchive it any time.'}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={onArchive}
+                        disabled={archiving}
+                        className="self-start flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-50 cursor-pointer transition-colors"
+                    >
+                        {archiving ? <FaSpinner className="animate-spin" /> : <FaBoxArchive />}
+                        {team.is_archived ? 'Unarchive team' : 'Archive team'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

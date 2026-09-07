@@ -133,7 +133,7 @@ export function SeasonSimSetupForm(props: Props) {
 
     useEffect(() => {
         if (!takeoverEnabled || !token || userTeams !== null) return;
-        fetchUserTeams(token).then(setUserTeams).catch(err => setError(errorMessage(err)));
+        fetchUserTeams(token).then(teams => setUserTeams(teams.filter(t => !t.is_archived))).catch(err => setError(errorMessage(err)));
     }, [takeoverEnabled, token, userTeams]);
 
     const clubs = !isLobby && clubsFor?.year === year ? clubsFor.teams : [];

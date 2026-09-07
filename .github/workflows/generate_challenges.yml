@@ -1,0 +1,36 @@
+name: Generate Team Challenges
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"   # Mondays 12:00 UTC
+  workflow_dispatch:         # allow manual runs from the Actions tab
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      DATABASE_URL_LOGS: ${{ secrets.DATABASE_URL_LOGS }}
+      DATABASE_URL_ARCHIVE: ${{ secrets.DATABASE_URL_ARCHIVE }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      # Tops up any active challenge template that has no unexpired instance, and prunes
+      # instances that expired more than 30 days ago. Instances live 7 days, so a weekly run
+      # keeps exactly one live instance per active template.
+      - name: Generate challenge instances
+        run: showdown_bot challenges generate

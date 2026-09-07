@@ -240,7 +240,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                             type="button"
                             onClick={handleStart}
                             disabled={!setup || starting || setup.is_final}
-                            className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-(--secondary) px-3 py-2 text-[12px] font-bold text-(--background-primary) transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="flex cursor-pointer items-center gap-1.5 rounded-lg animated-showdown-gradient px-3 py-2 text-[12px] font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
                             {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}

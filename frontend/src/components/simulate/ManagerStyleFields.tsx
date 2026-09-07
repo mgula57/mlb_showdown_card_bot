@@ -23,7 +23,7 @@ export default function ManagerStyleFields({ value, onChange, title = 'Manager s
         <div className={`flex flex-col gap-2 ${className}`}>
             <div className="text-[13px] font-bold text-(--text-secondary)">{title}</div>
             <p className="text-[11px] text-(--text-tertiary)">
-                Sets how this club manages — 3 is the default, neutral setting. Only the club you
+                Sets how this club manages — Only the club you
                 control is affected.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

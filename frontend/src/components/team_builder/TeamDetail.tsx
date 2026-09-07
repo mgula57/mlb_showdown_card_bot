@@ -88,6 +88,9 @@ type TeamDetailProps = {
     /** True when the user just created this team (no pre-creation modal anymore) — starts them
      *  on the "Team Settings" setup step instead of straight into the draft. */
     isNewTeam?: boolean;
+    /** Archive (hide) or unarchive this team. When provided, the settings form shows the toggle;
+     *  archiving navigates back to the list, unarchiving stays put. */
+    onArchive?: (archived: boolean) => void | Promise<void>;
 };
 
 
@@ -175,9 +178,10 @@ function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): st
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, challenge, isNewTeam = false }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, challenge, isNewTeam = false, onArchive }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
+    const [archiving, setArchiving] = useState(false);
     const { isAdmin } = useAuth();
     const [showPublishModal, setShowPublishModal] = useState(false);
     const [unpublishing, setUnpublishing] = useState(false);
@@ -597,6 +601,23 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         } catch (err) {
             console.error('Failed to unpublish team', err);
             setUnpublishing(false);
+        }
+    }
+
+    // Archive/unarchive runs through the immediate save path (not the debounced draft), then —
+    // when archiving — drops back to the team list, since the team is now hidden from it.
+    async function handleArchiveToggle() {
+        if (!onArchive || archiving) return;
+        const next = !draft.is_archived;
+        if (next && !window.confirm('Archive this team? It will be hidden from your team list and from Browse. You can unarchive it any time from “Show all”.')) return;
+        setArchiving(true);
+        try {
+            await onArchive(next);
+            if (next) (onBack ?? (() => navigate('/teams')))();
+        } catch (err) {
+            console.error('Failed to archive team', err);
+        } finally {
+            setArchiving(false);
         }
     }
 
@@ -1359,7 +1380,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     /* Setup step 1: team settings, edited inline (auto-saved) before drafting */
                     <div className="flex flex-col flex-1 min-w-0 lg:min-h-0 lg:overflow-y-auto scrollbar-hide">
                         <div className="flex-1">
-                            <TeamSettingsForm team={draft} onChange={updates => update(updates)} />
+                            <TeamSettingsForm
+                                team={draft}
+                                onChange={updates => update(updates)}
+                                onArchive={onArchive ? handleArchiveToggle : undefined}
+                                archiving={archiving}
+                            />
                         </div>
                         {/* Spacer so the last form fields clear the fixed action bar on mobile,
                             where the page (not this panel) is the scroll container. */}
@@ -1736,6 +1762,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <TeamSettingsForm
                         team={settingsDraft}
                         onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
+                        onArchive={onArchive ? handleArchiveToggle : undefined}
+                        archiving={archiving}
                     />
                 </Modal>
             )}

@@ -34,7 +34,7 @@ import { ChallengeDetail } from './sim/ChallengeDetail';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import BackButton from '../shared/BackButton';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar } from 'react-icons/fa6';
-import type { ChallengeInstance } from '../../api/sim';
+import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 
 // A team can be addressed by URL three ways: a saved UUID, a historical MLB team, or an All-Star team.
 type TeamRef =
@@ -158,10 +158,17 @@ export default function TeamBuilder() {
     // UX Spacing
     const px = 'px-4 sm:px-8';
 
+    // Archived teams are hidden everywhere except the /teams/all screen (behind a toggle), so
+    // most of the list UI works off the active subset.
+    const activeUserTeams = useMemo(() => userTeams.filter(t => !t.is_archived), [userTeams]);
+    const archivedCount = userTeams.length - activeUserTeams.length;
+    // Whether the /teams/all screen currently reveals archived teams.
+    const [showArchived, setShowArchived] = useState(false);
+
     // Recent teams shelf — recently viewed teams (from localStorage) first, then most recently updated.
     const recentTeamIds = useMemo(getRecentTeamIds, []);
     const recentTeams = useMemo(() => {
-        const withPlayers = userTeams.filter(t => t.roster_count > 0);
+        const withPlayers = activeUserTeams.filter(t => t.roster_count > 0);
 
         if (recentTeamIds.length > 0) {
             const teamById = new Map(withPlayers.map(t => [t.team_id, t]));
@@ -180,18 +187,22 @@ export default function TeamBuilder() {
         return [...withPlayers]
             .sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1)
             .slice(0, 8);
-    }, [userTeams, recentTeamIds]);
+    }, [activeUserTeams, recentTeamIds]);
 
-    // All of the user's teams, most recently updated first. The My Teams tab shows the first
-    // TEAM_LIST_PREVIEW_COUNT of these; the full, search-filtered list lives on its own screen.
-    const sortedUserTeams = useMemo(
-        () => [...userTeams].sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1),
-        [userTeams],
-    );
+    // The user's active (non-archived) teams, most recently updated first. The My Teams tab shows
+    // the first TEAM_LIST_PREVIEW_COUNT of these; the full, search-filtered list lives on its own
+    // screen, where archived teams can be revealed with a toggle.
+    const sortByUpdated = (list: TeamSummary[]) =>
+        [...list].sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1);
+    const sortedUserTeams = useMemo(() => sortByUpdated(activeUserTeams), [activeUserTeams]);
     const filteredUserTeams = useMemo(() => {
+        // Archived teams (when revealed) sit after the active ones rather than interleaved by date.
+        const base = showArchived
+            ? [...sortedUserTeams, ...sortByUpdated(userTeams.filter(t => t.is_archived))]
+            : sortedUserTeams;
         const q = teamSearch.trim();
-        return q ? sortedUserTeams.filter(t => matchesTeamQuery(t, q)) : sortedUserTeams;
-    }, [sortedUserTeams, teamSearch]);
+        return q ? base.filter(t => matchesTeamQuery(t, q)) : base;
+    }, [sortedUserTeams, userTeams, showArchived, teamSearch]);
 
     // Parse the team addressed by the current URL (saved UUID, historical, or All-Star).
     const teamRef = parseTeamRef(location.pathname);
@@ -467,17 +478,29 @@ export default function TeamBuilder() {
                         <h1 className="text-[20px] font-black text-(--text-primary)">My Teams</h1>
                         <p className="text-[12px] text-(--text-secondary)">
                             {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
+                            {archivedCount > 0 && ` · ${archivedCount} archived`}
                         </p>
                     </div>
                 </div>
 
-                <div className={px}>
-                    <TeamSearchInput
-                        value={teamSearch}
-                        onChange={setTeamSearch}
-                        placeholder="Search your teams by name or set…"
-                        autoFocus
-                    />
+                <div className={`flex flex-col gap-2 sm:flex-row sm:items-center ${px}`}>
+                    <div className="flex-1">
+                        <TeamSearchInput
+                            value={teamSearch}
+                            onChange={setTeamSearch}
+                            placeholder="Search your teams by name or set…"
+                            autoFocus
+                        />
+                    </div>
+                    {archivedCount > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowArchived(v => !v)}
+                            className="shrink-0 text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer self-start sm:self-auto"
+                        >
+                            {showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
+                        </button>
+                    )}
                 </div>
 
                 {error && (
@@ -501,7 +524,9 @@ export default function TeamBuilder() {
                 ) : (
                     <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 ${px}`}>
                         {filteredUserTeams.map(team => (
-                            <TeamCard key={team.team_id} team={team} onClick={() => openTeam(team)} />
+                            <div key={team.team_id} className={team.is_archived ? 'opacity-55' : undefined}>
+                                <TeamCard team={team} onClick={() => openTeam(team)} />
+                            </div>
                         ))}
                     </div>
                 )}
@@ -535,6 +560,16 @@ export default function TeamBuilder() {
                         token={token}
                         onBack={() => navigate('/teams/' + team.team_id)}
                         onBackToChallenges={() => { setActiveTab('simulations'); navigate('/teams'); }}
+                        onTryAgain={(instanceId) => {
+                            // Back to the editor with the challenge primed (roster already lives on
+                            // the team) so the user can tweak and re-run. Same handoff shape as
+                            // handleUseExistingTeam. Fall back to a plain open if the instance has
+                            // since expired/rotated out.
+                            if (!instanceId) { navigate('/teams/' + team.team_id); return; }
+                            fetchChallengeInstance(instanceId, token)
+                                .then(challenge => navigate('/teams/' + team.team_id, { state: challenge ? { challenge } : undefined }))
+                                .catch(() => navigate('/teams/' + team.team_id));
+                        }}
                     />
                 </div>
             );
@@ -557,6 +592,9 @@ export default function TeamBuilder() {
                     onReload={reloadCurrentTeam}
                     token={token}
                     onFork={canFork ? () => handleFork(team) : undefined}
+                    onArchive={!readOnly && token && team.source === 'user' && team.team_id
+                        ? archived => handleSave(team.team_id, { is_archived: archived })
+                        : undefined}
                     challenge={challenge}
                     isNewTeam={(location.state as { isNewTeam?: boolean } | null)?.isNewTeam}
                 />
@@ -628,16 +666,21 @@ export default function TeamBuilder() {
                                 <div className="space-y-3" >
                                     <div className="flex items-center justify-between gap-3">
                                         <h3 className="text-[15px] font-black text-(--text-primary) truncate">My Teams</h3>
-                                        {userTeams.length > TEAM_LIST_PREVIEW_COUNT && (
+                                        {(sortedUserTeams.length > TEAM_LIST_PREVIEW_COUNT || archivedCount > 0) && (
                                             <button
                                                 type="button"
-                                                onClick={() => { setTeamSearch(''); navigate('/teams/all'); }}
+                                                onClick={() => { setTeamSearch(''); setShowArchived(archivedCount > 0 && sortedUserTeams.length === 0); navigate('/teams/all'); }}
                                                 className="shrink-0 text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer"
                                             >
-                                                Show all ({userTeams.length})
+                                                Show all ({sortedUserTeams.length})
                                             </button>
                                         )}
                                     </div>
+                                    {sortedUserTeams.length === 0 ? (
+                                        <p className="text-[13px] text-(--text-tertiary) py-4">
+                                            All your teams are archived. Use “Show all” to view them.
+                                        </p>
+                                    ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                                         {sortedUserTeams.slice(0, TEAM_LIST_PREVIEW_COUNT).map(team => (
                                             <TeamCard
@@ -647,6 +690,7 @@ export default function TeamBuilder() {
                                             />
                                         ))}
                                     </div>
+                                    )}
                                 </div>
                             )}
                         </section>

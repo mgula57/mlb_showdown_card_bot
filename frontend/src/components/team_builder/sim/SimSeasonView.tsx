@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaSpinner, FaTriangleExclamation } from 'react-icons/fa6';
-import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../../api/sim';
+import { cancelSimJob, fetchSimJob, fetchSimSeason, type ChallengeStanding, type SeasonSimSummary, type SimJob } from '../../../api/sim';
 import BackButton from '../../shared/BackButton';
 import { SimProgress } from './SimProgress';
 import { SimResult } from './SimResult';
@@ -17,6 +17,9 @@ type Props = {
      *  a plain season sim has no Challenges-tab context to return to. */
     onBackToChallenges?: () => void;
     onRunAgain?: () => void;
+    /** Challenge runs only: route back into the team editor with this challenge primed so the
+     *  user can tweak the roster and re-run. Given the run's challenge instance id (or null). */
+    onTryAgain?: (challengeInstanceId: string | null) => void;
 };
 
 /**
@@ -29,10 +32,12 @@ type Props = {
  * run hasn't finished yet — does this fall back to polling the job, then re-fetching the season
  * once it succeeds.
  */
-export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChallenges, onRunAgain }: Props) {
+export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChallenges, onRunAgain, onTryAgain }: Props) {
     const [job, setJob] = useState<SimJob | null>(null);
     const [summary, setSummary] = useState<SeasonSimSummary | null>(null);
     const [challengeResult, setChallengeResult] = useState<'passed' | 'failed' | null>(null);
+    const [challengeStanding, setChallengeStanding] = useState<ChallengeStanding | null>(null);
+    const [challengeInstanceId, setChallengeInstanceId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     // Only true once the season record has 404'd and we're actually polling a live job. Keeps the
     // "playing the season" progress screen from flashing while the initial season fetch (a
@@ -43,6 +48,14 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
     useEffect(() => {
         cancelled.current = false;
         let timer: number | undefined;
+
+        function applySeason(season: Awaited<ReturnType<typeof fetchSimSeason>>) {
+            if (!season) return;
+            setSummary(season.summary);
+            setChallengeResult(season.challenge_result);
+            setChallengeStanding(season.challenge_standing ?? null);
+            setChallengeInstanceId(season.challenge_instance_id);
+        }
 
         async function pollJob() {
             if (!token) {
@@ -66,8 +79,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
                     const season = await fetchSimSeason(jobId, token);
                     if (cancelled.current) return;
                     if (season) {
-                        setSummary(season.summary);
-                        setChallengeResult(season.challenge_result);
+                        applySeason(season);
                     } else {
                         setError('The simulation finished, but its result could not be found.');
                     }
@@ -85,8 +97,7 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
                 const season = await fetchSimSeason(jobId, token);
                 if (cancelled.current) return;
                 if (season) {
-                    setSummary(season.summary);
-                    setChallengeResult(season.challenge_result);
+                    applySeason(season);
                     return;
                 }
             } catch (err: unknown) {
@@ -112,6 +123,12 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
         cancelSimJob(jobId, token).catch(() => {});
     }
 
+    // A challenge run gets "Edit & Try Again" (back to the editor, challenge primed); a plain
+    // takeover run keeps the simpler "Run again".
+    const tryAgain = challengeResult !== null && onTryAgain
+        ? () => onTryAgain(challengeInstanceId)
+        : undefined;
+
     return (
         <div className="flex flex-col h-full overflow-y-auto">
             <div className="px-4 pt-4 flex items-center gap-2">
@@ -125,10 +142,10 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
                 <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
                     <FaTriangleExclamation className="text-red-400 text-2xl" />
                     <p className="text-[13px] text-(--text-secondary) max-w-sm">{error}</p>
-                    {onRunAgain && (
+                    {(tryAgain || onRunAgain) && (
                         <button
                             type="button"
-                            onClick={onRunAgain}
+                            onClick={tryAgain ?? onRunAgain}
                             className="px-3 py-2 rounded-lg bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
                         >
                             Try again
@@ -136,7 +153,13 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
                     )}
                 </div>
             ) : summary ? (
-                <SimResult summary={summary} challengeResult={challengeResult} onRunAgain={onRunAgain} />
+                <SimResult
+                    summary={summary}
+                    challengeResult={challengeResult}
+                    challengeStanding={challengeStanding}
+                    onRunAgain={onRunAgain}
+                    onTryAgain={tryAgain}
+                />
             ) : polling ? (
                 <SimProgress job={job} teamName={teamName} onCancel={token ? handleCancel : undefined} />
             ) : (

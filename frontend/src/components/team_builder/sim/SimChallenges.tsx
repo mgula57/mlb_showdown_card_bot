@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FaSpinner } from 'react-icons/fa6';
 import { fetchChallenges, type ChallengeInstance } from '../../../api/sim';
 import { ChallengeCard } from './ChallengeCard';
+import { byChallengeCategory } from './challengeCategory';
 
 type Props = {
     token?: string;
@@ -18,7 +19,7 @@ export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectCha
     useEffect(() => {
         let stale = false;
         fetchChallenges(token)
-            .then(data => { if (!stale) setChallenges(data); })
+            .then(data => { if (!stale) setChallenges([...data].sort(byChallengeCategory)); })
             .catch(err => { if (!stale) setError(err instanceof Error ? err.message : 'Failed to load challenges.'); });
         return () => { stale = true; };
     }, [token]);

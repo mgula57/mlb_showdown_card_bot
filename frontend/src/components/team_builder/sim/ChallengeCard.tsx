@@ -6,6 +6,7 @@ import {
 import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
 import { fetchEligibleTeamIds, type ChallengeInstance } from '../../../api/sim';
 import { TeamCard } from '../TeamCard';
+import { challengeCategoryMeta } from './challengeCategory';
 
 type Props = {
     challenge: ChallengeInstance;
@@ -25,7 +26,8 @@ function goalLabel(challenge: ChallengeInstance): string {
         case 'win_division': return 'Win the division';
         case 'win_pennant': return 'Win the pennant';
         case 'win_world_series': return 'Win the World Series';
-        case 'min_wins': return `Win at least ${(challenge.goal_value?.min_wins as number | undefined) ?? '?'} games`;
+        case 'min_wins': return `Win at least ${challenge.goal_value?.min_wins ?? '?'} games`;
+        case 'beat_team_record': return `Beat the ${challenge.year} ${challenge.goal_value?.target_abbr ?? '?'}'s record`;
         default: return 'Clear the bar';
     }
 }
@@ -86,9 +88,11 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
 
     const fits = (team: TeamSummary) =>
         !team.is_drafting &&
+        !team.is_archived &&
         (challenge.pts_limit == null || team.total_points <= challenge.pts_limit) &&
         (eligibleTeamIds === null || eligibleTeamIds.has(team.team_id));
     const left = daysLeft(challenge.expires_at);
+    const category = challengeCategoryMeta(challenge.category);
 
     async function toggleExisting() {
         const next = !showExisting;
@@ -108,11 +112,20 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
     }
 
     return (
-        <div className="flex flex-col gap-4 rounded-xl border border-(--divider) bg-(--background-secondary) p-5">
+        <div
+            className="flex flex-col gap-4 rounded-xl border border-(--divider) border-l-4 bg-(--background-secondary) p-5"
+            style={{ borderLeftColor: `var(${category.cssVar})` }}
+        >
             <div className="flex items-start justify-between gap-3">
                 <div className="w-full">
                     <div className="flex justify-between items-center " >
-                        <div className="flex gap-3 items-center">
+                        <div className="flex gap-3 items-center flex-wrap">
+                            <span
+                                className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full"
+                                style={{ color: `var(${category.cssVar})`, backgroundColor: `color-mix(in srgb, var(${category.cssVar}) 15%, transparent)` }}
+                            >
+                                {category.icon} {category.label}
+                            </span>
                             <h3 className="text-[16px] font-black text-(--text-primary)">{challenge.title}</h3>
                             <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-full">
                                 <FaClock className="text-[10px]" />

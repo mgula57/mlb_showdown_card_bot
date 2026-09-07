@@ -29,7 +29,12 @@
     --success: #4BB543;
     --warning: #F3CE32;
     --error: #E74C3C;
-    
+
+    /* Team Challenge category accents (challenges list + result screen). */
+    --challenge-legendary: #c8962b;
+    --challenge-budget: #2f6bd6;
+    --challenge-themed: #e0654f;
+
 
     --green: #287c22;
     --red: #ca443d;
@@ -66,6 +71,10 @@
     --success: #4dc545;
     --warning: #e9de3f;
     --error: #fb3232;
+
+    --challenge-legendary: #e0b352;
+    --challenge-budget: #5a97f0;
+    --challenge-themed: #f0806c;
 
 
     --green: #5df452;

@@ -202,6 +202,9 @@ class Team(BaseModel):
     primary_color: str = "rgb(0,0,0)"
     secondary_color: str = "rgb(255,255,255)"
     is_public: bool = False
+    # Owner-toggled "hide this team". Archived teams drop out of the owner's list and every
+    # public listing; unarchiving restores their prior visibility.
+    is_archived: bool = False
     source: TeamSource = TeamSource.USER
     # Roster constraint settings (flat columns in DB)
     pts_limit: Optional[int] = None
@@ -287,6 +290,7 @@ class Team(BaseModel):
             'primary_color': self.primary_color,
             'secondary_color': self.secondary_color,
             'is_public': self.is_public,
+            'is_archived': self.is_archived,
             'source': self.source.value,
             'pts_limit': self.pts_limit,
             'roster_size': self.roster_size,
@@ -334,6 +338,7 @@ class Team(BaseModel):
             primary_color=row.get('primary_color', 'rgb(0,0,0)'),
             secondary_color=row.get('secondary_color', 'rgb(255,255,255)'),
             is_public=row.get('is_public', False),
+            is_archived=row.get('is_archived', False),
             source=row.get('source', TeamSource.USER),
             pts_limit=row.get('pts_limit'),
             roster_size=row.get('roster_size', 25),

@@ -4,7 +4,7 @@ import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
     FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft, FaFire, FaSnowflake,
 } from 'react-icons/fa6';
-import type { SeasonSimSummary } from '../../../api/sim';
+import type { ChallengeStanding, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
 import CustomSelect from '../../shared/CustomSelect';
 import { SimAwardsList } from './SimAwardsList';
@@ -31,7 +31,13 @@ type Props = {
     summary: SeasonSimSummary;
     /** Set only when this season was a Team Challenge attempt. */
     challengeResult?: 'passed' | 'failed' | null;
+    /** Where this run lands on the challenge's leaderboard - drives the callout under the
+     *  headline. Present only on a challenge run. */
+    challengeStanding?: ChallengeStanding | null;
     onRunAgain?: () => void;
+    /** Challenge runs only: back into the team editor (roster pre-loaded, challenge primed) to
+     *  tweak and re-run. Takes precedence over `onRunAgain` when set. */
+    onTryAgain?: () => void;
     /** Club to focus on. Only meaningful for an open sim (no single team) - a takeover/challenge
      *  run always shows its own fixed team regardless of this prop. */
     focusAbbr?: string;
@@ -40,7 +46,7 @@ type Props = {
     onFocusChange?: (abbr: string) => void;
 };
 
-export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onFocusChange }: Props) {
+export function SimResult({ summary, challengeResult, challengeStanding, onRunAgain, onTryAgain, focusAbbr, onFocusChange }: Props) {
     const identityFor = useIdentity(summary);
     const isOpenSim = (summary.season_games?.length ?? 0) > 0;
     const isResumed = Object.keys(summary.seeded_records ?? {}).length > 0;
@@ -179,19 +185,55 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
                             : ''}
                     </div>
                     <div className={`text-[12px] text-tertiary`}>{outcome}</div>
-                    {onRunAgain && (
+                    {(onTryAgain || onRunAgain) && (
                         <button
                             type="button"
-                            onClick={onRunAgain}
+                            onClick={onTryAgain ?? onRunAgain}
                             className="flex items-center gap-1.5 px-3 py-1 mt-1 rounded-lg bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer shrink-0"
                         >
                             <FaArrowRotateLeft className="text-[10px]" />
-                            Run again
+                            {onTryAgain ? 'Edit & Try Again' : 'Run again'}
                         </button>
                     )}
                 </div>
-                
+
             </div>
+
+            {challengeStanding && (
+                <div className="mx-4 flex flex-wrap items-stretch gap-2 text-[12px]">
+                    <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Attempt</span>
+                        <span className="font-black text-(--text-primary)">#{challengeStanding.attempts}</span>
+                    </div>
+                    <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Budget</span>
+                        <span className="font-black text-(--text-primary) tabular-nums">
+                            {challengeStanding.roster_points ?? '?'}
+                            {challengeStanding.pts_limit != null && (
+                                <span className="font-semibold text-(--text-tertiary)"> / {challengeStanding.pts_limit} pts</span>
+                            )}
+                        </span>
+                        {challengeStanding.pts_limit != null && challengeStanding.roster_points != null && (
+                            <span className="text-[10px] text-(--text-tertiary)">
+                                {challengeStanding.pts_limit - challengeStanding.roster_points >= 0
+                                    ? `${challengeStanding.pts_limit - challengeStanding.roster_points} under cap`
+                                    : `${challengeStanding.roster_points - challengeStanding.pts_limit} over cap`}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Leaderboard</span>
+                        <span className="font-black text-(--text-primary)">
+                            {challengeStanding.rank != null
+                                ? `${ordinal(challengeStanding.rank)} of ${challengeStanding.entrants}`
+                                : `${challengeStanding.entrants} entered`}
+                        </span>
+                        <span className={`text-[10px] font-bold ${challengeStanding.is_best ? 'text-(--success)' : 'text-(--text-tertiary)'}`}>
+                            {challengeStanding.is_best ? 'New personal best' : "Didn't beat your best"}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             <Tabs.Root defaultValue="summary" className="flex flex-col">
                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 overflow-x-auto scrollbar-hide">

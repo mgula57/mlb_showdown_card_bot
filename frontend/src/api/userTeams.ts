@@ -56,6 +56,9 @@ export type Team = {
     primary_color: string;
     secondary_color: string;
     is_public: boolean;
+    /** Owner-toggled "hide this team" — archived teams drop out of My Teams and every public
+     *  listing (still reachable by direct link); unarchiving restores prior visibility. */
+    is_archived: boolean;
     source: TeamSource;
     logo_url: string | null;
     pts_limit: number | null;
@@ -102,6 +105,7 @@ export type TeamSummary = {
     primary_color: string;
     secondary_color: string;
     is_public: boolean;
+    is_archived: boolean;
     source: TeamSource;
     logo_url: string | null;
     pts_limit: number | null;
@@ -386,6 +390,15 @@ export async function updateTeam(teamId: string, payload: TeamUpdatePayload, tok
         throw new Error(err.error || `Failed to update team: ${res.status}`);
     }
     return res.json();
+}
+
+/**
+ * Archive (hide) or unarchive a team. Archiving drops it from the owner's My Teams list and
+ * from every public listing; unarchiving restores its prior visibility. Thin wrapper over
+ * updateTeam so callers read as an intent rather than a field poke.
+ */
+export async function setTeamArchived(teamId: string, archived: boolean, token: string): Promise<Team> {
+    return updateTeam(teamId, { is_archived: archived }, token);
 }
 
 /** Accepted logo formats — kept in sync with the backend's TEAM_LOGO_EXTENSIONS. */

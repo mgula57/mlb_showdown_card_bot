@@ -4491,7 +4491,7 @@ class PostgresDB:
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
             t.primary_color, t.secondary_color,
-            t.is_public, t.source, t.logo_url,
+            t.is_public, t.source, t.logo_url, t.is_archived,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
             t.origin_template_id, t.creation_source,
@@ -4566,7 +4566,7 @@ class PostgresDB:
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
             t.primary_color, t.secondary_color,
-            t.is_public, t.source, t.logo_url,
+            t.is_public, t.source, t.logo_url, t.is_archived,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
             t.origin_template_id, t.creation_source,
@@ -4733,6 +4733,13 @@ class PostgresDB:
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS logo_url TEXT;
             """)
+            # Owner-toggled "hide this team" flag. Archived teams drop out of the owner's
+            # team list (still reachable by direct link) and are excluded from every public
+            # listing regardless of is_public — unarchiving restores their prior visibility.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;
+            """)
             # How the team was first created, so it can be filtered later. Free-form text set by
             # the create route: 'new_team' (plain New Team button), 'challenge' (the New Team
             # button on a ChallengeCard), 'fork' (copied from another team). NULL for teams
@@ -4828,7 +4835,7 @@ class PostgresDB:
         query = f"""
             SELECT c.slug, c.title, c.description, c.cover_emoji, c.sort_index, c.is_visible,
                    COUNT(t.team_id) FILTER (
-                       WHERE t.is_public = TRUE AND t.source = 'official'
+                       WHERE t.is_public = TRUE AND t.source = 'official' AND t.is_archived = FALSE
                    ) AS team_count
             FROM internal.team_collection c
             LEFT JOIN internal.user_teams t ON t.collection_slug = c.slug
@@ -4907,7 +4914,7 @@ class PostgresDB:
         """
         if not self.connection:
             return []
-        conditions = ["t.is_public = TRUE"]
+        conditions = ["t.is_public = TRUE", "t.is_archived = FALSE"]
         params: list = []
         sources = [s.strip() for s in source.split(',')] if source else []
         sources = [s for s in sources if s]
@@ -5221,7 +5228,7 @@ class PostgresDB:
     # those, so a user can't self-publish a team as 'official' or slot it into a collection.
     _USER_TEAM_FIELDS = {
         'name', 'abbreviation', 'primary_color', 'secondary_color',
-        'is_public', 'logo_url',
+        'is_public', 'logo_url', 'is_archived',
         'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
         'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
         'origin_template_id', 'creation_source',
@@ -5247,6 +5254,7 @@ class PostgresDB:
             row['created_at'] = row['created_at'].isoformat()
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
+        row['is_archived'] = bool(row.get('is_archived'))
         # The rotation and the 'Default' lineup are derived from the roster; user-created
         # lineups come off the row and are re-indexed behind the Default.
         row['lineups'], row['rotation'] = derive_lineups_rotation(
@@ -5279,6 +5287,8 @@ class PostgresDB:
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
         row['roster_count'] = int(row.get('roster_count') or 0)
+        # Synthetic (historical) summaries have no is_archived column — always treat as visible.
+        row['is_archived'] = bool(row.get('is_archived'))
         row['is_drafting'] = PostgresDB._compute_is_drafting(row)
         # Hydrate top players in ranked (ref) order, dropping any that no longer resolve
         refs = row.pop('top_player_refs', None) or []
@@ -7861,8 +7871,8 @@ class PostgresDB:
                     slug            TEXT NOT NULL UNIQUE,
                     title           TEXT NOT NULL,
                     description     TEXT NOT NULL,
-                    goal_type       TEXT NOT NULL,   -- 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins'
-                    goal_value      JSONB,           -- e.g. {"min_wins": 90}
+                    goal_type       TEXT NOT NULL,   -- 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record'
+                    goal_value      JSONB,           -- e.g. {"min_wins": 90} or {"target_abbr": "NYY"}
                     pts_limit       INT,             -- null = no cap
                     year_pool       TEXT NOT NULL DEFAULT 'any',      -- 'any' | comma list of years | 'random_range:1977,2024'
                     replaces_pool   TEXT NOT NULL DEFAULT 'any',      -- 'any' | 'worst_record' | comma list of abbrs
@@ -7875,6 +7885,11 @@ class PostgresDB:
                 );
             """)
             cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS player_filters JSONB;")
+            # PRESENTATION GROUPING FOR THE CHALLENGES LIST (accent color + one-of-each weekly
+            # rotation) - 'legendary' | 'budget_cap' | 'themed'. NOT A MECHANIC; THE
+            # goal_type/pts_limit/player_filters DO THE ACTUAL WORK. READ VIA A JOIN FROM THE
+            # INSTANCE (DISPLAY-ONLY, SO IT DOESN'T NEED SNAPSHOTTING LIKE pts_limit DOES).
+            cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'themed';")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS internal.challenge_instance (
                     instance_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7940,7 +7955,7 @@ class PostgresDB:
         rows = self.execute_query(
             """
             SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.player_filters, i.expires_at,
-                   t.slug, t.title, t.description, t.goal_type, t.goal_value,
+                   t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
                    attempt.challenge_result, attempt.attempted_at
               FROM internal.challenge_instance i
               JOIN internal.challenge_template t ON t.template_id = i.template_id
@@ -7971,7 +7986,7 @@ class PostgresDB:
         rows = self.execute_query(
             """
             SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.player_filters, i.expires_at,
-                   t.slug, t.title, t.description, t.goal_type, t.goal_value,
+                   t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
                    attempt.challenge_result, attempt.attempted_at
               FROM internal.challenge_instance i
               JOIN internal.challenge_template t ON t.template_id = i.template_id
@@ -8008,7 +8023,7 @@ class PostgresDB:
     def create_challenge_template(
         self, slug: str, title: str, description: str, goal_type: str, goal_value: dict | None,
         pts_limit: int | None, year_pool: str, replaces_pool: str, active: bool = True,
-        player_filters: dict | None = None,
+        player_filters: dict | None = None, category: str = 'themed',
     ) -> str:
         if not self.connection:
             raise RuntimeError("No database connection")
@@ -8016,8 +8031,8 @@ class PostgresDB:
             cur.execute(
                 """
                 INSERT INTO internal.challenge_template
-                    (slug, title, description, goal_type, goal_value, pts_limit, year_pool, replaces_pool, active, player_filters)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (slug, title, description, goal_type, goal_value, pts_limit, year_pool, replaces_pool, active, player_filters, category)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING template_id
                 """,
                 (
@@ -8025,6 +8040,7 @@ class PostgresDB:
                     extras.Json(goal_value) if goal_value is not None else None,
                     pts_limit, year_pool, replaces_pool, active,
                     extras.Json(player_filters) if player_filters is not None else None,
+                    category,
                 ),
             )
             return str(cur.fetchone()[0])
@@ -8034,7 +8050,7 @@ class PostgresDB:
         `list_active_challenge_templates`, which the generator uses and only wants active ones)."""
         rows = self.execute_query(
             "SELECT template_id, slug, title, description, goal_type, goal_value, pts_limit, "
-            "year_pool, replaces_pool, active, player_filters, created_at "
+            "year_pool, replaces_pool, active, player_filters, category, created_at "
             "FROM internal.challenge_template ORDER BY created_at DESC"
         )
         for row in rows:
@@ -8042,9 +8058,14 @@ class PostgresDB:
         return rows
 
     def list_active_challenge_templates(self) -> list[dict]:
-        """Every template flagged active - the generator checks each for a missing instance."""
+        """Every template flagged active - the generator checks each for a missing instance.
+
+        `goal_type`/`goal_value` are included so the generator can enforce goal-specific
+        constraints (e.g. a `beat_team_record` instance must never replace the target club).
+        """
         return self.execute_query(
-            "SELECT template_id, slug, title, pts_limit, year_pool, replaces_pool, player_filters "
+            "SELECT template_id, slug, title, pts_limit, year_pool, replaces_pool, player_filters, "
+            "category, goal_type, goal_value "
             "FROM internal.challenge_template WHERE active = TRUE"
         )
 
@@ -8446,7 +8467,76 @@ class PostgresDB:
         )
         if not rows:
             return None
-        return self._stringify_sim_season_ids(rows)[0]
+        season = self._stringify_sim_season_ids(rows)[0]
+        if season.get('challenge_instance_id'):
+            season['challenge_standing'] = self.get_challenge_standing(job_id, user_id)
+        return season
+
+    def get_challenge_standing(self, job_id: str, user_id: str | None = None) -> dict | None:
+        """Where one challenge run lands on its instance's leaderboard - for the result screen's
+        "Attempt #N / #rank of M / New best" callout.
+
+        Returns None for a non-challenge run. `rank`/`attempts`/`best_job_id` describe the run's
+        team within the `(year, challenge_instance)` group, collapsed to each team's best run and
+        ranked by record (matching the leaderboard's default 'wins' sort). Visibility mirrors
+        `fetch_sim_leaderboard`: public teams plus the viewer's own.
+        """
+        if not self.connection:
+            return None
+        target_rows = self.execute_query(
+            """
+            SELECT s.year, s.team_id, s.challenge_instance_id, s.wins, s.roster_points, ci.pts_limit
+              FROM internal.sim_season s
+              JOIN internal.challenge_instance ci ON ci.instance_id = s.challenge_instance_id
+             WHERE s.job_id = %(job_id)s AND s.challenge_instance_id IS NOT NULL
+            """,
+            {'job_id': job_id},
+        )
+        if not target_rows:
+            return None
+        target = target_rows[0]
+        rows = self.execute_query(
+            """
+            WITH visible AS (
+                SELECT s.job_id, s.team_id, s.wins, s.win_pct, s.is_champion, s.created_at
+                  FROM internal.sim_season s
+                  JOIN internal.user_teams ut ON ut.team_id = s.team_id
+                 WHERE s.year = %(year)s
+                   AND s.challenge_instance_id = %(instance_id)s
+                   AND (ut.is_public = TRUE OR s.user_id IS NOT DISTINCT FROM %(user_id)s)
+            ),
+            best_per_team AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY team_id
+                           ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
+                       ) AS run_rank,
+                       COUNT(*) OVER (PARTITION BY team_id) AS attempts
+                  FROM visible
+            )
+            SELECT job_id, team_id, attempts,
+                   ROW_NUMBER() OVER (
+                       ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
+                   ) AS rank
+              FROM best_per_team
+             WHERE run_rank = 1
+             ORDER BY rank
+            """,
+            {'year': target['year'], 'instance_id': target['challenge_instance_id'], 'user_id': user_id},
+        )
+        team_id = str(target['team_id'])
+        my_row = next((r for r in rows if str(r['team_id']) == team_id), None)
+        best_job_id = str(my_row['job_id']) if my_row else None
+        return {
+            'rank': my_row['rank'] if my_row else None,
+            'entrants': len(rows),
+            'attempts': my_row['attempts'] if my_row else 1,
+            'is_best': best_job_id == str(job_id),
+            'best_job_id': best_job_id,
+            'roster_points': target['roster_points'],
+            'pts_limit': target['pts_limit'],
+            'wins': target['wins'],
+        }
 
     def fetch_user_sim_seasons(self, user_id: str, limit: int = 100, team_id: str | None = None) -> list[dict]:
         """A user's own played seasons, newest first. Every run, not just their best."""

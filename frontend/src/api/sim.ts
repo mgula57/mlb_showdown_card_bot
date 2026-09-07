@@ -324,9 +324,29 @@ export type SimLeaderboardSeason = {
     groups: SimLeaderboardGroup[];
 };
 
+/** Where a challenge run lands on its instance's leaderboard — drives the result screen's
+ *  "Attempt #N / #rank of M / New best" callout. Present only on a challenge run. */
+export type ChallengeStanding = {
+    /** This team's rank within the challenge instance, by record. Null if not visible. */
+    rank: number | null;
+    /** Distinct teams ranked on this challenge instance (visible to the viewer). */
+    entrants: number;
+    /** How many times this team has run this challenge. */
+    attempts: number;
+    /** Whether this specific run is the team's best. */
+    is_best: boolean;
+    /** Job id of the team's best run on this challenge. */
+    best_job_id: string | null;
+    roster_points: number | null;
+    pts_limit: number | null;
+    wins: number;
+};
+
 /** A season's full result, permanently addressable by the job id that produced it. */
 export type SimSeasonDetail = SimSeasonListItem & {
     summary: SeasonSimSummary;
+    /** Present only when this season was a challenge run. */
+    challenge_standing?: ChallengeStanding | null;
 };
 
 export type StartSeasonSimPayload = {
@@ -386,7 +406,10 @@ export type OpenSimPayload = {
     trade_deadline_respects_standings?: boolean;
 };
 
-export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins';
+export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record';
+
+/** Presentation grouping for the challenges list — drives the accent color. */
+export type ChallengeCategory = 'legendary' | 'budget_cap' | 'themed';
 
 /** A live challenge instance joined to its template. */
 export type ChallengeInstance = {
@@ -402,8 +425,9 @@ export type ChallengeInstance = {
     slug: string;
     title: string;
     description: string;
+    category: ChallengeCategory;
     goal_type: ChallengeGoalType;
-    goal_value: Record<string, unknown> | null;
+    goal_value: { min_wins?: number; target_abbr?: string } | null;
     /** The signed-in caller's own best attempt at this instance. Null/absent when logged out or
      *  never attempted. */
     challenge_result?: 'passed' | 'failed' | null;

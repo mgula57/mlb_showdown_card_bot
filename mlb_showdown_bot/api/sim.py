@@ -826,7 +826,22 @@ def _friendly_phase(message: str) -> str | None:
     return None
 
 
-def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_pennant: bool) -> bool:
+def _find_team_record(standings, abbr: str | None):
+    """The `TeamRecord` for a club abbreviation within a played season's final standings, or
+    None. Matches on the rendered identity first (a takeover club keeps the replaced club's
+    schedule key as `name`, so `identity.abbreviation` is the reliable one), then `name`."""
+    if not abbr:
+        return None
+    target = abbr.strip().upper()
+    for division in standings.divisions.values():
+        for record in division:
+            identity_abbr = (record.identity.abbreviation if record.identity else None) or record.name
+            if (identity_abbr or '').strip().upper() == target:
+                return record
+    return None
+
+
+def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_pennant: bool, standings=None) -> bool:
     """Evaluate a challenge's goal against the played season's result."""
     if goal_type == 'made_playoffs':
         return team_season.made_playoffs
@@ -838,6 +853,9 @@ def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_
         return team_season.is_champion
     if goal_type == 'min_wins':
         return team_season.wins >= (goal_value or {}).get('min_wins', 0)
+    if goal_type == 'beat_team_record':
+        target = _find_team_record(standings, (goal_value or {}).get('target_abbr')) if standings else None
+        return target is not None and team_season.wins > target.wins
     return False
 
 
@@ -931,7 +949,10 @@ def _run_sim_job(
                 series.round == PostseasonRound.CHAMPIONSHIP.value and series.winner == team_abbr
                 for series in summary.postseason
             )
-            passed = _challenge_passed(challenge['goal_type'], challenge['goal_value'], summary.team, won_pennant)
+            passed = _challenge_passed(
+                challenge['goal_type'], challenge['goal_value'], summary.team, won_pennant,
+                standings=summary.standings,
+            )
             challenge_result = 'passed' if passed else 'failed'
 
         payload = summary.model_dump(mode='json')
