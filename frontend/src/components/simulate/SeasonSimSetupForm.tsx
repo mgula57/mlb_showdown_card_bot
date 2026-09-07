@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { FaSpinner, FaPlay, FaUserGroup, FaGears } from 'react-icons/fa6';
+import { FaSpinner, FaPlay, FaUserGroup } from 'react-icons/fa6';
 import FormDropdown from '../customs/FormDropdown';
 import FormInput from '../customs/FormInput';
 import FormSection from '../customs/FormSection';
-import FormEnabler from '../customs/FormEnabler';
 import ManagerStyleFields from './ManagerStyleFields';
+import SimSettingToggle from './SimSettingToggle';
 import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
 import { setOptionsForSource } from '../../domain/teamSets';
 import { CardSource } from '../../types/cardSource';
@@ -231,16 +231,46 @@ export function SeasonSimSetupForm(props: Props) {
                 />
             </div>
 
-            {!isLobby && (
-                <FormSection title="Take over a club" icon={<FaUserGroup />}>
-                    <FormEnabler
-                        label="Take over a club with one of my teams"
-                        isEnabled={takeoverEnabled}
-                        onChange={value => setTakeoverEnabled(!value)}
-                        className="col-span-full"
-                    />
-                    {takeoverEnabled && (
-                        <>
+            <SimSettingToggle
+                label="Injuries"
+                description="Players on each club's 40-man can hit the IL and get replaced by call-ups, calibrated to how durable each player really was that season. Regular-season games only."
+                isEnabled={enableInjuries}
+                onToggle={() => setEnableInjuries(v => !v)}
+            />
+
+            <SimSettingToggle
+                label="Simulate postseason"
+                description="Play out a bracket after game 162."
+                isEnabled={simulatePostseason}
+                onToggle={() => setSimulatePostseason(v => !v)}
+            >
+                <FormDropdown
+                    label="Postseason format"
+                    options={POSTSEASON_FORMAT_OPTIONS}
+                    selectedOption={postseasonFormat}
+                    onChange={setPostseasonFormat}
+                />
+            </SimSettingToggle>
+
+            <FormSection
+                title="More options"
+                isOpenByDefault={false}
+                childrenWhenClosed={
+                    <span className="text-[12px] text-(--text-tertiary)">
+                        {isLobby
+                            ? 'Resume from standings · Trade deadline'
+                            : 'Take over a club · Resume from standings · Trade deadline'}
+                    </span>
+                }
+            >
+                <div className="col-span-full flex flex-col gap-3">
+                    {!isLobby && (
+                        <SimSettingToggle
+                            label="Take over a club"
+                            description="Play the season as one of your built teams, replacing a real club."
+                            isEnabled={takeoverEnabled}
+                            onToggle={() => setTakeoverEnabled(v => !v)}
+                        >
                             <FormDropdown
                                 label="Team"
                                 options={(userTeams ?? []).map(team => ({ label: `${team.name} (${team.abbreviation})`, value: team.team_id }))}
@@ -257,101 +287,44 @@ export function SeasonSimSetupForm(props: Props) {
                                 disabled={loadingClubs || clubs.length === 0}
                                 placeholder={loadingClubs ? 'Loading teams…' : 'Select a team'}
                             />
-                            <ManagerStyleFields value={manager} onChange={setManager} className="col-span-full" />
-                        </>
+                            <ManagerStyleFields value={manager} onChange={setManager} />
+                        </SimSettingToggle>
                     )}
-                </FormSection>
-            )}
 
-            <FormSection title="Settings" icon={<FaGears />} isOpenByDefault={true}>
-                <FormEnabler
-                    label="Resume from real standings"
-                    isEnabled={resumeEnabled}
-                    onChange={value => setResumeEnabled(!value)}
-                    className="col-span-full"
-                />
-                {resumeEnabled && (
-                    <>
+                    <SimSettingToggle
+                        label="Resume from real standings"
+                        description="Every club starts from its real record on a date you pick; only the games after it are simulated."
+                        isEnabled={resumeEnabled}
+                        onToggle={() => setResumeEnabled(v => !v)}
+                    >
                         <FormInput
                             label="As of"
                             type="date"
                             value={resumeAsOfDate}
                             onChange={value => setResumeAsOfDate(value ?? resumeAsOfDate)}
                         />
-                        <p className="text-[11px] text-(--text-tertiary) col-span-full">
-                            Every club starts from its real record as of this date; only the games
-                            after it are simulated.
-                        </p>
-                        <FormEnabler
+                        <SimSettingToggle
                             label="Merge real stats into player lines"
+                            description="Each player's real stats to date are added to their simulated totals. These reflect however much of the season has been scraped, which may lag the date above slightly — the result screen shows the actual as-of date."
                             isEnabled={mergeRealStats}
-                            onChange={value => setMergeRealStats(!value)}
-                            className="col-span-full"
+                            onToggle={() => setMergeRealStats(v => !v)}
                         />
-                        {mergeRealStats && (
-                            <p className="text-[11px] text-(--text-tertiary) col-span-full">
-                                Each player's real stats to date are added to their simulated
-                                totals. These reflect however much of the season has been scraped,
-                                which may lag the date above slightly — the result screen shows
-                                the actual as-of date.
-                            </p>
-                        )}
-                    </>
-                )}
-                <FormEnabler
-                    label="Trade deadline"
-                    isEnabled={tradeDeadlineEnabled}
-                    onChange={value => setTradeDeadlineEnabled(!value)}
-                    className="col-span-full"
-                />
-                {tradeDeadlineEnabled && (
-                    <>
-                        <p className="text-[11px] text-(--text-tertiary) col-span-full">
-                            A player who was really traded mid-season starts on his first club and
-                            moves to his next one on that era's deadline date, instead of playing the
-                            whole season for one club.
-                        </p>
-                        <FormEnabler
+                    </SimSettingToggle>
+
+                    <SimSettingToggle
+                        label="Trade deadline"
+                        description="A player who was really traded mid-season starts on his first club and moves to his next one on that era's deadline date, instead of playing the whole season for one club."
+                        isEnabled={tradeDeadlineEnabled}
+                        onToggle={() => setTradeDeadlineEnabled(v => !v)}
+                    >
+                        <SimSettingToggle
                             label="Contending clubs keep their players"
+                            description="If the sim has a selling club still in the race at the deadline, it holds onto its player and the real trade is skipped for this run."
                             isEnabled={tradeDeadlineRespectsStandings}
-                            onChange={value => setTradeDeadlineRespectsStandings(!value)}
-                            className="col-span-full"
+                            onToggle={() => setTradeDeadlineRespectsStandings(v => !v)}
                         />
-                        {tradeDeadlineRespectsStandings && (
-                            <p className="text-[11px] text-(--text-tertiary) col-span-full">
-                                If the sim has a selling club still in the race at the deadline, it
-                                holds onto its player and the real trade is skipped for this run.
-                            </p>
-                        )}
-                    </>
-                )}
-                <FormEnabler
-                    label="Enable injuries"
-                    isEnabled={enableInjuries}
-                    onChange={value => setEnableInjuries(!value)}
-                    className="col-span-full"
-                />
-                {enableInjuries && (
-                    <p className="text-[11px] text-(--text-tertiary) col-span-full">
-                        Players on each club's 40-man can hit the IL and get replaced by call-ups,
-                        calibrated to how durable each player really was that season. Only
-                        regular-season games roll injuries.
-                    </p>
-                )}
-                <FormEnabler
-                    label="Simulate postseason"
-                    isEnabled={simulatePostseason}
-                    onChange={value => setSimulatePostseason(!value)}
-                    className="col-span-full"
-                />
-                {simulatePostseason && (
-                    <FormDropdown
-                        label="Postseason format"
-                        options={POSTSEASON_FORMAT_OPTIONS}
-                        selectedOption={postseasonFormat}
-                        onChange={setPostseasonFormat}
-                    />
-                )}
+                    </SimSettingToggle>
+                </div>
             </FormSection>
 
             {error && (
