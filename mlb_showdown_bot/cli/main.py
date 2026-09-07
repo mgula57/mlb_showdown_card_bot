@@ -22,7 +22,7 @@ app.add_typer(test.app, name="test", help="Run card generation tests for various
 app.add_typer(stats.app, name="stats", help="View derived league and replacement-level stats")
 app.add_typer(teams.app, name="teams", help="Manage official and ASG team rosters")
 app.add_typer(sim.app, name="sim", help="Run MLB Showdown season simulations")
-app.add_typer(challenges.app, name="challenges", help="Generate and manage Team Challenges")
+app.add_typer(challenges.app, name="challenges", help="Rotate and manage Team Challenges")
 
 if __name__ == "__main__":
     app()

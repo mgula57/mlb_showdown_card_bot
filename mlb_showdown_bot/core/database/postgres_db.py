@@ -7862,7 +7862,7 @@ class PostgresDB:
         sim_season (the played result) and user_teams (the team built for one).
 
         Templates are hand-authored and rarely change; instances are generated on a schedule from
-        them (see the `generate-challenges` CLI command) and expire after a week. Must run after
+        them (see the `challenges rotate` CLI command) and expire after a week. Must run after
         `build_sim_job_table` and `build_user_teams_tables` - it ALTERs both of those tables.
         """
         if not self.connection:
@@ -8069,21 +8069,49 @@ class PostgresDB:
         return rows
 
     def list_active_challenge_templates(self) -> list[dict]:
-        """Every template flagged active - the generator checks each for a missing instance.
+        """Every template flagged active, each with `last_instanced_at` (the newest instance's
+        `created_at`, or null if never generated) - the generator rotates one template per
+        category per cycle, least-recently-instanced first.
 
         `goal_type`/`goal_value` are included so the generator can enforce goal-specific
         constraints (e.g. a `beat_team_record` instance must never replace the target club).
         """
         return self.execute_query(
-            "SELECT template_id, slug, title, pts_limit, roster_size, year_pool, replaces_pool, player_filters, "
-            "category, goal_type, goal_value "
-            "FROM internal.challenge_template WHERE active = TRUE"
+            "SELECT t.template_id, t.slug, t.title, t.pts_limit, t.roster_size, t.year_pool, "
+            "t.replaces_pool, t.player_filters, t.category, t.goal_type, t.goal_value, "
+            "MAX(i.created_at) AS last_instanced_at "
+            "FROM internal.challenge_template t "
+            "LEFT JOIN internal.challenge_instance i ON i.template_id = t.template_id "
+            "WHERE t.active = TRUE "
+            "GROUP BY t.template_id"
         )
+
+    def get_challenge_template_by_slug(self, slug: str) -> dict | None:
+        """One template by slug, active or not - backs `challenges instance <slug>`, the manual
+        override that instances a specific template outside the category rotation."""
+        rows = self.execute_query(
+            "SELECT template_id, slug, title, pts_limit, roster_size, year_pool, replaces_pool, "
+            "player_filters, category, goal_type, goal_value, active "
+            "FROM internal.challenge_template WHERE slug = %s",
+            (slug,),
+        )
+        return rows[0] if rows else None
 
     def has_unexpired_challenge_instance(self, template_id: str) -> bool:
         rows = self.execute_query(
             "SELECT 1 FROM internal.challenge_instance WHERE template_id = %s AND expires_at > NOW() LIMIT 1",
             (template_id,),
+        )
+        return bool(rows)
+
+    def has_unexpired_challenge_instance_for_category(self, category: str) -> bool:
+        """True if any active-or-not template in `category` has a live instance - the category
+        rotation skips a whole category while one of its challenges is still playable."""
+        rows = self.execute_query(
+            "SELECT 1 FROM internal.challenge_instance i "
+            "JOIN internal.challenge_template t ON t.template_id = i.template_id "
+            "WHERE t.category = %s AND i.expires_at > NOW() LIMIT 1",
+            (category,),
         )
         return bool(rows)
 

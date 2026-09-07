@@ -1,4 +1,4 @@
-name: Generate Team Challenges
+name: Rotate Team Challenges
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:         # allow manual runs from the Actions tab
 
 jobs:
-  generate:
+  rotate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -29,8 +29,8 @@ jobs:
       - name: Install dependencies
         run: pip install -e .
 
-      # Tops up any active challenge template that has no unexpired instance, and prunes
-      # instances that expired more than 30 days ago. Instances live 7 days, so a weekly run
-      # keeps exactly one live instance per active template.
-      - name: Generate challenge instances
-        run: showdown_bot challenges generate
+      # Advances the rotation: fills any category with no live challenge from its least-
+      # recently-used template, and prunes instances that expired more than 30 days ago.
+      # Instances live 7 days, so a weekly run keeps exactly one live instance per category.
+      - name: Rotate challenge instances
+        run: showdown_bot challenges rotate

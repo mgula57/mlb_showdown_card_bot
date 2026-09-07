@@ -30,7 +30,7 @@ class Category(str, Enum):
 
 def _target_db_label(env: str) -> str:
     """`--env prod` hits DATABASE_URL_ARCHIVE, anything else hits DATABASE_URL_LOGS - these are
-    two different databases, and inserting a template into one while `generate` reads the other
+    two different databases, and inserting a template into one while `rotate` reads the other
     silently looks like "no templates exist" with no error anywhere. Echoing this on every
     template-touching command makes that mismatch obvious instead of silent."""
     return "DATABASE_URL_ARCHIVE" if env.lower() == "prod" else "DATABASE_URL_LOGS"
@@ -111,15 +111,41 @@ def challenges_main():
     """Manage Team Challenge templates/instances."""
 
 
-@app.command("generate")
-def generate_challenges(
+def _lru_order_key(template: dict):
+    """Sort key for a category's template pool: never-instanced templates first, then
+    oldest instance first, random tie-break so a stale pool doesn't lock into one order."""
+    last = template.get('last_instanced_at')
+    return (last is not None, last or datetime.min, random.random())
+
+
+def _create_instance(db: PostgresDB, template: dict) -> str | None:
+    """Resolve a year/club for `template` and insert one instance. Returns the instance id, or
+    None (with a SKIP line printed) if no valid year/club combo turned up."""
+    target = _generate_instance_target(template)
+    if target is None:
+        typer.echo(f"SKIP '{template['slug']}': no valid year/club combo found after {_MAX_YEAR_ATTEMPTS} attempts.")
+        return None
+    year, replaces_abbr = target
+    instance_id = db.create_challenge_instance(
+        template_id=template['template_id'], year=year, replaces_abbr=replaces_abbr,
+        pts_limit=template['pts_limit'], expires_in_days=_INSTANCE_LIFETIME_DAYS,
+        player_filters=template.get('player_filters'),
+        roster_size=template.get('roster_size') or 25,
+    )
+    typer.echo(f"Generated '{template['slug']}': {year} {replaces_abbr} (instance {instance_id})")
+    return instance_id
+
+
+@app.command("rotate")
+def rotate_challenges(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
     prune_after_days: int = typer.Option(_PRUNE_AFTER_DAYS, "--prune-after-days", help="Delete instances expired longer than this many days"),
 ):
-    """Top up any active template with no unexpired instance, and prune old expired ones.
+    """Advance the weekly rotation: prune old expired instances, then fill every category that
+    has no live challenge with ONE instance - the least-recently-used active template in that
+    category. Meant to run weekly (see .github/workflows/rotate_challenges.yml), not by hand.
 
-    Meant to run on a schedule (e.g. weekly, via Heroku Scheduler or a cron hitting an internal
-    endpoint) - not something to run by hand outside of testing.
+    To force a specific template outside the rotation, use `challenges instance <slug>`.
     """
     typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
     db = PostgresDB(is_archive=env.lower() == "prod")
@@ -128,28 +154,54 @@ def generate_challenges(
         if pruned:
             typer.echo(f"Pruned {pruned} expired challenge instance(s) older than {prune_after_days} days.")
 
-        templates = db.list_active_challenge_templates()
+        pools: dict[str, list[dict]] = {}
+        for template in db.list_active_challenge_templates():
+            pools.setdefault(template['category'], []).append(template)
+
         created = 0
-        for template in templates:
-            if db.has_unexpired_challenge_instance(template['template_id']):
+        for category in sorted(pools):
+            if db.has_unexpired_challenge_instance_for_category(category):
                 continue
-
-            target = _generate_instance_target(template)
-            if target is None:
-                typer.echo(f"SKIP '{template['slug']}': no valid year/club combo found after {_MAX_YEAR_ATTEMPTS} attempts.")
-                continue
-
-            year, replaces_abbr = target
-            instance_id = db.create_challenge_instance(
-                template_id=template['template_id'], year=year, replaces_abbr=replaces_abbr,
-                pts_limit=template['pts_limit'], expires_in_days=_INSTANCE_LIFETIME_DAYS,
-                player_filters=template.get('player_filters'),
-                roster_size=template.get('roster_size') or 25,
-            )
-            typer.echo(f"Generated '{template['slug']}': {year} {replaces_abbr} (instance {instance_id})")
-            created += 1
+            candidates = sorted(pools[category], key=_lru_order_key)
+            for template in candidates:
+                if _create_instance(db, template) is not None:
+                    created += 1
+                    break
+            else:
+                typer.echo(f"SKIP category '{category}': no template produced a valid instance.")
 
         typer.echo(f"Done. {created} new challenge instance(s) generated.")
+    finally:
+        db.close_connection()
+
+
+@app.command("instance")
+def create_instance(
+    slug: str = typer.Argument(..., help="Template slug to instance now"),
+    force: bool = typer.Option(False, "--force", help="Generate even if this template already has a live instance"),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Force one live instance for a single template right now, outside the category rotation.
+
+    Skips the prune and the one-per-category gate that `challenges rotate` enforces. Works on
+    inactive templates too (with a notice). Use it right after `create-template`, or to
+    hand-pick the next challenge in a category.
+    """
+    typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    try:
+        template = db.get_challenge_template_by_slug(slug)
+        if template is None:
+            typer.echo(f"ERROR: no template with slug '{slug}'.")
+            raise typer.Exit(code=1)
+        if not template['active']:
+            typer.echo(f"NOTE: template '{slug}' is inactive - generating anyway (manual override).")
+        if db.has_unexpired_challenge_instance(template['template_id']) and not force:
+            typer.echo(f"'{slug}' already has a live instance. Re-run with --force to add another.")
+            raise typer.Exit(code=1)
+        if _create_instance(db, template) is None:
+            raise typer.Exit(code=1)
+        typer.echo("Done. 1 new challenge instance generated.")
     finally:
         db.close_connection()
 
@@ -162,7 +214,7 @@ def create_template(
     goal_type: GoalType = typer.Option(..., "--goal-type", help="What the player needs to accomplish"),
     min_wins: int = typer.Option(None, "--min-wins", help="Required when --goal-type is min_wins"),
     beat_team_abbr: str = typer.Option(None, "--beat-team-abbr", help="Required when --goal-type is beat_team_record - the club abbr (e.g. NYY) whose win total must be beaten"),
-    category: Category = typer.Option(Category.THEMED, "--category", help="Presentation grouping for the challenges list"),
+    category: Category = typer.Option(Category.THEMED, "--category", help="Rotation pool + accent color for the challenges list - one live instance per category at a time"),
     pts_limit: int = typer.Option(None, "--pts-limit", help="Team budget cap. Omit for no cap"),
     roster_size: int = typer.Option(25, "--roster-size", help="Minimum roster size a team needs to take on this challenge (also the size a challenge 'New Team' is pre-built at)"),
     year_pool: str = typer.Option("any", "--year-pool", help="'any' | comma list of years | 'random_range:lo,hi'"),
@@ -175,9 +227,10 @@ def create_template(
     inactive: bool = typer.Option(False, "--inactive", help="Create it disabled - the generator will skip it"),
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
 ):
-    """Add a new challenge template - the hand-authored content `challenges generate` picks
-    concrete year/club instances from. Run `challenges generate` afterward to actually produce
-    a live instance from it.
+    """Add a new challenge template - the hand-authored content that `challenges rotate` picks
+    concrete year/club instances from. It joins its `--category` rotation pool; run
+    `challenges instance <slug>` afterward to produce a live instance right away (rotate only
+    fills a category that has no live challenge).
 
     Example - copy, edit, and run:
 
@@ -242,7 +295,7 @@ def create_template(
             category=category.value, roster_size=roster_size,
         )
         typer.echo(f"Created template '{slug}' ({template_id}).")
-        typer.echo("Run `challenges generate` to produce a live instance from it.")
+        typer.echo(f"Run `challenges instance {slug}` to produce a live instance now.")
     finally:
         db.close_connection()
 
