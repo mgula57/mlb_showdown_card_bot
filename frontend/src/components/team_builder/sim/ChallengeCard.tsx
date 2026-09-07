@@ -170,7 +170,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                     </div>
 
                     {showExisting && (
-                        <div className="flex flex-col gap-2 rounded-lg border border-(--divider) p-2">
+                        <div className="flex flex-col gap-2 rounded-lg border border-(--divider) p-2 max-h-84 overflow-y-scroll scrollbar-hide">
                             {existingError && <p className="text-[11px] text-red-400">{existingError}</p>}
                             {!existingError && existingTeams === null && (
                                 <div className="flex justify-center py-3"><FaSpinner className="animate-spin text-(--text-tertiary) text-[13px]" /></div>

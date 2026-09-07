@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
-    FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft,
+    FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft, FaFire, FaSnowflake,
 } from 'react-icons/fa6';
 import type { SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -55,6 +55,49 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
     const pitcherKpis = useMemo(() => buildPitcherTeamKpis(pitchers), [pitchers]);
     const standingsEntries = useStandingsEntries(summary);
     const postseasonExit = useMemo(() => describePostseasonExit(summary, teamKey), [summary, teamKey]);
+
+    const gamesByMonth = useMemo(() => {
+        type MonthGroup = { key: string; label: string; games: typeof games; wins: number; losses: number; temp: 'hot' | 'cold' | null };
+        const groups: MonthGroup[] = [];
+        for (const game of games) {
+            const d = new Date(`${game.date}T00:00:00`);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            let group = groups.length > 0 && groups[groups.length - 1].key === key ? groups[groups.length - 1] : null;
+            if (!group) {
+                group = { key, label: d.toLocaleDateString(undefined, { month: 'long' }), games: [], wins: 0, losses: 0, temp: null };
+                groups.push(group);
+            }
+            group.games.push(game);
+            if (game.is_win) group.wins += 1;
+            else group.losses += 1;
+        }
+
+        // Fold a short leading/trailing month (spring-training tail in March, Game 163 / early
+        // October) into its neighbor so the schedule isn't broken up by a two-game "month".
+        const MIN_MONTH_GAMES = 15;
+        const merge = (into: MonthGroup, other: MonthGroup, prepend: boolean) => {
+            into.games = prepend ? [...other.games, ...into.games] : [...into.games, ...other.games];
+            into.wins += other.wins;
+            into.losses += other.losses;
+            into.label = prepend ? `${other.label} / ${into.label}` : `${into.label} / ${other.label}`;
+        };
+        if (groups.length > 1 && groups[0].games.length < MIN_MONTH_GAMES) {
+            merge(groups[1], groups[0], true);
+            groups.shift();
+        }
+        if (groups.length > 1 && groups[groups.length - 1].games.length < MIN_MONTH_GAMES) {
+            merge(groups[groups.length - 2], groups[groups.length - 1], false);
+            groups.pop();
+        }
+
+        // Flag a month hot/cold once its win% clears ~.575 / .425 — near-.500 months stay unmarked.
+        for (const group of groups) {
+            const total = group.wins + group.losses;
+            const pct = total > 0 ? group.wins / total : 0.5;
+            group.temp = pct >= 0.575 ? 'hot' : pct <= 0.425 ? 'cold' : null;
+        }
+        return groups;
+    }, [games]);
 
     const clubOptions = useMemo(() => (
         Object.entries(summary.identities)
@@ -154,6 +197,9 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
                 <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 overflow-x-auto scrollbar-hide">
                     <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}><FaChartLine className={TAB_ICON_CLASS} />Summary</Tabs.Trigger>
                     <Tabs.Trigger value="schedule" className={TAB_TRIGGER_CLASS}><FaCalendarDays className={TAB_ICON_CLASS} />Schedule</Tabs.Trigger>
+                    {summary.postseason.length > 0 && (
+                        <Tabs.Trigger value="postseason" className={TAB_TRIGGER_CLASS}><FaSitemap className={TAB_ICON_CLASS} />Postseason</Tabs.Trigger>
+                    )}
                     <Tabs.Trigger value="batting" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className={TAB_ICON_CLASS} />Batting</Tabs.Trigger>
                     <Tabs.Trigger value="pitching" className={TAB_TRIGGER_CLASS}><FaBaseball className={TAB_ICON_CLASS} />Pitching</Tabs.Trigger>
                     <Tabs.Trigger value="standings" className={TAB_TRIGGER_CLASS}><FaTableList className={TAB_ICON_CLASS} />Standings</Tabs.Trigger>
@@ -164,9 +210,7 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
                     {hasAwards && (
                         <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
                     )}
-                    {summary.postseason.length > 0 && (
-                        <Tabs.Trigger value="postseason" className={TAB_TRIGGER_CLASS}><FaSitemap className={TAB_ICON_CLASS} />Postseason</Tabs.Trigger>
-                    )}
+
                 </Tabs.List>
 
                 {/* Summary */}
@@ -196,26 +240,36 @@ export function SimResult({ summary, challengeResult, onRunAgain, focusAbbr, onF
                                     <th className="text-right font-semibold py-2 px-2">Record</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {games.map((game, i) => (
-                                    <tr key={i} className="border-b border-(--divider)/50">
-                                        <td className="py-1.5 pr-3 text-(--text-tertiary)">{game.date}</td>
-                                        <td className="py-1.5 pr-3 text-(--text-primary)">
-                                            {game.is_home ? 'vs ' : '@ '}
-                                            {label(identityFor(game.opponent), game.opponent)}
-                                        </td>
-                                        <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
-                                            {game.runs_scored}–{game.runs_allowed}
-                                        </td>
-                                        <td className={`text-right py-1.5 px-2 font-bold ${game.is_win ? 'text-(--showdown-blue)' : 'text-(--text-tertiary)'}`}>
-                                            {game.is_win ? 'W' : 'L'}
-                                        </td>
-                                        <td className="text-right py-1.5 px-2 tabular-nums text-(--text-tertiary)">
-                                            {game.wins}–{game.losses}
+                            {gamesByMonth.map(month => (
+                                <tbody key={month.key}>
+                                    <tr className="bg-(--background-tertiary)">
+                                        <td colSpan={5} className="py-1.5 px-2 font-bold text-(--text-primary)">
+                                            {month.label}
+                                            <span className="ml-4 font-semibold tabular-nums text-(--text-tertiary)">{month.wins}-{month.losses}</span>
+                                            {month.temp === 'hot' && <FaFire className="inline ml-2 -mt-0.5 text-(--error)" title="Hot month" />}
+                                            {month.temp === 'cold' && <FaSnowflake className="inline ml-2 -mt-0.5 text-(--showdown-blue)" title="Cold month" />}
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
+                                    {month.games.map((game, i) => (
+                                        <tr key={`${month.key}-${i}`} className="border-b border-(--divider)/50">
+                                            <td className="py-1.5 pl-4 pr-3 text-(--text-tertiary)">{game.date}</td>
+                                            <td className="py-1.5 pr-3 text-(--text-primary)">
+                                                {game.is_home ? 'vs ' : '@ '}
+                                                {label(identityFor(game.opponent), game.opponent)}
+                                            </td>
+                                            <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
+                                                {game.runs_scored}–{game.runs_allowed}
+                                            </td>
+                                            <td className={`text-right py-1.5 px-2 font-bold ${game.is_win ? 'text-(--showdown-blue)' : 'text-(--text-tertiary)'}`}>
+                                                {game.is_win ? 'W' : 'L'}
+                                            </td>
+                                            <td className="text-right py-1.5 px-2 tabular-nums text-(--text-tertiary)">
+                                                {game.wins}–{game.losses}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            ))}
                         </table>
                     </div>
                 </Tabs.Content>

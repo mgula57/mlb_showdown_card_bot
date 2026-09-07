@@ -61,7 +61,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 										className={`
 											grid ${rowTemplate} gap-x-2 items-center
 											rounded-lg border border-black/70 px-3 py-2
-											cursor-pointer transition-[filter] hover:brightness-60
+											${onTeamSelect ? 'cursor-pointer transition-[filter] hover:brightness-60' : ''}
 											${isSelected ? 'ring-2 ring-(--text-primary)' : ''}
 										`}
 										style={{
