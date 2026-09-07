@@ -72,7 +72,11 @@ export default function GameDetailPlayback({
     // A sim's result is always a completed game (`fromSimGame` hardcodes FINAL) — only a real,
     // currently-live game auto-follows.
     const initialMode: PlaybackMode = !simResult && realState === "LIVE" ? "live" : "playback";
-    const [playbackState, playbackControls] = useGamePlayback({ timeline, initialMode });
+    // A sim opens parked on the first pitch with its result hidden — the user plays through to it.
+    // A real game (live or final) still opens on its current/final state as it always has.
+    const [playbackState, playbackControls] = useGamePlayback({
+        timeline, initialMode, initialCursor: simResult ? "start" : "live",
+    });
 
     const revealedPlays = useMemo(() => {
         const upTo = timeline.frames.slice(0, playbackState.cursor + 1);
@@ -101,7 +105,9 @@ export default function GameDetailPlayback({
             frameCount={timeline.frames.length}
             bufferedCount={bufferedCount}
             onSkipToLive={handleSkipToLive}
-            isBoxscoreFrozen={timeline.frozen.boxscore}
+            // A sim hides its box score entirely mid-replay (see GameDetail) and shows the true
+            // final once the cursor reaches the end, so the "current totals" caveat never applies.
+            isBoxscoreFrozen={timeline.frozen.boxscore && !simResult}
         />
     );
 

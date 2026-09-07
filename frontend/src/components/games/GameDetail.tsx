@@ -73,6 +73,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const [showSimSetup, setShowSimSetup] = useState(false);
     const [simResult, setSimResult] = useState<SimGameResult | null>(null);
     const [simError, setSimError] = useState<string | null>(null);
+    // Bumped on every sim run. Keys `GameDetailPlayback` so a re-sim of the same game remounts the
+    // playback cursor — otherwise it would keep the previous run's position (the end) and the new
+    // result would show straight away instead of parking on the first pitch.
+    const [simRunId, setSimRunId] = useState(0);
 
     const {
         boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
@@ -144,6 +148,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setSimResult(result);
         setSimError(null);
         setShowSimSetup(false);
+        setSimRunId((n) => n + 1);
+        // The sim opens parked on the first pitch (see GameDetailPlayback) with its result hidden,
+        // so the transport strip needs to be visible for the user to play through it.
+        setShowPlaybackControls(true);
     }
 
     /* Mode strip in the team builder's idiom, coloured by the two clubs so it reads as this
@@ -160,7 +168,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
        tables stay reading the raw, CURRENT boxscore regardless of playback position — the
        timeline freezes them (see `GameTimeline.frozen`) rather than reconstructing per-play
        cumulative stats, so there's nothing playback-aware to swap in here. */
-    const boxScorePanels = (activeView: typeof view) => (
+    const boxScorePanels = (activeView: typeof view, hideResult: boolean) => (
         <div className="@container space-y-4">
             <GameLinescore game={activeView} />
 
@@ -171,9 +179,20 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
             )}
 
-            {/* Below @820px the container is too narrow for both teams' tables side by side, so
+            {/* A sim's box score can't be rebuilt play-by-play (it's frozen at the final line), so
+                while the user is watching the replay we hide it outright rather than spoil the
+                result — it comes back once the cursor reaches the end. */}
+            {hideResult ? (
+                <div className="rounded-xl border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
+                    <div className="text-xs font-semibold text-(--primary)">Box score hidden during replay</div>
+                    <div className="mt-1 text-[11px] text-(--secondary)">
+                        The full line reveals when the replay reaches the end — or use “Skip to result” to jump ahead.
+                    </div>
+                </div>
+            ) : (
+            /* Below @820px the container is too narrow for both teams' tables side by side, so
                 they collapse into tabs; at/above it, both Tabs.Content panels are forced visible
-                (via forceMount + the @[820px] override below) and sit in a 2-column grid instead. */}
+                (via forceMount + the @[820px] override below) and sit in a 2-column grid instead. */
             <Tabs.Root defaultValue="away">
                 <Tabs.List className="@[820px]:hidden flex gap-1 rounded-lg bg-(--background-tertiary) p-1 mb-3">
                     <Tabs.Trigger
@@ -210,6 +229,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     })}
                 </div>
             </Tabs.Root>
+            )}
 
             <GameInfo away={away} home={home} />
         </div>
@@ -217,7 +237,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     return (
         <GameDetailPlayback
-            key={gamePk}
+            key={`${gamePk}:${simRunId}`}
             boxscore={boxscore}
             sportId={sportId}
             realState={realView?.state ?? "PREVIEW"}
@@ -263,7 +283,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     />
                 );
 
-                const panels = boxScorePanels(activeView);
+                /* A sim whose cursor hasn't reached the end yet — the user is still playing through
+                   it and shouldn't see the final score or box score. `isReplaying` goes false only
+                   once the cursor sits on the last frame (played to the end, or "Skip to result"). */
+                const simMidReplay = !!simResult && isReplaying;
+                const panels = boxScorePanels(activeView, simMidReplay);
 
                 /* Mode strip: sim banner gets a "Watch" button that jumps to the first pitch and
                    starts playback; a finished real game under active review gets its own REPLAY strip
@@ -281,21 +305,30 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         }
                     >
                         <div className="flex items-center gap-2">
-                            {/* "Watch" reveals the transport strip (below the field) and starts
-                                playback from the first pitch — clicking it again re-watches from the
-                                top. A takeover sim always shows the strip, so it only needs the
-                                seek+play. */}
+                            {/* The sim already opens parked on the first pitch, so this is a
+                                one-click "start playing": from frame 0 it reads "Watch"; once the
+                                cursor has moved it becomes "Restart" and jumps back to the top. */}
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setShowPlaybackControls(true);
                                     playbackControls.seekToStart();
                                     playbackControls.play();
                                 }}
                                 className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
                             >
-                                {showPlaybackControls || simResult.is_takeover ? 'Restart' : 'Watch'}
+                                {playbackState.cursor === 0 ? 'Watch' : 'Restart'}
                             </button>
+                            {/* Only while mid-replay — jumps the cursor to the end so the final
+                                score, box score and last play all resolve at once. */}
+                            {simMidReplay && (
+                                <button
+                                    type="button"
+                                    onClick={() => playbackControls.seekToLive()}
+                                    className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
+                                >
+                                    Skip to result
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => { setSimResult(null); setShowPlaybackControls(false); }}
@@ -427,7 +460,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                 {/* A takeover sim is a finished game the user will want to scrub
                                                     through play by play, so its transport strip is shown up front
                                                     rather than hidden behind the Replay toggle. */}
-                                                {(showPlaybackControls || simResult?.is_takeover) && playbackBar}
+                                                {(showPlaybackControls || simResult) && playbackBar}
 
                                                 {!simResult && isNotStarted && boxscore.probable_pitchers && (
                                                     <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />

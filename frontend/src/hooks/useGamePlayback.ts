@@ -90,10 +90,14 @@ const CATCH_UP_MULTIPLIER = 2;
 export function useGamePlayback(options: {
     timeline: GameTimeline;
     initialMode: PlaybackMode;
+    /** Where the cursor parks on first mount. "live" (default) is the newest/final frame — opening
+     *  any game shows its current state, matching the pre-playback behaviour. "start" parks on
+     *  frame 0 instead, for a stored sim the user should watch unfold rather than see the result of. */
+    initialCursor?: "live" | "start";
     gate?: (frame: GameFrame) => AwaitingInput;
     onFrameEnter?: (frame: GameFrame, transition?: FrameTransition) => void;
 }): [GamePlaybackState, GamePlaybackControls] {
-    const { timeline, initialMode, gate, onFrameEnter } = options;
+    const { timeline, initialMode, initialCursor = "live", gate, onFrameEnter } = options;
     const frames = timeline.frames;
     if (frames.length === 0) throw new Error("useGamePlayback: timeline has no frames");
 
@@ -124,15 +128,17 @@ export function useGamePlayback(options: {
     const catchUpBoost = mode === "live" && isPlaying && behindBy > CATCH_UP_THRESHOLD ? CATCH_UP_MULTIPLIER : 1;
     const effectiveSpeed = speed * catchUpBoost;
 
-    // Initial placement is ALWAYS the live edge, regardless of mode — opening a live game or a
+    // Initial placement defaults to the live edge, regardless of mode — opening a live game or a
     // finished one both show its current/final state immediately, matching what the page looked
     // like before playback existed. "playback" mode only differs in starting `isPlaying: false`
     // (a finished game doesn't auto-replay itself) and in `commit()` auto-pausing once scrubbing
     // forward reaches the true end; reviewing earlier plays is always an explicit `seek`/`play`.
+    // `initialCursor: "start"` opts out — a stored sim parks on frame 0 so its result stays hidden
+    // until the user plays through to it.
     useEffect(() => {
         if (initializedRef.current) return;
         initializedRef.current = true;
-        setCursorId(frames[frames.length - 1].id);
+        setCursorId(frames[initialCursor === "start" ? 0 : frames.length - 1].id);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

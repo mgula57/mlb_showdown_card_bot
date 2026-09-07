@@ -214,7 +214,7 @@ export const CardItemCompact = ({
                 {!hideDetails && (
                     <>
                         {(detailStat1Category === 'defense' && !card?.is_pitcher && hideTeamPoints) && (
-                            <div className="hidden @[70px]:block @[95px]:hidden fixed top-1/2 translate-y-[-50%] right-0 text-[9px] bg-(--text-primary)/50 backdrop-blur tracking-tight font-bold text-(--text-tertiary) truncate text-nowrap px-1">
+                            <div className="hidden @[70px]:block @[95px]:hidden fixed top-1/2 translate-y-[-50%] right-0 text-[9px] bg-(--text-primary)/50 tracking-tight font-bold text-(--text-tertiary) truncate text-nowrap px-1">
                                 {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
                             </div>
                         )}

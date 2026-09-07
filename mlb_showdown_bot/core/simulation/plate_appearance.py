@@ -146,9 +146,15 @@ class PlateAppearance:
         self.double_play_roll = Roll(roll=dice_roll, result=double_play_result, runner=runner)
         self.outs += int(double_play_result.is_out)
 
-        # REMOVE RUNNER, REMOVE RUN IF 3 OUTS
+        # `Runners.move` provisionally puts the hitter on first pending this roll (see the DP branch
+        # there). A completed DP retires them at first; a SAFE roll is a fielder's choice and they
+        # stay put.
         if double_play_result == Result.OUT:
 
+            if runner is not None:
+                self.runners.remove_runner(runner.base)
+
+            # REMOVE RUN IF 3 OUTS
             if self.total_outs == 3 and self.runs_scored > 0:
                 self.runs_scored -= 1
 

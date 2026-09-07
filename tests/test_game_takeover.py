@@ -153,6 +153,18 @@ check("runs_scored agrees with the final score",
       f"log {sum(e.runs_scored for e in result.log)} vs final {result.home_score + result.away_score}")
 check("at least one scoring play was logged", len(scoring_entries) > 0)
 
+# A COMPLETED DOUBLE PLAY RETIRES THE BATTER - `Runners.move` parks them on first pending the
+# DP roll, and a successful roll must clear them off again (otherwise a phantom runner lingers
+# for the rest of the half-inning, and a replay slides the batter to first instead of fading
+# them out). Scan a batch of games so at least a few DPs turn up.
+dp_entries = [entry for game_seed in range(40) for entry in play(seed=game_seed).logs
+              if entry.event == "Grounded Into DP"]
+check("double-play batches turned up at least one GIDP", len(dp_entries) > 0, f"got {len(dp_entries)}")
+check("a grounded-into-DP never leaves the batter on base",
+      all(entry.hitter_id not in {r.id for r in entry.bases_detail} for entry in dp_entries),
+      str([entry.bases for entry in dp_entries
+           if entry.hitter_id in {r.id for r in entry.bases_detail}]))
+
 # THE ANNOUNCED LINEUP MUST COME OUT VERBATIM.
 check("preset batting order is honored",
       [p.id for p in game.away_team.batting_order] == [f"AWY-{pos}" for pos in LINEUP_POSITIONS],
