@@ -187,8 +187,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [unpublishing, setUnpublishing] = useState(false);
     // Setup flow: a freshly created (or still-empty) team opens on the "Team Settings" step;
     // otherwise straight into "Drafting". Steps are freely navigable via the banner chips.
+    // Challenge-created teams skip Settings entirely — the challenge already supplied every
+    // team setting (budget, roster size, player filters), so there's nothing to configure.
     const [setupStep, setSetupStep] = useState<'settings' | 'draft'>(
-        () => (isNewTeam || team.roster.length === 0) ? 'settings' : 'draft',
+        () => challenge ? 'draft' : (isNewTeam || team.roster.length === 0) ? 'settings' : 'draft',
     );
 
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
@@ -293,7 +295,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // different team), never on the same-team prop churn from an auto-save round-trip — that
     // would kick the user back to Settings mid-edit.
     useEffect(() => {
-        setSetupStep((isNewTeam || team.roster.length === 0) ? 'settings' : 'draft');
+        setSetupStep(challenge ? 'draft' : (isNewTeam || team.roster.length === 0) ? 'settings' : 'draft');
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [team.team_id]);
 
