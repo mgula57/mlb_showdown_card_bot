@@ -4,8 +4,10 @@ import { SimHistory } from './SimHistory';
 import { SimChallenges } from './SimChallenges';
 import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
+import { useAuth } from '../../auth/AuthContext';
 import type { ChallengeInstance } from '../../../api/sim';
 import { FaArrowRight } from 'react-icons/fa';
+import { FaGear } from 'react-icons/fa6';
 
 type BrowseView = 'leaderboard' | 'mine';
 
@@ -23,6 +25,8 @@ type Props = {
     /** Navigates to the challenge's own shareable page (`/teams/challenges/:id`), owned by
      *  TeamBuilder since that's where the route lives. */
     onOpenChallenge: (challenge: ChallengeInstance) => void;
+    /** Admin only: open the challenge-template manager (`/teams/admin/challenges`). */
+    onManageChallenges: () => void;
 };
 
 /**
@@ -32,7 +36,8 @@ type Props = {
  * single challenge, so they're demoted to a quiet "Browse all sims" escape hatch rather than
  * removed outright.
  */
-export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTeam, onUseExistingTeam, onOpenChallenge }: Props) {
+export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTeam, onUseExistingTeam, onOpenChallenge, onManageChallenges }: Props) {
+    const { isAdmin } = useAuth();
     const [browsing, setBrowsing] = useState(false);
     const [browseView, setBrowseView] = useState<BrowseView>('leaderboard');
 
@@ -55,14 +60,26 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
             {/* Header */}
             <div className="flex justify-between items-center gap-2">
                 <h3 className="text-[16px] font-black text-(--text-primary)">Active Challenges</h3>
-                <button
-                    type="button"
-                    onClick={() => setBrowsing(true)}
-                    className="self-center flex gap-1 items-center text-[12px] font-bold text-(--text-tertiary) hover:text-(--text-secondary) cursor-pointer transition-colors"
-                >
-                    See full leaderboard <FaArrowRight/>
-                </button>
+                <div className="flex items-center gap-3">
+                    {isAdmin && token && (
+                        <button
+                            type="button"
+                            onClick={onManageChallenges}
+                            className="flex gap-1 items-center text-[12px] font-bold text-(--text-tertiary) hover:text-(--text-secondary) cursor-pointer transition-colors"
+                        >
+                            <FaGear className="text-[10px]" /> Manage templates
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setBrowsing(true)}
+                        className="flex gap-1 items-center text-[12px] font-bold text-(--text-tertiary) hover:text-(--text-secondary) cursor-pointer transition-colors"
+                    >
+                        See full leaderboard <FaArrowRight/>
+                    </button>
+                </div>
             </div>
+
             {/* Challenges grid */}
             <SimChallenges
                 token={token}
@@ -70,7 +87,7 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
                 onUseExistingTeam={onUseExistingTeam}
                 onSelectChallenge={onOpenChallenge}
             />
-            
+
         </div>
     );
 }

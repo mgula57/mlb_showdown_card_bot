@@ -8058,15 +8058,77 @@ class PostgresDB:
 
     def list_challenge_templates(self) -> list[dict]:
         """Every template, active or not - for CLI/admin listing (contrast with
-        `list_active_challenge_templates`, which the generator uses and only wants active ones)."""
+        `list_active_challenge_templates`, which the generator uses and only wants active ones).
+
+        Each row also carries `last_instanced_at` (newest instance `created_at`, or null) and
+        `live_instance_count` (unexpired instances) so the admin UI can show rotation status
+        without a second query."""
         rows = self.execute_query(
-            "SELECT template_id, slug, title, description, goal_type, goal_value, pts_limit, roster_size, "
-            "year_pool, replaces_pool, active, player_filters, category, created_at "
-            "FROM internal.challenge_template ORDER BY created_at DESC"
+            "SELECT t.template_id, t.slug, t.title, t.description, t.goal_type, t.goal_value, "
+            "t.pts_limit, t.roster_size, t.year_pool, t.replaces_pool, t.active, t.player_filters, "
+            "t.category, t.created_at, MAX(i.created_at) AS last_instanced_at, "
+            "COUNT(i.instance_id) FILTER (WHERE i.expires_at > NOW()) AS live_instance_count "
+            "FROM internal.challenge_template t "
+            "LEFT JOIN internal.challenge_instance i ON i.template_id = t.template_id "
+            "GROUP BY t.template_id ORDER BY t.created_at DESC"
         )
         for row in rows:
             row['template_id'] = str(row['template_id'])
         return rows
+
+    _CHALLENGE_TEMPLATE_EDITABLE = (
+        'slug', 'title', 'description', 'goal_type', 'goal_value', 'pts_limit', 'roster_size',
+        'year_pool', 'replaces_pool', 'active', 'player_filters', 'category',
+    )
+
+    def update_challenge_template(self, template_id: str, fields: dict) -> dict | None:
+        """Patch an existing template. Only keys in `_CHALLENGE_TEMPLATE_EDITABLE` are applied;
+        `goal_value` / `player_filters` are JSON-encoded. Returns the updated row, or None if no
+        template has that id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        updates = {k: v for k, v in fields.items() if k in self._CHALLENGE_TEMPLATE_EDITABLE}
+        if not updates:
+            return self.get_challenge_template(template_id)
+        json_cols = {'goal_value', 'player_filters'}
+        set_clause = ', '.join(f"{col} = %s" for col in updates)
+        values = [
+            extras.Json(val) if col in json_cols and val is not None else val
+            for col, val in updates.items()
+        ]
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"UPDATE internal.challenge_template SET {set_clause} "
+                "WHERE template_id = %s RETURNING *",
+                (*values, template_id),
+            )
+            row = cur.fetchone()
+        if row:
+            row = dict(row)
+            row['template_id'] = str(row['template_id'])
+        return row
+
+    def delete_challenge_template(self, template_id: str) -> str:
+        """Delete a template. Returns 'not_found', 'in_use' (a live instance still references it -
+        deactivate instead), or 'ok' (deleted, along with any of its already-expired instances)."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM internal.challenge_template WHERE template_id = %s", (template_id,)
+            )
+            if cur.fetchone() is None:
+                return 'not_found'
+            cur.execute(
+                "SELECT 1 FROM internal.challenge_instance "
+                "WHERE template_id = %s AND expires_at > NOW() LIMIT 1",
+                (template_id,),
+            )
+            if cur.fetchone() is not None:
+                return 'in_use'
+            cur.execute("DELETE FROM internal.challenge_instance WHERE template_id = %s", (template_id,))
+            cur.execute("DELETE FROM internal.challenge_template WHERE template_id = %s", (template_id,))
+        return 'ok'
 
     def list_active_challenge_templates(self) -> list[dict]:
         """Every template flagged active, each with `last_instanced_at` (the newest instance's
@@ -8085,6 +8147,16 @@ class PostgresDB:
             "WHERE t.active = TRUE "
             "GROUP BY t.template_id"
         )
+
+    def get_challenge_template(self, template_id: str) -> dict | None:
+        """One template by id, active or not, with all columns."""
+        rows = self.execute_query(
+            "SELECT * FROM internal.challenge_template WHERE template_id = %s", (template_id,)
+        )
+        if not rows:
+            return None
+        rows[0]['template_id'] = str(rows[0]['template_id'])
+        return rows[0]
 
     def get_challenge_template_by_slug(self, slug: str) -> dict | None:
         """One template by slug, active or not - backs `challenges instance <slug>`, the manual

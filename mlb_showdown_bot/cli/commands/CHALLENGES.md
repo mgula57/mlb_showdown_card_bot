@@ -2,11 +2,20 @@
 
 CLI: [`challenges.py`](challenges.py) — registered as `showdown_bot challenges`.
 
+**Admin UI:** the same operations (template CRUD, "generate instance now", "run rotation now")
+live at `/teams/admin/challenges` — reached via the "Manage templates" link in the Team
+Challenges tab header (admins only). Frontend: `AdminChallengesView` /
+`ChallengeTemplateForm` in `frontend/src/components/team_builder/sim/admin/`. Backend:
+[`api/admin_challenges.py`](../../api/admin_challenges.py) (`/api/admin/challenges*`,
+`require_admin`). Both the CLI and the API run through
+[`core/simulation/challenge_generator.py`](../../core/simulation/challenge_generator.py) — the
+one source of truth for validation and instance generation.
+
 A **Team Challenge** is a weekly "take over a real club and hit a goal" scenario. There are two layers:
 
 | Layer | What it is | How it's made | Lifetime |
 |-------|-----------|---------------|----------|
-| **Template** | Hand-authored content: the goal, budget cap, player pool, year/club pools. | You, via `challenges create-template`. | Permanent (until you set it `--inactive`). |
+| **Template** | Hand-authored content: the goal, budget cap, player pool, year/club pools. | You, via `challenges create-template` or the admin UI. | Permanent (until you deactivate it). |
 | **Instance** | A concrete playable challenge: one real `year` + `replaces_abbr` club resolved from a template's pools, with `pts_limit` / `roster_size` / `player_filters` snapshotted onto it. | The scheduler, via `challenges rotate` (or `challenges instance <slug>` by hand). | 7 days, then pruned 30 days after expiry. |
 
 `rotate` keeps exactly **one live instance per category** (`legendary` / `budget_cap` / `themed`) — each category is a rotation pool of templates, and every cycle the least-recently-used template in a category becomes that week's challenge, but only if the category has no live instance already. The frontend challenges list shows the live instances; players build a team (min `roster_size`, under `pts_limit`, matching `player_filters`), sim the season, and pass/fail against `goal_type`.

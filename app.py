@@ -34,6 +34,7 @@ from mlb_showdown_bot.api.metadata import metadata_bp
 from mlb_showdown_bot.api.stats import stats_bp
 from mlb_showdown_bot.api.user_teams import user_teams_bp
 from mlb_showdown_bot.api.admin_teams import admin_teams_bp
+from mlb_showdown_bot.api.admin_challenges import admin_challenges_bp
 from mlb_showdown_bot.api.sim import sim_bp
 
 app.register_blueprint(cards_bp, url_prefix='/api')
@@ -48,6 +49,7 @@ app.register_blueprint(metadata_bp, url_prefix='/api')
 app.register_blueprint(stats_bp, url_prefix='/api')
 app.register_blueprint(user_teams_bp, url_prefix='/api')
 app.register_blueprint(admin_teams_bp, url_prefix='/api')
+app.register_blueprint(admin_challenges_bp, url_prefix='/api')
 app.register_blueprint(sim_bp, url_prefix='/api')
 
 # Warm up DB connection pools at startup so the first request doesn't

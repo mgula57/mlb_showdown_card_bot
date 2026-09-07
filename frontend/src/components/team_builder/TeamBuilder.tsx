@@ -31,6 +31,7 @@ import { asgIdentity, type HistoricalNavState } from './HistoricalTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
 import { ChallengeDetail } from './sim/ChallengeDetail';
+import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import BackButton from '../shared/BackButton';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar } from 'react-icons/fa6';
@@ -51,7 +52,7 @@ function parseTeamRef(pathname: string): TeamRef | null {
     if (parts[1] === 'asg' && parts[3] !== undefined) {
         return { kind: 'asg', season: parts[2], league: parts[3].toUpperCase() };
     }
-    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges' && parts[1] !== 'all' && parts[1] !== 'collections') {
+    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges' && parts[1] !== 'all' && parts[1] !== 'collections' && parts[1] !== 'admin') {
         return { kind: 'saved', teamId: parts[1] };
     }
     return null;
@@ -82,6 +83,12 @@ function isAllTeamsView(pathname: string): boolean {
 function parseCollectionSlug(pathname: string): string | null {
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'collections' && parts[2] ? parts[2] : null;
+}
+
+// Admin-only challenge-template manager, its own route so it isn't buried under the Challenges
+// sub-tab state. Gated by `isAdmin` on top of the server-side `require_admin`.
+function isAdminChallengesPath(pathname: string): boolean {
+    return pathname.replace(/\/+$/, '') === '/teams/admin/challenges';
 }
 
 // =============================================================================
@@ -132,7 +139,7 @@ const TABS: TabItem<TabId>[] = [
 ];
 
 export default function TeamBuilder() {
-    const { session, username } = useAuth();
+    const { session, username, isAdmin } = useAuth();
     const { userShowdownSet } = useSiteSettings();
     const location = useLocation();
     const navigate = useNavigate();
@@ -215,6 +222,7 @@ export default function TeamBuilder() {
     const challengeInstanceId = parseChallengeInstanceId(location.pathname);
     const allTeamsView = isAllTeamsView(location.pathname);
     const collectionSlug = parseCollectionSlug(location.pathname);
+    const adminChallengesView = isAdminChallengesPath(location.pathname);
     // The team currently resolved into the editor, so we don't re-resolve on re-render. Keyed on
     // the ref rather than the pathname so entering/leaving a sim URL doesn't refetch the team.
     const teamRefKey = teamRef ? JSON.stringify(teamRef) : null;
@@ -430,6 +438,22 @@ export default function TeamBuilder() {
         setView(prev => prev.mode === 'editor' && prev.team.team_id === teamId
             ? { ...prev, team: saved }
             : prev
+        );
+    }
+
+    // Admin-only challenge-template manager. Its own route so it's reachable directly and not
+    // gated behind the Challenges sub-tab state. Non-admins landing here fall through to the
+    // normal tabs (the server would 403 every call anyway).
+    if (adminChallengesView && isAdmin && token) {
+        return (
+            <div className="@container w-full">
+                <div className={`flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full ${px}`}>
+                    <AdminChallengesView
+                        token={token}
+                        onBack={() => { setActiveTab('simulations'); navigate('/teams'); }}
+                    />
+                </div>
+            </div>
         );
     }
 
@@ -724,6 +748,7 @@ export default function TeamBuilder() {
                     onNewTeam={handleChallengeNewTeam}
                     onUseExistingTeam={handleUseExistingTeam}
                     onOpenChallenge={openChallenge}
+                    onManageChallenges={() => navigate('/teams/admin/challenges')}
                 />
             )}
         </div>

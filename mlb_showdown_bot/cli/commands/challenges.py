@@ -1,109 +1,34 @@
 import json
-import random
-from datetime import datetime
-from enum import Enum
 
 import typer
 
 from ...core.database.postgres_db import PostgresDB
-from ...core.simulation.takeover import TakeoverOptions
+from ...core.simulation.challenge_generator import (
+    MAX_YEAR_ATTEMPTS,
+    MIN_ROSTER_SIZE,
+    PRUNE_AFTER_DAYS,
+    ChallengeCategory,
+    ChallengeError,
+    ChallengeGenerator,
+    GoalType,
+    build_goal_value,
+    validate_year_pool,
+)
 
 app = typer.Typer()
-
-
-class GoalType(str, Enum):
-    MADE_PLAYOFFS = "made_playoffs"
-    WIN_DIVISION = "win_division"
-    WIN_PENNANT = "win_pennant"
-    WIN_WORLD_SERIES = "win_world_series"
-    MIN_WINS = "min_wins"
-    BEAT_TEAM_RECORD = "beat_team_record"
-
-
-class Category(str, Enum):
-    """Presentation grouping for the challenges list - drives the accent color and the
-    one-of-each weekly rotation. Not a mechanic: the goal/cap/filters do the actual work."""
-    LEGENDARY = "legendary"
-    BUDGET_CAP = "budget_cap"
-    THEMED = "themed"
 
 
 def _target_db_label(env: str) -> str:
     """`--env prod` hits DATABASE_URL_ARCHIVE, anything else hits DATABASE_URL_LOGS - these are
     two different databases, and inserting a template into one while `rotate` reads the other
     silently looks like "no templates exist" with no error anywhere. Echoing this on every
-    template-touching command makes that mismatch obvious instead of silent."""
+    command makes that mismatch obvious instead of silent."""
     return "DATABASE_URL_ARCHIVE" if env.lower() == "prod" else "DATABASE_URL_LOGS"
 
 
-def _validate_year_pool(year_pool: str) -> None:
-    if year_pool == 'any':
-        return
-    if year_pool.startswith('random_range:'):
-        bounds = year_pool.removeprefix('random_range:').split(',')
-        if len(bounds) == 2 and all(b.strip().isdigit() for b in bounds):
-            return
-        raise ValueError("--year-pool random_range must look like 'random_range:1977,2024'")
-    if all(y.strip().isdigit() for y in year_pool.split(',')):
-        return
-    raise ValueError("--year-pool must be 'any', 'random_range:lo,hi', or a comma list of years")
-
-# MATCHES api/sim.py's _EARLIEST_SEASON - THE ARCHIVE HAS NO FULL CARD COVERAGE BEFORE THIS.
-_EARLIEST_SEASON = 1975
-_INSTANCE_LIFETIME_DAYS = 7
-_PRUNE_AFTER_DAYS = 30
-# A CHOSEN YEAR CAN COME BACK WITH NO STANDINGS (TRANSIENT MLB STATS API HICCUP) - RETRY A FEW
-# TIMES WITH A FRESH YEAR BEFORE GIVING UP ON A TEMPLATE FOR THIS CYCLE.
-_MAX_YEAR_ATTEMPTS = 3
-
-
-def _resolve_year(year_pool: str) -> int:
-    """Pick a concrete year for a template's year_pool spec."""
-    if year_pool.startswith('random_range:'):
-        low, high = (int(bound) for bound in year_pool.removeprefix('random_range:').split(','))
-        return random.randint(low, high)
-    if year_pool != 'any':
-        years = [int(y) for y in year_pool.split(',')]
-        return random.choice(years)
-    return random.randint(_EARLIEST_SEASON, datetime.now().year)
-
-
-def _resolve_replaces(replaces_pool: str, options: TakeoverOptions) -> str | None:
-    """Pick a real club abbreviation for a template's replaces_pool spec. Caller must already
-    have confirmed `options.clubs` is non-empty for this year."""
-    if replaces_pool == 'worst_record':
-        return options.default_abbr
-    if replaces_pool == 'any':
-        return random.choice(options.clubs).abbreviation
-    # COMMA LIST OF EXPLICIT ABBREVIATIONS - PICK ONE THAT ACTUALLY PLAYED THIS YEAR (FRANCHISES
-    # RELOCATE/RENAME ACROSS ERAS, SO NOT EVERY CANDIDATE IS VALID FOR EVERY YEAR).
-    candidates = [abbr.strip().upper() for abbr in replaces_pool.split(',')]
-    random.shuffle(candidates)
-    known = {club.abbreviation for club in options.clubs}
-    for candidate in candidates:
-        if candidate in known:
-            return candidate
-    return None
-
-
-def _generate_instance_target(template: dict) -> tuple[int, str] | None:
-    """Resolve a (year, replaces_abbr) pair for a template, retrying on years with no data.
-    Returns None if nothing valid turned up within the attempt budget."""
-    # A `beat_team_record` challenge can never hand the player the very club they must beat.
-    forbidden_abbr = None
-    if template.get('goal_type') == GoalType.BEAT_TEAM_RECORD.value:
-        forbidden_abbr = (template.get('goal_value') or {}).get('target_abbr')
-    for _ in range(_MAX_YEAR_ATTEMPTS):
-        year = _resolve_year(template['year_pool'])
-        if year < _EARLIEST_SEASON:
-            continue
-        options = TakeoverOptions(year=year)
-        if not options.clubs:
-            continue
-        replaces_abbr = _resolve_replaces(template['replaces_pool'], options)
-        if replaces_abbr and replaces_abbr != forbidden_abbr:
-            return year, replaces_abbr
-    return None
+def _open_db(env: str) -> PostgresDB:
+    typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
+    return PostgresDB(is_archive=env.lower() == "prod")
 
 
 @app.callback(invoke_without_command=True)
@@ -111,35 +36,10 @@ def challenges_main():
     """Manage Team Challenge templates/instances."""
 
 
-def _lru_order_key(template: dict):
-    """Sort key for a category's template pool: never-instanced templates first, then
-    oldest instance first, random tie-break so a stale pool doesn't lock into one order."""
-    last = template.get('last_instanced_at')
-    return (last is not None, last or datetime.min, random.random())
-
-
-def _create_instance(db: PostgresDB, template: dict) -> str | None:
-    """Resolve a year/club for `template` and insert one instance. Returns the instance id, or
-    None (with a SKIP line printed) if no valid year/club combo turned up."""
-    target = _generate_instance_target(template)
-    if target is None:
-        typer.echo(f"SKIP '{template['slug']}': no valid year/club combo found after {_MAX_YEAR_ATTEMPTS} attempts.")
-        return None
-    year, replaces_abbr = target
-    instance_id = db.create_challenge_instance(
-        template_id=template['template_id'], year=year, replaces_abbr=replaces_abbr,
-        pts_limit=template['pts_limit'], expires_in_days=_INSTANCE_LIFETIME_DAYS,
-        player_filters=template.get('player_filters'),
-        roster_size=template.get('roster_size') or 25,
-    )
-    typer.echo(f"Generated '{template['slug']}': {year} {replaces_abbr} (instance {instance_id})")
-    return instance_id
-
-
 @app.command("rotate")
 def rotate_challenges(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
-    prune_after_days: int = typer.Option(_PRUNE_AFTER_DAYS, "--prune-after-days", help="Delete instances expired longer than this many days"),
+    prune_after_days: int = typer.Option(PRUNE_AFTER_DAYS, "--prune-after-days", help="Delete instances expired longer than this many days"),
 ):
     """Advance the weekly rotation: prune old expired instances, then fill every category that
     has no live challenge with ONE instance - the least-recently-used active template in that
@@ -147,30 +47,16 @@ def rotate_challenges(
 
     To force a specific template outside the rotation, use `challenges instance <slug>`.
     """
-    typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
-    db = PostgresDB(is_archive=env.lower() == "prod")
+    db = _open_db(env)
     try:
-        pruned = db.prune_expired_challenge_instances(older_than_days=prune_after_days)
-        if pruned:
-            typer.echo(f"Pruned {pruned} expired challenge instance(s) older than {prune_after_days} days.")
-
-        pools: dict[str, list[dict]] = {}
-        for template in db.list_active_challenge_templates():
-            pools.setdefault(template['category'], []).append(template)
-
-        created = 0
-        for category in sorted(pools):
-            if db.has_unexpired_challenge_instance_for_category(category):
-                continue
-            candidates = sorted(pools[category], key=_lru_order_key)
-            for template in candidates:
-                if _create_instance(db, template) is not None:
-                    created += 1
-                    break
-            else:
-                typer.echo(f"SKIP category '{category}': no template produced a valid instance.")
-
-        typer.echo(f"Done. {created} new challenge instance(s) generated.")
+        report = ChallengeGenerator(db).rotate(prune_after_days=prune_after_days)
+        if report.pruned:
+            typer.echo(f"Pruned {report.pruned} expired challenge instance(s).")
+        for result in report.created:
+            typer.echo(f"Generated '{result.slug}': {result.year} {result.replaces_abbr} (instance {result.instance_id})")
+        for skip in report.skipped:
+            typer.echo(f"SKIP {skip}.")
+        typer.echo(f"Done. {len(report.created)} new challenge instance(s) generated.")
     finally:
         db.close_connection()
 
@@ -187,8 +73,7 @@ def create_instance(
     inactive templates too (with a notice). Use it right after `create-template`, or to
     hand-pick the next challenge in a category.
     """
-    typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
-    db = PostgresDB(is_archive=env.lower() == "prod")
+    db = _open_db(env)
     try:
         template = db.get_challenge_template_by_slug(slug)
         if template is None:
@@ -196,11 +81,12 @@ def create_instance(
             raise typer.Exit(code=1)
         if not template['active']:
             typer.echo(f"NOTE: template '{slug}' is inactive - generating anyway (manual override).")
-        if db.has_unexpired_challenge_instance(template['template_id']) and not force:
-            typer.echo(f"'{slug}' already has a live instance. Re-run with --force to add another.")
+        try:
+            result = ChallengeGenerator(db).instance_from_template(template, force=force)
+        except ChallengeError as exc:
+            typer.echo(f"ERROR: {exc}")
             raise typer.Exit(code=1)
-        if _create_instance(db, template) is None:
-            raise typer.Exit(code=1)
+        typer.echo(f"Generated '{result.slug}': {result.year} {result.replaces_abbr} (instance {result.instance_id})")
         typer.echo("Done. 1 new challenge instance generated.")
     finally:
         db.close_connection()
@@ -214,7 +100,7 @@ def create_template(
     goal_type: GoalType = typer.Option(..., "--goal-type", help="What the player needs to accomplish"),
     min_wins: int = typer.Option(None, "--min-wins", help="Required when --goal-type is min_wins"),
     beat_team_abbr: str = typer.Option(None, "--beat-team-abbr", help="Required when --goal-type is beat_team_record - the club abbr (e.g. NYY) whose win total must be beaten"),
-    category: Category = typer.Option(Category.THEMED, "--category", help="Rotation pool + accent color for the challenges list - one live instance per category at a time"),
+    category: ChallengeCategory = typer.Option(ChallengeCategory.THEMED, "--category", help="Rotation pool + accent color for the challenges list - one live instance per category at a time"),
     pts_limit: int = typer.Option(None, "--pts-limit", help="Team budget cap. Omit for no cap"),
     roster_size: int = typer.Option(25, "--roster-size", help="Minimum roster size a team needs to take on this challenge (also the size a challenge 'New Team' is pre-built at)"),
     year_pool: str = typer.Option("any", "--year-pool", help="'any' | comma list of years | 'random_range:lo,hi'"),
@@ -252,27 +138,15 @@ def create_template(
 
     showdown_bot challenges create-template --slug dethrone-27-yankees --title "Dethrone the '27 Yankees" --description "Take over another 1927 club and finish with more wins than Murderers' Row." --goal-type beat_team_record --beat-team-abbr NYY --category legendary --year-pool 1927 --replaces-pool worst_record --env dev
     """
-    if goal_type == GoalType.MIN_WINS and min_wins is None:
-        typer.echo("ERROR: --min-wins is required when --goal-type is min_wins.")
-        raise typer.Exit(code=1)
-    if goal_type == GoalType.BEAT_TEAM_RECORD and not beat_team_abbr:
-        typer.echo("ERROR: --beat-team-abbr is required when --goal-type is beat_team_record.")
-        raise typer.Exit(code=1)
-    # 9 FIELDERS + 5 STARTERS + 5 BULLPEN + 3 BENCH IS THE BUCKET SPLIT A CHALLENGE 'NEW TEAM'
-    # IS BUILT WITH - A SMALLER ROSTER CAN'T HOLD IT AND WOULD FAIL THE TEAM SETUP STEP.
-    if roster_size < 22:
-        typer.echo("ERROR: --roster-size must be at least 22.")
+    if roster_size < MIN_ROSTER_SIZE:
+        typer.echo(f"ERROR: --roster-size must be at least {MIN_ROSTER_SIZE}.")
         raise typer.Exit(code=1)
     try:
-        _validate_year_pool(year_pool)
-    except ValueError as exc:
+        validate_year_pool(year_pool)
+        goal_value = build_goal_value(goal_type, min_wins, beat_team_abbr)
+    except ChallengeError as exc:
         typer.echo(f"ERROR: {exc}")
         raise typer.Exit(code=1)
-    goal_value = None
-    if goal_type == GoalType.MIN_WINS:
-        goal_value = {"min_wins": min_wins}
-    elif goal_type == GoalType.BEAT_TEAM_RECORD:
-        goal_value = {"target_abbr": beat_team_abbr.strip().upper()}
 
     parsed_player_filters = None
     if player_filters is not None:
@@ -285,8 +159,7 @@ def create_template(
             typer.echo("ERROR: --player-filters must be a JSON object.")
             raise typer.Exit(code=1)
 
-    typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
-    db = PostgresDB(is_archive=env.lower() == "prod")
+    db = _open_db(env)
     try:
         template_id = db.create_challenge_template(
             slug=slug, title=title, description=description, goal_type=goal_type.value,
@@ -305,8 +178,7 @@ def list_templates(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
 ):
     """List every challenge template, active or not."""
-    typer.echo(f"Using --env {env} ({_target_db_label(env)}).")
-    db = PostgresDB(is_archive=env.lower() == "prod")
+    db = _open_db(env)
     try:
         templates = db.list_challenge_templates()
         if not templates:
