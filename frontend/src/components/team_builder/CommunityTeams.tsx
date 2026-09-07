@@ -35,16 +35,15 @@ type CommunityTeamsProps = {
     onOpen: (team: TeamSummary) => void;
     /** Horizontal page padding — applied to headers/search, while shelves bleed to the screen edge. */
     horizontalPadding?: string;
-    /** Signed-in user's id — their own public teams are hidden here (they live under "My Teams"). */
-    currentUserId?: string | null;
     /** When embedded in the Browse tab, the parent owns the search box — hide the local one. */
     hideSearch?: boolean;
     /** Search query supplied by the parent when `hideSearch` is set. */
     externalQuery?: string;
 };
 
-/** Browse other users' public teams music-app style: shelves of preview tiles, with search-as-a-mode. */
-export function CommunityTeams({ onOpen, horizontalPadding, currentUserId, hideSearch = false, externalQuery }: CommunityTeamsProps) {
+/** Browse everyone's public teams music-app style: shelves of preview tiles, with search-as-a-mode.
+ *  The viewer's own public teams are included here (tagged "Your team" on the tile), not hidden. */
+export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, externalQuery }: CommunityTeamsProps) {
     const [internalQuery, setInternalQuery] = useState('');
     const query = hideSearch ? (externalQuery ?? '') : internalQuery;
     const setQuery = setInternalQuery;
@@ -53,17 +52,14 @@ export function CommunityTeams({ onOpen, horizontalPadding, currentUserId, hideS
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const hideOwn = (list: TeamSummary[]) => currentUserId ? list.filter(t => t.user_id !== currentUserId) : list;
-
-    // Initial browse payload — one larger page (backend's max) bucketed into shelves and searched client-side.
+    // Initial browse payload — one larger page (backend's max) bucketed into shelves and searched
+    // client-side. Runs once on mount; `loading` already starts true.
     useEffect(() => {
-        setLoading(true);
         fetchPublicTeams('user', 200, 0)
-            .then(list => setAllTeams(hideOwn(list)))
+            .then(list => setAllTeams(list))
             .catch(err => setError(err.message ?? 'Failed to load teams.'))
             .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentUserId]);
+    }, []);
 
     // Only show teams whose roster is actually complete — in-progress drafts don't belong here.
     const completeTeams = useMemo(() => allTeams.filter(t => !t.is_drafting), [allTeams]);

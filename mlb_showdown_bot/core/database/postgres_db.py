@@ -4571,6 +4571,7 @@ class PostgresDB:
             t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
             t.origin_template_id, t.creation_source,
             t.collection_slug, t.subtitle, t.credit, t.collection_sort_index,
+            p.username AS creator_username,
             COUNT(r.card_id) AS roster_count,
             COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
             COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
@@ -4586,6 +4587,7 @@ class PostgresDB:
             COALESCE(tp.refs, '[]'::jsonb) AS top_player_refs
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
+        LEFT JOIN public.profiles p ON p.id::text = t.user_id
         LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
         LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
         LEFT JOIN LATERAL (
@@ -4890,7 +4892,7 @@ class PostgresDB:
             return []
         query = self._TEAM_SUMMARY_SELECT + """
             WHERE t.user_id = %s
-            GROUP BY t.team_id, tp.refs
+            GROUP BY t.team_id, tp.refs, p.username
             ORDER BY t.updated_at DESC
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
@@ -4931,7 +4933,7 @@ class PostgresDB:
         where = " AND ".join(conditions)
         query = self._TEAM_SUMMARY_SELECT + f"""
             WHERE {where}
-            GROUP BY t.team_id, tp.refs
+            GROUP BY t.team_id, tp.refs, p.username
             ORDER BY t.source ASC, t.collection_sort_index ASC NULLS LAST, t.name ASC
             LIMIT %s OFFSET %s
         """
@@ -5287,6 +5289,8 @@ class PostgresDB:
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
         row['roster_count'] = int(row.get('roster_count') or 0)
+        # Synthetic (historical) summaries carry no creator — the key won't be on the row.
+        row.setdefault('creator_username', None)
         # Synthetic (historical) summaries have no is_archived column — always treat as visible.
         row['is_archived'] = bool(row.get('is_archived'))
         row['is_drafting'] = PostgresDB._compute_is_drafting(row)

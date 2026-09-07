@@ -4,7 +4,7 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { getContrastTextColor } from '../../functions/colors';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { FaCircle, FaHatWizard, FaRobot, FaUsers } from 'react-icons/fa6';
+import { FaCircle, FaHatWizard, FaRobot, FaUser, FaUsers } from 'react-icons/fa6';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
 // historical MLB teams, and All-Star teams alike.
@@ -31,6 +31,8 @@ export type TeamPreviewData = {
     logo_url?: string | null;
     /** Owner's user id — used to show the viewer's own avatar only on their own teams. */
     user_id?: string | null;
+    /** Owner's username. Rendered as a byline; replaced by a "Your team" tag on the viewer's own. */
+    creator_username?: string | null;
 };
 
 function toRgba(color: string, alpha: number): string {
@@ -52,7 +54,15 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
     const secondary = team.secondary_color || 'rgb(80,80,80)';
     const onPrimary = getContrastTextColor(primary);
     const onSecondary = getContrastTextColor(secondary);
-    const avatarUrl = user && team.user_id === user.id ? userSettings?.avatar_url : null;
+    const isOwnTeam = !!user && !!team.user_id && team.user_id === user.id;
+    const avatarUrl = isOwnTeam ? userSettings?.avatar_url : null;
+    // Curated (official), All-Star, and synthetic MLB tiles carry their own credit/badge — the
+    // owner byline is only meaningful for community (user) teams.
+    const isUserTeam = !team.source || team.source === 'user';
+    const byline = !isUserTeam ? null
+        : isOwnTeam ? 'Your team'
+        : team.creator_username ? `@${team.creator_username}`
+        : null;
 
     const widthClass = size === 'sm' ? 'w-40' : 'w-52';
 
@@ -173,6 +183,22 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                     <div className="text-[10px] font-bold mt-0.5 line-clamp-1 drop-shadow opacity-85" style={{ color: onPrimary }}>
                         {team.name}
                     </div>
+                    {byline && (
+                        isOwnTeam ? (
+                            <div
+                                className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 self-start mt-1 leading-none"
+                                style={{ backgroundColor: secondary, color: onSecondary }}
+                            >
+                                <FaUser className="w-2 h-2" />
+                                {byline}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 text-[9px] font-bold mt-0.5 line-clamp-1 drop-shadow opacity-75" style={{ color: onPrimary }}>
+                                <FaUser className="w-2 h-2 shrink-0" />
+                                {byline}
+                            </div>
+                        )
+                    )}
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         {team.total_points && team.total_points > 0 ? (
                             <div className="text-[10px] font-black rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>

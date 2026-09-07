@@ -4,7 +4,6 @@ import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 import { CommunityTeams } from './CommunityTeams';
@@ -33,7 +32,8 @@ type BrowseTeamsProps = {
     onOpenTeam: (team: TeamSummary) => void;
     horizontalPadding?: string;
     currentUserId?: string | null;
-    /** The signed-in user's own teams — surfaced as a shelf here and folded into search. */
+    /** The signed-in user's own teams — folded into search so their private/unlisted teams
+     *  surface alongside the public results (public ones already come back from the API). */
     myTeams?: TeamSummary[];
 };
 
@@ -62,11 +62,12 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
             ]);
             if (cancelled) return;
             const isOwn = (t: TeamSummary) => !!currentUserId && t.user_id === currentUserId;
+            // In-progress drafts don't belong in Browse — the viewer's own included.
             const merged: Hit[] = [
                 // The user's own teams (including private ones) aren't in the public payload.
-                ...myTeams.filter(t => matchesTeamQuery(t, q))
+                ...myTeams.filter(t => !t.is_drafting && matchesTeamQuery(t, q))
                     .map(team => ({ kind: 'public' as const, team })),
-                ...publicTeams.filter(t => !isOwn(t))
+                ...publicTeams.filter(t => !isOwn(t) && !t.is_drafting)
                     .map(team => ({ kind: 'public' as const, team })),
                 ...historical.map(team => ({ kind: 'historical' as const, team })),
             ];
@@ -103,9 +104,6 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
         if (hits === null) return null;
         return hits;
     }, [hits]);
-
-    // The user's own teams that have at least one player drafted — empty shells don't belong on a shelf.
-    const myShelfTeams = useMemo(() => myTeams.filter(t => t.roster_count > 0), [myTeams]);
 
     return (
         <div className="flex flex-col gap-5">
@@ -167,19 +165,6 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                 )
             ) : (
                 <>
-                    {type === 'all' && myShelfTeams.length > 0 && (
-                        <TeamShelf
-                            title="My Teams"
-                            subtitle={`${myShelfTeams.length} team${myShelfTeams.length === 1 ? '' : 's'}`}
-                            className={px}
-                            bleedRight
-                            onSeeAll={() => navigate('/teams/all')}
-                        >
-                            {myShelfTeams.map(team => (
-                                <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpenTeam(team)} />
-                            ))}
-                        </TeamShelf>
-                    )}
                     {(type === 'all' || type === 'featured') && (
                         <FeaturedCollections
                             onOpen={onOpenTeam}
@@ -192,7 +177,6 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         <CommunityTeams
                             onOpen={onOpenTeam}
                             horizontalPadding={px}
-                            currentUserId={currentUserId}
                             hideSearch
                             externalQuery={type === 'community' ? q : ''}
                         />

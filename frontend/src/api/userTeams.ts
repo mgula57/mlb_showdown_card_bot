@@ -129,6 +129,9 @@ export type TeamSummary = {
     roster_count: number;
     is_drafting: boolean;
     top_players: CardDatabaseRecord[];
+    /** Username of the team's owner, from the Supabase `profiles` table. Null for teams with
+     *  no owner (synthetic/historical) or an owner who never set a username. */
+    creator_username: string | null;
 };
 
 /** A browseable grouping of admin-published teams (internal.team_collection). */
