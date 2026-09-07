@@ -1069,7 +1069,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             title={title}
                                             subtitle={subtitle}
                                             sections={sidebarSections}
-                                            className="p-2 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
+                                            className="p-2 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto scrollbar-hide"
                                             headerAction={(
                                                 <div className="flex items-center gap-1">
                                                     <button

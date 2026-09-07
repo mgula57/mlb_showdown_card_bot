@@ -49,13 +49,15 @@ class StoredRosterToTeamConverter:
             return CardSource.BOT
 
     def build(self) -> Team:
-        card_by_mlb_id = {c.mlb_id: c for c in self.cards}
+        # Keyed by (mlb_id, player_type) so a two-way player's hitting slot resolves to his
+        # hitter card and his pitching slot to his pitcher card rather than colliding on mlb_id.
+        card_by_key = {(c.mlb_id, c.player_type): c for c in self.cards}
 
         # Roster dicts carry the stats derive_lineups_rotation needs to score the batting order.
         roster_rows: list[dict] = []
         stored_batting_order: dict[str, int] = {}
         for meta in sorted(self.meta_rows, key=lambda r: r.get('slot_order') or 0):
-            card = card_by_mlb_id.get(meta.get('mlb_id'))
+            card = card_by_key.get((meta.get('mlb_id'), meta.get('player_type') or 'HITTER'))
             if card is None:
                 continue
             roster_rows.append({

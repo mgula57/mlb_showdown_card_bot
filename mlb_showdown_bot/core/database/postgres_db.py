@@ -1744,6 +1744,7 @@ class PostgresDB:
                         LEFT JOIN LATERAL (
                             SELECT points FROM card_bot
                             WHERE mlb_id = r.mlb_id
+                                AND player_type = r.player_type
                                 AND year = CASE WHEN CURRENT_DATE < make_date(r.season, 5, 1) THEN r.season - 1 ELSE r.season END
                                 AND showdown_set = %s
                             LIMIT 1
@@ -1991,9 +1992,10 @@ class PostgresDB:
         A parent/bridge pair deliberately shaped like internal.user_teams +
         internal.user_team_roster, so the same summary-query machinery works for both.
         The bridge stores the *pre-computed* roster slot for each player, keyed by
-        mlb_id rather than card_id — that is what makes it set-agnostic, since the
-        underlying playing time is identical across Showdown sets. The card for a
-        given set is resolved at request time by joining mlb_id -> card_bot.
+        (mlb_id, player_type) rather than card_id — that is what makes it set-agnostic,
+        since the underlying playing time is identical across Showdown sets. player_type
+        keeps a two-way player's pitching and hitting slots as two distinct rows. The card
+        for a given set is resolved at request time by joining (mlb_id, player_type) -> card_bot.
 
         Populated by `showdown_bot teams build-historical`.
         """
@@ -2033,13 +2035,37 @@ class PostgresDB:
                     sport_id        INT NOT NULL DEFAULT 1,
                     team_id         INT NOT NULL,
                     mlb_id          INT NOT NULL,
+                    player_type     VARCHAR(8) NOT NULL DEFAULT 'HITTER',
                     player_name     TEXT,
                     roster_position VARCHAR(4),
                     batting_order   INT,
                     slot_order      INT NOT NULL DEFAULT 0,
                     updated_at      TIMESTAMPTZ DEFAULT NOW(),
-                    PRIMARY KEY (season, sport_id, team_id, mlb_id)
+                    PRIMARY KEY (season, sport_id, team_id, mlb_id, player_type)
                 );
+            """)
+            # Migration for tables created before player_type joined the key. A two-way player
+            # (e.g. Ohtani) holds two roster slots under one mlb_id — a pitching slot and a
+            # hitting slot — so mlb_id alone can't be the key without one slot clobbering the other.
+            cur.execute("""
+                ALTER TABLE internal.dim_historical_roster
+                    ADD COLUMN IF NOT EXISTS player_type VARCHAR(8);
+            """)
+            cur.execute("""
+                UPDATE internal.dim_historical_roster
+                SET player_type = CASE
+                    WHEN roster_position IN ('RP', 'CL') OR roster_position LIKE 'SP%' THEN 'PITCHER'
+                    ELSE 'HITTER'
+                END
+                WHERE player_type IS NULL;
+            """)
+            cur.execute("ALTER TABLE internal.dim_historical_roster ALTER COLUMN player_type SET DEFAULT 'HITTER';")
+            cur.execute("ALTER TABLE internal.dim_historical_roster ALTER COLUMN player_type SET NOT NULL;")
+            cur.execute("ALTER TABLE internal.dim_historical_roster DROP CONSTRAINT IF EXISTS dim_historical_roster_pkey;")
+            cur.execute("""
+                ALTER TABLE internal.dim_historical_roster
+                    ADD CONSTRAINT dim_historical_roster_pkey
+                    PRIMARY KEY (season, sport_id, team_id, mlb_id, player_type);
             """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_dim_historical_roster_team
@@ -2112,7 +2138,9 @@ class PostgresDB:
     def upsert_historical_roster_rows(self, season: int, sport_id: int, team_id: int, rows: list[dict]) -> int:
         """Replace a team's stored roster slots with `rows`. Returns the number written.
 
-        Each row: {mlb_id, player_name, roster_position, batting_order, slot_order}.
+        Each row: {mlb_id, player_type, player_name, roster_position, batting_order, slot_order}.
+        `player_type` ('HITTER'/'PITCHER') is part of the key so a two-way player's pitching
+        and hitting slots are stored as two distinct rows rather than colliding on mlb_id.
         """
         if not self.connection:
             return 0
@@ -2125,17 +2153,17 @@ class PostgresDB:
                 return 0
             values = [
                 (
-                    season, sport_id, team_id, r['mlb_id'], r.get('player_name'),
-                    r.get('roster_position'), r.get('batting_order'), r.get('slot_order', i),
+                    season, sport_id, team_id, r['mlb_id'], (r.get('player_type') or 'HITTER'),
+                    r.get('player_name'), r.get('roster_position'), r.get('batting_order'), r.get('slot_order', i),
                 )
                 for i, r in enumerate(rows)
             ]
             cur.executemany(
                 """
                 INSERT INTO internal.dim_historical_roster
-                    (season, sport_id, team_id, mlb_id, player_name, roster_position, batting_order, slot_order)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (season, sport_id, team_id, mlb_id) DO UPDATE SET
+                    (season, sport_id, team_id, mlb_id, player_type, player_name, roster_position, batting_order, slot_order)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (season, sport_id, team_id, mlb_id, player_type) DO UPDATE SET
                     player_name = EXCLUDED.player_name,
                     roster_position = EXCLUDED.roster_position,
                     batting_order = EXCLUDED.batting_order,
@@ -2185,7 +2213,8 @@ class PostgresDB:
             ON r.season = t.season AND r.sport_id = t.sport_id AND r.team_id = t.team_id
         LEFT JOIN LATERAL (
             SELECT points FROM card_bot
-            WHERE mlb_id = r.mlb_id AND year = {_HISTORICAL_CARD_YEAR} AND showdown_set = %s
+            WHERE mlb_id = r.mlb_id AND player_type = r.player_type
+                AND year = {_HISTORICAL_CARD_YEAR} AND showdown_set = %s
             LIMIT 1
         ) cb ON TRUE
         LEFT JOIN LATERAL (
@@ -2198,7 +2227,8 @@ class PostgresDB:
                 FROM internal.dim_historical_roster rr
                 JOIN LATERAL (
                     SELECT card_id, points FROM card_bot
-                    WHERE mlb_id = rr.mlb_id AND year = {_HISTORICAL_CARD_YEAR} AND showdown_set = %s
+                    WHERE mlb_id = rr.mlb_id AND player_type = rr.player_type
+                        AND year = {_HISTORICAL_CARD_YEAR} AND showdown_set = %s
                     LIMIT 1
                 ) cbx ON TRUE
                 WHERE rr.season = t.season AND rr.sport_id = t.sport_id AND rr.team_id = t.team_id
@@ -2286,15 +2316,16 @@ class PostgresDB:
         """Fetch the cards for a pre-processed team's stored roster, plus the stored slot rows.
 
         Returns (cards, meta_rows). `meta_rows` carry the pre-computed roster_position /
-        batting_order keyed by mlb_id, so the caller can rebuild the Team without re-running
-        the playing-time heuristics. Empty when the team has not been pre-processed.
+        batting_order keyed by (mlb_id, player_type) — a two-way player has one row per type —
+        so the caller can rebuild the Team without re-running the playing-time heuristics.
+        Empty when the team has not been pre-processed.
         """
         if self.connection is None:
             return [], []
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT mlb_id, player_name, roster_position, batting_order, slot_order
+                SELECT mlb_id, player_type, player_name, roster_position, batting_order, slot_order
                 FROM internal.dim_historical_roster
                 WHERE season = %s AND sport_id = %s AND team_id = %s
                 ORDER BY slot_order

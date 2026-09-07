@@ -123,9 +123,11 @@ def build_historical_teams(
                 season=season_year,
             ).build()
 
-            # Slots are stored by mlb_id so any set's cards can be resolved against them later.
+            # Slots are stored by (mlb_id, player_type) so any set's cards can be resolved against
+            # them later — player_type keeps a two-way player's pitching and hitting slots distinct.
             mlb_id_by_card_id = {c.card_id: c.mlb_id for c in cards if c.card_id and c.mlb_id is not None}
             name_by_card_id = {c.card_id: c.name for c in cards if c.card_id}
+            player_type_by_card_id = {c.card_id: c.player_type for c in cards if c.card_id}
             batting_order_by_card_id = {
                 slot.card_id: slot.batting_order
                 for lineup in composed.lineups for slot in lineup.slots
@@ -133,6 +135,7 @@ def build_historical_teams(
             rows = [
                 {
                     'mlb_id': mlb_id_by_card_id[slot.card_id],
+                    'player_type': player_type_by_card_id.get(slot.card_id) or 'HITTER',
                     'player_name': name_by_card_id.get(slot.card_id),
                     'roster_position': slot.roster_position,
                     'batting_order': batting_order_by_card_id.get(slot.card_id),
