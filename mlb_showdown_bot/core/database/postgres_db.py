@@ -1844,7 +1844,9 @@ class PostgresDB:
         # Historical fallback: no roster snapshots for this season, use the cards' own team assignment.
         if not team_abbr:
             return []
-        bref_team = Team.map_from_mlb_api_team(team_abbr)
+        # The MLB API reports a franchise's modern abbreviation for every season, but the archive
+        # stores the era-correct one (1998 Tampa Bay is TBD, not TBR), so resolve backwards first.
+        bref_team = Team.map_from_mlb_api_team(team_abbr).for_year(season)
         if bref_team in (Team.MLB, Team.MILB):
             return []
         historical_query = sql.SQL("""
