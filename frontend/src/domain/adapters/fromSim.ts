@@ -624,6 +624,14 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 isWalkOff: !nextEntry && isLastLeg && runsScored > 0,
             });
 
+            // The frame that ends a half-inning must not seat the next half's leadoff hitter
+            // (the other club's) at the plate before the changeover animation runs — the
+            // HALF_INNING_BREAK frame brings them in, after the outgoing runners have cleared.
+            // `buildRunnerMoves` above already used `leg.moveBatter`, so this is display-only.
+            const endsHalfInning = isLastLeg && isHalfInningChange;
+            const frameBatter = endsHalfInning ? undefined : leg.standingBatter;
+            const framePitcher = endsHalfInning ? entryPitcher : leg.pitcher;
+
             frames.push({
                 id: leg.id,
                 index: frames.length,
@@ -644,7 +652,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                     linescore: accumulator.snapshot(),
                     situation: {
                         inning, isTop, inningLabel: ordinal(inning), outs: leg.outs,
-                        bases: leg.bases, batter: leg.standingBatter, pitcher: leg.pitcher,
+                        bases: leg.bases, batter: frameBatter, pitcher: framePitcher,
                     },
                     lastPlay: legKind === "FINAL" ? view.lastPlay : undefined,
                 }),

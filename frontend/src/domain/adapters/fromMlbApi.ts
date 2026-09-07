@@ -493,6 +493,13 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
         const nextBatter = matchupRef(nextPlay?.matchup?.batter);
         const nextPitcher = matchupRef(nextPlay?.matchup?.pitcher) ?? matchupRef(play.matchup?.pitcher);
 
+        // The last play of a half-inning must not seat the next half's leadoff hitter (usually
+        // the other club's) at the plate before the changeover animation runs — the
+        // HALF_INNING_BREAK frame brings them in, after the outgoing runners have cleared.
+        // `buildRunnerMoves` above already used this play's real batter, so this is display-only.
+        const frameBatter = isHalfInningChange ? undefined : nextBatter;
+        const framePitcher = isHalfInningChange ? (matchupRef(play.matchup?.pitcher) ?? nextPitcher) : nextPitcher;
+
         frames.push({
             id: `mlb-${play.about?.atBatIndex ?? i}`,
             index: frames.length,
@@ -513,7 +520,7 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
                 situation: {
                     inning, isTop, inningLabel: ordinal(inning), outs,
                     balls: play.count?.balls, strikes: play.count?.strikes,
-                    bases: nextBases, batter: nextBatter, pitcher: nextPitcher,
+                    bases: nextBases, batter: frameBatter, pitcher: framePitcher,
                     defense: kind === "FINAL" ? liveView.situation?.defense : undefined,
                 },
                 lastPlay: kind === "FINAL" ? liveView.lastPlay : undefined,

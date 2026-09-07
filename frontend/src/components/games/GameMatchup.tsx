@@ -24,6 +24,10 @@ type GameMatchupProps = {
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
     className?: string;
     isCompactCards?: boolean;
+    /** Replay mode: the box-score lines ("2-for-4", "5.0 IP, 3 ER") and the day's PTS change are
+     *  frozen at the game's current/final totals, so showing them while the cursor sits at an
+     *  earlier point spoils what's still to come. Hidden then. */
+    hideStatlines?: boolean;
 };
 
 /**
@@ -47,7 +51,7 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
 }
 
 function MatchupSide({
-    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect,
+    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect, hideTrend,
 }: {
     label: string;
     player?: PlayerRef;
@@ -57,6 +61,7 @@ function MatchupSide({
     isLoadingCards?: boolean;
     isCompact?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+    hideTrend?: boolean;
 }) {
     return (
         <div className="min-w-0 space-y-1.5">
@@ -64,7 +69,7 @@ function MatchupSide({
                 <div className="flex min-w-0 items-center gap-2">
                     <span className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary)">{label}</span>
                     {summary && <span className="truncate text-[10px] text-(--secondary)">{summary}</span>}
-                    <PointsTrend card={response} />
+                    {!hideTrend && <PointsTrend card={response} />}
                 </div>
                 {advantage != null && (
                     <div className="text-[11px] font-bold text-(--secondary) text-nowrap">
@@ -97,7 +102,7 @@ function MatchupSide({
     );
 }
 
-export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, }: GameMatchupProps) {
+export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, hideStatlines = false, }: GameMatchupProps) {
     const situation = game.situation;
     if (!situation) return null;
 
@@ -105,11 +110,12 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
     const batterResponse = cardMap[resolveCardKey(batter?.id, "H") ?? ""];
     const pitcherResponse = cardMap[resolveCardKey(pitcher?.id, "P") ?? ""];
 
-    // Box score lines give each side's day so far ("2-for-4", "5.0 IP, 3 ER").
+    // Box score lines give each side's day so far ("2-for-4", "5.0 IP, 3 ER") — a spoiler in
+    // replay mode, where they're frozen at the game's current/final totals (see `hideStatlines`).
     const battingSide = situation.isTop ? game.away : game.home;
     const fieldingSide = situation.isTop ? game.home : game.away;
-    const batterSummary = battingSide.boxscore?.batting.find((line) => line.id === batter?.id)?.summary;
-    const pitcherSummary = fieldingSide.boxscore?.pitching.find((line) => line.id === pitcher?.id)?.summary;
+    const batterSummary = hideStatlines ? undefined : battingSide.boxscore?.batting.find((line) => line.id === batter?.id)?.summary;
+    const pitcherSummary = hideStatlines ? undefined : fieldingSide.boxscore?.pitching.find((line) => line.id === pitcher?.id)?.summary;
 
     const control = pitcherResponse?.card?.chart.command;
     const onbase = batterResponse?.card?.chart.command;
@@ -137,7 +143,8 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
                         isLoadingCards={isLoadingCards}
                         onCardSelect={onCardSelect}
                         isCompact={isCompactCards}
-                    />                
+                        hideTrend={hideStatlines}
+                    />
 
                     <MatchupSide
                         label="At Bat"
@@ -148,6 +155,7 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
                         isLoadingCards={isLoadingCards}
                         onCardSelect={onCardSelect}
                         isCompact={isCompactCards}
+                        hideTrend={hideStatlines}
                     />
             </div>
 

@@ -166,9 +166,15 @@ function buildFieldOccupants(
     // holds where they stood at first pitch, so the whole play breaks at once.
     const moving = phase === "runners" || phase === "settle";
 
+    // On a half-inning changeover the outgoing half's runners are wiped as the inning-flip
+    // animation plays (the "runners" beat) — dropping them from the occupant list here fades
+    // them out then, in sync with the arrow flip, rather than leaving them greyed on the field
+    // until the frame commits and the next hitter is already stepping in.
+    const clearingHalfInning = !!transition?.halfInningBreak && moving;
+
     (["first", "second", "third"] as const).forEach((slot) => {
         const player = situation.bases[slot];
-        if (!player) return;
+        if (!player || clearingHalfInning) return;
         const key = runnerKey(player, slot);
         occupants.set(key, { key, player, spot: slot });
     });
@@ -185,6 +191,7 @@ function buildFieldOccupants(
                 spot: moving ? "home" : (move.from ?? "home"),
             });
         } else if (move.to === null && move.from) {
+            if (clearingHalfInning) continue;
             const driftTo = move.attemptedTo && move.attemptedTo !== move.from
                 ? basePathBetween(move.from, move.attemptedTo)[0]
                 : undefined;

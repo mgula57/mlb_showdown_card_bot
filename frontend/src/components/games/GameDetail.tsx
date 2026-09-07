@@ -472,6 +472,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                     cardMap={cardMap}
                                                     isLoadingCards={isLoadingCards}
                                                     onCardSelect={setSelectedCard}
+                                                    hideStatlines={isReplaying}
                                                 />
                                             </div>
                                         </div>
