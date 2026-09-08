@@ -498,6 +498,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
     }
 
+    /** The (card_id, card_source) a drafted slot must key on. Both come from the picked record
+     *  itself, never from `draftSource`: the pick handlers are memoized on `pendingSlot` and can
+     *  fire with a `draftSource` that has since drifted to a different tab, which historically
+     *  saved WOTC cards under `card_source: 'BOT'` (and vice versa) — leaving them unresolvable
+     *  by `useCardMap` and silently dropped from sims. `card_id` prefers the showdown card's own
+     *  id but falls back to `id` for sources whose search rows don't carry a separate `card_id`. */
+    function slotRefForCard(card: CardDatabaseRecord): { card_id: string; card_source: CardSourceType } {
+        return { card_id: card.card_id || card.id, card_source: card.source ?? draftSource };
+    }
+
     /** Bench and bullpen are drafted free-form: the pick is appended with a generic
      *  roster_position ('BE' / 'RP'), and — when replacing an existing row — the old card is
      *  pruned from the roster and any lineup/rotation slot first. The server re-derives the
@@ -506,8 +516,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     function addGenericSlot(position: 'BE' | 'RP', card: CardDatabaseRecord, replacing: { card_id: string } | null) {
         addCard(card);
         const rosterSlot: TeamRosterSlot = {
-            card_id: card.card_id,
-            card_source: draftSource,
+            ...slotRefForCard(card),
             roster_position: position,
             draft_order: nextDraftOrder(),
             pick_source: 'MANUAL',
@@ -521,7 +530,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             : draft.lineups;
         let rotation = replacing ? draft.rotation.filter(r => r.card_id !== replacing.card_id) : draft.rotation;
         if (position === 'RP') {
-            rotation = [...rotation, { card_id: card.card_id, card_source: draftSource, role: 'RP' }];
+            rotation = [...rotation, { ...slotRefForCard(card), role: 'RP' }];
         }
         update({ roster, lineups, rotation });
         setDraftToast({ name: card.name, position: position === 'BE' ? 'Bench' : 'Bullpen' });
@@ -541,8 +550,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         addCard(card);
 
         const rosterSlot: TeamRosterSlot = {
-            card_id: card.card_id,
-            card_source: draftSource,
+            ...slotRefForCard(card),
             roster_position: position,
             draft_order: nextDraftOrder(),
             pick_source: 'MANUAL',
@@ -904,8 +912,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 const card = cardMap[slot.card_id];
                 return (
                     <div key={i} className="flex items-center gap-3 min-h-9">
+                        {/* Sequential position in the draft, not the raw `draft_order` — replaced
+                            picks leave gaps in that counter, so a surviving row's stored value
+                            (e.g. 42) is meaningless once earlier picks were dropped. `draftHistory`
+                            is already sorted by `draft_order`, so the list index is the true order. */}
                         <span className="text-[11px] font-bold w-6 shrink-0 text-right text-(--text-tertiary)">
-                            {slot.draft_order ?? i + 1}
+                            {i + 1}
                         </span>
                         <div className="flex-1 min-w-0">
                             {card
