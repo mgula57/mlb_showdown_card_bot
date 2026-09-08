@@ -535,6 +535,21 @@ class TeamBoxScore(BaseModel):
     pitching_totals: BoxScorePitchingStats = BoxScorePitchingStats()
 
 
+class SimGameStarter(BaseModel):
+    """The arm that opened one game, trimmed to what a clickable card chip needs - name plus
+    the command/points to show without a card fetch, plus the `(id, card_source)` pair to open
+    the real Showdown card on click (the same one `SimStatLine` carries). `card_source` is left
+    None by the engine and filled in by `SeasonSummaryBuilder`, which has `config.card_sources`.
+    """
+
+    id: str
+    name: str = ""
+    team: str = ""          # SCHEDULE KEY, FOR IDENTITY COLORS
+    points: int = 0
+    command: float = 0
+    card_source: Optional[str] = None
+
+
 class GameResult(BaseModel):
     index: int
     date: date
@@ -550,6 +565,10 @@ class GameResult(BaseModel):
     linescore: Optional[LineScoreResult] = None
     home_box_score: Optional[TeamBoxScore] = None
     away_box_score: Optional[TeamBoxScore] = None
+    # THE STARTING PITCHERS FOR THIS GAME - CAPTURED AT `finalize_game` TIME (`SimTeam._pitchers_used`
+    # IS REBUILT EACH GAME, SO IT CAN'T BE READ BACK LATER FROM `as_result`).
+    home_starting_pitcher: Optional[SimGameStarter] = None
+    away_starting_pitcher: Optional[SimGameStarter] = None
     innings_played: int = 9
     is_extra_innings: bool = False
 

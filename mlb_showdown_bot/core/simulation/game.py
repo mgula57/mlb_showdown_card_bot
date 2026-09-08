@@ -16,11 +16,13 @@ from .models import (
     InningLineScore,
     LineScoreResult,
     RunnerRef,
+    SimGameStarter,
     TeamBoxScore,
     TeamLineScoreTotals,
 )
 from .plate_appearance import PlateAppearance
-from .stats import StatCategory, real_card_id
+from .player import SimPitcher
+from .stats import StatCategory, Stats, real_card_id
 
 _RUNS_SCORED = StatCategory.RUNS_SCORED.value
 
@@ -125,6 +127,11 @@ class Game:
         self.home_box_score: Optional[TeamBoxScore] = None
         self.away_box_score: Optional[TeamBoxScore] = None
         self._collect_box_score = False
+
+        # POPULATED IN `finalize_game` FROM `_pitchers_used[0]` - CAPTURED THERE RATHER THAN READ
+        # LAZILY IN `as_result` BECAUSE `SimTeam._pitchers_used` IS REBUILT EVERY GAME.
+        self.home_starting_pitcher: Optional[SimGameStarter] = None
+        self.away_starting_pitcher: Optional[SimGameStarter] = None
 
     def setup(self, home_team, away_team, start_state: Optional[GameStartState] = None) -> None:
         """Prepare both teams and the inning stack.
@@ -340,11 +347,25 @@ class Game:
         self.home_team.finalize_stats_post_game(game=self)
         self.home_team_final_score = self.home_team.current_game_stats.totals.get(_RUNS_SCORED, 0)
         self.away_team_final_score = self.away_team.current_game_stats.totals.get(_RUNS_SCORED, 0)
+        self._award_pitcher_decisions()
+        self.home_starting_pitcher = self._starting_pitcher(self.home_team)
+        self.away_starting_pitcher = self._starting_pitcher(self.away_team)
         self.linescore = self._build_linescore()
         if self._collect_box_score:
             self.home_box_score = self._build_team_box_score(self.home_team)
             self.away_box_score = self._build_team_box_score(self.away_team)
         self.is_game_over = True
+
+    @staticmethod
+    def _starting_pitcher(team) -> Optional[SimGameStarter]:
+        """The arm that opened the game for `team` (`_pitchers_used[0]`), trimmed for a card chip."""
+        if not team._pitchers_used:
+            return None
+        p = team._pitchers_used[0]
+        return SimGameStarter(
+            id=real_card_id(p.id), name=p.name, team=p.team or "",
+            points=p.points, command=p.chart.command,
+        )
 
     @property
     def winning_team(self):
@@ -352,6 +373,96 @@ class Game:
             return None
 
         return self.away_team if self.away_team_final_score > self.home_team_final_score else self.home_team
+
+    # ------------------------------------------------------------------
+    # PITCHER DECISIONS
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _pitcher_game_outs(team, pitcher: SimPitcher) -> int:
+        """Outs this pitcher recorded in this game, from his per-game statline."""
+        return int(round(team.stats.stats_for_id(pitcher.id).stat(StatCategory.IP) * 3))
+
+    def _award_pitcher_decisions(self) -> None:
+        """Assign W / L / SV / BS to the pitchers of record and merge them into each team's
+        per-game stats, so they roll up into the season totals exactly like every other pitching
+        stat (`Season` merges `team.stats` after each game).
+
+        The engine keeps only each pitcher's entry score (`SimPitcher.team_runs_at_entry` /
+        `opp_runs_at_entry`, snapshotted in `SimTeam.mark_pitcher_entered`) and the final score,
+        not an inning-by-inning lead history, so these follow the official-scorer rules only as
+        far as that allows:
+          - Winning pitcher: the winning team's pitcher on the mound when it took the lead it
+            never gave back. If that is the starter but he failed to complete five innings, the
+            win goes to the winning team's most effective reliever (most outs, then fewest runs).
+          - Losing pitcher: the losing team's pitcher on the mound when it fell behind for good.
+          - Save: the winning team's finisher, when he is not the winning pitcher, entered with
+            the lead, and either protected a margin of three or fewer or recorded 9+ outs.
+          - Blown save: any reliever who entered protecting a margin of one to three and left
+            with it gone (tied or trailing). Independent of the win - a pitcher can blow a save
+            and still be credited the win.
+        """
+        home_score, away_score = int(self.home_team_final_score), int(self.away_team_final_score)
+        if home_score == away_score:
+            return
+
+        for team, own_final, opp_final in (
+            (self.home_team, home_score, away_score),
+            (self.away_team, away_score, home_score),
+        ):
+            if not team._pitchers_used:
+                continue
+            decisions = self._decisions_for_side(team, own_final - opp_final)
+            for pitcher_id, totals in decisions.items():
+                team.stats.update_individual_stats(id=pitcher_id, stats=Stats(id=pitcher_id, totals=totals))
+
+    def _decisions_for_side(self, team, final_margin: int) -> dict[str, dict[str, float]]:
+        """{pitcher_id: {stat: 1, ...}} of the W / L / SV / BS charged to one team's staff."""
+        pitchers: list[SimPitcher] = team._pitchers_used
+
+        # (pitcher, run margin at entry, run margin at exit) per stint, all from this team's
+        # perspective. A stint's exit margin is the next pitcher's entry margin; the last
+        # pitcher's exit is the final margin.
+        stints: list[tuple[SimPitcher, int, int]] = []
+        for i, pitcher in enumerate(pitchers):
+            entry = pitcher.team_runs_at_entry - pitcher.opp_runs_at_entry
+            exit_margin = (
+                pitchers[i + 1].team_runs_at_entry - pitchers[i + 1].opp_runs_at_entry
+                if i + 1 < len(pitchers) else final_margin
+            )
+            stints.append((pitcher, entry, exit_margin))
+
+        decisions: dict[str, dict[str, float]] = {}
+
+        def award(pitcher_id: str, category: StatCategory) -> None:
+            bucket = decisions.setdefault(pitcher_id, {})
+            bucket[category.value] = bucket.get(category.value, 0) + 1
+
+        # BLOWN SAVES - EITHER SIDE. A RELIEVER (NOT THE STARTER) WHO ENTERED PROTECTING A
+        # ONE-TO-THREE-RUN LEAD AND LEFT WITH IT GONE.
+        for index, (pitcher, entry, exit_margin) in enumerate(stints):
+            if index > 0 and 1 <= entry <= 3 and exit_margin <= 0:
+                award(pitcher.id, StatCategory.BLOWN_SAVES)
+
+        if final_margin > 0:
+            # WINNING PITCHER: THE LAST ARM THAT ENTERED WHILE NOT AHEAD (THE STARTER ALWAYS
+            # QUALIFIES - HE ENTERS 0-0). REASSIGNED OFF A SUB-FIVE-INNING STARTER.
+            record_idx = max((i for i, (_, entry, _) in enumerate(stints) if entry <= 0), default=0)
+            winner = stints[record_idx][0]
+            if record_idx == 0 and len(pitchers) > 1 and self._pitcher_game_outs(team, winner) < 15:
+                winner = max(pitchers[1:], key=lambda p: (self._pitcher_game_outs(team, p), -p.runs_allowed))
+            award(winner.id, StatCategory.WINS)
+
+            finisher, finisher_entry, _ = stints[-1]
+            if (len(pitchers) > 1 and finisher.id != winner.id and finisher_entry > 0
+                    and (finisher_entry <= 3 or self._pitcher_game_outs(team, finisher) >= 9)):
+                award(finisher.id, StatCategory.SAVES)
+        else:
+            # LOSING PITCHER: THE LAST ARM THAT ENTERED WHILE NOT BEHIND.
+            record_idx = max((i for i, (_, entry, _) in enumerate(stints) if entry >= 0), default=0)
+            award(stints[record_idx][0].id, StatCategory.LOSSES)
+
+        return decisions
 
     # ------------------------------------------------------------------
     # RESULT BUILDING
@@ -479,6 +590,8 @@ class Game:
             linescore=self.linescore,
             home_box_score=self.home_box_score,
             away_box_score=self.away_box_score,
+            home_starting_pitcher=self.home_starting_pitcher,
+            away_starting_pitcher=self.away_starting_pitcher,
             innings_played=innings_played,
             is_extra_innings=innings_played > 9,
         )

@@ -307,6 +307,48 @@ for seed in range(6):
           f"{result.away_score}-{result.home_score}")
 
 
+print("\nPitcher decisions (W / L / SV / BS)")
+
+
+def decisions_for(team) -> dict[str, dict[str, int]]:
+    """{pitcher_id: {'wins': .., 'losses': .., 'sv': .., 'bs': ..}} from a finished game's
+    per-team stats - only non-zero entries."""
+    out: dict[str, dict[str, int]] = {}
+    for pitcher in team._pitchers_used:
+        s = team.stats.stats_for_id(pitcher.id)
+        got = {k: int(s.stat_by_key(k)) for k in ('wins', 'losses', 'sv', 'bs') if s.stat_by_key(k)}
+        if got:
+            out[pitcher.id] = got
+    return out
+
+
+for seed in range(12):
+    g = play(seed=seed)
+    r = g.as_result()
+    winner = g.home_team if r.home_score > r.away_score else g.away_team
+    loser = g.away_team if winner is g.home_team else g.home_team
+    win_d = decisions_for(winner)
+    lose_d = decisions_for(loser)
+
+    wins = [pid for pid, d in win_d.items() if d.get('wins')]
+    losses = [pid for pid, d in lose_d.items() if d.get('losses')]
+    saves = [pid for pid, d in win_d.items() if d.get('sv')]
+
+    check(f"decisions seed {seed}: exactly one winning pitcher, on the winning team",
+          len(wins) == 1 and not any(d.get('wins') for d in lose_d.values()), str((win_d, lose_d)))
+    check(f"decisions seed {seed}: exactly one losing pitcher, on the losing team",
+          len(losses) == 1 and not any(d.get('losses') for d in win_d.values()), str((win_d, lose_d)))
+    check(f"decisions seed {seed}: at most one save, never to the winning pitcher",
+          len(saves) <= 1 and (not saves or saves[0] not in wins), str(win_d))
+    if saves:
+        check(f"decisions seed {seed}: the save goes to the pitcher who finished",
+              saves[0] == winner._pitchers_used[-1].id, f"save {saves[0]} finisher {winner._pitchers_used[-1].id}")
+    starter_ids = {t._pitchers_used[0].id for t in (g.home_team, g.away_team)}
+    check(f"decisions seed {seed}: a starter is never charged a blown save",
+          not any(pid in starter_ids and d.get('bs') for team_d in (win_d, lose_d) for pid, d in team_d.items()),
+          str((win_d, lose_d)))
+
+
 print("\nA game that never ends is caught instead of spinning forever")
 
 # THE GUARD CANNOT BE PROVOKED WITH REAL DICE - IT SITS AN ORDER OF MAGNITUDE ABOVE ANY REAL

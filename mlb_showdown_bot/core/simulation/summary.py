@@ -7,8 +7,8 @@ from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
 from .models import (
-    DeadlineTrade, ManagerPreference, SeasonSimulationResult, SimTeamIdentity, StandingsResult,
-    TeamRecord, TransactionType,
+    DeadlineTrade, ManagerPreference, SeasonSimulationResult, SimGameStarter, SimTeamIdentity,
+    StandingsResult, TeamRecord, TransactionType,
 )
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
 from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_id
@@ -17,12 +17,17 @@ from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_i
 # THE RESULT SCREEN ONLY EVER SHOWS A TOP TEN.
 _LEADERBOARD_LIMIT = 10
 
-# The per-team stats tables list anyone past `result.stats_min_pa` (~250 over a full season) - a
-# loose "played enough to show" floor. The League Leaders hitter board holds itself to the real
-# batting-title bar instead: 3.1 PA per team game, ~502 over 162. Scaling off `stats_min_pa`
-# keeps the two in step for shortened / resumed schedules.
+# The per-team stats tables list anyone past `result.stats_min_pa` / `stats_min_ip[_rp]` (~250 /
+# ~60 / ~30 over a full season) - a loose "played enough to show" floor. The League Leaders boards
+# hold themselves to a stiffer "qualified to rank" bar instead: the hitter board uses the real
+# batting-title cut (3.1 PA per team game, ~502 over 162), and the pitching boards make a similar
+# jump off `stats_min_ip[_rp]` - ~120 IP for a starter (2x), ~45 for a reliever (1.5x - sim
+# relievers throw well short of a real bullpen's workload) over a full year. Scaling off the
+# per-team floors keeps all of them in step for shortened / resumed schedules.
 _FULL_SEASON_MIN_PA = 250
 _FULL_SEASON_QUALIFIED_PA = 502
+_FULL_SEASON_MIN_IP, _FULL_SEASON_QUALIFIED_IP = 60, 120
+_FULL_SEASON_MIN_IP_RP, _FULL_SEASON_QUALIFIED_IP_RP = 30, 45
 
 # (STAT, IS_DESC) PER LEADERBOARD - KEYS PlayerSubType.value IN THE BUILT `top_players` DICT.
 _LEADERBOARD_STATS: dict[PlayerSubType, tuple[str, bool]] = {
@@ -52,7 +57,8 @@ class SimGameLine(BaseModel):
 
 class SimPostseasonGameLine(BaseModel):
     """One game within a postseason series, trimmed the same way `SimGameLine` trims the regular
-    season - no linescore/log/box score, just enough for a per-game results table."""
+    season - no linescore/log/box score, just enough for a per-game results table plus the two
+    starting pitchers (as clickable card chips)."""
 
     date: str
     home_team: str
@@ -60,6 +66,8 @@ class SimPostseasonGameLine(BaseModel):
     home_score: int = 0
     away_score: int = 0
     winner: Optional[str] = None
+    home_starting_pitcher: Optional[SimGameStarter] = None
+    away_starting_pitcher: Optional[SimGameStarter] = None
 
 
 class SimSeriesLine(BaseModel):
@@ -470,7 +478,12 @@ class SeasonSummaryBuilder:
         stat, is_desc = _LEADERBOARD_STATS[player_sub_type]
         min_ip = 0
         if player_type == PlayerType.PITCHER:
-            min_ip = self.result.stats_min_ip_rp if player_sub_type == PlayerSubType.RELIEF_PITCHER else self.result.stats_min_ip
+            # ONLY QUALIFIED ARMS, NOT EVERYONE PAST THE PER-TEAM-TABLE FLOOR - THE PITCHING
+            # ANALOGUE OF THE min_pa GATE BELOW.
+            if player_sub_type == PlayerSubType.RELIEF_PITCHER:
+                min_ip = round(self.result.stats_min_ip_rp * _FULL_SEASON_QUALIFIED_IP_RP / _FULL_SEASON_MIN_IP_RP)
+            else:
+                min_ip = round(self.result.stats_min_ip * _FULL_SEASON_QUALIFIED_IP / _FULL_SEASON_MIN_IP)
         min_pa = 0
         if player_type == PlayerType.HITTER:
             # ONLY BATTING-TITLE-QUALIFIED HITTERS, NOT EVERYONE PAST THE PER-TEAM-TABLE FLOOR.
@@ -495,6 +508,15 @@ class SeasonSummaryBuilder:
     # POSTSEASON
     # ------------------------------------------------------------------
 
+    def _starter_line(self, starter: Optional[SimGameStarter]) -> Optional[SimGameStarter]:
+        """Fill in `card_source` (the engine leaves it None) the same way `_line` resolves a
+        statline's - a builder-drafted arm via `config.card_sources`, everyone else a BOT card."""
+        if starter is None:
+            return None
+        return starter.model_copy(update={
+            'card_source': self.result.config.card_sources.get(real_card_id(starter.id), CardSource.BOT.value),
+        })
+
     def _build_postseason(self) -> list[SimSeriesLine]:
         if self.result.postseason is None:
             return []
@@ -511,6 +533,8 @@ class SeasonSummaryBuilder:
                     SimPostseasonGameLine(
                         date=str(game.date), home_team=game.home_team, away_team=game.away_team,
                         home_score=game.home_score, away_score=game.away_score, winner=game.winner,
+                        home_starting_pitcher=self._starter_line(game.home_starting_pitcher),
+                        away_starting_pitcher=self._starter_line(game.away_starting_pitcher),
                     )
                     for game in series.games
                 ],

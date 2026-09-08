@@ -14,8 +14,9 @@ HITTER_CATEGORIES = [
     StatCategory.ADVANTAGE_PCT, StatCategory.OWN_CHART_OUT_PCT,
 ]
 PITCHER_CATEGORIES = [
-    StatCategory.G, StatCategory.ERA, StatCategory.WHIP, StatCategory.IP,
-    StatCategory.EARNED_RUNS, StatCategory.SO9, StatCategory.GDP, StatCategory.GDPa,
+    StatCategory.G, StatCategory.WINS, StatCategory.LOSSES, StatCategory.SAVES, StatCategory.BLOWN_SAVES,
+    StatCategory.ERA, StatCategory.WHIP, StatCategory.IP, StatCategory.EARNED_RUNS,
+    StatCategory.HOMERUNS, StatCategory.HR_OWN_CHART, StatCategory.SO9, StatCategory.GDP, StatCategory.GDPa,
     StatCategory.ADVANTAGE_PCT, StatCategory.OWN_CHART_OUT_PCT,
 ]
 
@@ -137,7 +138,11 @@ class SeasonReport:
                 player_type=player_type,
                 show_team=False, show_position=False, show_points=False, show_command=False,
                 show_diffs_row=True, is_diff_a_pct=True,
-                stats_to_ignore=[StatCategory.G],
+                # W/L/SV/BS AND OWN-CHART HR HAVE NO REAL-LIFE LEAGUE-AVERAGE COUNTERPART TO DIFF AGAINST.
+                stats_to_ignore=[
+                    StatCategory.G, StatCategory.WINS, StatCategory.LOSSES, StatCategory.SAVES,
+                    StatCategory.BLOWN_SAVES, StatCategory.HR_OWN_CHART,
+                ],
             ))
 
     def print_outliers(self, limit: int = 5) -> None:

@@ -103,13 +103,13 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                         return (
                             <tr
                                 key={row.id}
-                                className={`border-b border-(--divider)/50 ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''}`}
+                                className={`border-b border-(--divider)/50 ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''} ${record && isFetching(record.card_id) ? 'opacity-60' : ''}`}
                                 onClick={clickable ? () => open(record!.card_id, record!.source, row.stats) : undefined}
                             >
                                 <td className="py-1.5 pr-3 text-left">
                                     {cardsEnabled ? (
                                         <CardIdentityCell
-                                            name={row.name} hasCard={!!record} isLoadingCard={isLoadingCard(row) || (record ? isFetching(record.card_id) : false)}
+                                            name={row.name} hasCard={!!record} isLoadingCard={isLoadingCard(row)}
                                             isPitcher={record?.is_pitcher}
                                             primaryColor={teamIdentity?.primary_color ?? record?.color_primary}
                                             secondaryColor={teamIdentity?.secondary_color ?? record?.color_secondary}

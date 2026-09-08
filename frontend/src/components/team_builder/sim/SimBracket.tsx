@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { FaTrophy } from 'react-icons/fa6';
-import type { SeasonSimSummary, SimSeriesLine, SimTeamIdentity } from '../../../api/sim';
+import type { SeasonSimSummary, SimGameStarter, SimSeriesLine, SimTeamIdentity } from '../../../api/sim';
 import { TeamChip } from '../../shared/TeamChip';
 import { fromSimTeamIdentity, fallbackIdentity } from '../../../domain/adapters/fromSim';
 import { roundLabel } from './roundLabel';
+import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
+import { CardDetail } from '../../cards/CardDetail';
+import { Modal } from '../../shared/Modal';
+import { useCardDetailModal } from '../../../hooks/useCardDetailModal';
 
 // Mirrors PostseasonRound in models.py (oldest to newest); WS is pulled out and rendered
 // separately since it's the one round with no league.
@@ -122,6 +126,37 @@ function WorldSeriesPanel({ series, champion, identityFor, highlightAbbr, select
     );
 }
 
+/** One starting pitcher as a clickable card chip — command badge + name + points, opening the
+ * real Showdown card modal, the same display/click behavior the League Leaders tables use. */
+function StarterChip({ starter, identity, onOpen, isFetching }: {
+    starter: SimGameStarter | null | undefined;
+    identity: SimTeamIdentity | null;
+    onOpen: (starter: SimGameStarter) => void;
+    isFetching: boolean;
+}) {
+    if (!starter) return <span className="text-(--text-tertiary)">—</span>;
+    const clickable = !!starter.card_source;
+    return (
+        <button
+            type="button"
+            disabled={!clickable}
+            onClick={clickable ? () => onOpen(starter) : undefined}
+            className={`text-left rounded-md ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''} ${isFetching ? 'opacity-50' : ''}`}
+        >
+            <CardIdentityCell
+                name={starter.name}
+                hasCard={clickable}
+                isPitcher
+                primaryColor={identity?.primary_color}
+                secondaryColor={identity?.secondary_color}
+                command={starter.command}
+                team={identity?.abbreviation}
+                points={starter.points}
+            />
+        </button>
+    );
+}
+
 /** Per-game results for one or all postseason series, grouped in bracket order (round, then
  * series, then chronological within the series) rather than a flat date sort — clearer once
  * several series' games are interleaved. */
@@ -130,8 +165,12 @@ function PostseasonGameResults({ seriesList, identityFor, selectedKey }: {
     identityFor: IdentityLookup;
     selectedKey: string | null;
 }) {
+    const { selected, open, close, isFetching } = useCardDetailModal();
+    const openStarter = (starter: SimGameStarter) => open(starter.id, starter.card_source ?? 'BOT');
+
     const filtered = selectedKey ? seriesList.filter(s => seriesKey(s) === selectedKey) : seriesList;
     const rows = filtered.flatMap(series => (series.games ?? []).map(game => ({ series, game })));
+    const hasStarters = rows.some(({ game }) => game.home_starting_pitcher || game.away_starting_pitcher);
 
     if (rows.length === 0) {
         return <p className="text-[13px] text-(--text-tertiary) py-6 text-center">No game data available for this series.</p>;
@@ -147,6 +186,7 @@ function PostseasonGameResults({ seriesList, identityFor, selectedKey }: {
                         <th className="text-left font-semibold py-2 pr-3">Matchup</th>
                         <th className="text-right font-semibold py-2 px-2">Score</th>
                         <th className="text-right font-semibold py-2 px-2">Winner</th>
+                        {hasStarters && <th className="text-left font-semibold py-2 px-2">Starting Pitchers</th>}
                     </tr>
                 </thead>
                 <tbody>
@@ -165,10 +205,30 @@ function PostseasonGameResults({ seriesList, identityFor, selectedKey }: {
                             <td className="text-right py-1.5 px-2 font-bold text-(--showdown-blue)">
                                 {game.winner ? (identityFor(game.winner)?.abbreviation ?? game.winner) : '—'}
                             </td>
+                            {hasStarters && (
+                                <td className="py-1.5 px-2">
+                                    <div className="flex items-center gap-3">
+                                        <StarterChip
+                                            starter={game.away_starting_pitcher} identity={identityFor(game.away_team)}
+                                            onOpen={openStarter} isFetching={!!game.away_starting_pitcher && isFetching(game.away_starting_pitcher.id)}
+                                        />
+                                        <span className="text-[10px] text-(--text-tertiary)">vs</span>
+                                        <StarterChip
+                                            starter={game.home_starting_pitcher} identity={identityFor(game.home_team)}
+                                            onOpen={openStarter} isFetching={!!game.home_starting_pitcher && isFetching(game.home_starting_pitcher.id)}
+                                        />
+                                    </div>
+                                </td>
+                            )}
                         </tr>
                     ))}
                 </tbody>
             </table>
+            <div className={selected ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={close} isVisible={!!selected}>
+                    <CardDetail showdownBotCardData={selected} hideTrendGraphs={true} context="sim_result" parent="sim_result" />
+                </Modal>
+            </div>
         </div>
     );
 }

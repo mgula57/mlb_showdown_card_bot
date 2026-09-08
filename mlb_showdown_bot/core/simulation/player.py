@@ -144,6 +144,12 @@ class SimPitcher(SimPlayer):
     end_inning: Union[int, float, None] = None
     runs_allowed: int = 0
 
+    # THIS PITCHER'S TEAM'S / THE OPPONENT'S RUN TOTAL THE MOMENT HE ENTERED (SNAPSHOTTED IN
+    # `SimTeam.mark_pitcher_entered`). THE ONLY LEAD-STATE HISTORY THE ENGINE KEEPS - `Game`
+    # DERIVES W / L / SV / BS FROM THESE PLUS THE FINAL SCORE.
+    team_runs_at_entry: int = 0
+    opp_runs_at_entry: int = 0
+
     @property
     def ip(self) -> int:
         return self.card.ip
@@ -197,3 +203,5 @@ class SimPitcher(SimPlayer):
         self.start_inning = None
         self.end_inning = None
         self.runs_allowed = 0
+        self.team_runs_at_entry = 0
+        self.opp_runs_at_entry = 0

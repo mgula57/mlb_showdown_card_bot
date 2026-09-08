@@ -499,6 +499,10 @@ class SimTeam:
         the tie by roster order, which can report the pitcher who was just replaced as the current one.
         """
         pitcher.start_inning = inning_num_full
+        # LEAD STATE AS HE TOOK THE MOUND - THE ONLY SCORE HISTORY THE ENGINE RETAINS, USED BY
+        # `Game._award_pitcher_decisions` TO PICK THE PITCHERS OF RECORD.
+        pitcher.team_runs_at_entry = int(self.current_game_stats.stat(StatCategory.RUNS_SCORED))
+        pitcher.opp_runs_at_entry = int(self.current_game_stats.stat(StatCategory.RUNS_ALLOWED))
         self._pitchers_used.append(pitcher)
 
     def check_for_pitcher_sub(self, game_date: date, inning: Inning, runs_allowed: int) -> None:

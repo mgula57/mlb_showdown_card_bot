@@ -2,12 +2,12 @@ import type { SimStatLine } from '../../../api/sim';
 
 // Column sets mirror HITTER_CATEGORIES / PITCHER_CATEGORIES in reporting.py so the web tables
 // and the CLI tables never drift. Keys are StatCategory values.
-export const HITTER_COLUMNS = ['g', 'pa', 'ba', 'obp', 'slg', 'ops', 'ops+', 'hr', 'rbi', 'bb', 'so', 'sb', 'r', 'wRC+', 'advantage_pct', 'own_chart_out_pct'];
-export const PITCHER_COLUMNS = ['g', 'era', 'whip', 'ip', 'er', 'so9', 'advantage_pct', 'own_chart_out_pct'];
+export const HITTER_COLUMNS = ['g', 'pa', 'ba', 'obp', 'slg', 'ops', 'ops+', '2b', '3b', 'hr', 'rbi', 'bb', 'so', 'sb', 'r', 'wRC+', 'advantage_pct', 'own_chart_out_pct'];
+export const PITCHER_COLUMNS = ['g', 'wins', 'losses', 'sv', 'bs', 'era', 'whip', 'ip', 'er', 'hr', 'hr_own_chart', 'so9', 'gidp', 'advantage_pct', 'own_chart_out_pct'];
 const RATE_KEYS = new Set(['ba', 'obp', 'slg', 'ops', 'wOBA']);
 const PERCENT_KEYS = new Set(['advantage_pct', 'own_chart_out_pct']);
 // SHORT HEADERS FOR KEYS WHOSE UPPERCASED VALUE WOULDN'T FIT A COLUMN - MIRRORS StatCategory.abbreviation.
-export const COLUMN_LABELS: Record<string, string> = { advantage_pct: 'ADV%', own_chart_out_pct: 'OCHO%' };
+export const COLUMN_LABELS: Record<string, string> = { advantage_pct: 'ADV%', own_chart_out_pct: 'OCHO%', wins: 'W', losses: 'L', hr_own_chart: 'HR-OC', gidp: 'GDP' };
 
 // Shown on `CardDetail`'s tooltip banner wherever a card is opened with `simStats` set, so it's
 // clear the SIM column/highlights reflect this simulated season, not the card's real one.
@@ -39,10 +39,13 @@ const HITTER_HIGHLIGHT_CATEGORIES: HighlightCategory[] = [
     { key: 'h', label: 'H', multiplier: 1.0, cutoff: 170, isPaMetric: true },
 ];
 
-// W/SV aren't tracked per pitcher in the sim, so this substitutes K/9 (the closest available
-// "how dominant" counting-adjacent stat) in their place — CLASSIC proper doesn't include it.
+// CLASSIC proper ranks pitchers on W / SV / ERA / WHIP / IP; the sim now tracks W and SV per
+// pitcher (see `Game._award_pitcher_decisions`), so both are here. K/9 stays on as an extra
+// "how dominant" signal CLASSIC itself doesn't use.
 const PITCHER_HIGHLIGHT_CATEGORIES: HighlightCategory[] = [
     { key: 'g', label: 'G', multiplier: 10.0 },
+    { key: 'wins', label: 'W', multiplier: 1.0, cutoff: 15 },
+    { key: 'sv', label: 'SV', multiplier: 1.0, cutoff: 30 },
     { key: 'era', label: 'ERA', multiplier: 5.0 },
     { key: 'whip', label: 'WHIP', multiplier: 3.0 },
     { key: 'ip', label: 'IP', multiplier: 2.0 },

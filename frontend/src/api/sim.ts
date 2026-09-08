@@ -104,6 +104,17 @@ export type SimSeasonGameLine = {
     away_score: number;
 };
 
+/** A game's starting pitcher — enough to show a card chip (command + points) without a fetch,
+ * plus `(id, card_source)` to open the real Showdown card, the same pair `SimStatLine` carries. */
+export type SimGameStarter = {
+    id: string;
+    name: string;
+    team: string;
+    points: number;
+    command: number;
+    card_source?: string | null;
+};
+
 export type SimPostseasonGameLine = {
     date: string;
     home_team: string;
@@ -111,6 +122,9 @@ export type SimPostseasonGameLine = {
     home_score: number;
     away_score: number;
     winner: string | null;
+    /** Absent for summaries persisted before postseason starting pitchers were recorded. */
+    home_starting_pitcher?: SimGameStarter | null;
+    away_starting_pitcher?: SimGameStarter | null;
 };
 
 export type SimSeriesLine = {

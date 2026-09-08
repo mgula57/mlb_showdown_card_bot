@@ -27,6 +27,8 @@ _GDPa = StatCategory.GDPa.value
 _HADV = StatCategory.HITTER_ADVANTAGE.value
 _PADV = StatCategory.PITCHER_ADVANTAGE.value
 _OWN_CHART_OUT = StatCategory.OWN_CHART_OUT.value
+_HR = StatCategory.HOMERUNS.value
+_HR_OWN_CHART = StatCategory.HR_OWN_CHART.value
 
 
 def _stat_event(id: str, totals: dict[str, float], name: str = "", player_type=None, position=None, team=None, speed: int = 0, command: float = 0, positions_played: Optional[dict[str, int]] = None) -> Stats:
@@ -126,9 +128,12 @@ class PlateAppearance:
             self.runs_scored = sum(self.pitcher_runs_allowed.values())
 
     def random_plus_or_minus_to_roll(self, occurance_probability:float = 0.25) -> int:
+        """A small symmetric nudge to a dice roll so identical matchups don't replay identically.
+        A nudge lands on `occurance_probability` of rolls; within that, the wider swings are the
+        rarer ones - the smallest slice (`/4`) is ±3, the next (`/2`) ±2, the rest ±1."""
         randomizer = self.rng.randint(1, 100)
-        if randomizer <= occurance_probability * 100 / 2: return self.rng.randint(-2, 2)
-        elif randomizer <= occurance_probability * 100 / 4: return self.rng.randint(-3, 3)
+        if randomizer <= occurance_probability * 100 / 4: return self.rng.randint(-3, 3)
+        elif randomizer <= occurance_probability * 100 / 2: return self.rng.randint(-2, 2)
         elif randomizer <= occurance_probability * 100: return self.rng.randint(-1, 1)
 
         return 0
@@ -293,6 +298,7 @@ class PlateAppearance:
                 _HADV: int(self._hitter_had_advantage),
                 _PADV: int(self._pitcher_had_advantage),
                 _OWN_CHART_OUT: int(self._pitcher_had_advantage and self.swing.result.is_out),
+                _HR_OWN_CHART: int(self._pitcher_had_advantage and self.swing.result.value == _HR),
             },
         )
 

@@ -32,10 +32,16 @@ context that reaches the sim — there's no live park factor, weather, or crowd/
 during a game.
 
 Both dice rolls get a small randomized "wobble" (`random_plus_or_minus_to_roll`) added on top before
-being compared to the chart, so identical matchups don't reliably produce identical results — a
-±1 nudge happens up to 35% of the time on the swing roll, with rarer ±2/±3 nudges layered on top. A
-roll that lands past the top of a chart doesn't fail open; `SimPlayer.result_for_roll` clamps it to
-the chart's best (highest) listed result.
+being compared to the chart, so identical matchups don't reliably produce identical results. This is
+**not** a strategy-card model — the sim has no strategy cards and no in-at-bat player agency of any
+kind; it's a flat, symmetric randomization that favors neither hitter nor pitcher. The adjustment fires on
+up to ~35% of swing rolls and ~15% of pitch rolls, and the wider the swing the rarer it is: mostly
+±1, sometimes ±2, occasionally ±3. A roll that lands past the top of a chart doesn't fail open;
+`SimPlayer.result_for_roll` clamps it to the chart's best (highest) listed result.
+
+The only place any *strategic* choice enters a game is the manager-tendency layer (`ManagerPreference`
+— steal aggression, starter hook timing, baserunner send thresholds, closer usage), and that only
+shifts *decisions*, never the fairness rolls above. A neutral manager is an exact no-op.
 
 ### Baserunning is pure matchup arithmetic, with a few situational thumbs on the scale
 
@@ -172,7 +178,9 @@ Every plate appearance is two dice rolls against the two cards' printed charts, 
    chart resolve to the best (highest) listed result.
 
 Both rolls get small randomized ±adjustments (`random_plus_or_minus_to_roll`) so outcomes aren't
-perfectly deterministic replays of the same chart entry.
+perfectly deterministic replays of the same chart entry — a flat symmetric wobble, **not** a
+strategy-card mechanic (see "The at-bat is entirely chart-driven" above). Mostly ±1, rarer ±2,
+rarest ±3. Surfaced in the play-by-play `detail_str` as `(PADJ: n)` / `(SADJ: n)`.
 
 After the swing result is known:
 
