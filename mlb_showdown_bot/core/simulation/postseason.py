@@ -6,7 +6,12 @@ from typing import Optional
 from .game import Game
 from .models import PostseasonFormat, PostseasonResult, PostseasonRound, SeriesResult
 from .standings import Standings
+from .stats import PlayerStatsGroup, StatCategory
 from .team import SimTeam
+
+# ROUNDS THAT GET A SERIES MVP (`AwardsBuilder.series_mvps`). WC / DIV don't in real MLB either,
+# and skipping them keeps the per-series stat accumulator off the cheap early rounds.
+_MVP_ROUNDS = (PostseasonRound.CHAMPIONSHIP, PostseasonRound.WORLD_SERIES)
 
 
 class PostseasonSeries:
@@ -20,6 +25,10 @@ class PostseasonSeries:
         self.home_team = home_team
         self.away_team = away_team
         self.prior_round_seed_matchup = prior_round_seed_matchup
+        # PER-PLAYER STATS ACCUMULATED OVER THE SERIES - SEEDED IN `Postseason.simulate` for the
+        # CHAMPIONSHIP / WORLD SERIES rounds only, then trimmed to the winner's contributors in
+        # `as_result`. None everywhere else.
+        self.series_stats: Optional[PlayerStatsGroup] = None
         match round:
             case PostseasonRound.WILDCARD: self.length = format.num_games_wildcard
             case PostseasonRound.DIVISIONAL: self.length = format.num_games_division
@@ -96,6 +105,17 @@ class PostseasonSeries:
                 num_wins += int(game.winning_team.name == team_name)
         return num_wins
 
+    def _winner_series_stats(self, winner: Optional[SimTeam]) -> list:
+        """The winning team's contributors (any PA or IP) over the series, for MVP selection.
+        Only the winner is kept - the series MVP always comes from the winning club here."""
+        if winner is None or self.series_stats is None:
+            return []
+        winner_ids = {p.id for p in winner.all_players}
+        return [
+            s for s in self.series_stats.stats.values()
+            if s.id in winner_ids and (s.stat(StatCategory.PA) > 0 or s.stat(StatCategory.IP) > 0)
+        ]
+
     def as_result(self) -> SeriesResult:
         winner = self.series_winner
         return SeriesResult(
@@ -109,6 +129,7 @@ class PostseasonSeries:
             away_team_wins=self.wins_for_team(self.away_team.name) if self.away_team else 0,
             winner=winner.name if winner else None,
             games=[game.as_result() for game in self.games if game.is_game_over],
+            player_stats=self._winner_series_stats(winner),
         )
 
 
@@ -327,6 +348,12 @@ class Postseason:
                 if len(series.games) == 0:
                     series.generate_games_list()
 
+                if series.round in _MVP_ROUNDS and series.is_teams_populated:
+                    series.series_stats = PlayerStatsGroup(
+                        players=series.home_team.all_players + series.away_team.all_players,
+                        year=self.year,
+                    )
+
                 end_date = self.start_date
                 for game in series.games:
                     if series.series_winner is None:
@@ -340,6 +367,9 @@ class Postseason:
                         away_team.process_il_returns_for_date(game_date=game.date)
                         game.setup(home_team=home_team, away_team=away_team)
                         game.simulate(rng=rng, collect_box_score=self.collect_box_score)
+                        if series.series_stats is not None:
+                            series.series_stats.merge(game.home_team.stats)
+                            series.series_stats.merge(game.away_team.stats)
                         end_date = game.date
 
                 series.end_date = end_date

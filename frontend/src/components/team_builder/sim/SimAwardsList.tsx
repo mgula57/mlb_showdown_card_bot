@@ -1,4 +1,4 @@
-import type { AwardWinner, SeasonAwards, SimTeamIdentity } from '../../../api/sim';
+import type { AwardWinner, SeasonAwards, SimStatLine, SimTeamIdentity } from '../../../api/sim';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../../types/cardSource';
 import type { Lineup, LineupSlot } from '../../../api/userTeams';
@@ -7,6 +7,7 @@ import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
 import { FieldView, FIELD_POSITIONS } from '../FieldView';
 import { buildSimStatHighlights, SIM_STATS_TOOLTIP } from './simStatColumns';
+import { roundLabel } from './roundLabel';
 import { useCardLinks } from './useCardLinks';
 
 const CATEGORY_LABELS: Record<AwardWinner['category'], string> = {
@@ -40,35 +41,37 @@ export function SimAwardsList({ awards, identities }: Props) {
         SILVER_SLUGGER: awards.silver_sluggers,
     };
     const allWinners = [...awards.mvp, ...awards.cy_young, ...awards.rookie_of_year, ...awards.silver_sluggers];
+    // World Series MVP first, then the LCS pair — the WS award is the headline one.
+    const seriesMvps = [...(awards.series_mvps ?? [])].sort((a, b) => (a.round === b.round ? 0 : a.round === 'WS' ? -1 : 1));
     const leagues = Array.from(new Set(allWinners.map(a => a.league))).sort();
-    const players = allWinners.map(a => a.player);
+    const players = [...allWinners.map(a => a.player), ...seriesMvps.map(m => m.player)];
     const { cardMap, isLoadingCards, recordFor, isLoadingCard, selected, selectedSimStats, open, close, isFetching } = useCardLinks(players, true);
 
-    /** The winner's card, recolored to their sim team's identity (see `SimStatsTable`) — a
+    /** A winner's card, recolored to their sim team's identity (see `SimStatsTable`) — a
      * takeover/tournament team's winners should show that team's colors, not their card's own. */
-    const coloredRecord = (award: AwardWinner): CardDatabaseRecord | undefined => {
-        const record = recordFor(award.player) ?? undefined;
-        const teamIdentity = record && identities?.[award.player.team ?? ''];
+    const coloredRecord = (player: SimStatLine): CardDatabaseRecord | undefined => {
+        const record = recordFor(player) ?? undefined;
+        const teamIdentity = record && identities?.[player.team ?? ''];
         if (!record || !teamIdentity) return record;
         return {
             ...record,
-            team: award.player.team ?? record.team,
+            team: player.team ?? record.team,
             color_primary: teamIdentity.primary_color ?? record.color_primary,
             color_secondary: teamIdentity.secondary_color ?? record.color_secondary,
         };
     };
 
-    const renderCard = (award: AwardWinner) => {
-        const record = coloredRecord(award);
-        const isLoading = isLoadingCard(award.player) || (record ? isFetching(record.card_id) : false);
+    const renderCard = (player: SimStatLine) => {
+        const record = coloredRecord(player);
+        const isLoading = isLoadingCard(player) || (record ? isFetching(record.card_id) : false);
         return !record && isLoading ? (
             <CardItemSkeleton className="max-w-full" />
         ) : (
             <CardItemFromCardDatabaseRecord
                 card={record}
                 className={record ? 'cursor-pointer' : 'pointer-events-none opacity-40'}
-                onClick={record ? () => open(record.card_id, record.source, award.player.stats) : undefined}
-                statHighlightsOverride={buildSimStatHighlights(award.player)}
+                onClick={record ? () => open(record.card_id, record.source, player.stats) : undefined}
+                statHighlightsOverride={buildSimStatHighlights(player)}
                 awardListOverride={['SIM:']}
             />
         );
@@ -78,7 +81,7 @@ export function SimAwardsList({ awards, identities }: Props) {
     const silverSluggerCardMap: Record<string, CardDatabaseRecord | null> = {};
     const silverSluggerSimStatsMap: Record<string, Record<string, number>> = {};
     for (const award of silverSluggers) {
-        silverSluggerCardMap[award.player.id] = coloredRecord(award) ?? cardMap[award.player.id] ?? null;
+        silverSluggerCardMap[award.player.id] = coloredRecord(award.player) ?? cardMap[award.player.id] ?? null;
         silverSluggerSimStatsMap[award.player.id] = award.player.stats;
     }
     const buildSilverSluggerLineup = (league: string): Lineup => ({
@@ -94,7 +97,7 @@ export function SimAwardsList({ awards, identities }: Props) {
             })),
     });
 
-    if (allWinners.length === 0) return null;
+    if (allWinners.length === 0 && seriesMvps.length === 0) return null;
 
     return (
         <div className="flex flex-col gap-6">
@@ -115,7 +118,7 @@ export function SimAwardsList({ awards, identities }: Props) {
                                         <span className="text-[10px] font-semibold uppercase tracking-wide text-(--text-tertiary) px-1.5">
                                             {league}
                                         </span>
-                                        {renderCard(award)}
+                                        {renderCard(award.player)}
                                     </div>
                                 );
                             })}
@@ -123,6 +126,24 @@ export function SimAwardsList({ awards, identities }: Props) {
                     </div>
                 );
             })}
+
+            {seriesMvps.length > 0 && (
+                <div>
+                    <p className="text-[12px] font-bold uppercase tracking-wide text-(--text-tertiary) mb-3">
+                        Series MVP
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {seriesMvps.map((mvp, i) => (
+                            <div key={i} className="flex flex-col gap-1.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-(--text-tertiary) px-1.5">
+                                    {roundLabel(mvp.round, mvp.league)} · {mvp.value_label}
+                                </span>
+                                {renderCard(mvp.player)}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {silverSluggers.length > 0 && (
                 <div>

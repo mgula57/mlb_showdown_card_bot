@@ -56,12 +56,25 @@ export type AwardWinner = {
     player: SimStatLine;
 };
 
+/** Most valuable player of one postseason series (LCS or World Series), always from the winning
+ * club. `player.stats` is that player's line over the series, not the season. */
+export type SeriesMVP = {
+    round: 'CS' | 'WS';
+    league: string | null;
+    team: string;
+    value: number;
+    value_label: string;
+    player: SimStatLine;
+};
+
 /** Absent/empty for summaries persisted before awards existed. */
 export type SeasonAwards = {
     mvp: AwardWinner[];
     cy_young: AwardWinner[];
     rookie_of_year: AwardWinner[];
     silver_sluggers: AwardWinner[];
+    /** Absent for summaries persisted before series MVPs existed. */
+    series_mvps?: SeriesMVP[];
 };
 
 /** Mirrors `PlayerSubType` — keys of `SeasonSimSummary.top_players`. */

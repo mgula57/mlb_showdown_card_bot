@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
-from .models import SeasonSimulationResult
+from .models import PostseasonRound, SeasonSimulationResult
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
 from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_id
 
@@ -18,11 +18,24 @@ class AwardWinner(BaseModel):
     player: SimStatLine
 
 
+class SeriesMVP(BaseModel):
+    """Most valuable player of one postseason series (LCS or World Series). Always drawn from the
+    winning club. `player.stats` are that player's line over the series itself, not the season."""
+
+    round: str                       # PostseasonRound.value: "CS" | "WS"
+    league: Optional[str] = None     # "AL" / "NL" FOR AN LCS, None FOR THE WORLD SERIES
+    team: str                        # WINNING TEAM SCHEDULE KEY
+    value: float                     # RUNS ABOVE AVERAGE OVER THE SERIES, FOR SORTING
+    value_label: str                 # E.G. "3 HR, 8 RBI" | "2-0, 1.42 ERA"
+    player: SimStatLine
+
+
 class SeasonAwards(BaseModel):
     mvp: list[AwardWinner] = []
     cy_young: list[AwardWinner] = []
     rookie_of_year: list[AwardWinner] = []
     silver_sluggers: list[AwardWinner] = []
+    series_mvps: list[SeriesMVP] = []
 
 
 class AwardsBuilder:
@@ -272,10 +285,64 @@ class AwardsBuilder:
                 ))
         return winners
 
+    # ------------------------------------------------------------------
+    # POSTSEASON SERIES MVP
+    # ------------------------------------------------------------------
+
+    def _series_value(self, stats: Stats) -> float:
+        """A series performance in runs above average, comparable across bats and arms.
+
+        Hitters: `wRAA` - weighted runs created above a league-average bat over the same PAs.
+        Pitchers: earned runs prevented versus a league-average arm over the same innings,
+        `(league ERA - ERA) * IP / 9`, plus a half-run nod to each win/save recorded.
+        """
+        if stats.player_type == PlayerType.PITCHER:
+            league = self.result.league_totals.get(PlayerType.PITCHER.value)
+            league_era = league.era if league and league.era > 0 else 4.50
+            ip = stats.stat(StatCategory.IP)
+            runs_saved = (league_era - stats.era) * (ip / 9) if ip > 0 else 0.0
+            return runs_saved + 0.5 * (stats.stat(StatCategory.WINS) + stats.stat(StatCategory.SAVES))
+        return stats.wRAA(
+            league_stats=self.result.league_totals.get(PlayerType.HITTER.value),
+            weights=self.result.woba_weights,
+        )
+
+    @staticmethod
+    def _series_value_label(stats: Stats) -> str:
+        if stats.player_type == PlayerType.PITCHER:
+            wins, losses, saves = (int(stats.stat(c)) for c in (StatCategory.WINS, StatCategory.LOSSES, StatCategory.SAVES))
+            ip = stats.stat(StatCategory.IP)
+            record = f"{wins}-{losses}" + (f", {saves} SV" if saves else "")
+            return f"{record}, {stats.era:.2f} ERA, {ip:.1f} IP"
+        hr, rbi = int(stats.stat(StatCategory.HOMERUNS)), int(stats.stat(StatCategory.RBI))
+        slash = f"{stats.ba:.3f}/{stats.obp:.3f}/{stats.slg:.3f}".replace("0.", ".")
+        return f"{slash}, {hr} HR, {rbi} RBI"
+
+    def series_mvps(self) -> list[SeriesMVP]:
+        postseason = self.result.postseason
+        if postseason is None:
+            return []
+        winners: list[SeriesMVP] = []
+        for round_value in (PostseasonRound.CHAMPIONSHIP.value, PostseasonRound.WORLD_SERIES.value):
+            for series in postseason.rounds.get(round_value, []):
+                if not series.winner or not series.player_stats:
+                    continue
+                best = max(series.player_stats, key=self._series_value)
+                winners.append(SeriesMVP(
+                    round=round_value,
+                    league=series.league,
+                    team=series.winner,
+                    value=round(self._series_value(best), 2),
+                    value_label=self._series_value_label(best),
+                    player=self._line(best, best.player_type),
+                ))
+        return winners
+
     def build(self) -> SeasonAwards:
         return SeasonAwards(
             mvp=self.mvp(),
             cy_young=self.cy_young(),
             rookie_of_year=self.rookie_of_year(),
             silver_sluggers=self.silver_sluggers(),
+            series_mvps=self.series_mvps(),
         )

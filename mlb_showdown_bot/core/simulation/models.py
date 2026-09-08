@@ -584,6 +584,10 @@ class SeriesResult(BaseModel):
     away_team_wins: int = 0
     winner: Optional[str] = None
     games: list[GameResult] = []
+    # PER-PLAYER STATS ACCUMULATED ACROSS THIS SERIES, FOR THE WINNING TEAM'S CONTRIBUTORS ONLY -
+    # POPULATED ONLY FOR THE CHAMPIONSHIP / WORLD SERIES ROUNDS (`AwardsBuilder.series_mvps` picks
+    # the MVP from these). Empty for every other round.
+    player_stats: list[Stats] = []
 
 
 class PostseasonResult(BaseModel):

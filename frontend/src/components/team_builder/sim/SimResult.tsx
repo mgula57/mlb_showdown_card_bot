@@ -120,7 +120,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
 
     const hasAwards = useMemo(() => {
         const awards = summary.awards;
-        return !!awards && (awards.mvp.length + awards.cy_young.length + awards.rookie_of_year.length + awards.silver_sluggers.length) > 0;
+        return !!awards && (awards.mvp.length + awards.cy_young.length + awards.rookie_of_year.length + awards.silver_sluggers.length + (awards.series_mvps?.length ?? 0)) > 0;
     }, [summary.awards]);
 
     const hasTransactions = (summary.deadline_trades?.length ?? 0) > 0 || (summary.transactions?.length ?? 0) > 0;
