@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FaTrophy } from 'react-icons/fa6';
-import type { SeasonSimSummary, SimGameStarter, SimSeriesLine, SimTeamIdentity } from '../../../api/sim';
+import type { SeasonSimSummary, SeriesMVP, SimGameStarter, SimSeriesLine, SimTeamIdentity } from '../../../api/sim';
 import { TeamChip } from '../../shared/TeamChip';
 import { fromSimTeamIdentity, fallbackIdentity } from '../../../domain/adapters/fromSim';
 import { roundLabel } from './roundLabel';
@@ -157,22 +157,27 @@ function StarterChip({ starter, identity, onOpen, isFetching }: {
     );
 }
 
-/** Per-game results for one or all postseason series, grouped in bracket order (round, then
- * series, then chronological within the series) rather than a flat date sort — clearer once
- * several series' games are interleaved. */
-function PostseasonGameResults({ seriesList, identityFor, selectedKey }: {
+/** Per-game results for one or all postseason series, one section per series (in bracket order:
+ * WC → DIV → CS → WS) the way the Schedule tab breaks the regular season into months. Each
+ * section header carries the series result and, for the LCS / World Series, the series MVP. */
+function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKey }: {
     seriesList: SimSeriesLine[];
+    seriesMvps: SeriesMVP[];
     identityFor: IdentityLookup;
     selectedKey: string | null;
 }) {
     const { selected, open, close, isFetching } = useCardDetailModal();
     const openStarter = (starter: SimGameStarter) => open(starter.id, starter.card_source ?? 'BOT');
+    const abbr = (team: string | null) => (team ? identityFor(team)?.abbreviation ?? team : '—');
+    const mvpFor = (series: SimSeriesLine) =>
+        seriesMvps.find(m => m.round === series.round && (m.league ?? null) === (series.league ?? null));
 
-    const filtered = selectedKey ? seriesList.filter(s => seriesKey(s) === selectedKey) : seriesList;
-    const rows = filtered.flatMap(series => (series.games ?? []).map(game => ({ series, game })));
-    const hasStarters = rows.some(({ game }) => game.home_starting_pitcher || game.away_starting_pitcher);
+    const shown = (selectedKey ? seriesList.filter(s => seriesKey(s) === selectedKey) : seriesList)
+        .filter(s => (s.games ?? []).length > 0);
+    const hasStarters = shown.some(s => (s.games ?? []).some(g => g.home_starting_pitcher || g.away_starting_pitcher));
+    const colCount = hasStarters ? 5 : 4;
 
-    if (rows.length === 0) {
+    if (shown.length === 0) {
         return <p className="text-[13px] text-(--text-tertiary) py-6 text-center">No game data available for this series.</p>;
     }
 
@@ -181,48 +186,84 @@ function PostseasonGameResults({ seriesList, identityFor, selectedKey }: {
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
-                        <th className="text-left font-semibold py-2 pr-3">Date</th>
-                        <th className="text-left font-semibold py-2 pr-3">Round</th>
+                        <th className="text-left font-semibold py-2 pr-3">Game</th>
                         <th className="text-left font-semibold py-2 pr-3">Matchup</th>
                         <th className="text-right font-semibold py-2 px-2">Score</th>
                         <th className="text-right font-semibold py-2 px-2">Winner</th>
                         {hasStarters && <th className="text-left font-semibold py-2 px-2">Starting Pitchers</th>}
                     </tr>
                 </thead>
-                <tbody>
-                    {rows.map(({ series, game }, i) => (
-                        <tr key={i} className="border-b border-(--divider)/50">
-                            <td className="py-1.5 pr-3 text-(--text-tertiary)">{game.date}</td>
-                            <td className="py-1.5 pr-3 text-(--text-tertiary)">{roundLabel(series.round, series.league)}</td>
-                            <td className="py-1.5 pr-3 text-(--text-primary)">
-                                {identityFor(game.away_team)?.abbreviation ?? game.away_team}
-                                {' @ '}
-                                {identityFor(game.home_team)?.abbreviation ?? game.home_team}
-                            </td>
-                            <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
-                                {game.away_score}–{game.home_score}
-                            </td>
-                            <td className="text-right py-1.5 px-2 font-bold text-(--showdown-blue)">
-                                {game.winner ? (identityFor(game.winner)?.abbreviation ?? game.winner) : '—'}
-                            </td>
-                            {hasStarters && (
-                                <td className="py-1.5 px-2">
-                                    <div className="flex items-center gap-3">
-                                        <StarterChip
-                                            starter={game.away_starting_pitcher} identity={identityFor(game.away_team)}
-                                            onOpen={openStarter} isFetching={!!game.away_starting_pitcher && isFetching(game.away_starting_pitcher.id)}
-                                        />
-                                        <span className="text-[10px] text-(--text-tertiary)">vs</span>
-                                        <StarterChip
-                                            starter={game.home_starting_pitcher} identity={identityFor(game.home_team)}
-                                            onOpen={openStarter} isFetching={!!game.home_starting_pitcher && isFetching(game.home_starting_pitcher.id)}
-                                        />
+                {shown.map(series => {
+                    const mvp = mvpFor(series);
+                    const loser = series.winner === series.home_team ? series.away_team : series.home_team;
+                    const winnerWins = series.winner === series.home_team ? series.home_team_wins : series.away_team_wins;
+                    const loserWins = series.winner === series.home_team ? series.away_team_wins : series.home_team_wins;
+                    return (
+                        <tbody key={seriesKey(series)}>
+                            <tr className="bg-(--background-tertiary)">
+                                <td colSpan={colCount} className="py-1.5 px-2">
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="font-bold text-(--text-primary)">{roundLabel(series.round, series.league)}</span>
+                                        {series.winner ? (
+                                            <span className="font-semibold tabular-nums text-(--text-tertiary)">
+                                                {abbr(series.winner)} def. {abbr(loser)} {winnerWins}–{loserWins}
+                                            </span>
+                                        ) : (
+                                            <span className="tabular-nums text-(--text-tertiary)">
+                                                {abbr(series.away_team)} {series.away_team_wins}–{series.home_team_wins} {abbr(series.home_team)}
+                                            </span>
+                                        )}
+                                        {mvp && (
+                                            <span className="flex items-center gap-1 text-(--text-tertiary)">
+                                                <FaTrophy className="text-[10px] text-(--secondary)" />
+                                                Series MVP:
+                                                <button
+                                                    type="button"
+                                                    onClick={() => open(mvp.player.id, mvp.player.card_source ?? 'BOT')}
+                                                    className="font-semibold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer"
+                                                >
+                                                    {mvp.player.name}
+                                                </button>
+                                                <span>· {mvp.value_label}</span>
+                                            </span>
+                                        )}
                                     </div>
                                 </td>
-                            )}
-                        </tr>
-                    ))}
-                </tbody>
+                            </tr>
+                            {(series.games ?? []).map((game, i) => (
+                                <tr key={i} className="border-b border-(--divider)/50">
+                                    <td className="py-1.5 pl-4 pr-3 text-(--text-tertiary)">
+                                        G{i + 1} <span className="text-(--text-tertiary)/70">· {game.date}</span>
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-(--text-primary)">
+                                        {abbr(game.away_team)}{' @ '}{abbr(game.home_team)}
+                                    </td>
+                                    <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
+                                        {game.away_score}–{game.home_score}
+                                    </td>
+                                    <td className="text-right py-1.5 px-2 font-bold text-(--showdown-blue)">
+                                        {abbr(game.winner)}
+                                    </td>
+                                    {hasStarters && (
+                                        <td className="py-1.5 px-2">
+                                            <div className="flex items-center gap-3">
+                                                <StarterChip
+                                                    starter={game.away_starting_pitcher} identity={identityFor(game.away_team)}
+                                                    onOpen={openStarter} isFetching={!!game.away_starting_pitcher && isFetching(game.away_starting_pitcher.id)}
+                                                />
+                                                <span className="text-[10px] text-(--text-tertiary)">vs</span>
+                                                <StarterChip
+                                                    starter={game.home_starting_pitcher} identity={identityFor(game.home_team)}
+                                                    onOpen={openStarter} isFetching={!!game.home_starting_pitcher && isFetching(game.home_starting_pitcher.id)}
+                                                />
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    );
+                })}
             </table>
             <div className={selected ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={close} isVisible={!!selected}>
@@ -260,7 +301,12 @@ export function SimBracket({ summary, highlightAbbr, showGameResults = false }: 
     const leagues = Array.from(new Set(leagueSeries.map(series => series.league).filter((l): l is string => !!l))).sort();
 
     const gameResults = showGameResults && (
-        <PostseasonGameResults seriesList={summary.postseason} identityFor={identityFor} selectedKey={selectedKey} />
+        <PostseasonGameResults
+            seriesList={summary.postseason}
+            seriesMvps={summary.awards?.series_mvps ?? []}
+            identityFor={identityFor}
+            selectedKey={selectedKey}
+        />
     );
 
     // Anything that isn't a clean 2-league bracket (custom tournaments/round robins, or a format
