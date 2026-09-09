@@ -46,7 +46,6 @@ import { TeamHierarchy } from "./TeamHierarchy";
 import SortButton from "./SortButton";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { QuickFiltersDropdown } from './QuickFiltersDropdown';
 import { useAuth } from '../auth/AuthContext';
 
@@ -1204,16 +1203,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 md:min-h-0
             `}
         >
-
-            {!compact && <WhatsNewBanner
-                storageKey="exploreWhatsNew_v1"
-                features={[
-                    { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
-                    { icon: <FaChartLine />,   text: "See who's trending WoW in PTS" },
-                    { icon: <FaSort />,        text: 'Easier access to sorting options and direction' },
-                    { icon: <FaFilter />,      text: 'Save filter presets (login required)' },
-                ]}
-            />}
 
             {/* Search Bar and Filters */}
             <div

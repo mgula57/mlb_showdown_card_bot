@@ -34,7 +34,8 @@ import { ChallengeDetail } from './sim/ChallengeDetail';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import BackButton from '../shared/BackButton';
-import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar } from 'react-icons/fa6';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
+import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar, FaWandMagicSparkles, FaListCheck, FaTrophy, FaDice } from 'react-icons/fa6';
 import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 
 // A team can be addressed by URL three ways: a saved UUID, a historical MLB team, or an All-Star team.
@@ -637,6 +638,18 @@ export default function TeamBuilder() {
         // `@container` here spans the full content region, so shelves flagged `bleedRight` can
         // run to the screen edge past the centered max-width below.
         <div className="@container w-full">
+        <WhatsNewBanner
+            storageKey="teamBuilderWhatsNew_v4.4"
+            version="4.4"
+            features={[
+                { icon: <FaUsers />,              text: 'Build a roster from any era with live points and draft tracking' },
+                { icon: <FaWandMagicSparkles />,  text: 'Autofill completes your lineup, rotation, and bullpen in one click' },
+                { icon: <FaListCheck />,          text: 'Set your lineup and depth chart on an interactive field view' },
+                { icon: <FaDice />,               text: 'Simulate a full 162 game season with your team' },
+                { icon: <FaTrophy />,             text: 'Sim Challenges: rotating scenarios with a leaderboard to track the best managers' },
+                { icon: <FaGlobe />,              text: 'Browse and fork community teams and curated collections' },
+            ]}
+        />
         <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>

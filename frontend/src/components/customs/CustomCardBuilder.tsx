@@ -25,7 +25,6 @@
 // ----------------------------------
 
 import { useAuth } from '../auth/AuthContext';
-import { LoginModal } from '../auth/LoginModal';
 import { useEffect, useState, useRef } from 'react';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
@@ -40,7 +39,6 @@ import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
 import { ToastMessage } from '../shared/ToastMessage';
 import { CardDetail } from '../cards/CardDetail';
 import { GalleryTabContent } from '../gallery/GalleryTabContent';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 
 // API
 import { buildCustomCard, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -52,8 +50,7 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaStar,
-    FaClockRotateLeft, FaGear
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 
@@ -230,9 +227,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // User Context
     const { user, session } = useAuth();
-
-    // Dismissable feature banner
-    const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
@@ -1065,21 +1059,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In small screens, the form will take full width
         // In larger screens, it will be split into two sections
         <div className='@container'>
-
-            {/* Feature announcement banner — floating top-right */}
-            <WhatsNewBanner
-                storageKey="customCardWhatsNew_v4.3"
-                features={[
-                    { icon: <FaStar />, text: '2026 All-Star Game designs are live!' },
-                    { icon: <FaImage />, text: 'ASG 2026 works with auto images or your own custom cutouts' },
-                    { icon: <FaClockRotateLeft />, text: 'All historical ASG logos are available in high resolution' },
-                    { icon: <FaGear />, text: 'Select Set → All-Star Game in Card Settings to get started' },
-                ]}
-                onLoginClick={() => setShowBannerLoginModal(true)}
-            />
-            {showBannerLoginModal && (
-                <LoginModal onClose={() => setShowBannerLoginModal(false)} />
-            )}
 
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>

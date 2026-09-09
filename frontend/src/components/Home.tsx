@@ -2,11 +2,10 @@ import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
     FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
-    FaCompass, FaCalendar, FaUser, FaImages,
-    FaChartBar
+    FaCompass, FaCalendar
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
-import { FaXmark, FaCloudArrowUp, FaArrowsRotate, FaPeopleGroup } from 'react-icons/fa6';
+import { FaXmark, FaPeopleGroup } from 'react-icons/fa6';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
@@ -306,14 +305,12 @@ export default function Home() {
 
             {/* What's New Banner */}
             <WhatsNewBanner
-                storageKey="featureBanner_home_v1_dismissed"
+                storageKey="featureBanner_home_v4.4_dismissed"
+                version='4.4'
                 features={[
-                    { icon: <FaUser />,         text: 'User accounts are now live!' },
-                    { icon: <FaCloudArrowUp />, text: 'Store your card creations' },
-                    { icon: <FaArrowsRotate />, text: 'Sync settings across devices' },
-                    { icon: <FaImages />,       text: 'Gallery to browse past builds' },
-                    { icon: <FaChartBar/>,      text: 'Redesigned breakdowns in Card Builder'},
-                    { icon: <FaCompass />,      text: '2026 cards in Explore' },
+                    { icon: <FaPeopleGroup />, text: 'Team Builder: draft a roster and enter simulations to test your team' },
+                    { icon: <FaCalendar />,    text: 'Seasons: simulate any MLB season start to finish' },
+                    { icon: <FaBolt />,        text: 'New gameday playback: watch games unfold pitch by pitch or take over and simulate the rest with Showdown' },
                 ]}
                 onLoginClick={() => setShowBannerLoginModal(true)}
                 textSize="sm"
