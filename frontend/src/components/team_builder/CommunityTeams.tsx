@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { TeamPreviewCard } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
+import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
-import { FaSpinner } from 'react-icons/fa6';
 
 // Set ordering for the "by set" shelves — newest curated sets first.
 const SET_ORDER = ['2000', '2001', '2002', '2003', '2004', '2005', 'EXPANDED', 'CLASSIC'];
@@ -119,8 +118,10 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                 </div>
             )}
 
-            {/* Search results mode */}
-            {results !== null ? (
+            {/* Initial payload still loading — skeleton shelves regardless of search mode */}
+            {loading ? (
+                <TeamShelfSkeleton shelves={3} className={px} />
+            ) : results !== null ? (
                 results.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams match “{query.trim()}”.</p>
                 ) : (
@@ -144,8 +145,6 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                         </div>
                     </div>
                 )
-            ) : loading ? (
-                <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
             ) : shelves.recentlyAdded.length === 0 ? (
                 <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams yet.</p>
             ) : (

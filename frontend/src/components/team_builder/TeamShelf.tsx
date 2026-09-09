@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { FaChevronRight } from 'react-icons/fa6';
+import { TeamPreviewCardSkeleton } from './TeamPreviewCard';
 
 type TeamShelfProps = {
     title: string;
@@ -51,6 +52,24 @@ export function TeamShelf({ title, subtitle, onSeeAll, children, className, blee
                 {children}
             </div>
         </section>
+    );
+}
+
+/** Loading placeholder for one or more shelves — a pulsing title bar over a row of tile skeletons. */
+export function TeamShelfSkeleton({ shelves = 1, tiles = 6, className }: { shelves?: number; tiles?: number; className?: string }) {
+    return (
+        <>
+            {Array.from({ length: shelves }, (_, s) => (
+                <section key={s} className="flex flex-col" aria-hidden>
+                    <div className={`mb-1.5 ${className ?? ''}`}>
+                        <div className="h-4 w-32 rounded bg-(--background-secondary) animate-pulse" />
+                    </div>
+                    <div className={`flex gap-3 overflow-hidden pb-1 py-2 ${className ?? ''}`}>
+                        {Array.from({ length: tiles }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
+                    </div>
+                </section>
+            ))}
+        </>
     );
 }
 

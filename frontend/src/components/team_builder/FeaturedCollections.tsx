@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchTeamCollections, type TeamCollection, type TeamSummary } from '../../api/userTeams';
 import { matchesTeamQuery } from './teamSearch';
 import { TeamPreviewCard } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
-import { FaSpinner } from 'react-icons/fa6';
+import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
 
 type FeaturedCollectionsProps = {
     onOpen: (team: TeamSummary) => void;
@@ -40,7 +39,7 @@ export function FeaturedCollections({ onOpen, onOpenCollection, horizontalPaddin
         return <p className={`${px} text-[12px] text-red-400`}>{error}</p>;
     }
     if (collections === null) {
-        return <div className="flex justify-center py-8"><FaSpinner className="animate-spin text-(--text-tertiary)" /></div>;
+        return <TeamShelfSkeleton shelves={2} className={px} />;
     }
     if (shelves.length === 0) return null;
 

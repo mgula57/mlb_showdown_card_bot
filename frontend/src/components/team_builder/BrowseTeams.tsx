@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
-import { TeamPreviewCard } from './TeamPreviewCard';
+import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 import { CommunityTeams } from './CommunityTeams';
 import { FeaturedCollections } from './FeaturedCollections';
 import { HistoricalTeams, type HistoricalNavState } from './HistoricalTeams';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
-import { FaSpinner } from 'react-icons/fa6';
 
 type BrowseType = 'all' | 'featured' | 'community' | 'historical';
 
@@ -129,7 +128,11 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
             {/* "All" + query → merged results grid */}
             {type === 'all' && q ? (
                 searching ? (
-                    <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                    <div className={px}>
+                        <div className="flex flex-wrap gap-3">
+                            {Array.from({ length: 12 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
+                        </div>
+                    </div>
                 ) : !searchModeResults || searchModeResults.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{q}”.</p>
                 ) : (
