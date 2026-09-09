@@ -372,6 +372,10 @@ export interface Standings {
     division?: Division;
     league?: League;
     team_records?: TeamRecords[];
+
+    /** Wild-card standings only: number of wild-card spots — render a cutoff divider after this row.
+     *  Set by the sim standings builder; never populated by the real MLB API path. */
+    wildCardCutLine?: number;
 }
 
 export type GameType =

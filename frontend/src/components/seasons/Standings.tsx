@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import ReactCountryFlag from "react-country-flag";
 
 import { type Standings, type Team } from '../../api/mlbAPI';
@@ -49,13 +50,21 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 
 						{/* Team bars */}
 						<div className="space-y-1.5">
-							{standing.team_records?.map((record) => {
+							{standing.team_records?.map((record, index) => {
 								const isoCountryCode = countryCodeForTeam(selectedSportId || 0, record.team.abbreviation || record.team.name);
 								const backgroundColor = record.team.primary_color || "var(--background-quaternary)";
 								const isSelected = selectedTeamId != null && record.team.id === selectedTeamId;
+								const showCutline = standing.wildCardCutLine != null && index === standing.wildCardCutLine;
 								return (
+									<Fragment key={record.team.id}>
+									{showCutline && (
+										<div className="flex items-center gap-2 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wider text-(--text-secondary)">
+											<span className="h-px flex-1 bg-(--divider)" />
+											Wild Card cutoff
+											<span className="h-px flex-1 bg-(--divider)" />
+										</div>
+									)}
 									<div
-										key={record.team.id}
 										onClick={() => onTeamSelect?.(record.team)}
 										title="View team roster below"
 										className={`
@@ -94,6 +103,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 											</span>
 										)}
 									</div>
+									</Fragment>
 								);
 							})}
 						</div>
