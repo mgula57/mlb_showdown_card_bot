@@ -1,11 +1,13 @@
 import traceback
+from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
 
 from ..core.database.postgres_db import PostgresDB
 from ..core.card.team_builder.team import TeamSource, DEFAULT_LINEUP_NAME
+from ..core.supabase import SupabaseClientManager
 from .user_settings import require_admin
-from .user_teams import _collections_cache
+from .user_teams import _collections_cache, TEAM_LOGO_BUCKET, _delete_team_logo_files
 
 admin_teams_bp = Blueprint('admin_teams', __name__)
 
@@ -93,6 +95,43 @@ def _copy_roster_and_lineups(team_row: dict) -> tuple[list[dict], list[dict]]:
     return roster, lineups
 
 
+def _copy_team_logo(source_team_id: str, new_team_id: str) -> str | None:
+    """Deep-copy the source team's stored logo object to `<new_team_id>/logo.<ext>` so the
+    published team owns its own image and is unaffected if the working copy is deleted.
+
+    Returns a fresh cache-busted public URL, or None when the source has no stored logo.
+    Best-effort — a failure here must not block publishing.
+    """
+    if source_team_id == new_team_id:
+        return None
+    try:
+        manager = SupabaseClientManager()
+        source_name = next(
+            (
+                item.get('name')
+                for item in (manager.list_files(TEAM_LOGO_BUCKET, source_team_id) or [])
+                if (item.get('name') or '').startswith('logo.')
+            ),
+            None,
+        )
+        if not source_name:
+            return None
+        destination_path = f'{new_team_id}/{source_name}'
+        # copy() won't overwrite, so clear any prior logo on the published row first
+        # (re-publish reuses the same team_id).
+        _delete_team_logo_files(new_team_id)
+        result = manager.copy_file(
+            TEAM_LOGO_BUCKET, f'{source_team_id}/{source_name}', destination_path
+        )
+        if not result.get('success'):
+            return None
+        base_url = (manager.get_public_url(TEAM_LOGO_BUCKET, destination_path) or '').split('?')[0]
+        return f'{base_url}?v={int(datetime.now(timezone.utc).timestamp())}'
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
 @admin_teams_bp.route('/admin/teams/publish', methods=['POST'])
 @require_admin
 def publish_team():
@@ -150,6 +189,10 @@ def publish_team():
             if existing_id:
                 db_payload['team_id'] = existing_id
             new_id = db.admin_upsert_team(db_payload)
+            if source.get('logo_url'):
+                logo_url = _copy_team_logo(source_team_id, new_id)
+                if logo_url:
+                    db.admin_update_team(new_id, {'logo_url': logo_url})
             team = db.get_team(new_id, g.user_id)
         _bust_collections_cache()
         return jsonify(team), 201
@@ -187,6 +230,8 @@ def admin_delete_team(team_id: str):
             ok = db.admin_delete_team(team_id)
         if not ok:
             return jsonify({'error': 'Team not found'}), 404
+        # The published row owns its own copied logo object; clean it out of the bucket.
+        _delete_team_logo_files(team_id)
         _bust_collections_cache()
         return jsonify({'success': True}), 200
     except Exception as exc:

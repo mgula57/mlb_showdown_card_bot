@@ -197,6 +197,31 @@ class SupabaseClientManager:
                 'error': str(e)
             }
     
+    def copy_file(
+        self,
+        bucket_name: str,
+        from_path: str,
+        to_path: str
+    ) -> dict:
+        """
+        Copy an object within a bucket (server-side, no download round-trip).
+
+        Args:
+            bucket_name: Name of the bucket
+            from_path: Existing object path
+            to_path: Destination object path
+
+        Returns:
+            Dictionary with copy result ('success', 'path', 'error')
+        """
+        try:
+            self.client.storage.from_(bucket_name).copy(from_path, to_path)
+            logger.info(f"Successfully copied {bucket_name}/{from_path} to {to_path}")
+            return {'success': True, 'path': to_path, 'error': None}
+        except Exception as e:
+            logger.error(f"Error copying file: {str(e)}")
+            return {'success': False, 'path': None, 'error': str(e)}
+
     def list_files(
         self,
         bucket_name: str,
