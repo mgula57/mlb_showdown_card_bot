@@ -7,6 +7,7 @@ import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
 import { fetchEligibleTeamIds, type ChallengeInstance } from '../../../api/sim';
 import { TeamCard } from '../TeamCard';
 import { challengeCategoryMeta } from './challengeCategory';
+import { challengeGoalLabel, challengeDaysLeft, challengeRestrictionsLabel } from './challengeLabels';
 import { challengeSuccessRate } from './challengeStats';
 
 type Props = {
@@ -21,42 +22,6 @@ type Props = {
      *  Omitted when this card is already the detail view's own header. */
     onViewLeaderboard?: (challenge: ChallengeInstance) => void;
 };
-
-function goalLabel(challenge: ChallengeInstance): string {
-    switch (challenge.goal_type) {
-        case 'made_playoffs': return 'Make the playoffs';
-        case 'win_division': return 'Win the division';
-        case 'win_pennant': return 'Win the pennant';
-        case 'win_world_series': return 'Win the World Series';
-        case 'min_wins': return `Win at least ${challenge.goal_value?.min_wins ?? '?'} games`;
-        case 'beat_team_record': return `Beat the ${challenge.year} ${challenge.goal_value?.target_abbr ?? '?'}'s record`;
-        default: return 'Clear the bar';
-    }
-}
-
-function daysLeft(expiresAt: string): number {
-    return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000));
-}
-
-/** Short human-readable summary of a challenge's player_filters, e.g. "NYM/NYY, L bats,
- *  1990–2000" — null when the challenge has no player restrictions. */
-function restrictionsLabel(challenge: ChallengeInstance): string | null {
-    const pf = challenge.player_filters;
-    if (!pf) return null;
-    const parts: string[] = [];
-    const team = pf.team as string[] | undefined;
-    if (team?.length) parts.push(team.join('/'));
-    const hand = pf.hand as string[] | undefined;
-    if (hand?.length) parts.push(`${hand.join('/')} bats`);
-    const minYear = pf.min_year as number | undefined;
-    const maxYear = pf.max_year as number | undefined;
-    if (minYear != null || maxYear != null) parts.push(`${minYear ?? 'Any'}–${maxYear ?? 'Any'}`);
-    const organization = pf.organization as string[] | undefined;
-    if (organization?.length) parts.push(organization.join('/'));
-    const league = pf.league as string[] | undefined;
-    if (league?.length) parts.push(league.join('/'));
-    return parts.length ? parts.join(', ') : null;
-}
 
 /** One tile in the challenge's info grid — an icon, a label, and its value, stacked. */
 function StatTile({ icon, label, value, fullWidth }: { icon: ReactNode; label: string; value: string; fullWidth?: boolean }) {
@@ -94,7 +59,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
         (challenge.pts_limit == null || team.total_points <= challenge.pts_limit) &&
         team.roster_count >= challenge.roster_size &&
         (eligibleTeamIds === null || eligibleTeamIds.has(team.team_id));
-    const left = daysLeft(challenge.expires_at);
+    const left = challengeDaysLeft(challenge);
     const category = challengeCategoryMeta(challenge.category);
     const successRate = challengeSuccessRate(challenge);
 
@@ -152,7 +117,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-                <StatTile icon={<FaFlagCheckered />} label="Goal" value={goalLabel(challenge)} fullWidth />
+                <StatTile icon={<FaFlagCheckered />} label="Goal" value={challengeGoalLabel(challenge)} fullWidth />
                 <StatTile icon={<FaCalendarDays />} label="Season" value={String(challenge.year)} />
                 <StatTile icon={<FaShirt />} label="Take Over" value={challenge.replaces_abbr} />
                 <StatTile icon={<FaSackDollar />} label="Budget" value={challenge.pts_limit != null ? `${challenge.pts_limit} pts` : 'No limit'} />
@@ -164,8 +129,8 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                         value={`${successRate.pct}% · ${successRate.entrants} ${successRate.entrants === 1 ? 'entry' : 'entries'}`}
                     />
                 )}
-                {restrictionsLabel(challenge) && (
-                    <StatTile icon={<FaFilter />} label="Player Restrictions" value={restrictionsLabel(challenge)!} fullWidth />
+                {challengeRestrictionsLabel(challenge) && (
+                    <StatTile icon={<FaFilter />} label="Player Restrictions" value={challengeRestrictionsLabel(challenge)!} fullWidth />
                 )}
             </div>
 

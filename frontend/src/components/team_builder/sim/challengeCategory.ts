@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
-import { FaCrown, FaSackDollar, FaPalette } from 'react-icons/fa6';
+import { FaCrown, FaSackDollar, FaPalette, FaStar } from 'react-icons/fa6';
 import type { ChallengeCategory } from '../../../api/sim';
 
 type CategoryMeta = {
@@ -17,7 +17,8 @@ type CategoryMeta = {
 const META: Record<ChallengeCategory, CategoryMeta> = {
     legendary: { label: 'Legendary', cssVar: '--challenge-legendary', icon: createElement(FaCrown), order: 0 },
     budget_cap: { label: 'Budget Cap', cssVar: '--challenge-budget', icon: createElement(FaSackDollar), order: 1 },
-    themed: { label: 'Themed', cssVar: '--challenge-themed', icon: createElement(FaPalette), order: 2 },
+    superteam: { label: 'Superteam', cssVar: '--challenge-superteam', icon: createElement(FaStar), order: 2 },
+    themed: { label: 'Themed', cssVar: '--challenge-themed', icon: createElement(FaPalette), order: 3 },
 };
 
 const FALLBACK: CategoryMeta = META.themed;
@@ -26,7 +27,7 @@ export function challengeCategoryMeta(category: ChallengeCategory | null | undef
     return (category && META[category]) || FALLBACK;
 }
 
-/** Sort comparator for challenge cards — legendary, then budget cap, then themed. */
+/** Sort comparator for challenge cards — legendary, then budget cap, then superteam, then themed. */
 export function byChallengeCategory<T extends { category?: ChallengeCategory | null }>(a: T, b: T): number {
     return challengeCategoryMeta(a.category).order - challengeCategoryMeta(b.category).order;
 }

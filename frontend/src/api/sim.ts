@@ -438,8 +438,9 @@ export type OpenSimPayload = {
 
 export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record';
 
-/** Presentation grouping for the challenges list — drives the accent color. */
-export type ChallengeCategory = 'legendary' | 'budget_cap' | 'themed';
+/** Presentation grouping for the challenges list — drives the accent color and the one-per-
+ *  category weekly rotation. Not a mechanic; the goal/budget/filters do the actual work. */
+export type ChallengeCategory = 'legendary' | 'budget_cap' | 'superteam' | 'themed';
 
 /** A live challenge instance joined to its template. */
 export type ChallengeInstance = {

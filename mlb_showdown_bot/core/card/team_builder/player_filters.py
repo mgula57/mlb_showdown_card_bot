@@ -24,12 +24,26 @@ class PlayerFilterSet(BaseModel):
                 # passes the min check (matches the picker's own query semantics).
                 field = key[4:]
                 actual = card.get(field)
-                if actual is not None and actual < value:
+                if actual is None:
+                    return f"card {card.get('card_id', '?')} has a blank {field} of {value}"
+                try:
+                    actual_number = float(actual)
+                    actual_value = float(value)
+                except (TypeError, ValueError):
+                    return f"card {card.get('card_id', '?')} has an invalid value for {field}"
+                if actual_number < actual_value:
                     return f"card {card.get('card_id', '?')} does not meet the minimum {field} of {value}"
             elif key.startswith('max_'):
                 field = key[4:]
                 actual = card.get(field)
-                if actual is None or actual > value:
+                if actual is None:
+                    return f"card {card.get('card_id', '?')} has a blank {field} of {value}"
+                try:
+                    actual_number = float(actual)
+                    actual_value = float(value)
+                except (TypeError, ValueError):
+                    return f"card {card.get('card_id', '?')} has an invalid value for {field}"
+                if actual_number > actual_value:
                     return f"card {card.get('card_id', '?')} exceeds the maximum {field} of {value}"
             elif isinstance(value, list) and value:
                 actual = str(card.get(key))

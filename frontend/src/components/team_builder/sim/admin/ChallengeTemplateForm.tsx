@@ -17,6 +17,7 @@ const GOAL_OPTIONS: { label: string; value: ChallengeGoalType }[] = [
 const CATEGORY_OPTIONS: { label: string; value: ChallengeCategory }[] = [
     { label: 'Legendary', value: 'legendary' },
     { label: 'Budget Cap', value: 'budget_cap' },
+    { label: 'Superteam', value: 'superteam' },
     { label: 'Themed', value: 'themed' },
 ];
 
@@ -177,7 +178,7 @@ export function ChallengeTemplateForm({ initial, submitLabel, busy, error, onSub
                     value={form.player_filters}
                     onChange={e => set('player_filters', e.target.value)}
                     rows={3}
-                    placeholder={'{ "team": ["NYM", "NYY"], "hand": ["L"] }'}
+                    placeholder={'{ "min_year": 1990, "max_year": 1999, "team": ["NYM", "NYY"] }'}
                     className="w-full rounded-lg border border-(--divider) bg-(--background-tertiary) px-3 py-2 font-mono text-[12px] text-(--text-primary) resize-y"
                 />
             </div>

@@ -7961,7 +7961,7 @@ class PostgresDB:
             # COPIED ONTO THE INSTANCE AT GENERATION TIME, SAME AS pts_limit.
             cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS roster_size INT NOT NULL DEFAULT 25;")
             # PRESENTATION GROUPING FOR THE CHALLENGES LIST (accent color + one-of-each weekly
-            # rotation) - 'legendary' | 'budget_cap' | 'themed'. NOT A MECHANIC; THE
+            # rotation) - 'legendary' | 'budget_cap' | 'superteam' | 'themed'. NOT A MECHANIC; THE
             # goal_type/pts_limit/player_filters DO THE ACTUAL WORK. READ VIA A JOIN FROM THE
             # INSTANCE (DISPLAY-ONLY, SO IT DOESN'T NEED SNAPSHOTTING LIKE pts_limit DOES).
             cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'themed';")

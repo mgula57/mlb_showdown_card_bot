@@ -58,13 +58,16 @@ class AwardsBuilder:
         Best-effort - the card's `is_rookie` flag is only reliably populated for MLB-API-sourced
         seasons (2026+), so a league with nobody flagged simply has no RoY rather than a guessed
         one.
-      - Silver Slugger: highest OPS per position, one per league. The card's own primary position
-        never distinguishes LF from RF - both print as the combined `LF/RF` position (see
-        `Position.is_valid_in_game`) - so the two are split by which of the two positions a
-        player actually logged more plate appearances at this season (`Stats.positions_played`,
-        the `PositionSlot` each plate appearance was actually fielded from). DH is widened past
-        the card's own position the same way: anyone whose season was majority-DH by plate
-        appearances qualifies, not just a card whose own primary position is DH.
+      - Silver Slugger: highest OPS per position, one per league, and at most one per player. The
+        card's own primary position never distinguishes LF from RF - both print as the combined
+        `LF/RF` position (see `Position.is_valid_in_game`) - so the two are split by which of the
+        two positions a player actually logged more plate appearances at this season
+        (`Stats.positions_played`, the `PositionSlot` each plate appearance was actually fielded
+        from). DH is widened past the card's own position the same way: anyone whose season was
+        majority-DH by plate appearances qualifies, not just a card whose own primary position is
+        DH. A player eligible at two slots that way (his carded position plus a majority-DH
+        season) wins only the earlier, more natural one - the other slot falls to the next-best
+        bat.
     """
 
     _SILVER_SLUGGER_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
@@ -273,11 +276,15 @@ class AwardsBuilder:
         winners = []
         for league in self.leagues:
             candidates = self._qualified_hitters(league)
+            # POSITIONS ARE WALKED IN `_SILVER_SLUGGER_POSITIONS` ORDER (DH LAST), SO A PLAYER
+            # ELIGIBLE AT TWO SLOTS TAKES THE EARLIER ONE AND IS SKIPPED FOR THE LATER.
+            won_ids: set[str] = set()
             for position in self._SILVER_SLUGGER_POSITIONS:
-                at_position = self._silver_slugger_candidates(candidates, position)
+                at_position = [s for s in self._silver_slugger_candidates(candidates, position) if s.id not in won_ids]
                 if not at_position:
                     continue
                 best = max(at_position, key=lambda s: s.ops)
+                won_ids.add(best.id)
                 winners.append(AwardWinner(
                     category='SILVER_SLUGGER', league=league, position=position, value=best.ops,
                     value_label=f"{best.ops:.3f} OPS",

@@ -30,9 +30,8 @@ import {
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
-import { fetchTeamSimSeasons, startSeasonSim, cancelSimJob, fetchActiveSimJob, SimAlreadyRunningError, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
-import { SimSetupModal } from './sim/SimSetupModal';
-import type { ManagerPreference } from '../../api/manager';
+import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
+import { PlayModal } from './sim/PlayModal';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -58,6 +57,45 @@ function PickSourceBadge({ source }: { source: PickSource }) {
             <Icon className="text-[9px] shrink-0" />
             {meta.label}
         </div>
+    );
+}
+
+/** Tone presets for the header toolbar. Every action shares one shape and one weight so the
+ *  strip reads as a single control group — tone only ever shifts the fill/ink pair, never the
+ *  geometry. Each tone rests on a soft tint of its color rather than sitting flat, so the row
+ *  doesn't read as one undifferentiated block of ghost buttons. */
+const HEADER_ACTION_TONES = {
+    neutral: 'bg-(--background-tertiary) text-(--text-secondary) hover:bg-(--background-quaternary) hover:text-(--text-primary)',
+    starred: 'bg-yellow-400/15 text-yellow-600 dark:text-yellow-300 hover:bg-yellow-400/25',
+    curate:  'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25',
+    danger:  'bg-red-400/15 text-red-500 dark:text-red-400 hover:bg-red-400/25',
+} as const;
+
+type HeaderActionProps = {
+    icon: IconType;
+    label: string;
+    onClick: () => void;
+    tone?: keyof typeof HEADER_ACTION_TONES;
+    /** Swaps the icon for a spinner and blocks re-entry while an async action is in flight. */
+    busy?: boolean;
+    title?: string;
+};
+
+/** One secondary action in the team header. Sized for a comfortable thumb target on mobile —
+ *  the label always shows, it never shrinks down to an icon-only tap target. */
+function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = false, title }: HeaderActionProps) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={busy}
+            title={title ?? label}
+            aria-label={label}
+            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 px-4 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
+        >
+            {busy ? <FaSpinner className="h-4 w-4 shrink-0 animate-spin" /> : <Icon className="h-4 w-4 shrink-0" />}
+            {label}
+        </button>
     );
 }
 
@@ -230,11 +268,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [editMode, setEditMode] = useState(false);
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
-    const [showSimModal, setShowSimModal] = useState(false);
-    const [showChallengeConfirm, setShowChallengeConfirm] = useState(false);
-    const [startingChallenge, setStartingChallenge] = useState(false);
-    const [challengeError, setChallengeError] = useState<string | null>(null);
-    const [challengeRunningJob, setChallengeRunningJob] = useState<{ jobId: string; teamId: string | null } | null>(null);
+    const [showPlayModal, setShowPlayModal] = useState(false);
     const [logoUploading, setLogoUploading] = useState(false);
     const [logoError, setLogoError] = useState<string | null>(null);
     // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
@@ -1013,38 +1047,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         setShowSettingsModal(false);
     }
 
-    /** Queue a season and hand off to the job's own URL, which owns polling and the result. */
-    async function handleStartSim(options: { year: number; set: string; replaces: string; manager?: ManagerPreference }) {
-        if (!token) return;
-        const { job_id } = await startSeasonSim({ team_id: team.team_id, ...options }, token);
-        setShowSimModal(false);
-        navigate(`/teams/${team.team_id}/sim/${job_id}`);
-    }
-
-    /** Same as `handleStartSim`, but year/club/budget all come from the challenge instance - the
-     *  backend re-derives and enforces them server-side regardless of what's sent here. */
-    async function handleStartChallenge() {
-        if (!token || !challenge) return;
-        setStartingChallenge(true);
-        setChallengeError(null);
-        setChallengeRunningJob(null);
-        try {
-            const { job_id } = await startSeasonSim({
-                team_id: team.team_id,
-                year: challenge.year,
-                set: draft.allowed_sets?.[0] ?? '2000',
-                replaces: challenge.replaces_abbr,
-                challenge_instance_id: challenge.instance_id,
-            }, token);
-            setShowChallengeConfirm(false);
-            navigate(`/teams/${team.team_id}/sim/${job_id}`);
-        } catch (err) {
-            if (err instanceof SimAlreadyRunningError) setChallengeRunningJob({ jobId: err.jobId, teamId: err.teamId });
-            setChallengeError(err instanceof Error ? err.message : 'Failed to start the challenge.');
-            setStartingChallenge(false);
-        }
-    }
-
     /** Team total PTS if `confirmCard` were dropped into `position` — mirrors the roster
      *  mutation in handleConfirmPosition: 'BE' / 'RP' append (bench is multiplied); every
      *  other slot replaces whatever currently holds that roster_position. */
@@ -1097,9 +1099,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             
             {/* Header */}
             <div
-                className="@container flex flex-col @lg:flex-row @lg:items-center gap-2 pl-4 py-1 border-b border-(--divider) shrink-0"
+                className="@container flex flex-col md:flex-row lg:items-center lg:pb-2 gap-3 lg:gap-6 pl-4 py-1 border-b border-(--divider) shrink-0"
             >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* Sized to its content, not stretched to fill the row — otherwise a short team
+                    name leaves a dead gap before the toolbar. Capped at row layout so a long
+                    name still truncates instead of shoving the toolbar off toward the edge. */}
+                <div className="flex items-center gap-3 min-w-0 ">
                     {onBack && (
                         <button type="button" onClick={handleBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
                             <FaArrowLeft />
@@ -1207,60 +1212,35 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     )}
                 </div>
 
-                {/* Action buttons: wrap into a grid below the team info on narrow views, sit inline to the right once there's room */}
+                {/* Action toolbar: one filled Play CTA plus a uniform strip of ghost actions.
+                    Buttons are sized for a thumb on mobile, wrapping onto a second line rather
+                    than shrinking. Right-aligned in both layouts — a full-width row under the
+                    team info on a narrow header, inline beside it once there's real room. */}
                 {(onToggleStar || onFork || !readOnly || canSimulate || adminCanCurate) && (
-                    <div className="grid grid-cols-2 @sm:grid-cols-3 @lg:grid-cols-4 @lg:items-center gap-2 @lg:w-auto shrink-0">
-                        
-                        {!readOnly && teamMode === 'complete' && (
-                            <button
-                                type="button"
-                                onClick={() => setEditMode(true)}
-                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--text-secondary) bg-(--background-tertiary) hover:text-(--text-primary) cursor-pointer transition-colors"
-                                aria-label={`Edit ${draft.name}`}
-                            >
-                                <FaPenToSquare className="h-3 w-3" /> Edit
-                            </button>
-                        )}
-                        {adminCanCurate && !isOfficialTeam && teamMode == 'complete' && (
-                            <button
-                                type="button"
-                                onClick={() => setShowPublishModal(true)}
-                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--background-primary) bg-amber-500 hover:opacity-90 cursor-pointer transition-colors"
-                                title="Publish this roster into a Featured collection"
-                            >
-                                <FaStar className="h-3 w-3" /> Publish
-                            </button>
-                        )}
-                        {adminCanCurate && isOfficialTeam && teamMode == 'complete' && (
-                            <button
-                                type="button"
-                                onClick={handleUnpublish}
-                                disabled={unpublishing}
-                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-red-400 bg-(--background-tertiary) hover:text-red-300 cursor-pointer disabled:opacity-50 transition-colors"
-                                title="Remove this team from its Featured collection"
-                            >
-                                {unpublishing ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaTrash className="h-3 w-3" />} Unpublish
-                            </button>
-                        )}
+                    <div className="flex flex-wrap items-center justify-start gap-2 shrink-0 pr-2 pb-2">
+
                         {onToggleStar && (
-                            <button
-                                type="button"
+                            <HeaderAction
+                                icon={isStarred ? FaStar : FaRegStar}
+                                tone={isStarred ? 'starred' : 'neutral'}
+                                label={isStarred ? 'Starred' : 'Star'}
                                 onClick={onToggleStar}
-                                className="flex items-center justify-center gap-1 rounded-md px-1.5 py-1.5 @lg:py-1 text-[11px] font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
-                                aria-label={isStarred ? `Unstar ${draft.name}` : `Star ${draft.name}`}
-                            >
-                                {isStarred ? (
-                                    <FaStar className="h-3.5 w-3.5 text-yellow-300" />
-                                ) : (
-                                    <FaRegStar className="h-3.5 w-3.5" />
-                                )}
-                                {isStarred ? "Starred" : "Star"}
-                            </button>
+                                title={isStarred ? `Unstar ${draft.name}` : `Star ${draft.name}`}
+                            />
+                        )}
+                        {!readOnly && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaPenToSquare}
+                                label="Edit"
+                                onClick={() => setEditMode(true)}
+                                title={`Edit ${draft.name}`}
+                            />
                         )}
                         {onFork && (
-                            <button
-                                type="button"
-                                disabled={forking}
+                            <HeaderAction
+                                icon={FaCodeFork}
+                                label="Copy"
+                                busy={forking}
                                 onClick={async () => {
                                     setForking(true);
                                     try {
@@ -1269,30 +1249,47 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         setForking(false);
                                     }
                                 }}
-                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold text-(--background-primary) bg-(--secondary) hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                aria-label="Make a copy of this team"
                                 title="Make an editable copy of this team"
-                            >
-                                {forking ? <FaSpinner className="h-3 w-3 animate-spin" /> : <FaCodeFork className="h-3 w-3" />}
-                                Make a copy
-                            </button>
+                            />
+                        )}
+                        {adminCanCurate && teamMode === 'complete' && (
+                            isOfficialTeam ? (
+                                <HeaderAction
+                                    icon={FaTrash}
+                                    tone="danger"
+                                    label="Unpublish"
+                                    busy={unpublishing}
+                                    onClick={handleUnpublish}
+                                    title="Remove this team from its Featured collection"
+                                />
+                            ) : (
+                                <HeaderAction
+                                    icon={FaStar}
+                                    tone="curate"
+                                    label="Publish"
+                                    onClick={() => setShowPublishModal(true)}
+                                    title="Publish this roster into a Featured collection"
+                                />
+                            )
                         )}
 
                         {canSimulate && teamMode === 'complete' && (
-                            <button
-                                type="button"
-                                onClick={() => challenge ? setShowChallengeConfirm(true) : setShowSimModal(true)}
-                                className="flex items-center justify-center gap-1.5 rounded-md h-8 px-2 py-1 text-sm font-semibold hover:opacity-90 cursor-pointer transition-opacity"
-                                style={{
-                                    backgroundImage: `linear-gradient(135deg, ${draft.primary_color}, ${draft.secondary_color})`,
-                                    color: getContrastTextColor(draft.primary_color)
-                                }}
-                                aria-label={challenge ? `Play the ${challenge.title} challenge with this team` : 'Simulate a season with this team'}
-                                title={challenge ? challenge.title : 'Drop this team into a real season and play all 162 games'}
-                            >
-                                <FaPlay className="h-3 w-3" />
-                                {challenge ? 'Play Challenge' : 'Play'}
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPlayModal(true)}
+                                    className="animated-team-gradient flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 px-4 rounded-lg text-[13px] font-bold whitespace-nowrap hover:opacity-90 cursor-pointer transition-opacity"
+                                    style={{
+                                        '--team-gradient-from': draft.primary_color,
+                                        '--team-gradient-to': draft.secondary_color,
+                                        color: getContrastTextColor(draft.primary_color),
+                                    } as React.CSSProperties}
+                                    aria-label={`Play a season with ${draft.name}`}
+                                    title="Take over a real club for a full season, or take on a live Team Challenge"
+                                >
+                                    <FaPlay className="h-3.5 w-3.5 shrink-0" /> Sim
+                                </button>
+                            </>
                         )}
                     </div>
                 )}
@@ -1654,90 +1651,27 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 />
             )}
 
-            {/* Settings modal */}
-            {showSimModal && (
-                <SimSetupModal
+            {/* One entry point for both ways to play — an open takeover or a live challenge. */}
+            {showPlayModal && token && (
+                <PlayModal
+                    teamId={team.team_id}
+                    teamName={draft.name || 'Untitled Team'}
                     showdownSet={draft.allowed_sets?.[0] ?? '2000'}
-                    onCancel={() => setShowSimModal(false)}
-                    onStart={handleStartSim}
-                    onViewExisting={(jobId, teamId) => {
-                        setShowSimModal(false);
-                        navigate(`/teams/${teamId ?? team.team_id}/sim/${jobId}`);
+                    teamPoints={pointsBreakdown.total}
+                    rosterCount={draft.roster.length}
+                    token={token}
+                    presetChallenge={challenge}
+                    onCancel={() => setShowPlayModal(false)}
+                    onStarted={jobId => {
+                        setShowPlayModal(false);
+                        navigate(`/teams/${team.team_id}/sim/${jobId}`);
+                    }}
+                    onViewExisting={(jobId, jobTeamId) => {
+                        setShowPlayModal(false);
+                        navigate(`/teams/${jobTeamId ?? team.team_id}/sim/${jobId}`);
                     }}
                 />
             )}
-
-            {/* Challenge launch confirm - year/club/budget are all already fixed by the
-                challenge, so there's nothing left to pick, just a confirmation. */}
-            {showChallengeConfirm && challenge && (() => {
-                const ptsFits = challenge.pts_limit == null || pointsBreakdown.total <= challenge.pts_limit;
-                const rosterFits = draft.roster.length >= challenge.roster_size;
-                const fits = ptsFits && rosterFits;
-                return (
-                    <div
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-                        onClick={() => !startingChallenge && setShowChallengeConfirm(false)}
-                    >
-                        <div
-                            className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden flex flex-col"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="px-4 pt-4 pb-3 border-b border-(--divider)">
-                                <div className="text-[14px] font-black text-(--text-primary)">{challenge.title}</div>
-                                <div className="text-[12px] text-(--text-secondary) mt-1">
-                                    Bringing <span className="font-bold text-(--text-primary)">{draft.name}</span> to take over
-                                    the {challenge.year} {challenge.replaces_abbr}.
-                                </div>
-                            </div>
-                            <div className="px-4 py-3 flex flex-col gap-2">
-                                {!ptsFits && (
-                                    <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
-                                        This team costs {pointsBreakdown.total} pts, over the {challenge.pts_limit} pt challenge limit.
-                                    </div>
-                                )}
-                                {!rosterFits && (
-                                    <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
-                                        This team has {draft.roster.length} players, under the challenge's {challenge.roster_size}-player minimum.
-                                    </div>
-                                )}
-                                {challengeError && (
-                                    <div className="flex items-center justify-between gap-2 text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
-                                        <span>{challengeError}</span>
-                                        {challengeRunningJob && (
-                                            <button
-                                                type="button"
-                                                onClick={() => navigate(`/teams/${challengeRunningJob.teamId ?? team.team_id}/sim/${challengeRunningJob.jobId}`)}
-                                                className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
-                                            >
-                                                View it
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                                <div className="flex gap-2 pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowChallengeConfirm(false)}
-                                        disabled={startingChallenge}
-                                        className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleStartChallenge}
-                                        disabled={startingChallenge || !fits}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                    >
-                                        {startingChallenge ? <FaSpinner className="animate-spin text-[11px]" /> : <FaPlay className="text-[11px]" />}
-                                        Play
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })()}
 
             {showSettingsModal && (
                 <Modal

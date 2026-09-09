@@ -30,6 +30,7 @@ class ChallengeCategory(str, Enum):
     one-per-category weekly rotation. Not a mechanic: the goal/cap/filters do the actual work."""
     LEGENDARY = "legendary"
     BUDGET_CAP = "budget_cap"
+    SUPERTEAM = "superteam"
     THEMED = "themed"
 
 

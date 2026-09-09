@@ -33,6 +33,7 @@
     /* Team Challenge category accents (challenges list + result screen). */
     --challenge-legendary: #c8962b;
     --challenge-budget: #2f6bd6;
+    --challenge-superteam: #7c4dd0;
     --challenge-themed: #e0654f;
 
 
@@ -74,6 +75,7 @@
 
     --challenge-legendary: #e0b352;
     --challenge-budget: #5a97f0;
+    --challenge-superteam: #a884e8;
     --challenge-themed: #f0806c;
 
 
@@ -347,6 +349,24 @@
 
 @media (prefers-reduced-motion: reduce) {
     .animated-showdown-gradient { animation: none; }
+}
+
+/* Same drifting gradient as .animated-showdown-gradient, but reading its two stops from
+   --team-gradient-from/--team-gradient-to instead of the fixed brand palette — set those inline
+   per element (e.g. a team's primary/secondary colors) to reuse the animation anywhere. */
+.animated-team-gradient {
+    background-image: linear-gradient(
+        115deg,
+        var(--team-gradient-from),
+        var(--team-gradient-to),
+        var(--team-gradient-from)
+    );
+    background-size: 300% 300%;
+    animation: showdown-gradient-pan 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animated-team-gradient { animation: none; }
 }
 
 body {

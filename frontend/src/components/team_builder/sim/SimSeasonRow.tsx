@@ -55,7 +55,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props)
                 <span className="block text-[11px] text-(--text-tertiary) truncate">
                     {entry.creator_username ? `${entry.creator_username} · ` : ''}
                     {!showTime && `${entry.year} · `}
-                    took over {entry.replaced_abbr ?? '—'}
+                    took over {entry.replaced_abbr ?? '—'} in {entry.year}
                     {entry.showdown_set ? ` · set ${entry.showdown_set}` : ''}
                     {entry.division ? ` · ${entry.division}` : ''}
                     {attempts && attempts > 1 ? ` · best of ${attempts}` : ''}
