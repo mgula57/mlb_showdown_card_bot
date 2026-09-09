@@ -336,7 +336,7 @@ export default function Home() {
                 md:space-y-10
                 gradient-page
                 pb-24
-                pt-8
+                pt-3 sm:pt-5 lg:pt-8
             `}>
 
             {/* What's New Banner */}
