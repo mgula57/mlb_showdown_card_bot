@@ -397,7 +397,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         className="flex items-center gap-x-1 cursor-pointer rounded-lg animated-showdown-gradient px-3 py-1.5 text-[11px] font-bold text-white transition-opacity hover:opacity-90"
                                     >
                                         <FaTerminal />
-                                        {realState === "LIVE" ? "Take Over" : "Simulate"}
+                                        Simulate
                                     </button>
                                 )}
                             </div>
