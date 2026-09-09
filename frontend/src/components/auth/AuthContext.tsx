@@ -272,6 +272,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 provider,
                 options: {
                     redirectTo: `${window.location.origin}/`,
+                    // Force Google to show the account chooser instead of
+                    // silently reusing the most recently used account.
+                    ...(provider === 'google' && {
+                        queryParams: { prompt: 'select_account' },
+                    }),
                 },
             });
             return { error: error as Error | null };
