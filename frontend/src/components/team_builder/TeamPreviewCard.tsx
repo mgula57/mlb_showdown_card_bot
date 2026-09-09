@@ -83,8 +83,8 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                 snap-start shrink-0 relative
                 ${widthClass} aspect-3/4 rounded-xl
                 overflow-hidden
-                hover:scale-[1.025] active:scale-[0.975]
-                transition-transform duration-150
+                [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
+                [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
                 text-left border-4 border-transparent
                 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
                 ${className}

@@ -38,7 +38,11 @@ export function TeamShelf({ title, subtitle, onSeeAll, children, className, blee
             <div
                 className={`flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 scrollbar-hide ${className ?? ''}`}
                 style={{
-                    touchAction: 'pan-x',
+                    // No explicit `touch-action` — the native overflow scroller detects drag
+                    // direction on its own. Forcing `pan-x` here swallowed vertical swipes that
+                    // began on a tile, so the page couldn't scroll from over the shelf.
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehaviorX: 'contain',
                     // Keep the left inset (from `className`) but drop the right one and pull the
                     // row out to the container edge so it reaches the end of the screen.
                     ...(bleedRight ? { paddingRight: 0, marginRight: 'calc((100% - 100cqw) / 2)' } : {}),
