@@ -34,6 +34,7 @@ import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem"
 import { FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
 import CardBuildIcon from "../customs/CardBuildIcon";
 import { FaPeopleGroup } from "react-icons/fa6";
+import { markNavItemSeen, useNavItemIsNew } from "../../hooks/useSeenNavItems";
 // import { FaDice } from "react-icons/fa6"; // re-add with the Simulate nav item below
 
 /**
@@ -67,17 +68,6 @@ type SideMenuItemProps = {
  * @param props - Component props
  * @returns A clickable navigation item with adaptive layout
  */
-const SEEN_NAV_ITEMS_KEY = 'seenNavItems';
-
-const getSeenNavItems = (): Set<string> => {
-    try {
-        const stored = localStorage.getItem(SEEN_NAV_ITEMS_KEY);
-        return new Set(stored ? JSON.parse(stored) : []);
-    } catch {
-        return new Set();
-    }
-};
-
 export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen, selectedItem, onClick }) => {
 
     // Determine active state based on current selection
@@ -85,15 +75,11 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
     // Special case: highlight home when on root path as fallback behavior
     const isSelected = selectedPath === item.path || (selectedPath === '/' && item.path === '/home');
 
-    const [isNew, setIsNew] = React.useState(() => item.isNew && !getSeenNavItems().has(item.path));
+    // Shared with the Home page's nav tiles — visiting from either surface clears the badge on both.
+    const isNew = useNavItemIsNew(item.path, item.isNew);
 
     const handleClick = () => {
-        if (isNew) {
-            const seen = getSeenNavItems();
-            seen.add(item.path);
-            localStorage.setItem(SEEN_NAV_ITEMS_KEY, JSON.stringify([...seen]));
-            setIsNew(false);
-        }
+        markNavItemSeen(item.path);
         onClick(item);
     };
 

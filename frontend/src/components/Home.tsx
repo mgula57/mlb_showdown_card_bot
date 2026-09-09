@@ -16,6 +16,7 @@ import type { GameScheduled, Season, LeadersGroup } from '../api/mlbAPI';
 import { fromScheduledGame } from '../domain/adapters/fromMlbApi';
 import type { GameState } from '../domain/game';
 import { TeamChip } from './shared/TeamChip';
+import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
 
 // Modal
 import { Modal } from './shared/Modal';
@@ -42,6 +43,41 @@ import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
+
+type HomeNavTileData = {
+    label: string;
+    desc: string;
+    Icon: React.ComponentType<{ className?: string }>;
+    to: string;
+    iconColor: string;
+    isNew?: boolean;
+};
+
+/**
+ * A Home quick-nav tile. Shares the "NEW" badge state with the side menu — visiting
+ * the destination from either surface clears the badge on both.
+ */
+function HomeNavTile({ tile, isDark }: { tile: HomeNavTileData; isDark: boolean }) {
+    const { label, desc, Icon, to, iconColor } = tile;
+    const isNew = useNavItemIsNew(to, tile.isNew);
+    return (
+        <Link
+            to={to}
+            onClick={() => markNavItemSeen(to)}
+            className={`relative overflow-hidden rounded-2xl p-4 flex flex-col gap-1 shadow-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-neutral-900 border-neutral-700 hover:bg-neutral-800' : 'bg-white border-neutral-200 hover:bg-neutral-50'}`}
+        >
+            <Icon className={`absolute -bottom-2 -right-2 text-7xl opacity-5`} />
+            <Icon className={`text-3xl mb-1 ${iconColor}`} />
+            <span className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{label}</span>
+            <span className={`text-xs leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{desc}</span>
+            {isNew && (
+                <span className="absolute top-2 right-2 text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-blue-600 text-white">
+                    NEW
+                </span>
+            )}
+        </Link>
+    );
+}
 
 export default function Home() {
 
@@ -325,19 +361,10 @@ export default function Home() {
                     {([
                         { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
                         { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
-                        { label: 'Team Builder',  desc: 'Build teams and play challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-yellow-500' },
-                        { label: 'Seasons',       desc: 'Follow the 2026 season using Showdown',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500' },
-                    ] as const).map(({ label, desc, Icon, to, iconColor }) => (
-                        <Link
-                            key={to}
-                            to={to}
-                            className={`relative overflow-hidden rounded-2xl p-4 flex flex-col gap-1 shadow-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-neutral-900 border-neutral-700 hover:bg-neutral-800' : 'bg-white border-neutral-200 hover:bg-neutral-50'}`}
-                        >
-                            <Icon className={`absolute -bottom-2 -right-2 text-7xl opacity-5`} />
-                            <Icon className={`text-3xl mb-1 ${iconColor}`} />
-                            <span className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{label}</span>
-                            <span className={`text-xs leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{desc}</span>
-                        </Link>
+                        { label: 'Team Builder',  desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-yellow-500', isNew: true },
+                        { label: 'Seasons',       desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500', isNew: true },
+                    ] as const).map((tile) => (
+                        <HomeNavTile key={tile.to} tile={tile} isDark={isDark} />
                     ))}
                 </div>
             </div>
