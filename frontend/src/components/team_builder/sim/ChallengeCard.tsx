@@ -87,25 +87,29 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="w-full">
-                    <div className="flex justify-between items-center " >
-                        <div className="flex gap-3 items-center flex-wrap">
+                    <div className="flex justify-between items-start " >
+                        <div className='space-y-1 flex flex-col' >
                             <span
-                                className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full"
+                                className="inline-flex self-start items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full"
                                 style={{ color: `var(${category.cssVar})`, backgroundColor: `color-mix(in srgb, var(${category.cssVar}) 15%, transparent)` }}
                             >
                                 {category.icon} {category.label}
                             </span>
-                            <h3 className="text-[16px] font-black text-(--text-primary)">{challenge.title}</h3>
-                            <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-full">
-                                <FaClock className="text-[10px]" />
-                                {left > 0 ? `${left}d left` : 'Expires today'}
-                            </span>
+                            <div className="flex gap-y-1 gap-x-2 items-center flex-wrap">
+                                
+                                <h3 className="text-[16px] font-black text-(--text-primary)">{challenge.title}</h3>
+                                <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-full">
+                                    <FaClock className="text-[10px]" />
+                                    {left > 0 ? `${left}d left` : 'Expires today'}
+                                </span>
+                            </div>
                         </div>
+                        
                         {onViewLeaderboard && (
                             <button
                                 type="button"
                                 onClick={() => onViewLeaderboard(challenge)}
-                                className="flex items-center gap-1 text-sm font-bold text-(--showdown-blue) hover:opacity-80 cursor-pointer transition-opacity"
+                                className="flex items-center gap-1 text-sm font-bold text-tertiary hover:opacity-80 cursor-pointer transition-opacity"
                             >
                                 <FaTrophy /> Leaderboard <FaChevronRight className="text-[9px]" />
                             </button>
