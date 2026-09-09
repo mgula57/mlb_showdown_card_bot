@@ -130,10 +130,11 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
 
     return (
         <div className="flex flex-col gap-4 px-4 py-2">
-            {/* Tab strip */}
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* Tab strip — a single horizontally-scrollable row so a phone never has to deal
+                with tabs wrapping onto multiple lines, with thumb-sized chips and actions. */}
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
                 {allTabs.map((ln, i) => (
-                    <div key={`${ln.name}-${i}`} className="flex items-center gap-1">
+                    <div key={`${ln.name}-${i}`} className="flex items-center gap-1 shrink-0">
                         {editingTabIndex === i ? (
                             <div className="flex items-center gap-1">
                                 <input
@@ -141,17 +142,17 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                     value={draftName}
                                     onChange={e => setDraftName(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Enter') commitRename(i); if (e.key === 'Escape') setEditingTabIndex(null); }}
-                                    className="text-[12px] bg-(--background-secondary) border border-(--divider) rounded px-1.5 py-0.5 w-28"
+                                    className="text-[13px] bg-(--background-secondary) border border-(--divider) rounded-lg px-2 py-1.5 w-32"
                                 />
-                                <button type="button" onClick={() => commitRename(i)} className="cursor-pointer">
-                                    <FaCheck className="text-[10px] text-(--secondary)" />
+                                <button type="button" onClick={() => commitRename(i)} aria-label="Save name" className="flex items-center justify-center w-8 h-8 rounded-lg text-(--secondary) hover:bg-(--secondary)/10 cursor-pointer">
+                                    <FaCheck className="text-[12px]" />
                                 </button>
                             </div>
                         ) : (
                             <button
                                 type="button"
                                 onClick={() => setActiveIndex(i)}
-                                className={`text-[12px] font-semibold px-2 py-1 rounded border transition-colors cursor-pointer
+                                className={`text-[13px] font-semibold px-3 py-1.5 min-h-8 rounded-lg border transition-colors cursor-pointer whitespace-nowrap
                                     ${i === activeIndex
                                         ? 'border-(--secondary) text-(--secondary)'
                                         : 'border-(--divider) text-(--text-secondary) hover:border-(--secondary)/50'
@@ -163,12 +164,12 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                         {/* Rename / delete — user-created tabs only, edit mode */}
                         {!readOnly && ln.name !== DEFAULT_LINEUP_NAME && i === activeIndex && editingTabIndex !== i && (
                             <>
-                                <button type="button" onClick={() => startRename(i)} className="text-(--text-tertiary) hover:text-(--text-secondary) cursor-pointer">
-                                    <FaPencil className="text-[9px]" />
+                                <button type="button" onClick={() => startRename(i)} aria-label="Rename lineup" className="flex items-center justify-center w-8 h-8 rounded-lg text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-secondary) cursor-pointer">
+                                    <FaPencil className="text-[11px]" />
                                 </button>
                                 {userLineups.length > 0 && (
-                                    <button type="button" onClick={() => removeLineup(i)} className="text-(--text-tertiary) hover:text-red-400 cursor-pointer">
-                                        <FaTrash className="text-[9px]" />
+                                    <button type="button" onClick={() => removeLineup(i)} aria-label="Delete lineup" className="flex items-center justify-center w-8 h-8 rounded-lg text-(--text-tertiary) hover:text-red-400 hover:bg-red-400/10 cursor-pointer">
+                                        <FaTrash className="text-[11px]" />
                                     </button>
                                 )}
                             </>
@@ -180,26 +181,26 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                     <button
                         type="button"
                         onClick={addLineup}
-                        className="flex items-center gap-1 text-[11px] text-(--text-tertiary) hover:text-(--secondary) transition-colors px-1 cursor-pointer"
+                        className="flex items-center gap-1.5 shrink-0 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--secondary) transition-colors px-3 py-1.5 min-h-8 rounded-lg border border-dashed border-(--divider) hover:border-(--secondary)/50 cursor-pointer whitespace-nowrap"
                         title="Add new lineup"
                     >
-                        <FaPlus className="text-[9px]" /> Add
+                        <FaPlus className="text-[10px]" /> Add
                     </button>
                 )}
             </div>
 
             {/* Default read-only notice + copy CTA */}
             {isDefault && !readOnly && (
-                <div className="flex items-center justify-between px-1">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
                     <p className="text-[11px] text-(--text-tertiary)">
                         Auto-calculated · updates when roster changes
                     </p>
                     <button
                         type="button"
                         onClick={copyDefault}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-(--secondary) hover:opacity-80 cursor-pointer"
+                        className="flex items-center gap-1.5 self-start text-[12px] font-semibold text-(--secondary) px-3 py-1.5 rounded-lg border border-(--secondary)/40 hover:bg-(--secondary)/10 cursor-pointer transition-colors"
                     >
-                        <FaCopy className="text-[9px]" /> Copy as new lineup
+                        <FaCopy className="text-[10px]" /> Copy as new lineup
                     </button>
                 </div>
             )}
@@ -230,14 +231,15 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                     ${isDropTarget ? 'ring-1 ring-(--secondary)' : ''}
                                 `}
                             >
-                                {/* Batting order number */}
-                                <div className="w-5 text-center text-[11px] font-black text-(--text-tertiary) shrink-0">
-                                    {slot.batting_order}
-                                </div>
-
-                                {/* Position badge */}
-                                <div className="text-[10px] font-bold text-(--text-tertiary) w-7 shrink-0 text-center">
-                                    {slot.field_position}
+                                {/* Batting order + fielding position stacked into one compact
+                                    column so the card keeps as much width as possible on a phone. */}
+                                <div className="flex flex-col items-center w-6 shrink-0 leading-none gap-0.5">
+                                    <span className="text-[14px] font-black text-(--text-secondary) tabular-nums">
+                                        {slot.batting_order}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-(--text-tertiary)">
+                                        {slot.field_position}
+                                    </span>
                                 </div>
 
                                 {/* Card */}
@@ -249,24 +251,27 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                     )}
                                 </div>
 
-                                {/* Up/down reorder (keyboard-friendly alternative to drag) */}
+                                {/* Up/down reorder — the only way to reorder on touch (native drag
+                                    doesn't fire on mobile), so these are full thumb-sized targets. */}
                                 {canReorder && (
-                                    <div className="flex flex-col shrink-0">
+                                    <div className="flex flex-col shrink-0 gap-1">
                                         <button
                                             type="button"
                                             disabled={idx === 0}
                                             onClick={() => moveSlot(slot.batting_order, sortedSlots[idx - 1].batting_order)}
-                                            className="text-(--text-tertiary) hover:text-(--text-secondary) disabled:opacity-30 cursor-pointer"
+                                            aria-label={`Move ${card?.name ?? 'slot'} up`}
+                                            className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
                                         >
-                                            <FaChevronUp className="text-[8px]" />
+                                            <FaChevronUp className="text-[12px]" />
                                         </button>
                                         <button
                                             type="button"
                                             disabled={idx === sortedSlots.length - 1}
                                             onClick={() => moveSlot(slot.batting_order, sortedSlots[idx + 1].batting_order)}
-                                            className="text-(--text-tertiary) hover:text-(--text-secondary) disabled:opacity-30 cursor-pointer"
+                                            aria-label={`Move ${card?.name ?? 'slot'} down`}
+                                            className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
                                         >
-                                            <FaChevronDown className="text-[8px]" />
+                                            <FaChevronDown className="text-[12px]" />
                                         </button>
                                     </div>
                                 )}
