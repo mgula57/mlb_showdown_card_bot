@@ -14,6 +14,7 @@ import {
     normalizeSetSettings, setOptionsForSource, toggleSetForSource,
 } from '../../domain/teamSets';
 import { FaUser, FaLayerGroup, FaGears, FaFilter, FaBoxArchive, FaSpinner } from 'react-icons/fa6';
+import { CardSource } from '../../types/cardSource';
 
 const TEAM_NAME_MAX_LENGTH = 25;
 
@@ -261,10 +262,13 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     </div>
                     {TEAM_CARD_SOURCES.map(s => {
                         const active = (team.allowed_card_sources ?? []).includes(s.value);
+                        // Customs drafting isn't wired up yet — show it but don't let teams pick it.
+                        const comingSoon = s.value === CardSource.CUSTOM;
                         return (
                             <button
                                 key={s.value}
                                 type="button"
+                                disabled={comingSoon}
                                 onClick={() => {
                                     const current = team.allowed_card_sources ?? [];
                                     const next = active
@@ -272,13 +276,15 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                                         : [...current, s.value];
                                     onChange({ allowed_card_sources: next, ...normalizeSetSettings({ ...team, allowed_card_sources: next }) });
                                 }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors cursor-pointer
-                                    ${active
-                                        ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary)'
-                                        : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary)'
+                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors
+                                    ${comingSoon
+                                        ? 'border-(--divider) opacity-40 text-(--text-secondary) cursor-not-allowed'
+                                        : active
+                                        ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary) cursor-pointer'
+                                        : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary) cursor-pointer'
                                     }`}
                             >
-                                {s.label}
+                                {s.label}{comingSoon ? ' (Coming Soon)' : ''}
                             </button>
                         );
                     })}

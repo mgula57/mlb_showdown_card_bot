@@ -9,7 +9,7 @@ import { useState } from "react";
 import * as Tabs from '@radix-ui/react-tabs';
 import ShowdownBotSearch from "./ShowdownCardSearch";
 import { CardSource, isValidCardSource } from '../../types/cardSource';
-import { FaRobot, FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
+import { FaRobot, FaHatWizard } from "react-icons/fa6";
 import { radixTabTriggerClass } from "../shared/tabStyles";
 
 const TAB_TRIGGER_CLASS = radixTabTriggerClass();
@@ -55,10 +55,7 @@ export default function Cards() {
                     <FaHatWizard />
                     WOTC
                 </Tabs.Trigger>
-                <Tabs.Trigger value={CardSource.CUSTOM} className={TAB_TRIGGER_CLASS}>
-                    <FaWandMagicSparkles />
-                    My Customs
-                </Tabs.Trigger>
+                {/* "My Customs" tab hidden for now — coming soon */}
             </Tabs.List>
 
             {/* Tab Content - only mounted once a tab has been visited, then kept alive */}
@@ -78,15 +75,6 @@ export default function Cards() {
                     forceMount
                 >
                     <ShowdownBotSearch source={CardSource.WOTC} />
-                </Tabs.Content>
-            )}
-            {visitedTabs.has(CardSource.CUSTOM) && (
-                <Tabs.Content
-                    value={CardSource.CUSTOM}
-                    className="focus:outline-none data-[state=inactive]:hidden"
-                    forceMount
-                >
-                    <ShowdownBotSearch source={CardSource.CUSTOM} />
                 </Tabs.Content>
             )}
         </Tabs.Root>
