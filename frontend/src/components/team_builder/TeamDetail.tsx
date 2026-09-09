@@ -1123,7 +1123,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     />
 
                     {/* Team Header */}
-                    <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex-1 min-w-0">
                         {/* Name + total pts */}
                         <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
                             <div className="text-xl md:text-3xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
@@ -1325,11 +1325,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <div className="w-12 sm:w-18 md:w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
                                     <div
                                         className="h-full rounded-full transition-all"
-                                        style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: bannerRight.fill }}
+                                        style={{ width: `${draft.roster_size > 0 ? Math.min(100, (draft.roster.length / draft.roster_size) * 100) : 0}%`, backgroundColor: bannerRight.fill }}
                                     />
                                 </div>
                                 <span className="text-[11px] font-black" style={{ color: bannerRight.fill }}>
-                                    {rosterProgress.filled}/{rosterProgress.total}
+                                    {draft.roster.length}/{draft.roster_size}
                                 </span>
                             </>
                         )}
