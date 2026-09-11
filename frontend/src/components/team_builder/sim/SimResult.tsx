@@ -363,8 +363,6 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
 
                 {/* League Stats */}
                 <Tabs.Content value="league_stats" className="focus:outline-none px-4 pt-3 flex flex-col gap-4">
-                    <SimRealLifeComparison leagueTotals={summary.league_totals} realLeagueAverages={summary.real_league_averages} />
-                    <SimOutliers outliers={summary.outliers ?? {}} identities={summary.identities} />
                     {leagueStatsKpis.length > 0 ? (
                         <SectionCard title="Showdown Roll Stats">
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -374,6 +372,8 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     ) : (
                         <p className="text-[12px] text-(--text-tertiary)">No league stats to show.</p>
                     )}
+                    <SimRealLifeComparison leagueTotals={summary.league_totals} realLeagueAverages={summary.real_league_averages} />
+                    <SimOutliers outliers={summary.outliers ?? {}} identities={summary.identities} />
                 </Tabs.Content>
 
                 {/* Standings */}

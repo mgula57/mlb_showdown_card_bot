@@ -85,8 +85,8 @@ export function SeasonSimSetupForm(props: Props) {
     const [resumeEnabled, setResumeEnabled] = useState(false);
     const [resumeAsOfDate, setResumeAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [mergeRealStats, setMergeRealStats] = useState(false);
-    const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(false);
-    const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(false);
+    const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(true);
+    const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(true);
 
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -240,7 +240,7 @@ export function SeasonSimSetupForm(props: Props) {
 
             <SimSettingToggle
                 label="Simulate postseason"
-                description="Play out a bracket after game 162."
+                description="Play out a the playoffs after game 162."
                 isEnabled={simulatePostseason}
                 onToggle={() => setSimulatePostseason(v => !v)}
             >
@@ -252,14 +252,28 @@ export function SeasonSimSetupForm(props: Props) {
                 />
             </SimSettingToggle>
 
+            <SimSettingToggle
+                label="Trade deadline"
+                description="A player who was really traded mid-season starts on his first club and moves to his next one on that era's deadline date, instead of playing the whole season for one club."
+                isEnabled={tradeDeadlineEnabled}
+                onToggle={() => setTradeDeadlineEnabled(v => !v)}
+            >
+                <SimSettingToggle
+                    label="Contending clubs keep their players"
+                    description="If the sim has a selling club still in the race at the deadline, it holds onto its player and the real trade is skipped for this run."
+                    isEnabled={tradeDeadlineRespectsStandings}
+                    onToggle={() => setTradeDeadlineRespectsStandings(v => !v)}
+                />
+            </SimSettingToggle>
+
             <FormSection
                 title="More options"
                 isOpenByDefault={false}
                 childrenWhenClosed={
                     <span className="text-[12px] text-(--text-tertiary)">
                         {isLobby
-                            ? 'Resume from standings · Trade deadline'
-                            : 'Take over a club · Resume from standings · Trade deadline'}
+                            ? 'Resume from standings'
+                            : 'Take over a club · Resume from standings'}
                     </span>
                 }
             >
@@ -308,20 +322,6 @@ export function SeasonSimSetupForm(props: Props) {
                             description="Each player's real stats to date are added to their simulated totals. These reflect however much of the season has been scraped, which may lag the date above slightly — the result screen shows the actual as-of date."
                             isEnabled={mergeRealStats}
                             onToggle={() => setMergeRealStats(v => !v)}
-                        />
-                    </SimSettingToggle>
-
-                    <SimSettingToggle
-                        label="Trade deadline"
-                        description="A player who was really traded mid-season starts on his first club and moves to his next one on that era's deadline date, instead of playing the whole season for one club."
-                        isEnabled={tradeDeadlineEnabled}
-                        onToggle={() => setTradeDeadlineEnabled(v => !v)}
-                    >
-                        <SimSettingToggle
-                            label="Contending clubs keep their players"
-                            description="If the sim has a selling club still in the race at the deadline, it holds onto its player and the real trade is skipped for this run."
-                            isEnabled={tradeDeadlineRespectsStandings}
-                            onToggle={() => setTradeDeadlineRespectsStandings(v => !v)}
                         />
                     </SimSettingToggle>
                 </div>
