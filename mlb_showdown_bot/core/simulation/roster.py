@@ -236,10 +236,22 @@ class Roster:
         sp_cards = sorted([c for c in cards if c.player_sub_type == PlayerSubType.STARTING_PITCHER], key=lambda c: c.points, reverse=True)
         rp_cards = sorted([c for c in cards if c.player_sub_type == PlayerSubType.RELIEF_PITCHER], key=lambda c: c.points, reverse=True)
 
-        # ---- ROTATION (ACTIVE): TOP N SP, PREFERRED (>= min_ip_sp) TIER SEARCHED FIRST ----
+        # ---- ROTATION (ACTIVE): TOP N SP, PREFERRED (>= min_ip_sp) TIER FIRST, THEN A
+        # RESERVE-SAMPLE-FLOOR TIER, THEN A LAST-RESORT TIER BELOW EVEN THAT FLOOR (A HANDFUL OF
+        # CAREER STARTS) - ONLY REACHED WHEN THE TEAM GENUINELY DOESN'T HAVE ACTIVE_ROTATION ARMS
+        # WITH A REAL TRACK RECORD. SAME REASONING AS THE BULLPEN TIERS BELOW: A ROTATION SLOT
+        # HANDS OUT AN EQUAL SHARE OF STARTS ALL SEASON REGARDLESS OF WHO HOLDS IT, SO A 2-3 START
+        # SPOT STARTER SLOTTING IN OVER A REAL SAMPLE FLOOR WOULD OTHERWISE PITCH A FULL SEASON'S
+        # WORTH OF STARTS OFF A TINY, POSSIBLY LUCKY SAMPLE.
         sp_preferred = [c for c in sp_cards if c.stats.get('IP', 0) >= min_ip_sp]
-        sp_fallback = [c for c in sp_cards if c.stats.get('IP', 0) < min_ip_sp]
-        sp_ordered = [SimPitcher(card=c, id=card_ids.get(c.id, c.id), position_slot=PositionSlot.SP) for c in (sp_preferred + sp_fallback)]
+        sp_preferred_ids = {c.id for c in sp_preferred}
+        sp_fallback = [
+            c for c in sp_cards
+            if c.id not in sp_preferred_ids and c.stats.get('G', 0) >= min_g_pitcher and c.stats.get('IP', 0) >= min_ip_pitcher
+        ]
+        sp_fallback_ids = sp_preferred_ids | {c.id for c in sp_fallback}
+        sp_last_resort = [c for c in sp_cards if c.id not in sp_fallback_ids]
+        sp_ordered = [SimPitcher(card=c, id=card_ids.get(c.id, c.id), position_slot=PositionSlot.SP) for c in (sp_preferred + sp_fallback + sp_last_resort)]
         rotation = sp_ordered[:cls.ACTIVE_ROTATION]
         sp_remaining = sp_ordered[cls.ACTIVE_ROTATION:]
 
