@@ -6,6 +6,11 @@ type GameRecord = { date: string; is_win: boolean; wins: number; losses: number 
 
 type Point = { game: number; winPct: number; date: string; isWin: boolean; wins: number; losses: number };
 
+// Fallback x-axis length for a genuinely empty chart with no known schedule length yet (e.g. the
+// live progress chart before its job has loaded) - a standard MLB season, so the blank frame
+// isn't a single degenerate tick.
+const DEFAULT_SEASON_GAMES = 162;
+
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payload: Point }[] }) {
     if (!active || !payload?.length) return null;
     const point = payload[0].payload;
@@ -52,21 +57,23 @@ export function SimWinPctChart({ games, playoffCutlinePct, totalGames }: Props) 
     // Streaming (`totalGames` set): pin the axis to the full season so the frame is visible (and
     // stays put) from the very first poll, before any games have actually streamed in.
     const streaming = totalGames != null;
-
-    if (data.length === 0 && !streaming) {
-        return <p className="text-[13px] text-tertiary py-6 text-center">No games played.</p>;
-    }
     const hasGames = data.length > 0;
-    const xMax = Math.max(totalGames ?? 0, data.length);
+    // With games: ends at the last game played for a finished season, or the pinned schedule
+    // length while streaming. With none: use the known schedule length if there is one, else
+    // assume a standard season, so a blank frame still sits on a realistic full-season axis.
+    const xMax = hasGames ? Math.max(totalGames ?? 0, data.length) : (totalGames ?? DEFAULT_SEASON_GAMES);
 
-    // Before the first game lands, there's nothing to draw a line between - just a single point
-    // pinned to the standard .500 start so the axes aren't empty while waiting.
+    // Before the first game lands there's nothing to draw a line between, but recharts needs at
+    // least one data point to lay out the axes/gridlines at all - an empty array renders nothing,
+    // not even a blank frame. So this always pins a single point to the standard .500 start;
+    // streaming (an active sim run) shows it pulsing as a "live, standing by" cue, otherwise (no
+    // sim running, genuinely no games) it stays hidden and the frame just reads as blank.
+    const showStartDot = !hasGames && streaming;
     const chartData: Point[] = hasGames ? data : [{ game: 1, winPct: 0.5, date: '', isWin: false, wins: 0, losses: 0 }];
 
-    // Pulses the .500 starting dot while waiting for the first game - a "live, standing by" cue.
-    // Stops once real games exist: the line itself never animates (each poll would otherwise
-    // redraw/animate the whole path, since recharts re-interpolates from a shorter previous
-    // array), and a pulsing tip on every poll reads as more distracting than informative there.
+    // Stops pulsing once real games exist: the line itself never animates (each poll would
+    // otherwise redraw/animate the whole path, since recharts re-interpolates from a shorter
+    // previous array), and a pulsing tip on every poll reads as more distracting than informative.
     const renderStartDot = ({ key, cx, cy }: DotItemDotProps) => (
         <g key={key}>
             <circle cx={cx} cy={cy} r={6} fill="var(--showdown-blue)" opacity={0.5} className="animate-ping" />
@@ -85,7 +92,7 @@ export function SimWinPctChart({ games, playoffCutlinePct, totalGames }: Props) 
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--divider)" vertical={false} />
                     <XAxis
                         dataKey="game" type="number" allowDecimals={false}
-                        domain={streaming ? [1, xMax] : ['dataMin', 'dataMax']}
+                        domain={[1, xMax]}
                         allowDataOverflow tickLine={false} axisLine={{ stroke: 'var(--divider)' }}
                         tick={{ fill: 'var(--tertiary)', fontSize: 10 }} tickMargin={6}
                     />
@@ -103,7 +110,7 @@ export function SimWinPctChart({ games, playoffCutlinePct, totalGames }: Props) 
                     {hasGames && <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--divider)' }} />}
                     <Line
                         type="monotone" dataKey="winPct" stroke="var(--showdown-blue)" strokeWidth={2}
-                        dot={hasGames ? false : renderStartDot} activeDot={hasGames ? { r: 4, fill: 'var(--showdown-blue)' } : false}
+                        dot={showStartDot ? renderStartDot : false} activeDot={hasGames ? { r: 4, fill: 'var(--showdown-blue)' } : false}
                         isAnimationActive={false}
                     />
                 </LineChart>
