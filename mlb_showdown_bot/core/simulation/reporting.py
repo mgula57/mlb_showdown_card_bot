@@ -12,12 +12,19 @@ HITTER_CATEGORIES = [
     StatCategory.HOMERUNS, StatCategory.RBI, StatCategory.SO, StatCategory.GDP,
     StatCategory.SB, StatCategory.CS, StatCategory.RUNS, StatCategory.wRC_PLUS,
     StatCategory.ADVANTAGE_PCT, StatCategory.OWN_CHART_OUT_PCT,
+    # RAW GAME-ENGINE ROLL COUNTS - NOT SHOWN IN THE PER-PLAYER TABLES, BUT EXPOSED SO A LEAGUE-WIDE
+    # "LEAGUE STATS" VIEW CAN SUM THEM ACROSS THE SEASON RATHER THAN RE-DERIVING THEM CLIENT-SIDE.
+    StatCategory.HITTER_ADVANTAGE, StatCategory.OWN_CHART_OUT,
+    StatCategory.EXTRA_BASE_SAFE, StatCategory.EXTRA_BASE_ATTEMPTS, StatCategory.SWING_ROLL_21_PLUS,
 ]
 PITCHER_CATEGORIES = [
     StatCategory.G, StatCategory.WINS, StatCategory.LOSSES, StatCategory.SAVES, StatCategory.BLOWN_SAVES,
     StatCategory.ERA, StatCategory.WHIP, StatCategory.IP, StatCategory.EARNED_RUNS,
     StatCategory.HOMERUNS, StatCategory.HR_OWN_CHART, StatCategory.SO9, StatCategory.GDP, StatCategory.GDPa,
     StatCategory.ADVANTAGE_PCT, StatCategory.OWN_CHART_OUT_PCT,
+    # SAME RAW GAME-ENGINE ROLL COUNTS AS HITTER_CATEGORIES - SEE COMMENT THERE. StatCategory.PA IS
+    # ALREADY ACCUMULATED PER PITCHER (SEE `PlateAppearance.pitcher_stats`), JUST NOT PREVIOUSLY EXPOSED.
+    StatCategory.PA, StatCategory.PITCHER_ADVANTAGE, StatCategory.OWN_CHART_OUT, StatCategory.SWING_ROLL_21_PLUS,
 ]
 
 
@@ -138,11 +145,15 @@ class SeasonReport:
                 player_type=player_type,
                 show_team=False, show_position=False, show_points=False, show_command=False,
                 show_diffs_row=True, is_diff_a_pct=True,
-                # W/L/SV/BS AND OWN-CHART HR HAVE NO REAL-LIFE LEAGUE-AVERAGE COUNTERPART TO DIFF AGAINST.
+                # W/L/SV/BS, OWN-CHART HR, AND THE RAW GAME-ENGINE ROLL COUNTS HAVE NO REAL-LIFE
+                # LEAGUE-AVERAGE COUNTERPART TO DIFF AGAINST (A PITCHER'S PA ISN'T IN THE REAL
+                # AVERAGES FILE EITHER - SEE `load_real_league_avgs`'S PITCHER COLUMN LIST).
                 stats_to_ignore=[
                     StatCategory.G, StatCategory.WINS, StatCategory.LOSSES, StatCategory.SAVES,
                     StatCategory.BLOWN_SAVES, StatCategory.HR_OWN_CHART,
-                ],
+                    StatCategory.HITTER_ADVANTAGE, StatCategory.PITCHER_ADVANTAGE, StatCategory.OWN_CHART_OUT,
+                    StatCategory.EXTRA_BASE_SAFE, StatCategory.EXTRA_BASE_ATTEMPTS, StatCategory.SWING_ROLL_21_PLUS,
+                ] + ([StatCategory.PA] if player_type == PlayerType.PITCHER else []),
             ))
 
     def print_outliers(self, limit: int = 5) -> None:

@@ -233,6 +233,7 @@ class Game:
             team_hitting.stats.update_stats_for_player(player=hitter, additional_stats=plate_appearance.hitter_stats)
             team_hitting.stats.merge_stats_dict(stats_dict=plate_appearance.runner_steals_stats_dict)
             team_hitting.stats.merge_stats_dict(stats_dict=plate_appearance.runner_advances_stats_dict)
+            team_hitting.stats.merge_stats_dict(stats_dict=plate_appearance.runner_extra_base_stats_dict)
             team_hitting.stats.merge_stats_dict(stats_dict=plate_appearance.double_play_stats_dict(is_pitcher=False))
             team_pitching.stats.update_stats_for_player(player=pitcher, additional_stats=plate_appearance.pitcher_stats)
             team_pitching.stats.merge_stats_dict(stats_dict=plate_appearance.prior_pitcher_stats_dict())

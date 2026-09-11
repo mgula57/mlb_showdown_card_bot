@@ -134,3 +134,35 @@ export function buildPitcherTeamKpis(rows: SimStatLine[]): TeamKpi[] {
         { label: 'IP', value: formatStat('ip', sumStat(rows, 'ip')) },
     ];
 }
+
+function pct(numerator: number, denominator: number): number {
+    return denominator > 0 ? numerator / denominator : 0;
+}
+
+/** KPI tiles for the "League Stats" tab — the board game's own dice-roll outcomes (advantage
+ * rolls, own-chart results, double play / extra-base / steal rolls), distinct from regular
+ * baseball stats. These describe the simulation engine itself (how the dice broke this season),
+ * not any one club, so they're pulled from `summary.league_totals` — already summed across every
+ * plate appearance in the season — rather than one team's roster. Sourcing from a single club's
+ * hitters/pitchers would pool two disjoint, unrelated PA samples (the club's own plate appearances
+ * vs. the plate appearances its pitching staff faced, against dozens of different opponents)
+ * under one club's name, which is misleading — e.g. Hitter/Pitcher Advantage% only sum to 100%
+ * when both sides are drawn from the same PA pool, as they are here. */
+export function buildLeagueStatsKpis(leagueTotals: Record<string, SimStatLine>): TeamKpi[] {
+    const hitter = leagueTotals['Hitter']?.stats;
+    const pitcher = leagueTotals['Pitcher']?.stats;
+    if (!hitter || !pitcher) return [];
+    const sb = hitter['sb'] ?? 0;
+    const cs = hitter['cs'] ?? 0;
+    return [
+        { label: 'Hitter Advantage%', value: formatStat('advantage_pct', pct(hitter['hadv'] ?? 0, hitter['pa'] ?? 0)) },
+        { label: 'Pitcher Advantage%', value: formatStat('advantage_pct', pct(pitcher['padv'] ?? 0, pitcher['pa'] ?? 0)) },
+        { label: 'Own Chart Out% (Hit)', value: formatStat('own_chart_out_pct', pct(hitter['own_chart_out'] ?? 0, hitter['hadv'] ?? 0)) },
+        { label: 'Own Chart Out% (Pit)', value: formatStat('own_chart_out_pct', pct(pitcher['own_chart_out'] ?? 0, pitcher['padv'] ?? 0)) },
+        { label: 'DP Success%', value: formatStat('advantage_pct', pct(pitcher['gidp'] ?? 0, pitcher['gidpa'] ?? 0)) },
+        { label: 'Extra Base Success%', value: formatStat('advantage_pct', pct(hitter['xb'] ?? 0, hitter['xba'] ?? 0)) },
+        { label: 'SB Success%', value: formatStat('advantage_pct', pct(sb, sb + cs)) },
+        { label: 'Pitcher Chart HR', value: formatStat('hr', pitcher['hr_own_chart'] ?? 0) },
+        { label: '21+ Swing Rolls', value: formatStat('hr', (hitter['swing21'] ?? 0) + (pitcher['swing21'] ?? 0)) },
+    ];
+}

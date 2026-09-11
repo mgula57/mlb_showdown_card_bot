@@ -3,7 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
     FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft, FaFire, FaSnowflake,
-    FaChevronRight,
+    FaChevronRight, FaDiceD20,
 } from 'react-icons/fa6';
 import type { ChallengeStanding, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -13,7 +13,7 @@ import { SimBracket } from './SimBracket';
 import { SimSummaryTab } from './SimSummaryTab';
 import { SimTransactionsTab } from './SimTransactionsTab';
 import { SimStatsTable } from './SimStatsTable';
-import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis } from './simStatColumns';
+import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis, buildLeagueStatsKpis } from './simStatColumns';
 import { KpiTile } from './KpiTile';
 import { useStandingsEntries, useIdentity, hashId, label } from './simStandings';
 import { useClubSeason } from './simClubSeason';
@@ -63,6 +63,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
     const pitchers = useMemo(() => players.filter(p => p.player_type === 'Pitcher'), [players]);
     const hitterKpis = useMemo(() => buildHitterTeamKpis(hitters), [hitters]);
     const pitcherKpis = useMemo(() => buildPitcherTeamKpis(pitchers), [pitchers]);
+    const leagueStatsKpis = useMemo(() => buildLeagueStatsKpis(summary.league_totals), [summary.league_totals]);
     const standingsEntries = useStandingsEntries(summary);
     const postseasonExit = useMemo(() => describePostseasonExit(summary, teamKey), [summary, teamKey]);
 
@@ -274,6 +275,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     {hasAwards && (
                         <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
                     )}
+                    <Tabs.Trigger value="league_stats" className={TAB_TRIGGER_CLASS}><FaDiceD20 className={TAB_ICON_CLASS} />League Stats</Tabs.Trigger>
 
                 </Tabs.List>
 
@@ -354,6 +356,22 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                         </div>
                     )}
                     <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
+                </Tabs.Content>
+
+                {/* League Stats */}
+                <Tabs.Content value="league_stats" className="focus:outline-none px-4 pt-3">
+                    {leagueStatsKpis.length > 0 ? (
+                        <>
+                            <p className="text-[11px] text-(--text-tertiary) mb-2">
+                                League-wide across the full season — not specific to {teamName}.
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                                {leagueStatsKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-[12px] text-(--text-tertiary)">No league stats to show.</p>
+                    )}
                 </Tabs.Content>
 
                 {/* Standings */}

@@ -29,6 +29,9 @@ _PADV = StatCategory.PITCHER_ADVANTAGE.value
 _OWN_CHART_OUT = StatCategory.OWN_CHART_OUT.value
 _HR = StatCategory.HOMERUNS.value
 _HR_OWN_CHART = StatCategory.HR_OWN_CHART.value
+_XB = StatCategory.EXTRA_BASE_SAFE.value
+_XBA = StatCategory.EXTRA_BASE_ATTEMPTS.value
+_SWING_21_PLUS = StatCategory.SWING_ROLL_21_PLUS.value
 
 
 def _stat_event(id: str, totals: dict[str, float], name: str = "", player_type=None, position=None, team=None, speed: int = 0, command: float = 0, positions_played: Optional[dict[str, int]] = None) -> Stats:
@@ -299,6 +302,7 @@ class PlateAppearance:
                 _PADV: int(self._pitcher_had_advantage),
                 _OWN_CHART_OUT: int(self._pitcher_had_advantage and self.swing.result.is_out),
                 _HR_OWN_CHART: int(self._pitcher_had_advantage and self.swing.result.value == _HR),
+                _SWING_21_PLUS: int(self._pitcher_had_advantage and self.swing.roll > 20),
             },
         )
 
@@ -321,6 +325,7 @@ class PlateAppearance:
                 _HADV: int(self._hitter_had_advantage),
                 _PADV: int(self._pitcher_had_advantage),
                 _OWN_CHART_OUT: int(self._hitter_had_advantage and self.swing.result.is_out),
+                _SWING_21_PLUS: int(self._hitter_had_advantage and self.swing.roll > 20),
             },
         )
 
@@ -340,6 +345,24 @@ class PlateAppearance:
     @property
     def runner_advances_stats_dict(self) -> dict[str, Stats]:
         return {runner.id: _stat_event(id=runner.id, name=runner.name, player_type=PlayerType.HITTER, totals={_RUNS: 1}) for runner in self.runners_scored}
+
+    @property
+    def runner_extra_base_stats_dict(self) -> dict[str, Stats]:
+        """Extra-base send attempts (2nd/3rd sent on a hit) - `check_and_execute_advance`'s rolls,
+        keyed by the runner who was sent. Mirrors `runner_steals_stats_dict`'s per-runner merge
+        shape, but tracks attempt/success as a GDP/GDPa-style pair rather than SB/CS-style
+        opposite counters, since a send that scores the runner is still a "safe" extra base."""
+        data: dict[str, Stats] = {}
+        for advance_attempt in self.advance_attempts:
+            runner = advance_attempt.runner
+            totals = {_XBA: 1, _XB: int(advance_attempt.result == Result.SAFE)}
+            existing = data.get(runner.id)
+            if existing is None:
+                data[runner.id] = _stat_event(id=runner.id, name=runner.name, player_type=PlayerType.HITTER, totals=totals)
+            else:
+                existing.totals[_XBA] = existing.totals.get(_XBA, 0) + 1
+                existing.totals[_XB] = existing.totals.get(_XB, 0) + totals[_XB]
+        return data
 
     @property
     def retired_runners(self) -> list[tuple[str, str, int, str]]:

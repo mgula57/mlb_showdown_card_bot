@@ -86,6 +86,9 @@ class StatCategory(Enum):
     RUNS_SCORED = "runs_scored"
     GDP = "gidp"
     GDPa = "gidpa"
+    EXTRA_BASE_SAFE = "xb"          # RUNNER SENT AN EXTRA BASE (2ND/3RD ON A HIT) AND WAS SAFE
+    EXTRA_BASE_ATTEMPTS = "xba"     # RUNNER SENT AN EXTRA BASE, REGARDLESS OF OUTCOME
+    SWING_ROLL_21_PLUS = "swing21"  # SWING ROLL LANDED ABOVE 20 (OFF THE TOP OF THE CHART) - RARE ROLL-ADJUSTMENT OUTCOME
     # ADVANCED STATS
     wOBA = "wOBA"
     wRAA = "wRAA"
@@ -112,6 +115,9 @@ class StatCategory(Enum):
             case StatCategory.OWN_CHART_OUT: return "OCO"
             case StatCategory.ADVANTAGE_PCT: return "ADV%"
             case StatCategory.OWN_CHART_OUT_PCT: return "OCO%"
+            case StatCategory.EXTRA_BASE_SAFE: return "XB"
+            case StatCategory.EXTRA_BASE_ATTEMPTS: return "XBA"
+            case StatCategory.SWING_ROLL_21_PLUS: return "21+"
             case _: return self.value.upper()
 
     @property
