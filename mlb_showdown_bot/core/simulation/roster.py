@@ -243,10 +243,22 @@ class Roster:
         rotation = sp_ordered[:cls.ACTIVE_ROTATION]
         sp_remaining = sp_ordered[cls.ACTIVE_ROTATION:]
 
-        # ---- BULLPEN (ACTIVE): TOP N RP ----
+        # ---- BULLPEN (ACTIVE): TOP N RP, PREFERRED (>= min_ip_rp) TIER FIRST, THEN A
+        # RESERVE-SAMPLE-FLOOR TIER, THEN A LAST-RESORT TIER BELOW EVEN THAT FLOOR (A HANDFUL OF
+        # CAREER APPEARANCES) - ONLY REACHED WHEN THE TEAM GENUINELY DOESN'T HAVE ACTIVE_BULLPEN
+        # ARMS WITH A REAL TRACK RECORD. WITHOUT THE MIDDLE TIER, A 1-3 GAME CALLUP WHO GOT LUCKY
+        # COULD FILL AN ACTIVE BULLPEN SPOT THE MOMENT THE TEAM'S REAL BULLPEN CAME UP SHORT OF 8
+        # PROVEN ARMS - AND THEN, VIA THE PROJECTED-OPS RANKING IN `Bullpen.pitchers_available`,
+        # GET USED LIKE THE TEAM'S BEST RELIEVER ALL SEASON PURELY OFF NOISE.
         rp_preferred = [c for c in rp_cards if c.stats.get('IP', 0) >= min_ip_rp]
-        rp_fallback = [c for c in rp_cards if c.stats.get('IP', 0) < min_ip_rp]
-        rp_ordered = [SimPitcher(card=c, id=card_ids.get(c.id, c.id), position_slot=PositionSlot.BP) for c in (rp_preferred + rp_fallback)]
+        preferred_ids = {c.id for c in rp_preferred}
+        rp_fallback = [
+            c for c in rp_cards
+            if c.id not in preferred_ids and c.stats.get('G', 0) >= min_g_pitcher and c.stats.get('IP', 0) >= min_ip_pitcher
+        ]
+        fallback_ids = preferred_ids | {c.id for c in rp_fallback}
+        rp_last_resort = [c for c in rp_cards if c.id not in fallback_ids]
+        rp_ordered = [SimPitcher(card=c, id=card_ids.get(c.id, c.id), position_slot=PositionSlot.BP) for c in (rp_preferred + rp_fallback + rp_last_resort)]
         bullpen = rp_ordered[:cls.ACTIVE_BULLPEN]
         rp_remaining = rp_ordered[cls.ACTIVE_BULLPEN:]
 
