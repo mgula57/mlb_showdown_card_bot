@@ -9,7 +9,7 @@ export const PITCHER_COLUMNS = ['g', 'wins', 'losses', 'sv', 'bs', 'era', 'whip'
 // drops for having no real-life league-average counterpart (W/L/SV/BS, own-chart HR, and G itself),
 // plus ADV%/OCHO% - the CLI keeps those, but they're dropped here too since they're engine-roll
 // concepts with no real-life meaning to compare against, not just a missing baseline number.
-const COMPARISON_IGNORE = ['advantage_pct', 'own_chart_out_pct'];
+const COMPARISON_IGNORE = ['advantage_pct', 'own_chart_out_pct', 'gidp', 'wOBA', 'wRC+', 'ops+'];
 export const HITTER_COMPARISON_COLUMNS = HITTER_COLUMNS.filter(key => key !== 'g' && !COMPARISON_IGNORE.includes(key));
 export const PITCHER_COMPARISON_COLUMNS = PITCHER_COLUMNS.filter(key => !['g', 'wins', 'losses', 'sv', 'bs', 'hr_own_chart', ...COMPARISON_IGNORE].includes(key));
 const RATE_KEYS = new Set(['ba', 'obp', 'slg', 'ops', 'wOBA', 'real_ops', 'ops_diff']);
@@ -96,7 +96,30 @@ export function buildSimStatHighlights(row: SimStatLine): string[] {
     return entries.map(e => e.label);
 }
 
-export type TeamKpi = { label: string; value: string };
+export type KpiComparison = { direction: 'up' | 'down' | 'flat'; isGood: boolean; label: string };
+export type TeamKpi = { label: string; value: string; comparison?: KpiComparison };
+
+// ERA/WHIP are the only KPI-tile stats where a lower rate is the favorable direction - everything
+// else (AVG/OBP/SLG/OPS/HR/RBI, K/9, IP) is better when it's higher.
+const LOWER_IS_BETTER_KEYS = new Set(['era', 'whip']);
+
+/** BI-style "vs. league average" delta for a team KPI tile. Flat inside +/-1% avoids a noisy
+ * arrow on a value that's effectively tied with the league average. */
+function compareToLeague(key: string, teamValue: number, leagueValue: number | undefined): KpiComparison | undefined {
+    if (leagueValue === undefined) return undefined;
+    const denominator = leagueValue > 0 ? leagueValue : 1;
+    const pctDiff = ((teamValue - leagueValue) / denominator) * 100;
+    if (Math.abs(pctDiff) < 1) return { direction: 'flat', isGood: true, label: 'lg avg' };
+    const direction: KpiComparison['direction'] = pctDiff > 0 ? 'up' : 'down';
+    const isGood = LOWER_IS_BETTER_KEYS.has(key) ? direction === 'down' : direction === 'up';
+    return { direction, isGood, label: `${pctDiff > 0 ? '+' : ''}${pctDiff.toFixed(1)}% vs lg avg` };
+}
+
+/** `league` carries LEAGUE TOTALS, not per-team averages - fine as-is for rate stats (already a
+ * league-wide rate), but a counting stat needs dividing by team count first. */
+function perTeamAvg(total: number | undefined, teamCount: number | undefined): number | undefined {
+    return total !== undefined && teamCount ? total / teamCount : undefined;
+}
 
 function sumStat(rows: SimStatLine[], key: string): number {
     return rows.reduce((sum, row) => sum + (row.stats[key] ?? 0), 0);
@@ -119,27 +142,43 @@ function weightedAvgStat(rows: SimStatLine[], key: string, weightKey: string): n
     return totalWeight > 0 ? weightedSum / totalWeight : 0;
 }
 
-/** Team-level KPI tiles for the batting tab — counting stats summed, rate stats PA-weighted. */
-export function buildHitterTeamKpis(rows: SimStatLine[]): TeamKpi[] {
+/** Team-level KPI tiles for the batting tab — counting stats summed, rate stats PA-weighted.
+ * `league`/`teamCount` (league-wide hitter totals + number of clubs in the league) are optional so
+ * this still works wherever a league baseline isn't available; when given, each tile gets a
+ * `comparison` against the league average for that stat. */
+export function buildHitterTeamKpis(rows: SimStatLine[], league?: SimStatLine, teamCount?: number): TeamKpi[] {
     if (rows.length === 0) return [];
+    const l = league?.stats;
+    const ba = weightedAvgStat(rows, 'ba', 'pa');
+    const obp = weightedAvgStat(rows, 'obp', 'pa');
+    const slg = weightedAvgStat(rows, 'slg', 'pa');
+    const ops = weightedAvgStat(rows, 'ops', 'pa');
+    const hr = sumStat(rows, 'hr');
+    const rbi = sumStat(rows, 'rbi');
     return [
-        { label: 'AVG', value: formatStat('ba', weightedAvgStat(rows, 'ba', 'pa')) },
-        { label: 'OBP', value: formatStat('obp', weightedAvgStat(rows, 'obp', 'pa')) },
-        { label: 'SLG', value: formatStat('slg', weightedAvgStat(rows, 'slg', 'pa')) },
-        { label: 'OPS', value: formatStat('ops', weightedAvgStat(rows, 'ops', 'pa')) },
-        { label: 'HR', value: formatStat('hr', sumStat(rows, 'hr')) },
-        { label: 'RBI', value: formatStat('rbi', sumStat(rows, 'rbi')) },
+        { label: 'AVG', value: formatStat('ba', ba), comparison: compareToLeague('ba', ba, l?.['ba']) },
+        { label: 'OBP', value: formatStat('obp', obp), comparison: compareToLeague('obp', obp, l?.['obp']) },
+        { label: 'SLG', value: formatStat('slg', slg), comparison: compareToLeague('slg', slg, l?.['slg']) },
+        { label: 'OPS', value: formatStat('ops', ops), comparison: compareToLeague('ops', ops, l?.['ops']) },
+        { label: 'HR', value: formatStat('hr', hr), comparison: compareToLeague('hr', hr, perTeamAvg(l?.['hr'], teamCount)) },
+        { label: 'RBI', value: formatStat('rbi', rbi), comparison: compareToLeague('rbi', rbi, perTeamAvg(l?.['rbi'], teamCount)) },
     ];
 }
 
-/** Team-level KPI tiles for the pitching tab — counting stats summed, rate stats IP-weighted. */
-export function buildPitcherTeamKpis(rows: SimStatLine[]): TeamKpi[] {
+/** Team-level KPI tiles for the pitching tab — counting stats summed, rate stats IP-weighted.
+ * See `buildHitterTeamKpis` for the `league`/`teamCount` comparison params. */
+export function buildPitcherTeamKpis(rows: SimStatLine[], league?: SimStatLine, teamCount?: number): TeamKpi[] {
     if (rows.length === 0) return [];
+    const l = league?.stats;
+    const era = weightedAvgStat(rows, 'era', 'ip');
+    const whip = weightedAvgStat(rows, 'whip', 'ip');
+    const so9 = weightedAvgStat(rows, 'so9', 'ip');
+    const ip = sumStat(rows, 'ip');
     return [
-        { label: 'ERA', value: formatStat('era', weightedAvgStat(rows, 'era', 'ip')) },
-        { label: 'WHIP', value: formatStat('whip', weightedAvgStat(rows, 'whip', 'ip')) },
-        { label: 'K/9', value: formatStat('so9', weightedAvgStat(rows, 'so9', 'ip')) },
-        { label: 'IP', value: formatStat('ip', sumStat(rows, 'ip')) },
+        { label: 'ERA', value: formatStat('era', era), comparison: compareToLeague('era', era, l?.['era']) },
+        { label: 'WHIP', value: formatStat('whip', whip), comparison: compareToLeague('whip', whip, l?.['whip']) },
+        { label: 'K/9', value: formatStat('so9', so9), comparison: compareToLeague('so9', so9, l?.['so9']) },
+        { label: 'IP', value: formatStat('ip', ip), comparison: compareToLeague('ip', ip, perTeamAvg(l?.['ip'], teamCount)) },
     ];
 }
 

@@ -58,13 +58,11 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                 </div>
             </div>
 
-            {timeline.length > 0 && (
-                <div className="w-full max-w-lg">
-                    <SectionCard title={`Win % Over Time · ${timeline[timeline.length - 1].wins}–${timeline[timeline.length - 1].losses}`}>
-                        <SimWinPctChart games={timeline} totalGames={job?.progress_games_total ?? timeline.length} />
-                    </SectionCard>
-                </div>
-            )}
+            <div className="w-full max-w-lg">
+                <SectionCard title={timeline.length > 0 ? `Win % Over Time · ${timeline[timeline.length - 1].wins}–${timeline[timeline.length - 1].losses}` : 'Win % Over Time'}>
+                    <SimWinPctChart games={timeline} totalGames={job?.progress_games_total} />
+                </SectionCard>
+            </div>
 
             <p className="text-[11px] text-(--text-tertiary)">This usually takes under a minute.</p>
 

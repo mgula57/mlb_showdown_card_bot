@@ -64,8 +64,9 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
 
     const hitters = useMemo(() => players.filter(p => p.player_type === 'Hitter'), [players]);
     const pitchers = useMemo(() => players.filter(p => p.player_type === 'Pitcher'), [players]);
-    const hitterKpis = useMemo(() => buildHitterTeamKpis(hitters), [hitters]);
-    const pitcherKpis = useMemo(() => buildPitcherTeamKpis(pitchers), [pitchers]);
+    const teamCount = useMemo(() => Object.keys(summary.identities).length, [summary.identities]);
+    const hitterKpis = useMemo(() => buildHitterTeamKpis(hitters, summary.league_totals['Hitter'], teamCount), [hitters, summary.league_totals, teamCount]);
+    const pitcherKpis = useMemo(() => buildPitcherTeamKpis(pitchers, summary.league_totals['Pitcher'], teamCount), [pitchers, summary.league_totals, teamCount]);
     const leagueStatsKpis = useMemo(() => buildLeagueStatsKpis(summary.league_totals), [summary.league_totals]);
     const standingsEntries = useStandingsEntries(summary);
     const postseasonExit = useMemo(() => describePostseasonExit(summary, teamKey), [summary, teamKey]);
@@ -346,7 +347,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 <Tabs.Content value="batting" className="focus:outline-none px-4 pt-3">
                     {hitterKpis.length > 0 && (
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
-                            {hitterKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
+                            {hitterKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
                         </div>
                     )}
                     <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} />
@@ -355,7 +356,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 <Tabs.Content value="pitching" className="focus:outline-none px-4 pt-3">
                     {pitcherKpis.length > 0 && (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                            {pitcherKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
+                            {pitcherKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
                         </div>
                     )}
                     <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
