@@ -162,6 +162,32 @@ interface FilterSelections {
     min_outs?: number;
     /** Maximum outs on chart */
     max_outs?: number;
+    /** Minimum fielding rating — matches if ANY of the player's positions meets this rating */
+    min_fielding?: number;
+    /** Maximum fielding rating — matches if ANY of the player's positions meets this rating */
+    max_fielding?: number;
+
+    /** Minimum number of chart slots (1-20, excludes 21+ overflow) for a given chart category */
+    min_chart_pu?: number;
+    max_chart_pu?: number;
+    min_chart_so?: number;
+    max_chart_so?: number;
+    min_chart_gb?: number;
+    max_chart_gb?: number;
+    min_chart_fb?: number;
+    max_chart_fb?: number;
+    min_chart_bb?: number;
+    max_chart_bb?: number;
+    min_chart_1b?: number;
+    max_chart_1b?: number;
+    'min_chart_1b+'?: number;
+    'max_chart_1b+'?: number;
+    min_chart_2b?: number;
+    max_chart_2b?: number;
+    min_chart_3b?: number;
+    max_chart_3b?: number;
+    min_chart_hr?: number;
+    max_chart_hr?: number;
 
     // Temporal filters
     /** Minimum season year */
@@ -483,6 +509,28 @@ const SHOWDOWN_METADATA_RANGE_FILTERS: RangeDef[] = [
 const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
     { label: "Ctrl/OB", minKey: "min_command", maxKey: "max_command", step: 1 },
     { label: "Outs", minKey: "min_outs", maxKey: "max_outs", step: 1 },
+];
+
+/** Fielding range filter — matches if ANY of the player's positions meets the rating (OR) */
+const SHOWDOWN_FIELDING_RANGE_FILTERS: RangeDef[] = [
+    { label: "Fielding (Any Position)", minKey: "min_fielding", maxKey: "max_fielding", step: 1 },
+];
+
+/**
+ * Per-category chart slot-count range filters. Counts reflect the number of chart slots
+ * (out of 20) awarded to the category — 21+ overflow slots (expanded sets) are excluded.
+ */
+const SHOWDOWN_CHART_VALUES_RANGE_FILTERS: RangeDef[] = [
+    { label: "PU", minKey: "min_chart_pu", maxKey: "max_chart_pu", step: 1 },
+    { label: "SO", minKey: "min_chart_so", maxKey: "max_chart_so", step: 1 },
+    { label: "GB", minKey: "min_chart_gb", maxKey: "max_chart_gb", step: 1 },
+    { label: "FB", minKey: "min_chart_fb", maxKey: "max_chart_fb", step: 1 },
+    { label: "BB", minKey: "min_chart_bb", maxKey: "max_chart_bb", step: 1 },
+    { label: "1B", minKey: "min_chart_1b", maxKey: "max_chart_1b", step: 1 },
+    { label: "1B+", minKey: "min_chart_1b+", maxKey: "max_chart_1b+", step: 1 },
+    { label: "2B", minKey: "min_chart_2b", maxKey: "max_chart_2b", step: 1 },
+    { label: "3B", minKey: "min_chart_3b", maxKey: "max_chart_3b", step: 1 },
+    { label: "HR", minKey: "min_chart_hr", maxKey: "max_chart_hr", step: 1 },
 ];
 
 // =============================================================================
@@ -1113,6 +1161,18 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const removeFilterForEditing = makeRemoveFilter(filtersForEditing, setFiltersForEditing);
 
     const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>) => {
+        if (key.startsWith('min_chart_') || key.startsWith('max_chart_')) {
+            const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
+            const category = key.replace('min_chart_', '').replace('max_chart_', '').toUpperCase();
+            const correspondingKey = key.startsWith('min_') ? key.replace('min_chart_', 'max_chart_') : key.replace('max_chart_', 'min_chart_');
+
+            if (overallList[correspondingKey] === value) {
+                return key.startsWith('min_') ? `Chart ${category}: ${value}` : undefined;
+            }
+
+            return `Chart ${category} ${comparisonOperator} ${value}`;
+        }
+
         if (key.startsWith('min_') || key.startsWith('max_')) {
 
             const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
@@ -1856,6 +1916,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     />
                                 ))}
 
+                                {SHOWDOWN_FIELDING_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
+                                    />
+                                ))}
+
                                 <MultiSelect
                                     label="Icons"
                                     options={[
@@ -1878,19 +1946,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             </FormSection>
 
                             <FormSection title="Showdown Chart" icon={<FaTable />} isOpenByDefault={true}>
-                                {isFilterAvailable('is_chart_outlier', source) && (
-                                    <MultiSelect
-                                        label="Chart Outlier?"
-                                        options={[
-                                            { value: 'true', label: 'Yes' },
-                                            { value: 'false', label: 'No' },
-                                        ]}
-                                        selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
-                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
-                                        disabled={isFilterLocked('is_chart_outlier')}
-                                    />
-                                )}
-
                                 {isFilterAvailable('is_errata', source) && (
                                     <MultiSelect
                                         label="Errata?"
@@ -1903,7 +1958,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         disabled={isFilterLocked('is_errata')}
                                     />
                                 )}
-                
+
                                 {SHOWDOWN_CHART_RANGE_FILTERS.map(def => (
                                     <RangeFilter
                                         key={def.minKey as string}
@@ -1912,6 +1967,30 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     />
                                 ))}
 
+                                <p className="col-span-full text-xs text-secondary -mb-2">
+                                    Chart Values: number of chart slots (out of 20) per category. Excludes 21+ overflow slots.
+                                </p>
+
+                                {SHOWDOWN_CHART_VALUES_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
+                                    />
+                                ))}
+
+                                {isFilterAvailable('is_chart_outlier', source) && (
+                                    <MultiSelect
+                                        label="Chart Outlier?"
+                                        options={[
+                                            { value: 'true', label: 'Yes' },
+                                            { value: 'false', label: 'No' },
+                                        ]}
+                                        selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
+                                        disabled={isFilterLocked('is_chart_outlier')}
+                                    />
+                                )}
 
                             </FormSection>
 

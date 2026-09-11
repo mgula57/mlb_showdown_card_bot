@@ -888,7 +888,9 @@ class PostgresDB:
                                 (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
                                 (card_result->'speed'->>'speed')::int AS speed,
                                 (card_result->>'ip')::int AS ip,
-                                (card_result->>'hand') AS hand
+                                (card_result->>'hand') AS hand,
+                                (card_result->'positions_and_defense') AS positions_and_defense,
+                                (card_result->'chart'->'ranges') AS chart_ranges
                             FROM internal.log_custom_card_bot
                             WHERE 
                                 error IS NULL AND
@@ -926,7 +928,42 @@ class PostgresDB:
                 for key, value in filters.items():
                     if value is None:
                         continue
-                        
+
+                    # Fielding min/max — applies as an OR across every position the player
+                    # is rated at (e.g. min_fielding=3 matches a player who is +3 or better
+                    # at ANY of their listed positions), since there's no single "fielding" column.
+                    if key in ('min_fielding', 'max_fielding'):
+                        comparison = '>=' if key.startswith('min_') else '<='
+                        filter_clauses.append(sql.SQL("""
+                            EXISTS (
+                                SELECT 1 FROM jsonb_each_text(coalesce(positions_and_defense, '{{}}'::jsonb)) AS pd(pos, val)
+                                WHERE val ~ '^-?[0-9]+$' AND val::numeric {comparison} %s
+                            )
+                        """).format(comparison=sql.SQL(comparison)))
+                        filter_values.append(value)
+                        continue
+
+                    # Chart category slot-count min/max (e.g. min_chart_hr, max_chart_1b+).
+                    # Counts the number of chart slots (out of 20) assigned to the category by
+                    # parsing `chart_ranges` (e.g. "12–17" -> 6, "20+" -> 1, "—" -> 0), explicitly
+                    # excluding any slots past 20 (the 21+ overflow used by some expanded sets).
+                    if key.startswith('min_chart_') or key.startswith('max_chart_'):
+                        category = key[len('min_chart_'):].upper()
+                        comparison = '>=' if key.startswith('min_') else '<='
+                        filter_clauses.append(sql.SQL("""
+                            (SELECT CASE
+                                WHEN x.r IS NULL OR x.r = '—' THEN 0
+                                WHEN right(x.r, 1) = '+' THEN greatest(0, 21 - left(x.r, length(x.r) - 1)::int)
+                                WHEN position('–' in x.r) > 0 THEN greatest(0, least(split_part(x.r, '–', 2)::int, 20) - split_part(x.r, '–', 1)::int + 1)
+                                WHEN x.r::int > 20 THEN 0
+                                ELSE 1
+                            END
+                            FROM (SELECT chart_ranges->>%s AS r) AS x) {comparison} %s
+                        """).format(comparison=sql.SQL(comparison)))
+                        filter_values.append(category)
+                        filter_values.append(value)
+                        continue
+
                     # Handle min/max filtering
                     if key.startswith('min_'):
                         field_name = key[4:]  # Remove 'min_' prefix
@@ -7833,7 +7870,11 @@ class PostgresDB:
     # Only the projected summary is stored; the full ~6 MB result is discarded (see summary.py).
 
     SIM_JOB_TTL_HOURS = 24 * 7
-    SIM_JOB_STALE_MINUTES = 5
+    # Backstop only - the worker's own in-process watchdog (`_SIM_MAX_RUNTIME_SECONDS` in
+    # api/sim.py) fails a wedged job at 90s with a stack trace. This just catches the case that
+    # watchdog can't: the whole thread/process dying with it (dyno restart, OOM, crash). Kept
+    # above that 90s so a live job that's simply slow finishing up isn't reaped out from under it.
+    SIM_JOB_STALE_MINUTES = 2
 
     def build_sim_job_table(self) -> None:
         """Create the sim_job table."""
@@ -8353,8 +8394,9 @@ class PostgresDB:
         plain progress tick never wipes them. Assumes `ensure_sim_job_progress_column` has already
         run this process (the worker calls it before the first progress write).
 
-        Returns False if the job was cancelled out from under it (the row is excluded by the
-        WHERE clause), which the worker treats as a signal to stop simulating.
+        Returns False if the row has left the queued/running state out from under it - a user
+        cancel, or the in-process watchdog (`_SIM_MAX_RUNTIME_SECONDS`) failing it for running too
+        long - which the worker treats as a signal to stop simulating (see `SimCancelled`).
         """
         if not self.connection:
             return True
@@ -8371,7 +8413,7 @@ class PostgresDB:
                        last_status     = COALESCE(%s, last_status),
                        dyno            = COALESCE(%s, dyno),
                        updated_at      = NOW()
-                 WHERE job_id = %s AND status <> 'cancelled'
+                 WHERE job_id = %s AND status IN ('queued', 'running')
                 """,
                 (phase, games_completed, games_total,
                  extras.Json(progress_games) if progress_games is not None else None,
@@ -8387,7 +8429,9 @@ class PostgresDB:
         `error_context` column is added lazily here rather than by a migration step so a deploy
         that hasn't run `build_sim_job_table` still completes jobs normally.
 
-        Excludes an already-cancelled job so a race can't stomp it back to failed/succeeded.
+        Only touches a job still in `queued`/`running` - so a race with a user cancel, or with the
+        worker's own watchdog timing it out, can't stomp a row that already reached a terminal
+        state back to failed/succeeded.
         """
         if not self.connection:
             return
@@ -8403,7 +8447,7 @@ class PostgresDB:
                     UPDATE internal.sim_job
                        SET status = %s, error = %s, error_context = %s, phase = %s,
                            updated_at = NOW(), finished_at = NOW()
-                     WHERE job_id = %s AND status <> 'cancelled'
+                     WHERE job_id = %s AND status IN ('queued', 'running')
                     """,
                     (status, error, extras.Json(error_context), phase, job_id),
                 )
@@ -8413,7 +8457,7 @@ class PostgresDB:
                     UPDATE internal.sim_job
                        SET status = %s, error = %s, phase = %s,
                            updated_at = NOW(), finished_at = NOW()
-                     WHERE job_id = %s AND status <> 'cancelled'
+                     WHERE job_id = %s AND status IN ('queued', 'running')
                     """,
                     (status, error, phase, job_id),
                 )
