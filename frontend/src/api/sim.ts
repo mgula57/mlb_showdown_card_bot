@@ -80,6 +80,24 @@ export type SeasonAwards = {
 /** Mirrors `PlayerSubType` — keys of `SeasonSimSummary.top_players`. */
 export type PlayerSubType = 'position_player' | 'starting_pitcher' | 'relief_pitcher';
 
+/** One player's sim-vs-real-life OPS gap — mirrors `OutlierEntry`. */
+export type OutlierEntry = {
+    id: string;
+    name: string;
+    team: string | null;
+    player_type: string;
+    card_source?: string | null;
+    sim_ops: number;
+    real_ops: number;
+    diff: number;
+};
+
+/** Biggest OPS gaps for one `PlayerType`, split by direction — mirrors `OutlierGroup`. */
+export type OutlierGroup = {
+    positive: OutlierEntry[];
+    negative: OutlierEntry[];
+};
+
 export type SimGameLine = {
     date: string;
     opponent: string;
@@ -205,6 +223,9 @@ export type SeasonSimSummary = {
     top_players: Record<PlayerSubType, SimStatLine[]>;
     league_totals: Record<string, SimStatLine>;
     real_league_averages: Record<string, SimStatLine>;
+    /** Keyed by PlayerType value ('Hitter'/'Pitcher'). Empty for a tournament (no real-life
+     *  baseline). Absent for summaries persisted before this field existed. */
+    outliers?: Record<string, OutlierGroup>;
     /** Absent for summaries persisted before awards existed. */
     awards?: SeasonAwards | null;
     /** Every game of the season, once. Absent for summaries persisted before open sims existed,

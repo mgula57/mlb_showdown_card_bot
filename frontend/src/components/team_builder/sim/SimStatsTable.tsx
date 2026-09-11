@@ -19,10 +19,14 @@ function sortValue(row: SimStatLine, key: SortKey): string | number {
     }
 }
 
-function SortHeader({ label, active, dir, onClick, align = 'right' }: { label: string; active: boolean; dir?: 'asc' | 'desc'; onClick: () => void; align?: 'left' | 'right' }) {
+// SHARED WITH THE FIRST BODY CELL BELOW SO THE FROZEN PLAYER COLUMN STAYS OPAQUE OVER WHATEVER
+// SCROLLS UNDERNEATH IT, WITH A SHADOW MARKING WHERE THE SCROLLABLE PART BEGINS.
+const STICKY_COL_CLASS = 'sticky left-0 bg-(--background-secondary) shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]';
+
+function SortHeader({ label, active, dir, onClick, align = 'right', sticky = false }: { label: string; active: boolean; dir?: 'asc' | 'desc'; onClick: () => void; align?: 'left' | 'right'; sticky?: boolean }) {
     const Icon = !active ? FaSort : dir === 'asc' ? FaSortUp : FaSortDown;
     return (
-        <th className={`${align === 'right' ? 'text-right' : 'text-left'} font-semibold py-2 px-2`}>
+        <th className={`${align === 'right' ? 'text-right' : 'text-left'} font-semibold py-2 px-2 ${sticky ? `${STICKY_COL_CLASS} z-20` : ''}`}>
             <button
                 type="button"
                 onClick={onClick}
@@ -83,11 +87,11 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
     }
 
     return (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-(--divider)">
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
-                        <SortHeader label="Player" align="left" active={sort?.key === 'name'} dir={sort?.dir} onClick={() => toggleSort('name')} />
+                        <SortHeader label="Player" align="left" sticky active={sort?.key === 'name'} dir={sort?.dir} onClick={() => toggleSort('name')} />
                         <SortHeader label="Team" align="left" active={sort?.key === 'team'} dir={sort?.dir} onClick={() => toggleSort('team')} />
                         <SortHeader label="Pos" align="left" active={sort?.key === 'position'} dir={sort?.dir} onClick={() => toggleSort('position')} />
                         {columns.map(key => (
@@ -106,7 +110,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                 className={`border-b border-(--divider)/50 ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''} ${record && isFetching(record.card_id) ? 'opacity-60' : ''}`}
                                 onClick={clickable ? () => open(record!.card_id, record!.source, row.stats) : undefined}
                             >
-                                <td className="py-1.5 pr-3 text-left">
+                                <td className={`py-1.5 px-2 text-left ${STICKY_COL_CLASS} z-10`}>
                                     {cardsEnabled ? (
                                         <CardIdentityCell
                                             name={row.name} hasCard={!!record} isLoadingCard={isLoadingCard(row)}
@@ -119,8 +123,8 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                         <span className="font-medium text-(--text-primary)">{row.name}</span>
                                     )}
                                 </td>
-                                <td className="text-left py-1.5 pr-3 text-(--text-tertiary)">{row.team ?? '—'}</td>
-                                <td className="text-left py-1.5 pr-3 text-(--text-tertiary)">{row.position ?? '—'}</td>
+                                <td className="text-left py-1.5 px-2 text-(--text-tertiary)">{row.team ?? '—'}</td>
+                                <td className="text-left py-1.5 px-2 text-(--text-tertiary)">{row.position ?? '—'}</td>
                                 {columns.map(key => (
                                     <td key={key} className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
                                         {formatStat(key, row.stats[key])}

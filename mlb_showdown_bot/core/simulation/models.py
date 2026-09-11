@@ -643,7 +643,11 @@ class DeadlineTrade(BaseModel):
 class OutlierEntry(BaseModel):
     id: str
     name: str
+    team: Optional[str] = None
     player_type: str
+    # NONE HERE - THE ENGINE/MODEL LAYER NEVER RESOLVES CardSource, ONLY `SeasonSummaryBuilder`
+    # DOES (IT ALONE HAS `config.card_sources`). SAME CONVENTION AS `SimGameStarter.card_source`.
+    card_source: Optional[str] = None
     sim_ops: float
     real_ops: float
     diff: float
@@ -711,7 +715,7 @@ class SeasonSimulationResult(BaseModel):
             if s.stat_by_key('pa') < min_pa or s.stat_by_key('ip') < min_ip:
                 continue
             entries.append(OutlierEntry(
-                id=s.id, name=s.name, player_type=player_type,
+                id=s.id, name=s.name, team=s.team, player_type=player_type,
                 sim_ops=s.ops, real_ops=s.real_ops, diff=round(s.ops - s.real_ops, 3),
             ))
         entries.sort(key=lambda e: e.diff, reverse=is_desc)

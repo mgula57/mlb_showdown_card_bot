@@ -175,22 +175,22 @@ function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKe
     const shown = (selectedKey ? seriesList.filter(s => seriesKey(s) === selectedKey) : seriesList)
         .filter(s => (s.games ?? []).length > 0);
     const hasStarters = shown.some(s => (s.games ?? []).some(g => g.home_starting_pitcher || g.away_starting_pitcher));
-    const colCount = hasStarters ? 5 : 4;
+    const colCount = hasStarters ? 7 : 4;
 
     if (shown.length === 0) {
         return <p className="text-[13px] text-(--text-tertiary) py-6 text-center">No game data available for this series.</p>;
     }
 
     return (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto border border-(--divider) rounded-xl">
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
-                        <th className="text-left font-semibold py-2 pr-3">Game</th>
-                        <th className="text-left font-semibold py-2 pr-3">Matchup</th>
+                        <th className="text-left font-semibold py-2 px-3">Game</th>
+                        <th className="text-left font-semibold py-2 pr-2">Matchup</th>
                         <th className="text-right font-semibold py-2 px-2">Score</th>
                         <th className="text-right font-semibold py-2 px-2">Winner</th>
-                        {hasStarters && <th className="text-left font-semibold py-2 px-2">Starting Pitchers</th>}
+                        {hasStarters && <th className="text-left font-semibold py-2 px-2" colSpan={3}>Starting Pitchers</th>}
                     </tr>
                 </thead>
                 {shown.map(series => {
@@ -245,19 +245,21 @@ function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKe
                                         {abbr(game.winner)}
                                     </td>
                                     {hasStarters && (
-                                        <td className="py-1.5 px-2">
-                                            <div className="flex items-center gap-3">
+                                        <>
+                                            <td className="py-1.5 pl-2 pr-1">
                                                 <StarterChip
                                                     starter={game.away_starting_pitcher} identity={identityFor(game.away_team)}
                                                     onOpen={openStarter} isFetching={!!game.away_starting_pitcher && isFetching(game.away_starting_pitcher.id)}
                                                 />
-                                                <span className="text-[10px] text-(--text-tertiary)">vs</span>
+                                            </td>
+                                            <td className="py-1.5 px-1 text-[10px] text-(--text-tertiary)">vs</td>
+                                            <td className="py-1.5 pl-1 pr-2">
                                                 <StarterChip
                                                     starter={game.home_starting_pitcher} identity={identityFor(game.home_team)}
                                                     onOpen={openStarter} isFetching={!!game.home_starting_pitcher && isFetching(game.home_starting_pitcher.id)}
                                                 />
-                                            </div>
-                                        </td>
+                                            </td>
+                                        </>
                                     )}
                                 </tr>
                             ))}

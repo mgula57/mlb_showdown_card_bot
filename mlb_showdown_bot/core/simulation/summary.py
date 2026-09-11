@@ -7,8 +7,8 @@ from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
 from .models import (
-    DeadlineTrade, ManagerPreference, SeasonSimulationResult, SimGameStarter, SimTeamIdentity,
-    StandingsResult, TeamRecord, TransactionType,
+    DeadlineTrade, ManagerPreference, OutlierEntry, SeasonSimulationResult, SimGameStarter,
+    SimTeamIdentity, StandingsResult, TeamRecord, TransactionType,
 )
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
 from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_id
@@ -16,6 +16,9 @@ from .stats import SimStatLine, StatCategory, Stats, builder_sim_id, real_card_i
 # LEADERBOARD DEPTH. SMALL ON PURPOSE - THE FULL 1100-PLAYER `player_stats` LIST IS ~390 KB AND
 # THE RESULT SCREEN ONLY EVER SHOWS A TOP TEN.
 _LEADERBOARD_LIMIT = 10
+
+# TOP-N EACH DIRECTION FOR THE OUTLIERS SECTION - MATCHES `SeasonReport.print_outliers`'S DEFAULT.
+_OUTLIERS_LIMIT = 10
 
 # The per-team stats tables list anyone past `result.stats_min_pa` / `stats_min_ip[_rp]` (~250 /
 # ~60 / ~30 over a full season) - a loose "played enough to show" floor. The League Leaders boards
@@ -132,6 +135,16 @@ class SimTeamSeason(BaseModel):
     longest_losing_streak: int = 0
 
 
+class OutlierGroup(BaseModel):
+    """Biggest sim-vs-real-life OPS gaps for one `PlayerType`, split by direction. `positive`
+    means "outperformed real life" for both types - a hitter ranked by sim OPS minus real OPS
+    descending, a pitcher by sim OPS-against minus real ascending (a lower OPS-against is the
+    pitcher's good direction). See `SeasonSimulationResult.top_outliers`."""
+
+    positive: list[OutlierEntry] = []
+    negative: list[OutlierEntry] = []
+
+
 class SeasonSimSummary(BaseModel):
     """Everything the season result screen renders, and nothing else.
 
@@ -207,6 +220,10 @@ class SeasonSimSummary(BaseModel):
     league_totals: dict[str, SimStatLine] = {}
     real_league_averages: dict[str, SimStatLine] = {}
 
+    # KEYED BY PlayerType.value ('Hitter' / 'Pitcher'). EMPTY WHEN THE SEASON HAS NO REAL
+    # BASELINE (A TOURNAMENT). ABSENT ON SUMMARIES PERSISTED BEFORE THIS FIELD EXISTED.
+    outliers: dict[str, OutlierGroup] = {}
+
     awards: SeasonAwards = SeasonAwards()
 
 
@@ -266,6 +283,7 @@ class SeasonSummaryBuilder:
             top_players={sub_type.value: self._leaderboard(sub_type) for sub_type in PlayerSubType},
             league_totals=self._league_lines(result.league_totals),
             real_league_averages=self._league_lines(result.real_league_averages),
+            outliers=self._outliers(),
             awards=AwardsBuilder(result=result).build(),
             takeover_abbrs=list(self.roster_player_ids.keys()),
             manager_preferences={
@@ -503,6 +521,34 @@ class SeasonSummaryBuilder:
                 continue
             lines[type_value] = self._line(stats, player_type)
         return lines
+
+    def _outlier_line(self, entry: OutlierEntry) -> OutlierEntry:
+        """Fill in `card_source` the same way `_starter_line` resolves a `SimGameStarter`'s -
+        `top_outliers` leaves it None since the model layer has no `config` to resolve against."""
+        return entry.model_copy(update={
+            'card_source': self.result.config.card_sources.get(real_card_id(entry.id), CardSource.BOT.value),
+        })
+
+    def _outliers(self) -> dict[str, OutlierGroup]:
+        """Biggest sim-vs-real-life OPS gaps, split by `PlayerType` and direction - the web
+        analogue of `SeasonReport.print_outliers`. Empty for a tournament, which has no real-life
+        baseline (`Stats.real_ops` is never set - see `top_outliers`'s `real_ops is None` guard)."""
+        result = self.result
+        groups: dict[str, OutlierGroup] = {}
+        for player_type in [PlayerType.HITTER, PlayerType.PITCHER]:
+            min_pa = result.stats_min_pa if player_type == PlayerType.HITTER else 0
+            min_ip = result.stats_min_ip if player_type == PlayerType.PITCHER else 0
+            # HITTERS: A HIGHER SIM OPS THAN REAL LIFE IS "POSITIVE". PITCHERS ARE THE OPPOSITE -
+            # A LOWER OPS-AGAINST THAN REAL LIFE IS THE "POSITIVE" (BETTER) DIRECTION. SAME
+            # REVERSAL `SeasonReport.print_outliers` USES.
+            positive_is_desc = player_type == PlayerType.HITTER
+            positive = result.top_outliers(player_type=player_type.value, limit=_OUTLIERS_LIMIT, is_desc=positive_is_desc, min_pa=min_pa, min_ip=min_ip)
+            negative = result.top_outliers(player_type=player_type.value, limit=_OUTLIERS_LIMIT, is_desc=not positive_is_desc, min_pa=min_pa, min_ip=min_ip)
+            groups[player_type.value] = OutlierGroup(
+                positive=[self._outlier_line(e) for e in positive],
+                negative=[self._outlier_line(e) for e in negative],
+            )
+        return groups
 
     # ------------------------------------------------------------------
     # POSTSEASON

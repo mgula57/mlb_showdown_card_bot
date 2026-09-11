@@ -14,6 +14,9 @@ import { SimSummaryTab } from './SimSummaryTab';
 import { SimTransactionsTab } from './SimTransactionsTab';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis, buildLeagueStatsKpis } from './simStatColumns';
+import { SimRealLifeComparison } from './SimRealLifeComparison';
+import { SimOutliers } from './SimOutliers';
+import { SectionCard } from './SectionCard';
 import { KpiTile } from './KpiTile';
 import { useStandingsEntries, useIdentity, hashId, label } from './simStandings';
 import { useClubSeason } from './simClubSeason';
@@ -177,7 +180,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     </p>
                 </div>
 
-                <div className={`flex flex-col items-center space-y-0 px-4 py-2 rounded-xl bg-(${outcomeColor})/15 font-bold text-(${outcomeColor})`}>
+                <div className={`flex flex-col items-center space-y-0 px-4 py-2 rounded-xl border border-(${outcomeColor})/30 bg-linear-to-b from-(${outcomeColor})/20 to-(${outcomeColor})/5 shadow-sm font-bold text-(${outcomeColor})`}>
                     {challengeResult && (
                         <div className={`text-[12px] text-tertiary flex items-center gap-1 `}>
                             {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
@@ -206,11 +209,11 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
 
             {challengeStanding && (
                 <div className="mx-4 flex flex-wrap items-stretch gap-2 text-[12px]">
-                    <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">
+                    <div className="flex flex-col rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2">
                         <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Attempt</span>
                         <span className="font-black text-(--text-primary)">#{challengeStanding.attempts}</span>
                     </div>
-                    <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">
+                    <div className="flex flex-col rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2">
                         <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Budget</span>
                         <span className="font-black text-(--text-primary) tabular-nums">
                             {challengeStanding.roster_points ?? '?'}
@@ -247,12 +250,12 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             <button
                                 type="button"
                                 onClick={onOpenChallengeLeaderboard}
-                                className="flex flex-col text-left rounded-lg bg-(--background-tertiary) px-3 py-2 hover:bg-(--divider) transition-colors cursor-pointer"
+                                className="flex flex-col text-left rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2 hover:from-(--divider) transition-colors cursor-pointer"
                             >
                                 {inner}
                             </button>
                         ) : (
-                            <div className="flex flex-col rounded-lg bg-(--background-tertiary) px-3 py-2">{inner}</div>
+                            <div className="flex flex-col rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2">{inner}</div>
                         );
                     })()}
                 </div>
@@ -265,17 +268,17 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     {summary.postseason.length > 0 && (
                         <Tabs.Trigger value="postseason" className={TAB_TRIGGER_CLASS}><FaSitemap className={TAB_ICON_CLASS} />Postseason</Tabs.Trigger>
                     )}
+                    {hasAwards && (
+                        <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
+                    )}
                     <Tabs.Trigger value="batting" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className={TAB_ICON_CLASS} />Batting</Tabs.Trigger>
                     <Tabs.Trigger value="pitching" className={TAB_TRIGGER_CLASS}><FaBaseball className={TAB_ICON_CLASS} />Pitching</Tabs.Trigger>
                     <Tabs.Trigger value="standings" className={TAB_TRIGGER_CLASS}><FaTableList className={TAB_ICON_CLASS} />Standings</Tabs.Trigger>
                     <Tabs.Trigger value="leaders" className={TAB_TRIGGER_CLASS}><FaRankingStar className={TAB_ICON_CLASS} />League Leaders</Tabs.Trigger>
+                    <Tabs.Trigger value="league_stats" className={TAB_TRIGGER_CLASS}><FaDiceD20 className={TAB_ICON_CLASS} />League Stats</Tabs.Trigger>
                     {hasTransactions && (
                         <Tabs.Trigger value="transactions" className={TAB_TRIGGER_CLASS}><FaRightLeft className={TAB_ICON_CLASS} />Transactions</Tabs.Trigger>
                     )}
-                    {hasAwards && (
-                        <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
-                    )}
-                    <Tabs.Trigger value="league_stats" className={TAB_TRIGGER_CLASS}><FaDiceD20 className={TAB_ICON_CLASS} />League Stats</Tabs.Trigger>
 
                 </Tabs.List>
 
@@ -308,7 +311,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             </thead>
                             {gamesByMonth.map(month => (
                                 <tbody key={month.key}>
-                                    <tr className="bg-(--background-tertiary)">
+                                    <tr className="bg-linear-to-r from-(--background-tertiary) to-(--background-secondary) border-y border-(--divider)">
                                         <td colSpan={5} className="py-1.5 px-2 font-bold text-(--text-primary)">
                                             {month.label} 
                                             <span className="ml-2 font-semibold tabular-nums text-(--text-tertiary)">{month.wins}-{month.losses}</span>
@@ -359,16 +362,15 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 </Tabs.Content>
 
                 {/* League Stats */}
-                <Tabs.Content value="league_stats" className="focus:outline-none px-4 pt-3">
+                <Tabs.Content value="league_stats" className="focus:outline-none px-4 pt-3 flex flex-col gap-4">
+                    <SimRealLifeComparison leagueTotals={summary.league_totals} realLeagueAverages={summary.real_league_averages} />
+                    <SimOutliers outliers={summary.outliers ?? {}} identities={summary.identities} />
                     {leagueStatsKpis.length > 0 ? (
-                        <>
-                            <p className="text-[11px] text-(--text-tertiary) mb-2">
-                                League-wide across the full season — not specific to {teamName}.
-                            </p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                        <SectionCard title="Showdown Roll Stats">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                 {leagueStatsKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} />)}
                             </div>
-                        </>
+                        </SectionCard>
                     ) : (
                         <p className="text-[12px] text-(--text-tertiary)">No league stats to show.</p>
                     )}
@@ -383,19 +385,16 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 </Tabs.Content>
 
                 {/* League leaders */}
-                <Tabs.Content value="leaders" className="focus:outline-none px-4 pt-3 flex flex-col gap-5">
-                    <div>
-                        <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Hitters (OPS)</p>
+                <Tabs.Content value="leaders" className="focus:outline-none px-4 pt-3 flex flex-col gap-4">
+                    <SectionCard title="Top Hitters (OPS)">
                         <SimStatsTable rows={summary.top_players?.position_player ?? []} columns={HITTER_COLUMNS} emptyLabel="No qualified hitters." cardsEnabled identities={summary.identities} />
-                    </div>
-                    <div>
-                        <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Starting Pitchers (ERA)</p>
+                    </SectionCard>
+                    <SectionCard title="Top Starting Pitchers (ERA)">
                         <SimStatsTable rows={summary.top_players?.starting_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified starters." cardsEnabled identities={summary.identities} />
-                    </div>
-                    <div>
-                        <p className="text-[12px] font-bold text-(--text-primary) mb-1">Top Relief Pitchers (ERA)</p>
+                    </SectionCard>
+                    <SectionCard title="Top Relief Pitchers (ERA)">
                         <SimStatsTable rows={summary.top_players?.relief_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." cardsEnabled identities={summary.identities} />
-                    </div>
+                    </SectionCard>
                 </Tabs.Content>
 
                 {/* Transactions */}

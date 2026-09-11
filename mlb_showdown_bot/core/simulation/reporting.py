@@ -156,7 +156,7 @@ class SeasonReport:
                 ] + ([StatCategory.PA] if player_type == PlayerType.PITCHER else []),
             ))
 
-    def print_outliers(self, limit: int = 5) -> None:
+    def print_outliers(self, limit: int = 10) -> None:
         for direction_label, hitter_desc in [('POSITIVE', True), ('NEGATIVE', False)]:
             self._print_header(f"{direction_label} OUTLIERS")
             for player_type, is_desc in [(PlayerType.HITTER, hitter_desc), (PlayerType.PITCHER, not hitter_desc)]:

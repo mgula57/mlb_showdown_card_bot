@@ -1,10 +1,11 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
 import { FaRightLeft, FaUserInjured, FaArrowUp, FaArrowRotateLeft } from 'react-icons/fa6';
 import type { SeasonSimSummary } from '../../../api/sim';
 import { TeamChip } from '../../shared/TeamChip';
 import { fromSimTeamIdentity, fallbackIdentity } from '../../../domain/adapters/fromSim';
 import { useIdentity } from './simStandings';
 import { KpiTile } from './KpiTile';
+import { SectionCard } from './SectionCard';
 
 const TXN_META: Record<string, { label: string; icon: typeof FaUserInjured; color: string }> = {
     IL: { label: 'To the IL', icon: FaUserInjured, color: 'text-(--error)' },
@@ -14,18 +15,6 @@ const TXN_META: Record<string, { label: string; icon: typeof FaUserInjured; colo
 
 function shortDate(iso: string): string {
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function SectionCard({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
-    return (
-        <div className="rounded-xl bg-(--background-tertiary) p-3 flex flex-col gap-2 min-w-0">
-            <p className="text-[12px] font-bold text-(--text-primary)">
-                {title}
-                {count != null && <span className="text-(--text-tertiary) font-semibold"> · {count}</span>}
-            </p>
-            {children}
-        </div>
-    );
 }
 
 type Props = {

@@ -4,10 +4,18 @@ import type { SimStatLine } from '../../../api/sim';
 // and the CLI tables never drift. Keys are StatCategory values.
 export const HITTER_COLUMNS = ['g', 'pa', 'ba', 'obp', 'slg', 'ops', 'ops+', '2b', '3b', 'hr', 'rbi', 'bb', 'so', 'sb', 'r', 'wRC+', 'advantage_pct', 'own_chart_out_pct'];
 export const PITCHER_COLUMNS = ['g', 'wins', 'losses', 'sv', 'bs', 'era', 'whip', 'ip', 'er', 'hr', 'hr_own_chart', 'so9', 'gidp', 'advantage_pct', 'own_chart_out_pct'];
-const RATE_KEYS = new Set(['ba', 'obp', 'slg', 'ops', 'wOBA']);
+// The League Stats "SIM vs. REAL" comparison table's column sets - `HITTER_COLUMNS`/
+// `PITCHER_COLUMNS` minus whatever `SeasonReport.print_real_life_comparison`'s `stats_to_ignore`
+// drops for having no real-life league-average counterpart (W/L/SV/BS, own-chart HR, and G itself),
+// plus ADV%/OCHO% - the CLI keeps those, but they're dropped here too since they're engine-roll
+// concepts with no real-life meaning to compare against, not just a missing baseline number.
+const COMPARISON_IGNORE = ['advantage_pct', 'own_chart_out_pct'];
+export const HITTER_COMPARISON_COLUMNS = HITTER_COLUMNS.filter(key => key !== 'g' && !COMPARISON_IGNORE.includes(key));
+export const PITCHER_COMPARISON_COLUMNS = PITCHER_COLUMNS.filter(key => !['g', 'wins', 'losses', 'sv', 'bs', 'hr_own_chart', ...COMPARISON_IGNORE].includes(key));
+const RATE_KEYS = new Set(['ba', 'obp', 'slg', 'ops', 'wOBA', 'real_ops', 'ops_diff']);
 const PERCENT_KEYS = new Set(['advantage_pct', 'own_chart_out_pct']);
 // SHORT HEADERS FOR KEYS WHOSE UPPERCASED VALUE WOULDN'T FIT A COLUMN - MIRRORS StatCategory.abbreviation.
-export const COLUMN_LABELS: Record<string, string> = { advantage_pct: 'ADV%', own_chart_out_pct: 'OCHO%', wins: 'W', losses: 'L', hr_own_chart: 'HR-OC', gidp: 'GDP' };
+export const COLUMN_LABELS: Record<string, string> = { advantage_pct: 'ADV%', own_chart_out_pct: 'OCHO%', wins: 'W', losses: 'L', hr_own_chart: 'HR-OC', gidp: 'GDP', real_ops: 'OPS (REAL)', ops_diff: 'DIFF' };
 
 // Shown on `CardDetail`'s tooltip banner wherever a card is opened with `simStats` set, so it's
 // clear the SIM column/highlights reflect this simulated season, not the card's real one.

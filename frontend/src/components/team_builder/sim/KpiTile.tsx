@@ -6,7 +6,7 @@ import { InfoTooltip } from '../../shared/InfoTooltip';
  * average" index). */
 export function KpiTile({ label, value, info }: { label: string; value: string; info?: string }) {
     return (
-        <div className="rounded-lg flex flex-col items-center bg-(--background-secondary) px-3 py-2">
+        <div className="rounded-lg flex flex-col items-center border border-(--divider) bg-linear-to-b from-(--background-secondary) to-(--background-primary) px-3 py-2 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
             <div className="flex items-center gap-1">
                 <p className="text-[11px] text-(--text-tertiary)">{label}</p>
                 {info && <InfoTooltip text={info} />}
