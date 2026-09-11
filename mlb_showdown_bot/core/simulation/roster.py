@@ -441,8 +441,16 @@ class Roster:
         if group == PositionSlotParent.ROTATION:
             rotation_slot_index = team.rotation.index_for_id(player.id)
             replacement = self._next_sp_replacement()
-            if replacement is not None and rotation_slot_index is not None:
-                team.rotation.replace_at_index(rotation_slot_index, replacement)
+            if replacement is None or rotation_slot_index is None:
+                # NO ARM LEFT TO SLOT IN (OR HE'S SOMEHOW NOT IN THE ROTATION LIST). UNLIKE
+                # BULLPEN/BENCH (ID-ADDRESSED), A ROTATION SPOT IS INDEX-ADDRESSED - PULLING HIM
+                # WITHOUT A REPLACEMENT WOULD LEAVE `rotation_slot_index` ON ANY OTHER CONCURRENT
+                # ROTATION IL STINT DANGLING (OR, ON `activate()`, RE-INSERT HIM INTO BOTH THE
+                # ACTIVE ROTATION AND THE RESERVE POOL AT ONCE). WITH NO ONE TO SWAP IN, THE
+                # INJURY SIMPLY DOESN'T TAKE - HE KEEPS HIS TURN, SAME AS A DEADLINE TRADE WITH NO
+                # REPLACEMENT (`_detach_player`).
+                return
+            team.rotation.replace_at_index(rotation_slot_index, replacement)
         elif group == PositionSlotParent.BULLPEN:
             team.bullpen.remove_player(player.id)
             replacement = self._next_rp_replacement()
