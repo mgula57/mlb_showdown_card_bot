@@ -298,11 +298,11 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             />
                         ))}
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto border border-(--divider) rounded-xl">
                         <table className="w-full text-[12px] whitespace-nowrap">
                             <thead>
                                 <tr className="text-(--text-tertiary) border-b border-(--divider)">
-                                    <th className="text-left font-semibold py-2 pr-3">Date</th>
+                                    <th className="text-left font-semibold py-2 px-3">Date</th>
                                     <th className="text-left font-semibold py-2 pr-3">Opponent</th>
                                     <th className="text-right font-semibold py-2 px-2">Score</th>
                                     <th className="text-right font-semibold py-2 px-2">Result</th>
@@ -386,15 +386,18 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
 
                 {/* League leaders */}
                 <Tabs.Content value="leaders" className="focus:outline-none px-4 pt-3 flex flex-col gap-4">
-                    <SectionCard title="Top Hitters (OPS)">
+                    <div className="flex flex-col gap-2 min-w-0">
+                        <p className="text-[12px] font-bold text-(--text-primary)">Top Hitters (OPS)</p>
                         <SimStatsTable rows={summary.top_players?.position_player ?? []} columns={HITTER_COLUMNS} emptyLabel="No qualified hitters." cardsEnabled identities={summary.identities} />
-                    </SectionCard>
-                    <SectionCard title="Top Starting Pitchers (ERA)">
+                    </div>
+                    <div className="flex flex-col gap-2 min-w-0">
+                        <p className="text-[12px] font-bold text-(--text-primary)">Top Starting Pitchers (ERA)</p>
                         <SimStatsTable rows={summary.top_players?.starting_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified starters." cardsEnabled identities={summary.identities} />
-                    </SectionCard>
-                    <SectionCard title="Top Relief Pitchers (ERA)">
+                    </div>
+                    <div className="flex flex-col gap-2 min-w-0">
+                        <p className="text-[12px] font-bold text-(--text-primary)">Top Relief Pitchers (ERA)</p>
                         <SimStatsTable rows={summary.top_players?.relief_pitcher ?? []} columns={PITCHER_COLUMNS} emptyLabel="No qualified relievers." cardsEnabled identities={summary.identities} />
-                    </SectionCard>
+                    </div>
                 </Tabs.Content>
 
                 {/* Transactions */}
