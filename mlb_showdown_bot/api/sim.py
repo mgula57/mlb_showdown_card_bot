@@ -1,7 +1,11 @@
+import faulthandler
 import json
+import os
 import random
 import string
+import sys
 import threading
+import time
 import traceback
 from datetime import date, datetime, timedelta
 
@@ -43,6 +47,24 @@ _seasons_cache: dict[str, tuple[list, datetime]] = {}
 # plus a 16-team MLB whose franchise relocations (BRO/BSN/NYG/PHA/SLB) are not mapped yet, so
 # the schedule cannot be joined to cards - see Team.for_year.
 _EARLIEST_SEASON = 1975
+
+# Longest a single status/setup breadcrumb is allowed to be when stored on the job row.
+_MAX_STATUS_LEN = 1000
+
+# Hard wall-clock ceiling for one sim run. A season sim is ~15-30s; a challenge run with real
+# injuries/deadline data is a bit more I/O. Anything past this is wedged - a network call with no
+# deadline, a pathological game the per-game guard missed, a stuck DB write. When it trips, the
+# watchdog dumps the sim thread's stack, fails the job with that stack attached, and frees the
+# slot, instead of letting the row sit until the (now shorter) stale-job reaper notices.
+_SIM_MAX_RUNTIME_SECONDS = 90
+
+
+def _dyno_id() -> str:
+    """Identifies the process a sim worker runs in, stamped on the job row so a hung job can be
+    lined up against platform restart logs. `DYNO` on Heroku (e.g. 'web.1'), hostname elsewhere;
+    the pid is always included since a dyno restart reuses the name."""
+    host = os.environ.get('DYNO') or os.environ.get('HOSTNAME') or 'local'
+    return f"{host}:{os.getpid()}"
 
 
 # ----------------------------------------------------------
@@ -880,6 +902,57 @@ def _run_sim_job(
     `team_id`/`challenge`/`roster_points` are all naturally None/absent for this kind of run - a
     challenge is by definition scoped to one team's own attempt.
     """
+    started_at = time.monotonic()
+    dyno = _dyno_id()
+    sim_thread_id = threading.get_ident()
+    # LAST PHASE THE WORKER REPORTED - MIRRORED IN-PROCESS SO THE WATCHDOG, THE `finally` GUARD
+    # AND THE CRASH LOGS CAN NAME WHERE A RUN DIED WITHOUT A DB READ.
+    progress_state = {'phase': 'starting'}
+    print(f"[sim {job_id}] starting ({'season' if team_abbr else 'open'}, "
+          f"thread={threading.current_thread().name}, dyno={dyno})")
+
+    def _elapsed() -> float:
+        return time.monotonic() - started_at
+
+    # THE WATCHDOG AND THE WORKER'S `finally` BOTH RELEASE THE SLOT ON A TIMEOUT - GUARD SO THE
+    # SECOND ONE IS A NO-OP (A DOUBLE release() ON A BoundedSemaphore RAISES AND CORRUPTS THE COUNT).
+    _slot_lock = threading.Lock()
+    _slot_released = {'done': False}
+
+    def _release_slot_once() -> None:
+        with _slot_lock:
+            if _slot_released['done']:
+                return
+            _slot_released['done'] = True
+        _sim_slots.release()
+
+    def _on_deadline() -> None:
+        phase = progress_state['phase']
+        frame = sys._current_frames().get(sim_thread_id)
+        stack = ''.join(traceback.format_stack(frame)) if frame else '(sim thread stack unavailable)'
+        print(f"[sim {job_id}] DEADLINE: exceeded {_SIM_MAX_RUNTIME_SECONDS}s in phase '{phase}' "
+              f"(t+{_elapsed():.0f}s). Sim thread stack:\n{stack}", flush=True)
+        faulthandler.dump_traceback()  # ALL THREADS TO STDERR - IN CASE THE FREEZE IS OFF-THREAD
+        try:
+            with PostgresDB() as db:
+                db.finish_sim_job(
+                    job_id,
+                    error=f"Simulation exceeded the {_SIM_MAX_RUNTIME_SECONDS}s limit in phase '{phase}'.",
+                    error_context={'reason': 'deadline', 'phase': phase,
+                                   'elapsed_seconds': round(_elapsed(), 1),
+                                   'stuck_stack': stack.splitlines()[-30:]},
+                )
+        except Exception:
+            traceback.print_exc()
+        # The zombie sim thread can't be killed from here, but its slot is freed now and its next
+        # progress write hits a terminal row -> raises SimCancelled -> it unwinds on its own.
+        _release_slot_once()
+
+    watchdog = threading.Timer(_SIM_MAX_RUNTIME_SECONDS, _on_deadline)
+    watchdog.name = f'sim-wd-{job_id[:8]}'
+    watchdog.daemon = True
+    watchdog.start()
+
     try:
         last_write = datetime.min
         # LATEST RUNNING GAME-BY-GAME RECORD FOR `team_abbr` (PLUS THAT CLUB'S TOTAL SCHEDULED
@@ -889,13 +962,21 @@ def _run_sim_job(
         latest_timeline: list[dict] = []
         latest_timeline_total = 0
 
-        def write_progress(phase: str | None = None, completed: int | None = None, total: int | None = None) -> None:
+        def write_progress(
+            phase: str | None = None, completed: int | None = None, total: int | None = None,
+            last_status: str | None = None, dyno_id: str | None = None,
+        ) -> None:
+            if phase and phase != progress_state['phase']:
+                print(f"[sim {job_id}] {phase} (t+{_elapsed():.0f}s)")
+            if phase:
+                progress_state['phase'] = phase
             try:
                 with PostgresDB() as progress_db:
                     still_active = progress_db.update_sim_job_progress(
                         job_id, phase=phase, games_completed=completed, games_total=total,
                         progress_games=latest_timeline or None,
                         progress_games_total=latest_timeline_total or None,
+                        last_status=last_status, dyno=dyno_id,
                     )
             except Exception:
                 return  # PROGRESS IS COSMETIC - A WRITE FAILURE MUST NEVER KILL THE RUN
@@ -920,18 +1001,20 @@ def _run_sim_job(
             latest_timeline_total = total_games
 
         def on_status(message: str) -> None:
-            phase = _friendly_phase(message)
-            if phase:
-                write_progress(phase=phase)
+            # EVERY setup/roster message is stored as `last_status` (not just the ones that map to
+            # a coarse phase) AND bumps `updated_at`, so a hang during setup leaves a specific
+            # breadcrumb instead of a frozen phase, and the stale-job reaper sees a live worker.
+            write_progress(phase=_friendly_phase(message), last_status=(message or '')[:_MAX_STATUS_LEN])
 
-        if team_abbr:
-            try:
-                with PostgresDB() as setup_db:
-                    setup_db.ensure_sim_job_progress_column()
-            except Exception:
-                traceback.print_exc()  # WORST CASE THE LIVE CHART IS SKIPPED - THE RUN IS FINE
+        # ALWAYS RUN (NOT JUST FOR FOCUS-TEAM RUNS): this also lazily adds the `last_status`/`dyno`
+        # forensic columns, which every run's progress writes now touch.
+        try:
+            with PostgresDB() as setup_db:
+                setup_db.ensure_sim_job_progress_column()
+        except Exception:
+            traceback.print_exc()  # WORST CASE THE LIVE CHART / BREADCRUMBS ARE SKIPPED - RUN IS FINE
 
-        write_progress(phase='Starting simulation')
+        write_progress(phase='Starting simulation', dyno_id=dyno)
         # `log_callback` STAYS UNSET: IT FIRES PER PLATE APPEARANCE (~185k TIMES) AND FORCES
         # GameLogEntry CONSTRUCTION EVEN WHEN THE LOG IS NEVER COLLECTED.
         result = Season(config=config).simulate(
@@ -940,9 +1023,10 @@ def _run_sim_job(
         )
 
         with PostgresDB() as check_db:
-            # POSTSEASON HAS NO CALLBACK OF ITS OWN, SO A CANCEL DURING IT ONLY SURFACES HERE -
-            # WITHOUT THIS, A CANCELLED RUN COULD STILL GET PERMANENTLY RECORDED BELOW.
-            if check_db.is_sim_job_cancelled(job_id):
+            # POSTSEASON HAS NO CALLBACK OF ITS OWN, SO A CANCEL (OR A WATCHDOG TIMEOUT THAT FIRED
+            # DURING IT) ONLY SURFACES HERE - WITHOUT THIS, A TERMINAL RUN COULD STILL GET
+            # PERMANENTLY RECORDED BELOW.
+            if check_db.is_sim_job_terminal(job_id):
                 return
 
         write_progress(phase='Building results')
@@ -979,29 +1063,52 @@ def _run_sim_job(
                 roster_points=roster_points,
             )
             db.finish_sim_job(job_id)
+        print(f"[sim {job_id}] succeeded (t+{_elapsed():.0f}s)")
 
     except SimCancelled:
-        pass  # THE ROW IS ALREADY TERMINAL ('cancelled') - finish_sim_job WOULD BE A NO-OP
+        # THE ROW IS ALREADY TERMINAL - EITHER A USER CANCEL OR THE WATCHDOG BELOW BEAT US TO IT
+        # (update_sim_job_progress ONLY SUCCEEDS WHILE THE ROW IS STILL queued/running) -
+        # finish_sim_job WOULD BE A NO-OP EITHER WAY.
+        print(f"[sim {job_id}] stopped - job row already terminal (t+{_elapsed():.0f}s)")
     except GameStuckError as exc:
         # A GAME THAT COULD NOT END. WITHOUT THIS GUARD THE WORKER WOULD SPIN UNTIL THE STALE-JOB
         # REAPER KILLED IT WITH A GENERIC "STOPPED RESPONDING". `exc.context` IS THE STRUCTURED
         # GAME STATE - LOGGED HERE, AND FOLDED INTO THE STORED ERROR SO THE JOB ROW EXPLAINS ITSELF.
         traceback.print_exc()
-        print(f"sim job {job_id} stuck game context: {json.dumps(exc.context, default=str)}")
+        print(f"[sim {job_id}] stuck game in phase '{progress_state['phase']}' (t+{_elapsed():.0f}s); "
+              f"context: {json.dumps(exc.context, default=str)}")
         try:
             with PostgresDB() as db:
                 db.finish_sim_job(job_id, error=str(exc), error_context=exc.context)
         except Exception:
             traceback.print_exc()
-    except Exception as exc:
+    except BaseException as exc:
+        # BaseException, not Exception: a worker-shutdown SystemExit / KeyboardInterrupt should
+        # still land a recorded reason on the row rather than falling through to the reaper.
         traceback.print_exc()
+        print(f"[sim {job_id}] failed in phase '{progress_state['phase']}' (t+{_elapsed():.0f}s): "
+              f"{type(exc).__name__}: {exc}")
         try:
             with PostgresDB() as db:
-                db.finish_sim_job(job_id, error=str(exc))
+                db.finish_sim_job(job_id, error=f"{type(exc).__name__} in phase '{progress_state['phase']}': {exc}")
         except Exception:
             traceback.print_exc()
     finally:
-        _sim_slots.release()
+        watchdog.cancel()
+        _release_slot_once()
+        # BELT AND SUSPENDERS: if the row somehow never reached a terminal state above (an error
+        # inside a handler, a BaseException that skipped it), close it out now with the last phase
+        # rather than leaving it for the stale-job reaper.
+        try:
+            with PostgresDB() as db:
+                if not db.is_sim_job_terminal(job_id):
+                    db.finish_sim_job(
+                        job_id,
+                        error=f"Worker thread exited without finishing (last phase: {progress_state['phase']}).",
+                    )
+        except Exception:
+            traceback.print_exc()
+        print(f"[sim {job_id}] worker exited (t+{_elapsed():.0f}s)")
 
 
 # ----------------------------------------------------------

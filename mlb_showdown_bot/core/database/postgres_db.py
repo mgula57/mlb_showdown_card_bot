@@ -16,6 +16,12 @@ from psycopg2 import sql
 # ----------------------------------------------------------------
 _pools: dict[str, psycopg2_pool.ThreadedConnectionPool] = {}
 
+# Set once per process after the `internal.sim_job` forensic columns (last_status, dyno) have
+# been ensured, so `reap_stale_sim_jobs` - which runs on every job poll - doesn't take an
+# ACCESS EXCLUSIVE lock with a no-op ALTER every time. `build_sim_job_table` is a manual CLI
+# step, so like every other post-original sim_job column these are added defensively at a call site.
+_sim_job_forensic_columns_ready = False
+
 def _get_pool(env_var_name: str) -> 'psycopg2_pool.ThreadedConnectionPool | None':
     if env_var_name not in _pools:
         url = os.getenv(env_var_name)
@@ -7862,6 +7868,10 @@ class PostgresDB:
             # ITS X-AXIS INSTEAD OF RESCALING AS POINTS ARRIVE.
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games JSONB;")
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games_total INT;")
+            # FORENSICS FOR A HUNG JOB: the last raw setup/roster breadcrumb the worker emitted,
+            # and the process it ran on (see `reap_stale_sim_jobs` / `update_sim_job_progress`).
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_user_id ON internal.sim_job (user_id, created_at DESC);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_team_id ON internal.sim_job (team_id, created_at DESC);")
             # DRIVES BOTH THE STALE-JOB REAPER AND TTL CLEANUP
@@ -8312,27 +8322,36 @@ class PostgresDB:
             return str(cur.fetchone()[0])
 
     def ensure_sim_job_progress_column(self) -> None:
-        """Lazily add the `sim_job` live-progress columns so a deploy that hasn't run
-        `build_sim_job_table` still streams progress. Called once per worker run rather than on
-        every progress write, which fires ~once a second."""
+        """Lazily add the `sim_job` live-progress + forensic columns so a deploy that hasn't run
+        `build_sim_job_table` still streams progress and records where a hung job died
+        (`last_status`, `dyno`). Called once per worker run rather than on every progress write,
+        which fires ~once a second."""
         if not self.connection:
             return
+        global _sim_job_forensic_columns_ready
         with self.connection.cursor() as cur:
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games JSONB;")
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games_total INT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+        _sim_job_forensic_columns_ready = True
 
     def update_sim_job_progress(
         self, job_id: str, phase: str | None = None, games_completed: int | None = None,
         games_total: int | None = None, progress_games: list | None = None,
-        progress_games_total: int | None = None,
+        progress_games_total: int | None = None, last_status: str | None = None,
+        dyno: str | None = None,
     ) -> bool:
         """Mark the job running and record progress. Called from the worker thread on its own
         connection - it cannot share the one the simulation is using.
 
         `progress_games` is the takeover club's running game-by-game record so far - streamed so
         the web progress screen can animate a live win% chart - and `progress_games_total` is that
-        club's full scheduled game count (the chart's fixed x-axis max). COALESCE keeps the last
-        value when a write omits either, so a plain progress tick never wipes them.
+        club's full scheduled game count (the chart's fixed x-axis max). `last_status` is the most
+        recent raw setup/roster breadcrumb and `dyno` the worker's process id - both purely for
+        explaining a hung job. COALESCE keeps the last value when a write omits any of them, so a
+        plain progress tick never wipes them. Assumes `ensure_sim_job_progress_column` has already
+        run this process (the worker calls it before the first progress write).
 
         Returns False if the job was cancelled out from under it (the row is excluded by the
         WHERE clause), which the worker treats as a signal to stop simulating.
@@ -8349,12 +8368,14 @@ class PostgresDB:
                        games_total     = COALESCE(%s, games_total),
                        progress_games  = COALESCE(%s, progress_games),
                        progress_games_total = COALESCE(%s, progress_games_total),
+                       last_status     = COALESCE(%s, last_status),
+                       dyno            = COALESCE(%s, dyno),
                        updated_at      = NOW()
                  WHERE job_id = %s AND status <> 'cancelled'
                 """,
                 (phase, games_completed, games_total,
                  extras.Json(progress_games) if progress_games is not None else None,
-                 progress_games_total, job_id),
+                 progress_games_total, last_status, dyno, job_id),
             )
             return cur.rowcount > 0
 
@@ -8425,6 +8446,15 @@ class PostgresDB:
         rows = self.execute_query("SELECT status FROM internal.sim_job WHERE job_id = %s", (job_id,))
         return bool(rows) and rows[0]['status'] == 'cancelled'
 
+    def is_sim_job_terminal(self, job_id: str) -> bool:
+        """True if the job has reached any terminal state (succeeded / failed / cancelled) or no
+        longer exists. The worker's `finally` guard uses this to decide whether it still needs to
+        close the row out itself rather than leave it for the stale-job reaper."""
+        if not self.connection:
+            return True
+        rows = self.execute_query("SELECT status FROM internal.sim_job WHERE job_id = %s", (job_id,))
+        return not rows or rows[0]['status'] in ('succeeded', 'failed', 'cancelled')
+
     def get_sim_job(self, job_id: str, user_id: str | None = None) -> dict | None:
         """Fetch a job's progress. A job with no user_id is public; otherwise owner-only."""
         if not self.connection:
@@ -8433,7 +8463,8 @@ class PostgresDB:
         rows = self.execute_query(
             """
             SELECT job_id, user_id, team_id, status, phase, games_completed, games_total,
-                   config, error, progress_games, progress_games_total, created_at, updated_at, finished_at
+                   config, error, progress_games, progress_games_total, created_at, updated_at, finished_at,
+                   last_status, dyno
               FROM internal.sim_job
              WHERE job_id = %s AND (user_id IS NULL OR user_id = %s)
             """,
@@ -8474,17 +8505,37 @@ class PostgresDB:
         """Fail jobs whose worker stopped reporting.
 
         The runner is a thread inside the web process, so a dyno restart or crash leaves a row
-        stuck in 'running' forever. Anything silent past the stale window is declared dead.
+        stuck in 'running' forever. Anything silent past the stale window is declared dead - the
+        recorded `error` captures the last phase, the last raw setup breadcrumb, how far into the
+        schedule it got, how long it had been silent, and which process it was on, so the row
+        says *where* it died instead of just that it did.
         """
         if not self.connection:
             return
+        global _sim_job_forensic_columns_ready
         with self.connection.cursor() as cur:
+            if not _sim_job_forensic_columns_ready:
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+                _sim_job_forensic_columns_ready = True
             cur.execute(
                 """
                 UPDATE internal.sim_job
                    SET status = 'failed', finished_at = NOW(), updated_at = NOW(),
                        phase = 'Failed',
-                       error = COALESCE(error, 'Simulation stopped responding and was cancelled.')
+                       error = COALESCE(
+                           error,
+                           'Simulation stopped responding'
+                           || ' in phase "' || COALESCE(NULLIF(phase, ''), '?') || '"'
+                           || CASE WHEN games_total > 0
+                                   THEN ' at game ' || games_completed || '/' || games_total
+                                   ELSE '' END
+                           || CASE WHEN NULLIF(last_status, '') IS NOT NULL
+                                   THEN ' (last: ' || last_status || ')' ELSE '' END
+                           || ' - silent for '
+                           || EXTRACT(EPOCH FROM (NOW() - COALESCE(updated_at, created_at, NOW())))::int || 's'
+                           || CASE WHEN dyno IS NOT NULL THEN ' on ' || dyno ELSE '' END
+                       )
                  WHERE status IN ('queued','running')
                    AND updated_at < NOW() - %s * INTERVAL '1 minute'
                 """,
