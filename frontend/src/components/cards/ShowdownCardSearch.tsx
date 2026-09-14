@@ -98,6 +98,12 @@ type ShowdownCardSearchProps = {
      * back to source defaults — used by callers to start fresh after a pick completes.
      */
     resetTrigger?: unknown;
+    /**
+     * Lets the user preview the selected card in a different Showdown set from the detail
+     * modal/sidebar (see `CardDetail`'s `enableSetSwitcher`). Off by default — only pages that
+     * want this (currently just the Cards explorer) should pass it.
+     */
+    enableSetSwitcher?: boolean;
 };
 
 // =============================================================================
@@ -634,7 +640,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -1505,6 +1511,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 onDraft={actionButton && selectedCardForSidebar
                                     ? () => { actionButton.onClick(selectedCardForSidebar); handleCloseSidebar(); }
                                     : undefined}
+                                enableSetSwitcher={enableSetSwitcher}
                             />
                         </div>
                     </div>
@@ -1538,6 +1545,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         onDraft={actionButton && selectedCardForModal
                             ? () => { actionButton.onClick(selectedCardForModal); handleCloseModal(); }
                             : undefined}
+                        enableSetSwitcher={enableSetSwitcher}
                     />
                 </Modal>
             </div>

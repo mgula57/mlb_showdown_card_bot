@@ -9,15 +9,18 @@
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect, memo, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { FaBaseballBall } from 'react-icons/fa';
 import { FaPlus } from 'react-icons/fa6';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
+import { fetchCardData } from '../../api/card_db/cardDatabase';
+import { CardSource } from '../../types/cardSource';
+import CustomSelect from '../shared/CustomSelect';
 
-import { imageForSet } from "../shared/SiteSettingsContext";
+import { imageForSet, showdownSets } from "../shared/SiteSettingsContext";
 
 // Chart accuracy table (kept as table — compact and precise)
 import { ChartSelectionBreakdown } from './card_detail/ChartSelectionBreakdown';
@@ -68,6 +71,11 @@ type CardDetailProps = {
      * of the modal. Runs the same handler as the compact card item's action button (opens the
      * slot-fill flow for the roster slot this card sits in). */
     onDraft?: () => void;
+    /** When true, the Set badge next to the player name becomes a dropdown (styled like the
+     * header's Showdown Set selector) that swaps the displayed card for the same player/year in
+     * a different set. Selecting a new card elsewhere always discards this — it only affects the
+     * currently displayed card, not any persisted preference. */
+    enableSetSwitcher?: boolean;
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
@@ -109,7 +117,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, enableSetSwitcher=false }: CardDetailProps) {
 
     const { session } = useAuth();
 
@@ -122,8 +130,14 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
      * Allows component to maintain its own copy for features like image regeneration
      */
     const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null | undefined>(showdownBotCardData);
-    const [internalCardId, setInternalCardId] = useState<string | undefined>(cardId);
-    
+    // Tracks the last `cardId` PROP value this component has already fetched/synced from —
+    // deliberately separate from "the id of the card currently on screen" (which the set
+    // switcher below reassigns locally). Comparing against that instead would make Case 2 think
+    // the parent handed us a new card every time the parent re-renders after a local set switch
+    // (e.g. a background session refresh when the browser tab regains focus), re-fetching the
+    // stale prop id and silently reverting the user's chosen set.
+    const handledCardIdPropRef = useRef<string | undefined>(cardId);
+
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
 
@@ -166,18 +180,22 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
         // Case 1: New data provided via prop
         if (showdownBotCardData && showdownBotCardData.card) {
-            // Skip if same card (by bref_id + year + set)
+            // Skip if same card (by bref_id + year + set). With `enableSetSwitcher`, the set is
+            // excluded from this check: the same player/year re-arriving from the parent at its
+            // default set (e.g. a background search refresh after the browser tab regains focus)
+            // must not be treated as a "new" card and clobber a set the user manually switched to
+            // — only a genuinely different player/year should do that.
             const isSameCard =
                 context !== 'custom' &&
                 (
                     (internalCardData?.card?.bref_id || internalCardData?.card?.mlb_id) === (showdownBotCardData?.card?.bref_id || showdownBotCardData?.card?.mlb_id) &&
                     internalCardData?.card?.year === showdownBotCardData?.card?.year &&
-                    internalCardData?.card?.set === showdownBotCardData?.card?.set
+                    (enableSetSwitcher || internalCardData?.card?.set === showdownBotCardData?.card?.set)
                 );
             console.log("CardDetail: Checking for prop data update, isSameCard =", isSameCard);
             if (!isSameCard) {
                 setInternalCardData(showdownBotCardData);
-                setInternalCardId(cardId);
+                setSetSwitchError(null);
 
                 // Load image if necessary
                 console.log("Image Output Filename:", showdownBotCardData.card);
@@ -194,18 +212,20 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 fetchRanges(showdownBotCardData.card);
             }
 
+            handledCardIdPropRef.current = cardId;
             return;
         }
 
         // Case 2: No data but cardId provided - fetch it from DB
-        if (cardId && cardId !== internalCardId) {
+        if (cardId && cardId !== handledCardIdPropRef.current) {
+            handledCardIdPropRef.current = cardId;
             setIsLoadingFromId(true);
             fetchCardById(cardId, 'card-detail')
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {
                         const cardResponse = data as ShowdownBotCardAPIResponse;
-                        setInternalCardId(cardId);
+                        setSetSwitchError(null);
 
                         // Load image if necessary
                         const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
@@ -236,8 +256,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
     const [isLoadingFromId, setIsLoadingFromId] = useState<boolean>(false);
 
+    // Set Switcher State (enableSetSwitcher only) — looks up the same player/year in a different
+    // set via the existing search + by-id endpoints, no dedicated backend support needed.
+    const [isSwitchingSet, setIsSwitchingSet] = useState<boolean>(false);
+    const [setSwitchError, setSetSwitchError] = useState<string | null>(null);
+
     // Mark if isLoading or isGeneratingImage
-    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId;
+    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId || isSwitchingSet;
 
     // Game
     const showGameBoxscore = (): boolean => {
@@ -313,6 +338,51 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             });
     };
 
+    // Handle Showdown Set Switching (enableSetSwitcher only)
+    const handleSetSwitch = async (newSet: string) => {
+        const currentCard = activeCardData?.card;
+        if (!currentCard || newSet === currentCard.set || isSwitchingSet) return;
+
+        setIsSwitchingSet(true);
+        setSetSwitchError(null);
+
+        try {
+            const source = currentCard.is_wotc ? CardSource.WOTC : CardSource.BOT;
+            const matches = await fetchCardData(source, {
+                bref_id: currentCard.bref_id,
+                year: currentCard.year,
+                is_pitcher: currentCard.chart?.is_pitcher,
+                showdown_set: [newSet],
+                limit: 1,
+            });
+
+            const match = matches?.[0];
+            if (!match?.card_id) {
+                setSetSwitchError(`Not available in the ${newSet} set`);
+                return;
+            }
+
+            // WOTC/WBC search rows embed full card_data; BOT rows don't, so hydrate by id.
+            const cardResponse = match.card_data
+                ? ({ card: match.card_data, error: null, error_for_user: null } as ShowdownBotCardAPIResponse)
+                : await fetchCardById(match.card_id, 'card-detail-set-switch');
+
+            setInternalCardData(cardResponse);
+
+            // This particular set's image may not be pre-rendered yet — generate it on demand,
+            // same as the initial-load path does.
+            const isDataWithoutImage = !cardResponse.card?.image.output_file_name && !cardResponse.card?.image.storage_path && cardResponse.card;
+            if (isDataWithoutImage) {
+                handleGenerateImage(cardResponse);
+            }
+        } catch (error) {
+            console.error("Error switching showdown set:", error);
+            setSetSwitchError(`Not available in the ${newSet} set`);
+        } finally {
+            setIsSwitchingSet(false);
+        }
+    };
+
     // Changing opacity of color
     const addOpacityToRGB = (rgbColor: string, opacity: number) => {
         // Extract numbers from rgb(r, g, b) format
@@ -385,12 +455,30 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 </a>
 
                 {/* Card Set */}
-                {imageForSet(activeCardData?.card?.set || '') && (
-                    <img 
-                        src={imageForSet(activeCardData?.card?.set || '') || ''}
-                        alt={activeCardData?.card?.set || ''}
-                        className="inline object-contain align-middle h-7"
-                    />
+                {enableSetSwitcher && activeCardData?.card ? (
+                    <div className="flex flex-col items-start">
+                        <CustomSelect
+                            className="w-28"
+                            buttonClassName="flex justify-center items-center cursor-pointer select-none disabled:opacity-50 disabled:cursor-wait border border-(--divider) rounded-lg py-1 px-2"
+                            imageClassName="object-contain object-center h-6"
+                            value={activeCardData.card.set}
+                            onChange={handleSetSwitch}
+                            options={showdownSets}
+                            showDropdownArrow={true}
+                            disabled={isSwitchingSet}
+                        />
+                        {setSwitchError && (
+                            <span className="text-[10px] text-(--showdown-red) font-semibold whitespace-nowrap">{setSwitchError}</span>
+                        )}
+                    </div>
+                ) : (
+                    imageForSet(activeCardData?.card?.set || '') && (
+                        <img
+                            src={imageForSet(activeCardData?.card?.set || '') || ''}
+                            alt={activeCardData?.card?.set || ''}
+                            className="inline object-contain align-middle h-7"
+                        />
+                    )
                 )}
 
                 {/* Iterate through attributes */}
@@ -509,7 +597,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                                     }}
                                 />
                                 <p className="text-white text-sm font-semibold">
-                                    Generating {isGeneratingImage ? 'Image...' : 'Card...'}
+                                    {isSwitchingSet ? 'Switching Set...' : `Generating ${isGeneratingImage ? 'Image...' : 'Card...'}`}
                                 </p>
                             </div>
                         </div>

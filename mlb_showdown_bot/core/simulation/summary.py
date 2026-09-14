@@ -524,9 +524,17 @@ class SeasonSummaryBuilder:
 
     def _outlier_line(self, entry: OutlierEntry) -> OutlierEntry:
         """Fill in `card_source` the same way `_starter_line` resolves a `SimGameStarter`'s -
-        `top_outliers` leaves it None since the model layer has no `config` to resolve against."""
+        `top_outliers` leaves it None since the model layer has no `config` to resolve against.
+        Also rewrites `id` down to the bare card_id: `top_outliers` builds `OutlierEntry.id` from
+        the raw stat-engine id, which is still builder-prefixed (see `builder_sim_id`) for a
+        drafted player (tournament/takeover roster - where a WOTC-sourced card is most likely to
+        show up), so left alone it wouldn't match a real `card_id` and the frontend couldn't link
+        the card. Every other statline (`SimStatLine.build`, `SimGameStarter`) already does this
+        rewrite at construction time - `OutlierEntry` is the one place that doesn't."""
+        bare_id = real_card_id(entry.id)
         return entry.model_copy(update={
-            'card_source': self.result.config.card_sources.get(real_card_id(entry.id), CardSource.BOT.value),
+            'id': bare_id,
+            'card_source': self.result.config.card_sources.get(bare_id, CardSource.BOT.value),
         })
 
     def _outliers(self) -> dict[str, OutlierGroup]:

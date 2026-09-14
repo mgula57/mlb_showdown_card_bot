@@ -65,7 +65,7 @@ export default function Cards() {
                     className="focus:outline-none data-[state=inactive]:hidden"
                     forceMount
                 >
-                    <ShowdownBotSearch source={CardSource.BOT} />
+                    <ShowdownBotSearch source={CardSource.BOT} enableSetSwitcher />
                 </Tabs.Content>
             )}
             {visitedTabs.has(CardSource.WOTC) && (
@@ -74,7 +74,7 @@ export default function Cards() {
                     className="focus:outline-none data-[state=inactive]:hidden"
                     forceMount
                 >
-                    <ShowdownBotSearch source={CardSource.WOTC} />
+                    <ShowdownBotSearch source={CardSource.WOTC} enableSetSwitcher />
                 </Tabs.Content>
             )}
         </Tabs.Root>
