@@ -9,7 +9,7 @@ function toStatLine(entry: OutlierEntry): SimStatLine {
         id: entry.id,
         name: entry.name,
         team: entry.team,
-        position: null,
+        position: entry.player_type,
         points: 0,
         command: 0,
         player_type: entry.player_type,

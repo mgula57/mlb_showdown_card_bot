@@ -7,7 +7,9 @@ import sys
 import threading
 import time
 import traceback
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from typing import Callable
 
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError as PydanticValidationError
@@ -25,16 +27,43 @@ from .user_settings import optional_user_id, require_auth
 
 sim_bp = Blueprint('sim', __name__)
 
-# A season sim costs ~9s of CPU on top of ~15s of I/O. Gunicorn runs three sync workers, so
-# letting these pile up would starve the request path. Two at a time per worker, and one
-# in-flight job per user.
-_MAX_CONCURRENT_SIMS = 2
+# A season sim is CPU-bound Python that holds the GIL for most of its run. This cap is PER WORKER
+# PROCESS, so a dyno actually runs up to `gunicorn workers x _MAX_CONCURRENT_SIMS` at once - with
+# the two workers in gunicorn.conf.py, two. Raising it does not get anyone their result sooner:
+# the dyno's CPU is fixed, so concurrent sims just slow each other down until the borderline ones
+# cross `_SIM_MAX_RUNTIME_SECONDS` and get killed. `SIM_MAX_CONCURRENT` retunes it without a code
+# change (e.g. after moving to a bigger dyno).
+_MAX_CONCURRENT_SIMS = max(1, int(os.environ.get('SIM_MAX_CONCURRENT', 1)))
 _sim_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_SIMS)
 
 
 class SimCancelled(Exception):
     """Raised inside a `Season.simulate()` callback when the job's row has been cancelled out
     from under the worker thread. Propagates uncaught through `simulate()` to `_run_sim_job`."""
+
+
+@dataclass
+class _SimLaunchPlan:
+    """Everything a queued job needs in order to run, built inside the worker thread.
+
+    Routes hand `_run_sim_job` a factory returning one of these rather than a finished config,
+    because the last step of building one - turning a requested club abbreviation into a real one
+    via `TakeoverOptions` - reads the season's standings from the MLB Stats API. That client
+    retries three times against a 30s socket timeout, so a bad upstream day makes it a ~93s call:
+    survivable in a background thread with a watchdog and a progress row, fatal in a request that
+    Heroku's router closes at 30s with an H12.
+
+    Everything cheap and DB-bound (ownership, roster completeness, challenge budget) stays in the
+    request, where a failure can still be a real status code. Only this step is deferred, so the
+    worst it can do now is fail one job with a recorded reason.
+
+    `config_patch` is merged into the job's stored `config` echo once resolution succeeds - that
+    echo is written at queue time, before the resolved club is known.
+    """
+
+    config: SeasonSimulationConfig
+    focus_abbr: str | None = None
+    config_patch: dict = field(default_factory=dict)
 
 # Progress fires once per game - 2437 times a season. Writing each one would be thousands of
 # round trips for a bar the user reads a few times a second.
@@ -51,12 +80,17 @@ _EARLIEST_SEASON = 1975
 # Longest a single status/setup breadcrumb is allowed to be when stored on the job row.
 _MAX_STATUS_LEN = 1000
 
-# Hard wall-clock ceiling for one sim run. A season sim is ~15-30s; a challenge run with real
-# injuries/deadline data is a bit more I/O. Anything past this is wedged - a network call with no
-# deadline, a pathological game the per-game guard missed, a stuck DB write. When it trips, the
-# watchdog dumps the sim thread's stack, fails the job with that stack attached, and frees the
-# slot, instead of letting the row sit until the (now shorter) stale-job reaper notices.
-_SIM_MAX_RUNTIME_SECONDS = 90
+# Hard wall-clock ceiling for one sim run. When it trips, the watchdog dumps the sim thread's
+# stack, fails the job with that stack attached, and frees the slot, rather than letting the row
+# sit until the stale-job reaper notices.
+#
+# This is a ceiling for a WEDGED run, not a target for a healthy one, and it is deliberately far
+# above the ~15-30s a season takes on a dev machine. A Heroku dyno has a fraction of the CPU, and
+# the run now also absorbs `_SimLaunchPlan` resolution, whose MLB Stats API calls retry three
+# times against a 30s socket timeout (~93s worst case) before the sim proper even starts. At 90s
+# this was killing slow-but-healthy runs and handing their slot to the next sim while the zombie
+# thread kept burning CPU - each timeout making the following run likelier to time out too.
+_SIM_MAX_RUNTIME_SECONDS = int(os.environ.get('SIM_MAX_RUNTIME_SECONDS', 240))
 
 
 def _dyno_id() -> str:
@@ -213,35 +247,38 @@ def start_season_sim():
         if roster_error:
             return jsonify({'error': roster_error}), 422
 
-        if challenge is not None:
-            # RESOLVED AND VALIDATED ALREADY AT GENERATION TIME - NOT RE-DERIVED FROM ANYTHING
-            # THE CLIENT SENT.
-            replaces = challenge['replaces_abbr']
-        else:
-            # NO DB CONNECTION HELD HERE - THIS HITS THE MLB STATS API (UP TO ~90S WORST CASE WITH
-            # RETRIES) AND MUST NOT SIT ON A POOLED CONNECTION WHILE IT DOES.
-            try:
-                replaces = TakeoverOptions(year=year).resolve(payload.get('replaces'))
-            except ValueError as exc:
-                return jsonify({'error': str(exc)}), 400
-            if replaces is None:
-                return jsonify({'error': f'No club data available for {year}.'}), 400
+        # A CHALLENGE'S CLUB WAS RESOLVED AND VALIDATED AT GENERATION TIME - NOT RE-DERIVED FROM
+        # ANYTHING THE CLIENT SENT, AND NOT NEEDING THE STANDINGS LOOKUP BELOW.
+        requested_replaces = challenge['replaces_abbr'] if challenge is not None else payload.get('replaces')
+        needs_resolution = challenge is None
 
-        config = SeasonSimulationConfig(
-            year=year,
-            set=showdown_set,
-            simulate_postseason=True,
-            seed=payload.get('seed'),
-            takeover_team=team,
-            takeover_replaces_abbr=replaces,
-            manager_preference=manager_preference,
-            # A CHALLENGE RUN PLAYS AGAINST A LIVE LEAGUE: THE OTHER 29 CLUBS TAKE INJURIES AND
-            # MAKE THEIR REAL DEADLINE MOVES. BOTH ARE NO-OPS FOR THE TAKEOVER CLUB ITSELF (SEE
-            # `SeasonSimulationConfig` - builder rosters are never injured, the deadline skips
-            # takeover clubs), so this only shapes the competition around the user's team.
-            enable_injuries=challenge is not None,
-            enable_trade_deadline=challenge is not None,
-        )
+        def build_plan() -> _SimLaunchPlan:
+            # RUNS ON THE WORKER THREAD. `TakeoverOptions` READS THE SEASON'S STANDINGS FROM THE
+            # MLB STATS API, WHICH IS TOO SLOW TO SIT IN A REQUEST - SEE `_SimLaunchPlan`.
+            replaces = TakeoverOptions(year=year).resolve(requested_replaces) if needs_resolution else requested_replaces
+            if replaces is None:
+                raise ValueError(f'No club data available for {year}.')
+            return _SimLaunchPlan(
+                config=SeasonSimulationConfig(
+                    year=year,
+                    set=showdown_set,
+                    simulate_postseason=True,
+                    seed=payload.get('seed'),
+                    takeover_team=team,
+                    takeover_replaces_abbr=replaces,
+                    manager_preference=manager_preference,
+                    # A CHALLENGE RUN PLAYS AGAINST A LIVE LEAGUE: THE OTHER 29 CLUBS TAKE INJURIES
+                    # AND MAKE THEIR REAL DEADLINE MOVES. BOTH ARE NO-OPS FOR THE TAKEOVER CLUB
+                    # ITSELF (SEE `SeasonSimulationConfig` - builder rosters are never injured, the
+                    # deadline skips takeover clubs), so this only shapes the competition around
+                    # the user's team.
+                    enable_injuries=challenge is not None,
+                    enable_trade_deadline=challenge is not None,
+                ),
+                focus_abbr=replaces,
+                config_patch={'replaces': replaces},
+            )
+
         manager_echo = manager_preference.model_dump() if manager_preference and not manager_preference.is_neutral else None
         with PostgresDB() as db:
             job_id = db.create_sim_job(
@@ -249,7 +286,9 @@ def start_season_sim():
                 team_id=team_id,
                 # THE BUILDER TEAM IS DROPPED FROM THE STORED CONFIG - IT IS A FULL ROSTER THE
                 # TEAM ITSELF ALREADY HOLDS, AND ONLY THE SETUP ECHO IS NEEDED FOR DISPLAY.
-                config={'year': year, 'set': showdown_set.value, 'replaces': replaces, 'seed': payload.get('seed'),
+                # `replaces` IS THE *REQUESTED* CLUB HERE (NULL WHEN THE USER TOOK THE DEFAULT) -
+                # THE WORKER OVERWRITES IT WITH THE RESOLVED ONE VIA `config_patch`.
+                config={'year': year, 'set': showdown_set.value, 'replaces': requested_replaces, 'seed': payload.get('seed'),
                         'team_name': team.name, 'team_abbreviation': team.abbreviation, 'manager': manager_echo,
                         'challenge_instance_id': challenge['instance_id'] if challenge is not None else None},
             )
@@ -261,7 +300,7 @@ def start_season_sim():
 
         try:
             threading.Thread(
-                target=_run_sim_job, args=(job_id, config, replaces, g.user_id, team_id),
+                target=_run_sim_job, args=(job_id, build_plan, g.user_id, team_id),
                 kwargs={'roster_points': roster_points, 'challenge': challenge},
                 name=f'sim-{job_id[:8]}', daemon=True,
             ).start()
@@ -271,7 +310,10 @@ def start_season_sim():
             _sim_slots.release()
             raise
 
-        return jsonify({'job_id': job_id, 'status': 'queued', 'replaces': replaces}), 202
+        # `replaces` IS THE REQUESTED CLUB, NOT THE RESOLVED ONE, WHICH IS NOT KNOWN YET. NOTHING
+        # ON THE CLIENT READS IT (THE PROGRESS SCREEN TAKES THE CLUB OFF THE JOB ROW); IT IS KEPT
+        # ONLY SO THE RESPONSE SHAPE DOESN'T CHANGE.
+        return jsonify({'job_id': job_id, 'status': 'queued', 'replaces': requested_replaces}), 202
 
     except Exception as exc:
         traceback.print_exc()
@@ -413,10 +455,10 @@ def _config_kwargs_from_stored(stored: dict) -> dict:
 
 
 def _launch_open_sim_job(
-    user_id: str, config: SeasonSimulationConfig, focus_abbr: str | None, job_config_echo: dict,
+    user_id: str, plan_factory: Callable[[], _SimLaunchPlan], job_config_echo: dict,
 ) -> tuple[str | None, tuple[dict, int] | None]:
     """Creates the `sim_job` row and starts the worker thread - the shared tail of a solo open sim
-    and a lobby's start, once each has its own `SeasonSimulationConfig` ready.
+    and a lobby's start, once each has its own plan factory ready.
 
     Returns `(job_id, None)` on success, or `(None, (json_body, status_code))` on failure (the
     simulator is at capacity) - the caller re-raises that as its own response.
@@ -431,7 +473,7 @@ def _launch_open_sim_job(
 
     try:
         threading.Thread(
-            target=_run_sim_job, args=(job_id, config, focus_abbr, user_id, None),
+            target=_run_sim_job, args=(job_id, plan_factory, user_id, None),
             name=f'sim-{job_id[:8]}', daemon=True,
         ).start()
     except Exception:
@@ -514,54 +556,81 @@ def start_open_sim():
             except _RequestError as exc:
                 return jsonify({'error': str(exc)}), exc.status
 
-        # NO DB CONNECTION HELD DURING ANY OF THIS - EACH `TakeoverOptions` HITS THE MLB STATS API
-        # (UP TO ~90S WORST CASE WITH RETRIES) AND MUST NOT SIT ON A POOLED CONNECTION WHILE IT
-        # DOES. RESULTS ARE 12H-CACHED PER YEAR AT THE ROUTE LAYER, SO REPEAT REQUESTS ARE CHEAP.
+        # MANAGER PREFERENCES ARE PARSED HERE, WHILE A MALFORMED ONE CAN STILL BE A 400 - ONLY THE
+        # CLUB RESOLUTION ITSELF IS DEFERRED. KEYED BY THE *REQUESTED* ABBR FOR NOW; `build_plan`
+        # RE-KEYS BOTH DICTS ONCE THE REAL ONES ARE KNOWN.
         try:
-            options = TakeoverOptions(year=year)
-            takeover_teams: dict[str, BuilderTeam] = {}
-            manager_prefs: dict[str, ManagerPreference] = {}
-            # `_resolve_takeovers` KEEPS `raw_takeovers` ORDER, SO THE MANAGER ON EACH REQUEST ENTRY
-            # LINES UP WITH ITS RESOLVED TEAM.
-            for raw_entry, (team, requested_replaces) in zip(raw_takeovers, takeover_rows):
-                replaces = options.resolve(requested_replaces)
-                if replaces is None:
-                    return jsonify({'error': f'No club data available for {year}.'}), 400
-                if replaces in takeover_teams:
-                    return jsonify({'error': f"'{replaces}' is being taken over more than once."}), 400
-                takeover_teams[replaces] = team
-                manager_pref = _parse_manager_preference(raw_entry.get('manager') if isinstance(raw_entry, dict) else None)
-                if manager_pref is not None and not manager_pref.is_neutral:
-                    manager_prefs[replaces] = manager_pref
-
-            focus_abbr = payload.get('focus_abbr')
-            if focus_abbr:
-                focus_abbr = options.resolve(focus_abbr)
+            requested_managers = [
+                _parse_manager_preference(entry.get('manager') if isinstance(entry, dict) else None)
+                for entry in raw_takeovers
+            ]
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
-        config = SeasonSimulationConfig(
-            year=year,
-            set=showdown_set,
-            takeovers=takeover_teams,
-            manager_preferences=manager_prefs,
-            **_config_kwargs_from_stored(_settings_to_stored_config(settings)),
-            # NEVER ACCEPTED FROM THE CLIENT - 3.2 MB OF THE 6.1 MB RESULT, AND NOTHING ON THE
-            # OPEN-SIM RESULT SCREEN READS THEM. SEE `start_season_sim`'s SAME OMISSION.
-            include_game_logs=False,
-            include_box_scores=False,
-        )
+        # A DUPLICATE THE USER CAN ALREADY SEE IN THEIR OWN PAYLOAD IS WORTH A 400 RATHER THAN A
+        # FAILED JOB. `build_plan` STILL RE-CHECKS AFTER RESOLUTION, WHICH IS WHERE TWO DIFFERENT
+        # REQUESTED SPELLINGS CAN COLLAPSE ONTO ONE REAL CLUB.
+        requested_abbrs = [(requested or '').upper() for _, requested in takeover_rows if requested]
+        duplicate = next((a for a in requested_abbrs if requested_abbrs.count(a) > 1), None)
+        if duplicate:
+            return jsonify({'error': f"'{duplicate}' is being taken over more than once."}), 400
+
+        requested_focus = payload.get('focus_abbr')
+
+        def build_plan() -> _SimLaunchPlan:
+            # RUNS ON THE WORKER THREAD - `TakeoverOptions` READS THE SEASON'S STANDINGS FROM THE
+            # MLB STATS API, WHICH IS TOO SLOW TO SIT IN A REQUEST. SEE `_SimLaunchPlan`.
+            options = TakeoverOptions(year=year)
+            takeover_teams: dict[str, BuilderTeam] = {}
+            manager_prefs: dict[str, ManagerPreference] = {}
+            # `_resolve_takeovers` KEEPS `raw_takeovers` ORDER, SO THE MANAGER PARSED FROM EACH
+            # REQUEST ENTRY LINES UP WITH ITS RESOLVED TEAM.
+            for manager_pref, (team, requested_replaces) in zip(requested_managers, takeover_rows):
+                replaces = options.resolve(requested_replaces)
+                if replaces is None:
+                    raise ValueError(f'No club data available for {year}.')
+                if replaces in takeover_teams:
+                    raise ValueError(f"'{replaces}' is being taken over more than once.")
+                takeover_teams[replaces] = team
+                if manager_pref is not None and not manager_pref.is_neutral:
+                    manager_prefs[replaces] = manager_pref
+
+            focus_abbr = options.resolve(requested_focus) if requested_focus else None
+
+            return _SimLaunchPlan(
+                config=SeasonSimulationConfig(
+                    year=year,
+                    set=showdown_set,
+                    takeovers=takeover_teams,
+                    manager_preferences=manager_prefs,
+                    **_config_kwargs_from_stored(_settings_to_stored_config(settings)),
+                    # NEVER ACCEPTED FROM THE CLIENT - 3.2 MB OF THE 6.1 MB RESULT, AND NOTHING ON
+                    # THE OPEN-SIM RESULT SCREEN READS THEM. SEE `start_season_sim`'s SAME OMISSION.
+                    include_game_logs=False,
+                    include_box_scores=False,
+                ),
+                focus_abbr=focus_abbr,
+                config_patch={
+                    'focus_abbr': focus_abbr,
+                    'takeovers': [
+                        {'replaces': abbr, 'team_name': team.name,
+                         'manager': manager_prefs[abbr].model_dump() if abbr in manager_prefs else None}
+                        for abbr, team in takeover_teams.items()
+                    ],
+                },
+            )
 
         job_id, error = _launch_open_sim_job(
-            user_id=g.user_id, config=config, focus_abbr=focus_abbr,
+            user_id=g.user_id, plan_factory=build_plan,
             # BUILDER TEAMS ARE DROPPED FROM THE STORED CONFIG - EACH IS A FULL ROSTER THE TEAM
-            # ITSELF ALREADY HOLDS, AND ONLY THE SETUP ECHO IS NEEDED FOR DISPLAY.
+            # ITSELF ALREADY HOLDS, AND ONLY THE SETUP ECHO IS NEEDED FOR DISPLAY. THE CLUBS HERE
+            # ARE AS REQUESTED; THE WORKER REPLACES THEM WITH THE RESOLVED ONES VIA `config_patch`.
             job_config_echo={
-                'year': year, 'set': showdown_set.value, 'focus_abbr': focus_abbr,
+                'year': year, 'set': showdown_set.value, 'focus_abbr': requested_focus,
                 'takeovers': [
-                    {'replaces': abbr, 'team_name': team.name,
-                     'manager': manager_prefs[abbr].model_dump() if abbr in manager_prefs else None}
-                    for abbr, team in takeover_teams.items()
+                    {'replaces': requested, 'team_name': team.name,
+                     'manager': manager_pref.model_dump() if manager_pref and not manager_pref.is_neutral else None}
+                    for manager_pref, (team, requested) in zip(requested_managers, takeover_rows)
                 ],
                 **_settings_to_stored_config(settings),
             },
@@ -570,7 +639,10 @@ def start_open_sim():
             body, status = error
             return jsonify(body), status
 
-        return jsonify({'job_id': job_id, 'status': 'queued', 'focus_abbr': focus_abbr}), 202
+        # THE REQUESTED FOCUS CLUB, NOT THE RESOLVED ONE, WHICH IS NOT KNOWN YET. THE CLIENT ONLY
+        # USES THIS TO BUILD ITS OWN `?focus=` LINK, AND `resolve` IS AN IDENTITY FOR A CLUB THE
+        # USER PICKED OUT OF THE SEASON'S OWN DROPDOWN.
+        return jsonify({'job_id': job_id, 'status': 'queued', 'focus_abbr': requested_focus}), 202
 
     except Exception as exc:
         traceback.print_exc()
@@ -811,7 +883,9 @@ def start_sim_lobby(lobby_id: str):
         )
 
         job_id, error = _launch_open_sim_job(
-            user_id=g.user_id, config=config, focus_abbr=None,
+            # NOTHING TO DEFER HERE: A LOBBY'S CLUBS WERE RESOLVED AT CLAIM TIME AND ARE STORED ON
+            # THE MEMBER ROWS, SO THIS PATH NEVER TOUCHES `TakeoverOptions`.
+            user_id=g.user_id, plan_factory=lambda: _SimLaunchPlan(config=config),
             job_config_echo={
                 'year': lobby['year'], 'set': lobby['showdown_set'], 'lobby_id': lobby_id,
                 'takeovers': [{'replaces': abbr, 'team_name': team.name} for abbr, team in takeover_teams.items()],
@@ -890,7 +964,7 @@ def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_
 
 
 def _run_sim_job(
-    job_id: str, config: SeasonSimulationConfig, team_abbr: str | None, user_id: str | None = None, team_id: str | None = None,
+    job_id: str, plan_factory: Callable[[], _SimLaunchPlan], user_id: str | None = None, team_id: str | None = None,
     roster_points: int | None = None, challenge: dict | None = None,
 ) -> None:
     """Run one simulation to completion and record the result.
@@ -898,9 +972,13 @@ def _run_sim_job(
     Runs in a background thread with its own DB connections - it must never share the one the
     request used, and the progress writer needs one separate from the simulation's own reads.
 
-    `team_abbr=None` is an open sim: `SeasonSummaryBuilder` covers every club instead of one, and
-    `team_id`/`challenge`/`roster_points` are all naturally None/absent for this kind of run - a
-    challenge is by definition scoped to one team's own attempt.
+    `plan_factory` is called once, here, under the watchdog and with a progress row already
+    written - see `_SimLaunchPlan` for why the last of the setup work belongs on this side of the
+    202 rather than in the request.
+
+    A plan whose `focus_abbr` is None is an open sim: `SeasonSummaryBuilder` covers every club
+    instead of one, and `team_id`/`challenge`/`roster_points` are all naturally None/absent for
+    that kind of run - a challenge is by definition scoped to one team's own attempt.
     """
     started_at = time.monotonic()
     dyno = _dyno_id()
@@ -908,8 +986,7 @@ def _run_sim_job(
     # LAST PHASE THE WORKER REPORTED - MIRRORED IN-PROCESS SO THE WATCHDOG, THE `finally` GUARD
     # AND THE CRASH LOGS CAN NAME WHERE A RUN DIED WITHOUT A DB READ.
     progress_state = {'phase': 'starting'}
-    print(f"[sim {job_id}] starting ({'season' if team_abbr else 'open'}, "
-          f"thread={threading.current_thread().name}, dyno={dyno})")
+    print(f"[sim {job_id}] starting (thread={threading.current_thread().name}, dyno={dyno})")
 
     def _elapsed() -> float:
         return time.monotonic() - started_at
@@ -1015,6 +1092,27 @@ def _run_sim_job(
             traceback.print_exc()  # WORST CASE THE LIVE CHART / BREADCRUMBS ARE SKIPPED - RUN IS FINE
 
         write_progress(phase='Starting simulation', dyno_id=dyno)
+
+        # THE MLB STATS API CALL THAT RESOLVES THE REAL CLUB HAPPENS HERE, NOT IN THE REQUEST -
+        # SEE `_SimLaunchPlan`. IT SITS INSIDE THE try SO A FAILURE LANDS ON THE ROW AS A NORMAL
+        # JOB ERROR, AND AFTER THE WATCHDOG STARTS SO A HUNG UPSTREAM IS TIMED OUT LIKE ANY OTHER
+        # WEDGED PHASE RATHER THAN HANGING THE THREAD FOREVER. ITS OWN PHASE (ONE EXTRA ROW WRITE
+        # PER JOB) SO A FAILURE OR TIMEOUT IN HERE NAMES THIS STEP RATHER THAN THE WHOLE STARTUP.
+        #
+        # MUST BE A PHASE NAME `_friendly_phase` NEVER RETURNS, AND MUST BE ORDERED FIRST IN THE
+        # FRONTEND'S `SETUP_PHASES`: that list is read as a chronological sequence, so reusing a
+        # label the engine emits later ('Setting up teams', when it builds rosters) sent the
+        # progress bar forward to the end of setup and then back again.
+        write_progress(phase='Preparing the season', last_status="Looking up the season's real clubs...")
+        plan = plan_factory()
+        config, team_abbr = plan.config, plan.focus_abbr
+        if plan.config_patch:
+            try:
+                with PostgresDB() as patch_db:
+                    patch_db.merge_sim_job_config(job_id, plan.config_patch)
+            except Exception:
+                traceback.print_exc()  # THE ECHO IS DISPLAY-ONLY - NEVER FAIL A RUN OVER IT
+
         # `log_callback` STAYS UNSET: IT FIRES PER PLATE APPEARANCE (~185k TIMES) AND FORCES
         # GameLogEntry CONSTRUCTION EVEN WHEN THE LOG IS NEVER COLLECTED.
         result = Season(config=config).simulate(

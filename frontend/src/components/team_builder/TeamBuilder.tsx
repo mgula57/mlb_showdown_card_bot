@@ -162,6 +162,9 @@ export default function TeamBuilder() {
         const mapped = (stored && LEGACY_TAB_MAP[stored]) || stored;
         return TAB_IDS.includes(mapped as TabId) ? (mapped as TabId) : 'mine';
     });
+    // Browse and Challenges are heavier tabs (their own data fetches) — each mounts the first time
+    // the user visits it, then stays mounted (just hidden) so switching tabs doesn't lose its state.
+    const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set([activeTab]));
 
     // UX Spacing
     const px = 'px-4 sm:px-8';
@@ -231,6 +234,7 @@ export default function TeamBuilder() {
 
     useEffect(() => {
         window.localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+        setVisitedTabs(prev => prev.has(activeTab) ? prev : new Set(prev).add(activeTab));
     }, [activeTab]);
 
     // Auth change invalidates the cached list
@@ -376,11 +380,22 @@ export default function TeamBuilder() {
         if (!token || creatingTeam) return;
         setCreatingTeam(true);
         try {
+            // Fetched fresh (rather than off `userTeams` state) since a challenge's own page can be
+            // reached by a cold link that never loads the team list, which would otherwise always
+            // count zero prior attempts.
+            const existingTeams = await fetchUserTeams(token);
+            const name = challenge
+                // Numbered per that challenge (by template, so every rotation of the same challenge
+                // shares the count), not across all teams.
+                ? `${displayName} - ${challenge.title} ${existingTeams.filter(t => t.origin_template_id === challenge.template_id).length + 1}`
+                // Numbered across the user's non-challenge teams only, so challenge attempts don't
+                // bump the plain "New Team" counter.
+                : `${displayName} Team ${existingTeams.filter(t => t.creation_source !== 'challenge').length + 1}`;
             const payload = buildDefaultTeamPayload({
                 displayName,
                 showdownSet: userShowdownSet,
                 overrides: challenge ? {
-                    name: `${displayName} - ${challenge.title}`,
+                    name,
                     is_public: false,
                     pts_limit: challenge.pts_limit,
                     // Challenge teams are pre-sized to the challenge's own roster minimum (25 by
@@ -393,7 +408,7 @@ export default function TeamBuilder() {
                     origin_template_id: challenge.template_id,
                     player_filters: challenge.player_filters,
                     creation_source: 'challenge',
-                } : { creation_source: 'new_team' },
+                } : { name, creation_source: 'new_team' },
             });
             const newTeam = await createTeam(payload, token);
             createdThisSessionRef.current.add(newTeam.team_id);
@@ -740,31 +755,36 @@ export default function TeamBuilder() {
                 </>
             )}
 
-            {/* Browse tab — featured collections, community teams, and historical rosters */}
-            {activeTab === 'browse' && (
-                <BrowseTeams
-                    onOpenTeam={openTeam}
-                    horizontalPadding={px}
-                    currentUserId={session?.user?.id}
-                    myTeams={sortedUserTeams}
-                />
-            )}
+            {/* Browse tab — featured collections, community teams, and historical rosters.
+                Mounts on first visit, then stays mounted (hidden) so its state survives tab switches. */}
+            <div hidden={activeTab !== 'browse'}>
+                {visitedTabs.has('browse') && (
+                    <BrowseTeams
+                        onOpenTeam={openTeam}
+                        horizontalPadding={px}
+                        currentUserId={session?.user?.id}
+                        myTeams={sortedUserTeams}
+                    />
+                )}
+            </div>
 
-            {/* Team Challenges tab */}
-            {activeTab === 'simulations' && (
-                <SimulationsTab
-                    token={token}
-                    horizontalPadding={px}
-                    onOpenSeason={(teamId, jobId) => {
-                        trackRecentTeam(teamId);
-                        navigate(`/teams/${teamId}/sim/${jobId}`);
-                    }}
-                    onNewTeam={handleChallengeNewTeam}
-                    onUseExistingTeam={handleUseExistingTeam}
-                    onOpenChallenge={openChallenge}
-                    onManageChallenges={() => navigate('/teams/admin/challenges')}
-                />
-            )}
+            {/* Team Challenges tab — same lazy-mount-then-keep-alive treatment as Browse. */}
+            <div hidden={activeTab !== 'simulations'}>
+                {visitedTabs.has('simulations') && (
+                    <SimulationsTab
+                        token={token}
+                        horizontalPadding={px}
+                        onOpenSeason={(teamId, jobId) => {
+                            trackRecentTeam(teamId);
+                            navigate(`/teams/${teamId}/sim/${jobId}`);
+                        }}
+                        onNewTeam={handleChallengeNewTeam}
+                        onUseExistingTeam={handleUseExistingTeam}
+                        onOpenChallenge={openChallenge}
+                        onManageChallenges={() => navigate('/teams/admin/challenges')}
+                    />
+                )}
+            </div>
         </div>
         </div>
     );

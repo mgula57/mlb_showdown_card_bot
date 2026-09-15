@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from pprint import pprint
 import psycopg2
 import traceback
@@ -16,6 +17,32 @@ from psycopg2 import sql
 # ----------------------------------------------------------------
 _pools: dict[str, psycopg2_pool.ThreadedConnectionPool] = {}
 
+# Pools are NOT fork-safe: a psycopg2 connection is a socket, and two processes writing to the
+# same one interleave on the wire and corrupt the protocol stream. `gunicorn --preload` imports
+# the app - and `app.py` warms these pools - in the master process *before* it forks, so every
+# worker would otherwise inherit and share the parent's connections. Stamping the owning pid and
+# rebuilding on mismatch makes an inherited pool a no-op in each child.
+_pools_pid: int | None = None
+# Safe to inherit across the fork: a child that woke up holding a lock its parent never released
+# would deadlock, but the master only touches pools single-threaded at import (and under
+# `--preload` skips even that - see app.py), so it is never held at fork time.
+_pools_lock = threading.Lock()
+
+
+def _discard_pools_after_fork() -> None:
+    """Drop (never close) pools inherited from a parent process.
+
+    Closing would send a termination packet down a socket the parent still owns, breaking *its*
+    connection too - so the inherited objects are simply abandoned. The handful of leaked fds
+    (minconn=1 per pool) live until the worker exits, which is the standard trade here.
+    """
+    global _pools_pid
+    pid = os.getpid()
+    if _pools_pid == pid:
+        return
+    _pools.clear()
+    _pools_pid = pid
+
 # Set once per process after the `internal.sim_job` forensic columns (last_status, dyno) have
 # been ensured, so `reap_stale_sim_jobs` - which runs on every job poll - doesn't take an
 # ACCESS EXCLUSIVE lock with a no-op ALTER every time. `build_sim_job_table` is a manual CLI
@@ -23,24 +50,29 @@ _pools: dict[str, psycopg2_pool.ThreadedConnectionPool] = {}
 _sim_job_forensic_columns_ready = False
 
 def _get_pool(env_var_name: str) -> 'psycopg2_pool.ThreadedConnectionPool | None':
-    if env_var_name not in _pools:
-        url = os.getenv(env_var_name)
-        if not url:
-            return None
-        try:
-            _pools[env_var_name] = psycopg2_pool.ThreadedConnectionPool(
-                1, 20, url,
-                sslmode='require',
-                keepalives=1,
-                keepalives_idle=30,
-                keepalives_interval=10,
-                keepalives_count=5,
-            )
-            extensions.register_adapter(dict, extras.Json)
-        except Exception as e:
-            print(f"Error creating connection pool for {env_var_name}: {e}")
-            return None
-    return _pools.get(env_var_name)
+    # LOCKED BECAUSE A WORKER NOW RUNS SEVERAL REQUEST THREADS ALONGSIDE ITS SIM THREADS: WITHOUT
+    # IT, TWO THREADS COULD BOTH MISS ON THE SAME KEY AND BUILD A POOL, LEAVING THE LOSER'S
+    # CONNECTIONS ORPHANED AND OPEN AGAINST A DATABASE WITH A HARD CONNECTION LIMIT.
+    with _pools_lock:
+        _discard_pools_after_fork()
+        if env_var_name not in _pools:
+            url = os.getenv(env_var_name)
+            if not url:
+                return None
+            try:
+                _pools[env_var_name] = psycopg2_pool.ThreadedConnectionPool(
+                    1, 20, url,
+                    sslmode='require',
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5,
+                )
+                extensions.register_adapter(dict, extras.Json)
+            except Exception as e:
+                print(f"Error creating connection pool for {env_var_name}: {e}")
+                return None
+        return _pools.get(env_var_name)
 from datetime import date, datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
@@ -7871,10 +7903,16 @@ class PostgresDB:
 
     SIM_JOB_TTL_HOURS = 24 * 7
     # Backstop only - the worker's own in-process watchdog (`_SIM_MAX_RUNTIME_SECONDS` in
-    # api/sim.py) fails a wedged job at 90s with a stack trace. This just catches the case that
-    # watchdog can't: the whole thread/process dying with it (dyno restart, OOM, crash). Kept
-    # above that 90s so a live job that's simply slow finishing up isn't reaped out from under it.
-    SIM_JOB_STALE_MINUTES = 2
+    # api/sim.py) fails a wedged job with a stack trace. This just catches the case that watchdog
+    # can't: the whole thread/process dying with it (dyno restart, OOM, crash).
+    #
+    # MUST STAY ABOVE `_SIM_MAX_RUNTIME_SECONDS`. Reaping is not a neutral observation - it flips
+    # the row terminal, and the worker's next progress write then raises `SimCancelled` and throws
+    # away a season that was still being computed. So this window has to clear the longest stretch
+    # a *healthy* run goes without writing, which is not the per-game loop (that ticks every
+    # second) but the silent tail: `Postseason.simulate` takes no callback, and neither does
+    # `SeasonSummaryBuilder.build` or the multi-MB `record_sim_season` insert after it.
+    SIM_JOB_STALE_MINUTES = 5
 
     def build_sim_job_table(self) -> None:
         """Create the sim_job table."""
@@ -8361,6 +8399,30 @@ class PostgresDB:
                 (user_id, team_id, extras.Json(config), self.SIM_JOB_TTL_HOURS),
             )
             return str(cur.fetchone()[0])
+
+    def merge_sim_job_config(self, job_id: str, patch: dict) -> None:
+        """Shallow-merge keys into a job's stored `config` echo.
+
+        The echo is written at queue time, but the fields naming the real clubs involved
+        (`replaces`, `focus_abbr`, `takeovers`) aren't known until the worker resolves them against
+        the season's standings - an MLB Stats API call that deliberately does not happen in the
+        request. This is how the worker fills them in once it has them, so the progress screen can
+        name the club the user is playing as.
+
+        Purely cosmetic: `||` on a missing/NULL config would yield NULL, so the COALESCE keeps a
+        job whose echo somehow went missing from losing its config entirely.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET config = COALESCE(config, '{}'::jsonb) || %s::jsonb
+                 WHERE job_id = %s
+                """,
+                (extras.Json(patch), job_id),
+            )
 
     def ensure_sim_job_progress_column(self) -> None:
         """Lazily add the `sim_job` live-progress + forensic columns so a deploy that hasn't run

@@ -15,6 +15,7 @@ import { SimTransactionsTab } from './SimTransactionsTab';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis, buildLeagueStatsKpis } from './simStatColumns';
 import { SimRealLifeComparison } from './SimRealLifeComparison';
+import { SimRecordComparison } from './SimRecordComparison';
 import { SimOutliers } from './SimOutliers';
 import { SectionCard } from './SectionCard';
 import { KpiTile } from './KpiTile';
@@ -374,6 +375,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                         <p className="text-[12px] text-(--text-tertiary)">No league stats to show.</p>
                     )}
                     <SimRealLifeComparison leagueTotals={summary.league_totals} realLeagueAverages={summary.real_league_averages} />
+                    <SimRecordComparison summary={summary} focusAbbr={teamKey} />
                     <SimOutliers outliers={summary.outliers ?? {}} identities={summary.identities} />
                 </Tabs.Content>
 

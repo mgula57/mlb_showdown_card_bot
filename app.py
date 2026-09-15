@@ -54,9 +54,15 @@ app.register_blueprint(sim_bp, url_prefix='/api')
 
 # Warm up DB connection pools at startup so the first request doesn't
 # pay the TCP + SSL handshake cost.
-from mlb_showdown_bot.core.database.postgres_db import _get_pool
-_get_pool('DATABASE_URL_LOGS')
-_get_pool('DATABASE_URL_ARCHIVE')
+#
+# Skipped under `gunicorn --preload`: this module is imported by the master process, and pools
+# built there are discarded by every child after the fork (psycopg2 connections are not
+# fork-safe), so warming here would just leave idle connections on the master. `post_fork` in
+# gunicorn.conf.py does the warm-up per worker instead.
+if not os.environ.get('GUNICORN_PRELOAD'):
+    from mlb_showdown_bot.core.database.postgres_db import _get_pool
+    _get_pool('DATABASE_URL_LOGS')
+    _get_pool('DATABASE_URL_ARCHIVE')
 
 @app.route('/static/card_of_the_day/<path:filename>')
 def serve_card_of_the_day_files(filename):

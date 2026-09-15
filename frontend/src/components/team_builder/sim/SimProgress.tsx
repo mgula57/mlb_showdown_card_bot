@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FaSpinner } from 'react-icons/fa6';
 import type { SimJob } from '../../../api/sim';
 import { SectionCard } from './SectionCard';
@@ -10,12 +11,23 @@ type Props = {
     onCancel?: () => void;
 };
 
-// Setup phases (see `_friendly_phase` in `api/sim.py`) report no game counts, so the bar would
-// otherwise sit at 0% through all of card loading and schedule building. Stepping it through a
-// few small ticks gives a sense of motion without implying real progress toward the games total.
-// Setup occupies the first SETUP_MAX_PCT of the bar; once games start, progress continues from
-// there up to 100% rather than resetting to 0.
-const SETUP_PHASES = ['Starting simulation', 'Loading players', 'Building the schedule', 'Setting up teams'];
+// Setup phases report no game counts, so the bar would otherwise sit at 0% through all of card
+// loading and schedule building. Stepping it through a few small ticks gives a sense of motion
+// without implying real progress toward the games total. Setup occupies the first SETUP_MAX_PCT of
+// the bar; once games start, progress continues from there up to 100% rather than resetting to 0.
+//
+// ORDER IS MEANINGFUL - an entry's index is its position in time, and that is the only thing
+// driving the bar during setup. Keep it in the order the backend actually emits them: the two
+// explicit `write_progress` calls at the top of `_run_sim_job`, then whatever `_friendly_phase`
+// maps the engine's own status messages to (card pool -> schedule -> rosters). A label that
+// appears at the wrong index makes the bar jump forward and then back.
+const SETUP_PHASES = [
+    'Starting simulation',
+    'Preparing the season',
+    'Loading players',
+    'Building the schedule',
+    'Setting up teams',
+];
 const SETUP_MAX_PCT = 25;
 
 /**
@@ -29,9 +41,27 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
 
     const setupIndex = SETUP_PHASES.indexOf(phase);
     const setupPct = setupIndex >= 0 ? ((setupIndex + 1) / SETUP_PHASES.length) * SETUP_MAX_PCT : SETUP_MAX_PCT / 2;
-    const pct = total > 0
+    const rawPct = total > 0
         ? Math.min(100, Math.round(SETUP_MAX_PCT + (completed / total) * (100 - SETUP_MAX_PCT)))
         : setupPct;
+
+    // A progress bar should never run backwards, whatever the phases do. SETUP_PHASES mirrors
+    // backend strings it can't verify, so a rename or reorder there would otherwise show up here
+    // as a visible stutter - which is exactly what a stale 'Setting up teams' label did. Keyed by
+    // job so starting another sim in the same mounted component restarts at 0 rather than
+    // inheriting the finished run's high-water mark.
+    //
+    // Adjusted during render rather than in an effect - React re-runs the component immediately
+    // without committing the intermediate paint, so the bar never shows the lower value. Both
+    // branches narrow on each pass, so this settles in one extra render.
+    const jobId = job?.job_id ?? null;
+    const [highWater, setHighWater] = useState({ jobId, pct: 0 });
+    if (highWater.jobId !== jobId) {
+        setHighWater({ jobId, pct: 0 });
+    } else if (rawPct > highWater.pct) {
+        setHighWater({ jobId, pct: rawPct });
+    }
+    const pct = Math.max(rawPct, highWater.pct);
 
     // Streamed once per throttled progress write (~1/s), so the line lengthens in ~15-20 game
     // steps and recharts animates each extension on its own. Only present for a takeover run.

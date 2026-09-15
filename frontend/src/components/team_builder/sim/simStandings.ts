@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import type { SeasonSimSummary, SimTeamIdentity, SimTeamRecord, SimTeamSeason } from '../../../api/sim';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchSimSeasonTeams } from '../../../api/sim';
+import type { SeasonSimSummary, SimTeamIdentity, SimTeamRecord, SimTeamSeason, TakeoverClub } from '../../../api/sim';
 import type { Standings as StandingsGroup, TeamRecords } from '../../../api/mlbAPI';
 
 /** Standings.tsx keys teams by numeric id; sim teams only have schedule-key strings, so derive one. */
@@ -168,4 +169,69 @@ export function computePtsEfficiency(summary: SeasonSimSummary, team: SimTeamSea
 
     const teamRate = team.wins / team.points;
     return Math.round((teamRate / leagueRate) * 100);
+}
+
+export type RecordComparisonEntry = {
+    abbr: string;
+    identity: SimTeamIdentity | null;
+    simWins: number;
+    simLosses: number;
+    realWins: number;
+    realLosses: number;
+    /** Sim win% minus real win% - positive means the sim team won more than it actually did that year. */
+    diff: number;
+};
+
+const RECORD_COMPARISON_LIMIT = 5;
+
+function realWinPct(club: TakeoverClub): number {
+    const games = club.wins + club.losses;
+    return games > 0 ? club.wins / games : 0;
+}
+
+/**
+ * Joins each division's sim standings against that year's real MLB records - fetched the same way
+ * the pre-sim club picker does, via `fetchSimSeasonTeams` - to surface the clubs whose simulated
+ * record diverged most from what actually happened. The team-level counterpart to
+ * `summary.outliers`'s player-level OPS surprises. `SimTeamRecord.name` and
+ * `TakeoverClub.abbreviation` are both built from the backend's `normalized_team_abbr` helper, so
+ * a plain string join is safe.
+ */
+export function useRecordComparison(summary: SeasonSimSummary): { overperformers: RecordComparisonEntry[]; underperformers: RecordComparisonEntry[]; loading: boolean } {
+    const [clubs, setClubs] = useState<TakeoverClub[] | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchSimSeasonTeams(summary.year)
+            .then(({ teams }) => { if (!cancelled) setClubs(teams); })
+            .catch(() => { if (!cancelled) setClubs([]); });
+        return () => { cancelled = true; };
+    }, [summary.year]);
+
+    return useMemo(() => {
+        if (clubs === null) return { overperformers: [], underperformers: [], loading: true };
+        if (clubs.length === 0) return { overperformers: [], underperformers: [], loading: false };
+
+        const realByAbbr = new Map(clubs.map(club => [club.abbreviation, club]));
+        const entries: RecordComparisonEntry[] = [];
+        for (const records of Object.values(summary.standings.divisions)) {
+            for (const record of records) {
+                const real = realByAbbr.get(record.name);
+                if (!real) continue;
+                entries.push({
+                    abbr: record.name,
+                    identity: record.identity,
+                    simWins: record.wins,
+                    simLosses: record.losses,
+                    realWins: real.wins,
+                    realLosses: real.losses,
+                    diff: record.win_pct - realWinPct(real),
+                });
+            }
+        }
+
+        const overperformers = entries.filter(e => e.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, RECORD_COMPARISON_LIMIT);
+        const underperformers = entries.filter(e => e.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, RECORD_COMPARISON_LIMIT);
+        return { overperformers, underperformers, loading: false };
+    }, [summary.standings.divisions, clubs]);
 }
