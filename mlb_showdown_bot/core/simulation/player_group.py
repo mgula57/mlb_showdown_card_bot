@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel, Field
 
@@ -198,6 +198,37 @@ class Rotation(PlayerGroup):
     @property
     def current_pitcher(self) -> SimPitcher:
         return self.players[self.pitcher_index]
+
+    # "4 DAYS REST" IN BASEBALL PARLANCE = 5 CALENDAR DAYS BETWEEN STARTS. USED ONLY FOR
+    # POSTSEASON STARTER SELECTION (`starter_for_date`) - THE REGULAR SEASON STILL USES THE PLAIN
+    # ROUND ROBIN ABOVE. THIS IS ALSO EXACTLY THE GAP A 5-MAN ROTATION PRODUCES ON A DAILY
+    # SCHEDULE, SO IT REPRODUCES THAT ROUND ROBIN WHENEVER THE SCHEDULE HAS NO OFF DAYS.
+    MIN_DAYS_BETWEEN_STARTS: ClassVar[int] = 5
+
+    def days_since_last_start(self, pitcher: SimPitcher, game_date: date) -> Optional[int]:
+        if pitcher.last_start_date is None:
+            return None  # NEVER STARTED - TREATED AS FULLY RESTED BY `is_rested`
+        return (game_date - pitcher.last_start_date).days
+
+    def is_rested(self, pitcher: SimPitcher, game_date: date) -> bool:
+        days = self.days_since_last_start(pitcher, game_date)
+        return days is None or days >= self.MIN_DAYS_BETWEEN_STARTS
+
+    def starter_for_date(self, game_date: date) -> SimPitcher:
+        """Postseason starter selection: best-ranked pitcher who is rested, else closest to ready.
+
+        A never-used back-of-rotation arm is trivially "rested" (no prior start to measure
+        against), so simply skipping the unrested wouldn't stop him from getting his turn on
+        schedule - picking the best-ranked pitcher among those actually rested is what lets a
+        team's top starters cover a series without him.
+        """
+        rested = [p for p in self.players if self.is_rested(p, game_date)]
+        if rested:
+            return rested[0]  # `players` IS ALREADY RANKED BEST-TO-WORST (SEE `roster.py`)
+        return max(
+            self.players,
+            key=lambda p: (self.days_since_last_start(p, game_date) or 0, -p.postseason_starts, -self.players.index(p)),
+        )
 
     def index_for_id(self, player_id: str) -> Optional[int]:
         for index, pitcher in enumerate(self.players):

@@ -505,6 +505,20 @@ class SimTeam:
         pitcher.opp_runs_at_entry = int(self.current_game_stats.stat(StatCategory.RUNS_ALLOWED))
         self._pitchers_used.append(pitcher)
 
+    def assign_postseason_starting_pitcher(self, game_date: date) -> SimPitcher:
+        """Pick the game's starter by rest and put him on the mound.
+
+        Postseason only - the regular season still goes through `rotation.current_pitcher` in
+        `Game.setup`. `mark_pitcher_entered` is generic/shared with every reliever who follows, so
+        this is the only place `last_start_date`/`postseason_starts` gets written, keeping a
+        mid-game relief appearance from ever being counted as a start.
+        """
+        starter = self.rotation.starter_for_date(game_date=game_date)
+        starter.last_start_date = game_date
+        starter.postseason_starts += 1
+        self.mark_pitcher_entered(starter, 1)
+        return starter
+
     def check_for_pitcher_sub(self, game_date: date, inning: Inning, runs_allowed: int) -> None:
         """ Check if current pitcher is tired and needs a sub"""
         manager = self.manager

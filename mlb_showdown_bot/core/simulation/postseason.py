@@ -365,7 +365,7 @@ class Postseason:
                         # THE POSTSEASON'S SPARSER SCHEDULE, SO THIS INTENTIONALLY TAKES NO `rng`.
                         home_team.process_il_returns_for_date(game_date=game.date)
                         away_team.process_il_returns_for_date(game_date=game.date)
-                        game.setup(home_team=home_team, away_team=away_team)
+                        game.setup(home_team=home_team, away_team=away_team, postseason=True)
                         game.simulate(rng=rng, collect_box_score=self.collect_box_score)
                         if series.series_stats is not None:
                             series.series_stats.merge(game.home_team.stats)

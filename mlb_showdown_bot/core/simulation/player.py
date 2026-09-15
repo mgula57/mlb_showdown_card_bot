@@ -150,6 +150,11 @@ class SimPitcher(SimPlayer):
     team_runs_at_entry: int = 0
     opp_runs_at_entry: int = 0
 
+    # SEASON-LONG ROTATION STATE, NOT CLEARED BY `reset()` BELOW - `Rotation.starter_for_date`
+    # READS THESE ACROSS GAMES TO PICK POSTSEASON STARTERS BY REST. UNUSED IN THE REGULAR SEASON.
+    last_start_date: Optional[date] = None
+    postseason_starts: int = 0
+
     @property
     def ip(self) -> int:
         return self.card.ip

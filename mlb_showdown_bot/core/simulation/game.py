@@ -133,12 +133,14 @@ class Game:
         self.home_starting_pitcher: Optional[SimGameStarter] = None
         self.away_starting_pitcher: Optional[SimGameStarter] = None
 
-    def setup(self, home_team, away_team, start_state: Optional[GameStartState] = None) -> None:
+    def setup(self, home_team, away_team, start_state: Optional[GameStartState] = None, postseason: bool = False) -> None:
         """Prepare both teams and the inning stack.
 
         Args:
           start_state: Mid-game state to resume from, for taking over a real game already in
             progress. Omitted (the season/tournament path) starts from the first pitch.
+          postseason: Picks the starter by rest (`SimTeam.assign_postseason_starting_pitcher`)
+            instead of the regular season's plain round robin. Only `Postseason.simulate` sets this.
         """
 
         self.plate_appearances = []
@@ -152,8 +154,12 @@ class Game:
 
         if start_state is None:
             self.innings = [Inning(inning=1, is_top=True)]
-            home_team.mark_pitcher_entered(home_team.rotation.current_pitcher, 1)
-            away_team.mark_pitcher_entered(away_team.rotation.current_pitcher, 1)
+            if postseason:
+                home_team.assign_postseason_starting_pitcher(game_date=self.date)
+                away_team.assign_postseason_starting_pitcher(game_date=self.date)
+            else:
+                home_team.mark_pitcher_entered(home_team.rotation.current_pitcher, 1)
+                away_team.mark_pitcher_entered(away_team.rotation.current_pitcher, 1)
             return
 
         # RESUME. THE COMPLETED HALF-INNINGS ARE REBUILT AS PLAYED FRAMES (`outs=3` IS WHAT MAKES
