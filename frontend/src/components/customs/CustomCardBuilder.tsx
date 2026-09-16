@@ -98,6 +98,7 @@ export interface CustomCardFormState {
     chart_version?: string; // e.g. "1"
     era?: string; // e.g. "Dynamic"
     is_variable_speed_00_01?: boolean; // Whether to use variable speed for 00-01
+    regress_small_sample_to_replacement?: boolean; // Whether to regress small sample stats toward replacement level
 
     // Added in post-processing, not user inputs
     randomize?: boolean; // Tags if user randomly generated the card
@@ -136,9 +137,10 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     stat_highlights_type: "NONE", 
     nickname_index: "NONE", 
     
-    chart_version: "1", 
-    era: "DYNAMIC", 
-    is_variable_speed_00_01: false
+    chart_version: "1",
+    era: "DYNAMIC",
+    is_variable_speed_00_01: false,
+    regress_small_sample_to_replacement: false
 };
 
 /** Whether a year string spans multiple seasons (CAREER, ranges like "2000-2004", or combos like "2006+2014") */
@@ -511,6 +513,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 }
                 if (form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-green-500' });
+                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE', borderColor: 'border-green-500' });
                 break;
         }
         
@@ -1486,6 +1489,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 className="col-span-2"
                                                 isEnabled={form.is_variable_speed_00_01 || false}
                                                 onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
+                                            />
+
+                                            <FormEnabler
+                                                label="Regress Small Sample Sizes to Replacement Level"
+                                                className="col-span-2"
+                                                isEnabled={form.regress_small_sample_to_replacement || false}
+                                                onChange={(isEnabled) => setForm({ ...form, regress_small_sample_to_replacement: !isEnabled })}
                                             />
 
                                         </FormSection>

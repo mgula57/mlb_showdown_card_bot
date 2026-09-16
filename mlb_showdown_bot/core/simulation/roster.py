@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Optional, Union
 from pydantic import BaseModel
 
 from ..card.showdown_player_card import ShowdownPlayerCard
+from ..card.stats.stats_period import StatsPeriod, StatsPeriodType
+from ..data.helpers_and_weights import REPLACEMENT_RUN_GAP_PA_BASIS
 from ..shared.player_position import PlayerSubType, PositionSlot, PositionSlotParent
 from .models import Transaction, TransactionType
 from .player import SimPitcher, SimPlayer
@@ -218,8 +220,26 @@ class Roster:
     # SELECTION
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _regressed_to_replacement_if_small_sample(card: ShowdownPlayerCard) -> ShowdownPlayerCard:
+        """Rebuild `card` with `regress_small_sample_to_replacement` on, from its own real stats -
+        no datasource re-fetch needed. Skipped for anyone already at/past the full-sample PA
+        reference, so this only touches genuinely thin samples (a September callup, a Rule-5
+        arm used as a spot starter, ...) whose hot small-sample rate stats can otherwise outvalue
+        a proven every-day player's/workhorse's full season purely on noise (see the points gap
+        this closed for a real case: `PREFERRED_MIN_GS_SP` above).
+        """
+        if card.stats.get('PA', 0) >= REPLACEMENT_RUN_GAP_PA_BASIS:
+            return card
+        return ShowdownPlayerCard(
+            year=card.year, set=card.set, stats=card.stats, name=card.name,
+            stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=card.year),
+            bref_id=card.bref_id, mlb_id=card.mlb_id,
+            regress_small_sample_to_replacement=True,
+        )
+
     @classmethod
-    def select(cls, cards: list[ShowdownPlayerCard], card_ids: dict[str, str] = {}, min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162) -> RosterSelection:
+    def select(cls, cards: list[ShowdownPlayerCard], card_ids: dict[str, str] = {}, min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162, regress_small_sample_stats: bool = False) -> RosterSelection:
         """Pure roster selection: no mutation, no rng. Called by `SimTeam.from_player_pool`.
 
         `games_per_season` is the *real* per-team season length (e.g. 162, or shorter for a
@@ -231,9 +251,17 @@ class Roster:
         `SimPlayer`/`SimPitcher` built here is given that id explicitly, falling back to the
         card's own id for anything not pre-built/archived, so a real card can always be looked
         back up by a player's id when one exists.
+
+        `regress_small_sample_stats`: when set, every card below the full-sample PA reference is
+        rebuilt with its rate stats regressed toward replacement level (see
+        `_regressed_to_replacement_if_small_sample`) *before* tiering/points-sorting below, so a
+        small-sample points spike no longer wins a rotation/bullpen slot or an active-roster spot
+        over a proven regular. Real PA/GS/IP (what tiering gates on) are unaffected either way.
         """
 
         warnings: list[str] = []
+        if regress_small_sample_stats:
+            cards = [cls._regressed_to_replacement_if_small_sample(c) for c in cards]
         scale = min(1.0, games_per_season / 162.0) if games_per_season > 0 else 1.0
         min_g_position = max(1, round(RESERVE_MIN_G_POSITION * scale))
         min_pa_position = max(1, round(RESERVE_MIN_PA_POSITION * scale))

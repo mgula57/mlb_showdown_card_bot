@@ -32,7 +32,7 @@ from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
 from .utils import showdown_constants as sc, colors
-from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, total_ip_for_calculations
+from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, convert_year_string_to_list, total_ip_for_calculations
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
@@ -49,7 +49,7 @@ from .trends.trends import TrendDatapoint
 
 from ..supabase import upload_to_supabase
 
-from ..data.stat_reduction import nerf_stats_by_run_value
+from ..data.stat_reduction import nerf_stats_by_run_value, shrink_stats_toward_replacement_level
 
 from ..version import __version__
 
@@ -96,6 +96,7 @@ class ShowdownPlayerCard(BaseModel):
     is_variable_speed_00_01: bool = False
     is_wotc: bool = False
     nerf_by_run_value: Optional[float] = None
+    regress_small_sample_to_replacement: bool = False
     
     # ENVIRONMENT
     build_on_init: bool = True
@@ -250,6 +251,20 @@ class ShowdownPlayerCard(BaseModel):
             self.is_stats_estimate = True
             self.warnings.append(f"Stats have been nerfed by a run value of {self.nerf_by_run_value}. The purpose is to normalize stats for players coming from different leagues (e.g. KBO, NPB, MINORS) to create a more accurate card against MLB pitching/hitting.")
 
+        # IF STATS SHOULD BE REGRESSED TOWARD REPLACEMENT LEVEL FOR A SMALL REAL SAMPLE
+        if self.regress_small_sample_to_replacement:
+            try:
+                shrink_year = max(convert_year_string_to_list(self.year))
+                self.stats_period.stats = shrink_stats_toward_replacement_level(
+                    stats=self.stats,
+                    year=shrink_year,
+                    is_pitcher=self.is_pitcher,
+                )
+                self.is_stats_estimate = True
+                self.warnings.append("Stats have been regressed toward replacement level to account for a small real sample size.")
+            except (KeyError, ValueError):
+                pass
+
         # UPDATE IMAGE COLORS
         self.image.color_primary = self._team_color_rgb_str()
         self.image.color_secondary = self._team_color_rgb_str(is_secondary_color=True)
@@ -278,7 +293,8 @@ class ShowdownPlayerCard(BaseModel):
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
-        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not self.nerf_by_run_value else self.stats)
+        stats_are_adjusted = self.nerf_by_run_value or self.regress_small_sample_to_replacement
+        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not stats_are_adjusted else self.stats)
         self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
         if show_image or self.image.output_folder_path or self.image.upload_to_supabase:

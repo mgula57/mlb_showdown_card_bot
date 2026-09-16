@@ -438,6 +438,7 @@ class Season:
                 full_roster_size=config.full_roster_size,
                 enable_injuries=config.enable_injuries,
                 games_per_season=real_games_per_team,
+                regress_small_sample_stats=config.regress_small_sample_stats,
             )
             seed(team)
             teams[team_name] = team

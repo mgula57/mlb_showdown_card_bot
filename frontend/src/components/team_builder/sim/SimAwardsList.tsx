@@ -42,7 +42,7 @@ export function SimAwardsList({ awards, identities }: Props) {
     };
     const allWinners = [...awards.mvp, ...awards.cy_young, ...awards.rookie_of_year, ...awards.silver_sluggers];
     // World Series MVP first, then the LCS pair — the WS award is the headline one.
-    const seriesMvps = [...(awards.series_mvps ?? [])].sort((a, b) => (a.round === b.round ? 0 : a.round === 'WS' ? -1 : 1));
+    const seriesMvps = [...(awards.series_mvps ?? [])].sort((a, b) => (a.round === b.round ? 0 : a.round === 'WS' ? 1 : -1));
     const leagues = Array.from(new Set(allWinners.map(a => a.league))).sort();
     const players = [...allWinners.map(a => a.player), ...seriesMvps.map(m => m.player)];
     const { cardMap, isLoadingCards, recordFor, isLoadingCard, selected, selectedSimStats, open, close, isFetching } = useCardLinks(players, true);

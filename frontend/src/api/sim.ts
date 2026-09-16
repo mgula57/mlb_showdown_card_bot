@@ -455,6 +455,10 @@ export type OpenSimPayload = {
     /** With `enable_trade_deadline`: a selling club still contending in the simulated standings at
      *  the deadline keeps its player (the real trade is cancelled for that run). */
     trade_deadline_respects_standings?: boolean;
+    /** Rebuilds any card below the full-sample PA reference with its rate stats regressed toward
+     *  that year's replacement level before roster tiering, so a hot small-sample line (a
+     *  September callup, a spot starter) can't outvalue a proven regular's full season on noise. */
+    regress_small_sample_stats?: boolean;
 };
 
 export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record';
@@ -767,6 +771,7 @@ export type CreateSimLobbyPayload = {
     merge_real_stats?: boolean;
     enable_trade_deadline?: boolean;
     trade_deadline_respects_standings?: boolean;
+    regress_small_sample_stats?: boolean;
 };
 
 export async function createSimLobby(payload: CreateSimLobbyPayload, token: string): Promise<SimLobbyState> {

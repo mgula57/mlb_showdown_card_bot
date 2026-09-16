@@ -415,6 +415,7 @@ def _parse_engine_settings(payload: dict) -> dict:
         'merge_real_stats': merge_real_stats,
         'enable_trade_deadline': enable_trade_deadline,
         'trade_deadline_respects_standings': trade_deadline_respects_standings,
+        'regress_small_sample_stats': bool(payload.get('regress_small_sample_stats')),
     }
 
 
@@ -433,6 +434,7 @@ def _settings_to_stored_config(settings: dict) -> dict:
         'merge_real_stats': settings['merge_real_stats'],
         'enable_trade_deadline': settings['enable_trade_deadline'],
         'trade_deadline_respects_standings': settings['trade_deadline_respects_standings'],
+        'regress_small_sample_stats': settings['regress_small_sample_stats'],
     }
 
 
@@ -451,6 +453,7 @@ def _config_kwargs_from_stored(stored: dict) -> dict:
         'merge_real_stats': bool(stored.get('merge_real_stats')),
         'enable_trade_deadline': bool(stored.get('enable_trade_deadline')),
         'trade_deadline_respects_standings': bool(stored.get('trade_deadline_respects_standings')),
+        'regress_small_sample_stats': bool(stored.get('regress_small_sample_stats')),
     }
 
 

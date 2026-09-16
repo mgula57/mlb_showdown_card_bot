@@ -127,7 +127,7 @@ class SimTeam:
         card_ids: dict[str, str] = {},
         min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30,
         active_roster_size: int = 26, full_roster_size: int = 40, enable_injuries: bool = False,
-        games_per_season: int = 162,
+        games_per_season: int = 162, regress_small_sample_stats: bool = False,
     ) -> 'SimTeam':
         """Auto-build a roster from a pool of cards (a real season's team).
 
@@ -143,6 +143,7 @@ class SimTeam:
         selection = Roster.select(
             cards=cards, card_ids=card_ids, min_pa=min_pa, min_ip_sp=min_ip_sp, min_ip_rp=min_ip_rp,
             active_size=active_roster_size, full_size=full_roster_size, games_per_season=games_per_season,
+            regress_small_sample_stats=regress_small_sample_stats,
         )
 
         team = cls(

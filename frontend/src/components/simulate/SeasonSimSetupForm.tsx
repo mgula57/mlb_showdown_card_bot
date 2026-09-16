@@ -87,6 +87,7 @@ export function SeasonSimSetupForm(props: Props) {
     const [mergeRealStats, setMergeRealStats] = useState(false);
     const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(true);
     const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(true);
+    const [regressSmallSampleStats, setRegressSmallSampleStats] = useState(false);
 
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -173,6 +174,7 @@ export function SeasonSimSetupForm(props: Props) {
                 merge_real_stats: resumeEnabled ? mergeRealStats : undefined,
                 enable_trade_deadline: tradeDeadlineEnabled || undefined,
                 trade_deadline_respects_standings: tradeDeadlineEnabled ? tradeDeadlineRespectsStandings : undefined,
+                regress_small_sample_stats: regressSmallSampleStats || undefined,
             };
             if (props.mode === 'lobby') {
                 await props.onCreateLobby(engineSettings);
@@ -324,6 +326,13 @@ export function SeasonSimSetupForm(props: Props) {
                             onToggle={() => setMergeRealStats(v => !v)}
                         />
                     </SimSettingToggle>
+
+                    <SimSettingToggle
+                        label="Regress small sample sizes towards replacement level"
+                        description="A thin sample (a September callup, a spot starter) gets its rate stats pulled toward that year's replacement level before rosters are built, so a hot small sample can't outvalue a proven regular's full season on noise. Real PA/GS/IP are unaffected."
+                        isEnabled={regressSmallSampleStats}
+                        onToggle={() => setRegressSmallSampleStats(v => !v)}
+                    />
                 </div>
             </FormSection>
 
