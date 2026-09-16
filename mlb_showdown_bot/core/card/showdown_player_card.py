@@ -260,7 +260,7 @@ class ShowdownPlayerCard(BaseModel):
         self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
         self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
         self.player_sub_type = self.calculate_player_sub_type()
-        self.ip: int = self._innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
+        self.ip: int = self._innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', None))
         hand_raw = self.stats_for_card.get('hand', None) if self.player_type == PlayerType.HITTER else ( self.stats_for_card.get('hand_throw', None) or self.stats_for_card.get('hand', None) )
         self.hand: Hand = self._handedness(hand_raw=hand_raw)
         self.speed: Speed = self.calculate_speed()
@@ -1282,6 +1282,7 @@ class ShowdownPlayerCard(BaseModel):
         match self.player_sub_type:
             case PlayerSubType.RELIEF_PITCHER:
                 # REMOVE STARTER INNINGS AND GAMES STARTED
+                ip_per_start = ip_per_start or (5.0 if self.stats_period.last_year >= 2026 else 0)
                 ip_as_starter = games_started * ip_per_start
                 innings_pitched -= ip_as_starter
                 games -= games_started
