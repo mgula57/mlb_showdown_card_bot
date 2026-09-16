@@ -148,6 +148,8 @@ class Bullpen(PlayerGroup):
 
         # SCORE EACH CANDIDATE ONCE RATHER THAN RE-DERIVING INSIDE THE SORT COMPARATOR
         recent_ip = self.pitching_log.recent_ip_by_pitcher(game_date=game_date, days_back=3)
+        season_games = self.pitching_log.season_appearances_by_pitcher([p.id for p in self.players])
+        season_games_avg = (sum(season_games.values()) / len(season_games)) if season_games else 0.0
         closer = self.closer
         scored = [
             (
@@ -156,6 +158,7 @@ class Bullpen(PlayerGroup):
                     inning=inning.inning, recent_ip=recent_ip.get(pitcher.id, 0.0),
                     is_save_situation=is_save_situation, is_closer=closer is pitcher,
                     closer_nonsave_fit_multiplier=closer_nonsave_fit_multiplier,
+                    season_games=season_games.get(pitcher.id, 0), season_games_avg=season_games_avg,
                 ),
                 index,
                 pitcher,

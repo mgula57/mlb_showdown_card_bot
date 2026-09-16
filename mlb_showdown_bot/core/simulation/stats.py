@@ -553,6 +553,7 @@ class PlayerStatsGroup(StatsGroup):
 class PitchingLog(BaseModel):
 
     daily_appearances: dict[date, dict[str, float]] = {}       # KEY: DATE, VALUE: {PITCHER ID: IP}
+    season_appearances: dict[str, int] = {}                    # KEY: PITCHER ID, VALUE: GAMES PITCHED THIS SEASON
 
     def log_pitcher_stats(self, game_date: date, stats: list[Stats]) -> None:
         for statline in stats:
@@ -562,6 +563,12 @@ class PitchingLog(BaseModel):
             data_for_day = self.daily_appearances.get(game_date, {})
             data_for_day[statline.id] = data_for_day.get(statline.id, 0) + statline.stat(StatCategory.IP)
             self.daily_appearances[game_date] = data_for_day
+
+            self.season_appearances[statline.id] = self.season_appearances.get(statline.id, 0) + 1
+
+    def season_appearances_by_pitcher(self, pitcher_ids: list[str]) -> dict[str, int]:
+        """Games pitched so far this season, keyed by pitcher id (0 if he hasn't appeared yet)."""
+        return {pid: self.season_appearances.get(pid, 0) for pid in pitcher_ids}
 
     def recent_ip_by_pitcher(self, game_date: date, days_back: int) -> dict[str, float]:
         """Innings thrown per pitcher over the last `days_back` days (inclusive of game_date)."""

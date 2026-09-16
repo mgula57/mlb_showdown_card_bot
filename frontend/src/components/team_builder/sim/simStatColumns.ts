@@ -201,9 +201,14 @@ export function buildLeagueStatsKpis(leagueTotals: Record<string, SimStatLine>):
     if (!hitter || !pitcher) return [];
     const sb = hitter['sb'] ?? 0;
     const cs = hitter['cs'] ?? 0;
+    // Denominator is advantage rolls actually made (hadv + padv), not raw PA count — a PA can end
+    // (e.g. a runner thrown out stealing for the third out) before the advantage die is ever
+    // rolled, and `pa` includes those, which would otherwise pull both percentages under 100%.
+    const hitterAdvRolls = (hitter['hadv'] ?? 0) + (hitter['padv'] ?? 0);
+    const pitcherAdvRolls = (pitcher['hadv'] ?? 0) + (pitcher['padv'] ?? 0);
     return [
-        { label: 'Hitter Advantage%', value: formatStat('advantage_pct', pct(hitter['hadv'] ?? 0, hitter['pa'] ?? 0)) },
-        { label: 'Pitcher Advantage%', value: formatStat('advantage_pct', pct(pitcher['padv'] ?? 0, pitcher['pa'] ?? 0)) },
+        { label: 'Hitter Advantage%', value: formatStat('advantage_pct', pct(hitter['hadv'] ?? 0, hitterAdvRolls)) },
+        { label: 'Pitcher Advantage%', value: formatStat('advantage_pct', pct(pitcher['padv'] ?? 0, pitcherAdvRolls)) },
         { label: 'Own Chart Out% (Hit)', value: formatStat('own_chart_out_pct', pct(hitter['own_chart_out'] ?? 0, hitter['hadv'] ?? 0)) },
         { label: 'Own Chart Out% (Pit)', value: formatStat('own_chart_out_pct', pct(pitcher['own_chart_out'] ?? 0, pitcher['padv'] ?? 0)) },
         { label: 'DP Success%', value: formatStat('advantage_pct', pct(pitcher['gidp'] ?? 0, pitcher['gidpa'] ?? 0)) },

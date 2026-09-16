@@ -152,6 +152,17 @@ _SHELLED_MIN_IP_FOR_RATE = 1.0
 _DOMINANT_RUNS_ALLOWED_MAX = 1
 _EXTENSION_CHANCE_PER_PA = 0.35
 
+# WITHOUT A LONG-HORIZON THROTTLE, A RELIEVER WHOSE PROJECTION EDGES OUT THE REST OF THE STAFF
+# (INCLUDING PURE SMALL-SAMPLE NOISE FROM A FEW-GAME CALLUP - SEE `Roster.select` IN roster.py)
+# WINS THE ARGMAX IN `Bullpen.suggested_reliever` NEAR EVERY TIME HE'S AVAILABLE, SNOWBALLING INTO
+# A SEASON TOTAL NO REAL BULLPEN ARM WOULD SEE. ONCE HIS SEASON APPEARANCES PASS THE PEN'S
+# AVERAGE BY THIS MUCH, `situational_fit` STARTS DISCOUNTING HIM SO OTHER ARMS GET A FAIR SHARE.
+# THE MIN-SAMPLE GATE KEEPS THIS FROM FIRING OFF NOISE IN THE FIRST FEW WEEKS, WHEN ONE OR TWO
+# EXTRA APPEARANCES IS A HUGE RELATIVE OVERAGE BUT MEANS NOTHING YET.
+_WORKLOAD_MIN_AVG_GAMES_SAMPLE = 8.0
+_WORKLOAD_DAMPING_RATE = 0.4
+_WORKLOAD_MULTIPLIER_FLOOR = 0.35
+
 
 class SimPitcher(SimPlayer):
 
@@ -206,15 +217,18 @@ class SimPitcher(SimPlayer):
 
         return True
 
-    def situational_fit(self, ops_index: int, total_pitchers: int, run_diff: int, inning: int, recent_ip: float, is_save_situation: bool = False, is_closer: bool = False, closer_nonsave_fit_multiplier: float = 0.5) -> float:
+    def situational_fit(self, ops_index: int, total_pitchers: int, run_diff: int, inning: int, recent_ip: float, is_save_situation: bool = False, is_closer: bool = False, closer_nonsave_fit_multiplier: float = 0.5, season_games: int = 0, season_games_avg: float = 0.0) -> float:
         """ Creates a situational fit rating, 1.0 being the best and 0.0 the worst fit
 
         Factors:
           1. Situation: Does the reliever fit the situation well?
           2. Rest: Has the pitcher pitched recently?
+          3. Season workload: Has he already pitched far more than the rest of the pen?
 
         Args:
           recent_ip: Innings this pitcher has thrown in the last few days.
+          season_games: This pitcher's appearances so far this season.
+          season_games_avg: The bullpen's average appearances so far this season.
         """
 
         staff_pct_rank = 1 - ( (ops_index + 1) / total_pitchers )
@@ -233,7 +247,12 @@ class SimPitcher(SimPlayer):
         # USAGE SETS HOW MUCH (`closer_nonsave_fit_multiplier` DEFAULTS TO 0.5, THE OLD CONSTANT).
         closer_fit_multiplier = closer_nonsave_fit_multiplier if is_closer and not is_save_situation else 1.0
 
-        final_score = (score_tightness_score + game_completion_score) / 2.0 * rest_multiplier * closer_fit_multiplier
+        workload_multiplier = 1.0
+        if season_games_avg >= _WORKLOAD_MIN_AVG_GAMES_SAMPLE and season_games > season_games_avg:
+            overage_pct = (season_games - season_games_avg) / season_games_avg
+            workload_multiplier = max(_WORKLOAD_MULTIPLIER_FLOOR, 1 - overage_pct * _WORKLOAD_DAMPING_RATE)
+
+        final_score = (score_tightness_score + game_completion_score) / 2.0 * rest_multiplier * closer_fit_multiplier * workload_multiplier
 
         return final_score
 

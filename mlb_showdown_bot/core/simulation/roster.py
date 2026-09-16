@@ -55,6 +55,14 @@ RESERVE_MIN_PA_POSITION = 25
 RESERVE_MIN_G_PITCHER = 5
 RESERVE_MIN_IP_PITCHER = 10
 
+# A ROTATION SLOT HANDS OUT AN EQUAL ~1/5 SHARE OF THE SEASON'S STARTS REGARDLESS OF WHO HOLDS IT
+# (`Rotation.move_to_next_pitcher_index` IS A PLAIN ROUND ROBIN), SO THE PREFERRED SP TIER NEEDS
+# ITS OWN REAL-STARTS FLOOR, NOT JUST `min_ip_sp` - A SWINGMAN WHO MADE A HANDFUL OF SPOT STARTS
+# PLUS SOME LONG-RELIEF INNINGS CAN CLEAR THE IP BAR ON VOLUME ALONE (AND, IF HIS SMALL SAMPLE RAN
+# HOT, OUTRANK THE TEAM'S ACTUAL WORKHORSES ON POINTS TOO), THEN GET TREATED AS A FULL-TIME
+# ROTATION MEMBER FOR THE WHOLE SEASON OFF ONLY A HANDFUL OF REAL TURNS.
+PREFERRED_MIN_GS_SP = 8
+
 
 class InjuryProfile(BaseModel):
     """Per-player injury hazard, calibrated so a player's expected simulated missed games match
@@ -231,19 +239,22 @@ class Roster:
         min_pa_position = max(1, round(RESERVE_MIN_PA_POSITION * scale))
         min_g_pitcher = max(1, round(RESERVE_MIN_G_PITCHER * scale))
         min_ip_pitcher = max(1, round(RESERVE_MIN_IP_PITCHER * scale))
+        min_gs_sp = max(1, round(PREFERRED_MIN_GS_SP * scale))
 
         position_cards = sorted([c for c in cards if c.player_sub_type == PlayerSubType.POSITION_PLAYER], key=lambda c: c.points, reverse=True)
         sp_cards = sorted([c for c in cards if c.player_sub_type == PlayerSubType.STARTING_PITCHER], key=lambda c: c.points, reverse=True)
         rp_cards = sorted([c for c in cards if c.player_sub_type == PlayerSubType.RELIEF_PITCHER], key=lambda c: c.points, reverse=True)
 
-        # ---- ROTATION (ACTIVE): TOP N SP, PREFERRED (>= min_ip_sp) TIER FIRST, THEN A
-        # RESERVE-SAMPLE-FLOOR TIER, THEN A LAST-RESORT TIER BELOW EVEN THAT FLOOR (A HANDFUL OF
-        # CAREER STARTS) - ONLY REACHED WHEN THE TEAM GENUINELY DOESN'T HAVE ACTIVE_ROTATION ARMS
-        # WITH A REAL TRACK RECORD. SAME REASONING AS THE BULLPEN TIERS BELOW: A ROTATION SLOT
-        # HANDS OUT AN EQUAL SHARE OF STARTS ALL SEASON REGARDLESS OF WHO HOLDS IT, SO A 2-3 START
-        # SPOT STARTER SLOTTING IN OVER A REAL SAMPLE FLOOR WOULD OTHERWISE PITCH A FULL SEASON'S
-        # WORTH OF STARTS OFF A TINY, POSSIBLY LUCKY SAMPLE.
-        sp_preferred = [c for c in sp_cards if c.stats.get('IP', 0) >= min_ip_sp]
+        # ---- ROTATION (ACTIVE): TOP N SP, PREFERRED (>= min_ip_sp AND >= min_gs_sp) TIER FIRST,
+        # THEN A RESERVE-SAMPLE-FLOOR TIER, THEN A LAST-RESORT TIER BELOW EVEN THAT FLOOR (A
+        # HANDFUL OF CAREER STARTS) - ONLY REACHED WHEN THE TEAM GENUINELY DOESN'T HAVE
+        # ACTIVE_ROTATION ARMS WITH A REAL TRACK RECORD. SAME REASONING AS THE BULLPEN TIERS BELOW:
+        # A ROTATION SLOT HANDS OUT AN EQUAL SHARE OF STARTS ALL SEASON REGARDLESS OF WHO HOLDS IT,
+        # SO A 2-3 START SPOT STARTER SLOTTING IN OVER A REAL SAMPLE FLOOR WOULD OTHERWISE PITCH A
+        # FULL SEASON'S WORTH OF STARTS OFF A TINY, POSSIBLY LUCKY SAMPLE. THE min_gs_sp CHECK
+        # ALONGSIDE min_ip_sp CATCHES THE VARIANT WHERE THAT VOLUME CAME FROM LONG RELIEF RATHER
+        # THAN ACTUAL STARTS (SEE PREFERRED_MIN_GS_SP ABOVE).
+        sp_preferred = [c for c in sp_cards if c.stats.get('IP', 0) >= min_ip_sp and c.stats.get('GS', 0) >= min_gs_sp]
         sp_preferred_ids = {c.id for c in sp_preferred}
         sp_fallback = [
             c for c in sp_cards
