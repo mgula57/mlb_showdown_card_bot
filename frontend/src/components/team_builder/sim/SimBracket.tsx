@@ -189,7 +189,7 @@ function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKe
                         <th className="text-left font-semibold py-2 px-3">Game</th>
                         <th className="text-left font-semibold py-2 pr-2">Matchup</th>
                         <th className="text-right font-semibold py-2 px-2">Score</th>
-                        <th className="text-right font-semibold py-2 px-2">Winner</th>
+                        <th className="text-center font-semibold py-2 px-2">Winner</th>
                         {hasStarters && <th className="text-left font-semibold py-2 px-2" colSpan={3}>Starting Pitchers</th>}
                     </tr>
                 </thead>
@@ -241,8 +241,17 @@ function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKe
                                     <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
                                         {game.away_score}–{game.home_score}
                                     </td>
-                                    <td className="text-right py-1.5 px-2 font-bold text-(--showdown-blue)">
-                                        {abbr(game.winner)}
+                                    <td className="py-1.5 px-2">
+                                        {game.winner ? (
+                                            <div className="flex justify-center">
+                                                <TeamChip
+                                                    team={identityFor(game.winner) ? fromSimTeamIdentity(identityFor(game.winner)!) : fallbackIdentity(game.winner)}
+                                                    size="sm"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <span className="block text-right text-(--text-tertiary)">—</span>
+                                        )}
                                     </td>
                                     {hasStarters && (
                                         <>
