@@ -212,7 +212,7 @@ class Game:
 
             team_pitching = self.home_team if inning.is_top else self.away_team
             team_hitting = self.away_team if inning.is_top else self.home_team
-            team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0))
+            team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0), rng=rng)
             pitcher = team_pitching.current_pitcher()
             hitter = team_hitting.current_hitter(game=self)
             plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=False, manager=team_hitting.manager)

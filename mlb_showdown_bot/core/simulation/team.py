@@ -519,10 +519,10 @@ class SimTeam:
         self.mark_pitcher_entered(starter, 1)
         return starter
 
-    def check_for_pitcher_sub(self, game_date: date, inning: Inning, runs_allowed: int) -> None:
+    def check_for_pitcher_sub(self, game_date: date, inning: Inning, runs_allowed: int, rng: Optional[Random] = None) -> None:
         """ Check if current pitcher is tired and needs a sub"""
         manager = self.manager
-        if self.current_pitcher().is_tired(inning=inning, ip_adjustment=manager.hook_ip_adjustment) and len(self.available_reliever_ids) > 0:
+        if self.current_pitcher().is_tired(inning=inning, ip_adjustment=manager.hook_ip_adjustment, rng=rng) and len(self.available_reliever_ids) > 0:
             suggested_reliever = self.bullpen.suggested_reliever(
                 game_date=game_date, inning=inning,
                 runs_scored=self.current_game_stats.stat(StatCategory.RUNS_SCORED), runs_allowed=runs_allowed,

@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from random import Random
 from typing import Optional, Union
 
 from pydantic import BaseModel, Field
@@ -138,6 +139,20 @@ class SimPlayer(BaseModel):
         return Runner(id=self.id, name=self.name, base=base, speed=self.speed, pitcher_id=pitcher_id)
 
 
+# A START THAT'S FALLEN APART GETS A HOOK REGARDLESS OF HOW FAR UNDER HIS IP ALLOWANCE THE
+# STARTER STILL IS. EITHER HE'S ALREADY BLOWN UP EARLY (`_SHELLED_MIN_RUNS`) OR HE'S BEEN BLED
+# DRY AT A SUSTAINED RATE OVER AT LEAST AN INNING (`_SHELLED_RUNS_PER_IP`).
+_SHELLED_MIN_RUNS = 5
+_SHELLED_RUNS_PER_IP = 1.5
+_SHELLED_MIN_IP_FOR_RATE = 1.0
+
+# A STARTER WHO'S REACHED HIS IP ALLOWANCE WITH A CLEAN-ISH LINE GETS A CHANCE EACH PA TO STAY
+# IN RATHER THAN COMING OUT RIGHT ON SCHEDULE, SIMULATING A MANAGER LETTING A GUY WHO'S DEALING
+# KEEP GOING.
+_DOMINANT_RUNS_ALLOWED_MAX = 1
+_EXTENSION_CHANCE_PER_PA = 0.35
+
+
 class SimPitcher(SimPlayer):
 
     start_inning: Union[int, float, None] = None
@@ -162,16 +177,34 @@ class SimPitcher(SimPlayer):
     def innings_pitched(self, inning) -> float:
         return (self.end_inning or inning.inning_num_full) - (self.start_inning or 0)
 
-    def is_tired(self, inning, ip_adjustment: float = 0.0) -> bool:
+    def is_tired(self, inning, ip_adjustment: float = 0.0, rng: Optional[Random] = None) -> bool:
         """Args:
           ip_adjustment: Innings added to the fatigue threshold by the manager's bullpen hook.
             Negative pulls a starter sooner; 0.0 (a neutral manager) is the original behavior.
+          rng: Used to occasionally stretch a dominant start past its IP allowance. Omitted (as in
+            tests probing the base formula) just skips that chance - no automatic extension, but
+            no automatic pull either.
         """
+        ip_pitched = self.innings_pitched(inning)
 
-        if self.start_inning == 0 and self.runs_allowed == 0 and self.ip == self.innings_pitched(inning):
+        # SHELLED: a start that's fallen apart ends now, regardless of how far under his IP
+        # allowance he still is.
+        is_early_disaster = self.runs_allowed >= _SHELLED_MIN_RUNS
+        is_sustained_shelling = ip_pitched >= _SHELLED_MIN_IP_FOR_RATE and self.runs_allowed >= ip_pitched * _SHELLED_RUNS_PER_IP
+        if is_early_disaster or is_sustained_shelling:
+            return True
+
+        threshold = self.ip + ip_adjustment
+        if ip_pitched < threshold:
+            return (ip_pitched + int(self.runs_allowed / 3.0)) >= threshold
+
+        # DEALING: a starter who's reached his allowance with a clean-ish line earns a per-PA
+        # chance to stay in rather than coming out right on schedule.
+        is_dominant_starter = self.start_inning == 1 and self.runs_allowed <= _DOMINANT_RUNS_ALLOWED_MAX
+        if is_dominant_starter and rng is not None and rng.random() < _EXTENSION_CHANCE_PER_PA:
             return False
 
-        return (self.innings_pitched(inning) + int(self.runs_allowed / 3.0)) >= (self.ip + ip_adjustment)
+        return True
 
     def situational_fit(self, ops_index: int, total_pitchers: int, run_diff: int, inning: int, recent_ip: float, is_save_situation: bool = False, is_closer: bool = False, closer_nonsave_fit_multiplier: float = 0.5) -> float:
         """ Creates a situational fit rating, 1.0 being the best and 0.0 the worst fit
