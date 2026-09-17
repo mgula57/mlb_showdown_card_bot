@@ -62,6 +62,7 @@ export type CardDatabaseRecord = {
     points_estimated: number;
     points_diff_estimated_vs_actual: number;
     points_change?: number | null;
+    points_change_yoy?: number | null;
 
     // Team
     nationality: string;

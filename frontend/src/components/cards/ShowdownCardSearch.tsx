@@ -404,7 +404,8 @@ const CHART_VALUES_SORT_OPTIONS: SelectOption[] = [
  * 
  */
 const TREND_SORT_OPTIONS: SelectOption[] = [
-    { value: 'points_change', label: 'Points Trend', icon: <FaChartLine /> },
+    { value: 'points_change', label: 'Points Trend (Weekly)', icon: <FaChartLine /> },
+    { value: 'points_change_yoy', label: 'Points Trend (Yearly)', icon: <FaChartLine /> },
 ];
 
 /**
@@ -1429,6 +1430,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             onClick={() => handleRowClick(cardRecord)}
                                             isSelected={selectedCard?.id === cardRecord.id}
                                             actionButton={resolvedAction}
+                                            ptsChangeField={filters.sort_by === 'points_change_yoy' ? 'points_change_yoy' : 'points_change'}
                                         />
                                     )}
                                     {source === CardSource.WBC && (
