@@ -35,6 +35,7 @@ type CardItemProps = {
     cardPointsEstimated?: number;
     cardPointsDiffEstimatedVsActual?: number;
     cardPtsChange?: number | null;
+    cardPtsChangeLabel?: string;
 
     // Command and Outs
     cardCommand?: number;
@@ -109,7 +110,7 @@ type CardItemProps = {
 export const CardItem = ({
     cardId, cardTeam, cardName, cardYear, cardStatsPeriod,
     cardCommand, cardIsPitcher,
-    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange,
+    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange, cardPtsChangeLabel,
     cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
     cardIsErrata, cardNotes, cardIsStatsEstimate,
     cardPrimaryColor, cardSecondaryColor, cardEdition,
@@ -306,7 +307,10 @@ export const CardItem = ({
                                 )}
                             </div>
                             {cardPtsChange != null && cardPtsChange !== 0 && (
-                                <span className={`text-[9px] font-bold leading-none ${cardPtsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                                <span
+                                    className={`text-[9px] font-bold leading-none ${cardPtsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}
+                                    title={cardPtsChangeLabel ? `${cardPtsChangeLabel} points change` : undefined}
+                                >
                                     {cardPtsChange > 0 ? '▲' : '▼'}{Math.abs(cardPtsChange)}
                                 </span>
                             )}
@@ -509,11 +513,13 @@ type CardItemFromCardDatabaseRecordProps = {
     isSelected?: boolean;
     /** Optionally hide the year */
     hideYear?: boolean;
+    /** Which points-change field to display (weekly vs. year-over-year); defaults to weekly */
+    ptsChangeField?: 'points_change' | 'points_change_yoy';
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, actionButton }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, ptsChangeField = 'points_change', actionButton }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -534,7 +540,8 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardPointsEstimated={card?.points_estimated || undefined}
             cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
             cardSource={card?.source}
-            cardPtsChange={card?.points_change || undefined}
+            cardPtsChange={(ptsChangeField === 'points_change_yoy' ? card?.points_change_yoy : card?.points_change) || undefined}
+            cardPtsChangeLabel={ptsChangeField === 'points_change_yoy' ? 'Yearly' : 'Weekly'}
             cardSpeed={card?.speed || undefined}
             cardHand={card?.hand || undefined}
             cardIp={card?.ip || undefined}
