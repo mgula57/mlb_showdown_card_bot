@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { SimLeaderboard } from './SimLeaderboard';
 import { SimHistory } from './SimHistory';
 import { SimChallenges } from './SimChallenges';
-import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 import { useAuth } from '../../auth/AuthContext';
 import type { ChallengeInstance } from '../../../api/sim';
 import { FaArrowRight } from 'react-icons/fa';
-import { FaGear } from 'react-icons/fa6';
+import { FaGear, FaListCheck, FaTrophy } from 'react-icons/fa6';
 
 type BrowseView = 'leaderboard' | 'mine';
 
@@ -29,38 +28,50 @@ type Props = {
     onManageChallenges: () => void;
 };
 
+/** A large jump-to-section button at the top of the tab — icon, title, and an arrow affordance,
+ *  matching the guided-path tiles on the My Teams welcome screen. Scrolls the given section into
+ *  view rather than switching views, since challenges and the leaderboard now share one page. */
+function NavTile({ icon, title, targetRef }: { icon: ReactNode; title: string; targetRef: React.RefObject<HTMLDivElement | null> }) {
+    return (
+        <button
+            type="button"
+            onClick={() => targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="group flex items-center justify-between gap-3 text-left p-4 rounded-xl border border-(--divider) bg-(--background-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+        >
+            <span className="flex items-center gap-3">
+                <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-(--background-primary) text-(--secondary) text-[15px] shrink-0">
+                    {icon}
+                </span>
+                <span className="text-[14px] font-black text-(--text-primary)">{title}</span>
+            </span>
+            <FaArrowRight className="text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-x-0.5 transition-all shrink-0" />
+        </button>
+    );
+}
+
 /**
- * Home for Team Challenges. The live challenge list is the only front door — no subtabs — and
- * clicking a challenge's "Leaderboard" link navigates to that instance's own page. The global
- * "every sim ever played" leaderboard and the signed-in user's full history don't map onto any
- * single challenge, so they're demoted to a quiet "Browse all sims" escape hatch rather than
- * removed outright.
+ * Home for Team Challenges: nav tiles, the live challenge grid, and the leaderboard all live on
+ * one scrollable page — the tiles jump to a section rather than swapping the view, so the grid
+ * and leaderboard are never more than a scroll apart.
  */
 export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTeam, onUseExistingTeam, onOpenChallenge, onManageChallenges }: Props) {
     const { isAdmin } = useAuth();
-    const [browsing, setBrowsing] = useState(false);
     const [browseView, setBrowseView] = useState<BrowseView>('leaderboard');
-
-    if (browsing) {
-        return (
-            <div className={`flex flex-col gap-4 ${horizontalPadding}`}>
-                <div className="flex items-center justify-between gap-2">
-                    <BackButton onBack={() => setBrowsing(false)} label="Challenges" />
-                    <Tabs tabs={BROWSE_TABS} value={browseView} onChange={setBrowseView} />
-                </div>
-
-                {browseView === 'leaderboard' && <SimLeaderboard token={token} onOpenSeason={onOpenSeason} />}
-                {browseView === 'mine' && <SimHistory token={token} onOpenSeason={onOpenSeason} />}
-            </div>
-        );
-    }
+    const challengesRef = useRef<HTMLDivElement>(null);
+    const leaderboardRef = useRef<HTMLDivElement>(null);
 
     return (
-        <div className={`flex flex-col gap-4 ${horizontalPadding}`}>
-            {/* Header */}
-            <div className="flex justify-between items-center gap-2">
-                <h3 className="text-[16px] font-black text-(--text-primary)">Active Challenges</h3>
-                <div className="flex items-center gap-3">
+        <div className={`flex flex-col gap-8 ${horizontalPadding}`}>
+            {/* Nav tiles */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <NavTile icon={<FaListCheck />} title="Active Challenges" targetRef={challengesRef} />
+                <NavTile icon={<FaTrophy />} title="Leaderboard" targetRef={leaderboardRef} />
+            </div>
+
+            {/* Challenges grid */}
+            <div ref={challengesRef} className="flex flex-col gap-4">
+                <div className="flex justify-between items-center gap-2">
+                    <h3 className="text-[16px] font-black text-(--text-primary)">Active Challenges</h3>
                     {isAdmin && token && (
                         <button
                             type="button"
@@ -70,24 +81,28 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
                             <FaGear className="text-[10px]" /> Manage templates
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={() => setBrowsing(true)}
-                        className="flex gap-1 items-center text-[12px] font-bold text-(--text-tertiary) hover:text-(--text-secondary) cursor-pointer transition-colors"
-                    >
-                        See full leaderboard <FaArrowRight/>
-                    </button>
                 </div>
+
+                <SimChallenges
+                    token={token}
+                    onNewTeam={onNewTeam}
+                    onUseExistingTeam={onUseExistingTeam}
+                    onSelectChallenge={onOpenChallenge}
+                />
             </div>
 
-            {/* Challenges grid */}
-            <SimChallenges
-                token={token}
-                onNewTeam={onNewTeam}
-                onUseExistingTeam={onUseExistingTeam}
-                onSelectChallenge={onOpenChallenge}
-            />
+            {/* Leaderboard */}
+            <div ref={leaderboardRef} className="flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-2">
+                    <h3 className="flex items-center gap-1.5 text-[16px] font-black text-(--text-primary)">
+                        <FaTrophy className="text-[13px] text-(--showdown-blue)" /> Leaderboard
+                    </h3>
+                    <Tabs tabs={BROWSE_TABS} value={browseView} onChange={setBrowseView} />
+                </div>
 
+                {browseView === 'leaderboard' && <SimLeaderboard token={token} onOpenSeason={onOpenSeason} />}
+                {browseView === 'mine' && <SimHistory token={token} onOpenSeason={onOpenSeason} />}
+            </div>
         </div>
     );
 }
