@@ -650,7 +650,7 @@ export default function TeamBuilder() {
     }
 
     return (
-        // `@container` here spans the full content region, so shelves flagged `bleedRight` can
+        // `@container` here spans the full content region, so shelves flagged `bleed` can
         // run to the screen edge past the centered max-width below.
         <div className="@container w-full">
         <WhatsNewBanner
@@ -701,7 +701,7 @@ export default function TeamBuilder() {
             {activeTab === 'mine' && (
                 <>
                     {!loading && recentTeams.length > 0 && (
-                        <TeamShelf title="Recent Teams" className={px} bleedRight>
+                        <TeamShelf title="Recent Teams" className={px} bleed>
                             {recentTeams.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => openTeam(team)} />
                             ))}

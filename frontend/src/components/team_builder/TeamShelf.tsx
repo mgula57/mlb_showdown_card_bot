@@ -11,14 +11,14 @@ type TeamShelfProps = {
     /**
      * Let the scrolling row run flush to the right edge of the nearest `@container`
      * ancestor (the full content region), ignoring the page's centered max-width and
-     * right padding. The header keeps its normal alignment.
+     * right padding. The left inset and the header's alignment are unaffected.
      */
-    bleedRight?: boolean;
+    bleed?: boolean;
     children: ReactNode;
 };
 
 /** A titled, horizontally-scrolling row of team tiles — the music-app "shelf" pattern. */
-export function TeamShelf({ title, subtitle, onSeeAll, children, className, bleedRight }: TeamShelfProps) {
+export function TeamShelf({ title, subtitle, onSeeAll, children, className, bleed }: TeamShelfProps) {
     return (
         <section className="flex flex-col">
             <div className={`flex items-baseline justify-between mb-1.5 ${className ?? ''}`}>
@@ -44,12 +44,18 @@ export function TeamShelf({ title, subtitle, onSeeAll, children, className, blee
                     // began on a tile, so the page couldn't scroll from over the shelf.
                     WebkitOverflowScrolling: 'touch',
                     overscrollBehaviorX: 'contain',
-                    // Keep the left inset (from `className`) but drop the right one and pull the
-                    // row out to the container edge so it reaches the end of the screen.
-                    ...(bleedRight ? { paddingRight: 0, marginRight: 'calc((100% - 100cqw) / 2)' } : {}),
+                    // Keep the left inset (from `className`) so the first tile still starts
+                    // aligned under the header — it's ordinary padding on the scrollable box,
+                    // so it scrolls away with the content instead of sitting outside it like a
+                    // margin would. Drop the right inset and pull that edge out to the
+                    // `@container` boundary so the row can reach the true edge of the screen.
+                    ...(bleed ? { paddingRight: 0, marginRight: 'calc((100% - 100cqw) / 2)' } : {}),
                 }}
             >
                 {children}
+                {/* Trailing spacer so the last tile doesn't butt right up against the scroll
+                    edge — part of the scrollable content, so it scrolls into view like any tile. */}
+                <div aria-hidden className="shrink-0 w-4 sm:w-8" />
             </div>
         </section>
     );

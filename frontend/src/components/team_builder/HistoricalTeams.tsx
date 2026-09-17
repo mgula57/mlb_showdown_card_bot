@@ -128,7 +128,7 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
 
     return (
         <div ref={containerRef}>
-            <TeamShelf title={String(season)} subtitle={`${teamCount} teams`} className={className} bleedRight>
+            <TeamShelf title={String(season)} subtitle={`${teamCount} teams`} className={className} bleed>
                 {showSkeletons
                     ? Array.from({ length: skeletonCount }, (_, i) => <TeamPreviewCardSkeleton key={i} />)
                     : (

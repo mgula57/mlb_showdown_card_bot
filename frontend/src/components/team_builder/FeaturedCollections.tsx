@@ -51,7 +51,7 @@ export function FeaturedCollections({ onOpen, onOpenCollection, horizontalPaddin
                     title={`${c.cover_emoji ? c.cover_emoji + ' ' : ''}${c.title}`}
                     subtitle={c.description ?? undefined}
                     className={px}
-                    bleedRight
+                    bleed
                     onSeeAll={onOpenCollection ? () => onOpenCollection(c.slug) : undefined}
                 >
                     {c.teams.map(team => (

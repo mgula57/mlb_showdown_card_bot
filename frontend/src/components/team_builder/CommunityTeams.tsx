@@ -150,14 +150,14 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
             ) : (
                 /* Browse (shelves) mode — headers indented by `px`, tile rows bleed to the screen edge. */
                 <>
-                    <TeamShelf title="Recently Added" className={px} bleedRight>
+                    <TeamShelf title="Recently Added" className={px} bleed>
                         {shelves.recentlyAdded.map(team => (
                             <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                         ))}
                     </TeamShelf>
 
                     {shelves.topPoints.length > 0 && (
-                        <TeamShelf title="Heavy Hitters" subtitle="Most points" className={px} bleedRight>
+                        <TeamShelf title="Heavy Hitters" subtitle="Most points" className={px} bleed>
                             {shelves.topPoints.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
@@ -165,7 +165,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                     )}
 
                     {shelves.setShelves.map(([set, list]) => (
-                        <TeamShelf key={set} title={set === 'Other' ? 'Other Sets' : `${set} Set`} className={px} bleedRight>
+                        <TeamShelf key={set} title={set === 'Other' ? 'Other Sets' : `${set} Set`} className={px} bleed>
                             {list.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
