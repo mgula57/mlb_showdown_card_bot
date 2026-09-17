@@ -181,6 +181,7 @@ class ExploreDataRecord(BaseModel):
     
     # IN SEASON
     points_change: Optional[int] = None
+    points_change_yoy: Optional[int] = Field(None, description="Points change vs. the prior year's card")
 
     # SOURCE
     source: Optional[str] = Field(None, description="Source of the data (e.g., 'BOT', 'WOTC', 'WBC')")
@@ -2396,6 +2397,7 @@ class PostgresDB:
                 cast(dim_card.card_data->>'points_estimated' as int) as points_estimated,
                 cast(dim_card.card_data->>'points_diff_estimated_vs_actual' as int) as points_diff_estimated_vs_actual,
                 cast(dim_card.card_data->'points_change'->>'week' as int) as points_change,
+                cast(dim_card.card_data->>'points' as int) - prior_year_card.points as points_change_yoy,
 
                 -- TEAM
                 dim_card.card_data->>'nationality' as nationality,
@@ -2535,6 +2537,17 @@ class PostgresDB:
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
                 and exact_img_match.is_wbc = FALSE
+            left join lateral (
+                -- MOST RECENTLY BUILT card_bot ROW FOR THE PRIOR YEAR, USED FOR YEAR-OVER-YEAR POINTS CHANGE
+                select prior_year_bot.points
+                from card_bot as prior_year_bot
+                where prior_year_bot.bref_id = player_season_stats.bref_id
+                    and prior_year_bot.year = player_season_stats.year - 1
+                    and prior_year_bot.showdown_set = dim_card.showdown_set
+                    and coalesce(prior_year_bot.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
+                order by prior_year_bot.showdown_bot_version desc, prior_year_bot.updated_at desc
+                limit 1
+            ) as prior_year_card on true
             cross join lateral (
                 select
                     case
@@ -2594,6 +2607,7 @@ class PostgresDB:
                     points_estimated integer,
                     points_diff_estimated_vs_actual integer,
                     points_change integer,
+                    points_change_yoy integer,
                     nationality text,
                     organization text,
                     league text,
@@ -2690,6 +2704,7 @@ class PostgresDB:
                         points_estimated integer,
                         points_diff_estimated_vs_actual integer,
                         points_change integer,
+                        points_change_yoy integer,
                         nationality text,
                         organization text,
                         league text,
@@ -2786,7 +2801,7 @@ class PostgresDB:
                     primary_positions, secondary_positions, g, gs, pa, real_ip, lg_id, team_id,
                     team_id_list, team_games_played_dict, team_override, stats_modified_date, card_modified_date,
                     card_id, card_year, showdown_set, showdown_bot_version, expansion, edition, set_number,
-                    points, points_estimated, points_diff_estimated_vs_actual, points_change,
+                    points, points_estimated, points_diff_estimated_vs_actual, points_change, points_change_yoy,
                     nationality, organization,
                     league, team, color_primary, color_secondary, positions_and_defense,
                     positions_and_defense_string, positions_list, ip, speed, hand, speed_letter, speed_full,
@@ -2831,6 +2846,7 @@ class PostgresDB:
                     points_estimated = EXCLUDED.points_estimated,
                     points_diff_estimated_vs_actual = EXCLUDED.points_diff_estimated_vs_actual,
                     points_change = EXCLUDED.points_change,
+                    points_change_yoy = EXCLUDED.points_change_yoy,
                     nationality = EXCLUDED.nationality,
                     organization = EXCLUDED.organization,
                     league = EXCLUDED.league,
