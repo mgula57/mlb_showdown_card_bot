@@ -10,6 +10,7 @@ import { SectionHeader } from '../shared/SectionHeader';
 import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
 import { SlotSavingOverlay } from './SlotSavingOverlay';
+import { CardNotFoundOverlay } from '../shared/CardNotFoundOverlay';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
@@ -77,6 +78,9 @@ type FieldViewProps = {
     /** Passed to `CardDetail`'s `tooltip` when the opened slot has a `simStatsMap` entry - see
      * `CardDetail`'s prop of the same name. */
     simStatsTooltip?: string;
+    /** card_id -> display name/id, surfaced on the "card not found" overlay for a filled-but-unresolved
+     *  position slot (e.g. an award recipient whose card_bot card couldn't be located). */
+    notFoundLabels?: Record<string, { name?: string; playerId?: number | string }>;
 };
 
 
@@ -95,7 +99,7 @@ export function FieldView({
     lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition,
     rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
-    simStatsMap, simStatsTooltip,
+    simStatsMap, simStatsTooltip, notFoundLabels,
 }: FieldViewProps) {
     // `onDraft` runs the same handler as the card's inline action button (opens the slot-fill
     // flow) — surfaced as a "Draft" button inside the CardDetail modal while editing.
@@ -298,11 +302,20 @@ export function FieldView({
                                 ) : slot && isLoadingCards ? (
                                     <PositionSlotLoadingPlaceholder position={pos} />
                                 ) : (
-                                    <PositionSlotPlaceholder
-                                        position={pos}
-                                        isActive={isActive}
-                                        onClick={readOnly ? undefined : () => onSlotClick(pos, null)}
-                                    />
+                                    <>
+                                        <PositionSlotPlaceholder
+                                            position={pos}
+                                            isActive={isActive}
+                                            onClick={readOnly ? undefined : () => onSlotClick(pos, null)}
+                                        />
+                                        {slot && (
+                                            <CardNotFoundOverlay
+                                                variant="field"
+                                                playerName={notFoundLabels?.[slot.card_id]?.name}
+                                                playerId={notFoundLabels?.[slot.card_id]?.playerId}
+                                            />
+                                        )}
+                                    </>
                                 )}
                                 {pendingPositions?.has(pos) && <SlotSavingOverlay variant="field" />}
                             </div>
@@ -321,6 +334,7 @@ export function FieldView({
                                 const card = getCard(role);
                                 const isPeerHovered = !!card && card.card_id === hoveredCardId;
                                 const isPending = !card && hasAssignment(role) && isLoadingCards;
+                                const isNotFound = !card && hasAssignment(role) && !isLoadingCards;
                                 // Bench/bullpen key off a synthetic 'BE1'/'RP1' index, so only real
                                 // rotation roles ('SP1'…) ever match a pending pick here.
                                 const isSaving = !!pendingPositions?.has(role);
@@ -347,11 +361,14 @@ export function FieldView({
                                         ) : isPending ? (
                                             <SlotLoadingPlaceholder />
                                         ) : (
-                                            <PositionSlotPlaceholder
-                                                position={placeholderLabel ?? role}
-                                                onClick={onItemClick ? () => onItemClick(role) : undefined}
-                                                isActive={isPeerHovered}
-                                            />
+                                            <>
+                                                <PositionSlotPlaceholder
+                                                    position={placeholderLabel ?? role}
+                                                    onClick={onItemClick ? () => onItemClick(role) : undefined}
+                                                    isActive={isPeerHovered}
+                                                />
+                                                {isNotFound && <CardNotFoundOverlay variant="row" />}
+                                            </>
                                         )}
                                         {isSaving && <SlotSavingOverlay variant="row" />}
                                     </div>

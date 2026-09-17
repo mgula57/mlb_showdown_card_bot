@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FaMedal } from "react-icons/fa6";
 import { fetchSeasonAwards, type AwardRecipient, type SeasonAwards } from "../../api/mlbAPI";
 import { fetchCardById, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -9,6 +9,7 @@ import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from "../cards/CardI
 import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
 import { useTheme } from "../shared/SiteSettingsContext";
+import { CardNotFoundOverlay } from "../shared/CardNotFoundOverlay";
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import { FieldView } from "../team_builder/FieldView";
 
@@ -124,6 +125,20 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
             .catch(err => console.error('Failed to fetch award winner cards:', err))
             .finally(() => setIsLoadingCards(false));
     }, [awards, season, showdownSet]);
+
+    // Gold Glove / Silver Slugger recipients feed FieldView's position slots, keyed the same way
+    // (cardKey) — used to surface who's missing on that card's "not found" overlay.
+    const notFoundLabels = useMemo(() => {
+        const recipients: AwardRecipient[] = [
+            ...LEAGUES.flatMap(l => awards?.GG[l] ?? []),
+            ...LEAGUES.flatMap(l => awards?.SS[l] ?? []),
+        ];
+        const map: Record<string, { name: string; playerId: number }> = {};
+        recipients.forEach(recipient => {
+            map[cardKey(recipient)] = { name: recipient.name, playerId: recipient.player.id };
+        });
+        return map;
+    }, [awards]);
 
     const handleCardClick = (record: CardDatabaseRecord) => {
         if (isLoadingModalCard) return;
@@ -261,11 +276,20 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                             ) : !card && isLoadingCards ? (
                                                 <CardItemSkeleton className="max-w-full" />
                                             ) : (
-                                                <CardItemFromCardDatabaseRecord
-                                                    card={card}
-                                                    className={card ? 'cursor-pointer' : 'pointer-events-none opacity-40'}
-                                                    onClick={card ? () => handleCardClick(card) : undefined}
-                                                />
+                                                <div className="relative">
+                                                    <CardItemFromCardDatabaseRecord
+                                                        card={card}
+                                                        className={card ? 'cursor-pointer' : 'pointer-events-none opacity-40'}
+                                                        onClick={card ? () => handleCardClick(card) : undefined}
+                                                    />
+                                                    {!card && (
+                                                        <CardNotFoundOverlay
+                                                            variant="row"
+                                                            playerName={recipient.name}
+                                                            playerId={recipient.player.id}
+                                                        />
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     );
@@ -296,6 +320,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                         positions={filteredGGPositions}
                                         headerLabel="Gold Glove"
                                         showDefenseSummary={true}
+                                        notFoundLabels={notFoundLabels}
                                     />
                                 </div>
                             ))}
@@ -325,6 +350,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                         headerLabel="Silver Slugger"
                                         showDefenseSummary={true}
                                         detailStat1Category="hr"
+                                        notFoundLabels={notFoundLabels}
                                     />
                                 </div>
                             ))}
