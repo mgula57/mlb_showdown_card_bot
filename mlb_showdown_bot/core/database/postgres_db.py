@@ -8207,6 +8207,13 @@ class PostgresDB:
             """)
             cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS player_filters JSONB;")
             cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS roster_size INT NOT NULL DEFAULT 25;")
+            # ONLY SET FOR A `beat_team_record` GOAL - THE REAL HISTORICAL CLUB (NAME/W/L) ITS
+            # TARGET_ABBR NAMES, OR - FOR A `BeatTarget` SENTINEL LIKE "BEST_RECORD" - WHICHEVER
+            # REAL CLUB THAT ACTUALLY WAS THAT SEASON, RESOLVED ONCE AT GENERATION TIME AGAINST
+            # THE MLB STATS API SO THE CHALLENGE CARD CAN NAME IT WITHOUT A LIVE LOOKUP. DISPLAY
+            # FLAVOR ONLY: THE ACTUAL PASS/FAIL CHECK RE-RESOLVES A SENTINEL DYNAMICALLY AGAINST
+            # THE PLAYED (SIMULATED) SEASON'S OWN STANDINGS, SINCE THAT CAN DIFFER FROM HISTORY.
+            cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS beat_team_record JSONB;")
             # NOT A PARTIAL INDEX: NOW() ISN'T IMMUTABLE, SO IT CAN'T APPEAR IN AN INDEX
             # PREDICATE (ONLY IN A QUERY'S WHERE CLAUSE). THE TABLE IS TINY (A HANDFUL OF ROWS
             # PER TEMPLATE) SO A PLAIN INDEX ON expires_at IS PLENTY.
@@ -8257,7 +8264,7 @@ class PostgresDB:
             return None
         rows = self.execute_query(
             """
-            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.expires_at,
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.beat_team_record, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
                    attempt.challenge_result, attempt.attempted_at,
                    stats.entrants, stats.passes
@@ -8299,7 +8306,7 @@ class PostgresDB:
             return []
         rows = self.execute_query(
             """
-            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.expires_at,
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.beat_team_record, i.expires_at,
                    t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
                    attempt.challenge_result, attempt.attempted_at,
                    stats.entrants, stats.passes
@@ -8504,19 +8511,21 @@ class PostgresDB:
     def create_challenge_instance(
         self, template_id: str, year: int, replaces_abbr: str, pts_limit: int | None,
         expires_in_days: int = 7, player_filters: dict | None = None, roster_size: int = 25,
+        beat_team_record: dict | None = None,
     ) -> str:
         if not self.connection:
             raise RuntimeError("No database connection")
         with self.connection.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, roster_size, player_filters, expires_at)
-                VALUES (%s, %s, %s, %s, %s, %s, NOW() + make_interval(days => %s))
+                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, roster_size, player_filters, beat_team_record, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW() + make_interval(days => %s))
                 RETURNING instance_id
                 """,
                 (
                     template_id, year, replaces_abbr, pts_limit, roster_size,
                     extras.Json(player_filters) if player_filters is not None else None,
+                    extras.Json(beat_team_record) if beat_team_record is not None else None,
                     expires_in_days,
                 ),
             )

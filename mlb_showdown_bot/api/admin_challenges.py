@@ -184,6 +184,7 @@ def generate_challenge_instance(template_id: str):
         return jsonify({
             'instance_id': result.instance_id, 'slug': result.slug,
             'year': result.year, 'replaces_abbr': result.replaces_abbr,
+            'beat_team_record': result.beat_team_record,
         }), 201
     except ChallengeError as exc:
         return jsonify({'error': str(exc)}), exc.status
@@ -203,7 +204,10 @@ def rotate_challenges():
         return jsonify({
             'pruned': report.pruned,
             'created': [
-                {'instance_id': r.instance_id, 'slug': r.slug, 'year': r.year, 'replaces_abbr': r.replaces_abbr}
+                {
+                    'instance_id': r.instance_id, 'slug': r.slug, 'year': r.year, 'replaces_abbr': r.replaces_abbr,
+                    'beat_team_record': r.beat_team_record,
+                }
                 for r in report.created
             ],
             'skipped': report.skipped,

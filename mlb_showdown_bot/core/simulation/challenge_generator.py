@@ -102,6 +102,7 @@ class InstanceResult:
     slug: str
     year: int
     replaces_abbr: str
+    beat_team_record: dict | None = None
 
 
 @dataclass
@@ -140,9 +141,11 @@ class ChallengeGenerator:
         known = {club.abbreviation for club in options.clubs}
         return next((c for c in candidates if c in known), None)
 
-    def resolve_target(self, template: dict) -> tuple[int, str] | None:
-        """A (year, replaces_abbr) pair for a template, retrying on years with no data. None if
-        nothing valid turned up within the attempt budget."""
+    def resolve_target(self, template: dict) -> tuple[int, str, TakeoverOptions] | None:
+        """A (year, replaces_abbr, options) triple for a template, retrying on years with no
+        data. `options` is handed back (rather than re-fetched) so `create_instance` can resolve
+        `beat_team_record` off the same standings. None if nothing valid turned up within the
+        attempt budget."""
         # A `BeatTarget` SENTINEL (E.G. "BEST_RECORD") NEVER MATCHES A REAL CLUB ABBR, SO THIS
         # GUARD IS A NATURAL NO-OP FOR A DYNAMIC TARGET - ONLY A FIXED-ABBR GOAL EXCLUDES A CLUB.
         forbidden_abbr = None
@@ -157,8 +160,35 @@ class ChallengeGenerator:
                 continue
             replaces_abbr = self._resolve_replaces(template['replaces_pool'], options)
             if replaces_abbr and replaces_abbr != forbidden_abbr:
-                return year, replaces_abbr
+                return year, replaces_abbr, options
         return None
+
+    def _resolve_beat_team_record(self, template: dict, replaces_abbr: str, options: TakeoverOptions) -> dict | None:
+        """The real club (name/wins/losses) a `beat_team_record` template's `target_abbr` names,
+        for display on the challenge card before anyone has played it. None for any other goal
+        type, or if the club can't be found.
+
+        For a fixed abbr this is exact. For a `BeatTarget` sentinel it's the actual real-history
+        best/worst club that season (excluding `replaces_abbr` - the player's own takeover club,
+        same exclusion `_challenge_passed` in api/sim.py applies) - flavor only, since the
+        simulated season the player actually plays out can end up different from history.
+        """
+        if template.get('goal_type') != GoalType.BEAT_TEAM_RECORD.value:
+            return None
+        target_abbr = (template.get('goal_value') or {}).get('target_abbr')
+        if not target_abbr:
+            return None
+        if target_abbr in (BeatTarget.BEST_RECORD.value, BeatTarget.WORST_RECORD.value):
+            # `options.clubs` IS ALREADY SORTED WORST RECORD FIRST.
+            candidates = [club for club in options.clubs if club.abbreviation != replaces_abbr]
+            if not candidates:
+                return None
+            club = candidates[-1] if target_abbr == BeatTarget.BEST_RECORD.value else candidates[0]
+        else:
+            club = next((c for c in options.clubs if c.abbreviation == target_abbr), None)
+            if club is None:
+                return None
+        return {"abbr": club.abbreviation, "name": club.name, "wins": club.wins, "losses": club.losses}
 
     # -- creation -------------------------------------------------------------
 
@@ -168,14 +198,19 @@ class ChallengeGenerator:
         target = self.resolve_target(template)
         if target is None:
             return None
-        year, replaces_abbr = target
+        year, replaces_abbr, options = target
+        beat_team_record = self._resolve_beat_team_record(template, replaces_abbr, options)
         instance_id = self.db.create_challenge_instance(
             template_id=template['template_id'], year=year, replaces_abbr=replaces_abbr,
             pts_limit=template['pts_limit'], expires_in_days=INSTANCE_LIFETIME_DAYS,
             player_filters=template.get('player_filters'),
             roster_size=template.get('roster_size') or 25,
+            beat_team_record=beat_team_record,
         )
-        return InstanceResult(instance_id=instance_id, slug=template['slug'], year=year, replaces_abbr=replaces_abbr)
+        return InstanceResult(
+            instance_id=instance_id, slug=template['slug'], year=year, replaces_abbr=replaces_abbr,
+            beat_team_record=beat_team_record,
+        )
 
     def instance_from_template(self, template: dict, force: bool = False) -> InstanceResult:
         """Force one instance for a single template, outside the category rotation. Raises

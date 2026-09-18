@@ -126,6 +126,14 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                 <StatTile icon={<FaShirt />} label="Take Over" value={challenge.replaces_abbr} />
                 <StatTile icon={<FaSackDollar />} label="Budget" value={challenge.pts_limit != null ? `${challenge.pts_limit} pts` : 'No limit'} />
                 <StatTile icon={<FaUsers />} label="Min Roster" value={`${challenge.roster_size} players`} />
+                {challenge.goal_type === 'beat_team_record' && challenge.beat_team_record && (
+                    <StatTile
+                        icon={<FaTrophy />}
+                        label="Club To Beat"
+                        value={`${challenge.beat_team_record.name} (${challenge.beat_team_record.wins}-${challenge.beat_team_record.losses})`}
+                        fullWidth
+                    />
+                )}
                 {successRate && (
                     <StatTile
                         icon={<FaTrophy />}

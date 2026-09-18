@@ -31,6 +31,16 @@ def _open_db(env: str) -> PostgresDB:
     return PostgresDB(is_archive=env.lower() == "prod")
 
 
+def _describe_instance(result) -> str:
+    """One line summarizing a generated instance, e.g. "Generated 'x': 1927 DET (instance ...)
+    - beat NYY (110-44)" - the club-to-beat suffix only appears for a beat_team_record template."""
+    line = f"Generated '{result.slug}': {result.year} {result.replaces_abbr} (instance {result.instance_id})"
+    if result.beat_team_record:
+        b = result.beat_team_record
+        line += f" - beat {b['abbr']} ({b['wins']}-{b['losses']})"
+    return line
+
+
 @app.callback(invoke_without_command=True)
 def challenges_main():
     """Manage Team Challenge templates/instances."""
@@ -53,7 +63,7 @@ def rotate_challenges(
         if report.pruned:
             typer.echo(f"Pruned {report.pruned} expired challenge instance(s).")
         for result in report.created:
-            typer.echo(f"Generated '{result.slug}': {result.year} {result.replaces_abbr} (instance {result.instance_id})")
+            typer.echo(_describe_instance(result))
         for skip in report.skipped:
             typer.echo(f"SKIP {skip}.")
         typer.echo(f"Done. {len(report.created)} new challenge instance(s) generated.")
@@ -86,7 +96,7 @@ def create_instance(
         except ChallengeError as exc:
             typer.echo(f"ERROR: {exc}")
             raise typer.Exit(code=1)
-        typer.echo(f"Generated '{result.slug}': {result.year} {result.replaces_abbr} (instance {result.instance_id})")
+        typer.echo(_describe_instance(result))
         typer.echo("Done. 1 new challenge instance generated.")
     finally:
         db.close_connection()

@@ -53,15 +53,15 @@ export function SimRecordComparison({ summary, focusAbbr }: Props) {
 
     return (
         <SectionCard title="Team Records: Sim vs. Real Life">
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col lg:flex-row gap-4">
                 {overperformers.length > 0 && (
-                    <div>
+                    <div className='lg:w-1/2'>
                         <p className="text-[11px] font-bold text-(--success) uppercase tracking-wide mb-1.5">Overperformed Real Life</p>
                         <RecordTable entries={overperformers} focusAbbr={focusAbbr} />
                     </div>
                 )}
                 {underperformers.length > 0 && (
-                    <div>
+                    <div className='lg:w-1/2'>
                         <p className="text-[11px] font-bold text-(--error) uppercase tracking-wide mb-1.5">Underperformed Real Life</p>
                         <RecordTable entries={underperformers} focusAbbr={focusAbbr} />
                     </div>

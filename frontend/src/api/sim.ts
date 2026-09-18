@@ -34,7 +34,7 @@ export type SimStatLine = {
     id: string;
     name: string;
     team: string | null;
-    position: string | null;
+    position?: string | null;
     points: number;
     command: number;
     player_type: string | null;
@@ -488,6 +488,12 @@ export type ChallengeInstance = {
     category: ChallengeCategory;
     goal_type: ChallengeGoalType;
     goal_value: { min_wins?: number; target_abbr?: string } | null;
+    /** The real club a `beat_team_record` goal's `target_abbr` names, resolved once at
+     *  generation time (fixed abbr or a `BeatTarget` sentinel like "best_record" — both resolve
+     *  to one real club). Display flavor only, shown before anyone has played the instance; the
+     *  actual pass/fail check re-resolves a sentinel dynamically against the played season.
+     *  Null for any other goal type. */
+    beat_team_record: { abbr: string; name: string; wins: number; losses: number } | null;
     /** The signed-in caller's own best attempt at this instance. Null/absent when logged out or
      *  never attempted. */
     challenge_result?: 'passed' | 'failed' | null;

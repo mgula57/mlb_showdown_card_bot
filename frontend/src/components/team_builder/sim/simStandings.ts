@@ -213,9 +213,11 @@ export function useRecordComparison(summary: SeasonSimSummary): { overperformers
         if (clubs.length === 0) return { overperformers: [], underperformers: [], loading: false };
 
         const realByAbbr = new Map(clubs.map(club => [club.abbreviation, club]));
+        const takeoverAbbrs = new Set(summary.takeover_abbrs ?? []);
         const entries: RecordComparisonEntry[] = [];
         for (const records of Object.values(summary.standings.divisions)) {
             for (const record of records) {
+                if (takeoverAbbrs.has(record.name)) continue;
                 const real = realByAbbr.get(record.name);
                 if (!real) continue;
                 entries.push({
@@ -233,5 +235,5 @@ export function useRecordComparison(summary: SeasonSimSummary): { overperformers
         const overperformers = entries.filter(e => e.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, RECORD_COMPARISON_LIMIT);
         const underperformers = entries.filter(e => e.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, RECORD_COMPARISON_LIMIT);
         return { overperformers, underperformers, loading: false };
-    }, [summary.standings.divisions, clubs]);
+    }, [summary.standings.divisions, summary.takeover_abbrs, clubs]);
 }

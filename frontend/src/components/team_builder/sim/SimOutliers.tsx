@@ -9,7 +9,6 @@ function toStatLine(entry: OutlierEntry): SimStatLine {
         id: entry.id,
         name: entry.name,
         team: entry.team,
-        position: entry.player_type,
         points: 0,
         command: 0,
         player_type: entry.player_type,
@@ -37,7 +36,7 @@ export function SimOutliers({ outliers, identities }: Props) {
     if (!hasAny) return null;
 
     const subTable = (label: string, entries: OutlierEntry[] | undefined) => (entries?.length ?? 0) > 0 && (
-        <div>
+        <div className='w-full'>
             <p className="text-[11px] text-(--text-tertiary) mb-1">{label}</p>
             <SimStatsTable rows={entries!.map(toStatLine)} columns={OUTLIER_COLUMNS} emptyLabel="" cardsEnabled identities={identities} />
         </div>
@@ -48,14 +47,14 @@ export function SimOutliers({ outliers, identities }: Props) {
             <div className="flex flex-col gap-4">
                 <div>
                     <p className="text-[11px] font-bold text-(--success) uppercase tracking-wide mb-1.5">Overperformers</p>
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col lg:flex-row lg:w-full gap-3">
                         {subTable('Hitters', hitters?.positive)}
                         {subTable('Pitchers', pitchers?.positive)}
                     </div>
                 </div>
                 <div>
                     <p className="text-[11px] font-bold text-(--error) uppercase tracking-wide mb-1.5">Underperformers</p>
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col lg:flex-row lg:w-full gap-3">
                         {subTable('Hitters', hitters?.negative)}
                         {subTable('Pitchers', pitchers?.negative)}
                     </div>
