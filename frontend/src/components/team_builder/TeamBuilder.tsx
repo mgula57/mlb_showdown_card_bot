@@ -397,7 +397,9 @@ export default function TeamBuilder() {
                 showdownSet: userShowdownSet,
                 overrides: challenge ? {
                     name,
-                    is_public: false,
+                    // Public by default so the run shows up on the Community recent-sims feed;
+                    // challenge teams are excluded from Browse regardless (see get_public_teams).
+                    is_public: true,
                     pts_limit: challenge.pts_limit,
                     // Challenge teams are pre-sized to the challenge's own roster minimum (25 by
                     // default), with a modern active-roster bucket split (3 bench / 5 bullpen /
@@ -761,6 +763,8 @@ export default function TeamBuilder() {
                                                 : undefined}
                                         />
                                     )}
+                                    {/* Whitespace for scrolling */}
+                                    <div className="h-24 shrink-0" />
                                 </div>
                             )}
                         </section>

@@ -1350,8 +1350,27 @@ def get_sim_history():
     try:
         limit = min(request.args.get('limit', default=100, type=int), 200)
         team_id = request.args.get('team_id')
+        challenges_only = request.args.get('challenges_only', default='false', type=str).lower() == 'true'
         with PostgresDB() as db:
-            seasons = db.fetch_user_sim_seasons(g.user_id, limit=limit, team_id=team_id)
+            seasons = db.fetch_user_sim_seasons(g.user_id, limit=limit, team_id=team_id, challenges_only=challenges_only)
+        return jsonify({'seasons': seasons}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/recent', methods=['GET'])
+def get_recent_sims():
+    """The most recently played seasons across the community, newest first - public teams (and
+    team-less open sims) only. A signed-in caller's own runs are excluded, since this backs the
+    "Community" column next to their own "Mine" recent-sims list.
+    """
+    try:
+        user_id = optional_user_id()
+        limit = min(request.args.get('limit', default=5, type=int), 25)
+        challenges_only = request.args.get('challenges_only', default='false', type=str).lower() == 'true'
+        with PostgresDB() as db:
+            seasons = db.fetch_recent_sim_seasons(exclude_user_id=user_id, limit=limit, challenges_only=challenges_only)
         return jsonify({'seasons': seasons}), 200
     except Exception as exc:
         traceback.print_exc()

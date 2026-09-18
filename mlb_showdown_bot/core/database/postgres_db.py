@@ -5108,7 +5108,10 @@ class PostgresDB:
         """
         if not self.connection:
             return []
-        conditions = ["t.is_public = TRUE", "t.is_archived = FALSE"]
+        # Challenge-created teams are public by default (so their sim results show on the
+        # Community feed), but they're purpose-built for one challenge attempt, not something
+        # to browse or fork - so they're excluded from this listing regardless of source filter.
+        conditions = ["t.is_public = TRUE", "t.is_archived = FALSE", "t.creation_source IS DISTINCT FROM 'challenge'"]
         params: list = []
         sources = [s.strip() for s in source.split(',')] if source else []
         sources = [s for s in sources if s]
@@ -9036,7 +9039,9 @@ class PostgresDB:
             'wins': target['wins'],
         }
 
-    def fetch_user_sim_seasons(self, user_id: str, limit: int = 100, team_id: str | None = None) -> list[dict]:
+    def fetch_user_sim_seasons(
+        self, user_id: str, limit: int = 100, team_id: str | None = None, challenges_only: bool = False,
+    ) -> list[dict]:
         """A user's own played seasons, newest first. Every run, not just their best."""
         if not self.connection:
             return []
@@ -9047,10 +9052,11 @@ class PostgresDB:
               {self._SIM_SEASON_LIST_JOINS}
              WHERE s.user_id = %s
                AND (%s IS NULL OR s.team_id = %s::uuid)
+               AND (NOT %s OR s.challenge_instance_id IS NOT NULL)
              ORDER BY s.created_at DESC
              LIMIT %s
             """,
-            (user_id, team_id, team_id, limit),
+            (user_id, team_id, team_id, challenges_only, limit),
         )
         return self._stringify_sim_season_ids(rows)
 
@@ -9077,6 +9083,33 @@ class PostgresDB:
              LIMIT %(limit)s
             """,
             {'team_id': team_id, 'viewer': viewer_user_id, 'limit': limit},
+        )
+        return self._stringify_sim_season_ids(rows)
+
+    def fetch_recent_sim_seasons(
+        self, exclude_user_id: str | None = None, limit: int = 5, challenges_only: bool = False,
+    ) -> list[dict]:
+        """The most recently played seasons across every OTHER user, newest first - a community
+        activity feed rather than a ranking. Same visibility rule as the leaderboard (public teams,
+        or team-less open sims), which works because challenge teams default to public - dropping a
+        team to private removes its runs here too. The viewer's own runs are excluded when
+        `exclude_user_id` is given so "Community" doesn't just echo their own "Mine" list.
+        """
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, FALSE AS is_own
+              FROM internal.sim_season s
+              LEFT JOIN internal.user_teams t ON t.team_id = s.team_id
+              {self._SIM_SEASON_LIST_JOINS}
+             WHERE (s.team_id IS NULL OR t.is_public = TRUE)
+               AND (%(exclude_user)s IS NULL OR s.user_id IS DISTINCT FROM %(exclude_user)s)
+               AND (NOT %(challenges_only)s OR s.challenge_instance_id IS NOT NULL)
+             ORDER BY s.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'exclude_user': exclude_user_id, 'limit': limit, 'challenges_only': challenges_only},
         )
         return self._stringify_sim_season_ids(rows)
 

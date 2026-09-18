@@ -10,7 +10,7 @@ from prettytable import PrettyTable
 
 from ...core.database.postgres_db import PostgresDB, Set
 from ...core.card.team_builder import Team, TeamSource, RosterToTeamConverter
-from ...core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team
+from ...core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team, fetch_stratified_candidates
 from ...core.mlb_stats_api import MLBStatsAPI
 from ...core.mlb_stats_api.models.teams.team import TeamWithColors
 
@@ -480,6 +480,10 @@ def test_autofill(
                                            help="high_control | groundball | no_doubles | strikeout"),
     hitting: Optional[str]  = typer.Option(None, "--hitting",
                                            help="high_ob | speed | slug | contact"),
+    defense: Optional[str]  = typer.Option(None, "--defense",
+                                           help="low_defense | high_defense | elite_defense"),
+    catcher_defense: Optional[str] = typer.Option(None, "--catcher-defense",
+                                           help="low_catcher_defense | high_catcher_defense | elite_catcher_defense"),
     runs: int = typer.Option(1, "--runs", help="Number of independent autofill runs to compare"),
 ):
     """Test the autofill algorithm locally — no DB writes, results printed as tables."""
@@ -491,7 +495,8 @@ def test_autofill(
     active_filters   = {'showdown_set': [showdown_set]}
 
     typer.echo(f"\nAutofill test — pts_limit={pts_limit}  set={showdown_set}  preset={preset}")
-    typer.echo(f"  pitching={pitching or 'balanced'}  hitting={hitting or 'balanced'}")
+    typer.echo(f"  pitching={pitching or 'balanced'}  hitting={hitting or 'balanced'}  "
+               f"defense={defense or 'balanced'}  catcher_defense={catcher_defense or 'balanced'}")
     typer.echo(f"  starters={starters}  bench={bench}  bullpen={bullpen}  runs={runs}\n")
 
     team = Team(
@@ -507,13 +512,10 @@ def test_autofill(
 
     typer.echo("Fetching candidate pools…", nl=False)
     db = PostgresDB()
-    candidates_by_bucket: dict[str, list[dict]] = {}
-    for bucket, bucket_filters in BUCKET_QUERY_FILTERS.items():
-        base = {**bucket_filters, **active_filters}
-        main = db.fetch_card_list(filters={**base, 'limit': 500, 'sort_by': 'points', 'sort_direction': 'desc'}) or []
-        floor = db.fetch_card_list(filters={**base, 'max_points': 150, 'limit': 200, 'sort_by': 'points', 'sort_direction': 'desc'}) or []
-        seen = {c['card_id'] for c in main}
-        candidates_by_bucket[bucket] = main + [c for c in floor if c['card_id'] not in seen]
+    candidates_by_bucket: dict[str, list[dict]] = {
+        bucket: fetch_stratified_candidates(db, bucket_filters, active_filters, card_sources=['BOT'])
+        for bucket, bucket_filters in BUCKET_QUERY_FILTERS.items()
+    }
 
     cardmap: dict[str, dict] = {c['card_id']: c for cards in candidates_by_bucket.values() for c in cards}
     db.close_connection()
@@ -535,6 +537,11 @@ def test_autofill(
     def _pos(cid: str) -> str:
         return (_card(cid).get('positions_and_defense_string') or _card(cid).get('player_type') or '')[:18]
 
+    def _defense(cid: str) -> str:
+        pd = _card(cid).get('positions_and_defense') or {}
+        ratings = [v for pos, v in pd.items() if pos != 'DH']
+        return str(max(ratings)) if ratings else ''
+
     for run in range(1, runs + 1):
         if runs > 1:
             typer.echo(f"── Run {run} of {runs} {'─' * 40}")
@@ -545,10 +552,12 @@ def test_autofill(
             pts_distribution=pts_distribution,
             pitching_strategy=pitching,
             hitting_strategy=hitting,
+            defense_strategy=defense,
+            catcher_defense_strategy=catcher_defense,
         )
 
-        if result is None:
-            typer.echo("✗  Autofill failed after max attempts. Try a higher pts_limit or different preset.")
+        if isinstance(result, tuple):
+            typer.echo(f"✗  Autofill failed: {result[1]}")
             continue
 
         roster   = result['roster']
@@ -561,13 +570,13 @@ def test_autofill(
 
         def _section_table(title: str, rows: list[tuple], target: int) -> None:
             total = sum(r[1] for r in rows)
-            t = PrettyTable(['Slot', 'Name', 'Pts', 'Position', 'Detail'])
+            t = PrettyTable(['Slot', 'Name', 'Pts', 'Position', 'Def', 'Detail'])
             t.align = 'l'
             t.align['Pts'] = 'r'
-            for slot, pts_val, name_val, pos_val, detail_val in rows:
-                t.add_row([slot, name_val, pts_val, pos_val, detail_val])
-            t.add_row(['', '', '', '', ''])
-            t.add_row(['TOTAL', '', total, '', f"target {target}  Δ {total - target:+d}"])
+            for slot, pts_val, name_val, pos_val, def_val, detail_val in rows:
+                t.add_row([slot, name_val, pts_val, pos_val, def_val, detail_val])
+            t.add_row(['', '', '', '', '', ''])
+            t.add_row(['TOTAL', '', total, '', '', f"target {target}  Δ {total - target:+d}"])
             typer.echo(f"\n{title}")
             typer.echo(t)
 
@@ -577,22 +586,22 @@ def test_autofill(
 
         _section_table(
             'LINEUP',
-            [(s['field_position'], _pts(s['card_id']), _name(s['card_id']), _pos(s['card_id']), '') for s in lineup_slots],
+            [(s['field_position'], _pts(s['card_id']), _name(s['card_id']), _pos(s['card_id']), _defense(s['card_id']), '') for s in lineup_slots],
             round(pts_limit * pts_distribution['offense']),
         )
         _section_table(
             'ROTATION',
-            [(r['role'], _pts(r['card_id']), _name(r['card_id']), _pos(r['card_id']), _pitcher_detail(r['card_id'])) for r in rotation_slots],
+            [(r['role'], _pts(r['card_id']), _name(r['card_id']), _pos(r['card_id']), _defense(r['card_id']), _pitcher_detail(r['card_id'])) for r in rotation_slots],
             round(pts_limit * pts_distribution['rotation']),
         )
         _section_table(
             'BULLPEN',
-            [(r['role'], _pts(r['card_id']), _name(r['card_id']), _pos(r['card_id']), _pitcher_detail(r['card_id'])) for r in bullpen_slots],
+            [(r['role'], _pts(r['card_id']), _name(r['card_id']), _pos(r['card_id']), _defense(r['card_id']), _pitcher_detail(r['card_id'])) for r in bullpen_slots],
             round(pts_limit * pts_distribution['bullpen']),
         )
         _section_table(
             'BENCH',
-            [('BE', _pts(s['card_id']), _name(s['card_id']), _pos(s['card_id']), '') for s in bench_slots],
+            [('BE', _pts(s['card_id']), _name(s['card_id']), _pos(s['card_id']), _defense(s['card_id']), '') for s in bench_slots],
             round(pts_limit * pts_distribution['bench']),
         )
 

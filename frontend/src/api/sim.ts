@@ -694,12 +694,31 @@ export async function fetchSimSeason(jobId: string, token?: string): Promise<Sim
 }
 
 /** The signed-in user's own played seasons, newest first — every run, not just the best. */
-export async function fetchSimHistory(token: string, teamId?: string): Promise<SimSeasonListItem[]> {
-    const params = teamId ? `?team_id=${teamId}` : '';
-    const res = await fetch(`${API_BASE}/sim/history${params}`, {
+export async function fetchSimHistory(token: string, teamId?: string, challengesOnly = false): Promise<SimSeasonListItem[]> {
+    const params = new URLSearchParams();
+    if (teamId) params.set('team_id', teamId);
+    if (challengesOnly) params.set('challenges_only', 'true');
+    const query = params.toString() ? `?${params}` : '';
+    const res = await fetch(`${API_BASE}/sim/history${query}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) await parseError(res, 'Failed to load your simulation history');
+    const data = await res.json();
+    return data.seasons ?? [];
+}
+
+/**
+ * The most recently played seasons across the community, newest first — public teams (and
+ * team-less open sims) only. A signed-in caller's own runs are excluded server-side, since this
+ * backs the "Community" column next to the caller's own "Mine" recent-sims list.
+ */
+export async function fetchRecentSims(token?: string, limit = 5, challengesOnly = false): Promise<SimSeasonListItem[]> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (challengesOnly) params.set('challenges_only', 'true');
+    const res = await fetch(`${API_BASE}/sim/recent?${params}`, { headers });
+    if (!res.ok) await parseError(res, 'Failed to load recent simulations');
     const data = await res.json();
     return data.seasons ?? [];
 }

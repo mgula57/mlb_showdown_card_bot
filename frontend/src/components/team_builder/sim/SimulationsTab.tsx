@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { SimLeaderboard } from './SimLeaderboard';
 import { SimHistory } from './SimHistory';
+import { RecentSims } from './RecentSims';
 import { SimChallenges } from './SimChallenges';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 import { useAuth } from '../../auth/AuthContext';
@@ -67,6 +68,9 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
                 <NavTile icon={<FaListCheck />} title="Active Challenges" targetRef={challengesRef} />
                 <NavTile icon={<FaTrophy />} title="Leaderboard" targetRef={leaderboardRef} />
             </div>
+
+            {/* Recent Sims — quick snapshot of your own and the community's latest runs */}
+            <RecentSims token={token} onOpenSeason={onOpenSeason} />
 
             {/* Challenges grid */}
             <div ref={challengesRef} className="flex flex-col gap-4">

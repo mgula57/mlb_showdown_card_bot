@@ -150,6 +150,9 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
             ? '--warning'
             : '--error';
 
+    const isTakeover = !isOpenSim && !!team.replaced_abbr;
+    const myTeamLabel = isTakeover ? `My Team (${team.replaced_abbr})` : 'My Team';
+
     return (
         <div className="flex flex-col gap-2 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4">
             {/* Headline */}
@@ -273,8 +276,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     {hasAwards && (
                         <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
                     )}
-                    <Tabs.Trigger value="batting" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className={TAB_ICON_CLASS} />Batting</Tabs.Trigger>
-                    <Tabs.Trigger value="pitching" className={TAB_TRIGGER_CLASS}><FaBaseball className={TAB_ICON_CLASS} />Pitching</Tabs.Trigger>
+                    <Tabs.Trigger value="my_team" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className={TAB_ICON_CLASS} />{myTeamLabel}</Tabs.Trigger>
                     <Tabs.Trigger value="standings" className={TAB_TRIGGER_CLASS}><FaTableList className={TAB_ICON_CLASS} />Standings</Tabs.Trigger>
                     <Tabs.Trigger value="leaders" className={TAB_TRIGGER_CLASS}><FaRankingStar className={TAB_ICON_CLASS} />League Leaders</Tabs.Trigger>
                     <Tabs.Trigger value="league_stats" className={TAB_TRIGGER_CLASS}><FaDiceD20 className={TAB_ICON_CLASS} />League Stats</Tabs.Trigger>
@@ -345,22 +347,26 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     </div>
                 </Tabs.Content>
 
-                <Tabs.Content value="batting" className="focus:outline-none px-4 pt-3">
-                    {hitterKpis.length > 0 && (
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
-                            {hitterKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
-                        </div>
-                    )}
-                    <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} />
-                </Tabs.Content>
+                <Tabs.Content value="my_team" className="focus:outline-none px-4 pt-3 flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                        <p className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-primary)"><FaBaseballBatBall className={TAB_ICON_CLASS} />Batting</p>
+                        {hitterKpis.length > 0 && (
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                                {hitterKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
+                            </div>
+                        )}
+                        <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} />
+                    </div>
 
-                <Tabs.Content value="pitching" className="focus:outline-none px-4 pt-3">
-                    {pitcherKpis.length > 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                            {pitcherKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
-                        </div>
-                    )}
-                    <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
+                    <div className="flex flex-col gap-2">
+                        <p className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-primary)"><FaBaseball className={TAB_ICON_CLASS} />Pitching</p>
+                        {pitcherKpis.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                                {pitcherKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
+                            </div>
+                        )}
+                        <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
+                    </div>
                 </Tabs.Content>
 
                 {/* League Stats */}

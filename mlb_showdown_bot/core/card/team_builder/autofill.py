@@ -62,7 +62,15 @@ def fetch_stratified_candidates(
             if source_sets:
                 base['showdown_set'] = source_sets
 
+        bucket_player_types = bucket_filters.get('player_type')
         for band in _CANDIDATE_PRICE_BANDS:
+            band_player_type = band.get('player_type')
+            # A band's player_type is a cheap-tier override, not a relaxation — skip it if it
+            # contradicts the bucket's own filter (e.g. the pitcher cheap-tier band would
+            # otherwise leak cheap pitchers into a hitter-only bucket like bench).
+            if band_player_type and bucket_player_types and band_player_type not in bucket_player_types:
+                continue
+
             filters = {
                 **base,
                 'min_points': band['min'],
@@ -70,8 +78,8 @@ def fetch_stratified_candidates(
                 'limit': band['limit'],
                 'sort_by': 'random()',
             }
-            if band.get('player_type'):
-                filters['player_type'] = band['player_type']
+            if band_player_type:
+                filters['player_type'] = band_player_type
 
             cards = db.fetch_card_list(filters=filters) or []
             for c in cards:
