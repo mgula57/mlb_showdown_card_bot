@@ -52,7 +52,9 @@ FRONTEND_ORIGIN         # CORS allowed origin (default: http://localhost:5173)
 
 **DRY is a top priority.** Before adding new code, check whether existing abstractions already handle it. Duplication is a bug.
 
-- **Frontend (React/TypeScript):** Extract repeated JSX patterns into components. If the same visual structure or behavior appears more than once, it belongs in a component in `frontend/src/components/`. Prefer composing existing primitives (`FormDropdown`, `FormInput`, `FormSection`, `FormEnabler`) over inline repetition. On clickable elements like buttons use `cursor-pointer`.
+- **Frontend (React/TypeScript):** 
+  - Extract repeated JSX patterns into components. If the same visual structure or behavior appears more than once, it belongs in a component in `frontend/src/components/`. Prefer composing existing primitives (`FormDropdown`, `FormInput`, `FormSection`, `FormEnabler`) over inline repetition. On clickable elements like buttons use `cursor-pointer`.
+  - When adding elements that rely on loading, prefer including a "skeleton" placeholder for content instead of just a loading spinner. It should occupy similar dimensions that the content that is being loaded will.
 - **Backend (Python):** Prefer classes over standalone functions for anything stateful or logically grouped. Use dataclasses, Pydantic models, or plain classes to encapsulate related data and behavior. Standalone utility functions are fine for pure transformations, but grouping via a class is preferred when there are multiple related operations.
 
 ## Architecture
