@@ -30,9 +30,17 @@ const GOAL_LABEL: Record<string, string> = {
     beat_team_record: 'Beat record',
 };
 
+const BEAT_TARGET_LABEL: Record<string, string> = {
+    BEST_RECORD: 'best record',
+    WORST_RECORD: 'worst record',
+};
+
 function goalSummary(t: ChallengeTemplate): string {
     if (t.goal_type === 'min_wins') return `${t.goal_value?.min_wins ?? '?'} wins`;
-    if (t.goal_type === 'beat_team_record') return `Beat ${t.goal_value?.target_abbr ?? '?'}`;
+    if (t.goal_type === 'beat_team_record') {
+        const target = t.goal_value?.target_abbr;
+        return `Beat ${target ? (BEAT_TARGET_LABEL[target] ?? target) : '?'}`;
+    }
     return GOAL_LABEL[t.goal_type] ?? t.goal_type;
 }
 

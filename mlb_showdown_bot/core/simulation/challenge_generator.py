@@ -25,6 +25,16 @@ class GoalType(str, Enum):
     BEAT_TEAM_RECORD = "beat_team_record"
 
 
+class BeatTarget(str, Enum):
+    """Special `target_abbr` values for a `beat_team_record` goal that resolve to a club
+    dynamically, per playthrough, instead of naming one. Unlike a fixed abbr, which club has the
+    best/worst record isn't known until that instance's season is actually simulated (the games
+    aren't deterministic), so these can't be resolved at template- or instance-creation time -
+    see `_challenge_passed` in `api/sim.py`, which resolves them from the played standings."""
+    BEST_RECORD = "BEST_RECORD"
+    WORST_RECORD = "WORST_RECORD"
+
+
 class ChallengeCategory(str, Enum):
     """Presentation grouping for the challenges list - drives the accent color and the
     one-per-category weekly rotation. Not a mechanic: the goal/cap/filters do the actual work."""
@@ -79,6 +89,8 @@ def build_goal_value(goal_type: GoalType, min_wins: int | None, beat_team_abbr: 
     if goal_type == GoalType.BEAT_TEAM_RECORD:
         if not beat_team_abbr:
             raise ChallengeError("beat_team_abbr is required when goal_type is beat_team_record")
+        # A REAL CLUB ABBR (E.G. "NYY") OR A `BeatTarget` SENTINEL (E.G. "best_record") - BOTH
+        # NORMALIZE THE SAME WAY, SO NO BRANCH IS NEEDED HERE.
         return {"target_abbr": beat_team_abbr.strip().upper()}
     return None
 
@@ -131,6 +143,8 @@ class ChallengeGenerator:
     def resolve_target(self, template: dict) -> tuple[int, str] | None:
         """A (year, replaces_abbr) pair for a template, retrying on years with no data. None if
         nothing valid turned up within the attempt budget."""
+        # A `BeatTarget` SENTINEL (E.G. "BEST_RECORD") NEVER MATCHES A REAL CLUB ABBR, SO THIS
+        # GUARD IS A NATURAL NO-OP FOR A DYNAMIC TARGET - ONLY A FIXED-ABBR GOAL EXCLUDES A CLUB.
         forbidden_abbr = None
         if template.get('goal_type') == GoalType.BEAT_TEAM_RECORD.value:
             forbidden_abbr = (template.get('goal_value') or {}).get('target_abbr')

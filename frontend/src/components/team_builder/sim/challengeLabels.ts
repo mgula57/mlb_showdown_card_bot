@@ -1,5 +1,14 @@
 import type { ChallengeInstance } from '../../../api/sim';
 
+/** `beat_team_record`'s `target_abbr` when it's a `BeatTarget` sentinel rather than a real club
+ *  abbr - that club isn't known until the season is actually played, so the card can't name it
+ *  ahead of time the way a fixed-abbr goal can. */
+function beatTargetLabel(targetAbbr: string | undefined, year: number): string {
+    if (targetAbbr === 'BEST_RECORD') return "that season's best record";
+    if (targetAbbr === 'WORST_RECORD') return "that season's worst record";
+    return `the ${year} ${targetAbbr ?? '?'}'s record`;
+}
+
 /** Plain-English version of a challenge's win condition, e.g. "Win at least 95 games". */
 export function challengeGoalLabel(challenge: ChallengeInstance): string {
     switch (challenge.goal_type) {
@@ -8,7 +17,7 @@ export function challengeGoalLabel(challenge: ChallengeInstance): string {
         case 'win_pennant': return 'Win the pennant';
         case 'win_world_series': return 'Win the World Series';
         case 'min_wins': return `Win at least ${challenge.goal_value?.min_wins ?? '?'} games`;
-        case 'beat_team_record': return `Beat the ${challenge.year} ${challenge.goal_value?.target_abbr ?? '?'}'s record`;
+        case 'beat_team_record': return `Beat ${beatTargetLabel(challenge.goal_value?.target_abbr, challenge.year)}`;
         default: return 'Clear the bar';
     }
 }

@@ -18,6 +18,7 @@ from ..core.card.sets import Set
 from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
+from ..core.simulation.challenge_generator import BeatTarget
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
 from ..core.simulation.models import GameStuckError, ManagerPreference, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
 from ..core.simulation.season import Season
@@ -933,22 +934,46 @@ def _friendly_phase(message: str) -> str | None:
     return None
 
 
-def _find_team_record(standings, abbr: str | None):
-    """The `TeamRecord` for a club abbreviation within a played season's final standings, or
-    None. Matches on the rendered identity first (a takeover club keeps the replaced club's
-    schedule key as `name`, so `identity.abbreviation` is the reliable one), then `name`."""
+def _record_abbr(record) -> str:
+    """A `TeamRecord`'s identity abbreviation, upper-cased. A takeover club keeps the replaced
+    club's schedule key as `name`, so `identity.abbreviation` is the reliable one, then `name`."""
+    identity_abbr = (record.identity.abbreviation if record.identity else None) or record.name
+    return (identity_abbr or '').strip().upper()
+
+
+def _find_team_record(standings, abbr: str | None, own_abbr: str | None = None):
+    """The `TeamRecord` a `beat_team_record` goal's `target_abbr` resolves to within a played
+    season's final standings, or None.
+
+    `abbr` is either a real club abbreviation, matched directly, or a `BeatTarget` sentinel
+    ("BEST_RECORD"/"WORST_RECORD"), resolved dynamically from every *other* club's record in
+    `standings` (excluding `own_abbr`, the takeover team - without that exclusion "beat the best
+    record" would compare the player's own team to itself). Which club that is isn't knowable
+    until the season is actually played, since games aren't deterministic - see `BeatTarget`.
+    """
     if not abbr:
         return None
     target = abbr.strip().upper()
+    if target in (BeatTarget.BEST_RECORD.value, BeatTarget.WORST_RECORD.value):
+        own = (own_abbr or '').strip().upper()
+        candidates = [
+            record for division in standings.divisions.values() for record in division
+            if _record_abbr(record) != own
+        ]
+        if not candidates:
+            return None
+        pick = max if target == BeatTarget.BEST_RECORD.value else min
+        return pick(candidates, key=lambda record: record.wins)
     for division in standings.divisions.values():
         for record in division:
-            identity_abbr = (record.identity.abbreviation if record.identity else None) or record.name
-            if (identity_abbr or '').strip().upper() == target:
+            if _record_abbr(record) == target:
                 return record
     return None
 
 
-def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_pennant: bool, standings=None) -> bool:
+def _challenge_passed(
+    goal_type: str, goal_value: dict | None, team_season, won_pennant: bool, standings=None, own_abbr: str | None = None,
+) -> bool:
     """Evaluate a challenge's goal against the played season's result."""
     if goal_type == 'made_playoffs':
         return team_season.made_playoffs
@@ -961,7 +986,7 @@ def _challenge_passed(goal_type: str, goal_value: dict | None, team_season, won_
     if goal_type == 'min_wins':
         return team_season.wins >= (goal_value or {}).get('min_wins', 0)
     if goal_type == 'beat_team_record':
-        target = _find_team_record(standings, (goal_value or {}).get('target_abbr')) if standings else None
+        target = _find_team_record(standings, (goal_value or {}).get('target_abbr'), own_abbr=own_abbr) if standings else None
         return target is not None and team_season.wins > target.wins
     return False
 
@@ -1144,7 +1169,7 @@ def _run_sim_job(
             )
             passed = _challenge_passed(
                 challenge['goal_type'], challenge['goal_value'], summary.team, won_pennant,
-                standings=summary.standings,
+                standings=summary.standings, own_abbr=team_abbr,
             )
             challenge_result = 'passed' if passed else 'failed'
 

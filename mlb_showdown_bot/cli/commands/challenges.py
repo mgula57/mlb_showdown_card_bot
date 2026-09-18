@@ -99,7 +99,12 @@ def create_template(
     description: str = typer.Option(..., "--description", help="Flavor text shown on the challenge card"),
     goal_type: GoalType = typer.Option(..., "--goal-type", help="What the player needs to accomplish"),
     min_wins: int = typer.Option(None, "--min-wins", help="Required when --goal-type is min_wins"),
-    beat_team_abbr: str = typer.Option(None, "--beat-team-abbr", help="Required when --goal-type is beat_team_record - the club abbr (e.g. NYY) whose win total must be beaten"),
+    beat_team_abbr: str = typer.Option(
+        None, "--beat-team-abbr",
+        help="Required when --goal-type is beat_team_record - either the club abbr (e.g. NYY) whose win total "
+             "must be beaten, or 'best_record'/'worst_record' to target that instance's best- or worst-record "
+             "club dynamically each time it's played (which club that is isn't known until the season is simulated)",
+    ),
     category: ChallengeCategory = typer.Option(ChallengeCategory.THEMED, "--category", help="Rotation pool + accent color for the challenges list - one live instance per category at a time"),
     pts_limit: int = typer.Option(None, "--pts-limit", help="Team budget cap. Omit for no cap"),
     roster_size: int = typer.Option(25, "--roster-size", help="Minimum roster size a team needs to take on this challenge (also the size a challenge 'New Team' is pre-built at)"),
@@ -137,6 +142,10 @@ def create_template(
     Example - beat a specific iconic club's win total in that same simulated season:
 
     showdown_bot challenges create-template --slug dethrone-27-yankees --title "Dethrone the '27 Yankees" --description "Take over another 1927 club and finish with more wins than Murderers' Row." --goal-type beat_team_record --beat-team-abbr NYY --category legendary --year-pool 1927 --replaces-pool worst_record --env dev
+
+    Example - beat whichever club ends up with the best record that season, year picked at random:
+
+    showdown_bot challenges create-template --slug chase-the-pennant-leader --title "Chase the Leader" --description "Take over any club and out-win that season's best team." --goal-type beat_team_record --beat-team-abbr best_record --year-pool any --replaces-pool any --env dev
     """
     if roster_size < MIN_ROSTER_SIZE:
         typer.echo(f"ERROR: --roster-size must be at least {MIN_ROSTER_SIZE}.")

@@ -14,6 +14,22 @@ const GOAL_OPTIONS: { label: string; value: ChallengeGoalType }[] = [
     { label: "Beat a club's record", value: 'beat_team_record' },
 ];
 
+/** A `beat_team_record` target is either a fixed club abbr or one of these dynamic sentinels,
+ *  resolved to a club only once that instance's season is actually played out (see `BeatTarget`
+ *  in `challenge_generator.py` - which club has the best/worst record isn't knowable ahead of
+ *  a simulated season). Stored in `beat_team_abbr` alongside real abbrs; both upper-case the
+ *  same way on submit. */
+const BEAT_TARGET_OPTIONS: { label: string; value: string }[] = [
+    { label: 'Specific club', value: 'club' },
+    { label: "That season's best record", value: 'best_record' },
+    { label: "That season's worst record", value: 'worst_record' },
+];
+
+function beatTargetMode(beatTeamAbbr: string): string {
+    const v = beatTeamAbbr.trim().toLowerCase();
+    return v === 'best_record' || v === 'worst_record' ? v : 'club';
+}
+
 const CATEGORY_OPTIONS: { label: string; value: ChallengeCategory }[] = [
     { label: 'Legendary', value: 'legendary' },
     { label: 'Budget Cap', value: 'budget_cap' },
@@ -152,6 +168,14 @@ export function ChallengeTemplateForm({ initial, submitLabel, busy, error, onSub
                     <FormInput label="Win total" type="number" value={form.min_wins} onChange={v => set('min_wins', v ?? '')} placeholder="90" />
                 )}
                 {form.goal_type === 'beat_team_record' && (
+                    <FormDropdown
+                        label="Target"
+                        options={BEAT_TARGET_OPTIONS}
+                        selectedOption={beatTargetMode(form.beat_team_abbr)}
+                        onChange={mode => set('beat_team_abbr', mode === 'club' ? '' : mode)}
+                    />
+                )}
+                {form.goal_type === 'beat_team_record' && beatTargetMode(form.beat_team_abbr) === 'club' && (
                     <FormInput label="Club to beat (abbr)" value={form.beat_team_abbr} onChange={v => set('beat_team_abbr', (v ?? '').toUpperCase())} placeholder="NYY" />
                 )}
             </div>
