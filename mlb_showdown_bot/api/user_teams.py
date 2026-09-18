@@ -5,7 +5,7 @@ from flask import Blueprint, g, jsonify, request
 
 from ..core.database.postgres_db import PostgresDB
 from ..core.card.team_builder.team import Team, DEFAULT_LINEUP_NAME
-from ..core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team
+from ..core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team, fetch_stratified_candidates
 from ..core.supabase import SupabaseClientManager, upload_to_supabase
 from .user_settings import require_auth, optional_user_id
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
@@ -326,67 +326,17 @@ def autofill_team_route(team_id: str):
             if not card_sources:
                 card_sources = ['BOT']
 
-            def _fetch_bucket(bucket_filters: dict) -> list[dict]:
-                """Fetch stratified candidate pool across price bands (10-800 pts).
-                Ensures representation at all budget levels. Cheap tier (10-100) prioritizes
-                position players to improve bench fill success.
-                """
-                merged_all: list[dict] = []
-                seen_ids: set[str] = set()
-
-                # Price bands with card limits per band. Cheaper tiers get more cards
-                # to ensure autofill has options when budget-constrained.
-                price_bands = [
-                    {'min': 10,  'max': 100,  'limit': 100, 'player_type': 'HITTER'},   # Cheap tier: max options for bench fill
-                    {'min': 10,  'max': 100,  'limit': 50,  'player_type': 'PITCHER'},  # Cheap tier: options for rotation + bullpen
-
-                    {'min': 100, 'max': 200,  'limit': 150},  # Low-mid tier
-                    {'min': 200, 'max': 350,  'limit': 150},  # Mid tier (avg ~250)
-                    {'min': 350, 'max': 550,  'limit': 100},  # High-mid tier
-                    {'min': 550, 'max': 1000,  'limit': 80},   # Premium tier (sparse)
-                ]
-
-                for source in card_sources:
-                    base = {**bucket_filters, **active_filters, 'source': source}
-                    # An explicit showdown_set override from the caller wins; otherwise use the
-                    # sets this team allows for this source (empty = no set restriction).
-                    if 'showdown_set' not in base:
-                        source_sets = team.sets_for_source(source)
-                        if source_sets:
-                            base['showdown_set'] = source_sets
-
-                    # Fetch from each price band. Cheap tier (10-100 pts) gets more cards
-                    # to ensure bench has affordable options when filling.
-                    # No sort needed — autofill's _sort_candidates() handles shuffling per strategy.
-                    for band in price_bands:
-                        filters = {
-                            **base,
-                            'min_points': band['min'],
-                            'max_points': band['max'],
-                            'limit': band['limit'],
-                            'sort_by': 'random()',
-                        }
-
-                        if band.get('player_type', None):
-                            filters['player_type'] = band['player_type']
-
-                        if band.get('positions_list', None):
-                            filters['positions_list'] = band['positions_list']
-
-                        cards = db.fetch_card_list(filters=filters) or []
-                        for c in cards:
-                            if c['card_id'] not in seen_ids:
-                                c['_card_source'] = source
-                                merged_all.append(c)
-                                seen_ids.add(c['card_id'])
-
-                return merged_all
+            # An explicit showdown_set override from the caller wins; otherwise each source uses
+            # the sets this team allows for it (empty = no set restriction).
+            sets_by_source = {source: team.sets_for_source(source) for source in card_sources}
 
             # Fetch candidate pools for each bucket via stratified sampling across price bands.
-            # Cheap tier (10-100 pts) gets 150 cards to ensure bench fill has affordable options.
-            # This approach ensures representation at all price levels and gives autofill variety.
+            # Cheap tier (10-100 pts) gets the most cards to ensure bench fill has affordable
+            # options. This approach ensures representation at all price levels and gives
+            # autofill variety. No sort needed — autofill's _sort_candidates() handles
+            # shuffling per strategy.
             candidates_by_bucket: dict[str, list[dict]] = {
-                bucket: _fetch_bucket(bucket_filters)
+                bucket: fetch_stratified_candidates(db, bucket_filters, active_filters, card_sources, sets_by_source)
                 for bucket, bucket_filters in BUCKET_QUERY_FILTERS.items()
             }
 
