@@ -4652,6 +4652,7 @@ class PostgresDB:
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
             t.origin_template_id, t.creation_source,
+            t.view_count, t.like_count, t.fork_count, t.forked_from_id,
             t.collection_slug, t.subtitle, t.credit, t.collection_sort_index,
             t.published_by, t.published_at, t.origin_published_from, t.strategy_deck,
             COALESCE(
@@ -4727,6 +4728,7 @@ class PostgresDB:
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
             t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
             t.origin_template_id, t.creation_source,
+            t.view_count, t.like_count, t.fork_count, t.forked_from_id,
             t.collection_slug, t.subtitle, t.credit, t.collection_sort_index,
             p.username AS creator_username,
             COUNT(r.card_id) AS roster_count,
@@ -4928,6 +4930,38 @@ class PostgresDB:
                     ON internal.user_teams (collection_slug)
                     WHERE collection_slug IS NOT NULL;
             """)
+            # View/like/fork counters. Only meaningful for teams reachable from Browse
+            # (is_public = TRUE or source = 'official'), but tracked on every row for
+            # uniformity — private teams simply never accrue any since Browse can't reach them.
+            # `forked_from_id` records lineage whenever a team is created via Fork, regardless of
+            # the source team's visibility (forking is allowed from any team the user can open).
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS view_count  INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS like_count  INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS fork_count  INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS forked_from_id UUID
+                        REFERENCES internal.user_teams(team_id) ON DELETE SET NULL;
+            """)
+            # Per-user likes. The UNIQUE constraint makes liking idempotent (one like per user
+            # per team) and is what a "did I like this" lookup queries against.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_team_likes (
+                    id         BIGSERIAL PRIMARY KEY,
+                    team_id    UUID NOT NULL REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    user_id    TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (team_id, user_id)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_likes_team_id
+                    ON internal.user_team_likes (team_id);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_likes_user_id
+                    ON internal.user_team_likes (user_id);
+            """)
             # lineups/rotation are now derived from the roster (user_team_roster.roster_position),
             # so drop the redundant JSONB columns.
             cur.execute("""
@@ -5055,7 +5089,7 @@ class PostgresDB:
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (user_id,))
             rows = [dict(r) for r in cur.fetchall()]
-        return self._serialize_team_summaries(rows)
+        return self._serialize_team_summaries(rows, user_id=user_id)
 
     def get_public_teams(
         self,
@@ -5064,6 +5098,7 @@ class PostgresDB:
         offset: int = 0,
         q: str | None = None,
         collection: str | None = None,
+        user_id: str | None = None,
     ) -> list[dict]:
         """Return public teams, optionally filtered by source and a name search.
 
@@ -5098,7 +5133,7 @@ class PostgresDB:
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
             rows = [dict(r) for r in cur.fetchall()]
-        return self._serialize_team_summaries(rows)
+        return self._serialize_team_summaries(rows, user_id=user_id)
 
     def get_team(self, team_id: str, user_id: str | None = None) -> dict | None:
         """Return a single team by team_id. Enforces ownership unless is_public or user_id is None."""
@@ -5115,10 +5150,64 @@ class PostgresDB:
             if not row:
                 print(f"Team {team_id} not found or access denied for user {user_id}.")
                 return None
-            return self._serialize_team_row(dict(row))
-        
+            row = dict(row)
+            if user_id is not None:
+                cur.execute(
+                    "SELECT 1 FROM internal.user_team_likes WHERE team_id = %s AND user_id = %s",
+                    (team_id, user_id),
+                )
+                row['liked_by_me'] = bool(cur.fetchone())
+            return self._serialize_team_row(row)
+
+    def record_team_view(self, team_id: str) -> None:
+        """Increment a team's view counter. Fire-and-forget — the caller (route) has already
+        decided this view should count (e.g. skipping the team's own owner)."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.user_teams SET view_count = view_count + 1 WHERE team_id = %s",
+                (team_id,),
+            )
+
+    def toggle_team_like(self, team_id: str, user_id: str) -> dict | None:
+        """Like the team if user_id hasn't already liked it, else unlike it.
+        Returns {'liked': bool, 'like_count': int}, or None if the team doesn't exist."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute("SELECT 1 FROM internal.user_teams WHERE team_id = %s", (team_id,))
+            if not cur.fetchone():
+                return None
+            cur.execute(
+                "DELETE FROM internal.user_team_likes WHERE team_id = %s AND user_id = %s",
+                (team_id, user_id),
+            )
+            if cur.rowcount > 0:
+                cur.execute(
+                    "UPDATE internal.user_teams SET like_count = GREATEST(like_count - 1, 0) "
+                    "WHERE team_id = %s RETURNING like_count",
+                    (team_id,),
+                )
+                liked = False
+            else:
+                cur.execute(
+                    "INSERT INTO internal.user_team_likes (team_id, user_id) VALUES (%s, %s) "
+                    "ON CONFLICT (team_id, user_id) DO NOTHING",
+                    (team_id, user_id),
+                )
+                cur.execute(
+                    "UPDATE internal.user_teams SET like_count = like_count + 1 "
+                    "WHERE team_id = %s RETURNING like_count",
+                    (team_id,),
+                )
+                liked = True
+            like_count = cur.fetchone()[0]
+        return {'liked': liked, 'like_count': like_count}
+
     def create_team(self, user_id: str | None, payload: dict) -> str:
-        """Insert a new team row and return the generated team_id UUID string."""
+        """Insert a new team row and return the generated team_id UUID string.
+        If payload carries forked_from_id, also increments that source team's fork_count."""
         if not self.connection:
             raise RuntimeError("No database connection")
         roster = payload.get('roster', [])
@@ -5138,6 +5227,12 @@ class PostgresDB:
             team_id = str(cur.fetchone()[0])
             self._upsert_roster(cur, team_id, roster)
             self._upsert_lineups(cur, team_id, lineups)
+            forked_from_id = fields.get('forked_from_id')
+            if forked_from_id:
+                cur.execute(
+                    "UPDATE internal.user_teams SET fork_count = fork_count + 1 WHERE team_id = %s",
+                    (forked_from_id,),
+                )
         return team_id
 
     def update_team(self, team_id: str, user_id: str, payload: dict) -> bool:
@@ -5390,7 +5485,7 @@ class PostgresDB:
         'is_public', 'logo_url', 'is_archived',
         'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
         'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
-        'origin_template_id', 'creation_source',
+        'origin_template_id', 'creation_source', 'forked_from_id',
     }
     _ADMIN_TEAM_FIELDS = _USER_TEAM_FIELDS | {
         'source', 'collection_slug', 'subtitle', 'credit', 'collection_sort_index',
@@ -5414,6 +5509,11 @@ class PostgresDB:
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
         row['is_archived'] = bool(row.get('is_archived'))
+        row['view_count'] = int(row.get('view_count') or 0)
+        row['like_count'] = int(row.get('like_count') or 0)
+        row['fork_count'] = int(row.get('fork_count') or 0)
+        row['forked_from_id'] = str(row['forked_from_id']) if row.get('forked_from_id') else None
+        row.setdefault('liked_by_me', False)
         # The rotation and the 'Default' lineup are derived from the roster; user-created
         # lineups come off the row and are re-indexed behind the Default.
         row['lineups'], row['rotation'] = derive_lineups_rotation(
@@ -5421,9 +5521,12 @@ class PostgresDB:
         )
         return row
 
-    def _serialize_team_summaries(self, rows: list[dict]) -> list[dict]:
+    def _serialize_team_summaries(self, rows: list[dict], user_id: str | None = None) -> list[dict]:
         """Finalize lightweight team-summary rows: hydrate top-3 player refs into full
-        card records (batched per source via fetch_card_list) and compute is_drafting."""
+        card records (batched per source via fetch_card_list) and compute is_drafting.
+        When `user_id` is given, batches a single lookup of which of these teams they've
+        liked, rather than joining user_team_likes into the shared SELECT (which would
+        fan out against the existing one-to-many roster/lineup joins)."""
         # Collect the unique top-player card ids per source across all teams
         ids_by_source: dict[str, set] = {}
         for row in rows:
@@ -5436,16 +5539,31 @@ class PostgresDB:
             records = self.fetch_card_list({'source': source, 'card_id': id_list, 'limit': len(id_list)}) or []
             for rec in records:
                 cards_by_key[(source, rec.get('card_id'))] = rec
-        return [self._serialize_team_summary_row(row, cards_by_key) for row in rows]
+        liked_team_ids: set = set()
+        if user_id and rows:
+            team_ids = [str(row['team_id']) for row in rows]
+            with self.connection.cursor() as cur:
+                cur.execute(
+                    "SELECT team_id FROM internal.user_team_likes WHERE user_id = %s AND team_id = ANY(%s::uuid[])",
+                    (user_id, team_ids),
+                )
+                liked_team_ids = {r[0] for r in cur.fetchall()}
+        return [self._serialize_team_summary_row(row, cards_by_key, liked_team_ids) for row in rows]
 
     @staticmethod
-    def _serialize_team_summary_row(row: dict, cards_by_key: dict) -> dict:
-        row['team_id'] = str(row['team_id'])
+    def _serialize_team_summary_row(row: dict, cards_by_key: dict, liked_team_ids: set | None = None) -> dict:
+        team_id = row['team_id']
+        row['liked_by_me'] = bool(liked_team_ids) and team_id in liked_team_ids
+        row['team_id'] = str(team_id)
         if row.get('created_at'):
             row['created_at'] = row['created_at'].isoformat()
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
         row['roster_count'] = int(row.get('roster_count') or 0)
+        row['view_count'] = int(row.get('view_count') or 0)
+        row['like_count'] = int(row.get('like_count') or 0)
+        row['fork_count'] = int(row.get('fork_count') or 0)
+        row['forked_from_id'] = str(row['forked_from_id']) if row.get('forked_from_id') else None
         # Synthetic (historical) summaries carry no creator — the key won't be on the row.
         row.setdefault('creator_username', None)
         # Synthetic (historical) summaries have no is_archived column — always treat as visible.

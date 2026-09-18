@@ -8,6 +8,7 @@ import {
     updateTeam,
     forkTeam,
     deleteTeam,
+    toggleTeamLike,
     type Team,
     type TeamSummary,
     type TeamUpdatePayload,
@@ -457,6 +458,15 @@ export default function TeamBuilder() {
         );
     }
 
+    async function handleToggleLike(teamId: string) {
+        if (!token) return;
+        const { liked, like_count } = await toggleTeamLike(teamId, token);
+        setView(prev => prev.mode === 'editor' && prev.team.team_id === teamId
+            ? { ...prev, team: { ...prev.team, liked_by_me: liked, like_count } }
+            : prev
+        );
+    }
+
     // Admin-only challenge-template manager. Its own route so it's reachable directly and not
     // gated behind the Challenges sub-tab state. Non-admins landing here fall through to the
     // normal tabs (the server would 403 every call anyway).
@@ -639,6 +649,9 @@ export default function TeamBuilder() {
                     onReload={reloadCurrentTeam}
                     token={token}
                     onFork={canFork ? () => handleFork(team) : undefined}
+                    onToggleLike={team.team_id && (team.source === 'user' || team.source === 'official')
+                        ? () => handleToggleLike(team.team_id)
+                        : undefined}
                     onArchive={!readOnly && token && team.source === 'user' && team.team_id
                         ? archived => handleSave(team.team_id, { is_archived: archived })
                         : undefined}

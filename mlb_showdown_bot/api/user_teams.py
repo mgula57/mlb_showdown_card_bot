@@ -169,6 +169,39 @@ def delete_team(team_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+@user_teams_bp.route('/user/teams/<team_id>/like', methods=['POST'])
+@require_auth
+def like_team(team_id: str):
+    try:
+        with PostgresDB() as db:
+            result = db.toggle_team_like(team_id, g.user_id)
+        if result is None:
+            return jsonify({'error': 'Team not found'}), 404
+        return jsonify(result), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@user_teams_bp.route('/user/teams/<team_id>/view', methods=['POST'])
+def record_team_view(team_id: str):
+    try:
+        user_id = optional_user_id()
+        with PostgresDB() as db:
+            team = db.get_team(team_id, user_id)
+            if team is None:
+                return jsonify({'error': 'Team not found'}), 404
+            # Skip counting the owner's own views. An anonymous viewer is never the owner,
+            # so this only ever skips when the caller is signed in as the team's owner.
+            if user_id is not None and team.get('user_id') == user_id:
+                return jsonify({'counted': False}), 200
+            db.record_team_view(team_id)
+        return jsonify({'counted': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @user_teams_bp.route('/user/teams/<team_id>/logo', methods=['POST'])
 @require_auth
 def upload_team_logo(team_id: str):
@@ -390,9 +423,11 @@ def get_public_teams():
         offset = request.args.get('offset', 0, type=int)
         q = request.args.get('q') or None
         collection = request.args.get('collection') or None
+        user_id = optional_user_id()
         with PostgresDB() as db:
             teams = db.get_public_teams(
                 source=source, limit=limit, offset=offset, q=q, collection=collection,
+                user_id=user_id,
             )
         return jsonify(teams), 200
     except Exception as exc:

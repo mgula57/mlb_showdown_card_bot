@@ -76,6 +76,15 @@ export type Team = {
     origin_template_id: string | null;
     /** How this team was first created — null for teams built before the field existed. */
     creation_source: TeamCreationSource | null;
+    /** The team this was forked from, if any. Set once at creation, never changed afterward. */
+    forked_from_id: string | null;
+    /** Denormalized counters. Only meaningful — and only ever shown — for teams reachable from
+     *  Browse (is_public || source === 'official'). */
+    view_count: number;
+    like_count: number;
+    fork_count: number;
+    /** Whether the current viewer has liked this team. Always false when signed out. */
+    liked_by_me: boolean;
     /** Curation fields — set only on admin-published (`source: 'official'`) teams. */
     collection_slug?: string | null;
     subtitle?: string | null;
@@ -119,6 +128,11 @@ export type TeamSummary = {
     allowed_card_sources: string[] | null;
     origin_template_id: string | null;
     creation_source: TeamCreationSource | null;
+    forked_from_id: string | null;
+    view_count: number;
+    like_count: number;
+    fork_count: number;
+    liked_by_me: boolean;
     collection_slug?: string | null;
     subtitle?: string | null;
     credit?: string | null;
@@ -206,12 +220,16 @@ export function isTeamSetupValid(team: Partial<Team>): boolean {
     return name.length > 0 && abbreviation.length > 0 && rosterValid && ptsValid && setsValid;
 }
 
-export type TeamCreatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at'>> & {
+// Denormalized stat counters are server-only — never accepted on create or update.
+type TeamStatFields = 'view_count' | 'like_count' | 'fork_count' | 'liked_by_me';
+
+export type TeamCreatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at' | TeamStatFields>> & {
     name: string;
     abbreviation: string;
 };
 
-export type TeamUpdatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at'>>;
+// `forked_from_id` is set once at creation (via TeamCreatePayload) and never changed afterward.
+export type TeamUpdatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at' | TeamStatFields | 'forked_from_id'>>;
 
 // =============================================================================
 // MARK: - API CALLS
@@ -352,6 +370,7 @@ export function buildForkPayload(source: Team): TeamCreatePayload {
         secondary_color: source.secondary_color,
         is_public: false,
         creation_source: 'fork',
+        forked_from_id: source.team_id,
         pts_limit: source.pts_limit,
         roster_size: source.roster_size,
         min_bench: source.min_bench,
@@ -402,6 +421,29 @@ export async function updateTeam(teamId: string, payload: TeamUpdatePayload, tok
  */
 export async function setTeamArchived(teamId: string, archived: boolean, token: string): Promise<Team> {
     return updateTeam(teamId, { is_archived: archived }, token);
+}
+
+/** Toggle the current user's like on a team. Requires sign-in. */
+export async function toggleTeamLike(teamId: string, token: string): Promise<{ liked: boolean; like_count: number }> {
+    const res = await fetch(`${API_BASE}/user/teams/${teamId}/like`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to toggle like: ${res.status}`);
+    }
+    return res.json();
+}
+
+/**
+ * Records a view of `teamId`. Fire-and-forget — callers should never await this for its
+ * result (`.catch(() => {})` it) since a failure here must never block rendering the team.
+ */
+export async function recordTeamView(teamId: string, token?: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    await fetch(`${API_BASE}/user/teams/${teamId}/view`, { method: 'POST', headers });
 }
 
 /** Accepted logo formats — kept in sync with the backend's TEAM_LOGO_EXTENSIONS. */

@@ -2,7 +2,7 @@ import type { TeamSummary } from '../../api/userTeams';
 import { getContrastTextColor } from '../../functions/colors';
 import { useTheme, imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { FaLock, FaUsers } from 'react-icons/fa6';
+import { FaLock, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 import PointsBadge from '../cards/card_elements/PointsBadge';
 
 type TeamCardProps = {
@@ -21,6 +21,8 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
 
     const rosterCount = team.roster_count ?? 0;
     const drafting = team.is_drafting;
+    // Views/likes are only meaningful for teams reachable from Browse.
+    const showSocialStats = team.is_public || team.source === 'official';
 
     const borderSettings = isSelected
         ? (isDark ? 'border-3 border-white/60' : 'border-3 border-gray-700')
@@ -83,6 +85,20 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                         {drafting && <>/{team.roster_size}</>}
                     </span>
                     <PointsBadge points={team.total_points} bg_color={secondary} />
+                    {showSocialStats && (team.like_count > 0 || team.view_count > 0) && (
+                        <>
+                            {team.like_count > 0 && (
+                                <span className="flex items-center gap-0.5 text-[10px] text-(--text-tertiary)">
+                                    <FaHeart /> {team.like_count}
+                                </span>
+                            )}
+                            {team.view_count > 0 && (
+                                <span className="flex items-center gap-0.5 text-[10px] text-(--text-tertiary)">
+                                    <FaEye /> {team.view_count}
+                                </span>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
 

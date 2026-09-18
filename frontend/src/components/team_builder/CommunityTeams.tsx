@@ -9,11 +9,12 @@ import { matchesTeamQuery } from './teamSearch';
 // Set ordering for the "by set" shelves — newest curated sets first.
 const SET_ORDER = ['2000', '2001', '2002', '2003', '2004', '2005', 'EXPANDED', 'CLASSIC'];
 
-type SortKey = 'recent' | 'points' | 'name' | 'roster';
+type SortKey = 'recent' | 'points' | 'name' | 'roster' | 'popular';
 
 const SORT_OPTIONS: SelectOption[] = [
     { value: 'recent', label: 'Recently Added' },
     { value: 'points', label: 'Most Points' },
+    { value: 'popular', label: 'Most Liked' },
     { value: 'name', label: 'Name (A–Z)' },
     { value: 'roster', label: 'Roster Size' },
 ];
@@ -22,6 +23,7 @@ function sortTeams(list: TeamSummary[], sortBy: SortKey): TeamSummary[] {
     const sorted = [...list];
     switch (sortBy) {
         case 'points': sorted.sort((a, b) => b.total_points - a.total_points); break;
+        case 'popular': sorted.sort((a, b) => b.like_count - a.like_count); break;
         case 'name': sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
         case 'roster': sorted.sort((a, b) => b.roster_count - a.roster_count); break;
         case 'recent':
@@ -78,6 +80,10 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
             .filter(t => t.total_points > 0)
             .sort((a, b) => b.total_points - a.total_points)
             .slice(0, 15);
+        const mostLiked = [...completeTeams]
+            .filter(t => t.like_count > 0)
+            .sort((a, b) => b.like_count - a.like_count)
+            .slice(0, 15);
 
         const bySet = new Map<string, TeamSummary[]>();
         for (const t of completeTeams) {
@@ -92,7 +98,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
             })
             .filter(([, list]) => list.length > 0);
 
-        return { recentlyAdded, topPoints, setShelves };
+        return { recentlyAdded, topPoints, mostLiked, setShelves };
     }, [completeTeams]);
 
     const px = horizontalPadding ?? '';
@@ -159,6 +165,14 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                     {shelves.topPoints.length > 0 && (
                         <TeamShelf title="Heavy Hitters" subtitle="Most points" className={px} bleed>
                             {shelves.topPoints.map(team => (
+                                <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
+                            ))}
+                        </TeamShelf>
+                    )}
+
+                    {shelves.mostLiked.length > 0 && (
+                        <TeamShelf title="Most Liked" subtitle="Community favorites" className={px} bleed>
+                            {shelves.mostLiked.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
                         </TeamShelf>

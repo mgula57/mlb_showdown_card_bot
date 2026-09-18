@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
@@ -26,7 +26,7 @@ import {
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
     FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
-    FaHandPointer, FaFileImport
+    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
@@ -69,6 +69,7 @@ const HEADER_ACTION_TONES = {
     starred: 'bg-yellow-400/15 text-yellow-600 dark:text-yellow-300 hover:bg-yellow-400/25',
     curate:  'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25',
     danger:  'bg-red-400/15 text-red-500 dark:text-red-400 hover:bg-red-400/25',
+    liked:   'bg-rose-500/15 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25',
 } as const;
 
 type HeaderActionProps = {
@@ -79,11 +80,13 @@ type HeaderActionProps = {
     /** Swaps the icon for a spinner and blocks re-entry while an async action is in flight. */
     busy?: boolean;
     title?: string;
+    /** Trailing count badge, e.g. a like or fork count. Omitted (not zero) hides the badge. */
+    count?: number;
 };
 
 /** One secondary action in the team header. Sized for a comfortable thumb target on mobile —
  *  the label always shows, it never shrinks down to an icon-only tap target. */
-function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = false, title }: HeaderActionProps) {
+function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = false, title, count }: HeaderActionProps) {
     return (
         <button
             type="button"
@@ -95,6 +98,9 @@ function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = fal
         >
             {busy ? <FaSpinner className="h-4 w-4 shrink-0 animate-spin" /> : <Icon className="h-4 w-4 shrink-0" />}
             {label}
+            {count != null && count > 0 && (
+                <span className="text-[11px] font-bold opacity-75">{count}</span>
+            )}
         </button>
     );
 }
@@ -119,6 +125,9 @@ type TeamDetailProps = {
     onToggleStar?: () => void;
     /** When provided, shows a "Make a copy" button that forks this team into the user's own. */
     onFork?: () => void | Promise<void>;
+    /** Toggle the current user's like on this team. Only offered when signed in and the team
+     *  is reachable from Browse (is_public || source === 'official'). */
+    onToggleLike?: () => void | Promise<void>;
     /** Set when this team page was reached from a Team Challenge card - offers "Play Challenge"
      *  in place of the plain "Play" action. Not stored on the team itself: a refresh drops back
      *  to the normal action, and the team can still be freely reused for other challenges/sims. */
@@ -216,9 +225,10 @@ function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): st
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, challenge, isNewTeam = false, onArchive }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, onToggleLike, challenge, isNewTeam = false, onArchive }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
+    const [liking, setLiking] = useState(false);
     const [archiving, setArchiving] = useState(false);
     const { isAdmin } = useAuth();
     const [showPublishModal, setShowPublishModal] = useState(false);
@@ -355,6 +365,18 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             }
             console.log('Team Loaded:', serverTeam);
         }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Record a view of this team, once per genuine open (this effect, like the stale check
+    // above, runs once per mount — TeamBuilder unmounts/remounts TeamDetail on every distinct
+    // team navigation via its intermediate loading state, so `[]` deps won't miss a team
+    // switch or double-count an in-place `team` prop update from autosave).
+    useEffect(() => {
+        if (!readOnly) return; // owner's own view never counts
+        if (team.source !== 'user' && team.source !== 'official') return; // no DB row to record against
+        if (!team.team_id) return;
+        recordTeamView(team.team_id, token).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -634,6 +656,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // already-official team. `team_id` + a complete roster are required for both.
     const isOfficialTeam = team.source === 'official';
     const adminCanCurate = isAdmin && !!token && !!team.team_id && !isDrafting && !isMlbTeam;
+    // Views/likes are only meaningful for teams reachable from Browse.
+    const showSocialStats = team.is_public || isOfficialTeam;
 
     async function handleUnpublish() {
         if (!token || !team.team_id || unpublishing) return;
@@ -1134,6 +1158,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 </span>
                             )}
 
+                            {showSocialStats && team.view_count > 0 && (
+                                <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0" title={`${team.view_count} views`}>
+                                    <FaEye /> {team.view_count}
+                                </span>
+                            )}
+
                             {/* Showdown Sets */}
                             <div className="flex items-center gap-0.5 ">
                                 {(draft.allowed_sets ?? [])
@@ -1216,7 +1246,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     Buttons are sized for a thumb on mobile, wrapping onto a second line rather
                     than shrinking. Right-aligned in both layouts — a full-width row under the
                     team info on a narrow header, inline beside it once there's real room. */}
-                {(onToggleStar || onFork || !readOnly || canSimulate || adminCanCurate) && (
+                {(onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || adminCanCurate) && (
                     <div className="flex flex-wrap items-center justify-start gap-2 shrink-0 pr-2 pb-2">
 
                         {onToggleStar && (
@@ -1226,6 +1256,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 label={isStarred ? 'Starred' : 'Star'}
                                 onClick={onToggleStar}
                                 title={isStarred ? `Unstar ${draft.name}` : `Star ${draft.name}`}
+                            />
+                        )}
+                        {onToggleLike && token && showSocialStats && (
+                            <HeaderAction
+                                icon={team.liked_by_me ? FaHeart : FaRegHeart}
+                                tone={team.liked_by_me ? 'liked' : 'neutral'}
+                                label={team.liked_by_me ? 'Liked' : 'Like'}
+                                count={team.like_count}
+                                busy={liking}
+                                onClick={async () => {
+                                    setLiking(true);
+                                    try {
+                                        await onToggleLike();
+                                    } finally {
+                                        setLiking(false);
+                                    }
+                                }}
+                                title={team.liked_by_me ? `Unlike ${draft.name}` : `Like ${draft.name}`}
                             />
                         )}
                         {!readOnly && teamMode === 'complete' && (
@@ -1240,6 +1288,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <HeaderAction
                                 icon={FaCodeFork}
                                 label="Copy"
+                                count={showSocialStats ? team.fork_count : undefined}
                                 busy={forking}
                                 onClick={async () => {
                                     setForking(true);

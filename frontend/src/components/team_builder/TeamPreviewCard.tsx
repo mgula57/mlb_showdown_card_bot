@@ -4,7 +4,7 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { getContrastTextColor } from '../../functions/colors';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { FaCircle, FaHatWizard, FaRobot, FaUsers } from 'react-icons/fa6';
+import { FaCircle, FaHatWizard, FaRobot, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
 // historical MLB teams, and All-Star teams alike.
@@ -19,6 +19,12 @@ export type TeamPreviewData = {
     allowed_card_sources?: string[] | null;
     /** Team provenance. */
     source?: TeamSource;
+    /** Whether the team is publicly browseable. Along with `source === 'official'`, gates
+     *  whether like/view stats are shown — historical/ASG tiles never set this, so it's
+     *  falsy and those pills simply don't render on them. */
+    is_public?: boolean;
+    view_count?: number;
+    like_count?: number;
     /** Showdown set(s) this team is tied to. Rendered as set-logo icons in the top-right. */
     allowed_sets?: string[] | null;
     /** Top-3 cards, hydrated on the list payload. Optional — historical tiles have none. */
@@ -209,6 +215,26 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                                 {team.roster_size}
                             </div>
                         ) : null}
+                        {(team.is_public || team.source === 'official') && (team.like_count ?? 0) > 0 && (
+                            <div
+                                className="flex items-center gap-0.5 text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none"
+                                style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
+                                title={`${team.like_count} likes`}
+                            >
+                                <FaHeart className="w-2.5 h-2.5" />
+                                {team.like_count}
+                            </div>
+                        )}
+                        {(team.is_public || team.source === 'official') && (team.view_count ?? 0) > 0 && (
+                            <div
+                                className="flex items-center gap-0.5 text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none"
+                                style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
+                                title={`${team.view_count} views`}
+                            >
+                                <FaEye className="w-2.5 h-2.5" />
+                                {team.view_count}
+                            </div>
+                        )}
                     </div>
                     {team.allowed_card_sources && team.allowed_card_sources.length > 0 && (
                         <div className="flex items-center gap-0.5 mt-0.5">
