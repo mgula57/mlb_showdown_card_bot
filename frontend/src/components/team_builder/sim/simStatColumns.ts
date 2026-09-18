@@ -99,9 +99,24 @@ export function buildSimStatHighlights(row: SimStatLine): string[] {
 export type KpiComparison = { direction: 'up' | 'down' | 'flat'; isGood: boolean; label: string };
 export type TeamKpi = { label: string; value: string; comparison?: KpiComparison };
 
-// ERA/WHIP are the only KPI-tile stats where a lower rate is the favorable direction - everything
-// else (AVG/OBP/SLG/OPS/HR/RBI, K/9, IP) is better when it's higher.
-const LOWER_IS_BETTER_KEYS = new Set(['era', 'whip']);
+// ERA/WHIP are the only stats where a lower rate is the favorable direction - everything else
+// (AVG/OBP/SLG/OPS/HR/RBI, K/9, IP) is better when it's higher.
+export const LOWER_IS_BETTER_KEYS = new Set(['era', 'whip']);
+
+export type StatDiffDirection = 'up' | 'down' | 'flat';
+
+export type StatDiff = { magnitude: number; direction: StatDiffDirection; isGood: boolean };
+
+/** Direction + magnitude for a sim-vs-real (or any two-value) comparison, colored by whether that
+ * direction is favorable for the given stat key - same "lower is better" rule as the KPI tiles'
+ * league-average comparison. `flatThreshold` avoids a noisy arrow on a value that's effectively
+ * tied. Feeds `DiffBadge` (`DiffIndicator.tsx`). */
+export function computeDiff(key: string, delta: number, flatThreshold = 0): StatDiff {
+    if (Math.abs(delta) <= flatThreshold) return { magnitude: delta, direction: 'flat', isGood: true };
+    const direction: StatDiffDirection = delta > 0 ? 'up' : 'down';
+    const isGood = LOWER_IS_BETTER_KEYS.has(key) ? direction === 'down' : direction === 'up';
+    return { magnitude: delta, direction, isGood };
+}
 
 /** BI-style "vs. league average" delta for a team KPI tile. Flat inside +/-1% avoids a noisy
  * arrow on a value that's effectively tied with the league average. */

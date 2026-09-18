@@ -4,8 +4,15 @@ import type { SimStatLine, SimTeamIdentity } from '../../../api/sim';
 import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
-import { COLUMN_LABELS, formatStat, SIM_STATS_TOOLTIP } from './simStatColumns';
+import { DiffBadge } from './DiffIndicator';
+import { COLUMN_LABELS, computeDiff, formatStat, SIM_STATS_TOOLTIP } from './simStatColumns';
 import { useCardLinks } from './useCardLinks';
+
+// Columns ending in "_diff" (currently just SimOutliers' `ops_diff`) render as a colored up/down
+// arrow via DiffBadge instead of a plain signed number - see `computeDiff`.
+function isDiffColumn(key: string): boolean {
+    return key.endsWith('_diff');
+}
 
 type SortKey = 'name' | 'team' | 'position' | string;
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
@@ -132,7 +139,9 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                 )}
                                 {columns.map(key => (
                                     <td key={key} className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
-                                        {formatStat(key, row.stats[key])}
+                                        {isDiffColumn(key) && row.stats[key] !== undefined
+                                            ? <DiffBadge diff={computeDiff(key, row.stats[key]!)} format={abs => formatStat(key, abs)} />
+                                            : formatStat(key, row.stats[key])}
                                     </td>
                                 ))}
                             </tr>

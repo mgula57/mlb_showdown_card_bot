@@ -1,12 +1,15 @@
 import type { SimStatLine } from '../../../api/sim';
+import { DiffBadge } from './DiffIndicator';
 import { SectionCard } from './SectionCard';
-import { COLUMN_LABELS, formatStat, HITTER_COMPARISON_COLUMNS, PITCHER_COMPARISON_COLUMNS } from './simStatColumns';
+import { COLUMN_LABELS, computeDiff, formatStat, HITTER_COMPARISON_COLUMNS, PITCHER_COMPARISON_COLUMNS } from './simStatColumns';
 
-/** Mirrors `_stats_table`'s `is_diff_a_pct` branch (`reporting.py`): signed %, 1 decimal. */
-function diffPct(sim: number, real: number): string {
+/** Mirrors `_stats_table`'s `is_diff_a_pct` branch (`reporting.py`): signed % delta between sim
+ * and real, fed into `computeDiff` so the DIFF row renders as a colored up/down arrow. Flat inside
+ * +/-0.1% avoids a noisy arrow on an effectively-tied value. */
+function diffPct(key: string, sim: number, real: number) {
     const denominator = real > 0 ? real : 1;
     const pct = ((sim - real) / denominator) * 100;
-    return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+    return computeDiff(key, pct, 0.1);
 }
 
 function ComparisonTable({ label, columns, sim, real }: { label: string; columns: string[]; sim: SimStatLine; real: SimStatLine }) {
@@ -39,7 +42,9 @@ function ComparisonTable({ label, columns, sim, real }: { label: string; columns
                         <tr className="bg-(--showdown-blue)/10">
                             <td className="py-1.5 pr-3 font-semibold text-(--text-tertiary)">DIFF</td>
                             {columns.map(key => (
-                                <td key={key} className="text-right py-1.5 px-2 tabular-nums text-(--text-tertiary)">{diffPct(sim.stats[key] ?? 0, real.stats[key] ?? 0)}</td>
+                                <td key={key} className="text-right py-1.5 px-2 tabular-nums">
+                                    <DiffBadge diff={diffPct(key, sim.stats[key] ?? 0, real.stats[key] ?? 0)} format={abs => `${abs.toFixed(1)}%`} />
+                                </td>
                             ))}
                         </tr>
                     </tbody>

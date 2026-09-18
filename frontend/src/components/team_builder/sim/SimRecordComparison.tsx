@@ -1,11 +1,12 @@
 import type { SeasonSimSummary } from '../../../api/sim';
+import { DiffBadge } from './DiffIndicator';
 import { SectionCard } from './SectionCard';
 import { useRecordComparison, type RecordComparisonEntry } from './simStandings';
+import { computeDiff } from './simStatColumns';
 
-/** Signed batting-average-style formatting for a win% delta, e.g. `+.087` / `-.052`. */
-function formatWinPctDiff(diff: number): string {
-    const sign = diff >= 0 ? '+' : '-';
-    return `${sign}${Math.abs(diff).toFixed(3).replace(/^0/, '')}`;
+/** Batting-average-style formatting for a win% delta's magnitude, e.g. `.087`. */
+function formatWinPctDiff(abs: number): string {
+    return abs.toFixed(3).replace(/^0/, '');
 }
 
 function RecordTable({ entries, focusAbbr }: { entries: RecordComparisonEntry[]; focusAbbr: string }) {
@@ -26,8 +27,8 @@ function RecordTable({ entries, focusAbbr }: { entries: RecordComparisonEntry[];
                             <td className="py-1.5 pl-3 pr-3 text-left text-(--text-primary)">{entry.identity?.abbreviation ?? entry.abbr}</td>
                             <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">{entry.realWins}-{entry.realLosses}</td>
                             <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">{entry.simWins}-{entry.simLosses}</td>
-                            <td className={`text-right py-1.5 px-2 pr-3 tabular-nums font-semibold ${entry.diff >= 0 ? 'text-(--success)' : 'text-(--error)'}`}>
-                                {formatWinPctDiff(entry.diff)}
+                            <td className="text-right py-1.5 px-2 pr-3 tabular-nums">
+                                <DiffBadge diff={computeDiff('win_pct', entry.diff)} format={formatWinPctDiff} />
                             </td>
                         </tr>
                     ))}
