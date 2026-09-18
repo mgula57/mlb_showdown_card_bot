@@ -59,6 +59,7 @@ type Props = {
  */
 export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false, identities }: Props) {
     const [sort, setSort] = useState<SortState>(null);
+    const showPosition = rows.some(row => row.position != null);
 
     const { recordFor, isLoadingCard, selected, selectedSimStats, open, close, isFetching } = useCardLinks(rows, cardsEnabled);
 
@@ -93,7 +94,9 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
                         <SortHeader label="Player" align="left" sticky active={sort?.key === 'name'} dir={sort?.dir} onClick={() => toggleSort('name')} />
                         <SortHeader label="Team" align="left" active={sort?.key === 'team'} dir={sort?.dir} onClick={() => toggleSort('team')} />
-                        <SortHeader label="Pos" align="left" active={sort?.key === 'position'} dir={sort?.dir} onClick={() => toggleSort('position')} />
+                        {showPosition && (
+                            <SortHeader label="Pos" align="left" active={sort?.key === 'position'} dir={sort?.dir} onClick={() => toggleSort('position')} />
+                        )}
                         {columns.map(key => (
                             <SortHeader key={key} label={COLUMN_LABELS[key] ?? key.toUpperCase()} active={sort?.key === key} dir={sort?.dir} onClick={() => toggleSort(key)} />
                         ))}
@@ -124,7 +127,9 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                     )}
                                 </td>
                                 <td className="text-left py-1.5 px-2 text-(--text-tertiary)">{row.team ?? '—'}</td>
-                                <td className="text-left py-1.5 px-2 text-(--text-tertiary)">{row.position ?? '—'}</td>
+                                {showPosition && (
+                                    <td className="text-left py-1.5 px-2 text-(--text-tertiary)">{row.position ?? '—'}</td>
+                                )}
                                 {columns.map(key => (
                                     <td key={key} className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
                                         {formatStat(key, row.stats[key])}

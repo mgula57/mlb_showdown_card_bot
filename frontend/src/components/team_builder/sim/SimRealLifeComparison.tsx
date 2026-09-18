@@ -67,7 +67,10 @@ export function SimRealLifeComparison({ leagueTotals, realLeagueAverages }: Prop
     if (!hitterReal && !pitcherReal) return null;
 
     return (
-        <SectionCard title="Sim vs. Real Life">
+        <SectionCard
+            title="Sim vs. Real Life"
+            info="Sim stats won't always match real life exactly. Showdown Bot balances realism with staying true to what the original WOTC cards play like, so some drift from the real-world numbers is expected. For example 2004/2005 set hitting will be slightly better than real life."
+        >
             <div className="flex flex-col gap-3">
                 {hitterSim && hitterReal && <ComparisonTable label="Hitters" columns={HITTER_COMPARISON_COLUMNS} sim={hitterSim} real={hitterReal} />}
                 {pitcherSim && pitcherReal && <ComparisonTable label="Pitchers" columns={PITCHER_COMPARISON_COLUMNS} sim={pitcherSim} real={pitcherReal} />}
