@@ -28,7 +28,7 @@ function RecordTable({ entries, focusAbbr }: { entries: RecordComparisonEntry[];
                             <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">{entry.realWins}-{entry.realLosses}</td>
                             <td className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">{entry.simWins}-{entry.simLosses}</td>
                             <td className="text-right py-1.5 px-2 pr-3 tabular-nums">
-                                <DiffBadge diff={computeDiff('win_pct', entry.diff)} format={formatWinPctDiff} />
+                                <DiffBadge diff={computeDiff(entry.diff)} format={formatWinPctDiff} />
                             </td>
                         </tr>
                     ))}

@@ -108,13 +108,16 @@ export type StatDiffDirection = 'up' | 'down' | 'flat';
 export type StatDiff = { magnitude: number; direction: StatDiffDirection; isGood: boolean };
 
 /** Direction + magnitude for a sim-vs-real (or any two-value) comparison, colored by whether that
- * direction is favorable for the given stat key - same "lower is better" rule as the KPI tiles'
- * league-average comparison. `flatThreshold` avoids a noisy arrow on a value that's effectively
- * tied. Feeds `DiffBadge` (`DiffIndicator.tsx`). */
-export function computeDiff(key: string, delta: number, flatThreshold = 0): StatDiff {
+ * direction is favorable. `lowerIsBetter` defaults to false (up is good) - pass `true` for a stat
+ * where a lower value wins (ERA/WHIP, or OPS-against on a pitcher's outlier row, where the "good"
+ * direction depends on context `LOWER_IS_BETTER_KEYS` can't capture from the key alone).
+ * `flatThreshold` avoids a noisy arrow on a value that's effectively tied. Feeds `DiffBadge`
+ * (`DiffIndicator.tsx`). */
+export function computeDiff(delta: number, opts: { lowerIsBetter?: boolean; flatThreshold?: number } = {}): StatDiff {
+    const { lowerIsBetter = false, flatThreshold = 0 } = opts;
     if (Math.abs(delta) <= flatThreshold) return { magnitude: delta, direction: 'flat', isGood: true };
     const direction: StatDiffDirection = delta > 0 ? 'up' : 'down';
-    const isGood = LOWER_IS_BETTER_KEYS.has(key) ? direction === 'down' : direction === 'up';
+    const isGood = lowerIsBetter ? direction === 'down' : direction === 'up';
     return { magnitude: delta, direction, isGood };
 }
 

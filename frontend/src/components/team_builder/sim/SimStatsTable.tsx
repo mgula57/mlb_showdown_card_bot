@@ -14,6 +14,14 @@ function isDiffColumn(key: string): boolean {
     return key.endsWith('_diff');
 }
 
+// `ops_diff` is OPS for a hitter (higher sim OPS than real is good) but OPS-AGAINST for a pitcher
+// (lower sim OPS-against than real is good) - mirrors OutlierGroup's positive/negative split
+// (`summary.py`), which reverses direction for pitchers for the same reason. The key alone can't
+// tell these apart, so this needs the row's player_type.
+function diffLowerIsBetter(row: SimStatLine, key: string): boolean {
+    return key === 'ops_diff' && row.player_type === 'Pitcher';
+}
+
 type SortKey = 'name' | 'team' | 'position' | string;
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
@@ -140,7 +148,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                 {columns.map(key => (
                                     <td key={key} className="text-right py-1.5 px-2 tabular-nums text-(--text-secondary)">
                                         {isDiffColumn(key) && row.stats[key] !== undefined
-                                            ? <DiffBadge diff={computeDiff(key, row.stats[key]!)} format={abs => formatStat(key, abs)} />
+                                            ? <DiffBadge diff={computeDiff(row.stats[key]!, { lowerIsBetter: diffLowerIsBetter(row, key) })} format={abs => formatStat(key, abs)} />
                                             : formatStat(key, row.stats[key])}
                                     </td>
                                 ))}
