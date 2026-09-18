@@ -164,6 +164,8 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
             {/* Content */}
             <div className="relative z-10 flex flex-col h-full p-2.5 gap-1">
                 <div className={`flex-1 flex flex-col justify-start min-h-0 ${team.badge ? 'pt-2' : 'pt-1'}`}>
+                    
+                    {/* Team logo and abbreviation */}
                     <div className="flex items-end gap-1.5 min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0">
                             {team.logo_url && (
@@ -195,19 +197,21 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             {byline}
                         </div>
                     )}
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+
+                    {/* Team stats and allowed card sources */}
+                    <div className="flex items-center gap-x-1.5 gap-y-0.5 mt-0.5 flex-wrap text-[10px]">
                         {team.total_points && team.total_points > 0 ? (
-                            <div className="text-[10px] font-black rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>
+                            <div className="font-black rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>
                                 {team.total_points} PTS
                             </div>
                         ) : team.subtitle ? (
-                            <div className="text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>
+                            <div className="font-bold rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>
                                 {team.subtitle}
                             </div>
                         ) : null}
                         {team.roster_size ? (
                             <div
-                                className="flex items-center gap-0.5 text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none"
+                                className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
                                 style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
                                 title={`${team.roster_size}-player roster`}
                             >
@@ -215,9 +219,24 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                                 {team.roster_size}
                             </div>
                         ) : null}
+                        {team.allowed_card_sources && team.allowed_card_sources.length > 0 && (
+                            <>
+                                {team.allowed_card_sources.map(src => (
+                                    <div
+                                        key={src}
+                                        className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
+                                        style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
+                                    >
+                                        {src === 'WOTC' ? <FaHatWizard className="w-2.5 h-2.5" /> : undefined}
+                                        {src === 'BOT' ? <FaRobot className="w-2.5 h-2.5" /> : undefined}
+                                        {src}
+                                    </div>
+                                ))}
+                            </>
+                        )}
                         {(team.is_public || team.source === 'official') && (team.like_count ?? 0) > 0 && (
                             <div
-                                className="flex items-center gap-0.5 text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none"
+                                className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
                                 style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
                                 title={`${team.like_count} likes`}
                             >
@@ -227,7 +246,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                         )}
                         {(team.is_public || team.source === 'official') && (team.view_count ?? 0) > 0 && (
                             <div
-                                className="flex items-center gap-0.5 text-[10px] font-bold rounded px-1.5 py-0.5 self-start leading-none"
+                                className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
                                 style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
                                 title={`${team.view_count} views`}
                             >
@@ -236,21 +255,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             </div>
                         )}
                     </div>
-                    {team.allowed_card_sources && team.allowed_card_sources.length > 0 && (
-                        <div className="flex items-center gap-0.5 mt-0.5">
-                            {team.allowed_card_sources.map(src => (
-                                <div
-                                    key={src}
-                                    className="flex items-center gap-0.5 text-[8px] font-bold uppercase px-1.5 py-0.5 rounded"
-                                    style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
-                                >
-                                    {src === 'WOTC' ? <FaHatWizard className="w-2.5 h-2.5" /> : undefined}
-                                    {src === 'BOT' ? <FaRobot className="w-2.5 h-2.5" /> : undefined}
-                                    {src}
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    
                 </div>
 
                 {hasCards && (

@@ -230,7 +230,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [forking, setForking] = useState(false);
     const [liking, setLiking] = useState(false);
     const [archiving, setArchiving] = useState(false);
-    const { isAdmin } = useAuth();
+    const { isAdmin, user } = useAuth();
     const [showPublishModal, setShowPublishModal] = useState(false);
     const [unpublishing, setUnpublishing] = useState(false);
     // Setup flow: a freshly created (or still-empty) team opens on the "Team Settings" step;
@@ -639,6 +639,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     const isDrafting = isTeamDrafting(draft);
+    const isMyOwnTeam = team.source === 'user' && team.user_id === user?.id;
     // The Lineup tab is only meaningful once every roster spot is filled — hide it while the
     // roster is still being built out.
     const rosterFull = draft.roster.length >= draft.roster_size;
@@ -657,7 +658,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const isOfficialTeam = team.source === 'official';
     const adminCanCurate = isAdmin && !!token && !!team.team_id && !isDrafting && !isMlbTeam;
     // Views/likes are only meaningful for teams reachable from Browse.
-    const showSocialStats = team.is_public || isOfficialTeam;
+    const showSocialStats = (team.is_public || isOfficialTeam) && !isMyOwnTeam;
 
     async function handleUnpublish() {
         if (!token || !team.team_id || unpublishing) return;
