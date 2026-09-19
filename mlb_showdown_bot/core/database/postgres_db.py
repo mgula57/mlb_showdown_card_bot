@@ -8904,7 +8904,8 @@ class PostgresDB:
                        l.wins, l.losses, l.win_pct, l.points, l.division, l.division_rank,
                        l.made_playoffs, l.is_champion, l.longest_win_streak, l.seed, l.created_at,
                        l.roster_points, l.challenge_instance_id, l.challenge_result,
-                       ct.title AS challenge_title, ct.slug AS challenge_slug,
+                       ct.title AS challenge_title, ct.slug AS challenge_slug, ct.description AS challenge_description,
+                       ci.starts_at AS challenge_starts_at, ci.expires_at AS challenge_expires_at,
                        p.username AS creator_username,
                        (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
                   FROM internal.sim_season l
@@ -8938,7 +8939,8 @@ class PostgresDB:
                    wins, losses, win_pct, points, division, division_rank,
                    made_playoffs, is_champion, longest_win_streak, seed, created_at,
                    roster_points, challenge_instance_id, challenge_result,
-                   challenge_title, challenge_slug, creator_username, is_own, rank, attempts
+                   challenge_title, challenge_slug, challenge_description,
+                   challenge_starts_at, challenge_expires_at, creator_username, is_own, rank, attempts
               FROM ranked
              WHERE rank <= %(limit)s
              ORDER BY year DESC, (challenge_instance_id IS NOT NULL) ASC, challenge_title ASC,

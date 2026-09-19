@@ -3,6 +3,18 @@ import type { SimSeasonListItem } from '../../../api/sim';
 import { relativeTime } from '../../../functions/formatters';
 import { imageForSet } from '../../shared/SiteSettingsContext';
 
+/** A labelled rule between the runs that cleared a challenge and the ones that didn't. Shared by
+ *  every place a challenge's entries get split into those two buckets. */
+export function OutcomeDivider({ label, tone }: { label: string; tone: 'success' | 'muted' }) {
+    const color = tone === 'success' ? 'text-(--success)' : 'text-(--text-tertiary)';
+    return (
+        <div className="flex items-center gap-2 pt-1">
+            <span className={`text-[10px] font-bold uppercase tracking-wide shrink-0 ${color}`}>{label}</span>
+            <span className="h-px flex-1 bg-(--divider)" />
+        </div>
+    );
+}
+
 function medalClass(rank: number): string {
     if (rank === 1) return 'text-yellow-300';
     if (rank === 2) return 'text-(--text-secondary)';
@@ -90,5 +102,25 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props)
                 )}
             </span>
         </button>
+    );
+}
+
+/** Loading placeholder for `SimSeasonRow`, same footprint so a list settles into place instead
+ *  of growing/shrinking once real rows replace it. `showRank` mirrors whether the real rows here
+ *  reserve the rank column, so the skeleton doesn't shift width when data lands. */
+export function SimSeasonRowSkeleton({ showRank = false }: { showRank?: boolean }) {
+    return (
+        <div aria-hidden className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-(--background-tertiary) animate-pulse">
+            {showRank && <span className="w-6 h-3.5 rounded bg-(--background-primary) shrink-0" />}
+            <span className="w-1.5 h-7 rounded-full shrink-0 bg-(--background-primary)" />
+            <span className="min-w-0 flex-1 flex flex-col gap-1.5 py-0.5">
+                <span className="h-3 w-2/5 rounded bg-(--background-primary)" />
+                <span className="h-2.5 w-3/5 rounded bg-(--background-primary)" />
+            </span>
+            <span className="flex flex-col items-end gap-1.5 shrink-0 py-0.5">
+                <span className="h-3.5 w-10 rounded bg-(--background-primary)" />
+                <span className="h-2.5 w-8 rounded bg-(--background-primary)" />
+            </span>
+        </div>
     );
 }

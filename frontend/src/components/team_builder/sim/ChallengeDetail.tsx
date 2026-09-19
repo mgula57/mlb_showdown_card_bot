@@ -5,7 +5,7 @@ import {
     type ChallengeInstance, type SimLeaderboardEntry, type SimLeaderboardSort,
 } from '../../../api/sim';
 import { ChallengeCard } from './ChallengeCard';
-import { SimSeasonRow } from './SimSeasonRow';
+import { OutcomeDivider, SimSeasonRow } from './SimSeasonRow';
 import { challengeSuccessRate } from './challengeStats';
 import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
@@ -27,17 +27,6 @@ const SORT_TABS: TabItem<SimLeaderboardSort>[] = [
     { id: 'wins', label: 'Best Record', title: 'Ranked by wins' },
     { id: 'efficiency', label: 'Best GM', title: 'Ranked by wins per roster point spent' },
 ];
-
-/** A labelled rule between the runs that cleared the challenge and the ones that didn't. */
-function OutcomeDivider({ label, tone }: { label: string; tone: 'success' | 'muted' }) {
-    const color = tone === 'success' ? 'text-(--success)' : 'text-(--text-tertiary)';
-    return (
-        <div className="flex items-center gap-2 pt-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wide shrink-0 ${color}`}>{label}</span>
-            <span className="h-px flex-1 bg-(--divider)" />
-        </div>
-    );
-}
 
 /**
  * One challenge, at its own shareable URL: its own details up top — the same card as the list

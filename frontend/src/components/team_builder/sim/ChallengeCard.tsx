@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-    FaPlus, FaListUl, FaSpinner, FaChevronDown, FaChevronUp,
+    FaPlus, FaListUl, FaChevronDown, FaChevronUp,
     FaCalendarDays, FaShirt, FaSackDollar, FaFlagCheckered, FaClock, FaTrophy, FaChevronRight, FaFilter, FaUsers,
 } from 'react-icons/fa6';
 import { fetchUserTeams, type TeamSummary } from '../../../api/userTeams';
@@ -175,7 +175,17 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                         <div className="flex flex-col gap-2 rounded-lg border border-(--divider) p-2 max-h-84 overflow-y-scroll scrollbar-hide">
                             {existingError && <p className="text-[11px] text-red-400">{existingError}</p>}
                             {!existingError && existingTeams === null && (
-                                <div className="flex justify-center py-3"><FaSpinner className="animate-spin text-(--text-tertiary) text-[13px]" /></div>
+                                <div className="flex flex-col gap-2" aria-hidden>
+                                    {[0, 1].map(i => (
+                                        <div key={i} className="flex items-center gap-3 rounded-lg p-3 border-3 border-transparent bg-(--background-tertiary) animate-pulse">
+                                            <div className="w-10 h-10 rounded-md bg-(--background-primary) shrink-0" />
+                                            <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+                                                <div className="h-3 w-2/5 rounded bg-(--background-primary)" />
+                                                <div className="h-2.5 w-3/5 rounded bg-(--background-primary)" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                             {existingTeams !== null && existingTeams.filter(fits).length === 0 && (
                                 <p className="text-[11px] text-(--text-tertiary) px-1 py-1.5">
@@ -191,6 +201,39 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
             ) : (
                 <p className="text-[11px] text-(--text-tertiary)">Sign in to take on this challenge.</p>
             )}
+        </div>
+    );
+}
+
+/** Loading placeholder for `ChallengeCard`, matching its section-by-section shape (category
+ *  pill, title row, description, stat grid, action row) so the challenge grid keeps its size
+ *  while the list loads instead of collapsing to a spinner and popping back open. */
+export function ChallengeCardSkeleton() {
+    return (
+        <div aria-hidden className="flex flex-col gap-4 rounded-xl border border-(--divider) border-l-4 border-l-(--divider) bg-(--background-secondary) p-5 animate-pulse">
+            <div className="flex flex-col gap-2 items-start">
+                <div className="h-5 w-24 rounded-full bg-(--background-tertiary)" />
+                <div className="flex items-center gap-2">
+                    <div className="h-4 w-36 rounded bg-(--background-tertiary)" />
+                    <div className="h-5 w-16 rounded-full bg-(--background-tertiary)" />
+                </div>
+                <div className="h-3 w-full rounded bg-(--background-tertiary)" />
+                <div className="h-3 w-2/3 rounded bg-(--background-tertiary)" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+                {Array.from({ length: 4 }, (_, i) => (
+                    <div key={i} className="h-14 rounded-lg bg-(--background-tertiary)" />
+                ))}
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <div className="h-3 w-24 rounded bg-(--background-tertiary)" />
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="h-9 rounded-lg bg-(--background-tertiary)" />
+                    <div className="h-9 rounded-lg bg-(--background-tertiary)" />
+                </div>
+            </div>
         </div>
     );
 }

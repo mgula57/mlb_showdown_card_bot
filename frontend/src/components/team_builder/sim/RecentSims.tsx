@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { FaSpinner } from 'react-icons/fa6';
 import { fetchSimHistory, fetchRecentSims as fetchRecentCommunitySims, type SimSeasonListItem } from '../../../api/sim';
-import { SimSeasonRow } from './SimSeasonRow';
+import { SimSeasonRow, SimSeasonRowSkeleton } from './SimSeasonRow';
 
 const RECENT_COUNT = 3;
 
@@ -26,8 +25,8 @@ function RecentSimsColumn({ title, seasons, loading, error, emptyNote, onOpenSea
             {error ? (
                 <p className="text-[12px] text-red-400 py-2">{error}</p>
             ) : loading ? (
-                <div className="flex justify-center py-6">
-                    <FaSpinner className="animate-spin text-(--text-tertiary)" />
+                <div className="flex flex-col gap-1.5">
+                    {Array.from({ length: RECENT_COUNT }, (_, i) => <SimSeasonRowSkeleton key={i} />)}
                 </div>
             ) : !seasons || seasons.length === 0 ? (
                 <p className="text-[12px] text-(--text-tertiary) py-2">{emptyNote}</p>

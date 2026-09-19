@@ -5,7 +5,7 @@ import { RecentSims } from './RecentSims';
 import { SimChallenges } from './SimChallenges';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 import { useAuth } from '../../auth/AuthContext';
-import type { ChallengeInstance } from '../../../api/sim';
+import type { ChallengeInstance, SimLeaderboardSort } from '../../../api/sim';
 import { FaArrowDown } from 'react-icons/fa';
 import { FaClockRotateLeft, FaGear, FaTrophy } from 'react-icons/fa6';
 
@@ -14,6 +14,14 @@ type BrowseView = 'leaderboard' | 'mine';
 const BROWSE_TABS: TabItem<BrowseView>[] = [
     { id: 'leaderboard', label: 'Leaderboard' },
     { id: 'mine', label: 'My Attempts' },
+];
+
+// Only meaningful within the leaderboard view — sits alongside BROWSE_TABS in the same header
+// row rather than in its own, since "how it's sorted" and "which list you're looking at" are
+// both framing for the same section and read as one control group.
+const SORT_TABS: TabItem<SimLeaderboardSort>[] = [
+    { id: 'wins', label: 'Best Record', title: 'Ranked by wins' },
+    { id: 'efficiency', label: 'Best GM', title: 'Ranked by wins per roster point spent' },
 ];
 
 type Props = {
@@ -25,6 +33,9 @@ type Props = {
     /** Navigates to the challenge's own shareable page (`/teams/challenges/:id`), owned by
      *  TeamBuilder since that's where the route lives. */
     onOpenChallenge: (challenge: ChallengeInstance) => void;
+    /** Same destination as `onOpenChallenge`, but from a leaderboard row that only has the
+     *  instance id on hand (no full `ChallengeInstance` to warm-start with). */
+    onOpenChallengeLeaderboard: (instanceId: string) => void;
     /** Admin only: open the challenge-template manager (`/teams/admin/challenges`). */
     onManageChallenges: () => void;
 };
@@ -55,9 +66,19 @@ function NavTile({ icon, title, targetRef }: { icon: ReactNode; title: string; t
  * one scrollable page — the tiles jump to a section rather than swapping the view, so the grid
  * and leaderboard are never more than a scroll apart.
  */
-export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTeam, onUseExistingTeam, onOpenChallenge, onManageChallenges }: Props) {
+export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTeam, onUseExistingTeam, onOpenChallenge, onOpenChallengeLeaderboard, onManageChallenges }: Props) {
     const { isAdmin } = useAuth();
     const [browseView, setBrowseView] = useState<BrowseView>('leaderboard');
+    const [sort, setSort] = useState<SimLeaderboardSort>('wins');
+    // Once a view has loaded, keep it mounted (just hidden) rather than tearing it down — toggling
+    // back would otherwise refetch from scratch and, worse, collapse this whole section down to a
+    // loading state's height and back every time, which reads as the page truncating itself.
+    // Adjusted during render (not an effect) per React's "you might not need an effect" guidance,
+    // since this is purely derived from `browseView` with no external system to synchronize.
+    const [visitedBrowseViews, setVisitedBrowseViews] = useState<Set<BrowseView>>(() => new Set([browseView]));
+    if (!visitedBrowseViews.has(browseView)) {
+        setVisitedBrowseViews(prev => new Set(prev).add(browseView));
+    }
     const recentSimsRef = useRef<HTMLDivElement>(null);
     const leaderboardRef = useRef<HTMLDivElement>(null);
 
@@ -99,15 +120,24 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
 
             {/* Leaderboard */}
             <div ref={leaderboardRef} className="flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                     <h3 className="flex items-center gap-1.5 text-[16px] font-black text-(--text-primary)">
                         <FaTrophy className="text-[13px] text-(--showdown-blue)" /> Leaderboard
                     </h3>
-                    <Tabs tabs={BROWSE_TABS} value={browseView} onChange={setBrowseView} />
+                    <div className="flex items-center gap-3">
+                        <Tabs tabs={SORT_TABS} value={sort} onChange={setSort} size="sm" />
+                        <Tabs tabs={BROWSE_TABS} value={browseView} onChange={setBrowseView} />
+                    </div>
                 </div>
 
-                {browseView === 'leaderboard' && <SimLeaderboard token={token} onOpenSeason={onOpenSeason} />}
-                {browseView === 'mine' && <SimHistory token={token} onOpenSeason={onOpenSeason} />}
+                <div hidden={browseView !== 'leaderboard'}>
+                    {visitedBrowseViews.has('leaderboard') && (
+                        <SimLeaderboard token={token} onOpenSeason={onOpenSeason} onOpenChallenge={onOpenChallengeLeaderboard} sort={sort} />
+                    )}
+                </div>
+                <div hidden={browseView !== 'mine'}>
+                    {visitedBrowseViews.has('mine') && <SimHistory token={token} onOpenSeason={onOpenSeason} sort={sort} />}
+                </div>
             </div>
         </div>
     );

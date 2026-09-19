@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { FaSpinner } from 'react-icons/fa6';
 import { fetchChallenges, type ChallengeInstance } from '../../../api/sim';
-import { ChallengeCard } from './ChallengeCard';
+import { ChallengeCard, ChallengeCardSkeleton } from './ChallengeCard';
 import { byChallengeCategory } from './challengeCategory';
+
+/** As many placeholder cards as the "usually 3-6 live at once" set `ChallengeCard` is sized for. */
+const SKELETON_COUNT = 4;
 
 type Props = {
     token?: string;
@@ -34,8 +36,8 @@ export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectCha
 
     if (challenges === null) {
         return (
-            <div className="flex justify-center py-12">
-                <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {Array.from({ length: SKELETON_COUNT }, (_, i) => <ChallengeCardSkeleton key={i} />)}
             </div>
         );
     }

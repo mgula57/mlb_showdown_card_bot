@@ -366,6 +366,11 @@ export type SimLeaderboardGroup = {
     /** Null for the open-play group. */
     challenge_title: string | null;
     challenge_slug: string | null;
+    challenge_description: string | null;
+    /** The instance's live window. Null for the open-play group, or for an instance pruned
+     *  before this column existed. */
+    challenge_starts_at: string | null;
+    challenge_expires_at: string | null;
     entries: SimLeaderboardEntry[];
 };
 
@@ -703,10 +708,11 @@ export async function fetchSimSeason(jobId: string, token?: string): Promise<Sim
 }
 
 /** The signed-in user's own played seasons, newest first — every run, not just the best. */
-export async function fetchSimHistory(token: string, teamId?: string, challengesOnly = false): Promise<SimSeasonListItem[]> {
+export async function fetchSimHistory(token: string, teamId?: string, challengesOnly = false, limit?: number): Promise<SimSeasonListItem[]> {
     const params = new URLSearchParams();
     if (teamId) params.set('team_id', teamId);
     if (challengesOnly) params.set('challenges_only', 'true');
+    if (limit) params.set('limit', String(limit));
     const query = params.toString() ? `?${params}` : '';
     const res = await fetch(`${API_BASE}/sim/history${query}`, {
         headers: { Authorization: `Bearer ${token}` },

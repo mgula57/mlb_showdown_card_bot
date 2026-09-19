@@ -31,6 +31,7 @@ import { CollectionDetail } from './CollectionDetail';
 import { asgIdentity, type HistoricalNavState } from './HistoricalTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
+import { RecentSimsShelf } from './sim/RecentSimsShelf';
 import { ChallengeDetail } from './sim/ChallengeDetail';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
@@ -331,6 +332,13 @@ export default function TeamBuilder() {
         navigate('/teams/' + team.team_id);
     }
 
+    // Opens a previously-played season's result screen. Shared by every entry point that lists
+    // sim history (Challenges tab, a challenge's own page, the My Teams recent-sims shelf).
+    function openSeason(teamId: string, jobId: string) {
+        trackRecentTeam(teamId);
+        navigate(`/teams/${teamId}/sim/${jobId}`);
+    }
+
     // A team created this session that the user leaves without drafting anyone is treated as an
     // abandoned "New Team" click and removed, so it doesn't linger in the list. Best-effort:
     // only fires on the explicit back action, not a tab close or browser-back. The roster is
@@ -516,10 +524,7 @@ export default function TeamBuilder() {
                         onBack={() => navigate('/teams')}
                         onNewTeam={handleChallengeNewTeam}
                         onUseExistingTeam={handleUseExistingTeam}
-                        onOpenSeason={(teamId, jobId) => {
-                            trackRecentTeam(teamId);
-                            navigate(`/teams/${teamId}/sim/${jobId}`);
-                        }}
+                        onOpenSeason={openSeason}
                     />
                 </div>
             </div>
@@ -724,6 +729,11 @@ export default function TeamBuilder() {
                             ))}
                         </TeamShelf>
                     )}
+                    {!loading && token && (
+                        <div className={px}>
+                            <RecentSimsShelf token={token} onOpenSeason={openSeason} />
+                        </div>
+                    )}
                     {loading ? (
                         <div className="flex justify-center py-12">
                             <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
@@ -793,13 +803,11 @@ export default function TeamBuilder() {
                     <SimulationsTab
                         token={token}
                         horizontalPadding={px}
-                        onOpenSeason={(teamId, jobId) => {
-                            trackRecentTeam(teamId);
-                            navigate(`/teams/${teamId}/sim/${jobId}`);
-                        }}
+                        onOpenSeason={openSeason}
                         onNewTeam={handleChallengeNewTeam}
                         onUseExistingTeam={handleUseExistingTeam}
                         onOpenChallenge={openChallenge}
+                        onOpenChallengeLeaderboard={(instanceId) => navigate('/teams/challenges/' + instanceId)}
                         onManageChallenges={() => navigate('/teams/admin/challenges')}
                     />
                 )}

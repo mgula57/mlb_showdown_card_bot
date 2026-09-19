@@ -1357,11 +1357,17 @@ def get_sim_leaderboard():
                     'challenge_instance_id': group_id,
                     'challenge_title': row.pop('challenge_title'),
                     'challenge_slug': row.pop('challenge_slug'),
+                    'challenge_description': row.pop('challenge_description'),
+                    'challenge_starts_at': row.pop('challenge_starts_at'),
+                    'challenge_expires_at': row.pop('challenge_expires_at'),
                     'entries': [],
                 })
             else:
                 row.pop('challenge_title', None)
                 row.pop('challenge_slug', None)
+                row.pop('challenge_description', None)
+                row.pop('challenge_starts_at', None)
+                row.pop('challenge_expires_at', None)
             groups[-1]['entries'].append(row)
 
             if row.get('is_own'):
