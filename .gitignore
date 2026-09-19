@@ -68,4 +68,5 @@ firebase_creds.json
 *.pem
 
 # AI
-.claude/
+.claude/*
+!.claude/skills/
