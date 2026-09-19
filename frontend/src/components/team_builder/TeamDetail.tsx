@@ -26,7 +26,7 @@ import {
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
     FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
-    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye
+    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
@@ -763,6 +763,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return { lineup, bench, rotation, bullpen, total: lineup + bench + rotation + bullpen };
     }, [draft, cardMap, defaultLineup]);
 
+    // Pace indicator shown in the drafting banner: how many points are left under the
+    // budget and, spread across the remaining empty roster slots, roughly how much that
+    // leaves per pick — a quick read on whether the current draft pace is affordable.
+    // Only meaningful when the team has a points budget at all.
+    const runRate = useMemo(() => {
+        if (draft.pts_limit == null) return null;
+        const remaining = draft.pts_limit - pointsBreakdown.total;
+        const slotsRemaining = Math.max(0, draft.roster_size - draft.roster.length);
+        return { remaining, slotsRemaining, perSlot: slotsRemaining > 0 ? remaining / slotsRemaining : null };
+    }, [draft.pts_limit, draft.roster_size, draft.roster.length, pointsBreakdown.total]);
+
     // Points effect of dropping `dropCandidate` — bench slots count at the bench multiplier,
     // everything else at face value, mirroring `pointsBreakdown`.
     const dropPointsEffect = useMemo(() => {
@@ -1202,7 +1213,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {/* Subtitle row: PTS Breakdown */}
                         <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
                             <span className={`text-[12px] lg:text-[13px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
-                                {editMode ? `${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS` : `${pointsBreakdown.total} PTS`}
+                                {`${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS`}
                             </span>
                             <div className="hidden @[350px]:flex gap-1.5 items-center text-nowrap">
                                 {([
@@ -1361,18 +1372,45 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {teamMode !== 'complete' && (
-                <div className="flex items-center gap-1 px-2 py-2.5 shrink-0" style={bannerStyle}>
-                    <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
-                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm flex items-center gap-2" style={{ color: bannerLeft.fill }}>
-                        {teamMode === 'drafting'
-                            ? <SetupStepChips
-                                step={setupStep}
-                                onStep={setSetupStep}
-                                settingsDone={draft.roster.length > 0}
-                                color={bannerLeft.fill}
-                              />
-                            : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
-                    </span>
+                <div className="flex items-center justify-between gap-3 px-2 py-2.5 shrink-0" style={bannerStyle}>
+                    <div className="flex items-center gap-1 min-w-0">
+                        <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
+                        <span className="text-[11px] font-bold drop-shadow-sm flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
+                            {teamMode === 'drafting'
+                                ? <SetupStepChips
+                                    step={setupStep}
+                                    onStep={setSetupStep}
+                                    settingsDone={draft.roster.length > 0}
+                                    color={bannerLeft.fill}
+                                  />
+                                : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
+                        </span>
+                    </div>
+                    {/* Fills the dead space between the step chips and the progress/controls on
+                        wide screens with a draft pace readout — points left under budget and
+                        roughly what that leaves per remaining pick. */}
+                    <div className="hidden xs:flex xs:flex-wrap sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold drop-shadow-sm" style={{ color: bannerLeft.fill }}>
+                        {teamMode === 'drafting' && setupStep === 'draft' && runRate && (
+                            runRate.remaining < 0 ? (
+                                <span className="flex items-center gap-1.5 text-red-200">
+                                    <FaGaugeHigh className="text-[12px]" />
+                                    {Math.abs(runRate.remaining)} PTS OVER BUDGET
+                                </span>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-x-1">
+                                        <FaGaugeHigh className="opacity-70" />
+                                        <span>{runRate.remaining} PTS LEFT</span>
+                                    </div>
+                                    {runRate.perSlot != null && (
+                                        <span className="opacity-70 text-[10px] sm:text-[11px] font-semibold">
+                                            ~{Math.round(runRate.perSlot).toLocaleString()} PTS/PICK
+                                        </span>
+                                    )}
+                                </>
+                            )
+                        )}
+                    </div>
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && setupStep === 'draft' && (
                             <>

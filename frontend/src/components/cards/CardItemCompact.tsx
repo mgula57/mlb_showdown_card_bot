@@ -125,7 +125,7 @@ export const CardItemCompact = ({
         ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
         : (isDark
             ? `border-2 border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
-            : `border-2 border-(--text-tertiary) shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+            : `border-2 border-black/10 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     const isRedacted = card?.isEmpty || false;
 
