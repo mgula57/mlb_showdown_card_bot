@@ -1,5 +1,8 @@
 # `core/simulation`
 
+> Looking for a plain-language walkthrough instead of a code map? See
+> [SIMULATION_GUIDE.md](SIMULATION_GUIDE.md).
+
 A dice-based baseball engine that plays out games using `ShowdownPlayerCard`s (from
 `core/card`) as the source of truth for every player's ability. It can simulate:
 
