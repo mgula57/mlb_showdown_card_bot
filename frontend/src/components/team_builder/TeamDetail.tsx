@@ -1128,7 +1128,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             
             {/* Header */}
             <div
-                className="@container flex flex-col md:flex-row lg:items-center lg:pb-2 gap-3 lg:gap-6 pl-4 py-1 border-b border-(--divider) shrink-0"
+                className="@container flex flex-col md:flex-row lg:items-center pb-2 gap-3 lg:gap-6 pl-4 py-1 border-b border-(--divider) shrink-0"
             >
                 {/* Sized to its content, not stretched to fill the row — otherwise a short team
                     name leaves a dead gap before the toolbar. Capped at row layout so a long
@@ -1251,7 +1251,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     Buttons are sized for a thumb on mobile, wrapping onto a second line rather
                     than shrinking. Right-aligned in both layouts — a full-width row under the
                     team info on a narrow header, inline beside it once there's real room. */}
-                {(onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || adminCanCurate) && (
+                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || adminCanCurate) && teamMode === 'complete') && (
                     <div className="flex flex-wrap items-center justify-start gap-2 shrink-0 pr-2 pb-2">
 
                         {onToggleStar && (
