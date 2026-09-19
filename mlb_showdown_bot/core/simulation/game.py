@@ -215,7 +215,7 @@ class Game:
             team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0), rng=rng)
             pitcher = team_pitching.current_pitcher()
             hitter = team_hitting.current_hitter(game=self)
-            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=False, manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment)
+            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=False, manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year)
 
             # ROLL THE DICE
             plate_appearance.check_and_execute_steal(catcher=team_pitching.catcher)

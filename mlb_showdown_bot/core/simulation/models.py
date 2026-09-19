@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from ..card.sets import Set
 from ..card.team_builder.team import CardSource, Team as BuilderTeam
+from ..data.mlb_season_averages import MLB_SEASON_AVGS
 from ..shared.player_position import PlayerSubType, PositionSlotParent
 from .runners import Runners
 from .stats import Stats
@@ -178,6 +179,26 @@ class ManagerPreference(BaseModel):
 
 
 NEUTRAL_MANAGER = ManagerPreference()
+
+
+# THE SIM'S OWN BASELINE SB/TEAM-GAME OUTPUT AT `PlateAppearance.check_and_execute_steal`'S
+# EXISTING HARDCODED CONSTANTS (A NEUTRAL MANAGER, NO YEAR SCALING) - MEASURED BY SIMULATING 1000
+# GAMES OF REPLACEMENT-LEVEL 2023 ROSTERS VIA THE tests/test_manager_preference.py STUB HARNESS.
+# REAL SEASONS ARE SCALED AGAINST THIS SO STEAL FREQUENCY TRACKS THAT YEAR'S ACTUAL SB/TEAM-GAME
+# RATE (`MLB_SEASON_AVGS[year]['SB']`) INSTEAD OF A FLAT CONSTANT THAT ONLY HAPPENED TO MATCH
+# WHATEVER IMPLICIT ERA THE FORMULA WAS ORIGINALLY TUNED FOR.
+_REFERENCE_SB_RATE_PER_TEAM_GAME = 1.4
+
+
+def league_steal_factor(year: Optional[int]) -> float:
+    """Scales steal-attempt probability by how a given year's real per-team-game SB rate compares
+    to the sim's own reference rate. 1.0 (no-op) for a year with no league-average data (very old
+    or future years) so this can never zero out or blow up the attempt roll."""
+    year_avgs = MLB_SEASON_AVGS.get(year) if year is not None else None
+    real_sb_rate = year_avgs.get('SB') if year_avgs else None
+    if real_sb_rate is None:
+        return 1.0
+    return max(0.15, min(2.5, real_sb_rate / _REFERENCE_SB_RATE_PER_TEAM_GAME))
 
 
 class SeasonSimulationConfig(BaseModel):

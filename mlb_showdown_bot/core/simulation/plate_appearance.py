@@ -5,7 +5,7 @@ from typing import Optional
 from ..shared.hand import Hand
 from ..shared.player_position import PlayerType, PositionSlot
 from .inning import Inning
-from .models import NEUTRAL_MANAGER, ManagerPreference
+from .models import NEUTRAL_MANAGER, ManagerPreference, league_steal_factor
 from .narration import PlateAppearanceNarrator
 from .player import SimPitcher, SimPlayer
 from .result import Result
@@ -79,7 +79,7 @@ class Roll:
 
 class PlateAppearance:
 
-    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT) -> None:
+    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT, year: Optional[int] = None) -> None:
         self.state = PlateAppearanceState.PITCH
         self.hitter = hitter
         self.pitcher = pitcher
@@ -87,6 +87,9 @@ class PlateAppearance:
         # THE HITTING TEAM'S MANAGER - GOVERNS THE DECISION TO ATTEMPT A STEAL OR SEND A RUNNER,
         # NEVER THE FAIRNESS ROLL. A NEUTRAL MANAGER IS AN EXACT NO-OP.
         self.manager = manager or NEUTRAL_MANAGER
+        # HOW THIS YEAR'S REAL MLB SB/TEAM-GAME RATE COMPARES TO THE SIM'S OWN REFERENCE RATE -
+        # SEE `league_steal_factor`. 1.0 (NO-OP) WHEN `year` IS UNSET OR HAS NO LEAGUE-AVERAGE DATA.
+        self.league_steal_factor = league_steal_factor(year)
         # SEE `SeasonSimulationConfig.platoon_roll_adjustment` - HOW MANY PIPS A HANDEDNESS
         # MATCHUP SHIFTS THE PITCH/SWING ROLLS. 0 DISABLES THE HANDEDNESS MECHANIC ENTIRELY.
         self.platoon_roll_adjustment = platoon_roll_adjustment
@@ -231,7 +234,16 @@ class PlateAppearance:
                         probability_of_steal_attempt -= 40
 
                     probability_of_steal_attempt = max(min(probability_of_steal_attempt, 90),1) # ALWAYS LEAVE ROOM TO NOT ATTEMPT
-                    if probability_of_steal_attempt >= self.rng.randint(35, 100):
+
+                    # THE ABOVE SCORE IS GATED AGAINST A rng.randint(35, 100) DRAW BELOW, WHICH IS
+                    # EQUIVALENT TO A CLOSED-FORM ATTEMPT PROBABILITY OF (score - 34) / 66 FOR ANY
+                    # SCORE >= 35 (AND EXACTLY 0 BELOW IT - THE GATE'S OWN FLOOR). `league_steal_factor`
+                    # SCALES THAT FINAL PROBABILITY DIRECTLY, NOT THE SCORE FEEDING INTO IT - SCALING
+                    # THE SCORE INSTEAD WOULD PUSH BORDERLINE RUNNERS BELOW THE GATE'S 35 FLOOR AND
+                    # WIPE OUT THEIR ATTEMPTS ENTIRELY RATHER THAN SMOOTHLY THROTTLING EVERYONE THE
+                    # WAY A REAL YEAR-OVER-YEAR LEAGUE RATE CHANGE WOULD.
+                    attempt_probability = max(0.0, min(1.0, ((probability_of_steal_attempt - 34) / 66) * self.league_steal_factor))
+                    if self.rng.random() < attempt_probability:
                         dice_roll = self.__random_dice_roll()
                         steal_result = Result.OUT if ( (catcher_arm + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
                         steal_roll = Roll(roll=dice_roll, result=steal_result, runner=runner, base=runner.base)

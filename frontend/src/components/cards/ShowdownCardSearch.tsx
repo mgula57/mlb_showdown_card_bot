@@ -121,7 +121,7 @@ type ShowdownCardSearchProps = {
  * - Player characteristics (position, handedness)
  * - Data quality indicators
  */
-interface FilterSelections {
+export interface FilterSelections {
     // Sorting and display order
     /** Field to sort results by */
     sort_by?: string;

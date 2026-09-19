@@ -20,7 +20,7 @@ import { TeamSettingsForm } from './TeamSettingsForm';
 import { SlideOver } from '../shared/SlideOver';
 import { SearchGradientBorder } from '../shared/SearchGradientBorder';
 import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
-import ShowdownCardSearch from '../cards/ShowdownCardSearch';
+import ShowdownCardSearch, { type FilterSelections } from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
@@ -57,6 +57,28 @@ function PickSourceBadge({ source }: { source: PickSource }) {
             <Icon className="text-[9px] shrink-0" />
             {meta.label}
         </div>
+    );
+}
+
+/** Compact pill switch shown alongside the draft search tabs — caps results to what the
+ *  remaining budget can still afford. Small enough to sit in a tab strip on mobile or desktop. */
+function AffordableOnlyToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={onToggle}
+            title="Only show cards you can afford within your remaining PTS budget"
+            className={`flex items-center gap-1.5 shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                enabled
+                    ? 'border-(--showdown-red) bg-(--showdown-red)/10 text-(--showdown-red)'
+                    : 'border-(--divider) text-(--text-tertiary) hover:text-(--text-primary)'
+            }`}
+        >
+            <FaGaugeHigh className="text-[10px]" />
+            Affordable only
+        </button>
     );
 }
 
@@ -141,7 +163,7 @@ type TeamDetailProps = {
 };
 
 
-function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, string[]> {
+function getSearchFiltersForSlot(slot: PendingSlot | null): Partial<FilterSelections> {
     if (!slot) return {};
     if (slot.kind === 'field') {
         if (slot.position === 'SP') return { positions: ['STARTER'] };
@@ -454,14 +476,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }, [draftSource, allowed_sets, allowed_sets_by_source, player_filters]);
     // Position/type constraints for the slot being filled — seeded but still clearable.
     const slotFilters = useMemo(() => getSearchFiltersForSlot(pendingSlot), [pendingSlot]);
-    const searchFilters = useMemo(
-        () => ({ ...teamRestrictionFilters, ...slotFilters }),
-        [teamRestrictionFilters, slotFilters],
-    );
-    const lockedFilterKeys = useMemo(
-        () => Object.keys(teamRestrictionFilters).filter(k => !(k in slotFilters)),
-        [teamRestrictionFilters, slotFilters],
-    );
+    // "Affordable only" draft toggle — only meaningful once a points budget is in play, so it
+    // defaults off and there's nothing to reset it against a specific team (TeamDetail remounts
+    // on team switch, so this state can't leak across teams anyway).
+    const [budgetFilterEnabled, setBudgetFilterEnabled] = useState(false);
 
     function update(updates: TeamUpdatePayload) {
         setDraft(prev => ({ ...prev, ...updates } as Team));
@@ -774,6 +792,31 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return { remaining, slotsRemaining, perSlot: slotsRemaining > 0 ? remaining / slotsRemaining : null };
     }, [draft.pts_limit, draft.roster_size, draft.roster.length, pointsBreakdown.total]);
 
+    // Highest raw card PTS the "Affordable only" toggle should let through for the pick in
+    // progress. Reserves 1 PT for each *other* empty slot so this single pick can't spend the
+    // whole remaining budget and strand the rest of the roster with nothing left to spend
+    // (mirrors the $1-per-open-slot reserve rule fantasy auction drafts use). Bench picks are
+    // scaled down since their PTS count against the budget at `bench_pts_multiplier`.
+    const budgetMaxPoints = useMemo(() => {
+        if (!runRate || runRate.slotsRemaining <= 0) return null;
+        const reserveForOtherSlots = Math.max(0, runRate.slotsRemaining - 1);
+        const cap = runRate.remaining - reserveForOtherSlots;
+        const multiplier = pendingSlot?.kind === 'bench' ? draft.bench_pts_multiplier : 1;
+        if (multiplier <= 0) return null;
+        return Math.max(0, Math.floor(cap / multiplier));
+    }, [runRate, pendingSlot, draft.bench_pts_multiplier]);
+    const budgetFilterActive = budgetFilterEnabled && budgetMaxPoints != null;
+
+    const searchFilters = useMemo((): Partial<FilterSelections> => ({
+        ...teamRestrictionFilters,
+        ...slotFilters,
+        ...(budgetFilterActive ? { max_points: budgetMaxPoints! } : {}),
+    }), [teamRestrictionFilters, slotFilters, budgetFilterActive, budgetMaxPoints]);
+    const lockedFilterKeys = useMemo(() => {
+        const keys = Object.keys(teamRestrictionFilters).filter(k => !(k in slotFilters));
+        return budgetFilterActive ? [...keys, 'max_points'] : keys;
+    }, [teamRestrictionFilters, slotFilters, budgetFilterActive]);
+
     // Points effect of dropping `dropCandidate` — bench slots count at the bench multiplier,
     // everything else at face value, mirroring `pointsBreakdown`.
     const dropPointsEffect = useMemo(() => {
@@ -862,6 +905,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             draftedCardIds={draftedCardIds}
             onCardPicked={handleCardPicked}
             onDismissPending={() => setPendingSlot(null)}
+            budgetToggle={runRate ? { enabled: budgetFilterEnabled, onToggle: () => setBudgetFilterEnabled(v => !v) } : null}
         />
     );
 
@@ -884,22 +928,27 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     {s.label}
                 </button>
             ))}
-            {pendingLabel && (
-                <span className="ml-auto text-sm flex items-center gap-1.5 pl-2 pr-1 py-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                    <span className=" text-amber-500 dark:text-amber-400 font-semibold">
-                        {pendingLabel}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+                {runRate && (
+                    <AffordableOnlyToggle enabled={budgetFilterEnabled} onToggle={() => setBudgetFilterEnabled(v => !v)} />
+                )}
+                {pendingLabel && (
+                    <span className="text-sm flex items-center gap-1.5 pl-2 pr-1 py-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        <span className=" text-amber-500 dark:text-amber-400 font-semibold">
+                            {pendingLabel}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setPendingSlot(null)}
+                            className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
+                            aria-label="Cancel filling"
+                        >
+                            <FaXmark />
+                        </button>
                     </span>
-                    <button
-                        type="button"
-                        onClick={() => setPendingSlot(null)}
-                        className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
-                        aria-label="Cancel filling"
-                    >
-                        <FaXmark />
-                    </button>
-                </span>
-            )}
+                )}
+            </div>
         </div>
     );
 
@@ -1941,7 +1990,7 @@ type DraftPanelProps = {
     onSourceChange: (source: CardSourceType) => void;
     allowedSources: readonly { key: CardSourceType; label: string }[];
     pendingLabel: string | null;
-    searchFilters: Record<string, string[]>;
+    searchFilters: Partial<FilterSelections>;
     /** Keys within `searchFilters` the drafter can't clear (team-settings restrictions). */
     lockedFilterKeys: string[];
     draftedCardIds: string[];
@@ -1953,9 +2002,12 @@ type DraftPanelProps = {
     onDismissPending?: () => void;
     /** Forwarded to ShowdownCardSearch — bump to clear search text/filters after a pick completes. */
     resetTrigger?: unknown;
+    /** "Affordable only" switch state, or null to hide it (e.g. no points budget on this team).
+     *  Omitted entirely when `hideSourceTabs` is set — the caller renders it in its own header. */
+    budgetToggle?: { enabled: boolean; onToggle: () => void } | null;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, budgetToggle }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
@@ -1972,24 +2024,29 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                             {s.label}
                         </Tabs.Trigger>
                     ))}
-                    {pendingLabel && (
-                        <span className="ml-auto flex text-sm items-center gap-1.5 pl-2 pr-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            <span className=" text-amber-500 dark:text-amber-400 font-semibold">
-                                {pendingLabel}
+                    <div className="ml-auto flex items-center gap-2 shrink-0">
+                        {budgetToggle && (
+                            <AffordableOnlyToggle enabled={budgetToggle.enabled} onToggle={budgetToggle.onToggle} />
+                        )}
+                        {pendingLabel && (
+                            <span className="flex text-sm items-center gap-1.5 pl-2 pr-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                <span className=" text-amber-500 dark:text-amber-400 font-semibold">
+                                    {pendingLabel}
+                                </span>
+                                {onDismissPending && (
+                                    <button
+                                        type="button"
+                                        onClick={onDismissPending}
+                                        className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
+                                        aria-label="Cancel filling"
+                                    >
+                                        <FaXmark className="text-[11px]" />
+                                    </button>
+                                )}
                             </span>
-                            {onDismissPending && (
-                                <button
-                                    type="button"
-                                    onClick={onDismissPending}
-                                    className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
-                                    aria-label="Cancel filling"
-                                >
-                                    <FaXmark className="text-[11px]" />
-                                </button>
-                            )}
-                        </span>
-                    )}
+                        )}
+                    </div>
                 </Tabs.List>
             )}
             {allowedSources.map(s => (
