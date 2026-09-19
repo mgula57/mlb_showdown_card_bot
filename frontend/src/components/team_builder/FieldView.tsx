@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../../api/userTeams';
 import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -229,24 +229,27 @@ export function FieldView({
                     draggable={false}
                 />
 
-                {showDefenseSummary && ([
-                    { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF, top: 80, left: 15 },
-                    { label: 'TOTAL IF', value: totalDefIF, color: colorDefIF, top: 84, left: 15 },
-                    { label: 'CA ARM',   value: armC,       color: colorArmC,  top: 88, left: 15 },
-                ] as const).map(({ label, value, color, top, left }) => value !== null && (
+                {showDefenseSummary && (
                     <div
-                        key={label}
-                        className="absolute -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none select-none"
-                        style={{ top: `${top}%`, left: `${left}%` }}
+                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-xl bg-primary backdrop-blur-xs pointer-events-none select-none"
+                        style={{ top: '80%', left: '15%' }}
                     >
-                        <span className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">{label}</span>
-                        <span className={`text-xs font-black ${color}`}>
-                            {value > 0 ? `+${value}` : value}
-                        </span>
+                        {([
+                            { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF },
+                            { label: 'TOTAL IF', value: totalDefIF, color: colorDefIF },
+                            { label: 'CA ARM',   value: armC,       color: colorArmC },
+                        ] as const).map(({ label, value, color }) => value !== null && (
+                            <Fragment key={label}>
+                                <span className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-wide">{label}</span>
+                                <span className={`text-xs font-black text-right ${color}`}>
+                                    {value > 0 ? `+${value}` : value}
+                                </span>
+                            </Fragment>
+                        ))}
                     </div>
-                ))}
+                )}
 
-                <div className="absolute inset-0" >
+                <div className="absolute inset-0">
                     <SectionHeader
                         variant="overlay"
                         label={headerLabel}
