@@ -82,11 +82,11 @@ export function SimWinPctChart({ games, playoffCutlinePct, totalGames }: Props) 
     );
 
     return (
-        // Fixed height floor so ResponsiveContainer has a concrete pixel height to resolve
-        // against when this card isn't grid-stretched to match Standings (i.e. below `md`,
-        // where the two SectionCards stack in a single column instead of sharing a grid row).
-        // flex-1/min-h-0 let it grow to fill the stretched row height once `md:grid-cols-2` applies.
-        <div className="h-64 min-h-0 flex-1">
+        // Fixed height rather than flex-1: this chart is used both standalone (SimProgress, no
+        // stretched sibling to grow against) and inside a stretched grid row (SimSummaryTab, next
+        // to Standings) - `flex-1`'s `flex-basis: 0%` overrides a `height` in the first case with
+        // nothing to grow into, collapsing it to 0. A plain fixed height works in both.
+        <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--divider)" vertical={false} />
