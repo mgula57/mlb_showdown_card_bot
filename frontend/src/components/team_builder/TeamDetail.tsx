@@ -41,6 +41,11 @@ import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../dom
 import { ToastMessage } from '../shared/ToastMessage';
 import { Modal } from '../shared/Modal';
 
+/** Cheapest PTS a real showdown card can be — matches the floor of the lowest price band the
+ *  server-side autofill pool queries against (`_CANDIDATE_PRICE_BANDS` in autofill.py). Used to
+ *  reserve budget for a draft pick's still-empty roster slots. */
+const MIN_CARD_POINTS = 10;
+
 /** Visual treatment for how a roster slot was filled — hand-picked, autofilled, or carried
  *  over from a forked/imported team. Kept together so the draft history badge stays consistent. */
 const PICK_SOURCE_META: Record<PickSource, { label: string; icon: IconType; className: string }> = {
@@ -793,18 +798,36 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }, [draft.pts_limit, draft.roster_size, draft.roster.length, pointsBreakdown.total]);
 
     // Highest raw card PTS the "Affordable only" toggle should let through for the pick in
-    // progress. Reserves 1 PT for each *other* empty slot so this single pick can't spend the
-    // whole remaining budget and strand the rest of the roster with nothing left to spend
-    // (mirrors the $1-per-open-slot reserve rule fantasy auction drafts use). Bench picks are
-    // scaled down since their PTS count against the budget at `bench_pts_multiplier`.
+    // progress. Reserves MIN_CARD_POINTS for each *other* still-empty roster slot so this single
+    // pick can't spend the whole remaining budget and strand the rest of the draft with nothing
+    // left to spend — a reserve slot that lands on the bench costs `bench_pts_multiplier` times
+    // as much against the budget, so it's reserved at that scaled rate. Bench picks' own cap is
+    // likewise scaled down since their PTS count against the budget at `bench_pts_multiplier`.
     const budgetMaxPoints = useMemo(() => {
         if (!runRate || runRate.slotsRemaining <= 0) return null;
-        const reserveForOtherSlots = Math.max(0, runRate.slotsRemaining - 1);
+
+        const isCurrentSlotBench = pendingSlot?.kind === 'bench';
+        const remainingInBucket = (bucket: { filled: number; target: number }) => Math.max(0, bucket.target - bucket.filled);
+        const benchRemaining = remainingInBucket(rosterProgress.buckets.bench);
+        const nonBenchRemaining = remainingInBucket(rosterProgress.buckets.lineup)
+            + remainingInBucket(rosterProgress.buckets.rotation)
+            + remainingInBucket(rosterProgress.buckets.bullpen);
+
+        // Exclude the slot this pick itself will fill — its cost is what we're solving for, not
+        // something to hold budget back for. A slot we can't attribute to a bucket (no pendingSlot,
+        // i.e. the desktop panel's free-form "add to roster") is assumed non-bench, matching the
+        // multiplier assumption below.
+        const otherBenchRemaining = Math.max(0, benchRemaining - (isCurrentSlotBench ? 1 : 0));
+        const otherNonBenchRemaining = Math.max(0, nonBenchRemaining - (isCurrentSlotBench ? 0 : 1));
+
+        const reserveForOtherSlots = otherNonBenchRemaining * MIN_CARD_POINTS
+            + otherBenchRemaining * MIN_CARD_POINTS * draft.bench_pts_multiplier;
         const cap = runRate.remaining - reserveForOtherSlots;
-        const multiplier = pendingSlot?.kind === 'bench' ? draft.bench_pts_multiplier : 1;
+
+        const multiplier = isCurrentSlotBench ? draft.bench_pts_multiplier : 1;
         if (multiplier <= 0) return null;
         return Math.max(0, Math.floor(cap / multiplier));
-    }, [runRate, pendingSlot, draft.bench_pts_multiplier]);
+    }, [runRate, pendingSlot, draft.bench_pts_multiplier, rosterProgress.buckets]);
     const budgetFilterActive = budgetFilterEnabled && budgetMaxPoints != null;
 
     const searchFilters = useMemo((): Partial<FilterSelections> => ({
