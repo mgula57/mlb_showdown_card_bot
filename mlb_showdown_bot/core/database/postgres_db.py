@@ -4403,13 +4403,22 @@ class PostgresDB:
         with self.connection.cursor() as cur:
             cur.execute(schema_sql)
             cur.execute(table_sql)
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ADD COLUMN IF NOT EXISTS default_primary_color VARCHAR(50) DEFAULT 'rgb(0,0,0)';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ADD COLUMN IF NOT EXISTS default_secondary_color VARCHAR(50) DEFAULT 'rgb(255,255,255)';
+            """)
 
     def get_user_settings(self, user_id: str) -> dict | None:
         """Fetch settings for the given Supabase user UUID. Returns None if no row exists."""
         if not self.connection:
             return None
         query = """
-            SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url
+            SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url,
+                   default_primary_color, default_secondary_color
             FROM internal.user_settings
             WHERE user_id = %s
         """
@@ -4529,7 +4538,10 @@ class PostgresDB:
         """Insert or update user settings. Only keys present in settings_dict are written."""
         if not self.connection or not settings_dict:
             return
-        ALLOWED = {'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url'}
+        ALLOWED = {
+            'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url',
+            'default_primary_color', 'default_secondary_color',
+        }
         fields = {k: v for k, v in settings_dict.items() if k in ALLOWED}
         if not fields:
             return
