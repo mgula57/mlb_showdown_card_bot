@@ -710,7 +710,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const rosterProgress = useMemo(() => {
         const { bench: benchTarget, bullpen: bullpenTarget } = effectiveBucketMins;
-        const filledLineup = (draft.lineups[0]?.slots ?? []).length;
+        const filledLineup = (draft.lineups[0]?.slots ?? []).filter(s => s.field_position !== 'SP').length;
         const filledStarters = draft.rotation.filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).length;
         const filledBench = draft.roster.filter(s => s.roster_position === 'BE').length;
         const filledBullpen = draft.rotation.filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).length;
@@ -746,7 +746,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const pointsBreakdown = useMemo(() => {
         const pts = (id: string) => cardMap[id]?.points ?? 0;
-        const lineup = defaultLineup.slots.reduce((sum, s) => sum + pts(s.card_id), 0);
+        // Exclude the starting pitcher's synthetic "batting" slot (field_position: 'SP') —
+        // he's already counted under `rotation` below, so including him here double-counts him.
+        const lineup = defaultLineup.slots
+            .filter(s => s.field_position !== 'SP')
+            .reduce((sum, s) => sum + pts(s.card_id), 0);
         const bench  = draft.roster
             .filter(s => s.roster_position === 'BE')
             .reduce((sum, s) => sum + Math.round(pts(s.card_id) * draft.bench_pts_multiplier), 0);

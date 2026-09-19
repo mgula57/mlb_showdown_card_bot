@@ -563,7 +563,10 @@ def test_autofill(
         roster   = result['roster']
         lineups  = result['lineups']
         rotation = result['rotation']
-        lineup_slots   = lineups[0]['slots'] if lineups else []
+        # Exclude the no-DH lineup's synthetic pitcher-batting slot (field_position 'SP') —
+        # that pitcher is already counted under ROTATION, so including him here would
+        # double-count his points in both the LINEUP table and grand_total below.
+        lineup_slots   = [s for s in (lineups[0]['slots'] if lineups else []) if s['field_position'] != 'SP']
         rotation_slots = [r for r in rotation if r['role'].startswith('SP')]
         bullpen_slots  = [r for r in rotation if not r['role'].startswith('SP')]
         bench_slots    = [s for s in roster if s['roster_position'] == 'BE']

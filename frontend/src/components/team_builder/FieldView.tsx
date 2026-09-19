@@ -142,7 +142,11 @@ export function FieldView({
     const benchRowCount   = rosterData ? (rosterData.draftSlots?.bench   ?? benchSlots.length)   : 0;
     const bullpenRowCount = rosterData ? (rosterData.draftSlots?.bullpen ?? bullpenSlots.length) : 0;
 
-    const lineupPts = lineup.slots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
+    // With no DH filled, the Default lineup carries a synthetic 9th "batting" slot
+    // (field_position: 'SP') for the starting pitcher himself. He's already counted under
+    // Rotation, so exclude that slot here to avoid double-counting his points/slot-count.
+    const positionPlayerSlots = lineup.slots.filter(s => s.field_position !== 'SP');
+    const lineupPts = positionPlayerSlots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
     const benchPts    = benchSlots.reduce((sum, s) => sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)), 0);
     const rotationPts = (ROTATION_ROLES as readonly string[]).reduce((sum, role) => { const r = rotByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
     const bullpenPts  = bullpenSlots.reduce((sum, r) => sum + pts(r.card_id), 0);
@@ -150,7 +154,7 @@ export function FieldView({
 
     // ---- KPI computations ----
 
-    const filledLineupCards = lineup.slots
+    const filledLineupCards = positionPlayerSlots
         .map(s => cardMap[s.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
     const lineupKpis = buildLineupKpis(filledLineupCards, lineupPts, totalDefIF, totalDefOF);
@@ -246,7 +250,7 @@ export function FieldView({
                     <SectionHeader
                         variant="overlay"
                         label={headerLabel}
-                        filledCount={lineup.slots.length}
+                        filledCount={positionPlayerSlots.length}
                         maxPlayers={positions.length}
                         total={showDefenseSummary ? lineupPts : 0}
                         kpis={showDefenseSummary ? lineupKpis : undefined}
