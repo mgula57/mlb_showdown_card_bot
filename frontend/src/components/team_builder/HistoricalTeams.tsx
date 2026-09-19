@@ -148,7 +148,15 @@ function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, o
 
 /** Browse pre-processed historical MLB rosters and All-Star teams music-app style.
  *  Seasons are shelves ordered newest-first — no dropdowns; each tile opens its own shareable page. */
-export function HistoricalTeams({ horizontalPadding, hideSearch = false }: { horizontalPadding?: string; hideSearch?: boolean }) {
+type HistoricalTeamsProps = {
+    horizontalPadding?: string;
+    /** When embedded in the Browse tab, the parent owns the search box — hide the local one. */
+    hideSearch?: boolean;
+    /** Search query supplied by the parent when `hideSearch` is set. */
+    externalQuery?: string;
+};
+
+export function HistoricalTeams({ horizontalPadding, hideSearch = false, externalQuery }: HistoricalTeamsProps) {
     const { userShowdownSet } = useSiteSettings();
     const navigate = useNavigate();
 
@@ -156,7 +164,9 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false }: { hor
     const [visibleCount, setVisibleCount] = useState(SEASONS_PER_PAGE);
     const [asgTeams, setAsgTeams] = useState<AsgTeamRef[]>([]);
 
-    const [query, setQuery] = useState('');
+    const [internalQuery, setInternalQuery] = useState('');
+    const query = hideSearch ? (externalQuery ?? '') : internalQuery;
+    const setQuery = setInternalQuery;
     const [sortBy, setSortBy] = useState<SortKey>('season');
     const [rawSearchResults, setRawSearchResults] = useState<HistoricalTeam[]>([]);
     const [searching, setSearching] = useState(false);

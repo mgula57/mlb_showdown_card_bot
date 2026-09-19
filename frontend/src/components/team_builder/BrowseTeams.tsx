@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FaLayerGroup, FaStar, FaUsers, FaClockRotateLeft } from 'react-icons/fa6';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
@@ -14,10 +15,10 @@ import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 type BrowseType = 'all' | 'featured' | 'community' | 'historical';
 
 const TYPE_OPTIONS: SelectOption[] = [
-    { value: 'all', label: 'All Teams' },
-    { value: 'featured', label: 'Featured' },
-    { value: 'community', label: 'Community' },
-    { value: 'historical', label: 'Historical' },
+    { value: 'all', label: 'All Teams', icon: <FaLayerGroup /> },
+    { value: 'featured', label: 'Featured', icon: <FaStar /> },
+    { value: 'community', label: 'Community', icon: <FaUsers /> },
+    { value: 'historical', label: 'Historical', icon: <FaClockRotateLeft /> },
 ];
 
 /** A merged search hit — either a saved public team or a pre-processed historical team. */
@@ -181,7 +182,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                                     </p>
                                 </div>
                             )}
-                            <HistoricalTeams horizontalPadding={px} hideSearch={type === 'all'} />
+                            <HistoricalTeams horizontalPadding={px} hideSearch externalQuery={type === 'historical' ? q : ''} />
                         </>
                     )}
                 </>

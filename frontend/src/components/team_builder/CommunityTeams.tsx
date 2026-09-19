@@ -162,17 +162,17 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                         ))}
                     </TeamShelf>
 
-                    {shelves.topPoints.length > 0 && (
-                        <TeamShelf title="Heavy Hitters" subtitle="Most points" className={px} bleed>
-                            {shelves.topPoints.map(team => (
+                    {shelves.mostLiked.length > 0 && (
+                        <TeamShelf title="Most Liked" subtitle="Community favorites" className={px} bleed>
+                            {shelves.mostLiked.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
                         </TeamShelf>
                     )}
 
-                    {shelves.mostLiked.length > 0 && (
-                        <TeamShelf title="Most Liked" subtitle="Community favorites" className={px} bleed>
-                            {shelves.mostLiked.map(team => (
+                    {shelves.topPoints.length > 0 && (
+                        <TeamShelf title="Heavy Hitters" subtitle="Most points" className={px} bleed>
+                            {shelves.topPoints.map(team => (
                                 <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
                             ))}
                         </TeamShelf>
