@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+/* Tailwind CSS v4 directive; suppress the standard CSS language-service warning. */
+/* css-lint disable unknownAtRules */
 @theme {
     --container-field-split: 600px;
     --breakpoint-3xl: 120rem; /* or 1920px */

@@ -228,13 +228,13 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                 />
                 <NumberInput
                     label="Min Bullpen"
-                    value={team.min_bullpen ?? 5}
+                    value={minBullpen}
                     onChange={v => onChange({ min_bullpen: v })}
                 />
 
                 <NumberInput
                     label="Min Bench"
-                    value={team.min_bench ?? 4}
+                    value={minBench}
                     onChange={v => onChange({ min_bench: v })}
                 />
 

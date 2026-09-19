@@ -1151,6 +1151,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     );
 
     const settingsChanges = pendingSettings ? getSettingsChanges(draft, pendingSettings) : [];
+    const settingsValid = isTeamSetupValid(settingsDraft);
 
     function closeSettingsModal() {
         setPendingSettings(null);
@@ -1852,6 +1853,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     ))}
                                 </ul>
                             )}
+                            {!settingsValid && (
+                                <span className="text-[11px] text-red-400">Resolve the highlighted settings to apply changes.</span>
+                            )}
                             <div className="flex gap-2">
                                 <button
                                     type="button"
@@ -1860,7 +1864,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         setPendingSettings(null);
                                         setShowSettingsModal(false);
                                     }}
-                                    disabled={!pendingSettings || settingsChanges.length === 0}
+                                    disabled={!pendingSettings || settingsChanges.length === 0 || !settingsValid}
                                     className="flex-1 px-3 py-4 rounded-lg text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                                 >
                                     Apply Changes
