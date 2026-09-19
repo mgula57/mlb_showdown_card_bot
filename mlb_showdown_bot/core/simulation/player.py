@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from ..card.chart import Chart
 from ..card.showdown_player_card import ShowdownPlayerCard
+from ..shared.hand import Hand
 from ..shared.player_position import PlayerSubType, PlayerType, Position, PositionSlot
 from .result import Result
 from .runners import Runner
@@ -61,6 +62,11 @@ class SimPlayer(BaseModel):
     @property
     def chart(self) -> Chart:
         return self.card.chart
+
+    @property
+    def hand(self) -> Hand:
+        """Batting hand for a hitter, throwing hand for a pitcher."""
+        return self.card.hand
 
     @property
     def stats(self) -> dict:

@@ -88,6 +88,7 @@ export function SeasonSimSetupForm(props: Props) {
     const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(true);
     const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(true);
     const [regressSmallSampleStats, setRegressSmallSampleStats] = useState(false);
+    const [enablePlatoonEffect, setEnablePlatoonEffect] = useState(false);
 
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -175,6 +176,7 @@ export function SeasonSimSetupForm(props: Props) {
                 enable_trade_deadline: tradeDeadlineEnabled || undefined,
                 trade_deadline_respects_standings: tradeDeadlineEnabled ? tradeDeadlineRespectsStandings : undefined,
                 regress_small_sample_stats: regressSmallSampleStats || undefined,
+                enable_platoon_effect: enablePlatoonEffect || undefined,
             };
             if (props.mode === 'lobby') {
                 await props.onCreateLobby(engineSettings);
@@ -332,6 +334,13 @@ export function SeasonSimSetupForm(props: Props) {
                         description="A thin sample (a September callup, a spot starter) gets its rate stats pulled toward that year's replacement level before rosters are built, so a hot small sample can't outvalue a proven regular's full season on noise. Real PA/GS/IP are unaffected."
                         isEnabled={regressSmallSampleStats}
                         onToggle={() => setRegressSmallSampleStats(v => !v)}
+                    />
+
+                    <SimSettingToggle
+                        label="Handedness"
+                        description="Same-handed matchups (RHP vs RHB, LHP vs LHB) nudge the pitch/swing rolls toward the pitcher; opposite-handed matchups — including every switch hitter — nudge them toward the hitter, roughly matching real career platoon splits."
+                        isEnabled={enablePlatoonEffect}
+                        onToggle={() => setEnablePlatoonEffect(v => !v)}
                     />
                 </div>
             </FormSection>

@@ -47,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-tds', '--trade_deadline_respects_standings', action='store_true', help='With --trade_deadline: a selling club still contending in the sim keeps its player')
     parser.add_argument('-ars', '--active_roster_size', help='Active roster size for real-season teams', type=int, default=26)
     parser.add_argument('-frs', '--full_roster_size', help='Full (active + reserve) roster size for real-season teams', type=int, default=40)
+    parser.add_argument('-hnd', '--enable_handedness', action='store_true', help='Same-handed matchups (RHP-RHB, LHP-LHB) favor the pitcher on the pitch/swing rolls; opposite-handed matchups favor the hitter')
     return parser.parse_args()
 
 
@@ -79,6 +80,7 @@ def main():
         full_roster_size=args.full_roster_size,
         enable_trade_deadline=args.trade_deadline,
         trade_deadline_respects_standings=args.trade_deadline_respects_standings,
+        platoon_roll_adjustment=1 if args.enable_handedness else 0,
     )
 
     # WIRE CLI PROGRESS + GAME LOG + SETUP STATUS OUTPUT INTO THE PRINT-FREE CORE

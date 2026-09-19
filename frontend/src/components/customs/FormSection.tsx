@@ -101,7 +101,11 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
             <div className='transition-all duration-300 ease-in-out'>
                 {/* Main form content - shown when expanded */}
                 {isOpen && (
-                    <div className={`${isOpen ? 'max-h-screen' : 'max-h-0 overflow-hidden'}`}>
+                    // A FIXED CAP WELL ABOVE ANY REALISTIC SECTION HEIGHT - NOT VIEWPORT-RELATIVE
+                    // LIKE `max-h-screen`, WHICH CLIPPED A SECTION'S BOTTOM CONTENT (WITH NO SCROLL
+                    // FALLBACK, SINCE THE OUTER WRAPPER IS `overflow-hidden`) ONCE IT GREW TALLER
+                    // THAN 100VH ON A NORMAL-HEIGHT SCREEN.
+                    <div className="max-h-1250">
                         <div className="mt-4">
                             <FormElementGrid>
                                 {children}

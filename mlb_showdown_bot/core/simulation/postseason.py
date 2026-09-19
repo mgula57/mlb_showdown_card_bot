@@ -135,12 +135,13 @@ class PostseasonSeries:
 
 class Postseason:
 
-    def __init__(self, year: int, standings: Standings, format: PostseasonFormat, start_date: date, collect_box_score: bool = False) -> None:
+    def __init__(self, year: int, standings: Standings, format: PostseasonFormat, start_date: date, collect_box_score: bool = False, platoon_roll_adjustment: int = 0) -> None:
         self.year = year
         self.standings = standings
         self.format = self.default_format_for_year(year=year) if format == PostseasonFormat.DYNAMIC else format
         self.start_date = start_date
         self.collect_box_score = collect_box_score
+        self.platoon_roll_adjustment = platoon_roll_adjustment
         # SCHEDULE PLACEHOLDERS
         self.rounds: dict[PostseasonRound, dict[str, PostseasonSeries]] = {round: {} for round in self.format.rounds}
         self.generate_initial_schedule()
@@ -366,7 +367,7 @@ class Postseason:
                         home_team.process_il_returns_for_date(game_date=game.date)
                         away_team.process_il_returns_for_date(game_date=game.date)
                         game.setup(home_team=home_team, away_team=away_team, postseason=True)
-                        game.simulate(rng=rng, collect_box_score=self.collect_box_score)
+                        game.simulate(rng=rng, collect_box_score=self.collect_box_score, platoon_roll_adjustment=self.platoon_roll_adjustment)
                         if series.series_stats is not None:
                             series.series_stats.merge(game.home_team.stats)
                             series.series_stats.merge(game.away_team.stats)

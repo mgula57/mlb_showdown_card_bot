@@ -186,7 +186,7 @@ class Game:
         home_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.away.runs_scored)
         away_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.home.runs_scored)
 
-    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False):
+    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False, platoon_roll_adjustment: int = 0):
 
         self._collect_box_score = collect_box_score
 
@@ -215,7 +215,7 @@ class Game:
             team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0), rng=rng)
             pitcher = team_pitching.current_pitcher()
             hitter = team_hitting.current_hitter(game=self)
-            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=False, manager=team_hitting.manager)
+            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=False, manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment)
 
             # ROLL THE DICE
             plate_appearance.check_and_execute_steal(catcher=team_pitching.catcher)

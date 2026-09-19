@@ -2,6 +2,7 @@ from enum import Enum
 from random import Random
 from typing import Optional
 
+from ..shared.hand import Hand
 from ..shared.player_position import PlayerType, PositionSlot
 from .inning import Inning
 from .models import NEUTRAL_MANAGER, ManagerPreference
@@ -32,6 +33,14 @@ _HR_OWN_CHART = StatCategory.HR_OWN_CHART.value
 _XB = StatCategory.EXTRA_BASE_SAFE.value
 _XBA = StatCategory.EXTRA_BASE_ATTEMPTS.value
 _SWING_21_PLUS = StatCategory.SWING_ROLL_21_PLUS.value
+
+# DEFAULT PLATOON EDGE: HOW MANY PIPS (OUT OF THE D20) A HANDEDNESS MATCHUP SHIFTS THE PITCH/SWING
+# ROLLS BY DEFAULT. OVERRIDABLE PER RUN VIA `SeasonSimulationConfig.platoon_roll_adjustment`, WHICH
+# FLOWS DOWN THROUGH `Game.simulate`/`Postseason` INTO `PlateAppearance.__init__` BELOW. A
+# SAME-HANDED MATCHUP (RHP-RHB, LHP-LHB) FAVORS THE PITCHER; AN OPPOSITE-HANDED ONE (INCLUDING
+# EVERY SWITCH HITTER, WHO ALWAYS BATS FROM THE OPPOSITE SIDE) FAVORS THE HITTER. SEE
+# `PlateAppearance._platoon_edge`.
+_DEFAULT_PLATOON_ROLL_ADJUSTMENT = 0
 
 
 def _stat_event(id: str, totals: dict[str, float], name: str = "", player_type=None, position=None, team=None, speed: int = 0, command: float = 0, positions_played: Optional[dict[str, int]] = None) -> Stats:
@@ -70,7 +79,7 @@ class Roll:
 
 class PlateAppearance:
 
-    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None) -> None:
+    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT) -> None:
         self.state = PlateAppearanceState.PITCH
         self.hitter = hitter
         self.pitcher = pitcher
@@ -78,6 +87,9 @@ class PlateAppearance:
         # THE HITTING TEAM'S MANAGER - GOVERNS THE DECISION TO ATTEMPT A STEAL OR SEND A RUNNER,
         # NEVER THE FAIRNESS ROLL. A NEUTRAL MANAGER IS AN EXACT NO-OP.
         self.manager = manager or NEUTRAL_MANAGER
+        # SEE `SeasonSimulationConfig.platoon_roll_adjustment` - HOW MANY PIPS A HANDEDNESS
+        # MATCHUP SHIFTS THE PITCH/SWING ROLLS. 0 DISABLES THE HANDEDNESS MECHANIC ENTIRELY.
+        self.platoon_roll_adjustment = platoon_roll_adjustment
         self.pitch = Roll()
         self.swing = Roll()
         self.double_play_roll = None
@@ -115,20 +127,36 @@ class PlateAppearance:
         if self.total_outs < 3:
             random_adjustment = self.random_plus_or_minus_to_roll(occurance_probability=0.15)
             dice_roll = self.__random_dice_roll(adjustment=random_adjustment)
-            total_pitch = dice_roll + self.pitcher.chart.command
+            # A SAME-HANDED MATCHUP NUDGES total_pitch UP (MORE LIKELY PITCHER_ADVANTAGE); AN
+            # OPPOSITE-HANDED ONE NUDGES IT DOWN (MORE LIKELY HITTER_ADVANTAGE).
+            total_pitch = dice_roll + self.pitcher.chart.command - self._platoon_edge() * self.platoon_roll_adjustment
             result = (Result.HITTER_ADVANTAGE if total_pitch <= self.hitter.chart.command else Result.PITCHER_ADVANTAGE)
             self.pitch = Roll(roll = dice_roll, result=result, adjustment=random_adjustment)
 
     def execute_swing(self) -> None:
         if self.total_outs < 3:
-            player_with_advantage = self.hitter if self.pitch.result == Result.HITTER_ADVANTAGE else self.pitcher
+            hitter_has_advantage = self.pitch.result == Result.HITTER_ADVANTAGE
+            player_with_advantage = self.hitter if hitter_has_advantage else self.pitcher
             random_adjustment = self.random_plus_or_minus_to_roll(occurance_probability=0.35)
-            dice_roll = self.__random_dice_roll(adjustment=random_adjustment)
+            # THE PLATOON EDGE ALWAYS PUSHES THE ROLL IN THE HITTER'S FAVOR (POSITIVE) OR THE
+            # PITCHER'S (NEGATIVE), REGARDLESS OF WHOSE CHART THE ROLL IS BEING READ AGAINST - SO
+            # IT'S FLIPPED WHEN THE PITCHER HAS THE ADVANTAGE, SINCE A HIGHER ROLL THERE TRENDS
+            # TOWARD THE PITCHER'S OWN (BETTER-FOR-THE-PITCHER) RESULTS, NOT THE HITTER'S.
+            platoon_adjustment = self._platoon_edge() * self.platoon_roll_adjustment * (1 if hitter_has_advantage else -1)
+            dice_roll = self.__random_dice_roll(adjustment=random_adjustment + platoon_adjustment)
             self.swing = Roll(roll = dice_roll, result=player_with_advantage.result_for_roll(dice_roll), adjustment=random_adjustment)
             self.runners_before_swing = [(runner.id, runner.name, runner.base) for runner in self.runners.runners]
             self.outs += int(self.swing.result.is_out)
             self.pitcher_runs_allowed, self.runners_scored = self.runners.move(result=self.swing.result,outs=self.total_outs,hitter=self.hitter,pitcher=self.pitcher, is_double_play_attempt=self.is_double_play_opportunity)
             self.runs_scored = sum(self.pitcher_runs_allowed.values())
+
+    def _platoon_edge(self) -> int:
+        """+1 when the hitter has the handedness advantage (batting opposite the pitcher's
+        throwing hand), -1 when they share a hand. A switch hitter always gets to pick the
+        opposite side of the plate from the pitcher, so they always count as advantaged."""
+        if self.hitter.hand == Hand.SWITCH:
+            return 1
+        return 1 if self.hitter.hand != self.pitcher.hand else -1
 
     def random_plus_or_minus_to_roll(self, occurance_probability:float = 0.25) -> int:
         """A small symmetric nudge to a dice roll so identical matchups don't replay identically.

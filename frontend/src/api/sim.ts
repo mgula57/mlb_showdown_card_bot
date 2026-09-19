@@ -459,6 +459,9 @@ export type OpenSimPayload = {
      *  that year's replacement level before roster tiering, so a hot small-sample line (a
      *  September callup, a spot starter) can't outvalue a proven regular's full season on noise. */
     regress_small_sample_stats?: boolean;
+    /** Same-handed matchups (RHP-RHB, LHP-LHB) nudge the pitch/swing rolls toward the pitcher;
+     *  opposite-handed matchups (including every switch hitter) nudge them toward the hitter. */
+    enable_platoon_effect?: boolean;
 };
 
 export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record';
@@ -797,6 +800,7 @@ export type CreateSimLobbyPayload = {
     enable_trade_deadline?: boolean;
     trade_deadline_respects_standings?: boolean;
     regress_small_sample_stats?: boolean;
+    enable_platoon_effect?: boolean;
 };
 
 export async function createSimLobby(payload: CreateSimLobbyPayload, token: string): Promise<SimLobbyState> {

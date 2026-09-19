@@ -191,6 +191,11 @@ class SeasonSimulationConfig(BaseModel):
     postseason_format: PostseasonFormat = PostseasonFormat.DYNAMIC
     seed: Optional[int] = None
 
+    # HANDEDNESS. HOW MANY PIPS (OUT OF THE D20) A SAME-/OPPOSITE-HANDED MATCHUP SHIFTS THE
+    # PITCH AND SWING ROLLS - SEE `PlateAppearance._platoon_edge`. 0 DISABLES THE MECHANIC AND
+    # REPRODUCES THE OLD HANDEDNESS-BLIND BEHAVIOR.
+    platoon_roll_adjustment: int = 0
+
     # ROSTER REQUIREMENTS
     min_pa: int = 100
     min_ip_sp: int = 50

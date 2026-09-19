@@ -307,7 +307,7 @@ class Season:
             home_team.update_roster_for_date(game_date=game.date, rng=self.rng)
             away_team.update_roster_for_date(game_date=game.date, rng=self.rng)
             game.setup(home_team=home_team, away_team=away_team)
-            game.simulate(rng=self.rng, collect_log=config.include_game_logs, log_callback=log_callback, collect_box_score=config.should_collect_box_scores)
+            game.simulate(rng=self.rng, collect_log=config.include_game_logs, log_callback=log_callback, collect_box_score=config.should_collect_box_scores, platoon_roll_adjustment=config.platoon_roll_adjustment)
 
             self.league_stats.merge(game.home_team.stats)
             self.league_stats.merge(game.away_team.stats)
@@ -342,6 +342,7 @@ class Season:
                 format=postseason_format,
                 start_date=self.schedule.games[-1].date + timedelta(days=5),
                 collect_box_score=config.should_collect_box_scores,
+                platoon_roll_adjustment=config.platoon_roll_adjustment,
             )
             self.postseason.simulate(rng=self.rng)
 

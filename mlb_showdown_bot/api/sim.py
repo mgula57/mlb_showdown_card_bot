@@ -417,6 +417,9 @@ def _parse_engine_settings(payload: dict) -> dict:
         'enable_trade_deadline': enable_trade_deadline,
         'trade_deadline_respects_standings': trade_deadline_respects_standings,
         'regress_small_sample_stats': bool(payload.get('regress_small_sample_stats')),
+        # HANDEDNESS. THE CLIENT ONLY SEES AN ON/OFF TOGGLE - `SeasonSimulationConfig`'S UNDERLYING
+        # MAGNITUDE (PIPS ON THE D20) ISN'T USER-TUNABLE, SO "ON" ALWAYS MEANS THE DEFAULT STRENGTH.
+        'platoon_roll_adjustment': 1 if payload.get('enable_platoon_effect') else 0,
     }
 
 
@@ -436,6 +439,7 @@ def _settings_to_stored_config(settings: dict) -> dict:
         'enable_trade_deadline': settings['enable_trade_deadline'],
         'trade_deadline_respects_standings': settings['trade_deadline_respects_standings'],
         'regress_small_sample_stats': settings['regress_small_sample_stats'],
+        'platoon_roll_adjustment': settings['platoon_roll_adjustment'],
     }
 
 
@@ -455,6 +459,7 @@ def _config_kwargs_from_stored(stored: dict) -> dict:
         'enable_trade_deadline': bool(stored.get('enable_trade_deadline')),
         'trade_deadline_respects_standings': bool(stored.get('trade_deadline_respects_standings')),
         'regress_small_sample_stats': bool(stored.get('regress_small_sample_stats')),
+        'platoon_roll_adjustment': int(stored.get('platoon_roll_adjustment') or 0),
     }
 
 
