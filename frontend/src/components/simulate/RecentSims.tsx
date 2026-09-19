@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FaSpinner, FaTrophy } from 'react-icons/fa6';
 import { fetchSimHistory, type SimSeasonListItem } from '../../api/sim';
 import { relativeTime } from '../../functions/formatters';
+import { imageForSet } from '../shared/SiteSettingsContext';
 
 const RECENT_LIMIT = 8;
 
@@ -103,8 +104,18 @@ export function RecentSims({ token, onOpen, seasonYear }: Props) {
                             )}
                             {entry.is_champion && <FaTrophy className="text-[10px] text-yellow-300 shrink-0" title="Won the World Series" />}
                         </span>
-                        <span className="block text-[11px] text-(--text-tertiary) truncate">
-                            {entry.showdown_set ? `Set ${entry.showdown_set} · ` : ''}{relativeTime(entry.created_at)}
+                        <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) truncate">
+                            {entry.showdown_set && (
+                                <>
+                                    <img
+                                        src={imageForSet(entry.showdown_set, true)}
+                                        alt={entry.showdown_set}
+                                        className="inline h-3 w-auto object-contain align-middle"
+                                    />
+                                    {' · '}
+                                </>
+                            )}
+                            {relativeTime(entry.created_at)}
                         </span>
                     </span>
                     <span className="text-right shrink-0">

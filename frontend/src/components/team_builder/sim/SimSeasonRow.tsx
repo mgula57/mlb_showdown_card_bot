@@ -1,6 +1,7 @@
 import { FaTrophy, FaLock } from 'react-icons/fa6';
 import type { SimSeasonListItem } from '../../../api/sim';
 import { relativeTime } from '../../../functions/formatters';
+import { imageForSet } from '../../shared/SiteSettingsContext';
 
 function medalClass(rank: number): string {
     if (rank === 1) return 'text-yellow-300';
@@ -55,8 +56,17 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props)
                 <span className="block text-[11px] text-(--text-tertiary) truncate">
                     {entry.creator_username ? `${entry.creator_username} · ` : ''}
                     {!showTime && `${entry.year} · `}
-                    took over {entry.replaced_abbr ?? '—'} in {entry.year}
-                    {entry.showdown_set ? ` · set ${entry.showdown_set}` : ''}
+                    took over {entry.replaced_abbr ?? '—'}
+                    {entry.showdown_set && (
+                        <>
+                            {' · '}
+                            <img
+                                src={imageForSet(entry.showdown_set, true)}
+                                alt={entry.showdown_set}
+                                className="inline h-3 w-auto object-contain align-middle"
+                            />
+                        </>
+                    )}
                     {entry.division ? ` · ${entry.division}` : ''}
                     {attempts && attempts > 1 ? ` · best of ${attempts}` : ''}
                     {showTime ? ` · ${relativeTime(entry.created_at)}` : ''}
