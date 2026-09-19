@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { FaSpinner, FaPlay, FaUserGroup } from 'react-icons/fa6';
 import FormDropdown from '../customs/FormDropdown';
 import FormInput from '../customs/FormInput';
-import FormSection from '../customs/FormSection';
 import ManagerStyleFields from './ManagerStyleFields';
 import SimSettingToggle from './SimSettingToggle';
 import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
@@ -235,115 +234,103 @@ export function SeasonSimSetupForm(props: Props) {
                 />
             </div>
 
-            <SimSettingToggle
-                label="Injuries"
-                description="Players on each club's 40-man can hit the IL and get replaced by call-ups, calibrated to how durable each player really was that season. Regular-season games only."
-                isEnabled={enableInjuries}
-                onToggle={() => setEnableInjuries(v => !v)}
-            />
-
-            <SimSettingToggle
-                label="Simulate postseason"
-                description="Play out a the playoffs after game 162."
-                isEnabled={simulatePostseason}
-                onToggle={() => setSimulatePostseason(v => !v)}
-            >
-                <FormDropdown
-                    label="Postseason format"
-                    options={POSTSEASON_FORMAT_OPTIONS}
-                    selectedOption={postseasonFormat}
-                    onChange={setPostseasonFormat}
-                />
-            </SimSettingToggle>
-
-            <SimSettingToggle
-                label="Trade deadline"
-                description="A player who was really traded mid-season starts on his first club and moves to his next one on that era's deadline date, instead of playing the whole season for one club."
-                isEnabled={tradeDeadlineEnabled}
-                onToggle={() => setTradeDeadlineEnabled(v => !v)}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SimSettingToggle
-                    label="Contending clubs keep their players"
-                    description="If the sim has a selling club still in the race at the deadline, it holds onto its player and the real trade is skipped for this run."
-                    isEnabled={tradeDeadlineRespectsStandings}
-                    onToggle={() => setTradeDeadlineRespectsStandings(v => !v)}
+                    label="Injuries"
+                    description="Players on each club's 40-man can hit the IL and get replaced by call-ups, calibrated to how durable each player really was that season. Regular-season games only."
+                    isEnabled={enableInjuries}
+                    onToggle={() => setEnableInjuries(v => !v)}
                 />
-            </SimSettingToggle>
 
-            <FormSection
-                title="More options"
-                isOpenByDefault={false}
-                childrenWhenClosed={
-                    <span className="text-[12px] text-(--text-tertiary)">
-                        {isLobby
-                            ? 'Resume from standings'
-                            : 'Take over a club · Resume from standings'}
-                    </span>
-                }
-            >
-                <div className="col-span-full flex flex-col gap-3">
-                    {!isLobby && (
-                        <SimSettingToggle
-                            label="Take over a club"
-                            description="Play the season as one of your built teams, replacing a real club."
-                            isEnabled={takeoverEnabled}
-                            onToggle={() => setTakeoverEnabled(v => !v)}
-                        >
-                            <FormDropdown
-                                label="Team"
-                                options={(userTeams ?? []).map(team => ({ label: `${team.name} (${team.abbreviation})`, value: team.team_id }))}
-                                selectedOption={takeoverTeamId}
-                                onChange={setTakeoverTeamId}
-                                disabled={userTeams === null}
-                                placeholder={userTeams === null ? 'Loading your teams…' : 'Select a team'}
-                            />
-                            <FormDropdown
-                                label="Replaces"
-                                options={sortedClubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
-                                selectedOption={takeoverReplaces}
-                                onChange={setTakeoverReplaces}
-                                disabled={loadingClubs || clubs.length === 0}
-                                placeholder={loadingClubs ? 'Loading teams…' : 'Select a team'}
-                            />
-                            <ManagerStyleFields value={manager} onChange={setManager} />
-                        </SimSettingToggle>
-                    )}
+                <SimSettingToggle
+                    label="Simulate postseason"
+                    description="Play out a the playoffs after game 162."
+                    isEnabled={simulatePostseason}
+                    onToggle={() => setSimulatePostseason(v => !v)}
+                >
+                    <FormDropdown
+                        label="Postseason format"
+                        options={POSTSEASON_FORMAT_OPTIONS}
+                        selectedOption={postseasonFormat}
+                        onChange={setPostseasonFormat}
+                    />
+                </SimSettingToggle>
 
+                <SimSettingToggle
+                    label="Trade deadline"
+                    description="A player who was really traded mid-season starts on his first club and moves to his next one on that era's deadline date, instead of playing the whole season for one club."
+                    isEnabled={tradeDeadlineEnabled}
+                    onToggle={() => setTradeDeadlineEnabled(v => !v)}
+                >
                     <SimSettingToggle
-                        label="Resume from real standings"
-                        description="Every club starts from its real record on a date you pick; only the games after it are simulated."
-                        isEnabled={resumeEnabled}
-                        onToggle={() => setResumeEnabled(v => !v)}
+                        label="Contending clubs keep their players"
+                        description="If the sim has a selling club still in the race at the deadline, it holds onto its player and the real trade is skipped for this run."
+                        isEnabled={tradeDeadlineRespectsStandings}
+                        onToggle={() => setTradeDeadlineRespectsStandings(v => !v)}
+                    />
+                </SimSettingToggle>
+
+                {!isLobby && (
+                    <SimSettingToggle
+                        label="Take over a club"
+                        description="Play the season as one of your built teams, replacing a real club."
+                        isEnabled={takeoverEnabled}
+                        onToggle={() => setTakeoverEnabled(v => !v)}
                     >
-                        <FormInput
-                            label="As of"
-                            type="date"
-                            value={resumeAsOfDate}
-                            onChange={value => setResumeAsOfDate(value ?? resumeAsOfDate)}
+                        <FormDropdown
+                            label="Team"
+                            options={(userTeams ?? []).map(team => ({ label: `${team.name} (${team.abbreviation})`, value: team.team_id }))}
+                            selectedOption={takeoverTeamId}
+                            onChange={setTakeoverTeamId}
+                            disabled={userTeams === null}
+                            placeholder={userTeams === null ? 'Loading your teams…' : 'Select a team'}
                         />
-                        <SimSettingToggle
-                            label="Merge real stats into player lines"
-                            description="Each player's real stats to date are added to their simulated totals. These reflect however much of the season has been scraped, which may lag the date above slightly — the result screen shows the actual as-of date."
-                            isEnabled={mergeRealStats}
-                            onToggle={() => setMergeRealStats(v => !v)}
+                        <FormDropdown
+                            label="Replaces"
+                            options={sortedClubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
+                            selectedOption={takeoverReplaces}
+                            onChange={setTakeoverReplaces}
+                            disabled={loadingClubs || clubs.length === 0}
+                            placeholder={loadingClubs ? 'Loading teams…' : 'Select a team'}
                         />
+                        <ManagerStyleFields value={manager} onChange={setManager} />
                     </SimSettingToggle>
+                )}
 
-                    <SimSettingToggle
-                        label="Regress small sample sizes towards replacement level"
-                        description="A thin sample (a September callup, a spot starter) gets its rate stats pulled toward that year's replacement level before rosters are built, so a hot small sample can't outvalue a proven regular's full season on noise. Real PA/GS/IP are unaffected."
-                        isEnabled={regressSmallSampleStats}
-                        onToggle={() => setRegressSmallSampleStats(v => !v)}
+                <SimSettingToggle
+                    label="Resume from real standings"
+                    description="Every club starts from its real record on a date you pick; only the games after it are simulated."
+                    isEnabled={resumeEnabled}
+                    onToggle={() => setResumeEnabled(v => !v)}
+                >
+                    <FormInput
+                        label="As of"
+                        type="date"
+                        value={resumeAsOfDate}
+                        onChange={value => setResumeAsOfDate(value ?? resumeAsOfDate)}
                     />
+                    <SimSettingToggle
+                        label="Merge real stats into player lines"
+                        description="Each player's real stats to date are added to their simulated totals. These reflect however much of the season has been scraped, which may lag the date above slightly — the result screen shows the actual as-of date."
+                        isEnabled={mergeRealStats}
+                        onToggle={() => setMergeRealStats(v => !v)}
+                    />
+                </SimSettingToggle>
 
-                    <SimSettingToggle
-                        label="Handedness"
-                        description="Same-handed matchups (RHP vs RHB, LHP vs LHB) nudge the pitch/swing rolls toward the pitcher; opposite-handed matchups — including every switch hitter — nudge them toward the hitter, roughly matching real career platoon splits."
-                        isEnabled={enablePlatoonEffect}
-                        onToggle={() => setEnablePlatoonEffect(v => !v)}
-                    />
-                </div>
-            </FormSection>
+                <SimSettingToggle
+                    label="Regress small sample sizes towards replacement level"
+                    description="A thin sample (a September callup, a spot starter) gets its rate stats pulled toward that year's replacement level before rosters are built, so a hot small sample can't outvalue a proven regular's full season on noise. Real PA/GS/IP are unaffected."
+                    isEnabled={regressSmallSampleStats}
+                    onToggle={() => setRegressSmallSampleStats(v => !v)}
+                />
+
+                <SimSettingToggle
+                    label="Handedness"
+                    description="Same-handed matchups (RHP vs RHB, LHP vs LHB) nudge the pitch/swing rolls toward the pitcher; opposite-handed matchups — including every switch hitter — nudge them toward the hitter, roughly matching real career platoon splits."
+                    isEnabled={enablePlatoonEffect}
+                    onToggle={() => setEnablePlatoonEffect(v => !v)}
+                />
+            </div>
 
             {error && (
                 <div className="flex items-center justify-between gap-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
