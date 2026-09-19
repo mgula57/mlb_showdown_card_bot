@@ -35,6 +35,7 @@ import { RecentSimsShelf } from './sim/RecentSimsShelf';
 import { ChallengeDetail } from './sim/ChallengeDetail';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
+import { BetaBadge } from '../shared/BetaBadge';
 import BackButton from '../shared/BackButton';
 import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar, FaWandMagicSparkles, FaListCheck, FaTrophy, FaDice } from 'react-icons/fa6';
@@ -691,7 +692,10 @@ export default function TeamBuilder() {
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">Team Builder</h1>
+                    <h1 className="flex items-center gap-2 text-[20px] font-black text-(--text-primary)">
+                        Team Builder
+                        <BetaBadge />
+                    </h1>
                     <p className="text-[12px] text-(--text-secondary)">
                         Build your team, compete in challenges, and explore community creations.
                     </p>

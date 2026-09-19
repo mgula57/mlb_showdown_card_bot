@@ -8,6 +8,7 @@ import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../a
 import { setOptionsForSource } from '../../domain/teamSets';
 import { CardSource } from '../../types/cardSource';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { BetaBadge } from '../shared/BetaBadge';
 import { fetchUserTeams, type TeamSummary } from '../../api/userTeams';
 import {
     fetchSimSeasons, fetchSimSeasonTeams, SimAlreadyRunningError,
@@ -198,8 +199,9 @@ export function SeasonSimSetupForm(props: Props) {
     return (
         <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full p-4">
             <div>
-                <h1 className="text-[20px] font-black text-(--text-primary)">
+                <h1 className="flex items-center gap-2 text-[20px] font-black text-(--text-primary)">
                     {isLobby ? 'Create a Lobby' : 'Simulate a Season'}
+                    <BetaBadge />
                 </h1>
                 <p className="text-[13px] text-(--text-secondary) mt-1">
                     {isLobby
@@ -325,7 +327,7 @@ export function SeasonSimSetupForm(props: Props) {
                 />
 
                 <SimSettingToggle
-                    label="Handedness"
+                    label="Adjust for Handedness"
                     description="Same-handed matchups (RHP vs RHB, LHP vs LHB) nudge the pitch/swing rolls toward the pitcher; opposite-handed matchups — including every switch hitter — nudge them toward the hitter, roughly matching real career platoon splits."
                     isEnabled={enablePlatoonEffect}
                     onToggle={() => setEnablePlatoonEffect(v => !v)}

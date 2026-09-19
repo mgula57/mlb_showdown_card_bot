@@ -22,6 +22,7 @@ import { useGameDetailData } from "./useGameDetailData";
 import GameDetailPlayback from "./GameDetailPlayback";
 import GameDetailSkeleton from "./GameDetailSkeleton";
 import BackButton from "../shared/BackButton";
+import { BetaBadge } from "../shared/BetaBadge";
 import ScoreHeader from "./detail/ScoreHeader";
 import Decisions from "./detail/Decisions";
 import ProbableStartingPitchers from "./detail/ProbableStartingPitchers";
@@ -366,6 +367,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                         <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
                             <BackButton onBack={onBack} />
+                            <div className="flex items-center gap-2">
+                                <h1 className="hidden sm:inline text-[20px] font-black text-(--text-primary)">Showdown Live</h1>
+                                <BetaBadge />
+                            </div>
 
                             {simError && <span className="text-[11px] text-(--red)">{simError}</span>}
                             {isRefreshing && (

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FaSpinner } from 'react-icons/fa6';
 import type { SimJob } from '../../../api/sim';
+import { BetaBadge } from '../../shared/BetaBadge';
 import { SectionCard } from './SectionCard';
 import { SimEngineExplainer } from './SimEngineExplainer';
 import { SimWinPctChart } from './SimWinPctChart';
@@ -71,7 +72,10 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
         <div className="flex flex-col items-center justify-center gap-4 py-16 px-4">
             <FaSpinner className="animate-spin text-(--text-tertiary) text-2xl" />
             <div className="text-center">
-                <p className="text-[15px] font-bold text-(--text-primary)">Playing the season</p>
+                <p className="flex items-center justify-center gap-2 text-[15px] font-bold text-(--text-primary)">
+                    Playing the season
+                    <BetaBadge />
+                </p>
                 <p className="text-[13px] text-(--text-secondary)">{teamName}</p>
             </div>
 
