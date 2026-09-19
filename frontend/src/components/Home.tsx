@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
     FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
-    FaCompass, FaCalendar
+    FaCompass, FaCalendar, FaAward
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
 import { FaXmark, FaPeopleGroup } from 'react-icons/fa6';
@@ -22,10 +22,7 @@ import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
 import { Modal } from './shared/Modal';
 import { LoginModal } from './auth/LoginModal';
 import { WhatsNewBanner } from './shared/WhatsNewBanner';
-
-// Create Card Sampler
-import { PlayerSearchInput } from './customs/PlayerSearchInput';
-import type { PlayerSearchSelection } from './customs/PlayerSearchInput';
+import ShowdownBotLogo from './shared/ShowdownBotLogo';
 
 // Card Components
 import { CardItemFromCard } from './cards/CardItem';
@@ -35,7 +32,7 @@ import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdow
 import { CardDetail } from './cards/CardDetail';
 
 // API
-import { fetchCardById, buildCardsFromIds } from '../api/showdownBotCard';
+import { buildCardsFromIds } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
 import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
@@ -82,10 +79,6 @@ function HomeNavTile({ tile, isDark }: { tile: HomeNavTileData; isDark: boolean 
 export default function Home() {
 
     // State
-    const [searchQuery, _] = useState<string>('');
-    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
-    const [isLoadingSearchCard, setIsLoadingSearchCard] = useState<boolean>(false);
-    const [isRefreshingTrends, setIsRefreshingTrends] = useState<boolean>(false);
     const [selectedModalCard, setSelectedModalCard] = useState<ShowdownBotCard | null>(null);
 
     // Today's games ticker
@@ -136,8 +129,6 @@ export default function Home() {
 
     // Styling
     const gradientBlueBg = isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'
-    const cardOfDayPlaceholder = `/images/blank_players/blankplayer-${userShowdownSet.toLowerCase()}-${isDark ? 'dark' : 'light'}.png`;
-    const cardOfDayImageSrc = cardOfTheDay?.card_data.image.output_folder_path ? `${cardOfTheDay.card_data.image.output_folder_path}/${cardOfTheDay.card_data.image.output_file_name}` : cardOfDayPlaceholder;
 
     // Fetch today's games + leaders for the ticker
     useEffect(() => {
@@ -269,7 +260,6 @@ export default function Home() {
     }, [recentCardModal]);
 
     const refreshPlayerTrends = () => {
-        setIsRefreshingTrends(true);
         // Fetch card of the day
         fetchCardOfTheDay(userShowdownSet).then(card => {
             setCardOfTheDay(card);
@@ -296,19 +286,6 @@ export default function Home() {
             setSpotlightCards(cards);
         }).catch(err => {
             console.error('Failed to fetch spotlight cards:', err);
-        }).finally(() => {
-            setIsRefreshingTrends(false);
-        });
-    };
-
-    /** Simulated card lookup based on search query */
-    const handlePlayerSelect = (selection: PlayerSearchSelection) => {
-        // Simulate fetching a card based on the selected player and year
-        const cardId = `${selection.year}-${selection.player_id}${selection.player_type_override ? `-(${selection.player_type_override.toLowerCase()})` : ''}-${userShowdownSet}`;
-        setIsLoadingSearchCard(true);
-        fetchCardById(cardId, 'home-search').then(card => {
-            setSelectedCard(card.card || null);
-            setIsLoadingSearchCard(false);
         });
     };
 
@@ -355,17 +332,41 @@ export default function Home() {
                 <LoginModal onClose={() => setShowBannerLoginModal(false)} />
             )}
 
-            {/* Quick Nav */}
-            <div className="max-w-7xl mx-auto w-full py-4 block sm:hidden">
-                <div className="grid grid-cols-2 gap-3">
-                    {([
-                        { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
-                        { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
-                        { label: 'Team Builder',  desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-yellow-500', isNew: true },
-                        { label: 'Seasons',       desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500', isNew: true },
-                    ] as const).map((tile) => (
-                        <HomeNavTile key={tile.to} tile={tile} isDark={isDark} />
-                    ))}
+            {/* Hero Section */}
+            <div className="max-w-7xl mx-auto py-2">
+                <div className="flex flex-col items-start gap-4">
+                    <div className="flex flex-col items-start gap-3 max-w-2xl">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className={`hidden sm:inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                                <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} />
+                                <span className='leading-tight'>Showdown cards in seconds</span>
+                            </span>
+                            <div className={`leading-tight inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
+                                <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
+                                <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
+                            </div>
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold leading-tight">
+                            Digital Cards that Play Ball.
+                        </h1>
+                        <p className={`text-base max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+                            Turn real stats into Showdown cards, draft a team, and simulate full seasons — you're the GM of your own digital baseball universe.
+                        </p>
+                    </div>
+
+                    {/* Quick Nav */}
+                    <div className="w-full pt-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl">
+                            {([
+                                { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
+                                { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
+                                { label: 'Team Builder',  desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-yellow-500', isNew: true },
+                                { label: 'Seasons',       desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500', isNew: true },
+                            ] as const).map((tile) => (
+                                <HomeNavTile key={tile.to} tile={tile} isDark={isDark} />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -592,64 +593,6 @@ export default function Home() {
                 document.body
             )}
 
-            {/* Hero Section */}
-            <div className="max-w-7xl mx-auto py-4 flex flex-col md:flex-row items-center justify-between gap-10">
-
-                {/* Left: Text and Actions */}
-                <div className="w-full md:w-1/2 3xl:flex-[0.6] flex flex-col gap-4 items-start">
-                    <div className="flex items-center gap-3 mb-2">
-                        <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                            <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> 
-                            <span className='leading-tight'>Showdown cards in seconds</span>
-                        </span>
-                        <div className={`leading-tight inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
-                            <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
-                            <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards<span className='hidden sm:inline ml-0'>created</span></span>
-                        </div>
-                    </div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold leading-tight">
-                        Digital Cards that Play Ball.
-                    </h1>
-                    <p className={`text-lg max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                        Enter a player and season. We turn real stats into a simulated card for the iconic 20-sided dice game — ready to share, use in your league, or just admire.
-                    </p>
-                    
-                    <div className="flex gap-4 mt-2">
-                        <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition bg-(--showdown-red) ${isDark ? 'text-white' : 'text-white'}`}>
-                            Build your Own <FaChevronRight />
-                        </Link>
-                        <Link to="/cards" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
-                            Explore Cards <FaChevronRight />
-                        </Link>
-                    </div>
-                    <form className={`rounded-2xl p-6 flex flex-col w-full gap-4 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <PlayerSearchInput label='Try it out! Search for a player' value={searchQuery} onChange={handlePlayerSelect} searchOptions={{ exclude_multi_year: true }} />
-                        <CardItemFromCard card={selectedCard || undefined} className={`${selectedCard ? '' : 'pointer-events-none'} ${isLoadingSearchCard ? 'blur-xs' : ''}`} onClick={() => setSelectedModalCard(selectedCard)} />
-                    </form>
-                </div>
-
-                {/* Right: Random Card of the Day */}
-                <div className="flex-1 3xl:flex-[0.4] flex flex-col items-center md:items-end w-full">
-                    <div className={`rounded-3xl p-6 w-full max-w-md min-h-100 flex flex-col relative gap-2 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="flex justify-between items-center mb-2">
-                            <span className={`text-lg font-semibold ${isDark ? 'text-white/80' : 'text-black/80'}`}>Card of the Day</span>
-                            <span className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Generated by the Community</span>
-                        </div>
-                        <div className="flex-1 flex flex-col justify-center items-center gap-4">
-                            <img src={cardOfDayImageSrc} alt="Sample Showdown Card" className={`min-h-64 max-h-124 rounded-lg object-contain shadow-2xl ${isRefreshingTrends ? 'animate-pulse' : ''}`} />                        </div>
-                        <div className={`left-4 right-4 text-xs text-left pt-2 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                            {cardOfTheDay ? (
-                                <>
-                                    <span className="font-semibold">{cardOfTheDay.card_data.name}</span> - {cardOfTheDay.card_data.team} ({cardOfTheDay.card_data.year})<br />
-                                </>
-                            ) : (
-                                <>Loading...</>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             {/* How it Works */}
             <div className="max-w-7xl mx-auto py-6 border-t border-form-element">
                 <h2 className="text-3xl font-bold mb-8">How to Play</h2>
@@ -796,7 +739,7 @@ export default function Home() {
                         Explore Cards <FaChevronRight />
                     </Link>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
                     <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaFire className="text-red-500" /> Trending this week</div>
                         <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Players and seasons gaining attention recently.</div>
@@ -817,7 +760,7 @@ export default function Home() {
                             <div className='space-y-3'>
                                 {popularCards.slice(0, 4).map((card, index) => (
                                     <div className="relative max-w-full">
-                                        <span className={`absolute text-[12px] -right-2 -top-2 ${gradientBlueBg} font-bold backdrop-blur-sm rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
+                                        <span className={`absolute z-10 text-[12px] -right-2 -top-2 ${gradientBlueBg} font-bold backdrop-blur-sm rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
                                         <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
                                     </div>
                                 ))}
@@ -838,6 +781,22 @@ export default function Home() {
                         ) : (
                             renderBlankExploreCards()
                         )}
+                    </div>
+                    <div className={`rounded-2xl p-6 overflow-hidden flex flex-col ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
+                        <div className="font-semibold mb-2 flex items-center gap-2"><FaAward className="text-emerald-500" /> Card of the Day</div>
+                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Generated by the community, refreshed daily.</div>
+                        <div className="flex-1 flex flex-col justify-center gap-2">
+                            {cardOfTheDay ? (
+                                <>
+                                    <CardItemFromCard card={cardOfTheDay.card_data} className="max-w-full" onClick={() => setSelectedModalCard(cardOfTheDay.card_data)} />
+                                    <div className={`text-xs text-center ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                        <span className="font-semibold">{cardOfTheDay.card_data.name}</span> - {cardOfTheDay.card_data.team} ({cardOfTheDay.card_data.year})
+                                    </div>
+                                </>
+                            ) : (
+                                <div className={`h-32 rounded-lg ${isDark ? 'bg-neutral-800 animate-pulse' : 'bg-neutral-200 animate-pulse'}`} />
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -866,7 +825,8 @@ export default function Home() {
             </div>
 
             {/* Footer */}
-            <div className={`max-w-7xl mx-auto py-4 border-t border-form-element flex justify-center`}>
+            <div className={`max-w-7xl mx-auto py-4 border-t border-form-element flex flex-col items-center gap-2`}>
+                <ShowdownBotLogo className="max-w-28 opacity-70" />
                 <Link to="/privacy" className={`text-xs ${isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-neutral-400 hover:text-neutral-600'} transition`}>
                     Privacy Policy
                 </Link>
