@@ -78,6 +78,7 @@ export interface CustomCardFormState {
     edition: string; // e.g. "Cooperstown"
     add_one_to_set_year: boolean; // Whether to show the year + 1 in the set section
     show_year_text: boolean; // Whether to show the year text as a label on the card
+    disable_display_text_on_card?: boolean; // Whether to hide the stats period display text (e.g. split/date range) banner on the card. Only applicable for non-Base Set expansions
 
     // Image
     image_source: string; // e.g. "Auto"
@@ -121,8 +122,9 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     expansion: "BS", 
     set_number: null, 
     edition: "NONE",
-    add_one_to_set_year: false, 
+    add_one_to_set_year: false,
     show_year_text: false,
+    disable_display_text_on_card: false,
 
     image_source: "AUTO", 
     image_parallel: "NONE", 
@@ -470,6 +472,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
                 if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
+                if (form.expansion !== FORM_DEFAULTS.expansion && form.disable_display_text_on_card) summaries.push({ value: "Hide Split/Date Text", borderColor: 'border-green-500' });
                 break;
                 
             case 'image':
@@ -1335,7 +1338,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 label="Expansion"
                                                 options={expansionOptions}
                                                 selectedOption={form.expansion}
-                                                onChange={(value) => setForm({ ...form, expansion: value })}
+                                                onChange={(value) => setForm({
+                                                    ...form,
+                                                    expansion: value,
+                                                    // Disable display text is only applicable to non-Base Set expansions.
+                                                    // Don't carry a TRUE value forward if the user switches back to Base Set.
+                                                    ...(value === 'BS' && { disable_display_text_on_card: false }),
+                                                })}
                                             />
 
                                             <FormDropdown
@@ -1355,6 +1364,15 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                             <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
                                             <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
+
+                                            {form.expansion !== 'BS' && (
+                                                <FormEnabler
+                                                    label='Hide Split/Date Text'
+                                                    className='col-span-full'
+                                                    isEnabled={form.disable_display_text_on_card || false}
+                                                    onChange={(isEnabled) => setForm({ ...form, disable_display_text_on_card: !isEnabled })}
+                                                />
+                                            )}
 
                                         </FormSection>
 

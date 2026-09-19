@@ -1309,7 +1309,7 @@ class ShowdownPlayerCard(BaseModel):
                 ip = min(round(innings_pitched / games), cap)
 
             case PlayerSubType.STARTING_PITCHER:
-                if ip_per_start > 0:
+                if (ip_per_start or 0) > 0:
                     # USE IP/GS
                     ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
                 elif games_started > 0:
