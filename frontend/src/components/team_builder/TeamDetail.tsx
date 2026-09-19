@@ -933,18 +933,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <AffordableOnlyToggle enabled={budgetFilterEnabled} onToggle={() => setBudgetFilterEnabled(v => !v)} />
                 )}
                 {pendingLabel && (
-                    <span className="text-sm flex items-center gap-1.5 pl-2 pr-1 py-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                    <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        <span className=" text-amber-500 dark:text-amber-400 font-semibold">
-                            {pendingLabel}
-                        </span>
+                        {pendingLabel}
                         <button
                             type="button"
                             onClick={() => setPendingSlot(null)}
-                            className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
+                            className="hover:opacity-70 cursor-pointer"
                             aria-label="Cancel filling"
                         >
-                            <FaXmark />
+                            <FaXmark className="text-[10px]" />
                         </button>
                     </span>
                 )}
@@ -2029,19 +2027,17 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                             <AffordableOnlyToggle enabled={budgetToggle.enabled} onToggle={budgetToggle.onToggle} />
                         )}
                         {pendingLabel && (
-                            <span className="flex text-sm items-center gap-1.5 pl-2 pr-1 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
+                            <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                                <span className=" text-amber-500 dark:text-amber-400 font-semibold">
-                                    {pendingLabel}
-                                </span>
+                                {pendingLabel}
                                 {onDismissPending && (
                                     <button
                                         type="button"
                                         onClick={onDismissPending}
-                                        className="text-amber-500 dark:text-amber-400 hover:opacity-70 cursor-pointer p-1"
+                                        className="hover:opacity-70 cursor-pointer"
                                         aria-label="Cancel filling"
                                     >
-                                        <FaXmark className="text-[11px]" />
+                                        <FaXmark className="text-[10px]" />
                                     </button>
                                 )}
                             </span>
