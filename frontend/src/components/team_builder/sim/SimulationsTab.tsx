@@ -6,8 +6,8 @@ import { SimChallenges } from './SimChallenges';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 import { useAuth } from '../../auth/AuthContext';
 import type { ChallengeInstance } from '../../../api/sim';
-import { FaArrowRight } from 'react-icons/fa';
-import { FaGear, FaListCheck, FaTrophy } from 'react-icons/fa6';
+import { FaArrowDown } from 'react-icons/fa';
+import { FaClockRotateLeft, FaGear, FaTrophy } from 'react-icons/fa6';
 
 type BrowseView = 'leaderboard' | 'mine';
 
@@ -45,7 +45,7 @@ function NavTile({ icon, title, targetRef }: { icon: ReactNode; title: string; t
                 </span>
                 <span className="text-[14px] font-black text-(--text-primary)">{title}</span>
             </span>
-            <FaArrowRight className="text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-x-0.5 transition-all shrink-0" />
+            <FaArrowDown className="text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-y-0.5 transition-all shrink-0" />
         </button>
     );
 }
@@ -58,22 +58,19 @@ function NavTile({ icon, title, targetRef }: { icon: ReactNode; title: string; t
 export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTeam, onUseExistingTeam, onOpenChallenge, onManageChallenges }: Props) {
     const { isAdmin } = useAuth();
     const [browseView, setBrowseView] = useState<BrowseView>('leaderboard');
-    const challengesRef = useRef<HTMLDivElement>(null);
+    const recentSimsRef = useRef<HTMLDivElement>(null);
     const leaderboardRef = useRef<HTMLDivElement>(null);
 
     return (
         <div className={`flex flex-col gap-8 ${horizontalPadding}`}>
             {/* Nav tiles */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <NavTile icon={<FaListCheck />} title="Active Challenges" targetRef={challengesRef} />
+                <NavTile icon={<FaClockRotateLeft />} title="Recent Sims" targetRef={recentSimsRef} />
                 <NavTile icon={<FaTrophy />} title="Leaderboard" targetRef={leaderboardRef} />
             </div>
 
-            {/* Recent Sims — quick snapshot of your own and the community's latest runs */}
-            <RecentSims token={token} onOpenSeason={onOpenSeason} />
-
             {/* Challenges grid */}
-            <div ref={challengesRef} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center gap-2">
                     <h3 className="text-[16px] font-black text-(--text-primary)">Active Challenges</h3>
                     {isAdmin && token && (
@@ -93,6 +90,11 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
                     onUseExistingTeam={onUseExistingTeam}
                     onSelectChallenge={onOpenChallenge}
                 />
+            </div>
+
+            {/* Recent Sims — quick snapshot of your own and the community's latest runs */}
+            <div ref={recentSimsRef}>
+                <RecentSims token={token} onOpenSeason={onOpenSeason} />
             </div>
 
             {/* Leaderboard */}
