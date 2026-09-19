@@ -27,6 +27,7 @@ import CustomSelect from '../shared/CustomSelect';
 import { uploadAvatar, removeAvatar, validateAvatarFile, AVATAR_ACCEPT } from '../../api/userAvatar';
 import AvatarCropModal from './AvatarCropModal';
 import { AccountAvatar } from '../auth/AccountIcon';
+import ColorPicker from '../shared/ColorPicker';
 
 /**
  * Account Page Component
@@ -451,6 +452,26 @@ const AccountPage: React.FC = () => {
                             
                             <p className="text-xs text-gray-500 mt-2">
                                 Your preferred Showdown set for card generation
+                            </p>
+                        </div>
+
+                        {/* Default Team Colors */}
+                        <div>
+                            <label className="text-sm font-medium text-secondary block mb-2">Default Team Colors</label>
+                            <div className="flex items-center gap-6">
+                                <ColorPicker
+                                    label="Primary Color"
+                                    value={userSettings?.default_primary_color ?? 'rgb(0,0,0)'}
+                                    onChange={v => syncSetting({ default_primary_color: v })}
+                                />
+                                <ColorPicker
+                                    label="Secondary Color"
+                                    value={userSettings?.default_secondary_color ?? 'rgb(255,255,255)'}
+                                    onChange={v => syncSetting({ default_secondary_color: v })}
+                                />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                Used as the starting colors when creating a new team
                             </p>
                         </div>
                     </div>

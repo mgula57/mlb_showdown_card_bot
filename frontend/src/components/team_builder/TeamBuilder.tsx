@@ -141,7 +141,7 @@ const TABS: TabItem<TabId>[] = [
 ];
 
 export default function TeamBuilder() {
-    const { session, username, isAdmin } = useAuth();
+    const { session, username, isAdmin, userSettings } = useAuth();
     const { userShowdownSet } = useSiteSettings();
     const location = useLocation();
     const navigate = useNavigate();
@@ -395,6 +395,8 @@ export default function TeamBuilder() {
             const payload = buildDefaultTeamPayload({
                 displayName,
                 showdownSet: userShowdownSet,
+                defaultPrimaryColor: userSettings?.default_primary_color,
+                defaultSecondaryColor: userSettings?.default_secondary_color,
                 overrides: challenge ? {
                     name,
                     // Public by default so the run shows up on the Community recent-sims feed;

@@ -6,6 +6,8 @@ export interface UserSettingsDB {
     custom_card_form_settings?: Record<string, unknown>;
     starred_teams?: { mlb?: string[]; wbc?: string[] };
     avatar_url?: string;
+    default_primary_color?: string;
+    default_secondary_color?: string;
     /** Server-derived from the admin allowlist — read-only, never sent back on PUT. */
     is_admin?: boolean;
 }

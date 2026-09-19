@@ -13,19 +13,23 @@ type BuildDefaultTeamPayloadArgs = {
     displayName: string;
     /** The user's preferred Showdown set — the team pins to this for its Bot cards. */
     showdownSet: string;
+    /** The user's saved default team colors (account settings), used in place of the stock
+     *  black/white when set. */
+    defaultPrimaryColor?: string;
+    defaultSecondaryColor?: string;
     /** Merged last — e.g. a challenge's pts_limit / origin_template_id / player_filters, or the
      *  creation_source tag identifying which entry point built the team. */
     overrides?: Partial<TeamCreatePayload>;
 };
 
-export function buildDefaultTeamPayload({ displayName, showdownSet, overrides }: BuildDefaultTeamPayloadArgs): TeamCreatePayload {
+export function buildDefaultTeamPayload({ displayName, showdownSet, defaultPrimaryColor, defaultSecondaryColor, overrides }: BuildDefaultTeamPayloadArgs): TeamCreatePayload {
     const name = `${displayName} New Team`;
     const abbreviation = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase() || 'TEAM';
     return {
         name,
         abbreviation,
-        primary_color: 'rgb(0, 0, 0)',
-        secondary_color: 'rgb(255, 255, 255)',
+        primary_color: defaultPrimaryColor ?? 'rgb(0, 0, 0)',
+        secondary_color: defaultSecondaryColor ?? 'rgb(255, 255, 255)',
         is_public: true,
         pts_limit: 5000,
         roster_size: 20,
