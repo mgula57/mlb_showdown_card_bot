@@ -4405,11 +4405,21 @@ class PostgresDB:
             cur.execute(table_sql)
             cur.execute("""
                 ALTER TABLE internal.user_settings
-                    ADD COLUMN IF NOT EXISTS default_primary_color VARCHAR(50) DEFAULT 'rgb(0,0,0)';
+                    ADD COLUMN IF NOT EXISTS default_primary_color VARCHAR(50) DEFAULT '#1a3b5f';
             """)
             cur.execute("""
                 ALTER TABLE internal.user_settings
-                    ADD COLUMN IF NOT EXISTS default_secondary_color VARCHAR(50) DEFAULT 'rgb(255,255,255)';
+                    ADD COLUMN IF NOT EXISTS default_secondary_color VARCHAR(50) DEFAULT '#9a362f';
+            """)
+            # ADD COLUMN IF NOT EXISTS above is a no-op once the column already exists, so it
+            # won't pick up a changed DEFAULT on an already-migrated DB. Re-assert it here.
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ALTER COLUMN default_primary_color SET DEFAULT '#1a3b5f';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ALTER COLUMN default_secondary_color SET DEFAULT '#9a362f';
             """)
 
     def get_user_settings(self, user_id: str) -> dict | None:

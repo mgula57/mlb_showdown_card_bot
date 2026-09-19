@@ -702,8 +702,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...seededDefaultFilters }),
         [seededDefaultFilters]
     );
-    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
-    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
+    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
+    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
     const filtersWithoutSortingForEditing = { ...filtersForEditing, sort_by: null, sort_direction: null };
     const defaultsWithoutSorting = { ...defaultFiltersForSource, sort_by: null, sort_direction: null };

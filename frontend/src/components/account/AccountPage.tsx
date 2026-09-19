@@ -461,12 +461,12 @@ const AccountPage: React.FC = () => {
                             <div className="flex items-center gap-6">
                                 <ColorPicker
                                     label="Primary Color"
-                                    value={userSettings?.default_primary_color ?? 'rgb(0,0,0)'}
+                                    value={userSettings?.default_primary_color ?? '#1a3b5f'}
                                     onChange={v => syncSetting({ default_primary_color: v })}
                                 />
                                 <ColorPicker
                                     label="Secondary Color"
-                                    value={userSettings?.default_secondary_color ?? 'rgb(255,255,255)'}
+                                    value={userSettings?.default_secondary_color ?? '#9a362f'}
                                     onChange={v => syncSetting({ default_secondary_color: v })}
                                 />
                             </div>

@@ -14,7 +14,7 @@ type BuildDefaultTeamPayloadArgs = {
     /** The user's preferred Showdown set — the team pins to this for its Bot cards. */
     showdownSet: string;
     /** The user's saved default team colors (account settings), used in place of the stock
-     *  black/white when set. */
+     *  Showdown blue/red when set. */
     defaultPrimaryColor?: string;
     defaultSecondaryColor?: string;
     /** Merged last — e.g. a challenge's pts_limit / origin_template_id / player_filters, or the
@@ -28,8 +28,8 @@ export function buildDefaultTeamPayload({ displayName, showdownSet, defaultPrima
     return {
         name,
         abbreviation,
-        primary_color: defaultPrimaryColor ?? 'rgb(0, 0, 0)',
-        secondary_color: defaultSecondaryColor ?? 'rgb(255, 255, 255)',
+        primary_color: defaultPrimaryColor ?? '#1a3b5f',
+        secondary_color: defaultSecondaryColor ?? '#9a362f',
         is_public: true,
         pts_limit: 5000,
         roster_size: 20,

@@ -882,7 +882,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                             className="
                                 w-full flex items-center justify-center gap-1.5 px-3 py-2
                                 rounded-lg animated-showdown-gradient
-                                text-[12px] font-semibold text-(--text-primary) 
+                                text-[12px] font-semibold text-white
                                 hover:opacity-90 transition-opacity cursor-pointer
                             "
                         >
@@ -1360,7 +1360,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     className="
                                                         flex items-center gap-1.5 px-3 py-2
                                                         rounded-lg animated-showdown-gradient
-                                                        text-[12px] font-semibold text-(--text-primary)
+                                                        text-[12px] font-semibold text-white
                                                         hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
                                                     "
                                                 >
