@@ -12,7 +12,7 @@ import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { useCardMap } from '../../hooks/useCardMap';
 import { bannerTokens, getContrastTextColor } from "../../functions/colors";
-import { FieldView } from './FieldView';
+import { FieldView, FIELD_POSITIONS } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
 import { LineupPanel } from './LineupPanel';
@@ -65,16 +65,17 @@ function PickSourceBadge({ source }: { source: PickSource }) {
     );
 }
 
-/** Compact pill switch shown alongside the draft search tabs — caps results to what the
- *  remaining budget can still afford. Small enough to sit in a tab strip on mobile or desktop. */
-function AffordableOnlyToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+/** Compact pill switch shown alongside the draft search tabs — caps results to cards that both
+ *  fit the remaining budget and still fill an open roster need. Small enough to sit in a tab
+ *  strip on mobile or desktop. */
+function FitsMyRosterToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
     return (
         <button
             type="button"
             role="switch"
             aria-checked={enabled}
             onClick={onToggle}
-            title="Only show cards you can afford within your remaining PTS budget"
+            title="Only show cards you can afford, and that still fill an open roster need"
             className={`flex items-center gap-1.5 shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors ${
                 enabled
                     ? 'border-(--showdown-red) bg-(--showdown-red)/10 text-(--showdown-red)'
@@ -82,7 +83,7 @@ function AffordableOnlyToggle({ enabled, onToggle }: { enabled: boolean; onToggl
             }`}
         >
             <FaGaugeHigh className="text-[10px]" />
-            Affordable only
+            Fits my roster
         </button>
     );
 }
@@ -481,10 +482,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }, [draftSource, allowed_sets, allowed_sets_by_source, player_filters]);
     // Position/type constraints for the slot being filled — seeded but still clearable.
     const slotFilters = useMemo(() => getSearchFiltersForSlot(pendingSlot), [pendingSlot]);
-    // "Affordable only" draft toggle — only meaningful once a points budget is in play, so it
+    // "Fits my roster" draft toggle — only meaningful once a points budget is in play, so it
     // defaults off and there's nothing to reset it against a specific team (TeamDetail remounts
     // on team switch, so this state can't leak across teams anyway).
-    const [budgetFilterEnabled, setBudgetFilterEnabled] = useState(false);
+    const [fitsRosterEnabled, setFitsRosterEnabled] = useState(false);
 
     function update(updates: TeamUpdatePayload) {
         setDraft(prev => ({ ...prev, ...updates } as Team));
@@ -797,7 +798,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return { remaining, slotsRemaining, perSlot: slotsRemaining > 0 ? remaining / slotsRemaining : null };
     }, [draft.pts_limit, draft.roster_size, draft.roster.length, pointsBreakdown.total]);
 
-    // Highest raw card PTS the "Affordable only" toggle should let through for the pick in
+    // Highest raw card PTS the "Fits my roster" toggle should let through for the pick in
     // progress. Reserves MIN_CARD_POINTS for each *other* still-empty roster slot so this single
     // pick can't spend the whole remaining budget and strand the rest of the draft with nothing
     // left to spend — a reserve slot that lands on the bench costs `bench_pts_multiplier` times
@@ -828,17 +829,52 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         if (multiplier <= 0) return null;
         return Math.max(0, Math.floor(cap / multiplier));
     }, [runRate, pendingSlot, draft.bench_pts_multiplier, rosterProgress.buckets]);
-    const budgetFilterActive = budgetFilterEnabled && budgetMaxPoints != null;
+    const budgetSubfilterActive = fitsRosterEnabled && budgetMaxPoints != null;
+
+    // Search-vocabulary position values the "Fits my roster" toggle should still let through —
+    // only the roster's genuinely open needs. Bench/bullpen take *any* hitter/pitcher, so while
+    // either bucket still has room that whole side (hitter or pitcher) stays unrestricted; the
+    // filter only narrows to specific missing positions once its flexible bucket is also spoken
+    // for. Mirrors the same bucket targets `budgetMaxPoints` reserves against.
+    const openRosterPositions = useMemo((): string[] => {
+        const remaining = (bucket: { filled: number; target: number }) => Math.max(0, bucket.target - bucket.filled);
+        const { lineup, bench, rotation, bullpen } = rosterProgress.buckets;
+
+        const filledFieldPositions = new Set(defaultLineup.slots.map(s => s.field_position));
+        const openFieldPositions = remaining(lineup) > 0
+            ? FIELD_POSITIONS.filter(pos => !filledFieldPositions.has(pos))
+            : [];
+        const hitterPositions: readonly string[] = remaining(bench) > 0 ? FIELD_POSITIONS : openFieldPositions;
+        // The search filter combines LF/RF into one value; other positions pass through as-is.
+        const hitterFilterValues = [...new Set(hitterPositions.map(pos => pos === 'LF' || pos === 'RF' ? 'LF/RF' : pos))];
+
+        const pitcherFilterValues: string[] = [];
+        if (remaining(bullpen) > 0) pitcherFilterValues.push('RELIEVER', 'CLOSER');
+        if (remaining(rotation) > 0) pitcherFilterValues.push('STARTER');
+
+        return [...hitterFilterValues, ...pitcherFilterValues];
+    }, [rosterProgress.buckets, defaultLineup.slots]);
+    // Bench/bullpen picks are deliberately position-agnostic, and a specific field/rotation slot
+    // already locks `positions` via `slotFilters` — only the free-form "add to roster" flow needs
+    // this extra narrowing.
+    const positionNeedFilterActive = fitsRosterEnabled
+        && pendingSlot?.kind !== 'bench' && pendingSlot?.kind !== 'bullpen'
+        && !('positions' in slotFilters);
 
     const searchFilters = useMemo((): Partial<FilterSelections> => ({
         ...teamRestrictionFilters,
         ...slotFilters,
-        ...(budgetFilterActive ? { max_points: budgetMaxPoints! } : {}),
-    }), [teamRestrictionFilters, slotFilters, budgetFilterActive, budgetMaxPoints]);
+        ...(budgetSubfilterActive ? { max_points: budgetMaxPoints! } : {}),
+        ...(positionNeedFilterActive ? { positions: openRosterPositions } : {}),
+    }), [teamRestrictionFilters, slotFilters, budgetSubfilterActive, budgetMaxPoints, positionNeedFilterActive, openRosterPositions]);
     const lockedFilterKeys = useMemo(() => {
         const keys = Object.keys(teamRestrictionFilters).filter(k => !(k in slotFilters));
-        return budgetFilterActive ? [...keys, 'max_points'] : keys;
-    }, [teamRestrictionFilters, slotFilters, budgetFilterActive]);
+        return [
+            ...keys,
+            ...(budgetSubfilterActive ? ['max_points'] : []),
+            ...(positionNeedFilterActive ? ['positions'] : []),
+        ];
+    }, [teamRestrictionFilters, slotFilters, budgetSubfilterActive, positionNeedFilterActive]);
 
     // Points effect of dropping `dropCandidate` — bench slots count at the bench multiplier,
     // everything else at face value, mirroring `pointsBreakdown`.
@@ -928,7 +964,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             draftedCardIds={draftedCardIds}
             onCardPicked={handleCardPicked}
             onDismissPending={() => setPendingSlot(null)}
-            budgetToggle={runRate ? { enabled: budgetFilterEnabled, onToggle: () => setBudgetFilterEnabled(v => !v) } : null}
+            fitsRosterToggle={runRate ? { enabled: fitsRosterEnabled, onToggle: () => setFitsRosterEnabled(v => !v) } : null}
         />
     );
 
@@ -953,7 +989,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             ))}
             <div className="ml-auto flex items-center gap-2 shrink-0">
                 {runRate && (
-                    <AffordableOnlyToggle enabled={budgetFilterEnabled} onToggle={() => setBudgetFilterEnabled(v => !v)} />
+                    <FitsMyRosterToggle enabled={fitsRosterEnabled} onToggle={() => setFitsRosterEnabled(v => !v)} />
                 )}
                 {pendingLabel && (
                     <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
@@ -2027,12 +2063,12 @@ type DraftPanelProps = {
     onDismissPending?: () => void;
     /** Forwarded to ShowdownCardSearch — bump to clear search text/filters after a pick completes. */
     resetTrigger?: unknown;
-    /** "Affordable only" switch state, or null to hide it (e.g. no points budget on this team).
+    /** "Fits my roster" switch state, or null to hide it (e.g. no points budget on this team).
      *  Omitted entirely when `hideSourceTabs` is set — the caller renders it in its own header. */
-    budgetToggle?: { enabled: boolean; onToggle: () => void } | null;
+    fitsRosterToggle?: { enabled: boolean; onToggle: () => void } | null;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, budgetToggle }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, fitsRosterToggle }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
@@ -2050,8 +2086,8 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                         </Tabs.Trigger>
                     ))}
                     <div className="ml-auto flex items-center gap-2 shrink-0">
-                        {budgetToggle && (
-                            <AffordableOnlyToggle enabled={budgetToggle.enabled} onToggle={budgetToggle.onToggle} />
+                        {fitsRosterToggle && (
+                            <FitsMyRosterToggle enabled={fitsRosterToggle.enabled} onToggle={fitsRosterToggle.onToggle} />
                         )}
                         {pendingLabel && (
                             <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
