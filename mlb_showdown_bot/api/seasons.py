@@ -338,6 +338,9 @@ def fetch_era_teams():
                 limit=limit,
                 offset=offset,
             )
+        # `name` here stays the plain franchise/league name (nav state round-trips it into
+        # fetch_era_showdown_team's team_name param, which applies RosterEra.team_name itself --
+        # prefixing here too would double it there). The frontend prefixes it for display.
 
         payload = {'teams': teams}
         _era_teams_cache[cache_key] = (payload, datetime.now())
@@ -398,11 +401,12 @@ def fetch_era_showdown_team(team_id: str):
             if stored_slots:
                 # Pre-processed: identity is stored too, so a cold link needs no client-side resolution.
                 identity = db.fetch_era_team(team_id=team_id_int, era=era.key, showdown_set=showdown_set_enum.value, sport_id=sport_id) or {}
+                raw_name = identity.get('name') or team_name or team_abbr or f"Team {team_id_int}"
                 builder = StoredRosterToTeamConverter(
                     cards=stored_cards,
                     meta_rows=stored_slots,
                     team_id=synthetic_team_id,
-                    name=identity.get('name') or team_name or team_abbr or f"Team {team_id_int}",
+                    name=era.team_name(raw_name),
                     abbreviation=identity.get('abbreviation') or team_abbr or str(team_id_int),
                     primary_color=identity.get('primary_color'),
                     secondary_color=identity.get('secondary_color'),
@@ -418,7 +422,7 @@ def fetch_era_showdown_team(team_id: str):
                 builder = EraRosterDrafter(
                     cards=candidates,
                     team_id=synthetic_team_id,
-                    name=team_name or LEAGUE_WIDE_NAME,
+                    name=era.team_name(team_name or LEAGUE_WIDE_NAME),
                     abbreviation=team_abbr or LEAGUE_WIDE_ABBR,
                 )
             else:
@@ -431,7 +435,7 @@ def fetch_era_showdown_team(team_id: str):
                 builder = EraRosterDrafter(
                     cards=candidates,
                     team_id=synthetic_team_id,
-                    name=team_name or team_abbr or f"Team {team_id_int}",
+                    name=era.team_name(team_name or team_abbr or f"Team {team_id_int}"),
                     abbreviation=team_abbr or str(team_id_int),
                 )
 

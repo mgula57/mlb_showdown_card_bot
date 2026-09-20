@@ -7,15 +7,22 @@ import { TeamShelf } from './TeamShelf';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import type { HistoricalNavState } from './HistoricalTeams';
 
-const teamToPreview = (team: EraTeam, showdownSet?: string): TeamPreviewData => ({
+// Label lookup falls back to the same formatting the backend uses (RosterEra.label) so a tile
+// still reads correctly before /api/seasons/eras has loaded.
+const eraLabel = (eraKey: string, eras: RosterEra[]): string =>
+    eras.find(e => e.key === eraKey)?.label ?? (eraKey === ALL_TIME_ERA_KEY ? 'All-Time' : eraKey);
+
+// The era label is baked into the displayed name only -- `team.name` itself stays the plain
+// franchise/league name everywhere else (nav state, API payloads), so it can't get prefixed
+// twice when fetchEraShowdownTeam applies RosterEra.team_name server-side.
+const teamToPreview = (team: EraTeam, label: string, showdownSet?: string): TeamPreviewData => ({
     abbreviation: team.abbreviation || team.name,
-    name: team.name,
+    name: `${label} ${team.name}`,
     primary_color: team.primary_color,
     secondary_color: team.secondary_color,
     total_points: team.total_points,
     top_players: team.top_players,
     source: 'mlb',
-    badge: team.era === ALL_TIME_ERA_KEY ? 'ALL-TIME' : team.era.toUpperCase(),
     allowed_sets: showdownSet ? [showdownSet] : undefined,
 });
 
@@ -74,7 +81,11 @@ export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery 
         [eras],
     );
 
-    const previews = useMemo(() => teams.map(team => ({ team, preview: teamToPreview(team, userShowdownSet) })), [teams, userShowdownSet]);
+    const currentEraLabel = useMemo(() => eraLabel(era, eras), [era, eras]);
+    const previews = useMemo(
+        () => teams.map(team => ({ team, preview: teamToPreview(team, currentEraLabel, userShowdownSet) })),
+        [teams, currentEraLabel, userShowdownSet],
+    );
 
     return (
         <div className="flex flex-col gap-3">

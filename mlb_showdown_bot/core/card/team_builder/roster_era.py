@@ -11,6 +11,13 @@ class RosterEra:
     start_year: int
     end_year: int
 
+    def team_name(self, base_name: str) -> str:
+        """Display name for one team's roster within this era, e.g. "1990s New York Yankees"
+        or "All-Time New York Yankees". Applied at read time (see api/seasons.py) rather than
+        stored, so dim_era_team.name stays the plain franchise/league name and any future
+        naming-format change doesn't need every era rebuilt."""
+        return f"{self.label} {base_name}"
+
 
 # A cross-team "All-MLB" Era Roster (e.g. "the best 1990s players, any team") is stored and
 # addressed exactly like a real franchise's Era Roster -- same dim_era_team/dim_era_roster rows,

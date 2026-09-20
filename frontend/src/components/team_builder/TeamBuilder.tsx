@@ -304,7 +304,11 @@ export default function TeamBuilder() {
             };
         }
         if (ref.kind === 'era') {
-            const team = await fetchEraShowdownTeam(ref.teamId, ref.sportId, ref.era, userShowdownSet);
+            // Nav state carries the plain (unprefixed) name/abbr from the Browse tile as a warm-path
+            // optimization for a cold-fallback team the CLI backfill hasn't covered yet -- the era
+            // label prefix ("1990s New York Yankees") is applied server-side, once, on the response.
+            const navState = location.state as HistoricalNavState | null;
+            const team = await fetchEraShowdownTeam(ref.teamId, ref.sportId, ref.era, navState?.abbr, navState?.name, userShowdownSet);
             return { team, readOnly: true };
         }
         // historical MLB team — nav state is the warm-path optimization only. Pre-processed teams

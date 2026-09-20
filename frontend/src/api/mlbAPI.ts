@@ -298,8 +298,10 @@ export const fetchEraTeams = async (options: {
     return { teams: (data.teams ?? []) as EraTeam[] };
 };
 
-export const fetchEraShowdownTeam = async (teamId: number, sportId: number, era?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
+export const fetchEraShowdownTeam = async (teamId: number, sportId: number, era?: string, teamAbbr?: string, teamName?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
     const params = new URLSearchParams({ sport_id: String(sportId), era: era ?? ALL_TIME_ERA_KEY });
+    if (teamAbbr) params.set('team_abbr', teamAbbr);
+    if (teamName) params.set('team_name', teamName);
     if (showdownSet) params.set('showdown_set', showdownSet);
     const response = await fetch(`${API_BASE}/seasons/eras/teams/${teamId}/showdown_team?${params}`);
     if (!response.ok) {

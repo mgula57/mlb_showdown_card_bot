@@ -137,6 +137,9 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
         if (hit.kind === 'historical') return openHistorical(hit.team);
         return openEra(hit.team);
     };
+    // Unified search only ever queries the ALL_TIME era (see the Promise.all above), so the
+    // display prefix here is fixed rather than looked up — hit.team.name itself stays plain.
+    const hitPreview = (hit: Hit) => hit.kind === 'era' ? { ...hit.team, name: `All-Time ${hit.team.name}` } : hit.team;
 
     const searchModeResults = useMemo(() => {
         if (hits === null) return null;
@@ -193,7 +196,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                             {searchModeResults.map(hit => (
                                 <TeamPreviewCard
                                     key={`${hit.kind}-${hit.team.team_id}`}
-                                    team={hit.team}
+                                    team={hitPreview(hit)}
                                     onClick={() => openHit(hit)}
                                 />
                             ))}

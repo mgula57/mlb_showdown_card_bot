@@ -220,7 +220,7 @@ export const CardItem = ({
             <div
                 className={`
                     ${className}
-                    flex flex-col p-2 gap-1
+                    flex flex-col pl-2 py-2 gap-1
                     bg-secondary
                     rounded-xl
                     border-3
@@ -344,7 +344,7 @@ export const CardItem = ({
                 </div>
 
                 {/* Bottom bar */}
-                <div className="flex flex-row justify-between items-center gap-x-1">
+                <div className="flex flex-row justify-between items-center gap-x-1 pr-0.5">
 
                     {/* Statistical highlights ribbon */}
                     <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
