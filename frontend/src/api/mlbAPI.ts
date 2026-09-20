@@ -236,6 +236,79 @@ export const fetchAsgShowdownTeam = async (seasonId: string | number, league: st
     return data.team as TeamBuilderTeam;
 };
 
+/** One of the fixed set of eras Era Rosters can be browsed for — ALL_TIME (a franchise's full
+ *  history) plus each decade. See RosterEraRegistry (backend) for the canonical list. */
+export type RosterEra = {
+    key: string;
+    label: string;
+    start_year: number;
+    end_year: number;
+};
+
+export const ALL_TIME_ERA_KEY = 'ALL_TIME';
+
+export const fetchRosterEras = async (): Promise<RosterEra[]> => {
+    const response = await fetch(`${API_BASE}/seasons/eras`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch roster eras: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return (data.eras ?? []) as RosterEra[];
+};
+
+/** A pre-processed Era Team from internal.dim_era_team — the best individual season any player
+ *  had for a current MLB franchise within the given era (all-time, or a single decade), drafted
+ *  into a full roster. Selection itself (not just the card lookup) is scoped to a Showdown set. */
+export type EraTeam = {
+    era: string;
+    showdown_set: string;
+    sport_id: number;
+    team_id: number;
+    name: string;
+    abbreviation: string;
+    bref_team_id?: string | null;
+    league_id?: number | null;
+    league_name?: string | null;
+    division_name?: string | null;
+    primary_color?: string | null;
+    secondary_color?: string | null;
+    roster_count: number;
+    total_points: number;
+    top_players?: CardDatabaseRecord[];
+};
+
+export const fetchEraTeams = async (options: {
+    era?: string;
+    showdownSet?: string;
+    q?: string;
+    sportId?: number;
+    limit?: number;
+    offset?: number;
+} = {}): Promise<{ teams: EraTeam[] }> => {
+    const params = new URLSearchParams({ sport_id: String(options.sportId ?? 1), era: options.era ?? ALL_TIME_ERA_KEY });
+    if (options.showdownSet) params.set('showdown_set', options.showdownSet);
+    if (options.q) params.set('q', options.q);
+    if (options.limit != null) params.set('limit', String(options.limit));
+    if (options.offset != null) params.set('offset', String(options.offset));
+    const response = await fetch(`${API_BASE}/seasons/eras/teams?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch era teams: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return { teams: (data.teams ?? []) as EraTeam[] };
+};
+
+export const fetchEraShowdownTeam = async (teamId: number, sportId: number, era?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
+    const params = new URLSearchParams({ sport_id: String(sportId), era: era ?? ALL_TIME_ERA_KEY });
+    if (showdownSet) params.set('showdown_set', showdownSet);
+    const response = await fetch(`${API_BASE}/seasons/eras/teams/${teamId}/showdown_team?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch era team ${teamId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.team as TeamBuilderTeam;
+};
+
 const getUserTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
 
 const getDateInTimeZone = (timeZone: string): string => {

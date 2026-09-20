@@ -88,7 +88,7 @@ function PositionRow({
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
             >
-            <span className={`text-[11px] font-bold w-6 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
+            <span className={`text-[11px] font-bold w-5 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
                 <div className={`flex-1 min-w-0 transition-transform ${isPeerHovered ? 'scale-[1.02]' : 'hover:scale-[1.02]'} active:scale-[0.98]`}>
                     <CardItemFromCardDatabaseRecord
@@ -244,10 +244,10 @@ export function DepthChartPanel({
     const bullpenKpis  = buildPitcherKpis(filledBullCards, bullpenPts);
 
     return (
-        <div className="@container flex flex-col h-full min-h-0 px-4">
+        <div className="@container flex flex-col h-full min-h-0 px-4 scrollbar-hide">
             <div className="flex flex-col @field-split:flex-row flex-1 min-h-0 gap-4">
                 {/* Column 1: Position Players + Bench */}
-                <div className="flex flex-col gap-1.5 @field-split:flex-1 @field-split:min-w-0 @field-split:min-h-0 @field-split:overflow-y-auto @field-split:pr-4 @field-split:border-r @field-split:border-(--divider)">
+                <div className="flex flex-col gap-1.5 scrollbar-hide @field-split:flex-1 @field-split:min-w-0 @field-split:min-h-0 @field-split:overflow-y-auto @field-split:pr-4 @field-split:border-r @field-split:border-(--divider)">
                     <div className="shrink-0"><SectionHeader label="Starting Lineup" filledCount={filledLineupCards.length} total={lineupPts} kpis={lineupKpis} /></div>
                     {FIELD_POSITIONS.map(pos => {
                         const slot = slotByPos[pos] ?? null;
@@ -294,7 +294,7 @@ export function DepthChartPanel({
                 </div>
 
                 {/* Column 2: Rotation + Bullpen */}
-                <div className="flex flex-col gap-1.5 @field-split:flex-1 @field-split:min-w-0 @field-split:min-h-0 @field-split:overflow-y-auto">
+                <div className="flex flex-col gap-1.5 scrollbar-hide @field-split:flex-1 @field-split:min-w-0 @field-split:min-h-0 @field-split:overflow-y-auto">
                     <div className="shrink-0"><SectionHeader label="Rotation" filledCount={filledRotCards.length} total={rotationPts} kpis={rotationKpis} /></div>
                     {ACTIVE_ROTATION_ROLES.map((role, idx) => {
                         const assignment = roleByKey[role] ?? null;
@@ -341,7 +341,12 @@ export function DepthChartPanel({
                             />
                         );
                     })}
+
+                    {/* Bottom Padding */}
+                    <div className="h-24 shrink-0" />
                 </div>
+
+                
             </div>
 
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>

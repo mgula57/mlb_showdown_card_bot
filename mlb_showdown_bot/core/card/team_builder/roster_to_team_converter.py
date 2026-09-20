@@ -154,6 +154,39 @@ class RosterToTeamConverter:
             return card.player_type == 'HITTER'  # any hitter can DH
         return any(pos in pos_list for pos in valid_in_game_positions)
 
+    @staticmethod
+    def _bullpen_pool(
+        starters: list[ExploreDataRecord], relievers: list[ExploreDataRecord], rotation_ids: set[str],
+    ) -> list[ExploreDataRecord]:
+        """Pitchers eligible for the bullpen/closer roles.
+
+        A real single-season roster's extra starter (didn't make the 5-man rotation) becomes a
+        long reliever in real life -- a normal, common bullpen role -- so both leftover starters
+        and true relievers are eligible here by default. Overridden by EraRosterDrafter, where a
+        career-bests pool makes that comparison meaningless: an elite starter's off-year should
+        drop off the roster entirely rather than "become" a reliever.
+        """
+        return [c for c in relievers if c.card_id not in rotation_ids] + [c for c in starters if c.card_id not in rotation_ids]
+
+    def _compose_depth(
+        self, bench: list[ExploreDataRecord], bullpen: list[ExploreDataRecord], closer: Optional[ExploreDataRecord],
+        core_count: int, max_roster_size: int,
+    ) -> tuple[list[ExploreDataRecord], list[ExploreDataRecord]]:
+        """Trim bench/bullpen depth (beyond lineup + rotation + closer) down to the roster cap.
+
+        Pools the bench and non-closer bullpen together and keeps the highest-value players
+        regardless of hitter/pitcher split -- appropriate for a real single season, where uneven
+        bench/bullpen depth (e.g. a thin bench on a pitching-heavy roster) is a real fact of that
+        specific roster. Overridden by EraRosterDrafter, where pooling a career-bests candidate
+        list this way would starve the bench of picks entirely (see its own _compose_depth).
+        """
+        depth_pool = bench + [c for c in bullpen if c is not closer]
+        depth = sorted(depth_pool, key=self._by_games_played, reverse=True)[:max(0, max_roster_size - core_count)]
+        depth_ids = {c.card_id for c in depth}
+        bench_out = [c for c in bench if c.card_id in depth_ids]
+        bullpen_out = [c for c in bullpen if c is closer or c.card_id in depth_ids]
+        return bench_out, bullpen_out
+
     # ------------------------------------------------------------------
     # COMPOSITION
     # ------------------------------------------------------------------
@@ -290,7 +323,7 @@ class RosterToTeamConverter:
 
         # BULLPEN: reliever with the most saves closes, the rest by appearances
         rotation_ids = {c.card_id for c in rotation_cards}
-        bullpen_pool = [c for c in relievers if c.card_id not in rotation_ids] + [c for c in starters if c.card_id not in rotation_ids]
+        bullpen_pool = self._bullpen_pool(starters=starters, relievers=relievers, rotation_ids=rotation_ids)
         closer = max(bullpen_pool, key=self._by_saves) if bullpen_pool else None
         bullpen = [closer] if closer else []
         bullpen += sorted([c for c in bullpen_pool if c is not closer], key=self._by_games_played, reverse=True)
@@ -300,11 +333,10 @@ class RosterToTeamConverter:
         max_roster_size = self._max_roster_size(self.season)
         if max_roster_size is not None:
             core_count = len(lineup_slots) + len(rotation_cards) + (1 if closer else 0)
-            depth_pool = bench + [c for c in bullpen if c is not closer]
-            depth = sorted(depth_pool, key=self._by_games_played, reverse=True)[:max(0, max_roster_size - core_count)]
-            depth_ids = {c.card_id for c in depth}
-            bench = [c for c in bench if c.card_id in depth_ids]
-            bullpen = [c for c in bullpen if c is closer or c.card_id in depth_ids]
+            bench, bullpen = self._compose_depth(
+                bench=bench, bullpen=bullpen, closer=closer,
+                core_count=core_count, max_roster_size=max_roster_size,
+            )
 
         for card in bench:
             roster_slots.append(TeamRosterSlot(

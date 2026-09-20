@@ -15,7 +15,7 @@ import {
 } from '../../api/userTeams';
 import { buildDefaultTeamPayload } from '../../domain/newTeam';
 import {
-    fetchShowdownTeam, fetchAsgShowdownTeam,
+    fetchShowdownTeam, fetchAsgShowdownTeam, fetchEraShowdownTeam,
     type Season,
 } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
@@ -41,11 +41,17 @@ import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar, FaWandMagicSparkles, FaListCheck, FaTrophy, FaDice } from 'react-icons/fa6';
 import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 
-// A team can be addressed by URL three ways: a saved UUID, a historical MLB team, or an All-Star team.
+// A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
+// team, or an Era Roster (all-time or all-decade).
 type TeamRef =
     | { kind: 'saved'; teamId: string }
     | { kind: 'historical'; sportId: number; season: string; teamId: number }
-    | { kind: 'asg'; season: string; league: string };
+    | { kind: 'asg'; season: string; league: string }
+    | { kind: 'era'; sportId: number; era: string; teamId: number };
+
+// Path segments reserved for non-"saved" team refs and other top-level Team Builder screens —
+// none of these should ever fall through to being parsed as a saved team's UUID.
+const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'all', 'collections', 'admin'];
 
 function parseTeamRef(pathname: string): TeamRef | null {
     const parts = pathname.split('/').filter(Boolean);
@@ -56,7 +62,10 @@ function parseTeamRef(pathname: string): TeamRef | null {
     if (parts[1] === 'asg' && parts[3] !== undefined) {
         return { kind: 'asg', season: parts[2], league: parts[3].toUpperCase() };
     }
-    if (parts[1] !== 'historical' && parts[1] !== 'asg' && parts[1] !== 'challenges' && parts[1] !== 'all' && parts[1] !== 'collections' && parts[1] !== 'admin') {
+    if (parts[1] === 'era' && parts[4] !== undefined) {
+        return { kind: 'era', sportId: Number(parts[2]), era: parts[3], teamId: Number(parts[4]) };
+    }
+    if (!RESERVED_TEAM_PATH_SEGMENTS.includes(parts[1])) {
         return { kind: 'saved', teamId: parts[1] };
     }
     return null;
@@ -293,6 +302,10 @@ export default function TeamBuilder() {
                 },
                 readOnly: true,
             };
+        }
+        if (ref.kind === 'era') {
+            const team = await fetchEraShowdownTeam(ref.teamId, ref.sportId, ref.era, userShowdownSet);
+            return { team, readOnly: true };
         }
         // historical MLB team — nav state is the warm-path optimization only. Pre-processed teams
         // carry their own identity on the payload, so a cold link needs no client-side resolution.

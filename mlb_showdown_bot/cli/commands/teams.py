@@ -3,13 +3,16 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import typer
 from prettytable import PrettyTable
 
 from ...core.database.postgres_db import PostgresDB, Set
-from ...core.card.team_builder import Team, TeamSource, RosterToTeamConverter
+from ...core.card.team_builder import (
+    Team, TeamSource, RosterToTeamConverter, EraRosterDrafter, RosterEraRegistry,
+    LEAGUE_WIDE_TEAM_ID, LEAGUE_WIDE_ABBR, LEAGUE_WIDE_NAME,
+)
 from ...core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team, fetch_stratified_candidates
 from ...core.mlb_stats_api import MLBStatsAPI
 from ...core.mlb_stats_api.models.teams.team import TeamWithColors
@@ -179,6 +182,169 @@ def build_historical_teams(
     db.close_connection()
     suffix = " (dry run — nothing written)" if dry_run else ""
     typer.echo(f"\nDone. {total_teams} team(s), {total_slots} roster slot(s) across {len(seasons)} season(s).{suffix}")
+
+
+class _EraTeamSpec(NamedTuple):
+    """One roster to build for a given era/set: either a real current MLB team, or the
+    LEAGUE_WIDE_TEAM_ID sentinel (`team_abbr=None` skips fetch_era_candidate_pool's team
+    crosswalk entirely, pooling every team's cards for the era instead of one franchise's)."""
+    id: int
+    name: str
+    abbreviation: str
+    team_abbr: Optional[str]  # None => league-wide, no team filter
+    bref_team_id: Optional[str]
+    league_id: Optional[int]
+    league_name: Optional[str]
+    division_name: Optional[str]
+    primary_color: Optional[str]
+    secondary_color: Optional[str]
+
+
+@app.command("build-era-rosters")
+def build_era_rosters(
+    sport_id: int = typer.Option(1, "--sport-id", help="MLB Stats API sport id (1 = MLB)"),
+    showdown_sets: Optional[str] = typer.Option(None, "--set", "-s", help="Comma-separated Showdown set(s) to build. Omit to build every set."),
+    eras: str = typer.Option(RosterEraRegistry.ALL_TIME_KEY, "--era", help="Comma-separated era(s) to build (e.g. 'ALL_TIME,1990s,2000s'), or 'all' for every known era."),
+    team_id: Optional[int] = typer.Option(None, "--team-id", help=f"Single current MLB team id to (re)build, or {LEAGUE_WIDE_TEAM_ID} for the cross-team 'All-MLB' roster; omit to process every current team"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Print each composed roster without writing to DB"),
+    env: str = typer.Option("dev", "--env", "-e", help="Database environment: dev | prod"),
+):
+    """Pre-process Era Rosters (all-time and/or all-decade) into internal.dim_era_team / dim_era_roster.
+
+    For each requested era, team, and requested Showdown set, pools every qualified card_bot
+    season (EraRosterDrafter's own real batting-title/ERA-title standard, computed live rather
+    than stored) that the team's players recorded within the era's year range -- resolved via
+    Team.map_from_mlb_api_team(...).for_year(...) the same way the historical-team card pool's
+    own fallback path does -- and drafts a full roster with EraRosterDrafter, ranked purely by
+    points. `--era ALL_TIME` (the default) covers a franchise's full history; `--era 1990s`
+    (etc.) restricts to that decade -- see RosterEraRegistry for the fixed list of supported
+    eras. `--team-id 0` builds a single cross-team "All-MLB" roster instead of one per current
+    franchise -- the best qualifying players at any team during the era.
+    """
+    sets_to_build = [s.strip() for s in showdown_sets.split(",") if s.strip()] if showdown_sets else [s.value for s in Set]
+    for sv in sets_to_build:
+        try:
+            Set(sv)
+        except ValueError:
+            typer.echo(f"Invalid set '{sv}'. Valid options: {[s.value for s in Set]}", err=True)
+            raise typer.Exit(1)
+
+    if eras.strip().lower() == "all":
+        eras_to_build = RosterEraRegistry.all()
+    else:
+        era_keys = [e.strip() for e in eras.split(",") if e.strip()]
+        eras_to_build = [RosterEraRegistry.from_key(k) for k in era_keys]
+        for k, resolved in zip(era_keys, eras_to_build):
+            if resolved is None:
+                valid = [e.key for e in RosterEraRegistry.all()]
+                typer.echo(f"Invalid era '{k}'. Valid options: {valid}", err=True)
+                raise typer.Exit(1)
+
+    db = PostgresDB(is_archive=(env.lower() == "prod"))
+    if not dry_run:
+        db.build_era_team_tables()
+
+    current_year = datetime.now().year
+    if team_id == LEAGUE_WIDE_TEAM_ID:
+        team_specs = [_EraTeamSpec(
+            id=LEAGUE_WIDE_TEAM_ID, name=LEAGUE_WIDE_NAME, abbreviation=LEAGUE_WIDE_ABBR, team_abbr=None,
+            bref_team_id=None, league_id=None, league_name=None, division_name=None,
+            primary_color=None, secondary_color=None,
+        )]
+    else:
+        api = MLBStatsAPI()
+        api_teams = api.teams.get_teams(season=current_year, sport_id=sport_id)
+        if team_id is not None:
+            api_teams = [t for t in api_teams if t.id == team_id]
+        team_specs = []
+        for api_team in api_teams:
+            team_with_colors = TeamWithColors(**api_team.model_dump())
+            team_with_colors.load_colors_from_showdown_team()
+            abbr = api_team.abbreviation or str(api_team.id)
+            team_specs.append(_EraTeamSpec(
+                id=api_team.id, name=api_team.name or abbr, abbreviation=abbr, team_abbr=abbr,
+                bref_team_id=api_team.bref_team,
+                league_id=api_team.league.id if api_team.league else None,
+                league_name=api_team.league.name if api_team.league else None,
+                division_name=api_team.division.name if api_team.division else None,
+                primary_color=team_with_colors.primary_color,
+                secondary_color=team_with_colors.secondary_color,
+            ))
+
+    total_rosters = 0
+    for era in eras_to_build:
+        for showdown_set_value in sets_to_build:
+            set_teams = 0
+            for spec in team_specs:
+                candidates = db.fetch_era_candidate_pool(
+                    team_abbr=spec.team_abbr, showdown_set=showdown_set_value,
+                    start_year=era.start_year, end_year=min(era.end_year, current_year),
+                )
+                if not candidates:
+                    continue
+
+                composed = EraRosterDrafter(
+                    cards=candidates,
+                    team_id=f"era-{era.key}-{sport_id}-{spec.id}-{showdown_set_value}",
+                    name=spec.name,
+                    abbreviation=spec.abbreviation,
+                ).build()
+
+                mlb_id_by_card_id = {c.card_id: c.mlb_id for c in candidates if c.card_id and c.mlb_id is not None}
+                name_by_card_id = {c.card_id: c.name for c in candidates if c.card_id}
+                player_type_by_card_id = {c.card_id: c.player_type for c in candidates if c.card_id}
+                year_by_card_id = {c.card_id: c.year for c in candidates if c.card_id}
+                batting_order_by_card_id = {
+                    slot.card_id: slot.batting_order
+                    for lineup in composed.lineups for slot in lineup.slots
+                }
+                rows = [
+                    {
+                        'mlb_id': mlb_id_by_card_id[slot.card_id],
+                        'player_type': player_type_by_card_id.get(slot.card_id) or 'HITTER',
+                        'year': year_by_card_id[slot.card_id],
+                        'player_name': name_by_card_id.get(slot.card_id),
+                        'roster_position': slot.roster_position,
+                        'batting_order': batting_order_by_card_id.get(slot.card_id),
+                        'slot_order': i,
+                    }
+                    for i, slot in enumerate(composed.roster)
+                    if slot.card_id in mlb_id_by_card_id
+                ]
+                if not rows:
+                    continue
+
+                if dry_run:
+                    typer.echo(f"\n  [{era.key}/{showdown_set_value}] {spec.name} ({spec.abbreviation}) — {len(rows)} slots")
+                    for row in rows:
+                        order = f" #{row['batting_order']}" if row['batting_order'] else ""
+                        typer.echo(f"    {row['roster_position']:<4}{order:<4} {row['year']}  {row['player_name']}")
+                else:
+                    db.upsert_era_team({
+                        'era': era.key,
+                        'showdown_set': showdown_set_value,
+                        'sport_id': sport_id,
+                        'team_id': spec.id,
+                        'abbreviation': spec.abbreviation,
+                        'name': spec.name,
+                        'bref_team_id': spec.bref_team_id,
+                        'league_id': spec.league_id,
+                        'league_name': spec.league_name,
+                        'division_name': spec.division_name,
+                        'primary_color': spec.primary_color,
+                        'secondary_color': spec.secondary_color,
+                        'roster_count': len(rows),
+                    })
+                    db.upsert_era_roster_rows(era=era.key, showdown_set=showdown_set_value, sport_id=sport_id, team_id=spec.id, rows=rows)
+
+                set_teams += 1
+                total_rosters += 1
+
+            typer.echo(f"{era.key}/{showdown_set_value}: {set_teams} team(s)")
+
+    db.close_connection()
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    typer.echo(f"\nDone. {total_rosters} era roster(s) across {len(eras_to_build)} era(s) x {len(sets_to_build)} set(s).{suffix}")
 
 
 @app.command("upload")

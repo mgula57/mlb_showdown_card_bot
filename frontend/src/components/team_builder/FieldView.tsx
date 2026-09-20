@@ -238,11 +238,18 @@ export function FieldView({
                             { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF },
                             { label: 'TOTAL IF', value: totalDefIF, color: colorDefIF },
                             { label: 'CA ARM',   value: armC,       color: colorArmC },
-                        ] as const).map(({ label, value, color }) => value !== null && (
+                        ] as const).map(({ label, value, color }) => (
                             <Fragment key={label}>
                                 <span className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-wide">{label}</span>
                                 <span className={`text-xs font-black text-right ${color}`}>
-                                    {value > 0 ? `+${value}` : value}
+                                    {
+                                        value === null ?
+                                            '-'
+                                         : (
+                                            value > 0 ? `+${value}`
+                                            : value
+                                        )
+                                    }
                                 </span>
                             </Fragment>
                         ))}

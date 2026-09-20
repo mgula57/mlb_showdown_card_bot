@@ -2427,6 +2427,346 @@ class PostgresDB:
         cards = [ExploreDataRecord(**row) for row in rows] if rows else []
         return cards, meta_rows
 
+    # ------------------------------------------------------------------------
+    # ALL-TIME TEAMS (PRE-PROCESSED ROSTER SLOTS)
+    # ------------------------------------------------------------------------
+
+    def build_era_team_tables(self) -> None:
+        """Create internal.dim_era_team and internal.dim_era_roster.
+
+        Backs "Era Rosters" -- all-time and all-decade team rosters (see RosterEraRegistry).
+        Same parent/bridge shape as dim_historical_team/dim_historical_roster, but unlike that
+        pair this one is NOT set-agnostic: the selection itself (not just the card lookup) is
+        ranked by `points`, which is set-specific, so `showdown_set` is part of both tables'
+        primary keys, alongside `era` (RosterEraRegistry key, e.g. 'ALL_TIME' or '1990s'). Each
+        roster row also stores the specific `year` its card came from, since an era roster has
+        no single season to imply it. Populated by `showdown_bot teams build-era-rosters`.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_era_team (
+                    era             TEXT NOT NULL,
+                    showdown_set    TEXT NOT NULL,
+                    sport_id        INT  NOT NULL DEFAULT 1,
+                    team_id         INT  NOT NULL,
+                    abbreviation    TEXT,
+                    name            TEXT,
+                    bref_team_id    TEXT,
+                    league_id       INT,
+                    league_name     TEXT,
+                    division_name   TEXT,
+                    primary_color   TEXT,
+                    secondary_color TEXT,
+                    roster_count    INT  NOT NULL DEFAULT 0,
+                    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (era, showdown_set, sport_id, team_id)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_era_team_abbr
+                    ON internal.dim_era_team (abbreviation);
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_era_roster (
+                    era             TEXT NOT NULL,
+                    showdown_set    TEXT NOT NULL,
+                    sport_id        INT  NOT NULL DEFAULT 1,
+                    team_id         INT  NOT NULL,
+                    mlb_id          INT  NOT NULL,
+                    player_type     VARCHAR(8) NOT NULL DEFAULT 'HITTER',
+                    year            INT  NOT NULL,
+                    player_name     TEXT,
+                    roster_position VARCHAR(4),
+                    batting_order   INT,
+                    slot_order      INT  NOT NULL DEFAULT 0,
+                    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (era, showdown_set, sport_id, team_id, mlb_id, player_type)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_era_roster_team
+                    ON internal.dim_era_roster (era, showdown_set, sport_id, team_id);
+            """)
+        # The candidate-pool fetch filters card_bot on (team_id, year, showdown_set) across a
+        # franchise's whole history — without this index that's a seq-scan of a multi-GB table.
+        # Built CONCURRENTLY (outside the transaction the pool already runs in via autocommit) so
+        # card uploads aren't blocked while it builds. A failed CONCURRENTLY build leaves an
+        # INVALID index behind; drop it and rerun.
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute("""
+                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_team_year_set
+                        ON card_bot (team_id, year, showdown_set);
+                """)
+        except Exception as e:
+            print(f"Skipped idx_card_bot_team_year_set: {e}")
+
+    def upsert_era_team(self, team: dict) -> None:
+        """Upsert one identity row into internal.dim_era_team.
+
+        `team` keys: era, showdown_set, sport_id, team_id, abbreviation, name, bref_team_id,
+        league_id, league_name, division_name, primary_color, secondary_color, roster_count.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.dim_era_team
+                    (era, showdown_set, sport_id, team_id, abbreviation, name, bref_team_id,
+                     league_id, league_name, division_name, primary_color, secondary_color, roster_count)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (era, showdown_set, sport_id, team_id) DO UPDATE SET
+                    abbreviation = EXCLUDED.abbreviation,
+                    name = EXCLUDED.name,
+                    bref_team_id = EXCLUDED.bref_team_id,
+                    league_id = EXCLUDED.league_id,
+                    league_name = EXCLUDED.league_name,
+                    division_name = EXCLUDED.division_name,
+                    primary_color = EXCLUDED.primary_color,
+                    secondary_color = EXCLUDED.secondary_color,
+                    roster_count = EXCLUDED.roster_count,
+                    updated_at = NOW()
+                """,
+                (
+                    team['era'], team['showdown_set'], team.get('sport_id', 1), team['team_id'],
+                    team.get('abbreviation'), team.get('name'), team.get('bref_team_id'),
+                    team.get('league_id'), team.get('league_name'), team.get('division_name'),
+                    team.get('primary_color'), team.get('secondary_color'), team.get('roster_count', 0),
+                ),
+            )
+
+    def upsert_era_roster_rows(self, era: str, showdown_set: str, sport_id: int, team_id: int, rows: list[dict]) -> int:
+        """Replace a team's stored era roster slots with `rows`. Returns the number written.
+
+        Each row: {mlb_id, player_type, year, player_name, roster_position, batting_order, slot_order}.
+        `player_type` is part of the key so a two-way player's pitching and hitting slots are
+        stored as two distinct rows rather than colliding on mlb_id.
+        """
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.dim_era_roster WHERE era = %s AND showdown_set = %s AND sport_id = %s AND team_id = %s",
+                (era, showdown_set, sport_id, team_id),
+            )
+            if not rows:
+                return 0
+            values = [
+                (
+                    era, showdown_set, sport_id, team_id, r['mlb_id'], (r.get('player_type') or 'HITTER'), r['year'],
+                    r.get('player_name'), r.get('roster_position'), r.get('batting_order'), r.get('slot_order', i),
+                )
+                for i, r in enumerate(rows)
+            ]
+            cur.executemany(
+                """
+                INSERT INTO internal.dim_era_roster
+                    (era, showdown_set, sport_id, team_id, mlb_id, player_type, year, player_name, roster_position, batting_order, slot_order)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (era, showdown_set, sport_id, team_id, mlb_id, player_type) DO UPDATE SET
+                    year = EXCLUDED.year,
+                    player_name = EXCLUDED.player_name,
+                    roster_position = EXCLUDED.roster_position,
+                    batting_order = EXCLUDED.batting_order,
+                    slot_order = EXCLUDED.slot_order,
+                    updated_at = NOW()
+                """,
+                values,
+            )
+        return len(values)
+
+    _ERA_TEAM_SUMMARY_SELECT = f"""
+        SELECT
+            t.era, t.showdown_set, t.sport_id, t.team_id,
+            t.name, t.abbreviation, t.bref_team_id,
+            t.league_id, t.league_name, t.division_name,
+            t.primary_color, t.secondary_color, t.updated_at,
+            'mlb'::text AS source,
+            COUNT(r.mlb_id) AS roster_count,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
+            COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
+            COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position = 'BE'
+                    THEN COALESCE(cb.points, 0) * {_HISTORICAL_BENCH_PTS_MULTIPLIER}
+                    ELSE COALESCE(cb.points, 0)
+                END
+            ), 0)::int AS total_points,
+            COALESCE(tp.refs, '[]'::jsonb) AS top_player_refs
+        FROM internal.dim_era_team t
+        LEFT JOIN internal.dim_era_roster r
+            ON r.era = t.era AND r.showdown_set = t.showdown_set AND r.sport_id = t.sport_id AND r.team_id = t.team_id
+        LEFT JOIN LATERAL (
+            SELECT points FROM card_bot
+            WHERE mlb_id = r.mlb_id AND player_type = r.player_type
+                AND year = r.year AND showdown_set = t.showdown_set
+            LIMIT 1
+        ) cb ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+                jsonb_build_object('card_id', x.card_id, 'card_source', 'BOT')
+                ORDER BY x.pts DESC
+            ) AS refs
+            FROM (
+                SELECT cbx.card_id, cbx.points AS pts
+                FROM internal.dim_era_roster rr
+                JOIN LATERAL (
+                    SELECT card_id, points FROM card_bot
+                    WHERE mlb_id = rr.mlb_id AND player_type = rr.player_type
+                        AND year = rr.year AND showdown_set = t.showdown_set
+                    LIMIT 1
+                ) cbx ON TRUE
+                WHERE rr.era = t.era AND rr.showdown_set = t.showdown_set AND rr.sport_id = t.sport_id AND rr.team_id = t.team_id
+                ORDER BY cbx.points DESC NULLS LAST
+                LIMIT 3
+            ) x
+        ) tp ON TRUE
+    """
+
+    def fetch_era_teams(self, era: str, showdown_set: str, q: Optional[str] = None,
+                         sport_id: int = 1, limit: int = 60, offset: int = 0) -> list[dict]:
+        """Return one era's pre-processed teams as TeamSummary-shaped rows, highest points first."""
+        if not self.connection:
+            return []
+        conditions = ["t.era = %s", "t.showdown_set = %s", "t.sport_id = %s", "t.roster_count > 0"]
+        params: list = [era, showdown_set, sport_id]
+        if q:
+            conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s)")
+            like = f"%{q}%"
+            params.extend([like, like])
+        query = self._ERA_TEAM_SUMMARY_SELECT + f"""
+            WHERE {' AND '.join(conditions)}
+            GROUP BY t.era, t.showdown_set, t.sport_id, t.team_id, tp.refs
+            ORDER BY total_points DESC, t.abbreviation ASC
+            LIMIT %s OFFSET %s
+        """
+        params += [limit, offset]
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            rows = [dict(r) for r in cur.fetchall()]
+        return self._serialize_team_summaries(rows)
+
+    def fetch_era_team(self, team_id: int, era: str, showdown_set: str, sport_id: int = 1) -> Optional[dict]:
+        """Return the stored identity row for one team's era roster, or None if not pre-processed."""
+        if not self.connection:
+            return None
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT era, showdown_set, sport_id, team_id, name, abbreviation, bref_team_id,
+                       league_id, league_name, division_name, primary_color, secondary_color
+                FROM internal.dim_era_team
+                WHERE era = %s AND showdown_set = %s AND sport_id = %s AND team_id = %s
+                """,
+                (era, showdown_set, sport_id, team_id),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def fetch_era_team_card_pool(self, team_id: int, era: str, showdown_set: str, sport_id: int = 1) -> tuple[list[ExploreDataRecord], list[dict]]:
+        """Fetch the cards for a pre-processed era team's stored roster, plus the stored slot rows.
+
+        Unlike fetch_historical_team_card_pool, each stored slot carries its own `year` (there's
+        no single shared season to imply it), so the card lookup fetches by mlb_id + showdown_set
+        and then filters down in Python to exactly the (mlb_id, player_type, year) triples the
+        stored slots point at.
+        """
+        if self.connection is None:
+            return [], []
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT mlb_id, player_type, year, player_name, roster_position, batting_order, slot_order
+                FROM internal.dim_era_roster
+                WHERE era = %s AND showdown_set = %s AND sport_id = %s AND team_id = %s
+                ORDER BY slot_order
+                """,
+                (era, showdown_set, sport_id, team_id),
+            )
+            meta_rows = [dict(r) for r in cur.fetchall()]
+        if not meta_rows:
+            return [], []
+        mlb_ids = list({r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None})
+        if not mlb_ids:
+            return [], meta_rows
+        query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            WHERE cards.mlb_id IN %s AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), showdown_set))
+        all_cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        wanted = {(r['mlb_id'], r.get('player_type') or 'HITTER', r['year']) for r in meta_rows}
+        cards = [c for c in all_cards if (c.mlb_id, c.player_type, c.year) in wanted]
+        return cards, meta_rows
+
+    def fetch_era_candidate_pool(self, team_abbr: Optional[str], showdown_set: str,
+                                  start_year: int, end_year: int) -> list[ExploreDataRecord]:
+        """Every non-small-sample card_bot season recorded within [start_year, end_year] -- the
+        raw material for an Era Roster (all-time or a single decade; see RosterEraRegistry, whose
+        (start_year, end_year) the caller passes through) -- for one MLB team (`team_abbr` given),
+        or league-wide across every team (`team_abbr=None`, for a cross-team "All-MLB" era roster
+        -- see LEAGUE_WIDE_TEAM_ID) with no team filter at all.
+
+        This is a coarse pre-filter only — is_small_sample_size is a low "played enough to show
+        up" bar (250 PA / 75 IP-SP / 30 IP-RP). The caller (EraRosterDrafter) applies the real
+        batting-title / ERA-title "qualified" standard on top of this pool in Python rather than
+        persisting it as a card_bot column, so a September call-up's 40-game cameo can clear this
+        filter but still won't out-qualify a real everyday player at the drafting step.
+
+        card_bot.team_id is a bref-style abbreviation, era-correct for the year it was recorded
+        (1998 Tampa Bay is 'TBD', not 'TBR') — not the numeric MLB API team id. Team.for_year(...)
+        already resolves this (see fetch_team_season_card_pool's historical fallback), so this
+        reuses it directly rather than introducing any separate crosswalk table: the requested
+        year range is split into contiguous sub-ranges of the same bref abbreviation, and each is
+        queried against card_bot separately (most franchises are a single abbreviation across any
+        given range; a handful of modern relocations are 2-3 — see Team.for_year).
+        """
+        if self.connection is None:
+            return []
+        if team_abbr is None:
+            query = sql.SQL("""
+                SELECT cards.*, 'BOT' AS source
+                FROM card_bot AS cards
+                WHERE cards.year BETWEEN %s AND %s
+                    AND cards.showdown_set = %s
+                    AND COALESCE(cards.is_small_sample_size, false) = false
+            """)
+            rows = self.execute_query(query=query, filter_values=(start_year, end_year, showdown_set))
+            return [ExploreDataRecord(**row) for row in (rows or [])]
+        base = Team.map_from_mlb_api_team(team_abbr)
+        if base in (Team.MLB, Team.MILB):
+            return []
+        ranges: list[tuple[str, int, int]] = []
+        current_abbr, range_start = None, start_year
+        for year in range(start_year, end_year + 1):
+            abbr = base.for_year(year).value
+            if abbr != current_abbr:
+                if current_abbr is not None:
+                    ranges.append((current_abbr, range_start, year - 1))
+                current_abbr, range_start = abbr, year
+        if current_abbr is not None:
+            ranges.append((current_abbr, range_start, end_year))
+
+        all_cards: list[ExploreDataRecord] = []
+        for abbr, y0, y1 in ranges:
+            query = sql.SQL("""
+                SELECT cards.*, 'BOT' AS source
+                FROM card_bot AS cards
+                WHERE cards.team_id = %s AND cards.year BETWEEN %s AND %s
+                    AND cards.showdown_set = %s
+                    AND COALESCE(cards.is_small_sample_size, false) = false
+            """)
+            rows = self.execute_query(query=query, filter_values=(abbr, y0, y1, showdown_set))
+            all_cards.extend(ExploreDataRecord(**row) for row in (rows or []))
+        return all_cards
+
 # ------------------------------------------------------------------------
 # CARD DATA UPLOADS (BOT AND WOTC)
 # ------------------------------------------------------------------------
