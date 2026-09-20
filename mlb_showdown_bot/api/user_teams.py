@@ -9,6 +9,7 @@ from ..core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_tea
 from ..core.supabase import SupabaseClientManager, upload_to_supabase
 from .user_settings import require_auth, optional_user_id
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
+from .utils.profanity_filter import ProfanityFilter
 
 user_teams_bp = Blueprint('user_teams', __name__)
 
@@ -87,6 +88,19 @@ def normalize_lineups(payload: dict) -> str | None:
     return None
 
 
+def check_profanity(payload: dict) -> str | None:
+    """Reject a name/abbreviation containing filtered language. Returns an error message, or None.
+
+    Only checks fields present in the payload, so a partial update that doesn't touch
+    name/abbreviation is left alone.
+    """
+    for field in ('name', 'abbreviation'):
+        value = payload.get(field)
+        if value and ProfanityFilter.contains_profanity(value):
+            return f'{field} contains language that is not allowed'
+    return None
+
+
 @user_teams_bp.route('/user/teams', methods=['GET'])
 @require_auth
 def get_user_teams():
@@ -108,6 +122,9 @@ def create_team():
             return jsonify({'error': 'Request body must be a JSON object'}), 400
         if not payload.get('name') or not payload.get('abbreviation'):
             return jsonify({'error': 'name and abbreviation are required'}), 400
+        error = check_profanity(payload)
+        if error:
+            return jsonify({'error': error}), 400
         error = normalize_lineups(payload)
         if error:
             return jsonify({'error': error}), 400
@@ -141,6 +158,9 @@ def update_team(team_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
+        error = check_profanity(payload)
+        if error:
+            return jsonify({'error': error}), 400
         error = normalize_lineups(payload)
         if error:
             return jsonify({'error': error}), 400

@@ -16,6 +16,7 @@ import {
 import { FaUser, FaLayerGroup, FaGears, FaFilter, FaBoxArchive, FaSpinner } from 'react-icons/fa6';
 import { CardSource } from '../../types/cardSource';
 import ColorPicker from '../shared/ColorPicker';
+import { containsProfanity } from '../../domain/profanity';
 
 const TEAM_NAME_MAX_LENGTH = 25;
 
@@ -104,6 +105,8 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
     const rosterSizeError = rosterSize < MIN_ROSTER || rosterSize > MAX_ROSTER
         ? `Roster size must be between ${MIN_ROSTER} and ${MAX_ROSTER}.`
         : null;
+    const nameError = containsProfanity(team.name) ? 'Team name contains language that is not allowed.' : null;
+    const abbreviationError = containsProfanity(team.abbreviation) ? 'Abbreviation contains language that is not allowed.' : null;
     const minPtsLimit  = rosterSize * 10;
     const ptsLimit     = team.pts_limit ?? 5000;
     const ptsError     = ptsLimit < minPtsLimit
@@ -167,12 +170,22 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     isTitleCase
                     maxLength={TEAM_NAME_MAX_LENGTH}
                 />
+                {nameError && (
+                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {nameError}
+                    </div>
+                )}
                 <FormInput
                     label="Abbreviation"
                     value={team.abbreviation ?? ''}
                     onChange={v => onChange({ abbreviation: (v ?? '').toUpperCase().slice(0, 5) })}
                     placeholder="e.g. NYY"
                 />
+                {abbreviationError && (
+                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {abbreviationError}
+                    </div>
+                )}
                 <div className='flex flex-col space-y-2' >
                     <label className="text-sm font-medium text-secondary mt-0.5">Make Public?</label>
                     <FormEnabler

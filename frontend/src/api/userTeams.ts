@@ -1,6 +1,7 @@
 import type { CardSource } from '../types/cardSource';
 import type { CardDatabaseRecord } from './card_db/cardDatabase';
 import { activeSources, allowedSetsForSource } from '../domain/teamSets';
+import { containsProfanity } from '../domain/profanity';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -216,8 +217,9 @@ export function isTeamSetupValid(team: Partial<Team>): boolean {
     const rosterValid = rosterUsed <= rosterSize;
     const ptsValid = team.pts_limit == null || team.pts_limit >= rosterSize * 10;
     const setsValid = activeSources(team).every(source => allowedSetsForSource(team, source).length > 0);
+    const languageValid = !containsProfanity(name) && !containsProfanity(abbreviation);
 
-    return name.length > 0 && abbreviation.length > 0 && rosterValid && ptsValid && setsValid;
+    return name.length > 0 && abbreviation.length > 0 && rosterValid && ptsValid && setsValid && languageValid;
 }
 
 // Denormalized stat counters are server-only — never accepted on create or update.
