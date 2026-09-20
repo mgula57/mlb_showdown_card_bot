@@ -332,14 +332,16 @@ export const CardItem = ({
                 </div>
 
                 {/* Interactive chart showing dice roll outcomes */}
-                <CardChart
-                    chartRanges={cardChartRanges || {}} 
-                    showdownSet={cardSet || '2001'}
-                    primaryColor={colorStylingPrimary.backgroundColor}
-                    secondaryColor={colorStylingSecondary.backgroundColor}
-                    team={cardTeam}
-                    cellClassName="min-w-6 md:min-w-8" 
-                />
+                <div className="overflow-x-scroll scrollbar-hide">
+                    <CardChart
+                        chartRanges={cardChartRanges || {}}
+                        showdownSet={cardSet || '2001'}
+                        primaryColor={colorStylingPrimary.backgroundColor}
+                        secondaryColor={colorStylingSecondary.backgroundColor}
+                        team={cardTeam}
+                        cellClassName="min-w-6 md:min-w-8"
+                    />
+                </div>
 
                 {/* Bottom bar */}
                 <div className="flex flex-row justify-between items-center gap-x-1">
