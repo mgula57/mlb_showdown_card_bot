@@ -14,13 +14,17 @@ import { FaCheckCircle, FaRegCircle } from 'react-icons/fa';
  */
 type FormEnablerProps = {
     /** Display label for the toggle option */
-    label: string;
+    label: React.ReactNode;
     /** Current enabled/disabled state */
     isEnabled: boolean;
     /** Callback function when toggle state changes */
     onChange: (isEnabled: boolean) => void;
     /** Optional CSS class names for additional styling */
     className?: string;
+    /** When true, the toggle is shown but interaction is blocked */
+    isDisabled?: boolean;
+    /** Tooltip shown when isDisabled is true, explaining why it can't be toggled */
+    disabledReason?: string;
 };
 
 /**
@@ -45,22 +49,23 @@ type FormEnablerProps = {
  * @param className - Additional styling classes
  * @returns Interactive toggle button component
  */
-const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, className = "" }) => {
+const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, className = "", isDisabled = false, disabledReason }) => {
 
     return (
-        <button 
+        <button
             type="button"
+            title={isDisabled ? disabledReason : undefined}
             className={`
                 flex items-center gap-2
-                rounded-lg p-2 
+                rounded-lg p-2
                 font-semibold
-                cursor-pointer
                 text-base md:text-sm xl:text-base
-                ${isEnabled ? 'text-green-500' : 'text-gray-400 border-gray-200'}
-                ${isEnabled ? 'border-green-500 border' : 'border border-form-element'}
+                ${isDisabled
+                    ? 'cursor-not-allowed opacity-50 text-gray-400 border border-form-element'
+                    : `cursor-pointer ${isEnabled ? 'text-green-500 border-green-500 border' : 'text-gray-400 border-gray-200 border border-form-element'}`}
                 ${className}
-            `} 
-            onClick={() => onChange(isEnabled)}
+            `}
+            onClick={() => { if (!isDisabled) onChange(isEnabled); }}
         >
             {/* Toggle icon - checkmark when enabled, empty circle when disabled */}
             {isEnabled ? <FaCheckCircle /> : <FaRegCircle />}

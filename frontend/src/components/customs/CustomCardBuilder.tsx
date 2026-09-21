@@ -34,6 +34,8 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
+import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
 import { ToastMessage } from '../shared/ToastMessage';
@@ -50,7 +52,7 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 
@@ -78,7 +80,7 @@ export interface CustomCardFormState {
     edition: string; // e.g. "Cooperstown"
     add_one_to_set_year: boolean; // Whether to show the year + 1 in the set section
     show_year_text: boolean; // Whether to show the year text as a label on the card
-    disable_display_text_on_card?: boolean; // Whether to hide the stats period display text (e.g. split/date range) banner on the card. Only applicable for non-Base Set expansions
+    disable_display_text_on_card?: boolean; // Whether to hide the stats period display text (e.g. split/date range) banner on the card. Only applicable for non-Base Set expansions or All-Star Game/Postseason editions
 
     // Image
     image_source: string; // e.g. "Auto"
@@ -249,6 +251,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         || isProcessingCard
     )
     const isMultiYear = isMultiYearInput(form.year);
+    // Hiding the split/date text banner only applies to non-Base Set expansions (Trading Deadline, Pennant Run)
+    // or the All-Star Game / Postseason editions.
+    const canHideSplitDateText = form.expansion !== 'BS' || form.edition === 'ASG' || form.edition === 'POST';
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
     const getImagePreview = (): string | null => {
@@ -303,7 +308,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { 'value': 'NONE', 'label': 'None', 'symbol': '―' },
         { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': publicImagePath('edition-cc'), 'borderColor': 'border-amber-800' },
         { 'value': 'SS', 'label': 'Super Season', 'image': publicImagePath('edition-ss'), 'borderColor': 'border-red-500' },
-        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400', 'trailing': <NewBadge /> },
+        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400' },
         { 'value': 'RS', 'label': 'Rookie Season', 'image': publicImagePath('edition-rs'), 'borderColor': 'border-red-800' },
         { 'value': 'HOL', 'label': 'Holiday', 'symbol': '🎄', 'borderColor': 'border-green-600' },
         { 'value': 'NAT', 'label': 'Nationality', 'symbol': '🌍', 'borderColor': 'border-blue-500' },
@@ -472,7 +477,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
                 if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
-                if (form.expansion !== FORM_DEFAULTS.expansion && form.disable_display_text_on_card) summaries.push({ value: "Hide Split/Date Text", borderColor: 'border-green-500' });
+                if (form.disable_display_text_on_card) summaries.push({ value: "Hide Split/Date Text", borderColor: 'border-green-500' });
                 break;
                 
             case 'image':
@@ -1066,6 +1071,15 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
+            <WhatsNewBanner
+                storageKey="customCardBuilderWhatsNew_v4.4"
+                version="4.4"
+                features={[
+                    { icon: <FaCalendarXmark />, text: 'Hide the split/date text banner on TD/PR expansions and ASG/POST editions' },
+                    { icon: <FaScaleBalanced />, text: 'Regress small sample sizes toward replacement level for more realistic stats' },
+                ]}
+            />
+
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
@@ -1341,17 +1355,23 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 onChange={(value) => setForm({
                                                     ...form,
                                                     expansion: value,
-                                                    // Disable display text is only applicable to non-Base Set expansions.
-                                                    // Don't carry a TRUE value forward if the user switches back to Base Set.
-                                                    ...(value === 'BS' && { disable_display_text_on_card: false }),
+                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
+                                                    // Don't carry a TRUE value forward if it's no longer applicable.
+                                                    ...(!(value !== 'BS' || form.edition === 'ASG' || form.edition === 'POST') && { disable_display_text_on_card: false }),
                                                 })}
                                             />
 
                                             <FormDropdown
-                                                label={<span className="inline-flex items-center gap-1.5">Edition <NewBadge /></span>}
+                                                label="Edition"
                                                 options={editionOptions}
                                                 selectedOption={form.edition}
-                                                onChange={(value) => setForm({ ...form, edition: value })}
+                                                onChange={(value) => setForm({
+                                                    ...form,
+                                                    edition: value,
+                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
+                                                    // Don't carry a TRUE value forward if it's no longer applicable.
+                                                    ...(!(form.expansion !== 'BS' || value === 'ASG' || value === 'POST') && { disable_display_text_on_card: false }),
+                                                })}
                                             />
 
                                             <FormInput
@@ -1365,14 +1385,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
                                             <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
 
-                                            {form.expansion !== 'BS' && (
-                                                <FormEnabler
-                                                    label='Hide Split/Date Text'
-                                                    className='col-span-full'
-                                                    isEnabled={form.disable_display_text_on_card || false}
-                                                    onChange={(isEnabled) => setForm({ ...form, disable_display_text_on_card: !isEnabled })}
-                                                />
-                                            )}
+                                            <FormEnabler
+                                                label={<span className="inline-flex items-center gap-1.5">Hide Split/Date Text <NewBadge /></span>}
+                                                className='col-span-full'
+                                                isEnabled={form.disable_display_text_on_card || false}
+                                                onChange={(isEnabled) => setForm({ ...form, disable_display_text_on_card: !isEnabled })}
+                                                isDisabled={!canHideSplitDateText}
+                                                disabledReason='Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition'
+                                            />
 
                                         </FormSection>
 
@@ -1509,12 +1529,15 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
                                             />
 
-                                            <FormEnabler
-                                                label="Regress Small Sample Sizes to Replacement Level"
-                                                className="col-span-2"
-                                                isEnabled={form.regress_small_sample_to_replacement || false}
-                                                onChange={(isEnabled) => setForm({ ...form, regress_small_sample_to_replacement: !isEnabled })}
-                                            />
+                                            <div className="col-span-2 flex items-center gap-1.5">
+                                                <FormEnabler
+                                                    label={<span className="inline-flex items-center gap-1.5">Regress to Replacement Level <NewBadge /></span>}
+                                                    className="flex-1"
+                                                    isEnabled={form.regress_small_sample_to_replacement || false}
+                                                    onChange={(isEnabled) => setForm({ ...form, regress_small_sample_to_replacement: !isEnabled })}
+                                                />
+                                                <InfoTooltip iconSize="text-[16px]" text="Blends a player's real stats toward that year's replacement level, weighted by how few plate appearances/innings they actually have. A callup's hot 40-PA stretch gets pulled toward replacement level instead of standing in as his true talent; players with a full season are unaffected." />
+                                            </div>
 
                                         </FormSection>
                                     </>

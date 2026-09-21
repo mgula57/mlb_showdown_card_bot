@@ -352,7 +352,7 @@ export default function Home() {
                             Digital Cards that Play Ball.
                         </h1>
                         <p className={`text-base max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                            Turn real stats into Showdown cards, draft a team, and simulate full seasons — you're the GM of your own digital baseball universe.
+                            Turn real stats into Showdown cards, draft a team, and simulate full seasons — you're the GM of your own digital baseball-verse.
                         </p>
                     </div>
 
