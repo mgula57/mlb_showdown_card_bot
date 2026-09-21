@@ -233,7 +233,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             </Tabs.Root>
             )}
 
-            <GameInfo away={away} home={home} />
+            {/* Hidden alongside the box score during a sim replay - same reasoning as above: it
+                reads off the frozen final boxscore, not the playback cursor, so it comes back
+                once the replay reaches the end. */}
+            {!hideResult && <GameInfo away={away} home={home} />}
         </div>
     );
 
