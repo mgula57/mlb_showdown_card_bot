@@ -153,9 +153,11 @@ class PlayerLoader:
 
         The archive holds one current snapshot per player-year, not a history, so this can only
         ever reflect stats as of the archive's last scrape - which may lag whatever date the
-        caller intends to resume from. The second return value is the least-stale
-        `stats_modified_date` seen across every row, for callers to surface honestly rather than
-        implying the data is precisely as of the resume date itself.
+        caller intends to resume from. The second return value is the most recent
+        `stats_modified_date` seen across every row (i.e. the last scrape batch's timestamp) -
+        the vast majority of rows share it, with a handful of slow-to-update players (largely
+        inactive/off-roster) lagging behind. Taking the *oldest* row instead would let a single
+        such straggler make the whole merge look far staler than it actually is.
         """
         archives = self.db.fetch_all_stats_from_archive(year_list=[int(year)], exclude_records_with_stats=False)
         raw_by_bref_id: dict[tuple[str, str], dict] = {}
@@ -164,7 +166,7 @@ class PlayerLoader:
             if not archive.stats or not archive.bref_id:
                 continue
             raw_by_bref_id[(archive.bref_id, archive.player_type.upper())] = archive.stats
-            if archive.stats_modified_date and (as_of is None or archive.stats_modified_date < as_of):
+            if archive.stats_modified_date and (as_of is None or archive.stats_modified_date > as_of):
                 as_of = archive.stats_modified_date
         return raw_by_bref_id, as_of
 
