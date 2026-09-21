@@ -466,18 +466,35 @@ class StatsGroup:
         return [stats for stats in self.stats.values() if (stats.player_type == type)]
 
 
+# BREF-STYLE KEYS WHOSE LOWERCASED SPELLING DOESN'T MATCH THE `StatCategory` VALUE IT MAPS TO
+# (E.G. RAW `W` VS. `StatCategory.WINS` = "wins") - WITHOUT THIS, THE PLAIN LOWERCASE FILTER IN
+# `_real_stats_to_totals` SILENTLY DROPS THEM AND A MERGED PITCHER'S W/L COMES OUT SIM-ONLY.
+_BREF_KEY_ALIASES: dict[str, str] = {
+    'w': StatCategory.WINS.value,
+    'l': StatCategory.LOSSES.value,
+}
+
+
 def _real_stats_to_totals(raw_stats: dict, player_type: PlayerType) -> dict[str, float]:
     """Archive-style raw stats (uppercase bref keys, e.g. `PlayerArchive.stats`) -> a
     `Stats.totals`-shaped counting-stat dict, ready for `Stats.merge_totals`.
 
-    Filters down to `StatCategory` keys and lowercases them; for a pitcher, also converts bref's
-    `.1`/`.2` partial-inning IP notation to thirds and derives `er` from `earned_run_avg`, since
-    not every archive row carries a raw ER counting field. Shared by `real_life_stats_to_compare_to_sim`
-    (a full season's real stats, for the CLI's `--show_real_life_comparison`) and
-    `PlayerStatsGroup.merge_real_season_stats` (a rest-of-season projection's real-to-date stats).
+    Filters down to `StatCategory` keys and lowercases them (remapping the handful whose bref
+    spelling doesn't match the category value via `_BREF_KEY_ALIASES`); for a pitcher, also
+    converts bref's `.1`/`.2` partial-inning IP notation to thirds and derives `er` from
+    `earned_run_avg`, since not every archive row carries a raw ER counting field. Shared by
+    `real_life_stats_to_compare_to_sim` (a full season's real stats, for the CLI's
+    `--show_real_life_comparison`) and `PlayerStatsGroup.merge_real_season_stats` (a
+    rest-of-season projection's real-to-date stats).
     """
     allowed_stats_str = [s.value.lower() for s in StatCategory] + ['earned_run_avg']
-    stats = {k.lower(): v for k, v in raw_stats.items() if k.lower() in allowed_stats_str and isinstance(v, (int, float))}
+    stats: dict[str, float] = {}
+    for k, v in raw_stats.items():
+        if not isinstance(v, (int, float)):
+            continue
+        key = _BREF_KEY_ALIASES.get(k.lower(), k.lower())
+        if key in allowed_stats_str:
+            stats[key] = v
     if player_type == PlayerType.PITCHER:
         ip = stats.get('ip', 0.0)
         integer_part = int(ip)
@@ -527,22 +544,30 @@ class PlayerStatsGroup(StatsGroup):
                 total_stats.merge_totals(_real_stats_to_totals(player.stats, type))
         return total_stats
 
-    def merge_real_season_stats(self, raw_stats_by_id: dict[str, dict]) -> int:
+    def merge_real_season_stats(self, raw_stats_by_bref_id: dict[tuple[str, str], dict]) -> int:
         """Merge each player's real archive statline into their totals - a rest-of-season
         projection's seed for individual stat lines, the counterpart to `Season._build_season_teams`
         seeding each club's win-loss record. Simulated games accumulate on top afterward.
 
-        Only players already in this group (i.e. on a simulated roster) are affected - anything
-        else in `raw_stats_by_id` is ignored. Team attribution needs no special handling: both a
-        player's sim roster placement (`ShowdownPlayerCard.team`) and their archive row's team are
-        independently derived from the same `stats['team_ID']`, so a mid-season-traded player's
-        merged totals land on the same club the sim already has them rostered under.
+        Matched by `(bref_id, player_type)` rather than this group's own `player_id` - that id is
+        `ShowdownPlayerCard.id` (year/bref_id/set/expansion), which never matches the archive
+        row's own `{year}-{mlb_id}` id, and a two-way player has separate HITTER/PITCHER archive
+        rows sharing one `bref_id`. Builder-drafted players (a takeover/tournament roster, keyed
+        `builder@...` - see the module docstring above) are skipped: their card's `bref_id` is a
+        real player who may also be simmed on their own real club this run, and merging real
+        season stats onto a fictional roster slot makes no sense besides.
 
         Returns how many players were merged, for a status message.
         """
         merged = 0
         for player_id, stats_obj in self.stats.items():
-            raw = raw_stats_by_id.get(player_id)
+            if player_id.startswith(_BUILDER_ID_PREFIX) or stats_obj.player_type is None:
+                continue
+            player = self.player_for_id(player_id)
+            bref_id = player.card.bref_id if player else None
+            if not bref_id:
+                continue
+            raw = raw_stats_by_bref_id.get((bref_id, stats_obj.player_type.value.upper()))
             if not raw:
                 continue
             stats_obj.merge_totals(_real_stats_to_totals(raw, stats_obj.player_type))

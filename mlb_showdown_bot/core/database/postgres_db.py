@@ -111,7 +111,7 @@ class PlayerArchive(BaseModel):
     pa: Optional[int]
     ip: Optional[float]
     war: Optional[float] = None
-    lg_id: str
+    lg_id: Optional[str] = None
     team_id: str
     team_id_list: list[str]
     team_games_played_dict: dict

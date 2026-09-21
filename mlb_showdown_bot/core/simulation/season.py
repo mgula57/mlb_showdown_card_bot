@@ -141,10 +141,16 @@ class PlayerLoader:
             team_history=team_history,
         )
 
-    def load_real_season_stats(self, year: int) -> tuple[dict[str, dict], Optional[datetime]]:
-        """Every player's raw real-stats archive row for the season, keyed by id.
+    def load_real_season_stats(self, year: int) -> tuple[dict[tuple[str, str], dict], Optional[datetime]]:
+        """Every player's raw real-stats archive row for the season, keyed by `(bref_id, player_type)`.
 
         Backs a rest-of-season projection's stat merge (`PlayerStatsGroup.merge_real_season_stats`).
+        Keyed by `bref_id` rather than the archive row's own `id` (a bare `{year}-{mlb_id}` key,
+        per the mismatch `SeasonCardPool` already documents for `archive_card_ids`) since that's
+        the only identity `ShowdownPlayerCard` and the archive share. `player_type` is folded into
+        the key too - a two-way player (e.g. Ohtani) has separate HITTER/PITCHER archive rows for
+        the same `bref_id`, and merging the wrong one in would clobber the right one.
+
         The archive holds one current snapshot per player-year, not a history, so this can only
         ever reflect stats as of the archive's last scrape - which may lag whatever date the
         caller intends to resume from. The second return value is the least-stale
@@ -152,15 +158,15 @@ class PlayerLoader:
         implying the data is precisely as of the resume date itself.
         """
         archives = self.db.fetch_all_stats_from_archive(year_list=[int(year)], exclude_records_with_stats=False)
-        raw_by_id: dict[str, dict] = {}
+        raw_by_bref_id: dict[tuple[str, str], dict] = {}
         as_of: Optional[datetime] = None
         for archive in archives:
-            if not archive.stats:
+            if not archive.stats or not archive.bref_id:
                 continue
-            raw_by_id[archive.id] = archive.stats
+            raw_by_bref_id[(archive.bref_id, archive.player_type.upper())] = archive.stats
             if archive.stats_modified_date and (as_of is None or archive.stats_modified_date < as_of):
                 as_of = archive.stats_modified_date
-        return raw_by_id, as_of
+        return raw_by_bref_id, as_of
 
 
 class Season:
@@ -218,7 +224,7 @@ class Season:
         # POPULATED BELOW ONLY FOR A REAL-SEASON RUN WITH `config.merge_real_stats` - DEFINED
         # HERE (NOT INSIDE THE `else` BRANCH BELOW) SO IT'S ALWAYS IN SCOPE WHEN `PlayerStatsGroup`
         # IS BUILT FURTHER DOWN, REGARDLESS OF TOURNAMENT VS. REAL-SEASON MODE.
-        real_stats_by_id: dict[str, dict] = {}
+        real_stats_by_bref_id: dict[tuple[str, str], dict] = {}
 
         # SETUP TEAMS + SCHEDULE
         if config.is_tournament:
@@ -249,7 +255,7 @@ class Season:
                 # POINT THIS CONNECTION HAS CLOSED. NO DB ACCESS IS NEEDED FOR THAT LATER STEP.
                 if config.resume_from_real_season and config.merge_real_stats:
                     status(f"Loading real {config.year} stats to merge...")
-                    real_stats_by_id, self.real_stats_as_of = loader.load_real_season_stats(year=config.year)
+                    real_stats_by_bref_id, self.real_stats_as_of = loader.load_real_season_stats(year=config.year)
             status(f"Building {config.year} MLB schedule...")
             self.schedule = Schedule(
                 year=config.year,
@@ -278,8 +284,8 @@ class Season:
             mlb_stats_api=self.mlb_stats_api,
         )
         self.league_stats = PlayerStatsGroup(players=self.standings.all_players, year=config.year, name="LEAGUE")
-        if real_stats_by_id:
-            merged_count = self.league_stats.merge_real_season_stats(real_stats_by_id)
+        if real_stats_by_bref_id:
+            merged_count = self.league_stats.merge_real_season_stats(real_stats_by_bref_id)
             status(f"Merged real season stats for {merged_count} player(s)")
 
         # SIMULATE GAMES

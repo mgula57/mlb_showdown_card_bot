@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaSpinner, FaPlay, FaUserGroup } from 'react-icons/fa6';
 import FormDropdown from '../customs/FormDropdown';
-import FormInput from '../customs/FormInput';
 import ManagerStyleFields from './ManagerStyleFields';
 import SimSettingToggle from './SimSettingToggle';
 import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
@@ -83,7 +82,6 @@ export function SeasonSimSetupForm(props: Props) {
     const [simulatePostseason, setSimulatePostseason] = useState(true);
     const [postseasonFormat, setPostseasonFormat] = useState('DYNAMIC');
     const [resumeEnabled, setResumeEnabled] = useState(false);
-    const [resumeAsOfDate, setResumeAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [mergeRealStats, setMergeRealStats] = useState(false);
     const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(true);
     const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(true);
@@ -133,6 +131,11 @@ export function SeasonSimSetupForm(props: Props) {
         return () => { stale = true; };
     }, [year, isLobby]);
 
+    // "Resume from real standings" only makes sense for the current in-progress season.
+    useEffect(() => {
+        if (year !== 2026) setResumeEnabled(false);
+    }, [year]);
+
     useEffect(() => {
         if (!takeoverEnabled || !token || userTeams !== null) return;
         fetchUserTeams(token).then(teams => setUserTeams(teams.filter(t => !t.is_archived))).catch(err => setError(errorMessage(err)));
@@ -171,7 +174,7 @@ export function SeasonSimSetupForm(props: Props) {
                 injury_severity_multiplier: undefined,
                 simulate_postseason: simulatePostseason,
                 postseason_format: simulatePostseason ? postseasonFormat : undefined,
-                resume_as_of_date: resumeEnabled ? resumeAsOfDate : undefined,
+                resume_as_of_date: resumeEnabled ? new Date().toISOString().slice(0, 10) : undefined,
                 merge_real_stats: resumeEnabled ? mergeRealStats : undefined,
                 enable_trade_deadline: tradeDeadlineEnabled || undefined,
                 trade_deadline_respects_standings: tradeDeadlineEnabled ? tradeDeadlineRespectsStandings : undefined,
@@ -278,6 +281,8 @@ export function SeasonSimSetupForm(props: Props) {
                         description="Play the season as one of your built teams, replacing a real club."
                         isEnabled={takeoverEnabled}
                         onToggle={() => setTakeoverEnabled(v => !v)}
+                        isDisabled={resumeEnabled}
+                        disabledReason="Turn off “Resume from real standings” first — a takeover club can't resume from a real record it never had."
                     >
                         <FormDropdown
                             label="Team"
@@ -299,25 +304,23 @@ export function SeasonSimSetupForm(props: Props) {
                     </SimSettingToggle>
                 )}
 
-                <SimSettingToggle
-                    label="Resume from real standings"
-                    description="Every club starts from its real record on a date you pick; only the games after it are simulated."
-                    isEnabled={resumeEnabled}
-                    onToggle={() => setResumeEnabled(v => !v)}
-                >
-                    <FormInput
-                        label="As of"
-                        type="date"
-                        value={resumeAsOfDate}
-                        onChange={value => setResumeAsOfDate(value ?? resumeAsOfDate)}
-                    />
+                {year === 2026 && (
                     <SimSettingToggle
-                        label="Merge real stats into player lines"
-                        description="Each player's real stats to date are added to their simulated totals. These reflect however much of the season has been scraped, which may lag the date above slightly — the result screen shows the actual as-of date."
-                        isEnabled={mergeRealStats}
-                        onToggle={() => setMergeRealStats(v => !v)}
-                    />
-                </SimSettingToggle>
+                        label="Resume from real standings"
+                        description="Every club starts from today's real record; only the games after today are simulated."
+                        isEnabled={resumeEnabled}
+                        onToggle={() => setResumeEnabled(v => !v)}
+                        isDisabled={takeoverEnabled}
+                        disabledReason="Turn off “Take over a club” first — a takeover club can't resume from a real record it never had."
+                    >
+                        <SimSettingToggle
+                            label="Merge real stats into player lines"
+                            description="Each player's real stats to date are added to their simulated totals. These reflect however much of the season has been scraped, which may lag slightly — the result screen shows the actual as-of date."
+                            isEnabled={mergeRealStats}
+                            onToggle={() => setMergeRealStats(v => !v)}
+                        />
+                    </SimSettingToggle>
+                )}
 
                 <SimSettingToggle
                     label="Regress small sample sizes towards replacement level"
