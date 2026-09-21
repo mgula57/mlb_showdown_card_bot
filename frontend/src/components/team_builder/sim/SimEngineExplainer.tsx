@@ -93,9 +93,11 @@ export function SimEngineExplainer() {
     }, []);
 
     return (
-        <div className="w-full max-w-sm flex items-start gap-2.5 px-3.5 py-3 rounded-lg border border-(--border-secondary) bg-(--background-secondary)">
-            <FaDice className="text-(--text-tertiary) text-sm mt-0.5 shrink-0" />
-            <p key={index} className="text-[12px] leading-relaxed text-(--text-secondary)">
+        <div className="w-full max-w-lg flex items-start gap-2.5 px-3.5 py-3 rounded-lg border border-(--divider) bg-(--background-secondary)">
+            <FaDice className="text-tertiary text-sm mt-0.5 shrink-0" />
+            {/* Keyed so each rotation remounts the paragraph and replays the fade, rather than
+                the text swapping in place mid-read. */}
+            <p key={index} className="fade-in text-[12px] leading-relaxed text-secondary">
                 {TIPS[index]}
             </p>
         </div>

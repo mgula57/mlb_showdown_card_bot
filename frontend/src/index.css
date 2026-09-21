@@ -371,6 +371,60 @@
     .animated-team-gradient { animation: none; }
 }
 
+/* Sim progress dice — a pair of d20s tossed on a loop while a season simulates, as a nod to the
+   engine's two-roll at-bat. The motion lives here; the face value is scrambled from `SimDiceRoll`,
+   whose TOSS_MS must stay equal to the durations below so the number lands exactly as the die
+   settles. Each roll restarts the animation via a React `key`, hence `forwards` rather than
+   `infinite` — the die then holds its result until the next toss. */
+@keyframes sim-die-toss {
+    0%   { transform: translateY(0)     rotate(0deg)   scale(1); }
+    22%  { transform: translateY(-20px) rotate(170deg) scale(1.08); }
+    48%  { transform: translateY(-26px) rotate(320deg) scale(1.06); }
+    76%  { transform: translateY(0)     rotate(408deg) scale(0.93); }
+    88%  { transform: translateY(-7px)  rotate(348deg) scale(1.03); }
+    100% { transform: translateY(0)     rotate(360deg) scale(1); }
+}
+
+.sim-die-toss { animation: sim-die-toss 900ms cubic-bezier(0.33, 0, 0.3, 1) forwards; }
+
+/* Ground shadow under a tossed die: tight and faint at the top of the arc, wide and dark on the
+   landing. Only scaleX/opacity, so the element's own centering stays on `margin` rather than a
+   `transform` this would overwrite. */
+@keyframes sim-die-shadow {
+    0%   { transform: scaleX(1);    opacity: 0.30; }
+    48%  { transform: scaleX(0.5);  opacity: 0.10; }
+    76%  { transform: scaleX(1.15); opacity: 0.34; }
+    100% { transform: scaleX(1);    opacity: 0.26; }
+}
+
+.sim-die-shadow { animation: sim-die-shadow 900ms cubic-bezier(0.33, 0, 0.3, 1) forwards; }
+
+/* Light sweeping across the progress fill, so the bar still reads as working through the setup
+   phases that hold it at a fixed width. Needs `overflow: hidden` on the element it's applied to. */
+@keyframes sim-progress-sheen {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(340%); }
+}
+
+.sim-progress-sheen::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 45%;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.5), transparent);
+    animation: sim-progress-sheen 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sim-die-toss,
+    .sim-die-shadow { animation: none; }
+    /* Removed rather than paused - a stopped sheen is just a stray white band parked over the
+       left of the fill. */
+    .sim-progress-sheen::after { display: none; }
+}
+
 body {
     color: var(--primary);
     background-color: var(--background-primary);

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FaSpinner } from 'react-icons/fa6';
 import type { SimJob } from '../../../api/sim';
 import { BetaBadge } from '../../shared/BetaBadge';
 import { SectionCard } from './SectionCard';
+import { SimDiceRoll } from './SimDiceRoll';
 import { SimEngineExplainer } from './SimEngineExplainer';
 import { SimWinPctChart } from './SimWinPctChart';
 
@@ -67,50 +67,80 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
     // Streamed once per throttled progress write (~1/s), so the line lengthens in ~15-20 game
     // steps and recharts animates each extension on its own. Only present for a takeover run.
     const timeline = job?.progress_games ?? [];
+    const latest = timeline.length > 0 ? timeline[timeline.length - 1] : null;
 
     return (
-        <div className="flex flex-col items-center justify-center gap-4 py-16 px-4">
-            <FaSpinner className="animate-spin text-(--text-tertiary) text-2xl" />
-            <div className="text-center">
-                <p className="flex items-center justify-center gap-2 text-[15px] font-bold text-(--text-primary)">
-                    Playing the season
-                    <BetaBadge />
-                </p>
-                <p className="text-[13px] text-(--text-secondary)">{teamName}</p>
-            </div>
+        <div className="fade-in flex flex-col items-center gap-4 px-4 py-10">
+            {/* Hero panel: the dice, what's running, and how far along it is. Clipped, so the
+                panel's top padding has to clear the top of the dice' toss arc (~29px). */}
+            <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) px-5 pt-8 pb-5 shadow-sm">
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 h-44"
+                    style={{ background: 'radial-gradient(70% 100% at 50% 0%, color-mix(in srgb, var(--showdown-blue) 16%, transparent), transparent 72%)' }}
+                />
 
-            <div className="w-full max-w-sm flex flex-col gap-1.5">
-                <div className="h-2 rounded-full bg-(--background-tertiary) overflow-hidden">
-                    <div
-                        className="h-full bg-(--showdown-blue) transition-[width] duration-500 ease-out"
-                        style={{ width: `${pct}%` }}
-                    />
-                </div>
-                <div className="flex justify-between text-[11px] text-(--text-tertiary)">
-                    <span>{phase}</span>
-                    {total > 0 && <span>{completed.toLocaleString()} / {total.toLocaleString()} games</span>}
+                <div className="relative flex flex-col items-center gap-5">
+                    <SimDiceRoll />
+
+                    <div className="text-center">
+                        <p className="flex items-center justify-center gap-2 text-[15px] font-bold text-primary">
+                            Playing the season
+                            <BetaBadge />
+                        </p>
+                        <p className="text-[13px] text-secondary">{teamName}</p>
+                    </div>
+
+                    <div className="flex w-full max-w-sm flex-col gap-2">
+                        <div className="flex items-baseline justify-between gap-3">
+                            {/* Keyed so each new phase crossfades in rather than swapping text in place. */}
+                            <span key={phase} className="fade-in flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-secondary">
+                                <span className="live-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-(--showdown-blue)" />
+                                <span className="truncate">{phase}</span>
+                            </span>
+                            <span className="shrink-0 text-[12px] font-bold tabular-nums text-primary">{Math.round(pct)}%</span>
+                        </div>
+
+                        <div className="h-2.5 overflow-hidden rounded-full bg-(--background-quaternary)">
+                            <div
+                                className="sim-progress-sheen relative h-full overflow-hidden rounded-full bg-(--showdown-blue) transition-[width] duration-700 ease-out"
+                                style={{
+                                    width: `${pct}%`,
+                                    boxShadow: '0 0 10px color-mix(in srgb, var(--showdown-blue) 55%, transparent)',
+                                }}
+                            />
+                        </div>
+
+                        {/* Fixed height: the game count only exists once games start, and letting
+                            it appear would otherwise shunt the whole panel up mid-run. */}
+                        <p className="h-[15px] text-right text-[11px] tabular-nums text-tertiary">
+                            {total > 0 ? `${completed.toLocaleString()} / ${total.toLocaleString()} games` : ''}
+                        </p>
+                    </div>
                 </div>
             </div>
 
             <div className="w-full max-w-lg">
-                <SectionCard title={timeline.length > 0 ? `Win % Over Time · ${timeline[timeline.length - 1].wins}–${timeline[timeline.length - 1].losses}` : 'Win % Over Time'}>
+                <SectionCard title={latest ? `Win % Over Time · ${latest.wins}–${latest.losses}` : 'Win % Over Time'}>
                     <SimWinPctChart games={timeline} totalGames={job?.progress_games_total} />
                 </SectionCard>
             </div>
 
-            <p className="text-[11px] text-(--text-tertiary)">This usually takes under a minute.</p>
-
-            {onCancel && (
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="text-[11px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer underline underline-offset-2"
-                >
-                    Cancel simulation
-                </button>
-            )}
-
             <SimEngineExplainer />
+
+            <div className="flex flex-col items-center gap-2">
+                <p className="text-[11px] text-tertiary">This usually takes under a minute.</p>
+
+                {onCancel && (
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="cursor-pointer text-[11px] font-semibold text-tertiary underline underline-offset-2 transition-colors hover:text-primary"
+                    >
+                        Cancel simulation
+                    </button>
+                )}
+            </div>
         </div>
     );
 }
