@@ -32,6 +32,7 @@ from ..shared.player_position import Position
 from ..shared.team import Team as ShowdownTeam
 from .game import Game
 from .models import (
+    BoxScoreBattingStats,
     CompletedHalfInning,
     GameResult,
     GameStartState,
@@ -789,11 +790,18 @@ class MLBGameSimulator:
             innings = _ip_to_innings((row.get('stats') or {}).get('innings_pitched'))
             is_current = index == len(rows) - 1
             start = max(1.0, current_inning_full - innings) if is_current else cursor
+            pitcher_stats = row.get('stats') or {}
             appearances.append(PitcherAppearance(
                 player_id=str(row.get('id')),
                 start_inning=start,
                 end_inning=None if is_current else start + innings,
-                runs_allowed=int((row.get('stats') or {}).get('earned_runs') or 0),
+                runs_allowed=int(pitcher_stats.get('earned_runs') or 0),
+                innings_pitched=innings,
+                hits=int(pitcher_stats.get('hits') or 0),
+                walks=int(pitcher_stats.get('base_on_balls') or 0),
+                strikeouts=int(pitcher_stats.get('strike_outs') or 0),
+                home_runs=int(pitcher_stats.get('home_runs') or 0),
+                batters_faced=int(pitcher_stats.get('batters_faced') or 0),
             ))
             cursor = start + innings
 
@@ -802,7 +810,39 @@ class MLBGameSimulator:
             hits=int(totals.get('hits') or 0),
             lineup_index=self._lineup_index(side, setup),
             pitchers_used=appearances,
+            batting_stats=self._lineup_batting_stats(side, setup),
         )
+
+    def _lineup_batting_stats(self, side: str, setup: MLBGameTeamSetup) -> dict[str, BoxScoreBattingStats]:
+        """Real batting line for each of the current lineup's nine, up to the takeover.
+
+        Only the current occupants matter - anyone already substituted out won't take another
+        plate appearance in the sim, so there's nothing of theirs left to blend forward.
+        """
+
+        lineup_ids = {slot.player_id for slot in setup.lineup}
+        stats: dict[str, BoxScoreBattingStats] = {}
+        for row in (self._team_node(side).get('batting') or []):
+            player_id = str(row.get('id'))
+            if player_id not in lineup_ids:
+                continue
+            s = row.get('stats') or {}
+            stats[player_id] = BoxScoreBattingStats(
+                at_bats=int(s.get('at_bats') or 0),
+                runs=int(s.get('runs') or 0),
+                hits=int(s.get('hits') or 0),
+                doubles=int(s.get('doubles') or 0),
+                triples=int(s.get('triples') or 0),
+                home_runs=int(s.get('home_runs') or 0),
+                rbi=int(s.get('rbi') or 0),
+                base_on_balls=int(s.get('base_on_balls') or 0),
+                strike_outs=int(s.get('strike_outs') or 0),
+                stolen_bases=int(s.get('stolen_bases') or 0),
+                caught_stealing=int(s.get('caught_stealing') or 0),
+                ground_into_double_play=int(s.get('ground_into_double_play') or 0),
+                plate_appearances=int(s.get('plate_appearances') or 0),
+            )
+        return stats
 
     def _lineup_index(self, side: str, setup: MLBGameTeamSetup) -> int:
         """Where in the order this side picks back up, as a 0-based index.

@@ -14,9 +14,13 @@ export default function GameLinescore({ game, className = "" }: GameLinescorePro
     const linescore = game.linescore;
     if (!linescore) return null;
 
-    // Pad out to the scheduled length so an early game still shows a full nine columns.
-    const innings = [...linescore.innings];
-    for (let num = innings.length + 1; num <= linescore.scheduledInnings; num++) {
+    // Pad out to the scheduled length so an early game still shows a full nine columns. Keyed off
+    // the highest inning number actually present, not the array's length - a takeover's line
+    // score can start mid-array (e.g. only innings 6-9 populated so far), and padding by index
+    // there would relabel and duplicate columns instead of extending past the last real one.
+    const innings = [...linescore.innings].sort((a, b) => a.num - b.num);
+    const highestInning = innings.length > 0 ? innings[innings.length - 1].num : 0;
+    for (let num = highestInning + 1; num <= linescore.scheduledInnings; num++) {
         innings.push({ num, ordinalNum: "", awayRuns: null, homeRuns: null });
     }
 

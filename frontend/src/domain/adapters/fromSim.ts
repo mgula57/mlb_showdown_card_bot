@@ -425,6 +425,20 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             if (slot) seeded[slot] = { id: runner.id, name: runner.name };
         }
         prevBases = seeded;
+
+        // Without this the line score starts from a blank sheet at the resume point - innings
+        // played before the takeover go missing, and the first simulated run gets credited to
+        // whichever half-inning the sim plays first instead of the real inning it happened in.
+        accumulator.seedTakeover({
+            completed: startState.completed_innings.map((half) => ({ inning: half.inning, isTop: half.is_top, runs: half.runs })),
+            currentInning: inning,
+            currentIsTop: isTop,
+            currentHalfRuns: startState.runs,
+            awayScore: startState.away.runs_scored,
+            homeScore: startState.home.runs_scored,
+            awayHits: startState.away.hits,
+            homeHits: startState.home.hits,
+        });
     }
     accumulator.startHalf(inning, isTop);
 

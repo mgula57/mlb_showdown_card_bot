@@ -381,6 +381,23 @@ class StandingsResult(BaseModel):
     divisions: dict[str, list[TeamRecord]] = {}  # KEY: DIVISION NAME, VALUE: TEAMS SORTED BY RECORD
 
 
+class BoxScoreBattingStats(BaseModel):
+    at_bats: int = 0
+    runs: int = 0
+    hits: int = 0
+    doubles: int = 0
+    triples: int = 0
+    home_runs: int = 0
+    rbi: int = 0
+    base_on_balls: int = 0
+    strike_outs: int = 0
+    stolen_bases: int = 0
+    caught_stealing: int = 0
+    ground_into_double_play: int = 0
+    plate_appearances: int = 0
+    summary: str = ""
+
+
 class PitcherAppearance(BaseModel):
     """A pitcher who has already appeared when a takeover begins, in order of entry.
 
@@ -389,12 +406,22 @@ class PitcherAppearance(BaseModel):
     is simply `end - start` in those units, so the faithful way to seed a real pitcher is
     `start_inning = <current inning_num_full> - <real innings pitched>` rather than the inning
     they actually entered - that way `is_tired` reads their true workload.
+
+    The remaining fields are the pitcher's real box line up to the takeover - seeded into
+    `team.stats` by `SimTeam.resume_from` so the final box score blends the already-played
+    portion with whatever the sim adds on top, rather than showing the simulated slice alone.
     """
 
     player_id: str
     start_inning: float = 1.0
     end_inning: Optional[float] = None   # None = STILL IN THE GAME
     runs_allowed: int = 0
+    innings_pitched: float = 0.0
+    hits: int = 0
+    walks: int = 0
+    strikeouts: int = 0
+    home_runs: int = 0
+    batters_faced: int = 0
 
 
 class CompletedHalfInning(BaseModel):
@@ -408,9 +435,12 @@ class CompletedHalfInning(BaseModel):
 
 class TeamStartState(BaseModel):
     runs_scored: int = 0
-    hits: int = 0                                        # CARRIED INTO THE LINESCORE ONLY - NOT INTO PLAYER STATS
+    hits: int = 0                                        # CARRIED INTO THE LINESCORE ONLY
     lineup_index: int = 0                                # 0-8, THE SPOT OF THE *NEXT* BATTER
     pitchers_used: list[PitcherAppearance] = []          # IN ORDER OF ENTRY
+    # THE CURRENT LINEUP'S REAL BOX LINE UP TO THE TAKEOVER, KEYED BY PLAYER ID - SEEDED INTO
+    # `team.stats` BY `SimTeam.resume_from` ALONGSIDE `pitchers_used` ABOVE, FOR THE SAME REASON.
+    batting_stats: dict[str, BoxScoreBattingStats] = {}
 
 
 class GameStartState(BaseModel):
@@ -506,23 +536,6 @@ class LineScoreResult(BaseModel):
     scheduled_innings: int = 9
     away: TeamLineScoreTotals = TeamLineScoreTotals()
     home: TeamLineScoreTotals = TeamLineScoreTotals()
-
-
-class BoxScoreBattingStats(BaseModel):
-    at_bats: int = 0
-    runs: int = 0
-    hits: int = 0
-    doubles: int = 0
-    triples: int = 0
-    home_runs: int = 0
-    rbi: int = 0
-    base_on_balls: int = 0
-    strike_outs: int = 0
-    stolen_bases: int = 0
-    caught_stealing: int = 0
-    ground_into_double_play: int = 0
-    plate_appearances: int = 0
-    summary: str = ""
 
 
 class BoxScoreBatter(BaseModel):

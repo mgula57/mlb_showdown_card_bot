@@ -66,6 +66,9 @@ export type SimGameStartState = {
     outs: number;
     runs: number;
     runners: { runners: { id: string; name: string; base: number; speed: number; pitcher_id: string }[] };
+    /** Every half-inning already played before the takeover, in order - what lets the replay's
+     * line score show innings 1 through the resume point instead of starting from a blank sheet. */
+    completed_innings: { inning: number; is_top: boolean; runs: number }[];
     away: { runs_scored: number; hits: number; lineup_index: number };
     home: { runs_scored: number; hits: number; lineup_index: number };
 };

@@ -665,6 +665,12 @@ class SimTeam:
         `_pitchers_used` keeps its entry ordering, which is what `current_pitcher` and the box
         score both read. A pitcher id that isn't on the roster is skipped - the sim can only field
         arms it has cards for.
+
+        Each pitcher's and lineup batter's real box line up to the takeover is also seeded into
+        `self.stats` here, additively (`update_individual_stats` merges rather than overwrites) -
+        every plate appearance the sim then plays adds on top of it the same way it would add onto
+        a fresh game, so the final box score blends the already-played portion with the simulated
+        one instead of showing the simulated slice alone.
         """
 
         self.current_game_stats.add_stat(StatCategory.RUNS_SCORED, state.runs_scored)
@@ -679,11 +685,37 @@ class SimTeam:
             pitcher.end_inning = appearance.end_inning
             pitcher.runs_allowed = appearance.runs_allowed
             self.available_reliever_ids.discard(pitcher.id)
+            self.stats.update_individual_stats(id=pitcher.id, stats=Stats(id=pitcher.id, totals={
+                StatCategory.IP.value: appearance.innings_pitched,
+                StatCategory.HITS.value: appearance.hits,
+                StatCategory.EARNED_RUNS.value: appearance.runs_allowed,
+                StatCategory.BB.value: appearance.walks,
+                StatCategory.SO.value: appearance.strikeouts,
+                StatCategory.HOMERUNS.value: appearance.home_runs,
+                StatCategory.PA.value: appearance.batters_faced,
+            }))
 
         # NO RECOGNIZED PITCHER MEANS THE GAME WOULD HAVE NO ONE ON THE MOUND - FALL BACK TO THE
         # ROTATION THE WAY A FRESH GAME WOULD.
         if not self._pitchers_used:
             self.mark_pitcher_entered(self.rotation.current_pitcher, float(1))
+
+        for player_id, line in state.batting_stats.items():
+            self.stats.update_individual_stats(id=player_id, stats=Stats(id=player_id, totals={
+                StatCategory.AB.value: line.at_bats,
+                StatCategory.RUNS.value: line.runs,
+                StatCategory.HITS.value: line.hits,
+                StatCategory.DOUBLES.value: line.doubles,
+                StatCategory.TRIPLES.value: line.triples,
+                StatCategory.HOMERUNS.value: line.home_runs,
+                StatCategory.RBI.value: line.rbi,
+                StatCategory.BB.value: line.base_on_balls,
+                StatCategory.SO.value: line.strike_outs,
+                StatCategory.SB.value: line.stolen_bases,
+                StatCategory.CS.value: line.caught_stealing,
+                StatCategory.GDP.value: line.ground_into_double_play,
+                StatCategory.PA.value: line.plate_appearances,
+            }))
 
     def current_hitter(self, game: Game) -> SimPlayer:
         return self.batting_order[self.lineup_index]

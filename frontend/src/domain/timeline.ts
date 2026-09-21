@@ -329,6 +329,40 @@ export class LinescoreAccumulator {
         else inning.homeRuns = inning.homeRuns ?? 0;
     }
 
+    /**
+     * Seeds the real portion of a takeover before any frame is folded in. Without this, a
+     * mid-game takeover starts the accumulator from a blank sheet at the resume point: the
+     * innings played before it go missing entirely, and the first simulated play's run delta is
+     * measured against a baseline of zero, crediting every already-scored real run to whichever
+     * half-inning the sim happens to play first.
+     *
+     * Call this (and `startHalf` for the in-progress half) before folding in any log entries.
+     */
+    seedTakeover(params: {
+        completed: { inning: number; isTop: boolean; runs: number }[];
+        currentInning: number;
+        currentIsTop: boolean;
+        currentHalfRuns: number;
+        awayScore: number;
+        homeScore: number;
+        awayHits: number;
+        homeHits: number;
+    }): void {
+        for (const half of params.completed) {
+            const inning = this.ensureInning(half.inning);
+            if (half.isTop) inning.awayRuns = half.runs;
+            else inning.homeRuns = half.runs;
+        }
+        const current = this.ensureInning(params.currentInning);
+        if (params.currentIsTop) current.awayRuns = params.currentHalfRuns;
+        else current.homeRuns = params.currentHalfRuns;
+
+        this.lastAwayScore = params.awayScore;
+        this.lastHomeScore = params.homeScore;
+        this.awayHits = params.awayHits;
+        this.homeHits = params.homeHits;
+    }
+
     /** Folds one play in. `cumulativeAwayScore`/`cumulativeHomeScore` are the game totals AFTER
      *  this play — the per-half delta is derived from the previous call's totals. */
     apply(inningNum: number, isTop: boolean, cumulativeAwayScore: number, cumulativeHomeScore: number, isHit: boolean): void {
