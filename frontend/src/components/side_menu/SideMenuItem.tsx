@@ -97,7 +97,10 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
         
             {/* Icon - Always visible, serves as the collapsed state identifier */}
             <div className="relative flex flex-col items-center justify-center text-primary">
-                {item.icon && <item.icon />}
+                <div className="flex items-center justify-center text-[20px]">
+                    {item.icon && <item.icon />}
+                </div>
+                
                 <span className={`${isSideMenuOpen ? 'hidden' : 'block'} mt-1 text-[7px] font-semibold text-primary text-center leading-tight max-w-10`}>
                     {item.text}
                 </span>
