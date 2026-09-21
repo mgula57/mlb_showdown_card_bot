@@ -397,14 +397,19 @@ class MLBGameSimulator:
     # SETUP
     # ------------------------------------------------------------------
 
-    def build_setup(self) -> MLBGameSetup:
+    def build_setup(self, from_beginning: bool = False) -> MLBGameSetup:
+        """`from_beginning` ignores a live game's current state and builds the same first-pitch
+        setup as a preview game - the original starters and a clean bench, not whoever is
+        currently in the game."""
+
         box = self.boxscore
         official_date = (box.get('datetime') or {}).get('official_date') or ''
+        is_takeover = self.is_live and not from_beginning
 
         rosters = {side: self._roster_ids(side) for side in SIDES}
-        lineups = {side: self._announced_lineup(side) for side in SIDES}
-        starters = {side: self._starting_pitcher_id(side) for side in SIDES}
-        removed = {side: self._removed_player_ids(side) for side in SIDES}
+        lineups = {side: self._announced_lineup(side, from_beginning=from_beginning) for side in SIDES}
+        starters = {side: self._starting_pitcher_id(side, from_beginning=from_beginning) for side in SIDES}
+        removed = {side: self._removed_player_ids(side, from_beginning=from_beginning) for side in SIDES}
 
         # A LINEUP IS ONLY "ANNOUNCED" WHEN BOTH SIDES HAVE A FULL NINE. A HALF-POSTED ONE WOULD
         # LEAVE THE TWO TEAMS BUILT ON DIFFERENT RULES.
@@ -432,12 +437,12 @@ class MLBGameSimulator:
             showdown_set=self.showdown_set.value,
             official_date=official_date,
             detailed_state=(box.get('status') or {}).get('detailed_state') or '',
-            is_takeover=self.is_live,
+            is_takeover=is_takeover,
             is_final=self.is_final,
             lineup_source=lineup_source,
             away=teams['away'],
             home=teams['home'],
-            start_state=self._build_start_state(teams) if self.is_live else None,
+            start_state=self._build_start_state(teams) if is_takeover else None,
             warnings=pool.warnings,
         )
 
@@ -528,16 +533,18 @@ class MLBGameSimulator:
             return ''
         return next((part for part in reversed(parts) if part in FIELD_POSITION_TO_SLOT), parts[-1])
 
-    def _announced_lineup(self, side: str) -> list[MLBGameLineupSlot]:
+    def _announced_lineup(self, side: str, from_beginning: bool = False) -> list[MLBGameLineupSlot]:
         """The nine currently in the batting order, or empty if MLB hasn't posted one.
 
         `is_in_lineup` tracks MLB's own `battingOrder` array, which holds the *current* occupant
         of each spot - so mid-game this returns whoever is batting there now, not the starter.
+        `from_beginning` picks the opposite end of that same array: the lowest suffix per slot is
+        the player who started the game there, before any substitutions.
         """
 
         by_slot: dict[int, tuple[int, dict]] = {}
         for row in (self._team_node(side).get('batting') or []):
-            if not row.get('is_in_lineup'):
+            if not from_beginning and not row.get('is_in_lineup'):
                 continue
             try:
                 raw_order = int(row.get('batting_order') or 0)
@@ -546,8 +553,9 @@ class MLBGameSimulator:
             slot = raw_order // _BATTING_ORDER_SLOT_DIVISOR
             if not 1 <= slot <= 9:
                 continue
-            # THE SUFFIX COUNTS SUBSTITUTIONS IN THAT SPOT; THE HIGHEST IS THE CURRENT OCCUPANT.
-            if slot not in by_slot or raw_order > by_slot[slot][0]:
+            # THE SUFFIX COUNTS SUBSTITUTIONS IN THAT SPOT; THE HIGHEST IS THE CURRENT OCCUPANT,
+            # THE LOWEST (0) IS WHOEVER OPENED THE GAME THERE.
+            if slot not in by_slot or (raw_order < by_slot[slot][0] if from_beginning else raw_order > by_slot[slot][0]):
                 by_slot[slot] = (raw_order, row)
 
         return [
@@ -560,11 +568,12 @@ class MLBGameSimulator:
             for slot in sorted(by_slot)
         ]
 
-    def _starting_pitcher_id(self, side: str) -> str:
+    def _starting_pitcher_id(self, side: str, from_beginning: bool = False) -> str:
         """The arm the sim starts with: whoever is actually pitching, else the game's starter,
-        else the probable."""
+        else the probable. `from_beginning` skips straight to the game's actual starter, ignoring
+        who is on the mound right now."""
 
-        if self.is_live:
+        if self.is_live and not from_beginning:
             current = ((self.boxscore.get('linescore') or {}).get('defense') or {}).get('pitcher')
             # THE DEFENSE IS THE SIDE *NOT* BATTING, SO IT ONLY NAMES THIS TEAM'S PITCHER HALF THE TIME.
             pitching_ids = [str(row.get('id')) for row in (self._team_node(side).get('pitching') or [])]
@@ -580,11 +589,12 @@ class MLBGameSimulator:
         probable = ((self.boxscore.get('probable_pitchers') or {}).get(side) or {})
         return str(probable['id']) if probable.get('id') is not None else ''
 
-    def _removed_player_ids(self, side: str) -> set[str]:
+    def _removed_player_ids(self, side: str, from_beginning: bool = False) -> set[str]:
         """Position players who appeared and have since been substituted out. They cannot return,
-        so they're kept out of the sim's bench."""
+        so they're kept out of the sim's bench. Starting from the beginning replays the whole
+        game, so nobody has been substituted out yet."""
 
-        if not self.is_live:
+        if not self.is_live or from_beginning:
             return set()
         return {
             str(row.get('id'))

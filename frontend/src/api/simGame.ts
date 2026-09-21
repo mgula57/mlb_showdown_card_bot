@@ -129,6 +129,9 @@ export type StartGameSimPayload = {
     set?: string;
     /** Fixing the seed makes a run reproducible; omit it for a fresh roll each time. */
     seed?: number | null;
+    /** For a game in progress: replay from the first pitch with the original starters instead of
+     * taking over from the live state. Ignored for a game that hasn't started. */
+    from_beginning?: boolean;
     away?: SimGameTeamOverride;
     home?: SimGameTeamOverride;
 };
@@ -137,8 +140,12 @@ export type StartGameSimPayload = {
  * The lineups, rosters and mid-game state a simulation would use — fetched before committing so
  * the user can review and edit them. The server caches this briefly, so polling it is cheap.
  */
-export async function fetchGameSimSetup(gamePk: number, showdownSet: string, signal?: AbortSignal): Promise<SimGameSetup> {
-    const res = await fetch(`${API_BASE}/sim/game/${gamePk}/setup?set=${encodeURIComponent(showdownSet)}`, { signal });
+export async function fetchGameSimSetup(
+    gamePk: number, showdownSet: string, options?: { fromBeginning?: boolean; signal?: AbortSignal },
+): Promise<SimGameSetup> {
+    const params = new URLSearchParams({ set: showdownSet });
+    if (options?.fromBeginning) params.set('from_beginning', '1');
+    const res = await fetch(`${API_BASE}/sim/game/${gamePk}/setup?${params}`, { signal: options?.signal });
     if (!res.ok) await parseError(res, "Failed to load game setup");
     return res.json();
 }

@@ -1441,7 +1441,7 @@ _GAME_SETUP_CACHE_TTL = timedelta(seconds=20)
 _game_setup_cache: dict[str, tuple[dict, datetime]] = {}
 
 
-def _game_setup(game_pk: int, showdown_set: Set) -> dict:
+def _game_setup(game_pk: int, showdown_set: Set, from_beginning: bool = False) -> dict:
     """Cached `MLBGameSetup` payload for a game.
 
     A finished or not-yet-started game is stable, so it caches cleanly. A live game's start state
@@ -1449,12 +1449,12 @@ def _game_setup(game_pk: int, showdown_set: Set) -> dict:
     polls at, and a takeover always re-reads the live state at simulate time anyway.
     """
 
-    cache_key = f"{game_pk}:{showdown_set.value}"
+    cache_key = f"{game_pk}:{showdown_set.value}:{from_beginning}"
     cached = _game_setup_cache.get(cache_key)
     if cached and datetime.now() - cached[1] < _GAME_SETUP_CACHE_TTL:
         return cached[0]
 
-    setup = MLBGameSimulator(game_pk=game_pk, showdown_set=showdown_set).build_setup()
+    setup = MLBGameSimulator(game_pk=game_pk, showdown_set=showdown_set).build_setup(from_beginning=from_beginning)
     payload = setup.model_dump(mode='json')
     _game_setup_cache[cache_key] = (payload, datetime.now())
     return payload
@@ -1465,7 +1465,8 @@ def get_sim_game_setup(game_pk: int):
     """The lineups, rosters and (for a game in progress) mid-game state a simulation would use.
 
     Returned before anything is simulated so the client can show - and let the user edit - the
-    lineup it is about to commit to.
+    lineup it is about to commit to. `from_beginning=1` opts a live game out of the takeover and
+    builds the same first-pitch setup as a preview game.
     """
     try:
         try:
@@ -1473,7 +1474,8 @@ def get_sim_game_setup(game_pk: int):
         except ValueError:
             return jsonify({'error': f"unknown set '{request.args.get('set')}'"}), 400
 
-        return jsonify(_game_setup(game_pk, showdown_set)), 200
+        from_beginning = str(request.args.get('from_beginning') or '').lower() in ('1', 'true')
+        return jsonify(_game_setup(game_pk, showdown_set, from_beginning=from_beginning)), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -1549,9 +1551,11 @@ def start_game_sim(game_pk: int):
         if not _sim_slots.acquire(blocking=False):
             return jsonify({'error': 'The simulator is busy right now. Try again in a minute.'}), 429
 
+        from_beginning = bool(payload.get('from_beginning'))
+
         try:
             simulator = MLBGameSimulator(game_pk=game_pk, showdown_set=showdown_set)
-            setup = simulator.build_setup()
+            setup = simulator.build_setup(from_beginning=from_beginning)
             if setup.is_final:
                 return jsonify({'error': 'This game is already over - there is nothing left to simulate.'}), 400
 
