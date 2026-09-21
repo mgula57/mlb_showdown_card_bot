@@ -10,9 +10,10 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { Tabs as TabButtons, type TabItem } from '../shared/Tabs';
 import { fromBoxscoreDetail, fromGamePlays } from "../../domain/adapters/fromMlbApi";
 import { fromSimGame } from "../../domain/adapters/fromSim";
-import { startGameSim, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
+import { startGameSim, type SimGameRecord, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
 import { useAuth } from "../auth/AuthContext";
 import GameSimSetupModal from "./GameSimSetupModal";
+import GameSimHistoryModal from "./GameSimHistoryModal";
 import SimBoxScoreTable from "./SimBoxScoreTable";
 import PlayByPlayLog from "./PlayByPlayLog";
 import GameField from "./GameField";
@@ -30,7 +31,7 @@ import BattingTable from "./detail/BattingTable";
 import PitchingTable from "./detail/PitchingTable";
 import GameInfo from "./detail/GameInfo";
 import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
-import { FaClockRotateLeft } from "react-icons/fa6";
+import { FaClockRotateLeft, FaListUl } from "react-icons/fa6";
 
 type MobileTab = 'field' | 'playbyplay' | 'boxscore';
 // The `md`–`lg` two-column view keeps the field pinned on the left and tabs only between the two
@@ -72,6 +73,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     // instead of the real game until the user switches back.
     const { session } = useAuth();
     const [showSimSetup, setShowSimSetup] = useState(false);
+    const [showSimHistory, setShowSimHistory] = useState(false);
     const [simResult, setSimResult] = useState<SimGameResult | null>(null);
     const [simError, setSimError] = useState<string | null>(null);
     // Bumped on every sim run. Keys `GameDetailPlayback` so a re-sim of the same game remounts the
@@ -152,6 +154,19 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setSimRunId((n) => n + 1);
         // The sim opens parked on the first pitch (see GameDetailPlayback) with its result hidden,
         // so the transport strip needs to be visible for the user to play through it.
+        setShowPlaybackControls(true);
+    }
+
+    /** Reopens a previously stored sim of this same game, exactly as if it had just been run. */
+    function handleSelectSim(record: SimGameRecord) {
+        if (!record.result) {
+            setSimError("That simulation could not be loaded.");
+            return;
+        }
+        setSimResult(record.result);
+        setSimError(null);
+        setShowSimHistory(false);
+        setSimRunId((n) => n + 1);
         setShowPlaybackControls(true);
     }
 
@@ -398,6 +413,18 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         Replay
                                     </button>
                                 )}
+                                {/* Independent of `canSimulate` - a finished game can still have
+                                    sims run against it while it was live/upcoming, worth revisiting. */}
+                                {!simResult && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSimError(null); setShowSimHistory(true); }}
+                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg border border-(--divider) px-2.5 py-1.5 text-[11px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
+                                    >
+                                        <FaListUl size={12} />
+                                        Past Sims
+                                    </button>
+                                )}
                                 {canSimulate && !simResult && (
                                     <button
                                         type="button"
@@ -534,6 +561,14 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 showdownSet={showdownSet ?? '2000'}
                                 onCancel={() => setShowSimSetup(false)}
                                 onStart={handleStartSim}
+                            />
+                        )}
+
+                        {showSimHistory && (
+                            <GameSimHistoryModal
+                                gamePk={gamePk}
+                                onClose={() => setShowSimHistory(false)}
+                                onSelect={handleSelectSim}
                             />
                         )}
                     </div>
