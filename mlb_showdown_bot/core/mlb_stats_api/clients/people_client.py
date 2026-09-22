@@ -223,9 +223,7 @@ class PeopleClient(BaseMLBClient):
 
             if index > 0:  # Add a short delay between requests to avoid hitting rate limits
                 sleep(0.15)
-        import json 
-        with open('data/all_players.json', 'w') as f:
-            json.dump(all_players, f, indent=4)
+        
         return Players(people=all_players)
 
     # -----------------------
