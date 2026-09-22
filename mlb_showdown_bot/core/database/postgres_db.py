@@ -1593,15 +1593,17 @@ class PostgresDB:
         The filter/sort runs in a MATERIALIZED CTE against `card_bot` alone, answered by
         `idx_card_bot_year_set` without touching a heap page - `dim_card` is only joined in
         afterward, once the small ordered id list already exists. Doing the sort before the join
-        keeps the wide `card_data` jsonb out of the sort step; sorting it directly (year/set
-        filtered then joined then ordered) forces an external disk sort since each row's payload
-        is several KB, which dominated this query's runtime before the split.
+        keeps the wide `card_data` jsonb (~10KB/card even with diagnostics stripped) out of the
+        sort step; sorting the joined rows forces an external disk sort since a season's payload
+        (~15MB) is several times work_mem.
 
         The ORDER BY is load-bearing, not cosmetic. Callers feed the cards dict straight into roster
-        selection, so its iteration order decides tie-breaks and therefore the seeded RNG sequence.
-        `seq` is assigned once in the CTE and re-asserted in the outer ORDER BY so the final row
-        order is correct regardless of the join strategy the planner picks. The sort matches what
-        `fetch_card_list` returned before, keeping seeded simulations reproducible across the change.
+        construction, which walks it in insertion order, so the dict must be built best-first.
+        `seq` is assigned once in the CTE and the rows are re-ordered by it in Python: the nested
+        loop over the CTE happens to emit rows in `seq` order already, but that isn't guaranteed,
+        and asking the server to `ORDER BY seq` re-introduces exactly the wide-row disk sort the
+        CTE exists to avoid (measured 1.6s of the query's 1.8s on the archive DB). Sorting ~1.5K
+        ints client-side is free.
         """
 
         if self.connection is None:
@@ -1620,10 +1622,9 @@ class PostgresDB:
                 FROM card_bot
                 WHERE year = %s AND showdown_set = %s
             )
-            SELECT pool.player_id, pool.card_id, pool.team_id_list, pool.team_games_played_dict, {card_data} AS card_data
+            SELECT pool.seq, pool.player_id, pool.card_id, pool.team_id_list, pool.team_games_played_dict, {card_data} AS card_data
             FROM pool
             JOIN internal.dim_card dim ON dim.id = pool.card_id
-            ORDER BY pool.seq
         """).format(card_data=card_data_expression)
         values = [int(year), set.value if isinstance(set, Set) else str(set)] + values
 
@@ -1631,7 +1632,8 @@ class PostgresDB:
         archive_card_ids: dict[str, str] = {}
         team_history: dict[str, tuple[list[str], dict[str, int]]] = {}
         try:
-            for row in (self.execute_query(query=query, filter_values=tuple(values)) or []):
+            rows = sorted(self.execute_query(query=query, filter_values=tuple(values)) or [], key=lambda row: row['seq'])
+            for row in rows:
                 if not row.get('card_data'):
                     continue
                 player_id = str(row['player_id'])
@@ -4483,6 +4485,18 @@ class PostgresDB:
             db_cursor.execute(create_table_statement)
         except:
             return
+
+        # Every season-scoped read (sim playing-time probe, fetch_all_stats_from_archive) filters
+        # on `year` plus `historical_date IS NULL` / `= date`; without this the table's only index
+        # is the PK, so each one seq-scans ~94K rows (~160MB, 600ms+) to return one season.
+        # CONCURRENTLY so archive writes aren't blocked - fine here since the pool sets autocommit.
+        try:
+            db_cursor.execute(f"""
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_player_season_stats{table_suffix}_year_snapshot
+                    ON player_season_stats{table_suffix} (year, historical_date);
+            """)
+        except Exception as e:
+            print(f"Skipped idx_player_season_stats{table_suffix}_year_snapshot: {e}")
 
     def build_auto_image_table(self, refresh_explore: bool=False, drop_existing:bool = False) -> None:
         """Creates and replaces the internal.dim_auto_image table in the database."""
