@@ -997,10 +997,14 @@ class PostgresDB:
                         filter_values.append(value)
                         continue
 
-                    # Handle min/max filtering
+                    # Handle min/max filtering. `min_` keeps NULL rows (matches the historical
+                    # `coalesce(field >= x, true)` behavior) but is written as an OR so the planner
+                    # can still use a btree on the field - wrapping the column in coalesce() made
+                    # `min_year` unindexable, forcing a full walk of the set (~2.5s) instead of a
+                    # range lookup on idx_card_bot_year_set (~5ms).
                     if key.startswith('min_'):
                         field_name = key[4:]  # Remove 'min_' prefix
-                        filter_clauses.append(sql.SQL("coalesce({field} >= %s, true)").format(
+                        filter_clauses.append(sql.SQL("({field} >= %s OR {field} IS NULL)").format(
                             field=sql.Identifier(field_name)
                         ))
                         filter_values.append(value)
@@ -4216,6 +4220,39 @@ class PostgresDB:
                 ON card_bot (card_id);
             """)
             print("  → Ensured indexes exist.")
+
+            # EXPLORE / CARD SEARCH INDEXES (fetch_card_list)
+            # Built CONCURRENTLY so the explore page isn't blocked while they build - requires
+            # running outside a transaction, which holds because the pool sets autocommit. A
+            # failed CONCURRENTLY build leaves an INVALID index behind; drop it and rerun.
+            #
+            # idx_card_bot_set_points: the default explore query is `showdown_set = X AND
+            # organization = 'MLB' AND NOT is_small_sample_size ORDER BY points DESC NULLS LAST,
+            # bref_id, year LIMIT 50`. Leading with (set, points, bref_id, year) in the query's
+            # exact sort order lets the planner walk the index in order and stop after 50 matches
+            # instead of bitmap-scanning all ~92K rows of the set (~2KB each) into a top-N sort.
+            # organization / is_small_sample_size / year range are trailing key columns so they're
+            # checked inside the index (no heap fetch for rejected entries) without being required
+            # for the ordering - so the index still applies when those filters are absent.
+            #
+            # idx_card_bot_name_trgm: the `search` filter is `replace(lower(name), '.', '') ILIKE
+            # '%text%'`; a leading-wildcard pattern can only be indexed by pg_trgm. The expression
+            # must match the filter in fetch_card_list exactly for the planner to use it.
+            for index_sql in [
+                """
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_set_points
+                    ON card_bot (showdown_set, points DESC NULLS LAST, bref_id, year, organization, is_small_sample_size);
+                """,
+                "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
+                """
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_name_trgm
+                    ON card_bot USING gin (replace(lower(name), '.', '') gin_trgm_ops);
+                """,
+            ]:
+                try:
+                    cursor.execute(index_sql)
+                except Exception as e:
+                    print(f"  → Skipped index: {e}")
             
             # RUN ANALYZE
             cursor.execute("ANALYZE card_bot;")
