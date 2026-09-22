@@ -75,6 +75,14 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
     const isResumed = Object.keys(summary.seeded_records ?? {}).length > 0;
     const streakSuffix = isResumed ? ' (since resume)' : '';
 
+    // This club's real record as of the resume date, for `SimWinPctChart` to plot as a distinct
+    // landmark ahead of the simulated games - `undefined` (not resumed, or this club wasn't a
+    // real one that season) is fine, the chart treats a missing seed the same as 0-0.
+    const seedRecord = useMemo(() => {
+        const seeded = summary.seeded_records?.[teamKey];
+        return seeded ? { wins: seeded[0], losses: seeded[1] } : null;
+    }, [summary.seeded_records, teamKey]);
+
     const kpis = useMemo(() => [
         { label: 'Win %', value: (team?.win_pct ?? 0).toFixed(3).replace(/^0\./, '.') },
         {
@@ -105,8 +113,8 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                     )}
                 </SectionCard>
 
-                <SectionCard title="Win % Over Time" >
-                    <SimWinPctChart games={games} playoffCutlinePct={playoffCutlinePct} />
+                <SectionCard title={`Win % Over Time · ${team.wins}–${team.losses}`}>
+                    <SimWinPctChart games={games} playoffCutlinePct={playoffCutlinePct} seedRecord={seedRecord} />
                 </SectionCard>
             </div>
 

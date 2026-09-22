@@ -69,6 +69,15 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
     const timeline = job?.progress_games ?? [];
     const latest = timeline.length > 0 ? timeline[timeline.length - 1] : null;
 
+    // A "resume from real standings" run's live timeline is already seeded with the real record
+    // (`Season.simulate`'s `focus_wins`/`focus_losses`), so the very first streamed point is the
+    // seed plus that one game - subtracting its own W/L back out recovers the seed itself, with no
+    // extra data needed from the backend. Only meaningful once at least one game has streamed in.
+    const isResumed = job?.config?.['resume_from_real_season'] === true;
+    const seedRecord = isResumed && timeline.length > 0
+        ? { wins: timeline[0].wins - (timeline[0].is_win ? 1 : 0), losses: timeline[0].losses - (timeline[0].is_win ? 0 : 1) }
+        : null;
+
     return (
         <div className="fade-in flex flex-col items-center gap-4 px-4 py-10">
             {/* Hero panel: the dice, what's running, and how far along it is. Clipped, so the
@@ -122,7 +131,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
 
             <div className="w-full max-w-lg">
                 <SectionCard title={latest ? `Win % Over Time · ${latest.wins}–${latest.losses}` : 'Win % Over Time'}>
-                    <SimWinPctChart games={timeline} totalGames={job?.progress_games_total} />
+                    <SimWinPctChart games={timeline} totalGames={job?.progress_games_total} seedRecord={seedRecord} />
                 </SectionCard>
             </div>
 
