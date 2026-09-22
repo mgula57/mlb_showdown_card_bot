@@ -199,7 +199,7 @@ class PeopleClient(BaseMLBClient):
                 hitter_stat_groups = ['hitting', 'fielding']
                 league_list_hydration = f",leagueListId={league_list.value}" if league_list else ""
                 is_milb = league_list and 'milb' in league_list.value.lower()
-                sit_codes = ['sp', 'rp'] if type == PlayerType.PITCHER else []
+                sit_codes = ['sp', 'rp'] # Used for IP/GS
                 if additional_sit_codes:
                     sit_codes.extend(additional_sit_codes)
                 sit_code_str = f",sitCodes=[{','.join(sit_codes)}]" if sit_codes and len(sit_codes) > 0 and not is_milb else ''
@@ -223,7 +223,7 @@ class PeopleClient(BaseMLBClient):
 
             if index > 0:  # Add a short delay between requests to avoid hitting rate limits
                 sleep(0.15)
-
+        
         return Players(people=all_players)
 
     # -----------------------
