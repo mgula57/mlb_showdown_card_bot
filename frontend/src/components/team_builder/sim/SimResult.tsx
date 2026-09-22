@@ -164,7 +164,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             {!isOpenSim && team.replaced_abbr ? ` · took over ${team.replaced_abbr}` : ''}
                             {summary.seed !== null ? ` · seed ${summary.seed}` : ''}
                             {isResumed ? ' · resumed mid-season' : ''}
-                            {summary.real_stats_as_of ? ` · stats as of ${new Date(summary.real_stats_as_of).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
+                            {summary.real_stats_as_of ? ` (${new Date(summary.real_stats_as_of).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})` : ''}
                         </p>
                         {isOpenSim && onFocusChange && (
                             <CustomSelect
