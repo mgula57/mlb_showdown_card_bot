@@ -402,7 +402,13 @@ class PlayerStatsNormalizer:
 
         # ADD GAME LOGS
         if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR or stats_period.has_game_logs:
-            normalized_data['game_logs'] = PlayerStatsNormalizer._extract_game_logs(player, stats_period)
+            game_logs = PlayerStatsNormalizer._extract_game_logs(player, stats_period)
+            normalized_data['game_logs'] = game_logs
+            # IF SINGLE SEASON + LAST_TEAM SELECTION AND HAS GAME LOGS, OVERRIDE TEAM_ID WITH THE TEAM FROM THE LAST GAME LOG
+            if stats_period.team_selection == TeamSelection.LAST_TEAM and game_logs and len(game_logs) > 0:
+                last_game_log = normalized_data['game_logs'][-1]
+                if last_game_log and last_game_log.team_ID:
+                    normalized_data['team_ID'] = last_game_log.team_ID
 
         # FILL IN EMPTY VALUES
         normalized_data = fill_empty_stat_categories(
