@@ -20,7 +20,7 @@ class PlayerFilterSet(BaseModel):
             if value is None:
                 continue
             if key.startswith('min_'):
-                # Mirrors fetch_card_list's `coalesce({field} >= %s, true)` - a missing field
+                # Mirrors fetch_card_list's `({field} >= %s OR {field} IS NULL)` - a missing field
                 # passes the min check (matches the picker's own query semantics).
                 field = key[4:]
                 actual = card.get(field)

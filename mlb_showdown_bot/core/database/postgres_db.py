@@ -853,16 +853,299 @@ class PostgresDB:
 
         return [ExploreDataRecord(**row) for row in raw_data]
 
+    # Card-list sources backed by a real table. CUSTOM is a per-user subquery over
+    # internal.log_custom_card_bot - see _card_list_from_clause.
+    _CARD_LIST_TABLES = {'bot': 'card_bot', 'wotc': 'card_wotc', 'wbc': 'card_wbc'}
+
+    def _card_list_from_clause(self, source: str, filters: dict, user_id: Optional[str]) -> Optional[tuple[sql.Composable, list]]:
+        """FROM target for a card-list query plus the values it binds, or None when nothing may be
+        returned (unknown source, or a custom-card browse without a verified user).
+
+        For `source: 'custom'`, an explicit `id` filter is treated as a direct-lookup-by-id (e.g.
+        hydrating a card already drafted onto a team roster) and is not scoped by ownership - same
+        trust model as the BOT/WOTC tables, and consistent with `fetch_cards_for_roster_slots`.
+        Any other custom-card query is a browse/search scoped to `user_id`'s own (non-hidden) cards.
+        """
+        table = self._CARD_LIST_TABLES.get(source)
+        if table:
+            return sql.Identifier(table), []
+        if source != 'custom':
+            return None
+
+        is_custom_id_lookup = bool(filters.get('id'))
+        if not is_custom_id_lookup and not user_id:
+            return None
+        # log_custom_card_bot stores the card as jsonb (`card_result`), not flat columns like
+        # card_bot/card_wotc - flatten the fields the generic filter/sort logic expects (points,
+        # command, outs, etc.) in a subquery so that logic can run unmodified for this source too.
+        scope_clause = sql.SQL("TRUE") if is_custom_id_lookup else sql.SQL("user_id = %s AND coalesce(is_hidden, FALSE) = FALSE")
+        from_clause = sql.SQL("""(
+            SELECT
+                id::text AS id,
+                name,
+                year,
+                (card_result->>'bref_id') AS bref_id,
+                set AS showdown_set,
+                created_on AS updated_at,
+                card_result AS card_data,
+                (card_result->>'points')::int AS points,
+                (card_result->'chart'->>'command')::int AS command,
+                (card_result->'chart'->>'outs_full')::int AS outs,
+                (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
+                (card_result->'speed'->>'speed')::int AS speed,
+                (card_result->>'ip')::int AS ip,
+                (card_result->>'hand') AS hand,
+                (card_result->'positions_and_defense') AS positions_and_defense,
+                (card_result->'chart'->'ranges') AS chart_ranges
+            FROM internal.log_custom_card_bot
+            WHERE
+                error IS NULL AND
+                ({scope_clause})
+        ) sub""").format(scope_clause=scope_clause)
+        return from_clause, ([] if is_custom_id_lookup else [user_id])
+
+    def _card_list_filter_clauses(self, source: str, filters: dict) -> tuple[list[sql.Composable], list]:
+        """WHERE clauses (AND-ed by the caller) and their bound values for a card-list `filters`
+        dict: list filters become IN / array-overlap tests, `min_`/`max_` prefixes become range
+        bounds, plus the special-cased search / multi-team / chart-slot / fielding filters."""
+        filter_clauses: list[sql.Composable] = []
+        filter_values: list = []
+        if not filters:
+            return filter_clauses, filter_values
+
+        # SOURCE SPECIFIC FILTERS
+        match source:
+            case 'wotc':
+                sets = filters.get('showdown_set', [])
+                # FILTER TO SPECIFIC SETS IF USER HAS `CLASSIC` OR `EXPANDED` SELECTED - THEY DIDNT EXIST IN WOTC
+                if isinstance(sets, str):
+                    if sets == 'CLASSIC':
+                        filters['showdown_set'] = ['2000', '2001']
+                    elif sets == 'EXPANDED':
+                        filters['showdown_set'] = ['2002', '2003', '2004', '2005']
+
+        for key, value in filters.items():
+            if value is None:
+                continue
+
+            # Fielding min/max — applies as an OR across every position the player
+            # is rated at (e.g. min_fielding=3 matches a player who is +3 or better
+            # at ANY of their listed positions), since there's no single "fielding" column.
+            if key in ('min_fielding', 'max_fielding'):
+                comparison = '>=' if key.startswith('min_') else '<='
+                filter_clauses.append(sql.SQL("""
+                    EXISTS (
+                        SELECT 1 FROM jsonb_each_text(coalesce(positions_and_defense, '{{}}'::jsonb)) AS pd(pos, val)
+                        WHERE val ~ '^-?[0-9]+$' AND val::numeric {comparison} %s
+                    )
+                """).format(comparison=sql.SQL(comparison)))
+                filter_values.append(value)
+                continue
+
+            # Chart category slot-count min/max (e.g. min_chart_hr, max_chart_1b+).
+            # Counts the number of chart slots (out of 20) assigned to the category by
+            # parsing `chart_ranges` (e.g. "12–17" -> 6, "20+" -> 1, "—" -> 0), explicitly
+            # excluding any slots past 20 (the 21+ overflow used by some expanded sets).
+            if key.startswith('min_chart_') or key.startswith('max_chart_'):
+                category = key[len('min_chart_'):].upper()
+                comparison = '>=' if key.startswith('min_') else '<='
+                filter_clauses.append(sql.SQL("""
+                    (SELECT CASE
+                        WHEN x.r IS NULL OR x.r = '—' THEN 0
+                        WHEN right(x.r, 1) = '+' THEN greatest(0, 21 - left(x.r, length(x.r) - 1)::int)
+                        WHEN position('–' in x.r) > 0 THEN greatest(0, least(split_part(x.r, '–', 2)::int, 20) - split_part(x.r, '–', 1)::int + 1)
+                        WHEN x.r::int > 20 THEN 0
+                        ELSE 1
+                    END
+                    FROM (SELECT chart_ranges->>%s AS r) AS x) {comparison} %s
+                """).format(comparison=sql.SQL(comparison)))
+                filter_values.append(category)
+                filter_values.append(value)
+                continue
+
+            # Handle min/max filtering. `min_` keeps NULL rows (matches the historical
+            # `coalesce(field >= x, true)` behavior) but is written as an OR so the planner
+            # can still use a btree on the field - wrapping the column in coalesce() made
+            # `min_year` unindexable, forcing a full walk of the set (~2.5s) instead of a
+            # range lookup on idx_card_bot_year_set (~5ms).
+            if key.startswith('min_'):
+                field_name = key[4:]  # Remove 'min_' prefix
+                filter_clauses.append(sql.SQL("({field} >= %s OR {field} IS NULL)").format(
+                    field=sql.Identifier(field_name)
+                ))
+                filter_values.append(value)
+
+            elif key.startswith('max_'):
+                field_name = key[4:]  # Remove 'max_' prefix
+                filter_clauses.append(sql.SQL("{field} <= %s").format(
+                    field=sql.Identifier(field_name)
+                ))
+                filter_values.append(value)
+
+            elif key == 'search':
+                # Handle search text filtering (ILIKE %value%)
+                filter_clauses.append(sql.SQL("REPLACE(LOWER({field}), '.', '') ILIKE %s").format(
+                    field=sql.Identifier("name")
+                ))
+                filter_values.append(f"%{value}%")
+
+            elif key == 'is_multi_team':
+                # Handle multi-team filtering based on cardinality of team_id_list
+                if isinstance(value, list) and len(value) > 0:
+                    multi_team_conditions = []
+
+                    for multi_team_value in value:
+                        if multi_team_value.lower() == 'true':
+                            # Players with multiple teams (cardinality > 1)
+                            multi_team_conditions.append(sql.SQL("cardinality(team_id_list) > 1"))
+                        elif multi_team_value.lower() == 'false':
+                            # Players with single team (cardinality = 1 or NULL/empty array)
+                            multi_team_conditions.append(sql.SQL("(cardinality(team_id_list) <= 1 OR team_id_list IS NULL)"))
+
+                    if multi_team_conditions:
+                        # Use OR to combine conditions (show records matching any of the selected values)
+                        filter_clauses.append(sql.SQL("({})").format(
+                            sql.SQL(" OR ").join(multi_team_conditions)
+                        ))
+
+            # Handle list filtering (IN clause)
+            elif isinstance(value, list) and len(value) > 0:
+                # For JSONB array fields, use @> operator to check if array contains any of the values
+                match key:
+                    case 'positions':
+                        # Check if any of the provided positions are in the player's positions
+                        filter_clauses.append(sql.SQL("positions_list && %s"))
+                        filter_values.append(value)
+                    case 'icons':
+                        # Check if any of the provided icons are in the player's icons
+                        filter_clauses.append(sql.SQL("icons_list && %s"))
+                        filter_values.append(value)
+                    case 'awards':
+                        # Check if any of the provided awards are in the player's awards
+                        # Handle partial matching for values ending with '-'
+                        award_conditions = []
+                        for award in value:
+                            if award.endswith('-*'):
+                                # Partial match: check if any element in the array starts with the prefix
+                                award_prefix = award[:-2]  # Remove the trailing '-*'
+                                award_conditions.append(sql.SQL("EXISTS (SELECT 1 FROM unnest(awards_list) AS award WHERE award LIKE %s)"))
+                                filter_values.append(f"{award_prefix}-%")
+                            else:
+                                # Exact match: check if the exact value exists in the array
+                                award_conditions.append(sql.SQL("%s = ANY(awards_list)"))
+                                filter_values.append(award)
+
+                        if award_conditions:
+                            filter_clauses.append(sql.SQL("({})").format(
+                                sql.SQL(" OR ").join(award_conditions)
+                            ))
+                    case 'include_small_sample_size':
+                        # Only filter if array is ["false"]
+                        if value == ["false"]:
+                            filter_clauses.append(sql.SQL("not is_small_sample_size"))
+                    case 'is_hof':
+                        # Filter based on Hall of Fame status
+                        if value == ['true']:
+                            filter_clauses.append(sql.SQL("is_hof = TRUE"))
+                        elif value == ['false']:
+                            filter_clauses.append(sql.SQL("is_hof IS NOT TRUE"))
+                    case 'pro_league':
+                        # Use the 'league' field for filtering since 'pro_league_list' is only used for WBC and would be empty for other sources
+                        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                        filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
+                            field=sql.Identifier("league"),
+                            placeholders=placeholders
+                        ))
+                        filter_values.extend(value)
+
+                    case _:
+                        # Regular IN clause for non-array fields
+                        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                        filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
+                            field=sql.Identifier(key),
+                            placeholders=placeholders
+                        ))
+                        filter_values.extend(value)
+
+            # Handle regular equality filtering
+            else:
+                filter_clauses.append(sql.SQL("{field} = %s").format(
+                    field=sql.Identifier(key)
+                ))
+                filter_values.append(value)
+
+        return filter_clauses, filter_values
+
+    def _card_list_order_clause(self, source: str, sort_by: str, sort_direction: str) -> tuple[sql.Composable, list]:
+        """Primary ORDER BY expression (and its bound values) for a card-list `sort_by` key,
+        resolving the jsonb-backed keys (positions_and_defense_*, chart_values_*, real_stats_*)."""
+        if sort_direction not in ['asc', 'desc']:
+            sort_direction = 'desc'
+        sort_values: list = []
+
+        # CHECK FOR JSONB USE CASES
+        if 'positions_and_defense' in sort_by:
+            sort_by = sort_by.replace('positions_and_defense_', '').upper()
+            # For 1B, 2B, 3B, SS we need to check both the position and the 'IF' key
+            # For CF, LF/RF we need to check both the position and the 'OF' key
+            check_if_key = sort_by in ['1B', '2B', '3B', 'SS']
+            check_of_key = sort_by in ['CF', 'LF/RF']
+            if check_if_key or check_of_key:
+                additional_key = 'IF' if check_if_key else 'OF'
+                final_sort = sql.SQL("""CASE
+                                            WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric
+                                            WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric
+                                            ELSE null
+                                        END {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+                sort_values += [sort_by, sort_by, additional_key, additional_key]
+            else:
+                final_sort = sql.SQL("""CASE WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric ELSE null END {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+                sort_values += [sort_by, sort_by]
+
+        elif 'chart_values' in sort_by:
+            chart_key = sort_by.replace('chart_values_', '').upper()
+            if source == 'wotc':
+                final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+            else:
+                final_sort = sql.SQL("""(chart_values->>%s)::float {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+            sort_values += [chart_key]
+
+        elif 'real_stats' in sort_by:
+            real_stats_key = sort_by.replace('real_stats_', 'real_').lower()
+            final_sort = sql.SQL("""{field} {direction} NULLS LAST""").format(
+                field=sql.Identifier(real_stats_key),
+                direction=sql.SQL(sort_direction)
+            )
+
+        else:
+            if sort_by.lower() == 'random()':
+                final_sort = sql.SQL("random() {direction} NULLS LAST").format(
+                    direction=sql.SQL(sort_direction)
+                )
+            else:
+                final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
+                    field=sql.Identifier(sort_by),
+                    direction=sql.SQL(sort_direction)
+                )
+
+        return final_sort, sort_values
+
     def fetch_card_list(self, filters: dict = {}, user_id: Optional[str] = None) -> list[dict]:
         """Fetch all card data from the database with support for lists and min/max filtering.
 
         Args:
-          filters: Query filters. For `source: 'custom'`, an explicit `id` filter is treated as a
-            direct-lookup-by-id (e.g. hydrating a card already drafted onto a team roster) and is
-            not scoped by ownership — same trust model as the BOT/WOTC tables, and consistent with
-            `fetch_cards_for_roster_slots`, which hydrates CUSTOM roster slots by id with no
-            ownership check. Any other custom-card query is a browse/search and requires `user_id`,
-            scoped to that user's own (non-hidden) cards.
+          filters: Query filters. `source` picks the table (BOT / WOTC / WBC / CUSTOM), `sort_by`,
+            `sort_direction`, `page` and `limit` drive ordering + pagination, and everything else
+            becomes a WHERE clause - see `_card_list_filter_clauses`. Custom-card ownership scoping
+            is described on `_card_list_from_clause`.
           user_id: Verified requester id (from the JWT). Required for a custom-card browse/search;
             not consulted for an id-based custom-card lookup.
         """
@@ -875,65 +1158,6 @@ class PostgresDB:
             # Pop Out Source
             source = str(filters.pop('source', 'BOT')).lower()
 
-            is_custom_id_lookup = source == 'custom' and bool(filters.get('id'))
-            if source == 'custom' and not is_custom_id_lookup and not user_id:
-                return []
-
-            match source:
-                case 'bot':
-                    query = sql.SQL("""
-                        SELECT *, 'BOT' as source
-                        FROM card_bot
-                        WHERE TRUE
-                    """)
-                case 'wotc':
-                    query = sql.SQL("""
-                        SELECT *, 'WOTC' as source
-                        FROM card_wotc
-                        WHERE TRUE
-                    """)
-                case 'wbc':
-                    query = sql.SQL("""
-                        select *, 'WBC' as source
-                        from card_wbc
-                        where true
-                    """)
-                case 'custom':
-                    # log_custom_card_bot stores the card as jsonb (`card_result`), not flat
-                    # columns like card_bot/card_wotc — flatten the fields the generic filter/
-                    # sort logic below expects (points, command, outs, etc.) in a subquery so
-                    # that logic can run unmodified for this source too.
-                    scope_clause = sql.SQL("TRUE") if is_custom_id_lookup else sql.SQL("user_id = %s AND coalesce(is_hidden, FALSE) = FALSE")
-                    query = sql.SQL("""
-                        SELECT *, 'CUSTOM' as source
-                        FROM (
-                            SELECT
-                                id::text AS id,
-                                name,
-                                year,
-                                (card_result->>'bref_id') AS bref_id,
-                                set AS showdown_set,
-                                created_on AS updated_at,
-                                card_result AS card_data,
-                                (card_result->>'points')::int AS points,
-                                (card_result->'chart'->>'command')::int AS command,
-                                (card_result->'chart'->>'outs_full')::int AS outs,
-                                (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
-                                (card_result->'speed'->>'speed')::int AS speed,
-                                (card_result->>'ip')::int AS ip,
-                                (card_result->>'hand') AS hand,
-                                (card_result->'positions_and_defense') AS positions_and_defense,
-                                (card_result->'chart'->'ranges') AS chart_ranges
-                            FROM internal.log_custom_card_bot
-                            WHERE 
-                                error IS NULL AND
-                                ({scope_clause})
-                        ) sub
-                        WHERE TRUE
-                    """).format(scope_clause=scope_clause)
-
-            filter_values = [user_id] if (source == 'custom' and not is_custom_id_lookup) else []
-
             # Pop out sorting filters
             sort_by = str(filters.pop('sort_by', 'points'))
             sort_direction = str(filters.pop('sort_direction', 'desc')).lower()
@@ -942,232 +1166,25 @@ class PostgresDB:
             page = int(filters.pop('page', 1))
             limit = int(filters.pop('limit', 50))
 
+            from_clause = self._card_list_from_clause(source, filters, user_id)
+            if from_clause is None:
+                return []
+            from_sql, filter_values = from_clause
+
+            query = sql.SQL("SELECT *, {source} AS source FROM {from_sql} WHERE TRUE").format(
+                source=sql.Literal(source.upper()),
+                from_sql=from_sql,
+            )
+
             # Apply filters if any
-            if filters and len(filters) > 0:
-                filter_clauses = []
-
-                # SOURCE SPECIFIC FILTERS
-                match source:
-                    case 'wotc':
-                        sets = filters.get('showdown_set', [])
-                        # FILTER TO SPECIFIC SETS IF USER HAS `CLASSIC` OR `EXPANDED` SELECTED - THEY DIDNT EXIST IN WOTC
-                        if isinstance(sets, str):
-                            if sets == 'CLASSIC':
-                                filters['showdown_set'] = ['2000', '2001']
-                            elif sets == 'EXPANDED':
-                                filters['showdown_set'] = ['2002', '2003', '2004', '2005']
-
-                
-                for key, value in filters.items():
-                    if value is None:
-                        continue
-
-                    # Fielding min/max — applies as an OR across every position the player
-                    # is rated at (e.g. min_fielding=3 matches a player who is +3 or better
-                    # at ANY of their listed positions), since there's no single "fielding" column.
-                    if key in ('min_fielding', 'max_fielding'):
-                        comparison = '>=' if key.startswith('min_') else '<='
-                        filter_clauses.append(sql.SQL("""
-                            EXISTS (
-                                SELECT 1 FROM jsonb_each_text(coalesce(positions_and_defense, '{{}}'::jsonb)) AS pd(pos, val)
-                                WHERE val ~ '^-?[0-9]+$' AND val::numeric {comparison} %s
-                            )
-                        """).format(comparison=sql.SQL(comparison)))
-                        filter_values.append(value)
-                        continue
-
-                    # Chart category slot-count min/max (e.g. min_chart_hr, max_chart_1b+).
-                    # Counts the number of chart slots (out of 20) assigned to the category by
-                    # parsing `chart_ranges` (e.g. "12–17" -> 6, "20+" -> 1, "—" -> 0), explicitly
-                    # excluding any slots past 20 (the 21+ overflow used by some expanded sets).
-                    if key.startswith('min_chart_') or key.startswith('max_chart_'):
-                        category = key[len('min_chart_'):].upper()
-                        comparison = '>=' if key.startswith('min_') else '<='
-                        filter_clauses.append(sql.SQL("""
-                            (SELECT CASE
-                                WHEN x.r IS NULL OR x.r = '—' THEN 0
-                                WHEN right(x.r, 1) = '+' THEN greatest(0, 21 - left(x.r, length(x.r) - 1)::int)
-                                WHEN position('–' in x.r) > 0 THEN greatest(0, least(split_part(x.r, '–', 2)::int, 20) - split_part(x.r, '–', 1)::int + 1)
-                                WHEN x.r::int > 20 THEN 0
-                                ELSE 1
-                            END
-                            FROM (SELECT chart_ranges->>%s AS r) AS x) {comparison} %s
-                        """).format(comparison=sql.SQL(comparison)))
-                        filter_values.append(category)
-                        filter_values.append(value)
-                        continue
-
-                    # Handle min/max filtering. `min_` keeps NULL rows (matches the historical
-                    # `coalesce(field >= x, true)` behavior) but is written as an OR so the planner
-                    # can still use a btree on the field - wrapping the column in coalesce() made
-                    # `min_year` unindexable, forcing a full walk of the set (~2.5s) instead of a
-                    # range lookup on idx_card_bot_year_set (~5ms).
-                    if key.startswith('min_'):
-                        field_name = key[4:]  # Remove 'min_' prefix
-                        filter_clauses.append(sql.SQL("({field} >= %s OR {field} IS NULL)").format(
-                            field=sql.Identifier(field_name)
-                        ))
-                        filter_values.append(value)
-                        
-                    elif key.startswith('max_'):
-                        field_name = key[4:]  # Remove 'max_' prefix
-                        filter_clauses.append(sql.SQL("{field} <= %s").format(
-                            field=sql.Identifier(field_name)
-                        ))
-                        filter_values.append(value)
-
-                    elif key == 'search':
-                        # Handle search text filtering (ILIKE %value%)
-                        filter_clauses.append(sql.SQL("REPLACE(LOWER({field}), '.', '') ILIKE %s").format(
-                            field=sql.Identifier("name")
-                        ))
-                        filter_values.append(f"%{value}%")
-
-                    elif key == 'is_multi_team':
-                        # Handle multi-team filtering based on cardinality of team_id_list
-                        if isinstance(value, list) and len(value) > 0:
-                            multi_team_conditions = []
-                            
-                            for multi_team_value in value:
-                                if multi_team_value.lower() == 'true':
-                                    # Players with multiple teams (cardinality > 1)
-                                    multi_team_conditions.append(sql.SQL("cardinality(team_id_list) > 1"))
-                                elif multi_team_value.lower() == 'false':
-                                    # Players with single team (cardinality = 1 or NULL/empty array)
-                                    multi_team_conditions.append(sql.SQL("(cardinality(team_id_list) <= 1 OR team_id_list IS NULL)"))
-                            
-                            if multi_team_conditions:
-                                # Use OR to combine conditions (show records matching any of the selected values)
-                                filter_clauses.append(sql.SQL("({})").format(
-                                    sql.SQL(" OR ").join(multi_team_conditions)
-                                ))
-                            
-                    # Handle list filtering (IN clause)
-                    elif isinstance(value, list) and len(value) > 0:
-                        # For JSONB array fields, use @> operator to check if array contains any of the values
-                        match key:
-                            case 'positions':
-                                # Check if any of the provided positions are in the player's positions
-                                filter_clauses.append(sql.SQL("positions_list && %s"))
-                                filter_values.append(value)
-                            case 'icons':
-                                # Check if any of the provided icons are in the player's icons
-                                filter_clauses.append(sql.SQL("icons_list && %s"))
-                                filter_values.append(value)
-                            case 'awards':
-                                # Check if any of the provided awards are in the player's awards
-                                # Handle partial matching for values ending with '-'
-                                award_conditions = []
-                                for award in value:
-                                    if award.endswith('-*'):
-                                        # Partial match: check if any element in the array starts with the prefix
-                                        award_prefix = award[:-2]  # Remove the trailing '-*'
-                                        award_conditions.append(sql.SQL("EXISTS (SELECT 1 FROM unnest(awards_list) AS award WHERE award LIKE %s)"))
-                                        filter_values.append(f"{award_prefix}-%")
-                                    else:
-                                        # Exact match: check if the exact value exists in the array
-                                        award_conditions.append(sql.SQL("%s = ANY(awards_list)"))
-                                        filter_values.append(award)
-                                
-                                if award_conditions:
-                                    filter_clauses.append(sql.SQL("({})").format(
-                                        sql.SQL(" OR ").join(award_conditions)
-                                    ))
-                            case 'include_small_sample_size':
-                                # Only filter if array is ["false"]
-                                if value == ["false"]:
-                                    filter_clauses.append(sql.SQL("not is_small_sample_size"))
-                            case 'is_hof':
-                                # Filter based on Hall of Fame status
-                                if value == ['true']:
-                                    filter_clauses.append(sql.SQL("is_hof = TRUE"))
-                                elif value == ['false']:
-                                    filter_clauses.append(sql.SQL("is_hof IS NOT TRUE"))
-                            case 'pro_league':
-                                # Use the 'league' field for filtering since 'pro_league_list' is only used for WBC and would be empty for other sources
-                                placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
-                                filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
-                                    field=sql.Identifier("league"),
-                                    placeholders=placeholders
-                                ))
-                                filter_values.extend(value)
-                                
-                            case _:
-                                # Regular IN clause for non-array fields
-                                placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
-                                filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
-                                    field=sql.Identifier(key),
-                                    placeholders=placeholders
-                                ))
-                                filter_values.extend(value)
-                            
-                    # Handle regular equality filtering
-                    else:
-                        filter_clauses.append(sql.SQL("{field} = %s").format(
-                            field=sql.Identifier(key)
-                        ))
-                        filter_values.append(value)
-
-                if filter_clauses:
-                    query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
+            filter_clauses, clause_values = self._card_list_filter_clauses(source, filters)
+            filter_values += clause_values
+            if filter_clauses:
+                query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
 
             # ADD SORTING
-            if sort_direction not in ['asc', 'desc']:
-                sort_direction = 'desc'
-
-            # CHECK FOR JSONB USE CASES
-            if 'positions_and_defense' in sort_by:
-                sort_by = sort_by.replace('positions_and_defense_', '').upper()
-                # For 1B, 2B, 3B, SS we need to check both the position and the 'IF' key
-                # For CF, LF/RF we need to check both the position and the 'OF' key
-                check_if_key = sort_by in ['1B', '2B', '3B', 'SS']
-                check_of_key = sort_by in ['CF', 'LF/RF']
-                if check_if_key or check_of_key:
-                    additional_key = 'IF' if check_if_key else 'OF'
-                    final_sort = sql.SQL("""CASE 
-                                                WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric 
-                                                WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric 
-                                                ELSE null 
-                                            END {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                    filter_values += [sort_by, sort_by, additional_key, additional_key]
-                else:
-                    final_sort = sql.SQL("""CASE WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric ELSE null END {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                    filter_values += [sort_by, sort_by]
-
-            elif 'chart_values' in sort_by:
-                chart_key = sort_by.replace('chart_values_', '').upper()
-                if source == 'wotc':
-                    final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                else:
-                    final_sort = sql.SQL("""(chart_values->>%s)::float {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                filter_values += [chart_key]
-
-            elif 'real_stats' in sort_by:
-                real_stats_key = sort_by.replace('real_stats_', 'real_').lower()
-                final_sort = sql.SQL("""{field} {direction} NULLS LAST""").format(
-                    field=sql.Identifier(real_stats_key),
-                    direction=sql.SQL(sort_direction)
-                )
-
-            else:
-                if sort_by.lower() == 'random()':
-                    final_sort = sql.SQL("random() {direction} NULLS LAST").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                else:
-                    final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
-                        field=sql.Identifier(sort_by),
-                        direction=sql.SQL(sort_direction)
-                    )
-
+            final_sort, sort_values = self._card_list_order_clause(source, sort_by, sort_direction)
+            filter_values += sort_values
             query += sql.SQL(" ORDER BY {}, points DESC, bref_id, year").format(final_sort)
 
             # ADD LIMIT AND PAGINATION
@@ -1186,6 +1203,80 @@ class PostgresDB:
             return result_list
         except Exception as e:
             print("Error fetching card data:", e)
+            traceback.print_exc()
+            return []
+
+    def fetch_card_sample_by_price_band(self, filters: dict, bands: list[tuple[int, int, int]], columns: Optional[list[str]] = None, user_id: Optional[str] = None) -> list[dict]:
+        """Random sample of cards matching `filters`, stratified across points bands, in ONE query.
+
+        `bands` is `[(min_points, max_points, limit), ...]`; a card falls into the first band whose
+        inclusive range contains its points, and up to `limit` cards are drawn at random from each.
+        `filters` uses the same keys/semantics as `fetch_card_list` (minus sort/pagination);
+        `columns` narrows the projection (default `*`).
+
+        Replaces issuing one `ORDER BY random() LIMIT n` query per band: each of those had to walk
+        the entire filtered slice of the table (~90K wide rows per set) just to keep n of them, so
+        a 4-bucket x 5-band autofill paid for ~20 full walks and shipped ~2KB per row. Here the
+        walk happens once - only ctid + band go through the random sort - and the sampled rows are
+        fetched back by ctid in the same statement, so the projection is applied to the final
+        few hundred rows rather than the whole slice. Measured ~5x faster per bucket on the
+        archive DB (365ms vs 1.2-9s depending on cache state).
+        """
+        if not self.connection or not bands:
+            return []
+
+        try:
+            filters = dict(filters)
+            source = str(filters.pop('source', 'BOT')).lower()
+            for key in ('sort_by', 'sort_direction', 'page', 'limit'):
+                filters.pop(key, None)
+
+            from_clause = self._card_list_from_clause(source, filters, user_id)
+            if from_clause is None:
+                return []
+            from_sql, from_values = from_clause
+            filter_clauses, clause_values = self._card_list_filter_clauses(source, filters)
+            where_sql = sql.SQL(" AND ").join([sql.SQL("TRUE")] + filter_clauses)
+
+            # Row identity for the fetch-back: the physical ctid on a real table (a TID scan is a
+            # direct heap fetch, no index round trip), or the flattened `id` on the custom subquery.
+            row_key = sql.SQL("ctid") if source in self._CARD_LIST_TABLES else sql.Identifier("id")
+
+            band_cases = sql.SQL(" ").join(
+                sql.SQL("WHEN points BETWEEN %s AND %s THEN {}").format(sql.Literal(i)) for i in range(len(bands))
+            )
+            band_values = [v for lo, hi, _ in bands for v in (lo, hi)]
+            band_limits = [int(limit) for _, _, limit in bands]
+            select_cols = sql.SQL(", ").join(sql.Identifier(c) for c in columns) if columns else sql.SQL("*")
+
+            query = sql.SQL("""
+                SELECT {cols}, {source} AS source
+                FROM {from_sql}
+                WHERE {row_key} = ANY(ARRAY(
+                    SELECT {row_key} FROM (
+                        SELECT {row_key}, band, row_number() OVER (PARTITION BY band ORDER BY random()) AS rn
+                        FROM (
+                            SELECT {row_key}, CASE {band_cases} END AS band
+                            FROM {from_sql}
+                            WHERE {where_sql}
+                        ) pool
+                        WHERE band IS NOT NULL
+                    ) ranked
+                    WHERE rn <= (%s::int[])[band + 1]
+                ))
+            """).format(
+                cols=select_cols,
+                source=sql.Literal(source.upper()),
+                from_sql=from_sql,
+                row_key=row_key,
+                band_cases=band_cases,
+                where_sql=where_sql,
+            )
+            # Bound in textual order: outer FROM, band CASE, inner FROM, WHERE, per-band limits.
+            values = from_values + band_values + from_values + clause_values + [band_limits]
+            return self.execute_query(query=query, filter_values=tuple(values)) or []
+        except Exception as e:
+            print("Error sampling card data:", e)
             traceback.print_exc()
             return []
 

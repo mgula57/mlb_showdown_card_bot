@@ -39,6 +39,30 @@ _CANDIDATE_PRICE_BANDS: list[dict] = [
 ]
 
 
+# The only card fields autofill reads (see _sort_candidates / _is_small_sample / the pickers).
+# Fetching just these instead of `*` keeps ~2KB/row of chart ranges, awards, image ids etc. off
+# the wire for the ~2K candidates an autofill pulls.
+_CANDIDATE_COLUMNS = [
+    'card_id', 'points', 'positions_list', 'positions_and_defense', 'chart_values', 'command',
+    'speed', 'real_slugging_perc', 'real_batting_avg', 'is_small_sample_size', 'year', 'real_ip', 'pa',
+]
+
+
+def _price_bands_for_player_types(player_types: list[str] | None) -> list[tuple[int, int, int]]:
+    """`(min, max, limit)` bands for one candidate query. A band's player_type is a cheap-tier
+    override, not a relaxation - it's dropped if it contradicts the query's own player_type filter
+    (e.g. the pitcher cheap-tier band would otherwise leak cheap pitchers into a hitter-only
+    bucket like bench). Bands sharing a range (both cheap tiers, for an untyped query) merge."""
+    merged: dict[tuple[int, int], int] = {}
+    for band in _CANDIDATE_PRICE_BANDS:
+        band_player_type = band.get('player_type')
+        if band_player_type and player_types and band_player_type not in player_types:
+            continue
+        key = (band['min'], band['max'])
+        merged[key] = merged.get(key, 0) + band['limit']
+    return [(lo, hi, limit) for (lo, hi), limit in merged.items()]
+
+
 def fetch_stratified_candidates(
     db,
     bucket_filters: dict,
@@ -48,10 +72,11 @@ def fetch_stratified_candidates(
 ) -> list[dict]:
     """Fetch a candidate pool for one bucket, stratified across price bands (10-1000 pts) and
     every allowed card source, so the pool has representation at all budget levels rather than
-    clustering wherever a single sort-and-limit query happens to land. `db` is any object with a
-    `fetch_card_list(filters=...)` method (duck-typed to avoid importing PostgresDB here).
-    `sets_by_source`, if given, restricts each source to its allowed showdown sets unless
-    `active_filters` already specifies `showdown_set`."""
+    clustering wherever a single sort-and-limit query happens to land. One query per source: the
+    DB samples every band in a single pass (`fetch_card_sample_by_price_band`) rather than one
+    full-table walk per band. `db` is any object with that method (duck-typed to avoid importing
+    PostgresDB here). `sets_by_source`, if given, restricts each source to its allowed showdown
+    sets unless `active_filters` already specifies `showdown_set`."""
     merged_all: list[dict] = []
     seen_ids: set[str] = set()
 
@@ -62,31 +87,13 @@ def fetch_stratified_candidates(
             if source_sets:
                 base['showdown_set'] = source_sets
 
-        bucket_player_types = bucket_filters.get('player_type')
-        for band in _CANDIDATE_PRICE_BANDS:
-            band_player_type = band.get('player_type')
-            # A band's player_type is a cheap-tier override, not a relaxation — skip it if it
-            # contradicts the bucket's own filter (e.g. the pitcher cheap-tier band would
-            # otherwise leak cheap pitchers into a hitter-only bucket like bench).
-            if band_player_type and bucket_player_types and band_player_type not in bucket_player_types:
-                continue
-
-            filters = {
-                **base,
-                'min_points': band['min'],
-                'max_points': band['max'],
-                'limit': band['limit'],
-                'sort_by': 'random()',
-            }
-            if band_player_type:
-                filters['player_type'] = band_player_type
-
-            cards = db.fetch_card_list(filters=filters) or []
-            for c in cards:
-                if c['card_id'] not in seen_ids:
-                    c['_card_source'] = source
-                    merged_all.append(c)
-                    seen_ids.add(c['card_id'])
+        bands = _price_bands_for_player_types(base.get('player_type'))
+        cards = db.fetch_card_sample_by_price_band(filters=base, bands=bands, columns=_CANDIDATE_COLUMNS) or []
+        for c in cards:
+            if c['card_id'] not in seen_ids:
+                c['_card_source'] = source
+                merged_all.append(c)
+                seen_ids.add(c['card_id'])
 
     return merged_all
 
