@@ -302,7 +302,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             />
                         ))}
                     </div>
-                    <div className="overflow-x-auto border border-(--divider) rounded-xl">
+                    <div className="overflow-x-auto scrollbar-hide border border-(--divider) rounded-xl">
                         <table className="w-full text-[12px] whitespace-nowrap">
                             <thead>
                                 <tr className="text-(--text-tertiary) border-b border-(--divider)">

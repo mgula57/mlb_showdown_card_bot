@@ -19,7 +19,7 @@ function ComparisonTable({ label, columns, sim, real }: { label: string; columns
     return (
         <div>
             <p className="text-[11px] font-semibold text-(--text-tertiary) mb-1">{label}</p>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-hide">
                 <table className="w-full text-[12px] whitespace-nowrap">
                     <thead>
                         <tr className="text-(--text-tertiary) border-b border-(--divider)">

@@ -531,7 +531,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                 />
 
                 {/* Row 2: Set + Expansion + Edition + Team + Year + Hidden toggle */}
-                <div className="flex items-end gap-1.5 w-full overflow-x-scroll">
+                <div className="flex items-end gap-1.5 w-full overflow-x-scroll scrollbar-hide">
                     <CustomSelect
                         options={[{ value: '', label: 'All Sets', image: undefined, textColor: 'text-secondary' }, ...showdownSets]}
                         value={filters.set_name ?? ''}

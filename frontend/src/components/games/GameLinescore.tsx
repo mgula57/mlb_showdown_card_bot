@@ -35,7 +35,7 @@ export default function GameLinescore({ game, className = "" }: GameLinescorePro
     ]);
 
     return (
-        <div className={`rounded-xl border border-(--divider) bg-(--background-secondary) overflow-x-auto ${className}`}>
+        <div className={`rounded-xl border border-(--divider) bg-(--background-secondary) overflow-x-auto scrollbar-hide ${className}`}>
             <table className="w-full text-xs text-center">
                 <thead>
                     <tr className="border-b border-(--divider) text-(--secondary)">

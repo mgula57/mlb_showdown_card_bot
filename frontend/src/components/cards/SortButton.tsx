@@ -121,7 +121,7 @@ const SortButton: React.FC<SortButtonProps> = ({
                         ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
                         bg-(--background-primary) rounded-xl shadow-lg
                         border border-(--background-tertiary)
-                        overflow-auto
+                        overflow-auto scrollbar-hide
                     `}
                     style={{
                         left: menuPos.left,

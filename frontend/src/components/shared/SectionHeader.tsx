@@ -44,7 +44,7 @@ export function SectionHeader({ label, filledCount, maxPlayers, total, kpis, var
                 )}
             </div>
             {kpis && kpis.length > 0 && (
-                <div className="flex items-center gap-3 mt-1.5 overflow-x-auto pb-0.5">
+                <div className="flex items-center gap-3 mt-1.5 overflow-x-auto scrollbar-hide pb-0.5">
                     {kpis.map(({ label: kLabel, value }) => (
                         <div key={kLabel} className="flex flex-col items-center shrink-0">
                             <span className="text-[8px] text-(--text-tertiary) uppercase tracking-wider opacity-75">{kLabel}</span>

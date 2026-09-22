@@ -86,7 +86,7 @@ export function SimTransactionsTab({ summary, teamKey }: Props) {
 
             <SectionCard title="Roster Moves" count={transactions.length || undefined}>
                 {transactions.length > 0 ? (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto scrollbar-hide">
                         <table className="w-full text-[12px] whitespace-nowrap">
                             <thead>
                                 <tr className="text-(--text-tertiary) border-b border-(--divider)">

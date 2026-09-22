@@ -294,7 +294,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     <div
                         ref={menuRef}
                         style={dropdownStyle}
-                        className={`bg-(--background-primary) border border-(--border-primary) rounded-lg shadow-lg overflow-y-auto
+                        className={`bg-(--background-primary) border border-(--border-primary) rounded-lg shadow-lg overflow-y-auto scrollbar-hide
                                     transform ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}`}
                     >
                         {/* Header with select all / clear all */}

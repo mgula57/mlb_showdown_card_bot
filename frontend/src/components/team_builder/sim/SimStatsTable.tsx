@@ -103,7 +103,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
     }
 
     return (
-        <div className="overflow-x-auto rounded-xl border border-(--divider)">
+        <div className="overflow-x-auto scrollbar-hide rounded-xl border border-(--divider)">
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">

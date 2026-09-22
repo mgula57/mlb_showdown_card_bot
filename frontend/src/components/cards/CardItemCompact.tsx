@@ -186,7 +186,7 @@ export const CardItemCompact = ({
                     
                 </div>
                 {!hideTeamPoints && (
-                    <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll">
+                    <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll scrollbar-hide">
                         <div
                             className={`flex text-[9px] leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : teamStyle}

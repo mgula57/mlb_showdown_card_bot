@@ -85,7 +85,7 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
                 )}
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-hide">
                 <table className="w-full text-xs">
                     <thead>
                         <tr className="border-b border-(--divider) text-(--secondary) font-semibold text-[10px] tracking-[0.5px] uppercase">

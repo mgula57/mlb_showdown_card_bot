@@ -53,7 +53,7 @@ export default function SimBoxScoreTable({
 
     return (
         <div className="space-y-4">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-hide">
                 <table className="w-full min-w-[20rem]">
                     <thead>
                         <tr className="border-b border-(--divider)">
@@ -85,7 +85,7 @@ export default function SimBoxScoreTable({
                 </table>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-hide">
                 <table className="w-full min-w-[20rem]">
                     <thead>
                         <tr className="border-b border-(--divider)">

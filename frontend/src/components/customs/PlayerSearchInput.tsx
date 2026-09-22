@@ -435,7 +435,7 @@ export function PlayerSearchInput({
                             fixed z-5
                             transform
                             bg-secondary rounded-xl shadow-lg
-                            text-nowrap overflow-auto max-h-[40vh]
+                            text-nowrap overflow-auto scrollbar-hide max-h-[40vh]
                             border-2 border-form-element
                         "
                         style={{ left: menuPos.left, top: menuPos.top, width: menuPos.width }}
