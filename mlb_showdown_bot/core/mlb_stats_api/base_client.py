@@ -44,7 +44,7 @@ class BaseMLBClient(BaseModel):
         # Clients are typically instantiated once per process (e.g. module-level
         # singletons in the Flask blueprints) and live for the dyno's lifetime, so
         # this must be bounded — a plain dict here grows forever.
-        self._cache = TTLCache(ttl_seconds=self.cache_ttl, max_size=1000)
+        self._cache = TTLCache(ttl_seconds=self.cache_ttl, max_size=40)
 
     # -------------------
     # CORE REQUEST LOGIC
