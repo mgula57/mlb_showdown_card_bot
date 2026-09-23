@@ -14,7 +14,7 @@ cards_bp = Blueprint('cards', __name__)
 
 # Bounded so batch card-build results (which can include full generated card
 # payloads) can't accumulate forever on a long-lived dyno process.
-_cards_cache: TTLCache[dict] = TTLCache(ttl_seconds=4 * 60 * 60, max_size=200)
+_cards_cache: TTLCache[dict] = TTLCache(ttl_seconds=4 * 60 * 60, max_size=25)
 
 
 
