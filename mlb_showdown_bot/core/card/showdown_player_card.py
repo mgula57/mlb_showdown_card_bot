@@ -471,8 +471,14 @@ class ShowdownPlayerCard(BaseModel):
 
     @property
     def id(self) -> str:
-        """Generate a unique ID to classify the player's card. Does not include image styling."""
-        fields = [self.year, self.bref_id, self.set.value, self.image.expansion.value,]
+        """Generate a unique ID to classify the player's card. Does not include image styling.
+        Falls back to `mlb_id` when `bref_id` is blank (e.g. a very recent call-up not yet synced
+        to Baseball-Reference) - otherwise every blank-`bref_id` player in the same year/set would
+        collide on this id, silently clobbering each other in any dict keyed by it (see
+        `PostgresDB.fetch_season_card_pool`'s `archive_card_ids`).
+        """
+        player_id = self.bref_id or (f"mlb{self.mlb_id}" if self.mlb_id else '')
+        fields = [self.year, player_id, self.set.value, self.image.expansion.value,]
         if self.player_type_override:
             fields.append(self.player_type_override.value)
         if self.is_wotc:
