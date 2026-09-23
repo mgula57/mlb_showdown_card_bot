@@ -372,7 +372,9 @@ export function buildForkPayload(source: Team): TeamCreatePayload {
         secondary_color: source.secondary_color,
         is_public: false,
         creation_source: 'fork',
-        forked_from_id: source.team_id,
+        // `mlb`/`asg` teams are synthesized on-the-fly and never persisted (see TeamSource), so
+        // their team_id isn't a real user_teams row — only user/official sources have one to link.
+        forked_from_id: source.source === 'user' || source.source === 'official' ? source.team_id : null,
         pts_limit: source.pts_limit,
         roster_size: source.roster_size,
         min_bench: source.min_bench,

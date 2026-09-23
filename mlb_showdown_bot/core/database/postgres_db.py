@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import uuid
 from pprint import pprint
 import psycopg2
 import traceback
@@ -333,6 +334,16 @@ class ExploreDataRecord(BaseModel):
         """Check if player has any award starting with prefix (e.g., 'MVP-' for any MVP ranking)"""
         return any(award.startswith(award_prefix) for award in self.awards_list)
 
+
+
+def _is_uuid(value) -> bool:
+    """True if `value` parses as a UUID. Used to validate free-form ids (e.g. a forked team's
+    source id, which may be a synthetic non-persisted team) before they hit a UUID column."""
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
 
 
 # ----------------------------------------------------------------
@@ -5720,6 +5731,12 @@ class PostgresDB:
         roster = payload.get('roster', [])
         lineups = payload.get('lineups', [])
         fields = self._team_payload_fields(payload)
+        # `forked_from_id` is a UUID column, but the fork source may be a synthetic team (source
+        # 'mlb'/'asg') that's synthesized on-the-fly and never persisted to user_teams — its
+        # team_id (e.g. "era-ALL_TIME-1-0-2005") isn't a real row, so there's nothing to link.
+        forked_from_id = fields.get('forked_from_id')
+        if forked_from_id and not _is_uuid(forked_from_id):
+            fields.pop('forked_from_id')
         cols = ', '.join(['user_id'] + list(fields.keys()))
         placeholders = ', '.join(['%s'] * (1 + len(fields)))
         values = [user_id] + [

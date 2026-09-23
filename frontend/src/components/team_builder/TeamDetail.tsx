@@ -163,6 +163,10 @@ type TeamDetailProps = {
     /** True when the user just created this team (no pre-creation modal anymore) — starts them
      *  on the "Team Settings" setup step instead of straight into the draft. */
     isNewTeam?: boolean;
+    /** True when this team page was just reached via the "Copy" fork action — shows a one-time
+     *  "Added to My Teams" toast on mount. Routed through router state (like `isNewTeam`) because
+     *  the fork navigates to a new team URL, which unmounts/remounts this component. */
+    justCopied?: boolean;
     /** Archive (hide) or unarchive this team. When provided, the settings form shows the toggle;
      *  archiving navigates back to the list, unarchiving stays put. */
     onArchive?: (archived: boolean) => void | Promise<void>;
@@ -253,7 +257,7 @@ function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): st
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, onToggleLike, challenge, isNewTeam = false, onArchive }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, onToggleLike, challenge, isNewTeam = false, justCopied = false, onArchive }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
     const [liking, setLiking] = useState(false);
@@ -279,7 +283,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [stale, setStale] = useState(false);
     const [draftSource, setDraftSource] = useState<CardSourceType>(CardSource.BOT);
-    const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(null);
+    const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(
+        () => justCopied ? { name: 'Team Copied', position: 'Added to My Teams' } : null
+    );
     const [draftToastExiting, setDraftToastExiting] = useState(false);
     const [showAutofill, setShowAutofill] = useState(false);
     const [lastAutofillStrategy, setLastAutofillStrategy] = useState<AutofillStrategy | null>(null);
@@ -1416,6 +1422,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 onClick={async () => {
                                     setForking(true);
                                     try {
+                                        // The toast itself is shown by the newly-mounted TeamDetail
+                                        // for the forked team, via the `justCopied` prop — this
+                                        // instance is about to unmount when onFork() navigates.
                                         await onFork();
                                     } finally {
                                         setForking(false);

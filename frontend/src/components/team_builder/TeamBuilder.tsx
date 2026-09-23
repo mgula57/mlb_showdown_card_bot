@@ -474,7 +474,11 @@ export default function TeamBuilder() {
         setListLoaded(false); // list must refresh to include the forked copy
         setActiveTab('mine');
         trackRecentTeam(newTeam.team_id);
-        navigate('/teams/' + newTeam.team_id);
+        // The URL change below re-triggers the team-ref resolver effect, which unmounts and
+        // remounts TeamDetail with the freshly-fetched team — any toast state set directly on
+        // the current (about-to-unmount) instance would be lost. Route it through location.state
+        // instead, same as `isNewTeam`, so the new instance can seed it on mount.
+        navigate('/teams/' + newTeam.team_id, { state: { justCopied: true } });
         setView({ mode: 'editor', team: newTeam, readOnly: false });
     }
 
@@ -684,6 +688,7 @@ export default function TeamBuilder() {
                         : undefined}
                     challenge={challenge}
                     isNewTeam={(location.state as { isNewTeam?: boolean } | null)?.isNewTeam}
+                    justCopied={(location.state as { justCopied?: boolean } | null)?.justCopied}
                 />
             </div>
         );
