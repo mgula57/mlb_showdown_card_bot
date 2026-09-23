@@ -80,6 +80,12 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     // playback cursor — otherwise it would keep the previous run's position (the end) and the new
     // result would show straight away instead of parking on the first pitch.
     const [simRunId, setSimRunId] = useState(0);
+    // Tracks whether the field's big Play button has been pressed for the CURRENT sim result.
+    // `playbackState.cursor === 0` alone isn't enough to hide it on click — the cursor doesn't
+    // advance to frame 1 until the first animation beat lands, which would leave the button
+    // visible (and clickable again) for a beat after it's already been pressed. Reset to false
+    // whenever a new sim is loaded so the button reappears for it.
+    const [simPlayStarted, setSimPlayStarted] = useState(false);
 
     const {
         boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
@@ -152,6 +158,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setSimError(null);
         setShowSimSetup(false);
         setSimRunId((n) => n + 1);
+        setSimPlayStarted(false);
         // The sim opens parked on the first pitch (see GameDetailPlayback) with its result hidden,
         // so the transport strip needs to be visible for the user to play through it.
         setShowPlaybackControls(true);
@@ -167,6 +174,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setSimError(null);
         setShowSimHistory(false);
         setSimRunId((n) => n + 1);
+        setSimPlayStarted(false);
         setShowPlaybackControls(true);
     }
 
@@ -491,6 +499,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                     pendingPlay={playbackState.pendingPlay}
                                                     phase={playbackState.phase}
                                                     lastPlay={activePlays[0]}
+                                                    onPlayClick={simResult && playbackState.cursor === 0 && !simPlayStarted ? () => {
+                                                        setSimPlayStarted(true);
+                                                        playbackControls.seekToStart();
+                                                        playbackControls.play();
+                                                    } : undefined}
                                                 />
 
                                                 {/* A takeover sim is a finished game the user will want to scrub

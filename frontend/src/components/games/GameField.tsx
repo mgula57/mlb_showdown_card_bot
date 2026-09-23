@@ -7,7 +7,7 @@
  * can't fill (defense alignment, runner identity) degrade to markers rather than disappearing.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaCaretUp, FaCompress, FaExpand } from "react-icons/fa6";
+import { FaCaretUp, FaCompress, FaExpand, FaPlay } from "react-icons/fa6";
 
 import type { DefenseAlignment, GameView, PlayerRef } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
@@ -49,6 +49,11 @@ type GameFieldProps = {
     /** The most recent completed play — its text description sits in the field's bottom-right
      *  corner, opposite the defense summary. Undefined before the first play of the game. */
     lastPlay?: PlayEntry;
+    /** A finished sim result sitting unplayed at its first-pitch frame — the field itself is
+     *  otherwise the least obvious place to notice that pressing play is what reveals the outcome,
+     *  so a big centered button is overlaid here rather than leaving "Watch" as a small banner
+     *  action the user has to spot. Hidden as soon as playback starts. */
+    onPlayClick?: () => void;
     className?: string;
 };
 
@@ -586,7 +591,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, onPlayClick, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // if (!situation) return null;
 
@@ -757,6 +762,35 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     })}
 
                     <ResultFlash play={pendingPlay} phase={phase} transition={transition} />
+
+                    {/* Big, unmissable play prompt — a finished sim otherwise just sits parked on
+                        the first pitch with nothing on the field itself hinting that pressing play
+                        is what reveals the game. Centered over the diamond, above every marker
+                        (z-40), with a soft radial backdrop so it reads clearly regardless of what's
+                        behind it. */}
+                    {onPlayClick && (
+                        <div
+                            className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
+                            style={{
+                                background: 'radial-gradient(circle, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 72%)',
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={onPlayClick}
+                                aria-label="Play sim"
+                                className="
+                                    pointer-events-auto group
+                                    flex h-16 w-16 items-center justify-center rounded-full
+                                    animated-showdown-gradient text-white shadow-xl
+                                    cursor-pointer transition-transform duration-150 ease-out
+                                    hover:scale-110 active:scale-95
+                                "
+                            >
+                                <FaPlay size={22} className="translate-x-0.5" />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {defense && (
