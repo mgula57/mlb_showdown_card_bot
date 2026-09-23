@@ -2,18 +2,19 @@ import pprint
 import hashlib
 import json
 import traceback
-from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, g
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.data_conversion import convert_form_data_types
 from .user_settings import optional_user_id
 from ..core.card.card_generation import generate_card, generate_cards
 from ..core.card.showdown_player_card import ShowdownPlayerCard
+from ..core.utils.ttl_cache import TTLCache
 
 cards_bp = Blueprint('cards', __name__)
 
-CARDS_CACHE_TTL = timedelta(hours=8)
-_cards_cache: dict[str, tuple[dict, datetime]] = {}
+# Bounded so batch card-build results (which can include full generated card
+# payloads) can't accumulate forever on a long-lived dyno process.
+_cards_cache: TTLCache[dict] = TTLCache(ttl_seconds=4 * 60 * 60, max_size=25)
 
 
 
@@ -147,11 +148,10 @@ def build_cards():
             return jsonify({'error': 'No cards data provided'}), 400
 
         cache_key = hashlib.md5(json.dumps(payload, sort_keys=True).encode()).hexdigest()
-        now = datetime.now(timezone.utc)
         cached = _cards_cache.get(cache_key)
-        if cached and now < cached[1]:
+        if cached:
             print("Serving build_cards from cache")
-            return jsonify(cached[0]), 200
+            return jsonify(cached), 200
 
         cards_data = payload['requested_cards']
         generated_cards = []
@@ -175,7 +175,7 @@ def build_cards():
                 })
 
         result = {'cards': generated_cards}
-        _cards_cache[cache_key] = (result, now + CARDS_CACHE_TTL)
+        _cards_cache.set(cache_key, result)
         return jsonify(result)
 
     except Exception as e:
@@ -200,17 +200,16 @@ def build_cards_from_ids():
 
         if use_cache:
             cache_key = hashlib.md5(json.dumps({'ids': sorted(ids), 'season': season, 'card_settings': card_settings}, sort_keys=True).encode()).hexdigest()
-            now = datetime.now(timezone.utc)
             cached = _cards_cache.get(cache_key)
-            if cached and now < cached[1]:
+            if cached:
                 print("Serving build_cards_from_ids from cache")
-                return jsonify(cached[0]), 200
+                return jsonify(cached), 200
 
         generated_cards = generate_cards(player_ids=ids, years=[season] if season else None, **card_settings)
         result = {'cards': generated_cards}
 
         if use_cache:
-            _cards_cache[cache_key] = (result, now + CARDS_CACHE_TTL)
+            _cards_cache.set(cache_key, result)
 
         return jsonify(result), 200
 

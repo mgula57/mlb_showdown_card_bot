@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 
 from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, Team
 from ..core.database.postgres_db import PostgresDB
+from ..core.utils.ttl_cache import TTLCache
 from .user_settings import require_auth, optional_user_id
 from flask import g
 
@@ -22,8 +23,9 @@ _spotlight_cache: dict[str, tuple[list, float]] = {}  # key: "{set}:{limit}"
 _total_card_count_cache: tuple[int, float] | None = None
 _TOTAL_CARD_COUNT_TTL = 60 * 60  # 1 hour
 
-_card_list_cache: dict[str, tuple[list, float]] = {}
-_CARD_LIST_CACHE_TTL = 2 * 60 * 60  # 2 hours
+# Keyed by the full search payload, so cardinality is effectively unbounded
+# (every distinct filter combination a user searches with) — must be bounded.
+_card_list_cache: TTLCache[list] = TTLCache(ttl_seconds=2 * 60 * 60, max_size=25)
 
 @card_db_bp.route('/cards/search', methods=["POST", "GET"])
 def fetch_card_list():
@@ -38,8 +40,8 @@ def fetch_card_list():
         cache_key = json.dumps(payload, sort_keys=True)
 
         if not is_custom_source:
-            cached_result, cached_at = _card_list_cache.get(cache_key, (None, 0.0))
-            if cached_result is not None and (time.time() - cached_at) < _CARD_LIST_CACHE_TTL:
+            cached_result = _card_list_cache.get(cache_key)
+            if cached_result is not None:
                 print("Serving card list from cache")
                 return jsonify(cached_result)
 
@@ -48,7 +50,7 @@ def fetch_card_list():
             db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=user_id)
 
         if not is_custom_source:
-            _card_list_cache[cache_key] = (card_data, time.time())
+            _card_list_cache.set(cache_key, card_data)
         return jsonify(card_data)
 
     except Exception as e:

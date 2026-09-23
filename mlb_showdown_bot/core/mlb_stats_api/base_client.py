@@ -1,12 +1,11 @@
-
 from typing import Any, Dict, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 import requests
 import time
 import json
 import logging
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+
+from ..utils.ttl_cache import TTLCache
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -27,9 +26,9 @@ class BaseMLBClient(BaseModel):
     last_response_cache_layer: str = "UNKNOWN"
 
     # Instance variables for rate limiting and caching
-    _cache: Dict[str, Dict[str, Any]] = {}
+    _cache: TTLCache = PrivateAttr()
     _last_request_time = 0.0
-    
+
     # -------------------
     # INIT
     # -------------------
@@ -41,6 +40,11 @@ class BaseMLBClient(BaseModel):
             "Accept": "application/json",
         }
         self.headers = {**default_headers, **self.headers}
+
+        # Clients are typically instantiated once per process (e.g. module-level
+        # singletons in the Flask blueprints) and live for the dyno's lifetime, so
+        # this must be bounded — a plain dict here grows forever.
+        self._cache = TTLCache(ttl_seconds=self.cache_ttl, max_size=40)
 
     # -------------------
     # CORE REQUEST LOGIC
@@ -66,11 +70,13 @@ class BaseMLBClient(BaseModel):
         use_cache = cache_override if cache_override is not None else self.use_cache
         
         # Check cache first
-        if use_cache and self._is_cache_valid(cache_key):
-            print(f"Cache hit for {endpoint}")
-            self.last_response_from_cache = True
-            self.last_response_cache_layer = "MEMORY"
-            return self._cache[cache_key]['data']
+        if use_cache:
+            cached_data = self._cache.get(cache_key)
+            if cached_data is not None:
+                print(f"Cache hit for {endpoint}")
+                self.last_response_from_cache = True
+                self.last_response_cache_layer = "MEMORY"
+                return cached_data
         
         # Enforce rate limiting
         self._enforce_rate_limit()
@@ -136,21 +142,9 @@ class BaseMLBClient(BaseModel):
             return f"{endpoint}:{sorted_params}"
         return endpoint
     
-    def _is_cache_valid(self, cache_key: str) -> bool:
-        """Check if cache entry exists and is still valid"""
-        if cache_key not in self._cache:
-            return False
-        
-        cache_entry = self._cache[cache_key]
-        age = datetime.now() - cache_entry['timestamp']
-        return age < timedelta(seconds=self.cache_ttl)
-    
     def _cache_response(self, cache_key: str, data: Dict[str, Any]) -> None:
         """Cache the response data"""
-        self._cache[cache_key] = {
-            'data': data,
-            'timestamp': datetime.now()
-        }
+        self._cache.set(cache_key, data)
         logger.debug(f"Cached response for {cache_key}")
     
     def _enforce_rate_limit(self) -> None:
@@ -171,7 +165,9 @@ class BaseMLBClient(BaseModel):
     
     def get_cache_stats(self) -> Dict[str, int]:
         """Get cache statistics"""
+        # __len__ sweeps expired entries first, so this count is always valid entries.
+        valid_entries = len(self._cache)
         return {
-            'total_entries': len(self._cache),
-            'valid_entries': sum(1 for key in self._cache.keys() if self._is_cache_valid(key))
+            'total_entries': valid_entries,
+            'valid_entries': valid_entries,
         }
