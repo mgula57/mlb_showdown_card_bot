@@ -90,6 +90,9 @@ export type OutlierEntry = {
     sim_ops: number;
     real_ops: number;
     diff: number;
+    /** Full sim-side stat category map (same shape as a League Leaders row's `SimStatLine.stats`)
+     *  — for the Card Detail modal's "Card vs Real Stats" panel when opened from this entry. */
+    stats?: Record<string, number>;
 };
 
 /** Biggest OPS gaps for one `PlayerType`, split by direction — mirrors `OutlierGroup`. */

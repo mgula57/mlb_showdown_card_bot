@@ -696,6 +696,13 @@ class OutlierEntry(BaseModel):
     sim_ops: float
     real_ops: float
     diff: float
+    # FULL SIM-SIDE STAT LINE (SAME CATEGORY MAP AS A LEAGUE-LEADERS ROW's `SimStatLine.stats`) -
+    # FOR THE CARD DETAIL MODAL'S "CARD VS REAL STATS" PANEL WHEN OPENED FROM THIS OUTLIER ENTRY.
+    # NO NEW REAL-LIFE DATA HERE - OPS ABOVE REMAINS THE ONLY REAL-LIFE VALUE THIS ENTRY CARRIES.
+    # EMPTY HERE (LEFT FOR `SeasonSummaryBuilder._outlier_line` TO FILL) SINCE `reporting.py`'S
+    # CATEGORY LISTS CAN'T BE IMPORTED HERE WITHOUT A CIRCULAR IMPORT (reporting.py IMPORTS THIS
+    # MODULE).
+    stats: dict[str, float] = {}
 
 
 class SeasonSimulationResult(BaseModel):

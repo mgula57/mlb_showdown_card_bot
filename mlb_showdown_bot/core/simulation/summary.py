@@ -522,7 +522,7 @@ class SeasonSummaryBuilder:
             lines[type_value] = self._line(stats, player_type)
         return lines
 
-    def _outlier_line(self, entry: OutlierEntry) -> OutlierEntry:
+    def _outlier_line(self, entry: OutlierEntry, source_stats: Optional[Stats], player_type: PlayerType) -> OutlierEntry:
         """Fill in `card_source` the same way `_starter_line` resolves a `SimGameStarter`'s -
         `top_outliers` leaves it None since the model layer has no `config` to resolve against.
         Also rewrites `id` down to the bare card_id: `top_outliers` builds `OutlierEntry.id` from
@@ -530,11 +530,18 @@ class SeasonSummaryBuilder:
         drafted player (tournament/takeover roster - where a WOTC-sourced card is most likely to
         show up), so left alone it wouldn't match a real `card_id` and the frontend couldn't link
         the card. Every other statline (`SimStatLine.build`, `SimGameStarter`) already does this
-        rewrite at construction time - `OutlierEntry` is the one place that doesn't."""
+        rewrite at construction time - `OutlierEntry` is the one place that doesn't.
+
+        `stats` gets the same full category map a League Leaders row carries (`self._line`), built
+        from `source_stats` (the pre-rewrite `Stats` object `top_outliers` selected this entry
+        from) - purely re-formatting numbers already accumulated during the sim, no new real-life
+        data. `source_stats` is only None if the player somehow isn't in `player_stats` anymore,
+        which shouldn't happen; `stats` just stays empty then rather than erroring."""
         bare_id = real_card_id(entry.id)
         return entry.model_copy(update={
             'id': bare_id,
             'card_source': self.result.config.card_sources.get(bare_id, CardSource.BOT.value),
+            'stats': self._line(source_stats, player_type).stats if source_stats is not None else {},
         })
 
     def _outliers(self) -> dict[str, OutlierGroup]:
@@ -542,6 +549,7 @@ class SeasonSummaryBuilder:
         analogue of `SeasonReport.print_outliers`. Empty for a tournament, which has no real-life
         baseline (`Stats.real_ops` is never set - see `top_outliers`'s `real_ops is None` guard)."""
         result = self.result
+        stats_by_id = {s.id: s for s in result.player_stats}
         groups: dict[str, OutlierGroup] = {}
         for player_type in [PlayerType.HITTER, PlayerType.PITCHER]:
             min_pa = result.stats_min_pa if player_type == PlayerType.HITTER else 0
@@ -553,8 +561,8 @@ class SeasonSummaryBuilder:
             positive = result.top_outliers(player_type=player_type.value, limit=_OUTLIERS_LIMIT, is_desc=positive_is_desc, min_pa=min_pa, min_ip=min_ip)
             negative = result.top_outliers(player_type=player_type.value, limit=_OUTLIERS_LIMIT, is_desc=not positive_is_desc, min_pa=min_pa, min_ip=min_ip)
             groups[player_type.value] = OutlierGroup(
-                positive=[self._outlier_line(e) for e in positive],
-                negative=[self._outlier_line(e) for e in negative],
+                positive=[self._outlier_line(e, stats_by_id.get(e.id), player_type) for e in positive],
+                negative=[self._outlier_line(e, stats_by_id.get(e.id), player_type) for e in negative],
             )
         return groups
 

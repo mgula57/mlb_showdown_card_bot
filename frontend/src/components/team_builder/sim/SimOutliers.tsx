@@ -13,7 +13,7 @@ function toStatLine(entry: OutlierEntry): SimStatLine {
         command: 0,
         player_type: entry.player_type,
         card_source: entry.card_source,
-        stats: { ops: entry.sim_ops, real_ops: entry.real_ops, ops_diff: entry.diff },
+        stats: { ...entry.stats, ops: entry.sim_ops, real_ops: entry.real_ops, ops_diff: entry.diff },
     };
 }
 
