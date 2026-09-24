@@ -1505,7 +1505,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     {/* Fills the dead space between the step chips and the progress/controls on
                         wide screens with a draft pace readout — points left under budget and
                         roughly what that leaves per remaining pick. */}
-                    <div className="hidden xs:flex xs:flex-wrap sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold drop-shadow-sm" style={{ color: bannerLeft.fill }}>
+                    <div className="hidden sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold drop-shadow-sm" style={{ color: bannerLeft.fill }}>
                         {teamMode === 'drafting' && setupStep === 'draft' && runRate && (
                             runRate.remaining < 0 ? (
                                 <span className="flex items-center gap-1.5 text-red-200">
@@ -1529,17 +1529,29 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         {teamMode === 'drafting' && setupStep === 'draft' && (
-                            <>
-                                <div className="w-12 sm:w-18 md:w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
-                                    <div
-                                        className="h-full rounded-full transition-all"
-                                        style={{ width: `${draft.roster_size > 0 ? Math.min(100, (draft.roster.length / draft.roster_size) * 100) : 0}%`, backgroundColor: bannerRight.fill }}
-                                    />
+                            <div className="flex flex-col gap-0">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-14 xs:w-20 sm:w-20 md:w-28 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
+                                        <div
+                                            className="h-full rounded-full transition-all"
+                                            style={{ width: `${draft.roster_size > 0 ? Math.min(100, (draft.roster.length / draft.roster_size) * 100) : 0}%`, backgroundColor: bannerRight.fill }}
+                                        />
+                                    </div>
+                                    <span className="text-[11px] font-black" style={{ color: bannerRight.fill }}>
+                                        {draft.roster.length}/{draft.roster_size}
+                                    </span>
                                 </div>
-                                <span className="text-[11px] font-black" style={{ color: bannerRight.fill }}>
-                                    {draft.roster.length}/{draft.roster_size}
-                                </span>
-                            </>
+                                {runRate && (
+                                    <span
+                                        className="sm:hidden self-end text-[9px] font-bold whitespace-nowrap"
+                                        style={{ color: runRate.remaining < 0 ? '#fca5a5' : bannerLeft.fill }}
+                                    >
+                                        {runRate.remaining < 0
+                                            ? `${Math.abs(runRate.remaining)} PTS OVER BUDGET`
+                                            : `${runRate.remaining} PTS LEFT`}
+                                    </span>
+                                )}
+                            </div>
                         )}
                         {token && (setupStep === 'draft' || teamMode === 'editing') && (
                             <>

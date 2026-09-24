@@ -4,6 +4,8 @@
 /* css-lint disable unknownAtRules */
 @theme {
     --container-field-split: 600px;
+    --breakpoint-2xs: 22rem; /* or 352px */
+    --breakpoint-xs: 30rem; /* or 480px */
     --breakpoint-3xl: 120rem; /* or 1920px */
 }
 
