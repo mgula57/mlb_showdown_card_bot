@@ -447,15 +447,18 @@ def snapshot_rosters(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
     seasons: str = typer.Option(None, "--seasons", "-s", help="Which season(s) to include when fetching roster data, comma-separated (e.g. '2023,2024')."),
     generate_cards: bool = typer.Option(False, "--generate-cards", "-cards", help="Whether to generate and save cards for the fetched rosters."),
-    showdown_sets: str = typer.Option(None, "--showdown-sets", "-sets", help="Comma-separated list of showdown sets to generate cards for.")
+    showdown_sets: str = typer.Option(None, "--showdown-sets", "-sets", help="Comma-separated list of showdown sets to generate cards for."),
+    player_ids: str = typer.Option(None, "--player_ids", "-p", help="Comma-separated list of MLB player IDs to limit card generation to, for testing (e.g. '660271,592450'). Roster snapshot still stores all players.")
 ):
     showdown_sets = [s.strip() for s in showdown_sets.split(",")] if showdown_sets else None
+    parsed_player_ids = [int(pid.strip()) for pid in player_ids.split(",") if pid.strip()] if player_ids else None
     _snapshot_rosters(
         seasons=seasons,
         publish_to_database=publish_to_database, 
         env=env, 
         generate_cards=generate_cards, 
-        showdown_sets=showdown_sets
+        showdown_sets=showdown_sets,
+        player_ids=parsed_player_ids
     )
 
 # -------------------------------

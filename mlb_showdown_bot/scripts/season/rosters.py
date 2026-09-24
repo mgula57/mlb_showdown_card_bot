@@ -12,9 +12,15 @@ def snapshot_rosters(
     generate_cards: bool = False,
     env: str = 'dev', 
     league_ids: Optional[List[int]] = None,
-    showdown_sets: Optional[List[str]] = None
+    showdown_sets: Optional[List[str]] = None,
+    player_ids: Optional[List[int]] = None
 ) -> None:
-    """Fetch active roster data and snapshot in Postgres DB"""
+    """Fetch active roster data and snapshot in Postgres DB
+
+    Args:
+        player_ids: Optional list of MLB player IDs to limit card generation to (for testing). 
+                    The full roster snapshot is still stored so the latest snapshot stays complete.
+    """
     from ...core.database.postgres_db import PostgresDB
     is_production = env.lower() == "prod"
 
@@ -52,8 +58,12 @@ def snapshot_rosters(
 
         # CHUNK PLAYERS INTO BATCHES OF 10 FOR CARD GENERATION
         print("Generating cards for rostered players...")
-        player_ids = [roster['player_id'] for roster in rosters]
-        player_id_chunks = [player_ids[i:i + 10] for i in range(0, len(player_ids), 10)]
+        rostered_player_ids = [roster['player_id'] for roster in rosters if not player_ids or roster['player_id'] in player_ids]
+        if player_ids:
+            missing_ids = set(player_ids) - set(rostered_player_ids)
+            if missing_ids:
+                print(f"Warning: player IDs not found on any fetched roster: {sorted(missing_ids)}")
+        player_id_chunks = [rostered_player_ids[i:i + 10] for i in range(0, len(rostered_player_ids), 10)]
         two_way_ids = [roster['player_id'] for roster in rosters if roster.get('position', 'N/A') == 'TWP']
 
         for idx, chunk in enumerate(player_id_chunks): 
