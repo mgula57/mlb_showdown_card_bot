@@ -2928,6 +2928,17 @@ class PostgresDB:
             traceback.print_exc()
             return False
 
+    def build_card_wotc_indexes(self) -> None:
+        """Ensure every card_wotc index exists. Idempotent; called by upload_wotc_card_data."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_wotc_card_id
+                ON card_wotc (card_id);
+            """)
+        print("  → Ensured card_wotc indexes exist.")
+
     def upload_wotc_card_data(self, wotc_card_data: list[ShowdownPlayerCard], drop_existing:bool=False) -> bool:
         """Upload WOTC card data to the database.
         
@@ -3097,11 +3108,7 @@ class PostgresDB:
                 cursor.execute(f"ALTER TABLE card_wotc ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
             print("  → Ensured card_wotc columns are up to date.")
 
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_card_wotc_card_id
-                ON card_wotc (card_id);
-            """)
-            print("  → Ensured card_wotc indexes exist.")
+            self.build_card_wotc_indexes()
 
             # CLEAR EXISTING DATA
             cursor.execute("DELETE FROM card_wotc;")
@@ -4305,14 +4312,55 @@ class PostgresDB:
             cursor.execute(upsert_query)
             rows_affected = cursor.rowcount
             print(f"  → Processed {rows_affected} records.")
-            
+
             # CREATE INDEXES IF NOT EXISTS
+            self.build_card_bot_indexes()
+
+            # RUN ANALYZE
+            cursor.execute("ANALYZE card_bot;")
+            print("  → Analyzed card_bot table.")
+            
+            self.connection.commit()
+            
+            # REMOVE STATUS MESSAGE IF SUCCESSFUL
+            if drop_existing:
+                self.update_feature_status(
+                    feature_name='explore',
+                    message=None,
+                    is_disabled=False
+                )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error building card_bot table: {e}")
+            traceback.print_exc()
+            self.connection.rollback()
+            
+            # REMOVE STATUS MESSAGE ON ERROR
+            if drop_existing:
+                self.update_feature_status(
+                    feature_name='explore',
+                    message=None,
+                    is_disabled=False
+                )
+            
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+    def build_card_bot_indexes(self) -> None:
+        """Ensure every card_bot index exists. Idempotent; called at the end of build_card_bot_view."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cursor:
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version 
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version
                 ON card_bot (id, showdown_set, showdown_bot_version);
             """)
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_card_bot_modified_dates 
+                CREATE INDEX IF NOT EXISTS idx_card_bot_modified_dates
                 ON card_bot (stats_modified_date, card_modified_date);
             """)
             cursor.execute("""
@@ -4357,40 +4405,37 @@ class PostgresDB:
                     cursor.execute(index_sql)
                 except Exception as e:
                     print(f"  → Skipped index: {e}")
-            
-            # RUN ANALYZE
-            cursor.execute("ANALYZE card_bot;")
-            print("  → Analyzed card_bot table.")
-            
-            self.connection.commit()
-            
-            # REMOVE STATUS MESSAGE IF SUCCESSFUL
-            if drop_existing:
-                self.update_feature_status(
-                    feature_name='explore',
-                    message=None,
-                    is_disabled=False
-                )
-            
-            return True
-            
-        except Exception as e:
-            print(f"Error building card_bot table: {e}")
-            traceback.print_exc()
-            self.connection.rollback()
-            
-            # REMOVE STATUS MESSAGE ON ERROR
-            if drop_existing:
-                self.update_feature_status(
-                    feature_name='explore',
-                    message=None,
-                    is_disabled=False
-                )
-            
-            return False
-        finally:
-            if cursor:
-                cursor.close()
+
+    def build_app_schema(self) -> None:
+        """Create/upgrade every app-owned table and index in dependency order. Idempotent, so it
+        is safe to re-run; it only creates schema, it never populates data (the historical / era /
+        ASG roster imports under `showdown_bot teams` do that).
+
+        Order matters: sim_season FKs user_teams, sim_lobby references sim_job + user_teams, and
+        challenge tables ALTER both user_teams and sim_season.
+        """
+        if not self.connection:
+            print("No database connection available.")
+            return
+        steps = [
+            ("user_settings",             self.build_user_settings_table),
+            ("user_teams",                self.build_user_teams_table),
+            ("asg_roster",                self.build_asg_roster_table),
+            ("team_collection",           self.build_team_collection_table),
+            ("sim_job / sim_season",      self.build_sim_job_table),
+            ("sim_lobby",                 self.build_sim_lobby_tables),
+            ("challenge tables",          self.build_challenge_tables),
+            ("sim_game",                  self.build_sim_game_table),
+            ("historical team tables",    self.build_historical_team_tables),
+            ("era team tables",           self.build_era_team_tables),
+            ("card_bot indexes",          self.build_card_bot_indexes),
+            ("card_wotc indexes",         self.build_card_wotc_indexes),
+            ("player_season_stats",       self.create_player_season_stats_table),
+        ]
+        for label, step in steps:
+            print(f"→ {label}...")
+            step()
+        print("✅ Schema up to date.")
 
     def build_team_search_view(self, drop_existing:bool = False) -> None:
         """Build or refresh the team_search materialized view. Used in the explore for filtering

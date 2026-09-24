@@ -611,6 +611,17 @@ def build_sim_game_table(
     db.close_connection()
     typer.echo("Done. internal.sim_game table is ready.")
 
+@app.command("build_app_schema")
+def build_app_schema(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Create/upgrade every app table and index in dependency order (idempotent, schema only)"""
+    from ...core.database.postgres_db import PostgresDB
+
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_app_schema()
+    db.close_connection()
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):
