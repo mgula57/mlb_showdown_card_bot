@@ -37,7 +37,7 @@ import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import type { SelectOption } from '../shared/CustomSelect';
-import { CardItemFromCardDatabaseRecord, CardItemFromCard } from "./CardItem";
+import { CardItemFromCardDatabaseRecord, CardItemFromCard, CardItemSkeleton } from "./CardItem";
 import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
@@ -759,6 +759,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         [showdownCards, excludeSet]
     );
 
+    /** Initial load with nothing to show yet: render card skeletons instead of the spinner overlay */
+    const showSkeletons = isLoading && (!displayedCards || displayedCards.length === 0);
+
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
     const sidebarContainerRef = useRef<HTMLDivElement>(null);
@@ -1396,6 +1399,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
                 >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
+                        {/* Skeleton placeholders while loading with no cards yet */}
+                        {showSkeletons && Array.from({ length: 30 }, (_, i) => (
+                            <CardItemSkeleton key={`skeleton-${i}`} />
+                        ))}
+
                         {/* Iterate through showdownCards and display each card */}
                         {displayedCards?.map((cardRecord, index) => {
                             const resolvedAction: CardItemActionButton | undefined = actionButton
@@ -1523,7 +1531,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             </div>
 
             {/* Add Loading Indicator in the middle of the screen */}
-            {isLoading && (
+            {isLoading && !showSkeletons && (
                 <div className="
                     absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                     bg-(--primary)/10 backdrop-blur
