@@ -409,6 +409,7 @@ class PlayerStatsNormalizer:
                 last_game_log = normalized_data['game_logs'][-1]
                 if last_game_log and last_game_log.team_ID:
                     normalized_data['team_ID'] = last_game_log.team_ID
+                    normalized_data['lg_ID'] = last_game_log.lg_ID or normalized_data.get('lg_ID')
 
         # FILL IN EMPTY VALUES
         normalized_data = fill_empty_stat_categories(
@@ -971,6 +972,7 @@ class PlayerStatsNormalizer:
             game_date = split.date
             game_pk = split.game.get('gamePk', None) if split.game else None
             team_id = PlayerStatsNormalizer._convert_to_bref_team_id(split.team.abbreviation) if split.team and split.team.abbreviation else None
+            lg_id = split.team.league.abbreviation if split.team and split.team.league else None
             stats_normalized = {}
             for key, value in stats.items():
                 
@@ -993,6 +995,7 @@ class PlayerStatsNormalizer:
             game_log_entry = {
                 'date': game_date,
                 'team_ID': team_id,
+                'lg_ID': lg_id,
                 'game_pk': game_pk,
                 **stats_normalized
             }
@@ -1604,6 +1607,7 @@ class BaseGameLog(BaseModel):
     date: Optional[str] = None # e.g., "2024-04-01"
     date_game: Optional[str] = None  # e.g., "Apr 1"
     team_ID: str
+    lg_ID: Optional[str] = None  # e.g., "AL", "NL"
     player_game_span: Optional[str] = None  # e.g., "CG", "GS-8", "CG(10)"
     game_decision: Optional[str] = None  # e.g., "W", "L", "SV", "HLD", etc.
     

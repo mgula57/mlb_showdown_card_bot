@@ -1487,22 +1487,30 @@ class PostgresDB:
 
         Returns:
             None
+
+        Raises:
+            RuntimeError: If there is no connection or any view fails to build, so callers (e.g. CI) fail loudly.
         """
 
         if self.connection is None:
-            print("No database connection available for refreshing explore views.")
-            return
+            raise RuntimeError("No database connection available for refreshing explore views.")
 
         # BUILD EXTENSIONS
         self._build_extensions()
 
-        # REFRESH MATERIALIZED VIEWS
-        if not self.build_player_search_view(drop_existing=drop_existing): return
-        if not self.build_dim_team_years_view(drop_existing=drop_existing): return
-        if not self.build_card_bot_view(drop_existing=drop_existing, full_refresh=is_full_refresh): return
-        if not self.build_team_search_view(drop_existing=drop_existing): return
-
-        self.connection.close()
+        # REFRESH MATERIALIZED VIEWS (STOP AT FIRST FAILURE, DOWNSTREAM VIEWS DEPEND ON EARLIER ONES)
+        view_builders = {
+            'player_search': lambda: self.build_player_search_view(drop_existing=drop_existing),
+            'dim_team_years': lambda: self.build_dim_team_years_view(drop_existing=drop_existing),
+            'card_bot': lambda: self.build_card_bot_view(drop_existing=drop_existing, full_refresh=is_full_refresh),
+            'team_search': lambda: self.build_team_search_view(drop_existing=drop_existing),
+        }
+        try:
+            for view_name, build_view in view_builders.items():
+                if not build_view():
+                    raise RuntimeError(f"Failed to build explore view '{view_name}'. See error above.")
+        finally:
+            self.connection.close()
 
 # ------------------------------------------------------------------------
 # FETCHING FROM CARD TABLES

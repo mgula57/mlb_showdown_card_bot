@@ -50,6 +50,7 @@ def database_update(
 
     start_time = time.time()
     is_production = env.lower() == "prod"
+    failed = False
     
     try:
         year_list = convert_year_string_to_list(years) if years else []
@@ -112,6 +113,7 @@ def database_update(
         # Full traceback
         import traceback
         traceback.print_exc()
+        failed = True
 
     finally:
         end_time = time.time()
@@ -130,7 +132,14 @@ def database_update(
             seconds = elapsed_time % 60
             time_str = f"{hours}h {minutes}m {seconds:.1f}s"
         
-        print(f"\n✅ Database operation completed in {time_str}")
+        if failed:
+            print(f"\n❌ Database operation failed after {time_str}")
+        else:
+            print(f"\n✅ Database operation completed in {time_str}")
+
+    # NON-ZERO EXIT SO CI (GITHUB ACTIONS) MARKS THE STEP AS FAILED
+    if failed:
+        raise typer.Exit(code=1)
 
 
 @app.command("feature_status")
