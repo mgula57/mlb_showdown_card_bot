@@ -180,10 +180,13 @@ type HistoricalTeamsProps = {
     hideSearch?: boolean;
     /** Search query supplied by the parent when `hideSearch` is set. */
     externalQuery?: string;
+    /** Overrides the global site Showdown set filter, e.g. from a "Set" toggle in the parent. */
+    showdownSet?: string;
 };
 
-export function HistoricalTeams({ horizontalPadding, hideSearch = false, externalQuery }: HistoricalTeamsProps) {
-    const { userShowdownSet } = useSiteSettings();
+export function HistoricalTeams({ horizontalPadding, hideSearch = false, externalQuery, showdownSet }: HistoricalTeamsProps) {
+    const { userShowdownSet: globalShowdownSet } = useSiteSettings();
+    const userShowdownSet = showdownSet ?? globalShowdownSet;
     const navigate = useNavigate();
 
     const [seasons, setSeasons] = useState<HistoricalSeasonRef[]>([]);

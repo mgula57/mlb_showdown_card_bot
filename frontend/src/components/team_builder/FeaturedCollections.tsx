@@ -10,10 +10,12 @@ type FeaturedCollectionsProps = {
     horizontalPadding?: string;
     /** When set, filters every collection's teams client-side and drops empty shelves. */
     query?: string;
+    /** When set, only shows teams whose `allowed_sets` includes this Showdown set. */
+    showdownSet?: string;
 };
 
 /** Admin-curated collections rendered music-app style — one shelf per collection. */
-export function FeaturedCollections({ onOpen, onOpenCollection, horizontalPadding, query }: FeaturedCollectionsProps) {
+export function FeaturedCollections({ onOpen, onOpenCollection, horizontalPadding, query, showdownSet }: FeaturedCollectionsProps) {
     const [collections, setCollections] = useState<TeamCollection[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const px = horizontalPadding ?? '';
@@ -30,10 +32,12 @@ export function FeaturedCollections({ onOpen, onOpenCollection, horizontalPaddin
         return collections
             .map(c => ({
                 ...c,
-                teams: q ? (c.teams ?? []).filter(t => matchesTeamQuery(t, q)) : (c.teams ?? []),
+                teams: (c.teams ?? [])
+                    .filter(t => !showdownSet || !t.allowed_sets || t.allowed_sets.length === 0 || t.allowed_sets.includes(showdownSet))
+                    .filter(t => !q || matchesTeamQuery(t, q)),
             }))
             .filter(c => c.teams.length > 0);
-    }, [collections, query]);
+    }, [collections, query, showdownSet]);
 
     if (error) {
         return <p className={`${px} text-[12px] text-red-400`}>{error}</p>;

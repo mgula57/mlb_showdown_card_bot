@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaLayerGroup, FaStar, FaUsers, FaClockRotateLeft, FaTrophy } from 'react-icons/fa6';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam, fetchEraTeams, type EraTeam, ALL_TIME_ERA_KEY } from '../../api/mlbAPI';
-import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { useSiteSettings, showdownSets, imageForSet } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
@@ -24,6 +24,13 @@ const TYPE_OPTIONS: SelectOption[] = [
 ];
 
 const BROWSE_TYPE_STORAGE_KEY = 'browseTeams.type';
+const BROWSE_SET_STORAGE_KEY = 'browseTeams.set';
+
+// "" = All Sets, which falls back to the viewer's global `userShowdownSet` site setting.
+const SET_OPTIONS: SelectOption[] = [
+    { value: '', label: 'All Sets', icon: <FaLayerGroup /> },
+    ...showdownSets.map(s => ({ value: s.value, label: s.value, image: imageForSet(s.value, true) })),
+];
 
 // Navigating into a team's detail page fully unmounts this tree (it's a distinct top-level
 // view in TeamBuilder, not a nested route), so scroll position can't just live in state here --
@@ -38,6 +45,16 @@ function loadStoredBrowseType(): BrowseType {
         // ignore
     }
     return 'all';
+}
+
+function loadStoredSetFilter(): string {
+    try {
+        const stored = localStorage.getItem(BROWSE_SET_STORAGE_KEY);
+        if (stored !== null && SET_OPTIONS.some(o => o.value === stored)) return stored;
+    } catch {
+        // ignore
+    }
+    return '';
 }
 
 /** A merged search hit — either a saved public team, a pre-processed historical team, or a
@@ -62,14 +79,20 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
     const navigate = useNavigate();
     const { userShowdownSet } = useSiteSettings();
     const [type, setType] = useState<BrowseType>(loadStoredBrowseType);
+    const [setFilter, setSetFilter] = useState<string>(loadStoredSetFilter);
     const [query, setQuery] = useState('');
     const px = horizontalPadding ?? '';
     const rootRef = useRef<HTMLDivElement | null>(null);
 
-    // Re-apply the remembered filter after mount too, in case it changed in
+    // "All Sets" (empty) defers to the viewer's global set preference; picking a specific set
+    // here overrides it everywhere — Historical, Era, Featured, and Community.
+    const effectiveSet = setFilter || userShowdownSet;
+
+    // Re-apply the remembered filters after mount too, in case they changed in
     // another tab between the lazy-init read and this component mounting.
     useEffect(() => {
         setType(loadStoredBrowseType());
+        setSetFilter(loadStoredSetFilter());
     }, []);
 
     // Remember scroll position while this tab is the one actually on screen. It stays mounted
@@ -127,19 +150,22 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
         const timer = setTimeout(async () => {
             const [publicTeams, historical, eraTeams] = await Promise.all([
                 fetchPublicTeams(['official', 'user'], 60, 0, q).catch(() => [] as TeamSummary[]),
-                fetchHistoricalTeams({ q, showdownSet: userShowdownSet, limit: 40 })
+                fetchHistoricalTeams({ q, showdownSet: effectiveSet, limit: 40 })
                     .then(r => r.teams).catch(() => [] as HistoricalTeam[]),
-                fetchEraTeams({ era: ALL_TIME_ERA_KEY, q, showdownSet: userShowdownSet, limit: 40 })
+                fetchEraTeams({ era: ALL_TIME_ERA_KEY, q, showdownSet: effectiveSet, limit: 40 })
                     .then(r => r.teams).catch(() => [] as EraTeam[]),
             ]);
             if (cancelled) return;
             const isOwn = (t: TeamSummary) => !!currentUserId && t.user_id === currentUserId;
+            // A team with no explicit `allowed_sets` restriction still matches every set.
+            const matchesSet = (t: TeamSummary) =>
+                !effectiveSet || !t.allowed_sets || t.allowed_sets.length === 0 || t.allowed_sets.includes(effectiveSet);
             // In-progress drafts don't belong in Browse — the viewer's own included.
             const merged: Hit[] = [
                 // The user's own teams (including private ones) aren't in the public payload.
                 ...myTeams.filter(t => !t.is_drafting && matchesTeamQuery(t, q))
                     .map(team => ({ kind: 'public' as const, team })),
-                ...publicTeams.filter(t => !isOwn(t) && !t.is_drafting)
+                ...publicTeams.filter(t => !isOwn(t) && !t.is_drafting && matchesSet(t))
                     .map(team => ({ kind: 'public' as const, team })),
                 ...historical.map(team => ({ kind: 'historical' as const, team })),
                 ...eraTeams.map(team => ({ kind: 'era' as const, team })),
@@ -160,7 +186,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
             setSearching(false);
         }, 300);
         return () => { cancelled = true; clearTimeout(timer); };
-    }, [type, q, userShowdownSet, currentUserId, myTeams]);
+    }, [type, q, effectiveSet, currentUserId, myTeams]);
 
     function openHistorical(team: HistoricalTeam) {
         const state: HistoricalNavState = {
@@ -219,6 +245,22 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                     dropdownArrowSize={12}
                 />
 
+                <CustomSelect
+                    value={setFilter}
+                    onChange={v => {
+                        setSetFilter(v);
+                        try {
+                            localStorage.setItem(BROWSE_SET_STORAGE_KEY, v);
+                        } catch {
+                            // ignore
+                        }
+                    }}
+                    options={SET_OPTIONS}
+                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[13px] text-nowrap cursor-pointer flex items-center"
+                    imageClassName="mr-0.5 w-6 h-5 object-contain object-center"
+                    dropdownArrowSize={12}
+                />
+
                 <div className="flex-1 min-w-48 max-w-88">
                     <TeamSearchInput
                         value={query}
@@ -263,6 +305,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                             onOpenCollection={slug => navigate(`/teams/collections/${slug}`)}
                             horizontalPadding={px}
                             query={type === 'featured' ? q : undefined}
+                            showdownSet={effectiveSet}
                         />
                     )}
                     {(type === 'all' || type === 'community') && (
@@ -271,6 +314,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                             horizontalPadding={px}
                             hideSearch
                             externalQuery={type === 'community' ? q : ''}
+                            showdownSet={effectiveSet}
                         />
                     )}
                     {(type === 'all' || type === 'era') && (
@@ -283,7 +327,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                                     </p>
                                 </div>
                             )}
-                            <EraTeams horizontalPadding={px} hideSearch externalQuery={type === 'era' ? q : ''} />
+                            <EraTeams horizontalPadding={px} hideSearch externalQuery={type === 'era' ? q : ''} showdownSet={effectiveSet} />
                         </div>
                     )}
                     {(type === 'all' || type === 'historical') && (
@@ -296,7 +340,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                                     </p>
                                 </div>
                             )}
-                            <HistoricalTeams horizontalPadding={px} hideSearch externalQuery={type === 'historical' ? q : ''} />
+                            <HistoricalTeams horizontalPadding={px} hideSearch externalQuery={type === 'historical' ? q : ''} showdownSet={effectiveSet} />
                         </div>
                     )}
 

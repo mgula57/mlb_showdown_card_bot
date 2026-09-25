@@ -35,10 +35,13 @@ type EraTeamsProps = {
     hideSearch?: boolean;
     /** Search query supplied by the parent when `hideSearch` is set. */
     externalQuery?: string;
+    /** Overrides the global site Showdown set filter, e.g. from a "Set" toggle in the parent. */
+    showdownSet?: string;
 };
 
-export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery }: EraTeamsProps) {
-    const { userShowdownSet } = useSiteSettings();
+export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery, showdownSet }: EraTeamsProps) {
+    const { userShowdownSet: globalShowdownSet } = useSiteSettings();
+    const userShowdownSet = showdownSet ?? globalShowdownSet;
     const navigate = useNavigate();
 
     const [eras, setEras] = useState<RosterEra[]>([]);

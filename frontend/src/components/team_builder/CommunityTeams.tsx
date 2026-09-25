@@ -40,11 +40,13 @@ type CommunityTeamsProps = {
     hideSearch?: boolean;
     /** Search query supplied by the parent when `hideSearch` is set. */
     externalQuery?: string;
+    /** When set, only shows teams whose `allowed_sets` includes this Showdown set. */
+    showdownSet?: string;
 };
 
 /** Browse everyone's public teams music-app style: shelves of preview tiles, with search-as-a-mode.
  *  The viewer's own public teams are included here (tagged "Your team" on the tile), not hidden. */
-export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, externalQuery }: CommunityTeamsProps) {
+export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, externalQuery, showdownSet }: CommunityTeamsProps) {
     const [internalQuery, setInternalQuery] = useState('');
     const query = hideSearch ? (externalQuery ?? '') : internalQuery;
     const setQuery = setInternalQuery;
@@ -63,7 +65,11 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
     }, []);
 
     // Only show teams whose roster is actually complete — in-progress drafts don't belong here.
-    const completeTeams = useMemo(() => allTeams.filter(t => !t.is_drafting), [allTeams]);
+    // A `showdownSet` filter drops teams with an explicit `allowed_sets` that doesn't include it;
+    // an unrestricted team (no `allowed_sets`) still matches every set.
+    const completeTeams = useMemo(() => allTeams.filter(t =>
+        !t.is_drafting && (!showdownSet || !t.allowed_sets || t.allowed_sets.length === 0 || t.allowed_sets.includes(showdownSet))
+    ), [allTeams, showdownSet]);
 
     // Client-side search over the loaded pool — matches by name/abbreviation or by Showdown set.
     const results = useMemo(() => {
