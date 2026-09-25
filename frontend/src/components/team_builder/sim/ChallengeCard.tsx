@@ -134,15 +134,15 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                         fullWidth
                     />
                 )}
+                {challengeRestrictionsLabel(challenge) && (
+                    <StatTile icon={<FaFilter />} label="Player Restrictions" value={challengeRestrictionsLabel(challenge)!} fullWidth />
+                )}
                 {successRate && (
                     <StatTile
                         icon={<FaTrophy />}
                         label="Success Rate"
                         value={`${successRate.pct}% · ${successRate.entrants} ${successRate.entrants === 1 ? 'entry' : 'entries'}`}
                     />
-                )}
-                {challengeRestrictionsLabel(challenge) && (
-                    <StatTile icon={<FaFilter />} label="Player Restrictions" value={challengeRestrictionsLabel(challenge)!} fullWidth />
                 )}
             </div>
 

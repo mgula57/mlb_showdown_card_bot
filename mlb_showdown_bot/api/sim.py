@@ -225,7 +225,7 @@ def start_season_sim():
             if challenge is not None and challenge.get('player_filters'):
                 filter_set = PlayerFilterSet(filters=challenge['player_filters'])
                 violation = next(
-                    (reason for slot in row.get('roster', []) if (reason := filter_set.ineligible_reason(slot)) is not None),
+                    (reason for slot in _fielded_roster(row) if (reason := filter_set.ineligible_reason(slot)) is not None),
                     None,
                 )
                 if violation:
@@ -939,6 +939,13 @@ def _friendly_phase(message: str) -> str | None:
     return None
 
 
+def _fielded_roster(row: dict) -> list[dict]:
+    """A team's roster slots minus the bench. A challenge's `player_filters` restricts who can
+    take the field/mound, not who's stashed on the bench, so bench slots are exempt from both
+    the launch-time eligibility check and the "use an existing team" picker."""
+    return [slot for slot in row.get('roster', []) if slot.get('roster_position') != 'BE']
+
+
 def _record_abbr(record) -> str:
     """A `TeamRecord`'s identity abbreviation, upper-cased. A takeover club keeps the replaced
     club's schedule key as `name`, so `identity.abbreviation` is the reliable one, then `name`."""
@@ -1314,7 +1321,7 @@ def get_eligible_teams(instance_id):
             eligible_ids = []
             for candidate in candidates:
                 row = db.get_team(candidate['team_id'], g.user_id)
-                if row and all(filter_set.matches(slot) for slot in row.get('roster', [])):
+                if row and all(filter_set.matches(slot) for slot in _fielded_roster(row)):
                     eligible_ids.append(candidate['team_id'])
         return jsonify({'team_ids': eligible_ids}), 200
     except Exception as exc:

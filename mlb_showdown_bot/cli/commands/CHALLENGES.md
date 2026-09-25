@@ -18,9 +18,9 @@ A **Team Challenge** is a weekly "take over a real club and hit a goal" scenario
 | **Template** | Hand-authored content: the goal, budget cap, player pool, year/club pools. | You, via `challenges create-template` or the admin UI. | Permanent (until you deactivate it). |
 | **Instance** | A concrete playable challenge: one real `year` + `replaces_abbr` club resolved from a template's pools, with `pts_limit` / `roster_size` / `player_filters` snapshotted onto it. | The scheduler, via `challenges rotate` (or `challenges instance <slug>` by hand). | 7 days, then pruned 30 days after expiry. |
 
-`rotate` keeps exactly **one live instance per category** (`legendary` / `budget_cap` / `themed`) — each category is a rotation pool of templates, and every cycle the least-recently-used template in a category becomes that week's challenge, but only if the category has no live instance already. The frontend challenges list shows the live instances; players build a team (min `roster_size`, under `pts_limit`, matching `player_filters`), sim the season, and pass/fail against `goal_type`.
+`rotate` keeps exactly **one live instance per category** (`legendary` / `budget_cap` / `superteam` / `themed`) — each category is a rotation pool of templates, and every cycle the least-recently-used template in a category becomes that week's challenge, but only if the category has no live instance already. The frontend challenges list shows the live instances; players build a team (min `roster_size`, under `pts_limit`, matching `player_filters`), sim the season, and pass/fail against `goal_type`.
 
-So: write as many templates per category as you like — they queue up and take turns. Three categories → three live challenges at any time.
+So: write as many templates per category as you like — they queue up and take turns. Four categories → four live challenges at any time.
 
 Tables and columns live in [`core/database/README.md`](../../core/database/README.md) (`internal.challenge_template` / `internal.challenge_instance`), created by `PostgresDB.build_challenge_tables()`.
 
@@ -84,8 +84,8 @@ showdown_bot challenges instance small-budget-pennant
 | `--roster-size N` | no (default 25) | Minimum roster size to take the challenge on, and the size a challenge "New Team" is pre-built at. **Must be ≥ 22** (9 fielders + 5 SP + 5 RP + 3 bench). |
 | `--year-pool` | no (default `any`) | `any` \| comma list `1998,2001,2004` \| `random_range:1977,2024`. Years before **1975** have no full archive card coverage and are skipped. |
 | `--replaces-pool` | no (default `any`) | `any` (random club that played that year) \| `worst_record` (the year's worst club) \| comma list of abbrs (first one that actually played that year wins; franchises relocate/rename across eras). |
-| `--player-filters` | no | JSON object restricting eligible players, same shape as a team's `player_filters` (`min_year`/`max_year`/`organization`/`league`/`team`/`hand`). E.g. `'{"team": ["NYM", "NYY"], "hand": ["L"]}'`. |
-| `--category` | no (default `themed`) | `legendary` \| `budget_cap` \| `themed`. Drives the list's accent color **and the rotation pool** — one live challenge per category at a time, so this is the lever that controls how often a template comes up. The goal/cap/filters still do the gameplay work. |
+| `--player-filters` | no | JSON object restricting eligible players, same shape as a team's `player_filters` (`min_year`/`max_year`/`organization`/`league`/`team`/`hand`), plus `min_fielding`/`max_fielding` (best rating across every position the card is rated at - add an `_if`/`_of`/`_ca` suffix, e.g. `min_fielding_if`, to scope it to just infield, outfield, or catcher) and `min_chart_<category>`/`max_chart_<category>` (chart slot count, e.g. `min_chart_hr`). E.g. `'{"team": ["NYM", "NYY"], "hand": ["L"]}'`. Also accepts `era_lock_years` (int) — see below. |
+| `--category` | no (default `themed`) | `legendary` \| `budget_cap` \| `superteam` \| `themed`. Drives the list's accent color **and the rotation pool** — one live challenge per category at a time, so this is the lever that controls how often a template comes up. The goal/cap/filters still do the gameplay work. |
 | `--inactive` | no | Create it disabled; `rotate` skips it (but `challenges instance <slug>` still works on it, with a notice). Re-enable by flipping `active` in the DB. |
 | `--env` | no (default `dev`) | See "Which database?" above. |
 
@@ -125,6 +125,26 @@ showdown_bot challenges create-template --slug dethrone-27-yankees --title "Deth
   --description "Take over another 1927 club and finish with more wins than Murderers' Row." \
   --goal-type beat_team_record --beat-team-abbr NYY --category legendary \
   --year-pool 1927 --replaces-pool worst_record
+```
+
+### Era-locking a rotating year_pool
+
+`--player-filters '{"era_lock_years": 5}'` locks eligible players to within 5 years of whatever
+year the *instance* ends up with — useful for a template whose `--year-pool` isn't a fixed year
+(e.g. `budget_cap`'s `any`/`random_range`), where you can't hand-author `min_year`/`max_year`
+because the year isn't known until generation time. At instance-creation time the generator
+consumes `era_lock_years` and replaces it with a concrete `min_year`/`max_year` window on the
+*instance's* snapshot — the template itself stays year-agnostic and can be reused indefinitely.
+
+For a template with a fixed `--year-pool` (e.g. `legendary`), just hardcode `min_year`/`max_year`
+directly instead — the year is already known at authoring time, so there's nothing to resolve.
+
+```bash
+# Budget cap challenge, era-locked to whatever year gets rolled each time it's instanced
+showdown_bot challenges create-template --slug shoestring-era-locked --title "Shoestring, In Era" \
+  --description "Build a shoestring roster from players active around that season." \
+  --goal-type win_pennant --pts-limit 3000 --year-pool any --replaces-pool worst_record \
+  --player-filters '{"era_lock_years": 5}' --category budget_cap
 ```
 
 ---

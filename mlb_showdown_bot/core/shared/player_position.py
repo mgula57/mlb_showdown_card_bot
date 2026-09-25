@@ -295,7 +295,22 @@ class Position(Enum):
     @property
     def is_outfield(self) -> bool:
         return self in [Position.LF, Position.CF, Position.RF, Position.OF, Position.LFRF,]
-    
+
+    @classmethod
+    def fielding_group_values(cls, group: str) -> list[str] | None:
+        """Every raw `positions_and_defense` key string (including aliases, e.g. CA's 'C'/'CA')
+        belonging to a coarse defensive group - 'ca' (catcher), 'if' (infield), 'of' (outfield).
+        None for an unrecognized group. Single source of truth for the `min_fielding_<group>`/
+        `max_fielding_<group>` filter - both `PostgresDB._card_list_filter_clauses` (SQL) and
+        `PlayerFilterSet` (Python re-check) key off this so a card can't pass one and fail the
+        other."""
+        match group:
+            case 'ca': members = [cls.CA]
+            case 'if': members = [p for p in cls if p.is_infield]
+            case 'of': members = [p for p in cls if p.is_outfield]
+            case _: return None
+        return [value for position in members for value in position.all_values]
+
     @property
     def is_pitcher(self) -> bool:
         return self.name in ['SP','RP','CL']

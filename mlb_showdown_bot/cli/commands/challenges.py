@@ -12,6 +12,7 @@ from ...core.simulation.challenge_generator import (
     ChallengeGenerator,
     GoalType,
     build_goal_value,
+    validate_player_filters,
     validate_year_pool,
 )
 
@@ -123,7 +124,11 @@ def create_template(
     player_filters: str = typer.Option(
         None, "--player-filters",
         help='JSON object restricting which players are eligible, e.g. \'{"team": ["NYM", "NYY"], "hand": ["L"]}\'. '
-             "Same shape as a team's player_filters (min_year/max_year/organization/league/team/hand). Omit for no restriction.",
+             "Same shape as a team's player_filters (min_year/max_year/organization/league/team/hand), plus "
+             "min_fielding/max_fielding (any position; add _if/_of/_ca to scope to infield, outfield, "
+             "or catcher, e.g. min_fielding_if) and min_chart_<category>/max_chart_<category> (e.g. min_chart_hr). "
+             "Also accepts era_lock_years (int) - resolved into a min_year/max_year window around whatever year "
+             "the instance ends up with, for a template whose --year-pool isn't a fixed year. Omit for no restriction.",
     ),
     inactive: bool = typer.Option(False, "--inactive", help="Create it disabled - the generator will skip it"),
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
@@ -176,6 +181,11 @@ def create_template(
             raise typer.Exit(code=1)
         if not isinstance(parsed_player_filters, dict):
             typer.echo("ERROR: --player-filters must be a JSON object.")
+            raise typer.Exit(code=1)
+        try:
+            validate_player_filters(parsed_player_filters)
+        except ChallengeError as exc:
+            typer.echo(f"ERROR: {exc}")
             raise typer.Exit(code=1)
 
     db = _open_db(env)

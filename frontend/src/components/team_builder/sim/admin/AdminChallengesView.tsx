@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FaPlus, FaArrowsRotate, FaBolt, FaPen, FaTrash, FaSpinner } from 'react-icons/fa6';
 import BackButton from '../../../shared/BackButton';
 import { Modal } from '../../../shared/Modal';
 import { challengeCategoryMeta } from '../challengeCategory';
-import type { ChallengeInstance } from '../../../../api/sim';
+import type { ChallengeInstance, ChallengeCategory } from '../../../../api/sim';
 import {
     type ChallengeTemplate,
     type ChallengeTemplateInput,
@@ -65,6 +65,22 @@ export function AdminChallengesView({ token, onBack }: Props) {
     const [editing, setEditing] = useState<ChallengeTemplate | 'new' | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
     const [formBusy, setFormBusy] = useState(false);
+
+    /** Templates grouped by category, category order matching `challengeCategory.ts`'s
+     *  legendary → budget_cap → superteam → themed display order, so the admin list reads the
+     *  same way the live challenges list does. */
+    const groupedTemplates = useMemo(() => {
+        if (!templates) return null;
+        const groups = new Map<ChallengeCategory, ChallengeTemplate[]>();
+        for (const t of templates) {
+            const category = t.category ?? 'themed';
+            const bucket = groups.get(category);
+            if (bucket) bucket.push(t); else groups.set(category, [t]);
+        }
+        return [...groups.entries()].sort(
+            ([a], [b]) => challengeCategoryMeta(a).order - challengeCategoryMeta(b).order
+        );
+    }, [templates]);
 
     const load = useCallback(async () => {
         try {
@@ -203,38 +219,49 @@ export function AdminChallengesView({ token, onBack }: Props) {
                 </div>
             )}
 
-            {templates === null ? (
+            {groupedTemplates === null ? (
                 <div className="flex justify-center py-10"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
-            ) : templates.length === 0 ? (
+            ) : groupedTemplates.length === 0 ? (
                 <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No templates yet — create one to get started.</p>
             ) : (
-                <div className="flex flex-col divide-y divide-(--divider) rounded-lg border border-(--divider)">
-                    {templates.map(t => {
-                        const meta = challengeCategoryMeta(t.category);
-                        const rowBusy = busyId === t.template_id;
+                <div className="flex flex-col gap-4">
+                    {groupedTemplates.map(([category, group]) => {
+                        const meta = challengeCategoryMeta(category);
                         return (
-                            <div key={t.template_id} className="flex items-center gap-2 px-3 py-2.5">
-                                <span className="w-1.5 h-9 rounded-full shrink-0" style={{ backgroundColor: `var(${meta.cssVar})` }} />
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`text-[13px] font-bold truncate ${t.active ? 'text-(--text-primary)' : 'text-(--text-tertiary)'}`}>{t.title}</span>
-                                        {!t.active && <span className="text-[10px] uppercase font-bold text-(--text-tertiary)">inactive</span>}
-                                        {t.live_instance_count > 0 && <span className="text-[10px] uppercase font-bold" style={{ color: `var(${meta.cssVar})` }}>live</span>}
-                                    </div>
-                                    <div className="text-[11px] text-(--text-tertiary) truncate">
-                                        {t.slug} · {goalSummary(t)} · {t.pts_limit ? `${t.pts_limit} pts` : 'no cap'} · {t.year_pool} / {t.replaces_pool}
-                                    </div>
+                            <div key={category} className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-1.5 px-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: `var(${meta.cssVar})` }}>
+                                    {meta.icon} {meta.label} <span className="text-(--text-tertiary) font-normal normal-case">({group.length})</span>
                                 </div>
-                                {rowBusy ? (
-                                    <FaSpinner className="animate-spin text-(--text-tertiary) text-[12px]" />
-                                ) : (
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        <button type="button" title="Generate instance now" onClick={() => generate(t)} className="p-1.5 rounded-md hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaBolt className="text-[11px]" /></button>
-                                        <button type="button" title={t.active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(t)} className="px-1.5 py-1 rounded-md text-[10px] font-bold hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer">{t.active ? 'ON' : 'OFF'}</button>
-                                        <button type="button" title="Edit" onClick={() => { setFormError(null); setEditing(t); }} className="p-1.5 rounded-md hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaPen className="text-[11px]" /></button>
-                                        <button type="button" title="Delete" onClick={() => remove(t)} className="p-1.5 rounded-md hover:bg-red-400/10 text-red-400 cursor-pointer"><FaTrash className="text-[11px]" /></button>
-                                    </div>
-                                )}
+                                <div className="flex flex-col divide-y divide-(--divider) rounded-lg border border-(--divider)">
+                                    {group.map(t => {
+                                        const rowBusy = busyId === t.template_id;
+                                        return (
+                                            <div key={t.template_id} className="flex items-center gap-2 px-3 py-2.5">
+                                                <span className="w-1.5 h-9 rounded-full shrink-0" style={{ backgroundColor: `var(${meta.cssVar})` }} />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[13px] font-bold truncate ${t.active ? 'text-(--text-primary)' : 'text-(--text-tertiary)'}`}>{t.title}</span>
+                                                        {!t.active && <span className="text-[10px] uppercase font-bold text-(--text-tertiary)">inactive</span>}
+                                                        {t.live_instance_count > 0 && <span className="text-[10px] uppercase font-bold" style={{ color: `var(${meta.cssVar})` }}>live</span>}
+                                                    </div>
+                                                    <div className="text-[11px] text-(--text-tertiary) truncate">
+                                                        {t.slug} · {goalSummary(t)} · {t.pts_limit ? `${t.pts_limit} pts` : 'no cap'} · {t.year_pool} / {t.replaces_pool}
+                                                    </div>
+                                                </div>
+                                                {rowBusy ? (
+                                                    <FaSpinner className="animate-spin text-(--text-tertiary) text-[12px]" />
+                                                ) : (
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button type="button" title="Generate instance now" onClick={() => generate(t)} className="p-1.5 rounded-md hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaBolt className="text-[11px]" /></button>
+                                                        <button type="button" title={t.active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(t)} className="px-1.5 py-1 rounded-md text-[10px] font-bold hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer">{t.active ? 'ON' : 'OFF'}</button>
+                                                        <button type="button" title="Edit" onClick={() => { setFormError(null); setEditing(t); }} className="p-1.5 rounded-md hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaPen className="text-[11px]" /></button>
+                                                        <button type="button" title="Delete" onClick={() => remove(t)} className="p-1.5 rounded-md hover:bg-red-400/10 text-red-400 cursor-pointer"><FaTrash className="text-[11px]" /></button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         );
                     })}

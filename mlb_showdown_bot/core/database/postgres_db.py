@@ -939,17 +939,30 @@ class PostgresDB:
             if value is None:
                 continue
 
-            # Fielding min/max — applies as an OR across every position the player
-            # is rated at (e.g. min_fielding=3 matches a player who is +3 or better
-            # at ANY of their listed positions), since there's no single "fielding" column.
-            if key in ('min_fielding', 'max_fielding'):
-                comparison = '>=' if key.startswith('min_') else '<='
+            # Fielding min/max — applies as an OR across every position the player is rated at
+            # (e.g. min_fielding=3 matches a player who is +3 or better at ANY of their listed
+            # positions), since there's no single "fielding" column. `min_fielding_if`/`_of`/`_ca`
+            # narrow that OR to one coarse defensive group (infield/outfield/catcher) instead of
+            # every position - e.g. a "defense-first infield" filter shouldn't pass on a corner
+            # outfielder's arm rating. Position.fielding_group_values is the single source of
+            # truth for which raw position keys fall in each group.
+            if key in ('min_fielding', 'max_fielding') or key.startswith(('min_fielding_', 'max_fielding_')):
+                is_min = key.startswith('min_')
+                comparison = '>=' if is_min else '<='
+                group = key[len('min_fielding_'):] if key.startswith('min_fielding_') else key[len('max_fielding_'):] if key.startswith('max_fielding_') else None
+                position_filter_sql = sql.SQL("")
+                if group is not None:
+                    position_values = Position.fielding_group_values(group)
+                    if position_values is None:
+                        continue  # unrecognized group suffix - not a real filter, ignore rather than error
+                    position_filter_sql = sql.SQL("pd.pos = ANY(%s) AND ")
+                    filter_values.append(position_values)
                 filter_clauses.append(sql.SQL("""
                     EXISTS (
                         SELECT 1 FROM jsonb_each_text(coalesce(positions_and_defense, '{{}}'::jsonb)) AS pd(pos, val)
-                        WHERE val ~ '^-?[0-9]+$' AND val::numeric {comparison} %s
+                        WHERE {position_filter}val ~ '^-?[0-9]+$' AND val::numeric {comparison} %s
                     )
-                """).format(comparison=sql.SQL(comparison)))
+                """).format(comparison=sql.SQL(comparison), position_filter=position_filter_sql))
                 filter_values.append(value)
                 continue
 
@@ -5239,7 +5252,9 @@ class PostgresDB:
                         'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc),
                         'team',            COALESCE(cb.team, cw.team),
                         'hand',            COALESCE(cb.hand, cw.hand),
-                        'year',            COALESCE(cb.year, cw.year)
+                        'year',            COALESCE(cb.year, cw.year),
+                        'positions_and_defense', COALESCE(cb.positions_and_defense, cw.positions_and_defense),
+                        'chart_ranges',    COALESCE(cb.chart_ranges, cw.chart_ranges)
                     ) ORDER BY r.sort_order, r.id
                 ) FILTER (WHERE r.card_id IS NOT NULL),
                 '[]'::json
@@ -5255,11 +5270,13 @@ class PostgresDB:
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year,
+                   positions_and_defense, chart_ranges
             FROM card_bot  WHERE card_id = r.card_id LIMIT 1
         ) cb ON r.card_source = 'BOT'
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year AS year
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year AS year,
+                   positions_and_defense, chart_ranges
             FROM card_wotc WHERE card_id = r.card_id LIMIT 1
         ) cw ON r.card_source = 'WOTC'
         LEFT JOIN LATERAL (

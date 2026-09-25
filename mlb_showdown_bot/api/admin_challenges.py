@@ -16,6 +16,7 @@ from ..core.simulation.challenge_generator import (
     ChallengeGenerator,
     GoalType,
     build_goal_value,
+    validate_player_filters,
     validate_year_pool,
 )
 from .user_settings import require_admin
@@ -87,6 +88,7 @@ def _template_fields(payload: dict, *, partial: bool) -> dict:
         if pf in (None, '', {}):
             fields['player_filters'] = None
         elif isinstance(pf, dict):
+            validate_player_filters(pf)
             fields['player_filters'] = pf
         else:
             raise ChallengeError("player_filters must be a JSON object or null")

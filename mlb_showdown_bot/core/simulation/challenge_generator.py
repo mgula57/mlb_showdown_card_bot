@@ -54,6 +54,14 @@ MAX_YEAR_ATTEMPTS = 3
 # 9 FIELDERS + 5 STARTERS + 5 BULLPEN + 3 BENCH IS THE BUCKET SPLIT A CHALLENGE 'NEW TEAM' IS
 # BUILT WITH - A SMALLER ROSTER CAN'T HOLD IT AND WOULD FAIL THE TEAM SETUP STEP.
 MIN_ROSTER_SIZE = 22
+# A `player_filters` CONVENTION KEY (NOT A REAL FILTER - `PlayerFilterSet`/`fetch_card_list` DON'T
+# KNOW ABOUT IT) MEANING "LOCK ELIGIBLE PLAYERS TO WITHIN THIS MANY YEARS OF WHATEVER YEAR THIS
+# INSTANCE RESOLVES TO". LETS A TEMPLATE WITH A ROTATING `year_pool` (E.G. budget_cap'S `any` /
+# `random_range`) EXPRESS AN ERA LOCK WITHOUT KNOWING THE YEAR AT AUTHORING TIME - SEE
+# `ChallengeGenerator._resolve_player_filters`, WHICH EXPANDS IT INTO A CONCRETE min_year/max_year
+# ON THE INSTANCE'S SNAPSHOT. A TEMPLATE WITH A FIXED year_pool (E.G. legendary) DOESN'T NEED
+# THIS - IT CAN JUST HARDCODE min_year/max_year DIRECTLY SINCE THE YEAR IS ALREADY KNOWN.
+ERA_LOCK_YEARS_KEY = 'era_lock_years'
 
 
 class ChallengeError(Exception):
@@ -78,6 +86,19 @@ def validate_year_pool(year_pool: str) -> None:
     if all(y.strip().isdigit() for y in year_pool.split(',')):
         return
     raise ChallengeError("year_pool must be 'any', 'random_range:lo,hi', or a comma list of years")
+
+
+def validate_player_filters(player_filters: dict | None) -> None:
+    """Raise ChallengeError if `player_filters` misuses a convention key the generator itself
+    interprets (currently just `era_lock_years`). Everything else in the dict is a passthrough
+    validated generically by `fetch_card_list`/`PlayerFilterSet` at use time, not here."""
+    if not player_filters:
+        return
+    era_lock = player_filters.get(ERA_LOCK_YEARS_KEY)
+    if era_lock is None:
+        return
+    if isinstance(era_lock, bool) or not isinstance(era_lock, int) or era_lock < 0:
+        raise ChallengeError(f"{ERA_LOCK_YEARS_KEY} must be a non-negative integer")
 
 
 def build_goal_value(goal_type: GoalType, min_wins: int | None, beat_team_abbr: str | None) -> dict | None:
@@ -192,6 +213,21 @@ class ChallengeGenerator:
 
     # -- creation -------------------------------------------------------------
 
+    @staticmethod
+    def _resolve_player_filters(template: dict, year: int) -> dict | None:
+        """The instance's `player_filters` snapshot. Identical to the template's unless it
+        carries `era_lock_years`, in which case that marker is consumed and replaced with a
+        concrete `min_year`/`max_year` window around the resolved `year` - the template stays
+        year-agnostic (it can be authored before any year is known) while the instance it
+        produces is locked to a real era, same anti-solve intent as legendary's hardcoded
+        min_year/max_year, just computed instead of hand-authored."""
+        filters = dict(template.get('player_filters') or {})
+        era_lock = filters.pop(ERA_LOCK_YEARS_KEY, None)
+        if era_lock is not None:
+            filters['min_year'] = year - era_lock
+            filters['max_year'] = year + era_lock
+        return filters or None
+
     def create_instance(self, template: dict) -> InstanceResult | None:
         """Resolve a year/club for `template` and insert one instance. None if no valid combo
         turned up (the template's pools don't line up with any year that has data)."""
@@ -203,7 +239,7 @@ class ChallengeGenerator:
         instance_id = self.db.create_challenge_instance(
             template_id=template['template_id'], year=year, replaces_abbr=replaces_abbr,
             pts_limit=template['pts_limit'], expires_in_days=INSTANCE_LIFETIME_DAYS,
-            player_filters=template.get('player_filters'),
+            player_filters=self._resolve_player_filters(template, year),
             roster_size=template.get('roster_size') or 25,
             beat_team_record=beat_team_record,
         )
