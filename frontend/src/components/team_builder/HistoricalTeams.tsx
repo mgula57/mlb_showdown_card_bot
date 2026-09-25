@@ -94,6 +94,7 @@ const teamToPreview = (team: HistoricalTeam, showdownSet?: string): TeamPreviewD
     top_players: team.top_players,
     source: 'mlb',
     allowed_sets: showdownSet ? [showdownSet] : undefined,
+    badge: String(team.season),
 });
 
 /** One season's shelf. Teams are fetched when the shelf mounts, so scrolling back through
@@ -319,7 +320,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                             {searchResults.map(team => (
                                 <TeamPreviewCard
                                     key={`${team.season}-${team.team_id}`}
-                                    team={{ ...teamToPreview(team, userShowdownSet), badge: String(team.season) }}
+                                    team={teamToPreview(team, userShowdownSet)}
                                     onClick={() => openTeam(team)}
                                 />
                             ))}

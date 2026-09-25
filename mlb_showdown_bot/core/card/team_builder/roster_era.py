@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+from ...shared.team import Team
+
 
 @dataclass(frozen=True)
 class RosterEra:
@@ -11,12 +13,19 @@ class RosterEra:
     start_year: int
     end_year: int
 
-    def team_name(self, base_name: str) -> str:
-        """Display name for one team's roster within this era, e.g. "1990s New York Yankees"
-        or "All-Time New York Yankees". Applied at read time (see api/seasons.py) rather than
-        stored, so dim_era_team.name stays the plain franchise/league name and any future
-        naming-format change doesn't need every era rebuilt."""
-        return f"{self.label} {base_name}"
+    def team_name(self, base_name: str, abbreviation: Optional[str] = None) -> str:
+        """Display name for one team's roster within this era, e.g. "1990s Yankees" or
+        "All-Time Braves" -- nickname only, no city, since a franchise-spanning roster (the
+        Braves alone have played as the Boston/Milwaukee/Atlanta Braves) has no single city
+        that's correct for every year in the range. Resolved from `abbreviation` when it maps to
+        a current franchise (see Team.nickname); `base_name` is just the fallback for the
+        League-wide "All-MLB" sentinel or an abbreviation Team.nickname doesn't cover.
+
+        Applied at read time (see api/seasons.py) rather than stored, so dim_era_team.name stays
+        the plain franchise/league name and any future naming-format change doesn't need every
+        era rebuilt."""
+        nickname = Team.map_from_mlb_api_team(abbreviation).nickname if abbreviation else None
+        return f"{self.label} {nickname or base_name}"
 
 
 # A cross-team "All-MLB" Era Roster (e.g. "the best 1990s players, any team") is stored and

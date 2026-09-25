@@ -402,12 +402,13 @@ def fetch_era_showdown_team(team_id: str):
                 # Pre-processed: identity is stored too, so a cold link needs no client-side resolution.
                 identity = db.fetch_era_team(team_id=team_id_int, era=era.key, showdown_set=showdown_set_enum.value, sport_id=sport_id) or {}
                 raw_name = identity.get('name') or team_name or team_abbr or f"Team {team_id_int}"
+                resolved_abbr = identity.get('abbreviation') or team_abbr
                 builder = StoredRosterToTeamConverter(
                     cards=stored_cards,
                     meta_rows=stored_slots,
                     team_id=synthetic_team_id,
-                    name=era.team_name(raw_name),
-                    abbreviation=identity.get('abbreviation') or team_abbr or str(team_id_int),
+                    name=era.team_name(raw_name, abbreviation=resolved_abbr),
+                    abbreviation=resolved_abbr or str(team_id_int),
                     primary_color=identity.get('primary_color'),
                     secondary_color=identity.get('secondary_color'),
                 )
@@ -435,7 +436,7 @@ def fetch_era_showdown_team(team_id: str):
                 builder = EraRosterDrafter(
                     cards=candidates,
                     team_id=synthetic_team_id,
-                    name=era.team_name(team_name or team_abbr or f"Team {team_id_int}"),
+                    name=era.team_name(team_name or team_abbr or f"Team {team_id_int}", abbreviation=team_abbr),
                     abbreviation=team_abbr or str(team_id_int),
                 )
 

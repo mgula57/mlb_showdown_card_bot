@@ -2779,7 +2779,18 @@ class PostgresDB:
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
             rows = [dict(r) for r in cur.fetchall()]
-        return self._serialize_team_summaries(rows)
+        summaries = self._serialize_team_summaries(rows)
+        # An Era Roster spans a franchise's whole relocation history (the Braves alone have
+        # played as the Boston/Milwaukee/Atlanta Braves), so the stored plain name -- the
+        # franchise's *current* city + nickname -- reads wrong for an all-time or older-decade
+        # roster. Swap in the nickname alone here (RosterEra.team_name does the same for the
+        # single-team detail fetch) rather than persisting it, so this stays in sync with
+        # Team.nickname without a dim_era_team backfill.
+        for team in summaries:
+            nickname = Team.map_from_mlb_api_team(team['abbreviation']).nickname if team.get('abbreviation') else None
+            if nickname:
+                team['name'] = nickname
+        return summaries
 
     def fetch_era_team(self, team_id: int, era: str, showdown_set: str, sport_id: int = 1) -> Optional[dict]:
         """Return the stored identity row for one team's era roster, or None if not pre-processed."""

@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 from .color import color_name
 
 class Team(str, Enum):
@@ -211,6 +212,46 @@ class Team(str, Enum):
             case 'TEX' if 1961 <= year <= 1971: return Team.WSA
             case 'MIL' if year == 1969: return Team.SEP
             case _: return self
+
+    @property
+    def nickname(self) -> Optional[str]:
+        """The franchise's mascot/nickname alone, with no city -- e.g. 'Braves' for ATL, not
+        'Atlanta Braves'. Used to name a franchise-spanning display (an Era Roster covering
+        Boston/Milwaukee/Atlanta all at once has no single correct city to show), so this is
+        only defined for the 30 current MLB franchises; anything else falls back to None and
+        the caller keeps whatever full name it already had."""
+        match self.value:
+            case 'ARI': return 'Diamondbacks'
+            case 'ATH' | 'OAK': return 'Athletics'
+            case 'ATL': return 'Braves'
+            case 'BAL': return 'Orioles'
+            case 'BOS': return 'Red Sox'
+            case 'CHC': return 'Cubs'
+            case 'CHW': return 'White Sox'
+            case 'CIN': return 'Reds'
+            case 'CLE': return 'Guardians'
+            case 'COL': return 'Rockies'
+            case 'DET': return 'Tigers'
+            case 'HOU': return 'Astros'
+            case 'KCR': return 'Royals'
+            case 'LAA': return 'Angels'
+            case 'LAD': return 'Dodgers'
+            case 'MIA': return 'Marlins'
+            case 'MIL': return 'Brewers'
+            case 'MIN': return 'Twins'
+            case 'NYM': return 'Mets'
+            case 'NYY': return 'Yankees'
+            case 'PHI': return 'Phillies'
+            case 'PIT': return 'Pirates'
+            case 'SDP': return 'Padres'
+            case 'SEA': return 'Mariners'
+            case 'SFG': return 'Giants'
+            case 'STL': return 'Cardinals'
+            case 'TBR': return 'Rays'
+            case 'TEX': return 'Rangers'
+            case 'TOR': return 'Blue Jays'
+            case 'WSN': return 'Nationals'
+            case _: return None
 
 # ------------------------------------------------------------------------
 # COLOR

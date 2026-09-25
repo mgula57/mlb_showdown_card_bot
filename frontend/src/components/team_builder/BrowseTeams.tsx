@@ -187,7 +187,11 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
     };
     // Unified search only ever queries the ALL_TIME era (see the Promise.all above), so the
     // display prefix here is fixed rather than looked up — hit.team.name itself stays plain.
-    const hitPreview = (hit: Hit) => hit.kind === 'era' ? { ...hit.team, name: `All-Time ${hit.team.name}` } : hit.team;
+    const hitPreview = (hit: Hit) => {
+        if (hit.kind === 'era') return { ...hit.team, name: `All-Time ${hit.team.name}` };
+        if (hit.kind === 'historical') return { ...hit.team, badge: String(hit.team.season) };
+        return hit.team;
+    };
 
     const searchModeResults = useMemo(() => {
         if (hits === null) return null;
