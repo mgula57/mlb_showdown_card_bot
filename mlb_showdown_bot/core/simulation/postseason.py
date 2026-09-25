@@ -5,6 +5,7 @@ from typing import Optional
 
 from .game import Game
 from .models import PostseasonFormat, PostseasonResult, PostseasonRound, SeriesResult
+from .real_postseason import RealPostseasonBracket
 from .standings import Standings
 from .stats import PlayerStatsGroup, StatCategory
 from .team import SimTeam
@@ -16,7 +17,11 @@ _MVP_ROUNDS = (PostseasonRound.CHAMPIONSHIP, PostseasonRound.WORLD_SERIES)
 
 class PostseasonSeries:
 
-    def __init__(self, id: str, league: str, round: PostseasonRound, format: PostseasonFormat, start_date: date, home_team: SimTeam, away_team: SimTeam, prior_round_seed_matchup: list[int] = []) -> None:
+    def __init__(
+        self, id: str, league: str, round: PostseasonRound, format: PostseasonFormat, start_date: date,
+        home_team: SimTeam, away_team: SimTeam, prior_round_seed_matchup: list[int] = [],
+        seed_home_wins: int = 0, seed_away_wins: int = 0,
+    ) -> None:
         self.id = id
         self.league = league
         self.round = round
@@ -25,6 +30,11 @@ class PostseasonSeries:
         self.home_team = home_team
         self.away_team = away_team
         self.prior_round_seed_matchup = prior_round_seed_matchup
+        # GAMES ALREADY DECIDED IN REAL LIFE, FOR A `resume_from_real_postseason` RUN - SEE
+        # `Postseason.simulate`. COUNTED TOWARD `wins_for_team`/`series_winner` WITHOUT A
+        # SIMULATED `Game` BEHIND THEM; `generate_games_list` ONLY BUILDS THE REMAINDER.
+        self.seed_home_wins = seed_home_wins
+        self.seed_away_wins = seed_away_wins
         # PER-PLAYER STATS ACCUMULATED OVER THE SERIES - SEEDED IN `Postseason.simulate` for the
         # CHAMPIONSHIP / WORLD SERIES rounds only, then trimmed to the winner's contributors in
         # `as_result`. None everywhere else.
@@ -55,17 +65,27 @@ class PostseasonSeries:
         return None
 
     def generate_games_list(self) -> None:
-        """ Generate games list and store to self """
+        """ Generate the remaining games list and store to self.
+
+        `seed_home_wins`/`seed_away_wins` are games already decided in real life with no
+        simulated `Game` behind them - only games beyond that seed are generated here. A series
+        already decided by its seed alone gets none.
+        """
 
         # IF EITHER TEAM IS EMPTY, DON'T POPULATE GAMES LIST
         if self.home_team is None or self.away_team is None or self.start_date is None:
             self.games = []
             return
 
+        decided = self.seed_home_wins + self.seed_away_wins
+        if decided >= self.length or max(self.seed_home_wins, self.seed_away_wins) > self.length / 2.0:
+            self.games = []
+            return
+
         games = []
         is_top_team_home = True
         date_index = 0
-        for game_num in range(1, self.length + 1):
+        for game_num in range(decided + 1, self.length + 1):
             is_change_in_home_team = is_top_team_home != self.is_top_team_home(game_num)
             if is_change_in_home_team:
                 date_index += 1
@@ -100,6 +120,10 @@ class PostseasonSeries:
 
     def wins_for_team(self, team_name: str) -> int:
         num_wins = 0
+        if self.home_team is not None and team_name == self.home_team.name:
+            num_wins += self.seed_home_wins
+        elif self.away_team is not None and team_name == self.away_team.name:
+            num_wins += self.seed_away_wins
         for game in self.games:
             if game.winning_team:
                 num_wins += int(game.winning_team.name == team_name)
@@ -135,13 +159,20 @@ class PostseasonSeries:
 
 class Postseason:
 
-    def __init__(self, year: int, standings: Standings, format: PostseasonFormat, start_date: date, collect_box_score: bool = False, platoon_roll_adjustment: int = 0) -> None:
+    def __init__(
+        self, year: int, standings: Standings, format: PostseasonFormat, start_date: date,
+        collect_box_score: bool = False, platoon_roll_adjustment: int = 0,
+        real_bracket: Optional[RealPostseasonBracket] = None,
+    ) -> None:
         self.year = year
         self.standings = standings
         self.format = self.default_format_for_year(year=year) if format == PostseasonFormat.DYNAMIC else format
         self.start_date = start_date
         self.collect_box_score = collect_box_score
         self.platoon_roll_adjustment = platoon_roll_adjustment
+        # SET ONLY FOR A `resume_from_real_postseason` RUN - SEE `simulate` FOR HOW EACH SERIES
+        # GETS SEEDED FROM IT.
+        self.real_bracket = real_bracket
         # SCHEDULE PLACEHOLDERS
         self.rounds: dict[PostseasonRound, dict[str, PostseasonSeries]] = {round: {} for round in self.format.rounds}
         self.generate_initial_schedule()
@@ -348,6 +379,17 @@ class Postseason:
             for series in series_dict.values():
                 if len(series.games) == 0:
                     series.generate_games_list()
+
+                # RESUME-FROM-REAL-POSTSEASON: A SERIES THAT HAS ALREADY BEEN PLAYED (PARTLY OR
+                # FULLY) IN REAL LIFE GETS THOSE WINS SEEDED IN, THEN REGENERATES ITS GAMES LIST TO
+                # ONLY THE REMAINDER (OR NONE, IF REAL LIFE ALREADY DECIDED IT). A ROUND THAT
+                # HASN'T STARTED IN REAL LIFE YET (OR A MATCHUP THIS SIM PRODUCED THAT REAL LIFE
+                # NEVER DID) HAS NO RECORD HERE AND PLAYS OUT NORMALLY.
+                if self.real_bracket is not None and series.is_teams_populated:
+                    home_wins, away_wins = self.real_bracket.record_for(series.round, series.home_team.name, series.away_team.name)
+                    if home_wins or away_wins:
+                        series.seed_home_wins, series.seed_away_wins = home_wins, away_wins
+                        series.generate_games_list()
 
                 if series.round in _MVP_ROUNDS and series.is_teams_populated:
                     series.series_stats = PlayerStatsGroup(

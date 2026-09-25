@@ -114,7 +114,10 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                 </SectionCard>
 
                 <SectionCard title={`Win % Over Time · ${team.wins}–${team.losses}`}>
-                    <SimWinPctChart games={games} playoffCutlinePct={playoffCutlinePct} seedRecord={seedRecord} />
+                    <SimWinPctChart
+                        games={games} playoffCutlinePct={playoffCutlinePct} seedRecord={seedRecord}
+                        noRegularSeasonGames={summary.schedule_length === 0}
+                    />
                 </SectionCard>
             </div>
 

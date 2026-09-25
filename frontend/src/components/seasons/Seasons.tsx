@@ -198,10 +198,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGamePk]);
 
-    // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab, then clears the param.
+    // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab with the setup form
+    // up, then clears the param.
     useEffect(() => {
         if (new URLSearchParams(location.search).get('sim') === '1') {
             setActiveTab('simulate');
+            setIsSimModalOpen(true);
             navigate('/seasons', { replace: true });
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps

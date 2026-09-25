@@ -11,6 +11,7 @@ from ..mlb_stats_api import MLBStatsAPI
 from ..shared.player_position import PlayerType
 from .models import DeadlineTrade, PostseasonFormat, SeasonSimulationConfig, SeasonSimulationResult
 from .postseason import Postseason
+from .real_postseason import RealPostseasonBracket
 from .roster import RESERVE_MIN_IP_PITCHER, RESERVE_MIN_PA_POSITION
 from .schedule import Schedule
 from .standings import Standings
@@ -222,6 +223,11 @@ class Season:
                 status_callback(message)
 
         config = self.config
+        if config.resume_from_real_postseason and config.is_takeover:
+            raise ValueError(
+                "Resuming from the real postseason isn't available for a takeover run - the "
+                "replaced club's real postseason results aren't its own."
+            )
         started_at = datetime.now()
         # POPULATED BELOW ONLY FOR A REAL-SEASON RUN WITH `config.merge_real_stats` - DEFINED
         # HERE (NOT INSIDE THE `else` BRANCH BELOW) SO IT'S ALWAYS IN SCOPE WHEN `PlayerStatsGroup`
@@ -267,6 +273,9 @@ class Season:
                 # `resume_as_of_date` DEFAULTS TO TODAY WHEN UNSET - RESOLVED HERE RATHER THAN ON
                 # THE CONFIG SO A STORED/REPLAYED CONFIG NEVER SILENTLY PICKS A DIFFERENT "TODAY".
                 start_date=(config.resume_as_of_date or date.today()) if config.resume_from_real_season else None,
+                # A POSTSEASON-ONLY RESUME WANTS ZERO REGULAR-SEASON GAMES LEFT - THAT'S THE WHOLE
+                # POINT, NOT AN ERROR.
+                allow_empty=config.resume_from_real_postseason,
             )
             if config.enable_trade_deadline:
                 self._trade_deadline = TradeDeadline(config=config, schedule=self.schedule, card_pool=card_pool)
@@ -339,18 +348,31 @@ class Season:
         standings_result = self.standings.as_result(apply_bench_multiplier=config.apply_bench_pts_multiplier_to_points)
 
         # POSTSEASON
-        if config.simulate_postseason and total_games > 0:
+        if config.simulate_postseason and (total_games > 0 or config.resume_from_real_postseason):
             postseason_format = config.postseason_format
             if config.is_tournament and postseason_format == PostseasonFormat.DYNAMIC:
                 postseason_format = PostseasonFormat.WORLD_SERIES
+
+            real_bracket = None
+            if config.resume_from_real_postseason:
+                status(f"Loading real {config.year} postseason results...")
+                real_bracket = RealPostseasonBracket(year=config.year, mlb_stats_api=self.mlb_stats_api)
+
+            # A POSTSEASON-ONLY RESUME HAS NO REGULAR-SEASON GAME TO ANCHOR OFF OF - FALL BACK TO
+            # THE SAME RESUME DATE THE SCHEDULE ITSELF WAS BUILT FROM.
+            postseason_start_date = (
+                self.schedule.games[-1].date + timedelta(days=5) if self.schedule.games
+                else (config.resume_as_of_date or date.today())
+            )
             status(f"Simulating postseason ({postseason_format.value})...")
             self.postseason = Postseason(
                 year=config.year,
                 standings=self.standings,
                 format=postseason_format,
-                start_date=self.schedule.games[-1].date + timedelta(days=5),
+                start_date=postseason_start_date,
                 collect_box_score=config.should_collect_box_scores,
                 platoon_roll_adjustment=config.platoon_roll_adjustment,
+                real_bracket=real_bracket,
             )
             self.postseason.simulate(rng=self.rng)
 

@@ -83,6 +83,7 @@ export function SeasonSimSetupForm(props: Props) {
     const [postseasonFormat, setPostseasonFormat] = useState('DYNAMIC');
     const [resumeEnabled, setResumeEnabled] = useState(false);
     const [mergeRealStats, setMergeRealStats] = useState(false);
+    const [resumePostseasonEnabled, setResumePostseasonEnabled] = useState(false);
     const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(true);
     const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(true);
     const [regressSmallSampleStats, setRegressSmallSampleStats] = useState(false);
@@ -131,7 +132,9 @@ export function SeasonSimSetupForm(props: Props) {
         return () => { stale = true; };
     }, [year, isLobby]);
 
-    // "Resume from real standings" only makes sense for the current in-progress season.
+    // "Resume from real standings" only makes sense for the current in-progress season - "Resume
+    // from the real postseason" works for any year, including a long-finished one (real results
+    // played "so far" is then simply the whole bracket, and nothing gets simulated).
     useEffect(() => {
         if (year !== 2026) setResumeEnabled(false);
     }, [year]);
@@ -176,6 +179,7 @@ export function SeasonSimSetupForm(props: Props) {
                 postseason_format: simulatePostseason ? postseasonFormat : undefined,
                 resume_as_of_date: resumeEnabled ? new Date().toISOString().slice(0, 10) : undefined,
                 merge_real_stats: resumeEnabled ? mergeRealStats : undefined,
+                resume_from_real_postseason: resumePostseasonEnabled || undefined,
                 enable_trade_deadline: tradeDeadlineEnabled || undefined,
                 trade_deadline_respects_standings: tradeDeadlineEnabled ? tradeDeadlineRespectsStandings : undefined,
                 regress_small_sample_stats: regressSmallSampleStats || undefined,
@@ -281,8 +285,12 @@ export function SeasonSimSetupForm(props: Props) {
                         description="Play the season as one of your built teams, replacing a real club."
                         isEnabled={takeoverEnabled}
                         onToggle={() => setTakeoverEnabled(v => !v)}
-                        isDisabled={resumeEnabled}
-                        disabledReason="Turn off “Resume from real standings” first — a takeover club can't resume from a real record it never had."
+                        isDisabled={resumeEnabled || resumePostseasonEnabled}
+                        disabledReason={
+                            resumePostseasonEnabled
+                                ? "Turn off “Resume from the real postseason” first — a takeover club never played the real postseason results it would otherwise inherit."
+                                : "Turn off “Resume from real standings” first — a takeover club can't resume from a real record it never had."
+                        }
                     >
                         <FormDropdown
                             label="Team"
@@ -307,11 +315,15 @@ export function SeasonSimSetupForm(props: Props) {
                 {year === 2026 && (
                     <SimSettingToggle
                         label="Resume from real standings"
-                        description="Every club starts from today's real record; only the games after today are simulated."
+                        description="Every club starts from today's real record; today's games are assumed not yet played, so simulation picks up from today onward."
                         isEnabled={resumeEnabled}
                         onToggle={() => setResumeEnabled(v => !v)}
-                        isDisabled={takeoverEnabled}
-                        disabledReason="Turn off “Take over a club” first — a takeover club can't resume from a real record it never had."
+                        isDisabled={takeoverEnabled || resumePostseasonEnabled}
+                        disabledReason={
+                            resumePostseasonEnabled
+                                ? "Turn off “Resume from the real postseason” first — the two can't both project the season."
+                                : "Turn off “Take over a club” first — a takeover club can't resume from a real record it never had."
+                        }
                     >
                         <SimSettingToggle
                             label="Merge real stats into player lines"
@@ -320,6 +332,21 @@ export function SeasonSimSetupForm(props: Props) {
                             onToggle={() => setMergeRealStats(v => !v)}
                         />
                     </SimSettingToggle>
+                )}
+
+                {!isLobby && (
+                    <SimSettingToggle
+                        label="Resume from the real postseason"
+                        description="Skips the regular season entirely — every club starts from its real final record, skipping straight to the postseason and simming from there. Every player's real season stats are merged in automatically, so MVP/Cy Young/Rookie of the Year/Silver Sluggers still have a full season to be judged on."
+                        isEnabled={resumePostseasonEnabled}
+                        onToggle={() => setResumePostseasonEnabled(v => !v)}
+                        isDisabled={takeoverEnabled || resumeEnabled}
+                        disabledReason={
+                            takeoverEnabled
+                                ? "Turn off “Take over a club” first — a takeover club never played the real postseason results it would otherwise inherit."
+                                : "Turn off “Resume from real standings” first — the two can't both project the season."
+                        }
+                    />
                 )}
 
                 <SimSettingToggle

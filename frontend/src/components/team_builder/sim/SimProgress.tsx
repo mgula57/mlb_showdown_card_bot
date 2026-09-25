@@ -78,6 +78,11 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
         ? { wins: timeline[0].wins - (timeline[0].is_win ? 1 : 0), losses: timeline[0].losses - (timeline[0].is_win ? 0 : 1) }
         : null;
 
+    // A "resume from the real postseason" run simulates zero regular-season games, so the
+    // timeline above never receives a single entry to stream - there's nothing for the chart's
+    // usual "waiting for the first game" placeholder to be waiting for.
+    const noRegularSeasonGames = job?.config?.['resume_from_real_postseason'] === true;
+
     return (
         <div className="fade-in flex flex-col items-center gap-4 px-4 py-10">
             {/* Hero panel: the dice, what's running, and how far along it is. Clipped, so the
@@ -131,7 +136,10 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
 
             <div className="w-full max-w-lg">
                 <SectionCard title={latest ? `Win % Over Time · ${latest.wins}–${latest.losses}` : 'Win % Over Time'}>
-                    <SimWinPctChart games={timeline} totalGames={job?.progress_games_total} seedRecord={seedRecord} />
+                    <SimWinPctChart
+                        games={timeline} totalGames={job?.progress_games_total} seedRecord={seedRecord}
+                        noRegularSeasonGames={noRegularSeasonGames}
+                    />
                 </SectionCard>
             </div>
 

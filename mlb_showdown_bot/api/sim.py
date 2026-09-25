@@ -396,14 +396,29 @@ def _parse_engine_settings(payload: dict) -> dict:
         except ValueError:
             raise ValueError(f"invalid resume_as_of_date '{raw_resume_date}' - use YYYY-MM-DD")
 
+    # POSTSEASON-ONLY RESUME: no regular-season games are simulated at all - every club's record
+    # is seeded from the real final standings (the same seeding `resume_from_real_season` uses),
+    # and the bracket itself is seeded from real postseason results played so far - see
+    # `RealPostseasonBracket`. Only available takeover-free (enforced by each caller, which knows
+    # whether one was requested - `Season.simulate` re-checks it too), so it always implies
+    # `resume_from_real_season` and forces off the other resume-only toggle below, which means
+    # nothing when no regular season is simulated.
+    resume_from_real_postseason = bool(payload.get('resume_from_real_postseason'))
+    if resume_from_real_postseason:
+        resume_from_real_season = True
+
     # ONLY MEANINGFUL ALONGSIDE resume_as_of_date - THE ENGINE ITSELF GATES ON BOTH
     # (`config.resume_from_real_season and config.merge_real_stats`), SO A STRAY
     # merge_real_stats=True WITH NO RESUME DATE IS SILENTLY A NO-OP RATHER THAN AN ERROR.
-    merge_real_stats = resume_from_real_season and bool(payload.get('merge_real_stats'))
+    #
+    # A POSTSEASON-ONLY RESUME ALWAYS MERGES REGARDLESS OF WHAT THE CLIENT SENT (NOT A TOGGLE
+    # THERE): WITH ZERO REGULAR-SEASON GAMES SIMULATED, `league_stats` WOULD OTHERWISE BE
+    # COMPLETELY EMPTY - MVP/CY YOUNG/ROY/SILVER SLUGGER WOULD HAVE NO STAT LINES TO RANK AT ALL.
+    merge_real_stats = resume_from_real_postseason or (resume_from_real_season and bool(payload.get('merge_real_stats')))
 
     # TRADE DEADLINE. `trade_deadline_respects_standings` ONLY MATTERS WHEN THE DEADLINE IS ON,
     # SAME SHAPE AS resume_from_real_season / merge_real_stats ABOVE.
-    enable_trade_deadline = bool(payload.get('enable_trade_deadline'))
+    enable_trade_deadline = not resume_from_real_postseason and bool(payload.get('enable_trade_deadline'))
     trade_deadline_respects_standings = enable_trade_deadline and bool(payload.get('trade_deadline_respects_standings'))
 
     return {
@@ -413,6 +428,7 @@ def _parse_engine_settings(payload: dict) -> dict:
         'injury_severity_multiplier': injury_severity_multiplier,
         'seed': payload.get('seed'), 'simulate_postseason': payload.get('simulate_postseason', True),
         'resume_from_real_season': resume_from_real_season, 'resume_as_of_date': resume_as_of_date,
+        'resume_from_real_postseason': resume_from_real_postseason,
         'merge_real_stats': merge_real_stats,
         'enable_trade_deadline': enable_trade_deadline,
         'trade_deadline_respects_standings': trade_deadline_respects_standings,
@@ -435,6 +451,7 @@ def _settings_to_stored_config(settings: dict) -> dict:
         'simulate_postseason': settings['simulate_postseason'], 'postseason_format': settings['postseason_format'].value,
         'resume_from_real_season': settings['resume_from_real_season'],
         'resume_as_of_date': settings['resume_as_of_date'].isoformat() if settings['resume_as_of_date'] else None,
+        'resume_from_real_postseason': settings['resume_from_real_postseason'],
         'merge_real_stats': settings['merge_real_stats'],
         'enable_trade_deadline': settings['enable_trade_deadline'],
         'trade_deadline_respects_standings': settings['trade_deadline_respects_standings'],
@@ -455,6 +472,7 @@ def _config_kwargs_from_stored(stored: dict) -> dict:
         'postseason_format': PostseasonFormat(stored.get('postseason_format', PostseasonFormat.DYNAMIC.value)),
         'resume_from_real_season': bool(stored.get('resume_from_real_season')),
         'resume_as_of_date': resume_as_of_date,
+        'resume_from_real_postseason': bool(stored.get('resume_from_real_postseason')),
         'merge_real_stats': bool(stored.get('merge_real_stats')),
         'enable_trade_deadline': bool(stored.get('enable_trade_deadline')),
         'trade_deadline_respects_standings': bool(stored.get('trade_deadline_respects_standings')),
@@ -547,6 +565,8 @@ def start_open_sim():
         raw_takeovers = payload.get('takeovers') or []
         if not isinstance(raw_takeovers, list):
             return jsonify({'error': 'takeovers must be a list'}), 400
+        if settings['resume_from_real_postseason'] and raw_takeovers:
+            return jsonify({'error': "Resuming from the real postseason isn't available when taking over a club."}), 400
 
         # DB-BOUND CHECKS FIRST, IN ONE SHORT-LIVED CONNECTION: THE PER-USER CAP, PLUS OWNERSHIP
         # AND ROSTER VALIDATION FOR EACH REQUESTED TAKEOVER (MIRRORING `start_season_sim`'s
@@ -881,6 +901,9 @@ def start_sim_lobby(lobby_id: str):
                 if roster_error:
                     return jsonify({'error': f"{member['club_abbr']} ({team.name}): {roster_error}"}), 422
                 takeover_teams[member['club_abbr']] = team
+
+            if (lobby['config'] or {}).get('resume_from_real_postseason') and takeover_teams:
+                return jsonify({'error': "Resuming from the real postseason isn't available when a club has been taken over."}), 400
 
         config = SeasonSimulationConfig(
             year=lobby['year'],

@@ -457,6 +457,11 @@ export type OpenSimPayload = {
      *  Only takes effect alongside `resume_as_of_date` — a separate toggle since the merged
      *  stats reflect the archive's last scrape, which may not land exactly on the resume date. */
     merge_real_stats?: boolean;
+    /** Skips the regular season entirely: every club starts from its real final record, and the
+     *  postseason bracket itself picks up from real results played so far this October, only
+     *  simulating what hasn't happened yet. Only available with no `takeovers` — a takeover club
+     *  never played the real postseason results it would otherwise inherit. */
+    resume_from_real_postseason?: boolean;
     /** Move a player who was really traded mid-season to his real next club on an era-appropriate
      *  deadline date, instead of playing the whole sim for the one club his card resolved to. */
     enable_trade_deadline?: boolean;
@@ -806,6 +811,7 @@ export type CreateSimLobbyPayload = {
     postseason_format?: string;
     resume_as_of_date?: string;
     merge_real_stats?: boolean;
+    resume_from_real_postseason?: boolean;
     enable_trade_deadline?: boolean;
     trade_deadline_respects_standings?: boolean;
     regress_small_sample_stats?: boolean;
