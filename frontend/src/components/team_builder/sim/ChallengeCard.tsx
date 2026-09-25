@@ -82,9 +82,27 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
 
     return (
         <div
-            className="flex flex-col gap-4 rounded-xl border border-(--divider) border-l-4 bg-(--background-secondary) p-5"
+            className="relative isolate flex flex-col gap-4 overflow-hidden rounded-xl border border-(--divider) border-l-4 bg-(--background-secondary) p-5"
             style={{ borderLeftColor: `var(${category.cssVar})` }}
         >
+            {/* Category-tinted glow bleeding from the corner — purely decorative, sits behind all content. */}
+            <div
+                className="pointer-events-none absolute -top-12 -left-12 -z-10 h-40 w-40 rounded-full blur-3xl opacity-25"
+                style={{ backgroundColor: `var(${category.cssVar})` }}
+            />
+            {/* Top accent wrapping the left-edge stripe around the corner to meet the ribbon's tip. */}
+            <div
+                className="pointer-events-none absolute -left-1 -top-1 h-1 w-9"
+                style={{ backgroundColor: `var(${category.cssVar})` }}
+            />
+            {/* Folded-corner ribbon echoing the category color, tucked into the padding gutter so it never touches the title/pill text. */}
+            <div
+                className="pointer-events-none absolute -left-1 -top-1 h-9 w-9 pl-1.75 pt-1.75 text-[10px] text-white"
+                style={{ backgroundColor: `var(${category.cssVar})`, clipPath: 'polygon(0 0, 100% 0, 0 100%)' }}
+            >
+                {category.icon}
+            </div>
+
             <div className="flex items-start justify-between gap-3">
                 <div className="w-full">
                     <div className="flex justify-between items-start " >
