@@ -191,8 +191,7 @@ class Team(str, Enum):
         historical lookup has to resolve backwards before the two can be joined on team.
 
         Each alias is bounded on both ends by the years the code was in use, so a year outside a
-        franchise's lifetime falls through unchanged. Only covers the modern era; the pre-1950
-        relocations (BRO/BSN/NYG/PHA/SLB) are not mapped yet.
+        franchise's lifetime falls through unchanged.
         """
         match self.value:
             case 'LAA' if 1965 <= year <= 1996: return Team.CAL
@@ -200,6 +199,17 @@ class Team(str, Enum):
             case 'WSN' if 1969 <= year <= 2004: return Team.MON
             case 'MIA' if 1993 <= year <= 2011: return Team.FLA
             case 'TBR' if 1998 <= year <= 2007: return Team.TBD
+            case 'ATH' if 1968 <= year <= 2024: return Team.OAK
+            case 'ATH' if 1955 <= year <= 1967: return Team.KCA
+            case 'ATH' if 1901 <= year <= 1954: return Team.PHA
+            case 'ATL' if 1953 <= year <= 1965: return Team.MLN
+            case 'ATL' if 1901 <= year <= 1952: return Team.BSN
+            case 'LAD' if 1901 <= year <= 1957: return Team.BRO
+            case 'SFG' if 1901 <= year <= 1957: return Team.NYG
+            case 'BAL' if 1902 <= year <= 1953: return Team.SLB
+            case 'MIN' if 1901 <= year <= 1960: return Team.WSH
+            case 'TEX' if 1961 <= year <= 1971: return Team.WSA
+            case 'MIL' if year == 1969: return Team.SEP
             case _: return self
 
 # ------------------------------------------------------------------------

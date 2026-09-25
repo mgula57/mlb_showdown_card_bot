@@ -9,7 +9,8 @@ from ...shared.player_position import Position
 class EraRosterDrafter(RosterToTeamConverter):
     """Compose an Era Roster (all-time, or a single decade -- see RosterEraRegistry) from every
     qualified season a franchise's players recorded within the given era, ranked strictly by
-    Showdown points.
+    Showdown points -- with non-qualified fallback fill for any slot qualified seasons alone
+    can't cover (see below).
 
     "Qualified" is the real batting-title/ERA-title standard -- 3.1 PA or ~1.0 IP per team game
     scheduled that year -- computed live here rather than persisted as a card_bot column, so it
@@ -18,6 +19,15 @@ class EraRosterDrafter(RosterToTeamConverter):
     _filter_qualified below applies the real standard on top of that pool. Which years are in
     play at all (all-time vs. a single decade) is entirely a property of the candidate pool
     passed in -- this class has no era-awareness of its own.
+
+    A single decade is a narrow window (10 years) on one franchise -- it's common for a
+    rebuilding/expansion team to have fewer than 5 pitchers who both started (by the card's own
+    SP tag) and cleared the real ERA-title IP bar in their best season for that team, or no
+    every-day player at a given field position at all. Rather than leave those roster slots
+    empty, non-qualified (but still non-small-sample) candidates stay in the pool as fallback
+    fill: qualified players always win a slot over them (see _qualified_rank / the sort-key
+    overrides below), but an unfilled rotation/lineup slot still gets the best available
+    candidate instead of nothing.
 
     Real playing time (games played/started, saves) isn't comparable across players pooled from
     different years, so this replaces the base class's playing-time filter and sort keys with a
@@ -75,8 +85,15 @@ class EraRosterDrafter(RosterToTeamConverter):
         secondary_color: Optional[str] = None,
         source: TeamSource = TeamSource.MLB,
     ) -> None:
-        cards = self._best_season_per_player(self._filter_qualified(cards))
-        cards = self._cap_multi_inning_relievers(cards)
+        # Each player's single best QUALIFYING season wins their spot in the pool. A player with
+        # no qualifying season at all still gets one shot at a spot -- their single best season
+        # overall (still non-small-sample, per the candidate pool's own floor) -- but only as
+        # fallback fill; see _qualified_rank and the sort-key overrides below.
+        qualified_best = self._best_season_per_player(self._filter_qualified(cards))
+        qualified_keys = {(c.mlb_id, c.player_type) for c in qualified_best}
+        fallback_only = [c for c in self._best_season_per_player(cards) if (c.mlb_id, c.player_type) not in qualified_keys]
+        self._qualified_card_ids = {c.card_id for c in qualified_best}
+        cards = self._cap_multi_inning_relievers(qualified_best + fallback_only)
         super().__init__(
             cards=cards,
             team_id=team_id,
@@ -146,24 +163,27 @@ class EraRosterDrafter(RosterToTeamConverter):
 
     @classmethod
     def _filter_by_playing_time(cls, cards: list[ExploreDataRecord], protected_ids: set[str]) -> list[ExploreDataRecord]:
-        # Already scoped to one team + qualified (_filter_qualified, applied in __init__) --
-        # real playing time isn't comparable across pooled seasons, so no further cameo
-        # filtering happens here.
+        # Already scoped to one team + deduped to each player's single best season (qualified-
+        # first, fallback otherwise -- see __init__) -- real playing time isn't comparable across
+        # pooled seasons, so no further cameo filtering happens here.
         return cards
 
-    @staticmethod
-    def _by_games_played(card: ExploreDataRecord) -> tuple:
-        return (card.points or 0,)
+    def _qualified_rank(self, card: ExploreDataRecord) -> int:
+        """1 for a card drawn from a player's real qualifying season, 0 for fallback fill --
+        every sort key below ranks this first so fallback candidates only ever win a slot that no
+        qualified candidate is competing for."""
+        return 1 if card.card_id in self._qualified_card_ids else 0
 
-    @staticmethod
-    def _by_games_started(card: ExploreDataRecord) -> tuple:
-        return (card.points or 0,)
+    def _by_games_played(self, card: ExploreDataRecord) -> tuple:
+        return (self._qualified_rank(card), card.points or 0)
 
-    @staticmethod
-    def _by_saves(card: ExploreDataRecord) -> tuple:
+    def _by_games_started(self, card: ExploreDataRecord) -> tuple:
+        return (self._qualified_rank(card), card.points or 0)
+
+    def _by_saves(self, card: ExploreDataRecord) -> tuple:
         # No real saves data comparable across pooled seasons; prefer a card the bot itself
         # tagged as a closer that year, then fall back to points among all bullpen candidates.
-        return (1 if Position.CL in (card.positions_list or []) else 0, card.points or 0)
+        return (self._qualified_rank(card), 1 if Position.CL in (card.positions_list or []) else 0, card.points or 0)
 
     @staticmethod
     def _max_roster_size(season: Optional[int]) -> Optional[int]:

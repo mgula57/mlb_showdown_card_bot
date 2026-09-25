@@ -39,6 +39,31 @@ export type HistoricalNavState = {
 const SEASONS_PER_PAGE = 4;
 const SEARCH_LIMIT = 60;
 
+// How many season shelves were paged in, remembered per session so navigating into a team's
+// detail page (which fully unmounts this tree) and back doesn't collapse the list back down to
+// the first page -- BrowseTeams' own scroll restoration needs the page to already be as tall as
+// it was when the user clicked away, or there's nothing to scroll back down to.
+const VISIBLE_COUNT_STORAGE_KEY = 'historicalTeams.visibleCount';
+
+// Each restored shelf fires its own team fetch immediately on mount (SeasonShelf doesn't wait
+// for the near-viewport check -- that only gates whether cards or skeletons render once data
+// arrives), unlike normal scrolling, where growth is paced by the user and the sentinel. Capping
+// how much a single remount will restore bounds that burst to a reasonable number of concurrent
+// requests, even after a very long scroll-back session.
+const MAX_RESTORED_VISIBLE_COUNT = SEASONS_PER_PAGE * 5;
+
+function loadStoredVisibleCount(): number {
+    try {
+        const stored = Number(sessionStorage.getItem(VISIBLE_COUNT_STORAGE_KEY));
+        if (Number.isFinite(stored) && stored > SEASONS_PER_PAGE) {
+            return Math.min(stored, MAX_RESTORED_VISIBLE_COUNT);
+        }
+    } catch {
+        // ignore
+    }
+    return SEASONS_PER_PAGE;
+}
+
 type SortKey = 'season' | 'points' | 'name' | 'roster';
 
 const SORT_OPTIONS: SelectOption[] = [
@@ -161,7 +186,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
     const navigate = useNavigate();
 
     const [seasons, setSeasons] = useState<HistoricalSeasonRef[]>([]);
-    const [visibleCount, setVisibleCount] = useState(SEASONS_PER_PAGE);
+    const [visibleCount, setVisibleCount] = useState(loadStoredVisibleCount);
     const [asgTeams, setAsgTeams] = useState<AsgTeamRef[]>([]);
 
     const [internalQuery, setInternalQuery] = useState('');
@@ -175,6 +200,12 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
     const [error, setError] = useState<string | null>(null);
 
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        try { sessionStorage.setItem(VISIBLE_COUNT_STORAGE_KEY, String(visibleCount)); } catch {
+            // ignore
+        }
+    }, [visibleCount]);
 
     // Initial load: which seasons have pre-processed teams, and which have All-Star data.
     useEffect(() => {

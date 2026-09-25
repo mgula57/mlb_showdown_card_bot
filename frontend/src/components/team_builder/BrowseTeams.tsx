@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaLayerGroup, FaStar, FaUsers, FaClockRotateLeft, FaTrophy } from 'react-icons/fa6';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
@@ -24,6 +24,11 @@ const TYPE_OPTIONS: SelectOption[] = [
 ];
 
 const BROWSE_TYPE_STORAGE_KEY = 'browseTeams.type';
+
+// Navigating into a team's detail page fully unmounts this tree (it's a distinct top-level
+// view in TeamBuilder, not a nested route), so scroll position can't just live in state here --
+// it has to survive the unmount in storage instead.
+const BROWSE_SCROLL_STORAGE_KEY = 'browseTeams.scrollY';
 
 function loadStoredBrowseType(): BrowseType {
     try {
@@ -59,11 +64,54 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
     const [type, setType] = useState<BrowseType>(loadStoredBrowseType);
     const [query, setQuery] = useState('');
     const px = horizontalPadding ?? '';
+    const rootRef = useRef<HTMLDivElement | null>(null);
 
     // Re-apply the remembered filter after mount too, in case it changed in
     // another tab between the lazy-init read and this component mounting.
     useEffect(() => {
         setType(loadStoredBrowseType());
+    }, []);
+
+    // Remember scroll position while this tab is the one actually on screen. It stays mounted
+    // (but `hidden`) behind the other tabs, so `offsetParent` guards against a background tab's
+    // own scrolling overwriting the saved spot.
+    useEffect(() => {
+        const onScroll = () => {
+            if (!rootRef.current || rootRef.current.offsetParent === null) return;
+            try { sessionStorage.setItem(BROWSE_SCROLL_STORAGE_KEY, String(window.scrollY)); } catch {
+                // ignore
+            }
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    // Restore that spot once, on mount -- but only once the page has actually grown tall enough
+    // to reach it. Scrolling immediately would just snap back to the top against the still-empty
+    // (or skeleton) page every child component mounts in with; polling on a rAF loop instead of
+    // scrolling on a fixed delay adapts to however long that first load actually takes.
+    useEffect(() => {
+        let target: number;
+        try {
+            target = Number(sessionStorage.getItem(BROWSE_SCROLL_STORAGE_KEY));
+        } catch {
+            return;
+        }
+        if (!Number.isFinite(target) || target <= 0) return;
+
+        let attempts = 0;
+        let frame = 0;
+        const tryRestore = () => {
+            attempts += 1;
+            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            if (maxScroll >= target || attempts > 120) { // ~2s at 60fps before giving up and going as far as possible
+                window.scrollTo(0, target);
+                return;
+            }
+            frame = requestAnimationFrame(tryRestore);
+        };
+        frame = requestAnimationFrame(tryRestore);
+        return () => cancelAnimationFrame(frame);
     }, []);
 
     const q = query.trim();
@@ -147,7 +195,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
     }, [hits]);
 
     return (
-        <div className="flex flex-col gap-5">
+        <div ref={rootRef} className="flex flex-col gap-5">
             {/* Type filter + unified search */}
             <div className={`${px} flex flex-wrap items-center gap-2`}>
 
@@ -222,7 +270,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         />
                     )}
                     {(type === 'all' || type === 'era') && (
-                        <>
+                        <div className={`flex flex-col gap-2`}>
                             {type === 'all' && (
                                 <div className={px}>
                                     <h3 className="text-[15px] font-black text-(--text-primary)">Era Teams</h3>
@@ -232,10 +280,10 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                                 </div>
                             )}
                             <EraTeams horizontalPadding={px} hideSearch externalQuery={type === 'era' ? q : ''} />
-                        </>
+                        </div>
                     )}
                     {(type === 'all' || type === 'historical') && (
-                        <>
+                        <div className={`flex flex-col gap-2`}>
                             {type === 'all' && (
                                 <div className={px}>
                                     <h3 className="text-[15px] font-black text-(--text-primary)">Historical Teams</h3>
@@ -245,7 +293,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                                 </div>
                             )}
                             <HistoricalTeams horizontalPadding={px} hideSearch externalQuery={type === 'historical' ? q : ''} />
-                        </>
+                        </div>
                     )}
 
                 </>
