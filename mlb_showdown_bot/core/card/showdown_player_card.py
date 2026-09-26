@@ -1687,9 +1687,9 @@ class ShowdownPlayerCard(BaseModel):
         current_accolades = [at[0] for at in accolades_rank_and_priority_tuples]
 
         # CHECK FOR TRIPLE CROWN
-        substrings_triple_crown = [ba_champ_text, 'HR LEADER', 'RBI LEADER']
+        substrings_triple_crown = [ba_champ_text, 'HR LEADER', 'RBI LEADER'] if self.is_hitter else ['ERA LEADER', 'WINS LEADER', 'SO LEADER']
         num_triple_crown_leading = len([cat for cat in substrings_triple_crown if self.is_substring_in_list(cat, current_accolades)])
-        if num_seasons == 1 and self.is_hitter and num_triple_crown_leading == 3:
+        if num_seasons == 1 and num_triple_crown_leading == 3:
             accolades_rank_and_priority_tuples.append( (f'{self.league} TRIPLE CROWN', 0, 0) )
             accolades_to_remove = []
             for accolade_tuple in accolades_rank_and_priority_tuples:
