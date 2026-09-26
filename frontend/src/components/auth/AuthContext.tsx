@@ -271,7 +271,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider,
                 options: {
-                    redirectTo: `${window.location.origin}/`,
+                    redirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}`,
                     // Force Google to show the account chooser instead of
                     // silently reusing the most recently used account.
                     ...(provider === 'google' && {
