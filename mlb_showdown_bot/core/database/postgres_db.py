@@ -6291,7 +6291,8 @@ class PostgresDB:
                 thumbnail_storage_path text,
                 user_id text,
                 is_hidden boolean NOT NULL DEFAULT FALSE,
-                card_result jsonb
+                card_result jsonb,
+                generation_source character varying(64) NOT NULL DEFAULT 'web_customs_tab'
             );
         """
 
@@ -6306,6 +6307,10 @@ class PostgresDB:
             ALTER TABLE internal.log_custom_card_bot
                 ADD COLUMN IF NOT EXISTS is_hidden boolean NOT NULL DEFAULT FALSE;
         """
+        migrate_generation_source_sql = """
+            ALTER TABLE internal.log_custom_card_bot
+                ADD COLUMN IF NOT EXISTS generation_source character varying(64) NOT NULL DEFAULT 'web_customs_tab';
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(schema_check_sql)
@@ -6313,6 +6318,7 @@ class PostgresDB:
                 cur.execute(index_sql)
                 cur.execute(user_id_index_sql)
                 cur.execute(migrate_is_hidden_sql)
+                cur.execute(migrate_generation_source_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
