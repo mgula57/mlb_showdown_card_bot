@@ -7,8 +7,6 @@ import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 
 // Set ordering for the "by set" shelves — newest curated sets first.
-const SET_ORDER = ['2000', '2001', '2002', '2003', '2004', '2005', 'EXPANDED', 'CLASSIC'];
-
 type SortKey = 'recent' | 'points' | 'name' | 'roster' | 'popular';
 
 const SORT_OPTIONS: SelectOption[] = [
@@ -91,20 +89,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
             .sort((a, b) => b.like_count - a.like_count)
             .slice(0, 15);
 
-        const bySet = new Map<string, TeamSummary[]>();
-        for (const t of completeTeams) {
-            const set = (t.allowed_sets && t.allowed_sets[0]) || 'Other';
-            if (!bySet.has(set)) bySet.set(set, []);
-            bySet.get(set)!.push(t);
-        }
-        const setShelves = [...bySet.entries()]
-            .sort(([a], [b]) => {
-                const ia = SET_ORDER.indexOf(a); const ib = SET_ORDER.indexOf(b);
-                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-            })
-            .filter(([, list]) => list.length > 0);
-
-        return { recentlyAdded, topPoints, mostLiked, setShelves };
+        return { recentlyAdded, topPoints, mostLiked };
     }, [completeTeams]);
 
     const px = horizontalPadding ?? '';
@@ -183,14 +168,6 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                             ))}
                         </TeamShelf>
                     )}
-
-                    {shelves.setShelves.map(([set, list]) => (
-                        <TeamShelf key={set} title={set === 'Other' ? 'Other Sets' : `${set} Set`} className={px} bleed>
-                            {list.map(team => (
-                                <TeamPreviewCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
-                            ))}
-                        </TeamShelf>
-                    ))}
                 </>
             )}
         </div>
