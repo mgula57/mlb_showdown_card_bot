@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaTrophy } from 'react-icons/fa6';
 import { fetchSimHistory, type SimSeasonListItem } from '../../api/sim';
-import { relativeTime } from '../../functions/formatters';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SimSeasonRow, SimSeasonRowSkeleton } from '../team_builder/sim/SimSeasonRow';
 
 const RECENT_LIMIT = 8;
 
@@ -11,6 +9,8 @@ type Props = {
     onOpen: (jobId: string) => void;
     /** When set, only runs from this season show by default; a toggle reveals every season. */
     seasonYear?: number;
+    /** Layout style for displaying the recent sims, e.g., 'grid' or 'list' */
+    layout?: 'grid' | 'list';
 };
 
 /**
@@ -19,10 +19,12 @@ type Props = {
  * team's own Sims tab, so this stays scoped to the plain "simulate a season" path. Deliberately
  * minimal for now; can grow filters/grouping later if it gets used.
  */
-export function RecentSims({ token, onOpen, seasonYear }: Props) {
+export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
     const [seasons, setSeasons] = useState<SimSeasonListItem[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [showAllSeasons, setShowAllSeasons] = useState(false);
+    const isGridLayout = layout === 'grid';
+    const layoutClass = isGridLayout ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2';
 
     useEffect(() => {
         if (!token) return;
@@ -60,16 +62,8 @@ export function RecentSims({ token, onOpen, seasonYear }: Props) {
 
     if (seasons === null) {
         return (
-            <div className="flex flex-col gap-1.5 animate-pulse">
-                {Array.from({ length: RECENT_LIMIT }).map((_, index) => (
-                    <div key={index} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-(--background-tertiary)">
-                        <div className="min-w-0 flex-1 flex flex-col gap-1.5">
-                            <div className="h-3.5 w-16 rounded bg-(--background-quaternary)" />
-                            <div className="h-3 w-24 rounded bg-(--background-quaternary)" />
-                        </div>
-                        <div className="h-4 w-10 rounded bg-(--background-quaternary) shrink-0" />
-                    </div>
-                ))}
+            <div className={layoutClass}>
+                {Array.from({ length: RECENT_LIMIT }).map((_, index) => <SimSeasonRowSkeleton key={index} />)}
             </div>
         );
     }
@@ -94,44 +88,16 @@ export function RecentSims({ token, onOpen, seasonYear }: Props) {
     }
 
     return (
-        <div className="flex flex-col gap-1.5">
+        <div className={layoutClass}>
             {seasonToggle && <div className="flex justify-end pb-0.5">{seasonToggle}</div>}
             {visibleSeasons.slice(0, RECENT_LIMIT).map(entry => (
-                <button
+                <SimSeasonRow
                     key={entry.entry_id}
-                    type="button"
-                    onClick={() => entry.job_id && onOpen(entry.job_id)}
+                    entry={entry}
+                    showTime
                     disabled={!entry.job_id}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors cursor-pointer hover:bg-(--divider) bg-(--background-tertiary) disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                    <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                            <span className="text-[13px] font-bold text-(--text-primary)">{entry.year}</span>
-                            {entry.replaced_abbr && (
-                                <span className="text-[12px] text-(--text-secondary)">{entry.replaced_abbr}</span>
-                            )}
-                            {entry.is_champion && <FaTrophy className="text-[10px] text-yellow-300 shrink-0" title="Won the World Series" />}
-                        </span>
-                        <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) truncate">
-                            {entry.showdown_set && (
-                                <>
-                                    <img
-                                        src={imageForSet(entry.showdown_set, true)}
-                                        alt={entry.showdown_set}
-                                        className="inline h-3 w-auto object-contain align-middle"
-                                    />
-                                    {' · '}
-                                </>
-                            )}
-                            {relativeTime(entry.created_at)}
-                        </span>
-                    </span>
-                    <span className="text-right shrink-0">
-                        <span className="block text-[14px] font-black text-(--text-primary) tabular-nums">
-                            {entry.wins}<span className="text-(--text-tertiary)">–</span>{entry.losses}
-                        </span>
-                    </span>
-                </button>
+                    onOpen={() => entry.job_id && onOpen(entry.job_id)}
+                />
             ))}
         </div>
     );

@@ -82,7 +82,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
 
     return (
         <div
-            className="relative isolate flex flex-col gap-4 overflow-hidden rounded-xl border border-(--divider) border-l-4 bg-(--background-secondary) p-5"
+            className="relative isolate flex flex-col gap-4 overflow-hidden rounded-xl border border-(--divider) border-l-5 bg-(--background-secondary) p-5"
             style={{ borderLeftColor: `var(${category.cssVar})` }}
         >
             {/* Category-tinted glow bleeding from the corner — purely decorative, sits behind all content. */}

@@ -561,6 +561,19 @@ async function parseError(res: Response, fallback: string): Promise<never> {
 // session the same way `_splitsCache` works in mlbAPI.
 const _seasonsCache: { value: number[] | null } = { value: null };
 const _clubsCache = new Map<number, { teams: TakeoverClub[]; default: string | null }>();
+const _guideCache: { value: string | null } = { value: null };
+
+/** The plain-language "how a season sim works" guide, sourced from `SIMULATION_GUIDE.md` on the
+ *  backend so the in-app explainer never drifts from that doc. Static for the life of the
+ *  deployment, so it's cached for the browser session like the seasons/clubs lists above. */
+export async function fetchSimGuide(): Promise<string> {
+    if (_guideCache.value) return _guideCache.value;
+    const res = await fetch(`${API_BASE}/sim/guide`);
+    if (!res.ok) await parseError(res, 'Failed to load simulation guide');
+    const data = await res.json();
+    _guideCache.value = data.content ?? '';
+    return _guideCache.value!;
+}
 
 export async function fetchSimSeasons(): Promise<number[]> {
     if (_seasonsCache.value) return _seasonsCache.value;

@@ -184,7 +184,7 @@ const AppContent = () => {
                     <Seasons
                         type="mlb"
                         title="Seasons"
-                        subtitle="Browse season standings, teams, and players with Showdown context"
+                        subtitle="Watch real MLB seasons play out pitch by pitch, or simulate your own. All brought to life with MLB Showdown cards."
                         staticSports={[{ id: 1, name: 'MLB' }]}
                         staticSeasons={mlbSeasons}
                     />

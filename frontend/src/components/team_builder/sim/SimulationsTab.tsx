@@ -5,9 +5,10 @@ import { RecentSims } from './RecentSims';
 import { SimChallenges } from './SimChallenges';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 import { useAuth } from '../../auth/AuthContext';
+import { SimulationGuideModal } from '../../simulate/SimulationGuideModal';
 import type { ChallengeInstance, SimLeaderboardSort } from '../../../api/sim';
 import { FaArrowDown } from 'react-icons/fa';
-import { FaClockRotateLeft, FaGear, FaTrophy } from 'react-icons/fa6';
+import { FaBook, FaClockRotateLeft, FaGear, FaTrophy, FaQuestion } from 'react-icons/fa6';
 
 type BrowseView = 'leaderboard' | 'mine';
 
@@ -40,25 +41,32 @@ type Props = {
     onManageChallenges: () => void;
 };
 
-/** A large jump-to-section button at the top of the tab — icon, title, and an arrow affordance,
- *  matching the guided-path tiles on the My Teams welcome screen. Scrolls the given section into
- *  view rather than switching views, since challenges and the leaderboard now share one page. */
-function NavTile({ icon, title, targetRef }: { icon: ReactNode; title: string; targetRef: React.RefObject<HTMLDivElement | null> }) {
+/** A large button at the top of the tab — icon, title, and a trailing affordance, matching the
+ *  guided-path tiles on the My Teams welcome screen. Either jumps a section into view or (via
+ *  `onClick`) triggers something else entirely, like opening the simulation guide. Stacked
+ *  (icon over title over affordance) rather than a horizontal row so three of these keep fitting
+ *  side by side down to phone widths — a row layout crowds or truncates once titles like
+ *  "How do sims work?" share a third of the screen. */
+function NavTile({ icon, title, trailingIcon, onClick }: { icon: ReactNode; title: string; trailingIcon?: ReactNode; onClick: () => void }) {
     return (
         <button
             type="button"
-            onClick={() => targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="group flex items-center justify-between gap-3 text-left p-4 rounded-xl border border-(--divider) bg-(--background-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+            onClick={onClick}
+            className="group flex flex-col items-center justify-center gap-1.5 text-center p-2 sm:p-3 rounded-xl border border-(--divider) bg-(--background-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
         >
-            <span className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-(--background-primary) text-(--secondary) text-[15px] shrink-0">
-                    {icon}
-                </span>
-                <span className="text-[14px] font-black text-(--text-primary)">{title}</span>
+            <span className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-(--background-primary) text-(--secondary) text-[13px] sm:text-[15px] shrink-0">
+                {icon}
             </span>
-            <FaArrowDown className="text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-y-0.5 transition-all shrink-0" />
+            <span className="text-[10px] sm:text-[14px] font-black text-(--text-primary) leading-tight">{title}</span>
+            {trailingIcon ?? <FaArrowDown className="text-[10px] sm:text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-y-0.5 transition-all shrink-0" />}
         </button>
     );
+}
+
+/** Jump-to-section tile: scrolls the given section into view rather than switching views, since
+ *  challenges and the leaderboard share one page. */
+function SectionNavTile({ icon, title, targetRef }: { icon: ReactNode; title: string; targetRef: React.RefObject<HTMLDivElement | null> }) {
+    return <NavTile icon={icon} title={title} onClick={() => targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />;
 }
 
 /**
@@ -81,14 +89,23 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
     }
     const recentSimsRef = useRef<HTMLDivElement>(null);
     const leaderboardRef = useRef<HTMLDivElement>(null);
+    const [showGuide, setShowGuide] = useState(false);
 
     return (
         <div className={`flex flex-col gap-8 ${horizontalPadding}`}>
             {/* Nav tiles */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <NavTile icon={<FaClockRotateLeft />} title="Recent Sims" targetRef={recentSimsRef} />
-                <NavTile icon={<FaTrophy />} title="Leaderboard" targetRef={leaderboardRef} />
+            <div className="grid grid-cols-3 gap-3">
+                <SectionNavTile icon={<FaClockRotateLeft />} title="Recent Sims" targetRef={recentSimsRef} />
+                <SectionNavTile icon={<FaTrophy />} title="Leaderboard" targetRef={leaderboardRef} />
+                <NavTile
+                    icon={<FaBook />}
+                    title="How do sims work?"
+                    trailingIcon={<FaQuestion className="text-[10px] sm:text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-y-0.5 transition-all shrink-0" />}
+                    onClick={() => setShowGuide(true)}
+                />
             </div>
+
+            {showGuide && <SimulationGuideModal onClose={() => setShowGuide(false)} />}
 
             {/* Challenges grid */}
             <div className="flex flex-col gap-4">

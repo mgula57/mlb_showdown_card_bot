@@ -9,6 +9,7 @@ import time
 import traceback
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Callable
 
 from flask import Blueprint, g, jsonify, request
@@ -105,6 +106,23 @@ def _dyno_id() -> str:
 # ----------------------------------------------------------
 # MARK: - SETUP OPTIONS
 # ----------------------------------------------------------
+
+_GUIDE_PATH = Path(__file__).resolve().parents[1] / 'core' / 'simulation' / 'SIMULATION_GUIDE.md'
+_guide_cache: dict[str, str] = {}
+
+
+@sim_bp.route('/sim/guide', methods=['GET'])
+def get_sim_guide():
+    """Plain-language walkthrough of how a season sim works, read straight from
+    SIMULATION_GUIDE.md so the in-app explainer can never drift from that doc."""
+    try:
+        if 'content' not in _guide_cache:
+            _guide_cache['content'] = _GUIDE_PATH.read_text()
+        return jsonify({'content': _guide_cache['content']}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
 
 @sim_bp.route('/sim/seasons', methods=['GET'])
 def get_sim_seasons():

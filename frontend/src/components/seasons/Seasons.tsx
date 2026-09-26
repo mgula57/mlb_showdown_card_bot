@@ -29,7 +29,7 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal, FaDice
+    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
 } from "react-icons/fa6";
 
 // import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -41,6 +41,7 @@ import { getReadableTextColor } from "../../functions/colors";
 import { Modal } from "../shared/Modal";
 import { SignInPrompt } from "../shared/SignInPrompt";
 import { SeasonSimSetupForm } from "../simulate/SeasonSimSetupForm";
+import { SimulationGuideModal } from "../simulate/SimulationGuideModal";
 import { RecentSims } from "../simulate/RecentSims";
 import { WhatsNewBanner } from "../shared/WhatsNewBanner";
 import { startOpenSim, type OpenSimPayload } from "../../api/sim";
@@ -238,6 +239,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // Season simulation: the setup form opens in a modal here (the standalone /simulate nav entry
     // is hidden for this release), and a running/finished sim still gets its own /simulate/:jobId page.
     const [isSimModalOpen, setIsSimModalOpen] = useState(false);
+    const [isSimGuideOpen, setIsSimGuideOpen] = useState(false);
 
     const handleOpenSim = (jobId: string) => {
         navigate(`/simulate/${jobId}`);
@@ -1099,16 +1101,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 <div className="flex items-center gap-1">
                                                     <button
                                                         type="button"
-                                                        onClick={() => loadAll()}
-                                                        disabled={isLoading}
-                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        aria-label="Refresh data"
-                                                        title="Refresh data"
-                                                    >
-                                                        <FaArrowsRotate className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                                                    </button>
-                                                    <button
-                                                        type="button"
                                                         onClick={() => setIsSidebarCollapsed(true)}
                                                         className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
                                                         aria-label="Collapse sidebar panel"
@@ -1157,7 +1149,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 "
                                                             >
                                                                 <FaDice className="text-[11px]" />
-                                                                Simulations
+                                                                Simulate
                                                             </button>
                                                         )}
                                                     </div>
@@ -1368,19 +1360,34 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         Play out any MLB season, then jump back to your past runs here.
                                                     </p>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsSimModalOpen(true)}
-                                                    className="
-                                                        flex items-center gap-1.5 px-3 py-2
-                                                        rounded-lg animated-showdown-gradient
-                                                        text-[12px] font-semibold text-white
-                                                        hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
-                                                    "
-                                                >
-                                                    <FaDice className="text-[11px]" />
-                                                    New simulation
-                                                </button>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsSimGuideOpen(true)}
+                                                        className="
+                                                            flex items-center gap-1.5 px-3 py-2
+                                                            rounded-lg border border-(--showdown-red)/40
+                                                            text-[12px] font-semibold text-(--showdown-red)
+                                                            hover:bg-(--showdown-red)/10 transition-colors cursor-pointer whitespace-nowrap
+                                                        "
+                                                    >
+                                                        <FaCircleQuestion className="text-[11px]" />
+                                                        How do sims work?
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsSimModalOpen(true)}
+                                                        className="
+                                                            flex items-center gap-1.5 px-3 py-2
+                                                            rounded-lg animated-showdown-gradient
+                                                            text-[12px] font-semibold text-white
+                                                            hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
+                                                        "
+                                                    >
+                                                        <FaDice className="text-[11px]" />
+                                                        New simulation
+                                                    </button>
+                                                </div>
                                             </div>
                                             {simToken ? (
                                                 <RecentSims token={simToken} onOpen={handleOpenSim} seasonYear={selectedSeasonYear ?? undefined} />
@@ -1475,6 +1482,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     )}
                 </Modal>
             )}
+
+            {isSimGuideOpen && <SimulationGuideModal onClose={() => setIsSimGuideOpen(false)} />}
         </div>
     );
 }

@@ -40,8 +40,8 @@ type ModalProps = {
     children: React.ReactNode;
     /** Callback function called when the modal should be closed */
     onClose: () => void;
-    /** Optional title to display in the modal header */
-    title?: string;
+    /** Optional title to display in the modal header. Accepts any renderable node, not just plain text. */
+    title?: React.ReactNode;
     /** Optional subtitle shown under the title, e.g. a short description of the modal's purpose */
     subtitle?: string;
     /** Optional footer content (e.g. action buttons), pinned below the scrollable body */

@@ -37,17 +37,25 @@ type Props = {
     attempts?: number;
     /** History context: when this specific run happened. */
     showTime?: boolean;
+    /** Greys the row out and blocks the click — e.g. a run with no viewable result yet. */
+    disabled?: boolean;
 };
 
 /** One played season, as a clickable row. Shared by the leaderboard and personal history so a
- *  result reads identically wherever it's found. */
-export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props) {
+ *  result reads identically wherever it's found. A team-less "open sim" (no takeover, `team_id`
+ *  null — the plain "simulate a season" path) carries no team branding, so it leads with the year
+ *  instead and drops the "took over X" line, which wouldn't have a club to name. */
+export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled }: Props) {
     const efficiency = gmEfficiency(entry);
+    const isOpenSim = entry.team_id === null;
     return (
         <button
             type="button"
             onClick={onOpen}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors cursor-pointer hover:bg-(--divider) ${
+            disabled={disabled}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-(--divider)'
+            } ${
                 entry.is_own ? 'bg-(--showdown-blue)/10 ring-1 ring-(--showdown-blue)/40' : 'bg-(--background-tertiary)'
             }`}
         >
@@ -60,18 +68,18 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime }: Props)
             <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                     <span className="text-[13px] font-bold text-(--text-primary) truncate">
-                        {entry.team_name ?? entry.team_abbreviation ?? 'Unnamed team'}
+                        {entry.team_name ?? entry.team_abbreviation ?? (isOpenSim ? entry.year : 'Unnamed team')}
                     </span>
                     {entry.is_champion && <FaTrophy className="text-[10px] text-yellow-300 shrink-0" title="Won the World Series" />}
                     {entry.is_own && rank !== undefined && <FaLock className="text-[9px] text-(--text-tertiary) shrink-0" title="Your result" />}
                 </span>
                 <span className="block text-[11px] text-(--text-tertiary) truncate">
                     {entry.creator_username ? `${entry.creator_username} · ` : ''}
-                    {!showTime && `${entry.year} · `}
-                    took over {entry.replaced_abbr ?? '—'}
+                    {!showTime && !isOpenSim && `${entry.year} · `}
+                    {entry.replaced_abbr ? `took over ${entry.replaced_abbr}` : ''}
                     {entry.showdown_set && (
                         <>
-                            {' · '}
+                            {entry.replaced_abbr ? ' · ' : ''}
                             <img
                                 src={imageForSet(entry.showdown_set, true)}
                                 alt={entry.showdown_set}
