@@ -5,6 +5,7 @@ import { SectionCard } from './SectionCard';
 import { SimDiceRoll } from './SimDiceRoll';
 import { SimEngineExplainer } from './SimEngineExplainer';
 import { SimWinPctChart } from './SimWinPctChart';
+import { FaRotate } from 'react-icons/fa6';
 
 type Props = {
     job: SimJob | null;
@@ -94,7 +95,20 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                     style={{ background: 'radial-gradient(70% 100% at 50% 0%, color-mix(in srgb, var(--showdown-blue) 16%, transparent), transparent 72%)' }}
                 />
 
+                {onCancel && (
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="absolute top-1 right-1 z-10 cursor-pointer rounded-lg border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-primary"
+                    >
+                        <FaRotate className="inline-block mr-1 text-[11px]" />
+                        Sim Stuck? Retry
+                    </button>
+                )}
+
                 <div className="relative flex flex-col items-center gap-5">
+                    <p className="text-[11px] py-2 sm:py-0 text-tertiary">This usually takes under 30 seconds.</p>
+
                     <SimDiceRoll />
 
                     <div className="text-center">
@@ -144,20 +158,6 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
             </div>
 
             <SimEngineExplainer />
-
-            <div className="flex flex-col items-center gap-2">
-                <p className="text-[11px] text-tertiary">This usually takes under a minute.</p>
-
-                {onCancel && (
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        className="cursor-pointer text-[11px] font-semibold text-tertiary underline underline-offset-2 transition-colors hover:text-primary"
-                    >
-                        Cancel simulation
-                    </button>
-                )}
-            </div>
         </div>
     );
 }

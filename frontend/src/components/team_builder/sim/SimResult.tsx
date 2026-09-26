@@ -139,7 +139,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
     const outcome = team.is_champion
         ? 'Won the World Series'
         : postseasonExit
-            ? `Lost ${postseasonExit.roundLabel} to ${postseasonExit.opponentAbbr}`
+            ? `Lost ${postseasonExit.roundLabel.replace('NL ', '').replace('AL ', ' ')} to ${postseasonExit.opponentAbbr}`
             : team.made_playoffs
                 ? 'Made the playoffs'
                 : 'Missed the playoffs';
@@ -159,7 +159,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
             <div className="px-4 flex items-center justify-between gap-3">
                 <div >
                     <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-[12px] text-(--text-tertiary)">
+                        <p className="text-[10px] sm:text-[12px] text-(--text-tertiary)">
                             {summary.year} · Set {summary.set}
                             {!isOpenSim && team.replaced_abbr ? ` · took over ${team.replaced_abbr}` : ''}
                             {summary.seed !== null ? ` · seed ${summary.seed}` : ''}
@@ -179,30 +179,32 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                         {team.wins}<span className="text-(--text-tertiary)">-</span>{team.losses}
                         {team.is_champion && <FaTrophy className="inline ml-2 text-[18px] text-(--secondary)" />}
                     </h1>
-                    <p className={`text-[13px] ${outcomeColor}`}>
+                    <p className={`text-[10px] sm:text-[12px] ${outcomeColor}`}>
                         {teamName}
                         {` ·  ${team.points} PTS`}
                     </p>
                 </div>
 
-                <div className={`flex flex-col items-center space-y-0 px-4 py-2 rounded-xl border border-(${outcomeColor})/30 bg-linear-to-b from-(${outcomeColor})/20 to-(${outcomeColor})/5 shadow-sm font-bold text-(${outcomeColor})`}>
+                <div className={`flex flex-col items-center space-y-0 px-2 sm:px-4 py-2 rounded-xl border border-(${outcomeColor})/30 bg-linear-to-b from-(${outcomeColor})/20 to-(${outcomeColor})/5 shadow-sm font-bold text-(${outcomeColor})`}>
                     {challengeResult && (
-                        <div className={`text-[12px] text-tertiary flex items-center gap-1 `}>
+                        <div className={`text-[10px] sm:text-[12px] text-tertiary flex items-center gap-1 `}>
                             {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
                             {challengeResult === 'passed' ? 'Challenge passed' : 'Challenge failed'}
                         </div>
                     )}
-                    <div className="text-[15px]">
+                    <div className="text-[12px] sm:text-[14px]">
                         {team.division && team.division_rank
                             ? `${ordinal(team.division_rank)} in the ${team.division}`
                             : ''}
                     </div>
-                    <div className={`text-[12px] text-tertiary`}>{outcome}</div>
+                    <div className={`text-[10px] sm:text-[12px] text-tertiary`}>
+                        {outcome}
+                    </div>
                     {(onTryAgain || onRunAgain) && (
                         <button
                             type="button"
                             onClick={onTryAgain ?? onRunAgain}
-                            className="flex items-center gap-1.5 px-3 py-1 mt-1 rounded-lg bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                            className="flex items-center gap-1.5 px-3 py-1 mt-1 rounded-lg bg-(--background-tertiary) text-[10px] sm:text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer shrink-0"
                         >
                             <FaArrowRotateLeft className="text-[10px]" />
                             {onTryAgain ? 'Edit & Try Again' : 'Run again'}

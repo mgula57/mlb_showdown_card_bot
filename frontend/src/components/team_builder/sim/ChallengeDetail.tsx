@@ -129,11 +129,14 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
 
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                    <h3 className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
-                        <FaTrophy className="text-[11px] text-(--showdown-blue)" /> Leaderboard
+                    <h3 className="flex flex-col sm:flex-row text-left sm:items-center gap-x-2.5 text-[13px] font-black text-(--text-primary)">
+                        <div className="flex items-center gap-1.5">
+                            <FaTrophy className="text-[11px] text-(--showdown-blue)" /> 
+                            Leaderboard
+                        </div>
                         {successRate && (
-                            <span className="text-[11px] font-semibold text-(--text-tertiary)">
-                                · {successRate.pct}% cleared ({successRate.passes}/{successRate.entrants})
+                            <span className="text-[10px] sm:text-[11px] font-semibold text-(--text-tertiary)">
+                                {successRate.pct}% cleared ({successRate.passes}/{successRate.entrants})
                             </span>
                         )}
                     </h3>
@@ -167,6 +170,9 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
                         )}
                     </div>
                 )}
+
+                {/* Scroll buffer so the last row isn't flush against the container edge. */}
+                <div className="h-24 shrink-0" aria-hidden />
             </div>
         </div>
     );
