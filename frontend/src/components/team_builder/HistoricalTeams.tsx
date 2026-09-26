@@ -202,6 +202,18 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
     const [rawSearchResults, setRawSearchResults] = useState<HistoricalTeam[]>([]);
     const [searching, setSearching] = useState(false);
 
+    // Year filter — narrows the shelves (and any active search) to a single season. `null` means
+    // "All Years", the default, which keeps the existing infinite-scroll-through-history behavior.
+    const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+    const seasonOptions: SelectOption[] = useMemo(() => [
+        { value: 'all', label: 'All Years' },
+        ...seasons.map(({ season }) => ({ value: String(season), label: String(season) })),
+    ], [seasons]);
+    const filteredSeasons = useMemo(
+        () => selectedSeason == null ? seasons : seasons.filter(s => s.season === selectedSeason),
+        [seasons, selectedSeason],
+    );
+
     const [loadingSeasons, setLoadingSeasons] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -229,13 +241,13 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
         let cancelled = false;
         setSearching(true);
         const timer = setTimeout(() => {
-            fetchHistoricalTeams({ q: searchQuery, showdownSet: userShowdownSet, limit: SEARCH_LIMIT })
+            fetchHistoricalTeams({ q: searchQuery, season: selectedSeason ?? undefined, showdownSet: userShowdownSet, limit: SEARCH_LIMIT })
                 .then(result => { if (!cancelled) setRawSearchResults(result.teams); })
                 .catch(() => { if (!cancelled) setRawSearchResults([]); })
                 .finally(() => { if (!cancelled) setSearching(false); });
         }, 300);
         return () => { cancelled = true; clearTimeout(timer); };
-    }, [searchQuery, userShowdownSet]);
+    }, [searchQuery, selectedSeason, userShowdownSet]);
 
     const searchResults = useMemo(() => sortTeams(rawSearchResults, sortBy), [rawSearchResults, sortBy]);
 
@@ -245,12 +257,12 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
         if (!sentinel || searchQuery) return;
         const observer = new IntersectionObserver(entries => {
             if (entries[0]?.isIntersecting) {
-                setVisibleCount(count => Math.min(count + SEASONS_PER_PAGE, seasons.length));
+                setVisibleCount(count => Math.min(count + SEASONS_PER_PAGE, filteredSeasons.length));
             }
         }, { rootMargin: '400px' });
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [seasons.length, searchQuery]);
+    }, [filteredSeasons.length, searchQuery]);
 
     // Navigate to a team's own shareable detail page. Identity is passed via nav state so the
     // detail view renders instantly; a cold link resolves identity server-side.
@@ -283,17 +295,26 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
     return (
         <div className="relative flex flex-col gap-5">
             {/* Search across every season — replaces the old season/sport dropdowns. Hidden when
-                embedded in the Browse "All" view, which drives search from its own unified box. */}
-            {!hideSearch && (
-                <div className={horizontalPadding ?? ''}>
+                embedded in the Browse "All" view, which drives search from its own unified box.
+                The year filter stays available either way, narrowing the shelves (and search) to
+                a single season; "All Years" is the default. */}
+            <div className={`${horizontalPadding ?? ''} flex flex-wrap items-center gap-3`}>
+                {!hideSearch && (
                     <TeamSearchInput
                         value={query}
                         onChange={setQuery}
                         placeholder="Search by team or season (e.g. 1998)…"
                         className="w-full sm:max-w-xs"
                     />
-                </div>
-            )}
+                )}
+                <CustomSelect
+                    value={selectedSeason == null ? 'all' : String(selectedSeason)}
+                    onChange={v => setSelectedSeason(v === 'all' ? null : Number(v))}
+                    options={seasonOptions}
+                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
+                    dropdownArrowSize={12}
+                />
+            </div>
 
             {error && (
                 <div className={`${horizontalPadding ?? ''} mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>
@@ -336,9 +357,11 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                 <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
             ) : seasons.length === 0 ? (
                 <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No historical teams have been processed yet.</p>
+            ) : filteredSeasons.length === 0 ? (
+                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams found for {selectedSeason}.</p>
             ) : (
                 <>
-                    {seasons.slice(0, visibleCount).map(({ season, team_count }) => (
+                    {filteredSeasons.slice(0, visibleCount).map(({ season, team_count }) => (
                         <SeasonShelf
                             key={season}
                             season={season}

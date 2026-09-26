@@ -81,14 +81,14 @@ const SECTION_META: Record<'featured' | 'community' | 'era' | 'historical', {
         accent: '--challenge-legendary',
         icon: <FaStar />,
         title: 'Featured',
-        description: 'Curated collections handpicked from the community.',
+        description: 'Teams featured by the creator of Showdown Bot.',
     },
     community: {
         tone: 'bg-(--background-tertiary)',
         accent: '--challenge-budget',
         icon: <FaUsers />,
         title: 'Community',
-        description: 'Public teams built and shared by other players.',
+        description: 'Public teams built and shared by other users.',
     },
     era: {
         tone: 'bg-(--background-secondary)',
