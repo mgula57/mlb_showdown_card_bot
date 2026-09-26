@@ -679,7 +679,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const isMlbTeam = team.source === 'mlb';
     // A season needs a complete roster and a signed-in owner (the sim endpoint is authenticated).
     // Synthetic MLB/ASG teams aren't saved, so there is no team_id for the job to reference.
-    const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id;
+    // Only the team's own owner can start a sim with it — someone browsing another user's team
+    // shouldn't see a Sim action they're not allowed to use.
+    const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id && isMyOwnTeam;
     // Scoped to this team so a job started from a different team's page doesn't show up here.
     const activeJobForTeam = activeJob && activeJob.team_id === team.team_id ? activeJob : null;
     const hasSims = (!!teamSeasons && teamSeasons.length > 0) || !!activeJobForTeam;
