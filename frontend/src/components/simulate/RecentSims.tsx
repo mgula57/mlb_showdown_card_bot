@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaSpinner, FaTrophy } from 'react-icons/fa6';
+import { FaTrophy } from 'react-icons/fa6';
 import { fetchSimHistory, type SimSeasonListItem } from '../../api/sim';
 import { relativeTime } from '../../functions/formatters';
 import { imageForSet } from '../shared/SiteSettingsContext';
@@ -60,8 +60,16 @@ export function RecentSims({ token, onOpen, seasonYear }: Props) {
 
     if (seasons === null) {
         return (
-            <div className="flex justify-center py-8">
-                <FaSpinner className="animate-spin text-(--text-tertiary) text-lg" />
+            <div className="flex flex-col gap-1.5 animate-pulse">
+                {Array.from({ length: RECENT_LIMIT }).map((_, index) => (
+                    <div key={index} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-(--background-tertiary)">
+                        <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+                            <div className="h-3.5 w-16 rounded bg-(--background-quaternary)" />
+                            <div className="h-3 w-24 rounded bg-(--background-quaternary)" />
+                        </div>
+                        <div className="h-4 w-10 rounded bg-(--background-quaternary) shrink-0" />
+                    </div>
+                ))}
             </div>
         );
     }

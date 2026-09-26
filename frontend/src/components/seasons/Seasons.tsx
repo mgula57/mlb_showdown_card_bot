@@ -165,6 +165,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const datePickerRef = useRef<HTMLDivElement>(null);
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isLoadingStandings, setIsLoadingStandings] = useState<boolean>(false);
+    const [isLoadingSchedule, setIsLoadingSchedule] = useState<boolean>(false);
 
     const [leagueGroups, setLeagueGroups] = useState<string[]>([]);
     const [selectedLeagueGroup, setSelectedLeagueGroup] = useState<string | null>(() => getStoredValue(STORAGE_KEYS.leagueGroup));
@@ -370,7 +372,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
         ...(hideAwardWinners ? [] : [{ id: "awards", label: "Awards", icon: <FaMedal /> }]),
-        ...(type === "mlb" ? [{ id: "simulate", label: "Simulate", icon: <FaDice /> }] : []),
+        ...(type === "mlb" ? [{ id: "simulate", label: "Simulations", icon: <FaDice /> }] : []),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
@@ -457,6 +459,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
         let standingsFailed = false;
         beginLoading();
+        setIsLoadingStandings(true);
         try {
             standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet);
             console.log(`Fetched standings for season ${selectedSeason.season_id}:`, standingsData);
@@ -466,6 +469,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             standingsFailed = true;
         } finally {
             endLoading();
+            setIsLoadingStandings(false);
         }
 
         // Populate Teams for Teams Tab
@@ -589,15 +593,18 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             const selectedDate = formatDateForApi(gamesDate);
 
             // 4. Parallel: standings + gamesSchedule (schedule only applies to ongoing seasons)
+            setIsLoadingStandings(true);
+            setIsLoadingSchedule(true);
             const schedulePromise = isSeasonOver(selectedSeason)
-                ? Promise.resolve(setGamesSchedule(null))
+                ? Promise.resolve().then(() => { setGamesSchedule(null); setIsLoadingSchedule(false); })
                 : fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
                     .then(data => {
                         setGamesSchedule(data);
                         console.log(`Fetched games schedule for season ${selectedSeason.season_id} on date ${selectedDate}:`, data);
                         return data;
                     })
-                    .catch(() => setGamesSchedule(null));
+                    .catch(() => setGamesSchedule(null))
+                    .finally(() => setIsLoadingSchedule(false));
 
             const [standingsData] = await Promise.all([
                 fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet)
@@ -609,7 +616,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     .catch(error => {
                         console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
                         return {} as { [leagueAbbreviation: string]: Standings[] };
-                    }),
+                    })
+                    .finally(() => setIsLoadingStandings(false)),
                 schedulePromise,
             ]);
 
@@ -700,6 +708,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         scheduleAbortControllerRef.current = controller;
 
         beginLoading();
+        setIsLoadingSchedule(true);
         try {
             const selectedDate = formatDateForApi(gamesDate);
             const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet, controller.signal);
@@ -712,6 +721,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             setGamesSchedule(null);
         } finally {
             endLoading();
+            setIsLoadingSchedule(false);
         }
     };
 
@@ -1147,7 +1157,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 "
                                                             >
                                                                 <FaDice className="text-[11px]" />
-                                                                Simulate
+                                                                Simulations
                                                             </button>
                                                         )}
                                                     </div>
@@ -1208,6 +1218,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 selectedSportId={selectedSport?.id}
                                                 selectedTeamId={standingsTeam?.id ?? null}
                                                 onTeamSelect={handleStandingsTeamSelect}
+                                                isLoading={isLoadingStandings}
                                             />
                                             
                                             {standingsTeam && (
@@ -1316,6 +1327,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
                                                     showdownSet={userShowdownSet}
                                                     starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
+                                                    isLoading={isLoadingSchedule}
                                                     onGameSelect={handleGameSelect}
                                                     onRefresh={() => {
                                                         // Force re-fetch games schedule for the current date
@@ -1462,26 +1474,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         />
                     )}
                 </Modal>
-            )}
-
-            {isLoading && activeTab !== "players" && (
-                <div className="
-                    fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-(--primary)/10 backdrop-blur 
-                    p-4 rounded-2xl
-                    flex items-center space-x-2
-                ">
-                    <FaBaseball
-                        className="
-                            text-3xl
-                            animate-bounce
-                        "
-                        style={{
-                            animationDuration: '0.7s',
-                            animationIterationCount: 'infinite'
-                        }}
-                    />
-                </div>
             )}
         </div>
     );

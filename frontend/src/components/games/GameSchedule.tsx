@@ -18,13 +18,37 @@ type GameScheduleProps = {
     season?: number;
     showdownSet?: string;
     starredTeamIds?: Set<number>;
+    isLoading?: boolean;
     onGameSelect?: (gamePk: number) => void;
     onRefresh?: () => void;
 };
 
 const STATE_SORT_ORDER: Record<GameState, number> = { LIVE: 0, PREVIEW: 1, FINAL: 2, POSTPONED: 3 };
 
-export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, onGameSelect, onRefresh }: GameScheduleProps) {
+function GameItemSkeleton() {
+    return (
+        <div className="rounded-xl border-2 border-(--divider) bg-(--background-secondary) overflow-hidden p-3 animate-pulse">
+            <div className="w-full space-y-2 py-2">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="h-3.5 w-24 rounded bg-(--background-quaternary)" />
+                    <div className="h-4 w-6 rounded bg-(--background-quaternary)" />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="h-3.5 w-24 rounded bg-(--background-quaternary)" />
+                    <div className="h-4 w-6 rounded bg-(--background-quaternary)" />
+                </div>
+                <div className="border-t border-(--divider) my-1" />
+                <div className="pt-1 flex gap-2 items-center">
+                    <div className="h-8 flex-1 rounded bg-(--background-quaternary)" />
+                    <div className="h-3 w-6 rounded bg-(--background-quaternary)" />
+                    <div className="h-8 flex-1 rounded bg-(--background-quaternary)" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, isLoading, onGameSelect, onRefresh }: GameScheduleProps) {
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoadingCards, setIsLoadingCards] = useState(false);
 
@@ -139,7 +163,24 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
     }, []);
 
     if (!games.length) {
-        return null;
+        if (!isLoading) {
+            return null;
+        }
+        return (
+            <div className="space-y-3">
+                <div>
+                    <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
+                    {description && (
+                        <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
+                    )}
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                        <GameItemSkeleton key={index} />
+                    ))}
+                </div>
+            </div>
+        );
     }
 
     // Sort: starred-team games first, then by game state (live → upcoming → final → postponed)

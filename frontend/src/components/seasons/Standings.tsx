@@ -10,6 +10,7 @@ type StandingsProps = {
 	selectedSportId?: number;
 	selectedTeamId?: number | null;
 	onTeamSelect?: (team: Team) => void;
+	isLoading?: boolean;
 };
 
 const formatGamesBack = (gamesBack?: string): string => {
@@ -19,12 +20,33 @@ const formatGamesBack = (gamesBack?: string): string => {
 	return gamesBack;
 };
 
-export default function Standings({ standingsEntries, selectedSportId, selectedTeamId, onTeamSelect }: StandingsProps) {
+export function StandingsSkeleton() {
+	return (
+		<div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 sm:mt-0 animate-pulse">
+			{Array.from({ length: 4 }).map((_, cardIndex) => (
+				<div key={cardIndex} className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
+					<div className="h-3.5 w-28 rounded bg-(--background-quaternary) mb-3" />
+					<div className="space-y-1.5">
+						{Array.from({ length: 5 }).map((_, rowIndex) => (
+							<div key={rowIndex} className="h-9 rounded-lg bg-(--background-quaternary)" />
+						))}
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
+export default function Standings({ standingsEntries, selectedSportId, selectedTeamId, onTeamSelect, isLoading }: StandingsProps) {
 
 	// Flatten leagues into a single list of divisions, each rendered as its own card
 	const divisionStandings = standingsEntries.flatMap(([leagueAbbreviation, leagueStandings]) =>
 		leagueStandings.map((standing) => ({ leagueAbbreviation, standing }))
 	);
+
+	if (isLoading && divisionStandings.length === 0) {
+		return <StandingsSkeleton />;
+	}
 
 	return (
 		<div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 sm:mt-0">
