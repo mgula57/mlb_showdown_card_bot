@@ -186,7 +186,9 @@ type HistoricalTeamsProps = {
 
 export function HistoricalTeams({ horizontalPadding, hideSearch = false, externalQuery, showdownSet }: HistoricalTeamsProps) {
     const { userShowdownSet: globalShowdownSet } = useSiteSettings();
-    const userShowdownSet = showdownSet ?? globalShowdownSet;
+    // Historical rosters always render as some concrete set — "All Sets" (empty string) still
+    // needs a fallback here so the tile's set badge is never blank.
+    const userShowdownSet = showdownSet || globalShowdownSet;
     const navigate = useNavigate();
 
     const [seasons, setSeasons] = useState<HistoricalSeasonRef[]>([]);

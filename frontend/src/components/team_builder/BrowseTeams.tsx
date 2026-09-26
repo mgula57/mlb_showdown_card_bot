@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaLayerGroup, FaStar, FaUsers, FaClockRotateLeft, FaTrophy } from 'react-icons/fa6';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam, fetchEraTeams, type EraTeam, ALL_TIME_ERA_KEY } from '../../api/mlbAPI';
-import { useSiteSettings, showdownSets, imageForSet } from '../shared/SiteSettingsContext';
+import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
@@ -26,7 +26,7 @@ const TYPE_OPTIONS: SelectOption[] = [
 const BROWSE_TYPE_STORAGE_KEY = 'browseTeams.type';
 const BROWSE_SET_STORAGE_KEY = 'browseTeams.set';
 
-// "" = All Sets, which falls back to the viewer's global `userShowdownSet` site setting.
+// "" = All Sets, meaning no set filter at all.
 const SET_OPTIONS: SelectOption[] = [
     { value: '', label: 'All Sets', icon: <FaLayerGroup /> },
     ...showdownSets.map(s => ({ value: s.value, label: s.value, image: imageForSet(s.value, true) })),
@@ -77,16 +77,15 @@ type BrowseTeamsProps = {
 
 export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTeams = [] }: BrowseTeamsProps) {
     const navigate = useNavigate();
-    const { userShowdownSet } = useSiteSettings();
     const [type, setType] = useState<BrowseType>(loadStoredBrowseType);
     const [setFilter, setSetFilter] = useState<string>(loadStoredSetFilter);
     const [query, setQuery] = useState('');
     const px = horizontalPadding ?? '';
     const rootRef = useRef<HTMLDivElement | null>(null);
 
-    // "All Sets" (empty) defers to the viewer's global set preference; picking a specific set
-    // here overrides it everywhere — Historical, Era, Featured, and Community.
-    const effectiveSet = setFilter || userShowdownSet;
+    // "All Sets" (empty) means no set filter at all; picking a specific set here filters
+    // everywhere — Historical, Era, Featured, and Community.
+    const effectiveSet = setFilter;
 
     // Re-apply the remembered filters after mount too, in case they changed in
     // another tab between the lazy-init read and this component mounting.

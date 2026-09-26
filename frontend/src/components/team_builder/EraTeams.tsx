@@ -41,7 +41,9 @@ type EraTeamsProps = {
 
 export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery, showdownSet }: EraTeamsProps) {
     const { userShowdownSet: globalShowdownSet } = useSiteSettings();
-    const userShowdownSet = showdownSet ?? globalShowdownSet;
+    // Era rosters always render as some concrete set — "All Sets" (empty string) still needs a
+    // fallback here so the tile's set badge is never blank.
+    const userShowdownSet = showdownSet || globalShowdownSet;
     const navigate = useNavigate();
 
     const [eras, setEras] = useState<RosterEra[]>([]);
