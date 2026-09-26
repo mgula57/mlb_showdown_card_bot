@@ -147,8 +147,9 @@ he "fits" a situation, scaled by how many innings he's thrown in the last 3 days
 reduction for someone who's been in it every day). On top of that, once a reliever's appearance
 count for the season climbs meaningfully above his own bullpen's average, his fit score gets
 discounted further, so one arm can't get run into the ground while others sit idle. The closer gets
-his own separate penalty — his fit score is cut in half outside of a genuine 9th-inning-or-later
-save situation — so he's naturally kept fresh for when a real save chance shows up.
+his own separate penalty — his fit score is cut in half outside of a 9th-inning-or-later save
+situation — so he's naturally kept fresh for when a real save chance shows up. (Exactly what counts
+as a "save situation" in the sim is covered in Part 3.)
 
 **User built teams skip the roster machinery, not the daily rest system.** There's no 40-man, no
 reserve pool, and no injuries for a builder team — its roster is exactly what the user assembled,
@@ -223,6 +224,41 @@ Every game — regular season, postseason, tournament, or a real-game mid-game t
 through the exact same play-by-play engine. Here's what happens inside one plate appearance, and
 the situational rules layered around it.
 
+### 📋 Before the first pitch: the nine are locked in
+
+Once the day's lineup and batting order are set (Part 2), they're frozen for the whole game.
+There are **no in-game substitutions for position players** — no pinch hitters, no pinch runners,
+no defensive replacements, no double switches. The nine who start are the nine who finish.
+
+That's also why team defense is worked out once, up front, and then reused on every play:
+
+- **Infield defense** is the sum of the 1B, 2B, 3B, and SS fielding ratings, each read at the
+  position that player is actually playing today. It's what turns double plays.
+- **Outfield defense** is the sum of the LF, CF, and RF ratings. It's what throws out runners
+  trying to take an extra base.
+- **The catcher's arm** is the starting catcher's own rating. It's what throws out base stealers.
+
+A player playing out of position brings whatever rating his card has at that spot, which is often
+none at all, so his team's defense gets weaker for the day.
+
+*Planned for a future update:* proper in game substitutions for pinch running and pinch hitting.
+
+### 🔁 The order of one plate appearance
+
+Every plate appearance runs through the same fixed sequence:
+
+1. **Bullpen check:** is the pitching team's current pitcher tired? If so, a reliever comes in now,
+   before the next batter (see *Pitching changes* below).
+2. **Steal check:** runners on base may try to steal before the pitch. If the last batter hit a
+   1B+, he takes second here automatically instead.
+3. **The pitch roll**, then **the swing roll** (below).
+4. **Runners move** according to the result.
+5. **Double play check** on a ground ball with a runner on first.
+6. **Extra-base check:** a runner may be sent for one more base on a hit or a fly ball.
+
+If a runner is caught stealing for the third out, the inning ends before the pitch is ever thrown,
+and the batter who was standing at the plate leads off the next inning instead of losing his turn.
+
 ### 🎲 The at-bat: two rolls, nothing else
 
 1. **The pitch roll** decides who's "in control" of the at-bat. A 1-20 roll is added to the
@@ -234,7 +270,8 @@ the situational rules layered around it.
    resolves to the single best result printed on the chart.
 
 Both rolls sometimes will get a small random wobble (+/- to the roll) added on top before being compared to anything.
-Most of the time there's no wobble at all; when there is, it's usually a small nudge,
+Most of the time there's no wobble at all (about 15% of pitch rolls and 35% of swing rolls get
+one); when there is, it's usually a small nudge,
 with bigger rolls (ex: +3) getting rarer the bigger they are. This is a stand-in for strategy cards before they are implemented, and helps especially in expanded sets where there are 21+ chart results.
 
 *Planned for a future update:* Strategy Cards will be added as an option, replacing the random +/-.
@@ -252,23 +289,79 @@ shifts the odds over time, it doesn't guarantee anything on a single roll.
 
 *Possible for a future update:* Player's chart fully changes based on the matchup handedness according to actual splits.
 
+### 🏠 How runners move on each result
+
+Before any extra-base decision comes into play, every result moves runners by a fixed rule:
+
+- **Single / 1B+ / double / triple:** every runner moves up exactly as many bases as the batter
+  does. A single moves a runner from first to second, and a double scores a runner from second.
+  A **1B+** is a single, but the batter then takes second automatically before the next plate
+  appearance, as long as second is open and the inning isn't over. There's no throw and no roll. It
+  goes in the books as a stolen base, and it counts as that plate appearance's one steal, so nobody
+  else runs behind it.
+- **Home run:** everyone scores.
+- **Walk:** only forced runners move. A runner on second holds on a walk unless first base was
+  occupied too.
+- **Ground ball:** with a runner on first, it's a force at second, and then a double-play roll
+  decides whether the batter is out at first too (below). Otherwise the batter is out, and runners
+  on second and third each move up one base. That means a runner on third scores on a ground out
+  with fewer than two outs.
+- **Fly ball:** runners hold, but a runner may tag up (see *extra bases* below).
+- **Strikeout / popup:** nobody moves.
+
+Nothing moves on the third out, so a runner on third doesn't score on an inning-ending ground ball.
+
 ### 🏃 After the swing: baserunning is its own set of dice
 
 Stealing, extra-base advances on hits and fly balls, and double plays are **not** chart-driven at
 all — each is a fresh roll comparing the runner's speed against the relevant defender's rating, with
-a few hand-tuned real-baseball instincts layered in:
+a few hand-tuned real-baseball instincts layered in. Every one of them uses the same d20 check: the
+defense's rating plus a 1-20 roll has to beat the runner's speed to get the out. So a runner's
+chance of being safe is roughly *(his speed minus the defense's rating) ÷ 20*.
 
+**Steals** happen before the pitch:
+
+- Only a runner on first (going to second) or on second (going to third) can steal, and only into
+  an open base. Nobody steals home, and there's at most one steal attempt per plate appearance.
+  A runner can still steal second before one batter and third before the next.
+- The runner goes up against the catcher's arm.
 - Stealing third is meaningfully riskier to attempt than stealing second, and the model docks the
   runner's odds accordingly — mirroring the old baseball rule of thumb about never making an
   aggressive out at third. Concretely, a runner going from second to third has his speed rating
   knocked down by 5 (out of the roughly 0-20 scale defense and speed are both rated on) for that
   attempt only — both in deciding whether he's sent at all and in the actual safe-or-out roll
   against the catcher's arm once he goes.
-- No steal attempt is ever a guaranteed green light or a guaranteed hold — the model always leaves
-  some chance either way, no matter how fast or slow the runner is. A runner on second with two outs is much less likely to try for third — so the probability of attempt is reduced significantly.
+- Whether a runner even tries depends on his odds. A runner needs about an 8-point speed edge over
+  the catcher's arm before he'll consider going at all, so slow runners simply never steal. On the
+  other end, no runner is ever a guaranteed green light: even the fastest runner against the
+  weakest arm tops out at roughly an 85% chance to go (before the era adjustment below). A runner on
+  second with two outs is much less likely to try for third, so the probability of an attempt is
+  reduced significantly.
 - A real MLB season's actual stolen-base rate scales how often steals get *attempted* that year —
   a high-steal era plays out with visibly more stolen-base attempts than a low-steal one, rather
   than every season running at the same fixed rate.
+
+**Double plays:** on a ground ball with a runner on first and fewer than two outs, the lead runner
+is always forced at second. Then the team's combined infield defense plus a d20 roll is checked
+against the *batter's* speed. If the defense wins, the batter is out too; if not, it's a fielder's
+choice and he's safe at first. A fast batter beats out a lot of double plays, and a slow one hits
+into a lot of them. If the double play is the third out, any run that crossed home on the play is
+wiped off the board.
+
+**Extra bases (sends and tag-ups):** after a hit, or a fly ball that isn't the third out, one existing runner may be sent for one base more than the hit gave him. This covers first-to-third on a
+single, scoring from second on a single, scoring from first on a double, and tagging up from third
+(or from second to third) on a fly ball.
+
+- Only one runner is ever sent on a play. If third base is occupied after the hit, the runner on
+  third is the one who might go home. If third is open, the runner on second might go to third.
+  The batter himself never stretches a hit.
+- The runner goes up against the combined outfield defense.
+- Going to third is docked 5 speed, just like stealing third. Going home gets a +5 bonus, and +10
+  with two outs, because the runner was off on contact.
+- Unlike steals, the decision to send does **not** have randomness to it. At a neutral setting, a runner is sent
+  whenever he's at least a 50/50 shot to be safe. That works out to his speed, after those
+  bonuses, beating the outfield defense by 10 or more. The manager dial below moves that line.
+  Once he's sent, the safe-or-out roll is random as usual.
 
 ### 🥵 Pitching changes: IP and runs allowed based fatigue
 
@@ -283,28 +376,103 @@ innings. It's a coin that gets flipped repeatedly rather than a one-time roll, s
 start can run several innings past its printed limit, but the longer it goes past that point the
 more times the 35% has to hit in a row, so it's not indefinite.
 
+**A pitcher getting hammered comes out early, no matter his innings rating.** If he's allowed 5 or
+more runs, or he's been in for at least an inning and allowed 1.5 or more runs per inning pitched,
+he's pulled right away.
+
+A few more rules that shape the bullpen inside a game:
+
+- **Fatigue is the only reason a pitcher is ever taken out.** There are no lefty-on-lefty
+  specialist moves and no pulling a pitcher for a matchup. Relievers follow the same rules as
+  starters, measured against their own innings rating, so a 1-inning reliever is usually done
+  after about an inning.
+- **Checks happen before every batter**, so a pitching change can come in the middle of an inning.
+- **Once a pitcher leaves, he can't come back** in that game.
+- **An empty bullpen means no relief.** If every reliever has already pitched today or is
+  unavailable from recent work, whoever is on the mound stays in, however tired he is.
+
 Picking a reliever isn't "grab the best arm available" — every available reliever gets scored on
 how well the situation (score margin, inning, leverage) fits his role, discounted for how much
-he's already pitched in the last few days. A pitcher who threw multiple innings in the last two
-days gets filtered out of consideration entirely. The closer is treated as a special case: his fit
-score is cut in half in anything but a genuine save situation, so he mostly only appears in the
-9th inning with a lead. None of this reads recent *results* — a reliever coming off three straight
+he's already pitched in the last few days. The bullpen is ranked from best to worst (by the
+opponent OPS his card projects to allow, or by the roles the user assigned on a builder team), and
+the fit score pairs the best arms with close games late, and the weaker arms with blowouts and
+early innings. A pitcher who threw 2+ innings in the last two days gets filtered out of
+consideration entirely. None of this reads recent *results* — a reliever coming off three straight
 blown outings is exactly as available as one who's been lights-out. Only workload matters, never a
 hot or cold streak.
 
-### 🎛️ The manager dial (optional, off by default)
+**The closer is a special case.** In the sim, a "save situation" means the 9th inning or later with
+his team **ahead by any margin or tied**. It's looser than the official save rule on purpose. If a
+change is needed in a save situation and the closer is rested and hasn't pitched yet today, he
+comes in automatically, skipping the scoring above entirely. Outside a save situation his fit score
+is cut in half, so he mostly only appears in the 9th or later with the game close. The closer
+doesn't bump a pitcher who isn't tired, though: if the setup man is still fresh in the 9th, he stays
+in.
 
-Every other decision above is fixed — but a run can optionally assign each club's own "manager"
-one to five settings for how aggressive it plays: how often it sends runners on steals, how often
-it sends runners on extra-base tag-ups, how quickly it pulls a tiring starter, and how often it
-uses its closer outside of a true save situation. A neutral (middle) setting for all four is a
-complete no-op — it plays exactly like a run with no manager settings at all. This only ever shifts
-*decisions* (should we even try), never the underlying fairness of the dice roll that decides
-whether the attempt succeeds.
+### 📝 Keeping score
+
+- **Runs are charged to whoever put the runner on base.** A reliever who inherits a runner on third
+  and gives up a sacrifice fly isn't charged with that run. The pitcher who allowed the runner is.
+- **Every run is earned.** The sim doesn't model errors, so the box score always shows 0 errors and
+  runs allowed always equal earned runs.
+- **No RBI on a double play**, matching the real scoring rule.
+- **Win, loss, save, and blown save** are handed out when the game ends. The sim only remembers
+  the score at the moment each pitcher entered, not a full inning-by-inning history, so these
+  follow the official rules as closely as that allows:
+  - **Win:** the winning team's pitcher who was on the mound when it took the lead for good. If
+    that's the starter and he didn't finish 5 innings, the win goes to the winning team's most
+    effective reliever instead (most outs recorded, then fewest runs allowed).
+  - **Loss:** the losing team's pitcher who was on the mound when it fell behind for good.
+  - **Save:** the winning team's final pitcher, if he isn't the winning pitcher, entered with the
+    lead, and either protected a lead of 3 or fewer or got at least 9 outs.
+  - **Blown save:** any reliever who entered protecting a 1-3 run lead and left with it gone. A
+    pitcher can blow a save and still get the win.
+
+### 🔚 How a game ends
+
+- **Nine innings.** If the home team is leading after the top of the 9th, the bottom half isn't
+  played.
+- **Walk-offs end it immediately.** The moment the home team takes the lead in the 9th or later,
+  the game is over, even mid-inning.
+- **Extra innings go as long as needed.** There are no ties, and no automatic runner on second
+  in extras, whatever era is being played.
+
+### 📺 Taking over a real game in progress
+
+A live real-game takeover freezes the real game where it stands and plays the rest in the sim. It
+picks up the inning, outs, baserunners, score, and whose turn it is in the batting order. Every
+pitcher already used comes along with his innings and runs allowed so far, so the innings a real
+pitcher has already thrown count toward his fatigue, and a reliever who's already pitched can't come back.
+The real innings stay in the line score and the real box score stats carry over, so the final box
+score shows the whole game, not just the simulated part. From there, every rule above applies
+unchanged.
+
+### 🎛️ The manager dial
+
+Every other decision above is fixed — but a run can assign each club its own "manager" with one to
+five settings for how aggressive it plays. Every club starts at the neutral middle setting:
+
+- **Steal aggression** raises or lowers how often runners try to steal.
+- **Baserunning aggression** moves the "send him" line for extra bases up or down from the neutral
+  50/50.
+- **Bullpen hook** pulls tiring pitchers up to an inning sooner, or leaves them in up to an inning
+  longer.
+- **Closer usage** changes how often the closer is used outside a save situation. At the top two
+  settings, a save situation also starts earlier, in the 8th or even the 7th inning.
+
+A neutral (middle) setting for all four is a complete no-op — it plays exactly like a run with no
+manager settings at all. This only ever shifts *decisions* (should we even try), never the
+underlying fairness of the dice roll that decides whether the attempt succeeds.
 
 ### 🚫 What the engine deliberately does not model
 
-A few things are left out on purpose, not by oversight:
+A few things are left out on purpose, not by oversight. Some will be added at a future date:
 
 - No momentum, no "clutch," no hot streaks or slumps beyond what's already reflected in a player's
   printed chart.
+- No errors or unearned runs.
+- No in-game position-player substitutions: no pinch hitters, pinch runners, or defensive
+  replacements.
+- No matchup-based pitching changes. A pitcher only leaves because he's tired or getting hit hard.
+- No sacrifice bunts, intentional walks, hit-and-runs, or pickoffs.
+- No automatic extra-innings runner, and no tie games.
