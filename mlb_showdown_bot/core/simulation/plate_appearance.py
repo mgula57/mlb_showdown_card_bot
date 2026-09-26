@@ -205,6 +205,9 @@ class PlateAppearance:
                 self.runners_scored = []
 
     def check_and_execute_steal(self, catcher: SimPlayer) -> None:
+        if self.check_and_execute_single_plus_steal():
+            return
+
         if self.runners.count() < 1 or self.runners.bases_occupied == [3]:
             return
 
@@ -256,6 +259,21 @@ class PlateAppearance:
 
         if self.steal_attempts:
             self.bases_snapshot_after_steal = [(r.id, r.name, r.base) for r in self.runners.runners]
+
+    def check_and_execute_single_plus_steal(self) -> bool:
+        """1B+: the batter who hit it takes second automatically on the next plate appearance of
+        the same half-inning, as long as second is open. No throw, no roll - recorded as a
+        successful steal so it flows through SB stats, narration, and the replay like any other.
+        Counts as this plate appearance's one steal, so no other runner tries to steal behind it.
+        Returns True when it happened."""
+        runner = self.runners.runner_for_base(1)
+        if not self.was_last_result_single_plus or runner is None or self.runners.runner_for_base(2) is not None:
+            return False
+
+        self.steal_attempts.append(Roll(result=Result.SAFE, runner=runner, base=runner.base))
+        self.runners.advance_runner(runner.base)
+        self.bases_snapshot_after_steal = [(r.id, r.name, r.base) for r in self.runners.runners]
+        return True
 
     def check_and_execute_advance(self, outfield_defense:int, probability_threshold: Optional[float] = None) -> None:
 

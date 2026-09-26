@@ -22,6 +22,7 @@ from .models import (
 )
 from .plate_appearance import PlateAppearance
 from .player import SimPitcher
+from .result import Result
 from .stats import StatCategory, Stats, real_card_id
 
 _RUNS_SCORED = StatCategory.RUNS_SCORED.value
@@ -193,6 +194,9 @@ class Game:
         total_pa = 0
         half_inning_pa = 0
         guarded_inning = None
+        # THE HALF-INNING IN WHICH THE PREVIOUS PLATE APPEARANCE WAS A 1B+, OR None. COMPARED BY
+        # IDENTITY SO THE BATTER'S AUTOMATIC STEAL OF SECOND NEVER CARRIES ACROSS A HALF-INNING.
+        single_plus_inning: Optional[Inning] = None
 
         while not self.is_game_over:
 
@@ -215,7 +219,7 @@ class Game:
             team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0), rng=rng)
             pitcher = team_pitching.current_pitcher()
             hitter = team_hitting.current_hitter(game=self)
-            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=False, manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year)
+            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=(single_plus_inning is inning), manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year)
 
             # ROLL THE DICE
             plate_appearance.check_and_execute_steal(catcher=team_pitching.catcher)
@@ -250,6 +254,7 @@ class Game:
 
             if not plate_appearance.swing.is_empty():
                 team_hitting.update_lineup_index()
+            single_plus_inning = inning if plate_appearance.swing.result == Result.SINGLE_PLUS else None
 
             if collect_log or log_callback:
                 narration = plate_appearance.narration
