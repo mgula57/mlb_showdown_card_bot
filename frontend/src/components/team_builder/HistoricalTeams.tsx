@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, type NavigateFunction } from 'react-router-dom';
 import {
     fetchHistoricalTeams, fetchAsgSeasons,
     type HistoricalTeam, type HistoricalSeasonRef, type AsgTeamRef,
@@ -7,8 +7,9 @@ import {
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
+import { TeamGridPage } from './TeamGridPage';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
-import { FaSpinner } from 'react-icons/fa6';
+import { FaSpinner, FaChevronRight } from 'react-icons/fa6';
 import { TeamSearchInput } from './TeamSearchInput';
 
 // League team-colors for the All-Star tiles / detail header.
@@ -96,6 +97,19 @@ const teamToPreview = (team: HistoricalTeam, showdownSet?: string): TeamPreviewD
     allowed_sets: showdownSet ? [showdownSet] : undefined,
     badge: String(team.season),
 });
+
+// Navigate to a historical team's own shareable detail page — shared by the shelves and the
+// "See all" grid. Identity is passed via nav state so the detail view renders instantly; a cold
+// link resolves identity server-side.
+const openHistoricalTeam = (navigate: NavigateFunction, team: HistoricalTeam) => {
+    const state: HistoricalNavState = {
+        abbr: team.abbreviation || team.name,
+        name: team.name,
+        primary_color: team.primary_color ?? undefined,
+        secondary_color: team.secondary_color ?? undefined,
+    };
+    navigate(`/teams/historical/${team.sport_id}/${team.season}/${team.team_id}`, { state });
+};
 
 /** One season's shelf. Teams are fetched when the shelf mounts, so scrolling back through
  *  history pages the data in rather than loading every season up front. */
@@ -266,15 +280,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
 
     // Navigate to a team's own shareable detail page. Identity is passed via nav state so the
     // detail view renders instantly; a cold link resolves identity server-side.
-    const openTeam = useCallback((team: HistoricalTeam) => {
-        const state: HistoricalNavState = {
-            abbr: team.abbreviation || team.name,
-            name: team.name,
-            primary_color: team.primary_color ?? undefined,
-            secondary_color: team.secondary_color ?? undefined,
-        };
-        navigate(`/teams/historical/${team.sport_id}/${team.season}/${team.team_id}`, { state });
-    }, [navigate]);
+    const openTeam = useCallback((team: HistoricalTeam) => openHistoricalTeam(navigate, team), [navigate]);
 
     const openAsg = useCallback((season: number, league: string) => {
         navigate(`/teams/asg/${season}/${league}`);
@@ -314,6 +320,13 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                     buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
                     dropdownArrowSize={12}
                 />
+                <button
+                    type="button"
+                    onClick={() => navigate(`/teams/historical/all?set=${encodeURIComponent(userShowdownSet)}`)}
+                    className="ml-auto flex items-center gap-1 text-[11px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer shrink-0"
+                >
+                    See all <FaChevronRight className="text-[9px]" />
+                </button>
             </div>
 
             {error && (
@@ -381,3 +394,37 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
 }
 
 export default HistoricalTeams;
+
+type HistoricalTeamsAllPageProps = {
+    showdownSet?: string;
+    onBack: () => void;
+    horizontalPadding?: string;
+};
+
+/** "See all" page for Historical Teams — every pre-processed season flattened into one
+ *  points-descending list, paged in as the user scrolls. */
+export function HistoricalTeamsAllPage({ showdownSet, onBack, horizontalPadding }: HistoricalTeamsAllPageProps) {
+    const { userShowdownSet: globalShowdownSet } = useSiteSettings();
+    const userShowdownSet = showdownSet || globalShowdownSet;
+    const navigate = useNavigate();
+
+    const openTeam = useCallback((team: HistoricalTeam) => openHistoricalTeam(navigate, team), [navigate]);
+    const fetchPage = useCallback(
+        (offset: number, limit: number) => fetchHistoricalTeams({ showdownSet: userShowdownSet, sort: 'points', limit, offset }).then(r => r.teams),
+        [userShowdownSet],
+    );
+
+    return (
+        <TeamGridPage
+            title="All Historical Teams"
+            subtitle="Sorted by total points"
+            onBack={onBack}
+            horizontalPadding={horizontalPadding}
+            fetchPage={fetchPage}
+            getKey={team => `${team.season}-${team.team_id}`}
+            toPreview={team => teamToPreview(team, userShowdownSet)}
+            onOpenTeam={openTeam}
+            emptyMessage="No historical teams have been processed yet."
+        />
+    );
+}

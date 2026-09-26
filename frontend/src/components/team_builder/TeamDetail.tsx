@@ -689,6 +689,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // already-official team. `team_id` + a complete roster are required for both.
     const isOfficialTeam = team.source === 'official';
     const adminCanCurate = isAdmin && !!token && !!team.team_id && !isDrafting && !isMlbTeam;
+    // Publishing a draft into Featured is restricted to the admin's own team; unpublishing an
+    // already-official team isn't (an official team has no "owner" in the isMyOwnTeam sense —
+    // its source is 'official', not 'user' — so that curation action stays admin-gated only).
+    const canPublish = adminCanCurate && isMyOwnTeam;
     // Views/likes are only meaningful for teams reachable from Browse.
     const showSocialStats = (team.is_public || isOfficialTeam) && !isMyOwnTeam;
 
@@ -1435,25 +1439,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 title="Make an editable copy of this team"
                             />
                         )}
-                        {adminCanCurate && teamMode === 'complete' && (
-                            isOfficialTeam ? (
-                                <HeaderAction
-                                    icon={FaTrash}
-                                    tone="danger"
-                                    label="Unpublish"
-                                    busy={unpublishing}
-                                    onClick={handleUnpublish}
-                                    title="Remove this team from its Featured collection"
-                                />
-                            ) : (
-                                <HeaderAction
-                                    icon={FaStar}
-                                    tone="curate"
-                                    label="Publish"
-                                    onClick={() => setShowPublishModal(true)}
-                                    title="Publish this roster into a Featured collection"
-                                />
-                            )
+                        {adminCanCurate && isOfficialTeam && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaTrash}
+                                tone="danger"
+                                label="Unpublish"
+                                busy={unpublishing}
+                                onClick={handleUnpublish}
+                                title="Remove this team from its Featured collection"
+                            />
+                        )}
+                        {canPublish && !isOfficialTeam && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaStar}
+                                tone="curate"
+                                label="Publish"
+                                onClick={() => setShowPublishModal(true)}
+                                title="Publish this roster into a Featured collection"
+                            />
                         )}
 
                         {canSimulate && teamMode === 'complete' && (

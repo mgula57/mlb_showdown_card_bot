@@ -2446,11 +2446,12 @@ class PostgresDB:
     """
 
     def fetch_historical_teams(self, showdown_set: str, season: Optional[int] = None, q: Optional[str] = None,
-                               sport_id: int = 1, limit: int = 60, offset: int = 0) -> list[dict]:
+                               sport_id: int = 1, limit: int = 60, offset: int = 0, sort: str = 'season') -> list[dict]:
         """Return pre-processed historical teams as TeamSummary-shaped rows.
 
         Ordered newest season first, then by total points descending within each season, so
-        each shelf leads with that year's most expensive rosters.
+        each shelf leads with that year's most expensive rosters. Pass `sort='points'` to flip
+        that to a single points-descending list across every season (the "See all" grid).
 
         Args:
             showdown_set: Showdown set the points / top players should be scoped to.
@@ -2458,6 +2459,7 @@ class PostgresDB:
             q: Case-insensitive search over team name, abbreviation, and season (all seasons).
             sport_id: MLB API sport id (1 = MLB).
             limit / offset: Pagination over the team rows.
+            sort: 'season' (default) or 'points'.
         """
         if not self.connection:
             return []
@@ -2473,10 +2475,15 @@ class PostgresDB:
             params.extend([like, like, like])
         # Newest season first, and the most expensive rosters lead each season's shelf.
         # total_points is set-scoped, so the ordering shifts with the requested set.
+        order_clause = (
+            "ORDER BY total_points DESC, t.season DESC, t.abbreviation ASC"
+            if sort == 'points'
+            else "ORDER BY t.season DESC, total_points DESC, t.abbreviation ASC"
+        )
         query = self._HISTORICAL_TEAM_SUMMARY_SELECT + f"""
             WHERE {' AND '.join(conditions)}
             GROUP BY t.season, t.sport_id, t.team_id, tp.refs
-            ORDER BY t.season DESC, total_points DESC, t.abbreviation ASC
+            {order_clause}
             LIMIT %s OFFSET %s
         """
         params += [limit, offset]
@@ -2758,13 +2765,21 @@ class PostgresDB:
         ) tp ON TRUE
     """
 
-    def fetch_era_teams(self, era: str, showdown_set: str, q: Optional[str] = None,
+    def fetch_era_teams(self, era: Optional[str], showdown_set: str, q: Optional[str] = None,
                          sport_id: int = 1, limit: int = 60, offset: int = 0) -> list[dict]:
-        """Return one era's pre-processed teams as TeamSummary-shaped rows, highest points first."""
+        """Return pre-processed era teams as TeamSummary-shaped rows, highest points first.
+
+        Pass era=None to combine every era into one flat list (the Browse tab's "See all" grid)
+        instead of scoping to a single one — each row still carries its own `era`, so navigation
+        and the on-tile era label stay correct.
+        """
         if not self.connection:
             return []
-        conditions = ["t.era = %s", "t.showdown_set = %s", "t.sport_id = %s", "t.roster_count > 0"]
-        params: list = [era, showdown_set, sport_id]
+        conditions = ["t.showdown_set = %s", "t.sport_id = %s", "t.roster_count > 0"]
+        params: list = [showdown_set, sport_id]
+        if era is not None:
+            conditions.insert(0, "t.era = %s")
+            params.insert(0, era)
         if q:
             conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s)")
             like = f"%{q}%"

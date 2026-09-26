@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { fetchEraTeams, fetchRosterEras, type EraTeam, type RosterEra, ALL_TIME_ERA_KEY } from '../../api/mlbAPI';
+import { useNavigate, type NavigateFunction } from 'react-router-dom';
+import { fetchEraTeams, fetchRosterEras, type EraTeam, type RosterEra, ALL_TIME_ERA_KEY, ALL_ERAS_KEY } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
 import { TeamShelf } from './TeamShelf';
+import { TeamGridPage } from './TeamGridPage';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import type { HistoricalNavState } from './HistoricalTeams';
 
@@ -25,6 +26,17 @@ const teamToPreview = (team: EraTeam, label: string, showdownSet?: string): Team
     source: 'mlb',
     allowed_sets: showdownSet ? [showdownSet] : undefined,
 });
+
+// Navigate to an era team's own shareable detail page — shared by the shelf and its "See all" grid.
+const openEraTeam = (navigate: NavigateFunction, team: EraTeam) => {
+    const state: HistoricalNavState = {
+        abbr: team.abbreviation || team.name,
+        name: team.name,
+        primary_color: team.primary_color ?? undefined,
+        secondary_color: team.secondary_color ?? undefined,
+    };
+    navigate(`/teams/era/${team.sport_id}/${team.era}/${team.team_id}`, { state });
+};
 
 /** Browse pre-processed Era Rosters — one shelf of every current MLB franchise's best roster
  *  for the selected era (All-Time, or a single decade). Unlike HistoricalTeams there's no
@@ -71,15 +83,7 @@ export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery,
 
     // Navigate to the team's own shareable detail page. Identity is passed via nav state so the
     // detail view renders instantly; a cold link resolves identity server-side.
-    const openTeam = useCallback((team: EraTeam) => {
-        const state: HistoricalNavState = {
-            abbr: team.abbreviation || team.name,
-            name: team.name,
-            primary_color: team.primary_color ?? undefined,
-            secondary_color: team.secondary_color ?? undefined,
-        };
-        navigate(`/teams/era/${team.sport_id}/${team.era}/${team.team_id}`, { state });
-    }, [navigate]);
+    const openTeam = useCallback((team: EraTeam) => openEraTeam(navigate, team), [navigate]);
 
     const eraOptions: SelectOption[] = useMemo(
         () => eras.map(e => ({ value: e.key, label: e.label })),
@@ -119,7 +123,13 @@ export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery,
                     {searchQuery ? `No teams match "${searchQuery}".` : 'No era teams have been processed yet.'}
                 </p>
             ) : (
-                <TeamShelf title="Era Teams" subtitle={`${teams.length} teams`} className={horizontalPadding ?? ''} bleed>
+                <TeamShelf
+                    title="Era Teams"
+                    subtitle={`${teams.length} teams`}
+                    className={horizontalPadding ?? ''}
+                    bleed
+                    onSeeAll={() => navigate(`/teams/era/all?set=${encodeURIComponent(userShowdownSet)}`)}
+                >
                     {previews.map(({ team, preview }) => (
                         <TeamPreviewCard key={team.team_id} team={preview} onClick={() => openTeam(team)} />
                     ))}
@@ -130,3 +140,41 @@ export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery,
 }
 
 export default EraTeams;
+
+type EraTeamsAllPageProps = {
+    showdownSet?: string;
+    onBack: () => void;
+    horizontalPadding?: string;
+};
+
+/** "See all" page for Era Teams — a separate, independent load that combines every era into one
+ *  points-descending list, ignoring whatever single era the shelf was filtered to. Each row still
+ *  carries its own `era`, so the tile label and detail-page link stay correct per team. */
+export function EraTeamsAllPage({ showdownSet, onBack, horizontalPadding }: EraTeamsAllPageProps) {
+    const { userShowdownSet: globalShowdownSet } = useSiteSettings();
+    const userShowdownSet = showdownSet || globalShowdownSet;
+    const navigate = useNavigate();
+
+    const [eras, setEras] = useState<RosterEra[]>([]);
+    useEffect(() => { fetchRosterEras().then(setEras).catch(() => setEras([])); }, []);
+
+    const openTeam = useCallback((team: EraTeam) => openEraTeam(navigate, team), [navigate]);
+    const fetchPage = useCallback(
+        (offset: number, limit: number) => fetchEraTeams({ era: ALL_ERAS_KEY, showdownSet: userShowdownSet, limit, offset }).then(r => r.teams),
+        [userShowdownSet],
+    );
+
+    return (
+        <TeamGridPage
+            title="All Era Teams"
+            subtitle="Sorted by total points"
+            onBack={onBack}
+            horizontalPadding={horizontalPadding}
+            fetchPage={fetchPage}
+            getKey={team => `${team.era}-${team.team_id}`}
+            toPreview={team => teamToPreview(team, eraLabel(team.era, eras), userShowdownSet)}
+            onOpenTeam={openTeam}
+            emptyMessage="No era teams have been processed yet."
+        />
+    );
+}

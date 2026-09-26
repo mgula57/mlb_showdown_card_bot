@@ -29,6 +29,9 @@ _historical_teams_cache: dict[str, tuple[dict, datetime]] = {}
 
 ERA_TEAMS_CACHE_TTL = timedelta(hours=6)
 _era_teams_cache: dict[str, tuple[dict, datetime]] = {}
+# Sentinel `era` value for /seasons/eras/teams meaning "every era combined" — the Browse tab's
+# Era Teams "See all" grid, which ignores whatever single era the shelf was scoped to.
+ALL_ERAS_KEY = 'ALL'
 
 AWARDS_CACHE_TTL = timedelta(hours=24)
 _awards_cache: dict[str, tuple[dict, datetime]] = {}
@@ -169,7 +172,8 @@ def fetch_historical_teams():
     `total_points` and `top_players` scoped to the requested Showdown set.
 
     Query params: showdown_set, season (one season's shelf), q (search by name, abbreviation,
-    or season across all seasons), sport_id, limit, offset.
+    or season across all seasons), sport_id, limit, offset, sort ('season' default, or 'points'
+    for the "See all" grid — every season's teams in one points-descending list).
     """
     try:
         showdown_set = request.args.get('showdown_set', ShowdownSet._2000.value)
@@ -183,8 +187,11 @@ def fetch_historical_teams():
         sport_id = request.args.get('sport_id', 1, type=int)
         limit = min(request.args.get('limit', 60, type=int), 200)
         offset = request.args.get('offset', 0, type=int)
+        sort = request.args.get('sort', 'season')
+        if sort not in ('season', 'points'):
+            sort = 'season'
 
-        cache_key = f"{showdown_set_enum.value}:{sport_id}:{season}:{query}:{limit}:{offset}"
+        cache_key = f"{showdown_set_enum.value}:{sport_id}:{season}:{query}:{limit}:{offset}:{sort}"
         cached = _historical_teams_cache.get(cache_key)
         if cached and datetime.now() - cached[1] < HISTORICAL_TEAMS_CACHE_TTL:
             return jsonify(cached[0]), 200
@@ -197,6 +204,7 @@ def fetch_historical_teams():
                 sport_id=sport_id,
                 limit=limit,
                 offset=offset,
+                sort=sort,
             )
             seasons = db.fetch_historical_seasons(sport_id=sport_id)
 
@@ -297,21 +305,26 @@ def fetch_roster_eras():
 
 @seasons_bp.route('/seasons/eras/teams', methods=["GET"])
 def fetch_era_teams():
-    """List one era's pre-processed Era Team rosters for the Team Builder's Browse tab.
+    """List pre-processed Era Team rosters for the Team Builder's Browse tab.
 
     Reads internal.dim_era_team, so no MLB Stats API calls are made and no roster is composed
     on the fly. Rows come back in the same TeamSummary shape as /teams/public, with
     `total_points` and `top_players` scoped to the requested era + Showdown set.
 
-    Query params: era (default ALL_TIME), showdown_set, q (search by name or abbreviation),
-    sport_id, limit, offset.
+    Query params: era (default ALL_TIME; pass ALL_ERAS_KEY to combine every era into one
+    points-descending list for the "See all" grid, ignoring any single-era filter), showdown_set,
+    q (search by name or abbreviation), sport_id, limit, offset.
     """
     try:
         era_key = request.args.get('era', RosterEraRegistry.ALL_TIME_KEY)
-        era = RosterEraRegistry.from_key(era_key)
-        if era is None:
-            valid = [e.key for e in RosterEraRegistry.all()]
-            return jsonify({'error': f'Invalid era: {era_key}. Valid options are: {valid}'}), 400
+        if era_key == ALL_ERAS_KEY:
+            era_filter = None
+        else:
+            era = RosterEraRegistry.from_key(era_key)
+            if era is None:
+                valid = [e.key for e in RosterEraRegistry.all()]
+                return jsonify({'error': f'Invalid era: {era_key}. Valid options are: {valid}'}), 400
+            era_filter = era.key
 
         showdown_set = request.args.get('showdown_set', ShowdownSet._2000.value)
         try:
@@ -324,14 +337,14 @@ def fetch_era_teams():
         limit = min(request.args.get('limit', 60, type=int), 200)
         offset = request.args.get('offset', 0, type=int)
 
-        cache_key = f"{era.key}:{showdown_set_enum.value}:{sport_id}:{query}:{limit}:{offset}"
+        cache_key = f"{era_key}:{showdown_set_enum.value}:{sport_id}:{query}:{limit}:{offset}"
         cached = _era_teams_cache.get(cache_key)
         if cached and datetime.now() - cached[1] < ERA_TEAMS_CACHE_TTL:
             return jsonify(cached[0]), 200
 
         with PostgresDB() as db:
             teams = db.fetch_era_teams(
-                era=era.key,
+                era=era_filter,
                 showdown_set=showdown_set_enum.value,
                 q=query,
                 sport_id=sport_id,

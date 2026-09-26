@@ -198,6 +198,9 @@ export const fetchHistoricalTeams = async (options: {
     sportId?: number;
     limit?: number;
     offset?: number;
+    /** 'season' (default) shelves newest-first; 'points' flattens every season into one
+     *  points-descending list, for the "See all" grid. */
+    sort?: 'season' | 'points';
 } = {}): Promise<{ teams: HistoricalTeam[]; seasons: HistoricalSeasonRef[] }> => {
     const params = new URLSearchParams({ sport_id: String(options.sportId ?? 1) });
     if (options.showdownSet) params.set('showdown_set', options.showdownSet);
@@ -205,6 +208,7 @@ export const fetchHistoricalTeams = async (options: {
     if (options.q) params.set('q', options.q);
     if (options.limit != null) params.set('limit', String(options.limit));
     if (options.offset != null) params.set('offset', String(options.offset));
+    if (options.sort) params.set('sort', options.sort);
     const response = await fetch(`${API_BASE}/seasons/historical/teams?${params}`);
     if (!response.ok) {
         throw new Error(`Failed to fetch historical teams: ${response.statusText}`);
@@ -246,6 +250,9 @@ export type RosterEra = {
 };
 
 export const ALL_TIME_ERA_KEY = 'ALL_TIME';
+/** Sentinel `era` value meaning "every era combined" — the Era Teams "See all" grid, which
+ *  ignores whatever single era the shelf was scoped to. */
+export const ALL_ERAS_KEY = 'ALL';
 
 export const fetchRosterEras = async (): Promise<RosterEra[]> => {
     const response = await fetch(`${API_BASE}/seasons/eras`);

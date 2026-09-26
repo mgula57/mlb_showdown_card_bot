@@ -28,7 +28,8 @@ import { TeamDetail } from './TeamDetail';
 import { TeamBuilderWelcome } from './TeamBuilderWelcome';
 import { BrowseTeams } from './BrowseTeams';
 import { CollectionDetail } from './CollectionDetail';
-import { asgIdentity, type HistoricalNavState } from './HistoricalTeams';
+import { asgIdentity, HistoricalTeamsAllPage, type HistoricalNavState } from './HistoricalTeams';
+import { EraTeamsAllPage } from './EraTeams';
 import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
 import { RecentSimsShelf } from './sim/RecentSimsShelf';
@@ -96,6 +97,21 @@ function isAllTeamsView(pathname: string): boolean {
 function parseCollectionSlug(pathname: string): string | null {
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'collections' && parts[2] ? parts[2] : null;
+}
+
+// The Era section's "See all" page — every era combined into one points-descending list,
+// ignoring whatever single era the shelf was filtered to — has its own shareable page at
+// /teams/era/all. A separate, independent load from the shelf's, by design.
+function isEraAllPath(pathname: string): boolean {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'era' && parts[2] === 'all';
+}
+
+// The Historical Teams section's "See all" page — every pre-processed season flattened into one
+// points-descending list — has its own shareable page at /teams/historical/all.
+function isHistoricalAllPath(pathname: string): boolean {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'historical' && parts[2] === 'all';
 }
 
 // Admin-only challenge-template manager, its own route so it isn't buried under the Challenges
@@ -238,6 +254,11 @@ export default function TeamBuilder() {
     const challengeInstanceId = parseChallengeInstanceId(location.pathname);
     const allTeamsView = isAllTeamsView(location.pathname);
     const collectionSlug = parseCollectionSlug(location.pathname);
+    const eraAllView = isEraAllPath(location.pathname);
+    const historicalAllView = isHistoricalAllPath(location.pathname);
+    // Carries the Browse tab's current Showdown set filter across into the "See all" pages, e.g.
+    // /teams/historical/all?set=2005 — falls back to the site-wide set when absent (a cold link).
+    const seeAllShowdownSet = new URLSearchParams(location.search).get('set') ?? undefined;
     const adminChallengesView = isAdminChallengesPath(location.pathname);
     // The team currently resolved into the editor, so we don't re-resolve on re-render. Keyed on
     // the ref rather than the pathname so entering/leaving a sim URL doesn't refetch the team.
@@ -524,6 +545,32 @@ export default function TeamBuilder() {
                 <CollectionDetail
                     slug={collectionSlug}
                     onOpenTeam={openTeam}
+                    onBack={() => { setActiveTab('browse'); navigate('/teams'); }}
+                    horizontalPadding={px}
+                />
+            </div>
+        );
+    }
+
+    // The Era section's "See all" grid — every era combined, ignoring the shelf's era filter.
+    if (eraAllView) {
+        return (
+            <div className="@container w-full">
+                <EraTeamsAllPage
+                    showdownSet={seeAllShowdownSet}
+                    onBack={() => { setActiveTab('browse'); navigate('/teams'); }}
+                    horizontalPadding={px}
+                />
+            </div>
+        );
+    }
+
+    // The Historical Teams section's "See all" grid — every season flattened, points descending.
+    if (historicalAllView) {
+        return (
+            <div className="@container w-full">
+                <HistoricalTeamsAllPage
+                    showdownSet={seeAllShowdownSet}
                     onBack={() => { setActiveTab('browse'); navigate('/teams'); }}
                     horizontalPadding={px}
                 />
