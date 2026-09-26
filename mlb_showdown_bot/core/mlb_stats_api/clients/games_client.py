@@ -234,6 +234,7 @@ class GamesClient(BaseMLBClient):
 
         return {
             "game_pk": game_pk,
+            "game_type": game_data.get("game", {}).get("type"),
             "status": {
                 "abstract_game_state": game_data.get("status", {}).get("abstractGameState"),
                 "coded_game_state": game_data.get("status", {}).get("codedGameState"),

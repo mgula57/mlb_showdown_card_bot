@@ -9,11 +9,18 @@ import {
     fetchGameBoxscore,
     type GameBoxscoreDetail,
 } from "../../api/mlbAPI";
-import { buildCardsFromIds, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { TWO_WAY_PLAYER_IDS } from "../../domain/players";
+import { buildCardsFromIds, fetchCardById, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { fetchCardData } from "../../api/card_db/cardDatabase";
+import { CardSource } from "../../types/cardSource";
+import { cardKey, TWO_WAY_PLAYER_IDS } from "../../domain/players";
 import type { SimGameResult } from "../../api/simGame";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
+
+// Postseason games are pinned to the archived card for the season — no live MLB Stats API pull and
+// no in-season point trend, since the game log for a completed season stops mattering once the
+// postseason starts. Codes per `GameType` (mlb_showdown_bot/core/mlb_stats_api/models/games/enums.py).
+const POSTSEASON_GAME_TYPES = new Set(["F", "D", "L", "W", "C", "P"]);
 
 export function useGameDetailData({
     gamePk, sportId, season, showdownSet, isActive, simResult,
@@ -210,9 +217,29 @@ export function useGameDetailData({
             return;
         }
         setIsLoadingCards(true);
-        buildCardsFromIds([...allIds], adjustedSeason, cardSettings)
-            .then((response) => {
-                if (cancelled) return;
+
+        // Postseason games use only the archived card for the season — no live stats pull, so no
+        // point trend either. Look up each player's row in the card database, then fetch its full
+        // nested card by id (both database-only, unlike `buildCardsFromIds` below).
+        const isPostseason = !!boxscore.game_type && POSTSEASON_GAME_TYPES.has(boxscore.game_type);
+        const cardsPromise = isPostseason
+            ? fetchCardData(CardSource.BOT, {
+                mlb_id: [...allIds],
+                year: String(adjustedSeason),
+                showdown_set: showdownSet,
+                limit: allIds.size * 2, // Two-way players return both a hitter and pitcher record
+            }).then((records) => Promise.all(records.map((record) =>
+                fetchCardById(record.card_id, 'game-detail-postseason').then((response) => ({ record, response }))
+            ))).then((results) => {
+                const map: CardMap = {};
+                for (const { record, response } of results) {
+                    if (!response.card || record.mlb_id == null) continue;
+                    const id = Number(record.mlb_id);
+                    map[cardKey(id, record.is_pitcher ? "P" : "H")] = response;
+                }
+                return map;
+            })
+            : buildCardsFromIds([...allIds], adjustedSeason, cardSettings).then((response) => {
                 const map: CardMap = {};
                 for (const entry of response.cards ?? []) {
                     if (entry.card?.mlb_id != null) {
@@ -225,6 +252,12 @@ export function useGameDetailData({
                         }
                     }
                 }
+                return map;
+            });
+
+        cardsPromise
+            .then((map) => {
+                if (cancelled) return;
                 // Merge rather than replace — a mid-game substitution should add the new
                 // player's card without invalidating every marker already resolved from the map.
                 setCardMap((prev) => ({ ...prev, ...map }));

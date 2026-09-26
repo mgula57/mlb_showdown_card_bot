@@ -963,6 +963,7 @@ export interface MostRecentPlay {
 
 export interface GameBoxscoreDetail {
     game_pk: number;
+    game_type?: GameType | null;
     status: GameStatus;
     datetime: {
         date_time?: string;
