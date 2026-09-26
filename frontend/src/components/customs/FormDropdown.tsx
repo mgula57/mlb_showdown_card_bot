@@ -7,27 +7,23 @@
  */
 
 import { type ReactNode } from "react";
-import { type SelectOption } from "../shared/CustomSelect";
-import CustomSelect from "../shared/CustomSelect";
+import CustomSelect, { type CustomSelectProps } from "../shared/CustomSelect";
 
 /**
- * Props for the FormDropdown component
+ * Props for the FormDropdown component.
+ * Inherits every CustomSelect prop (passed straight through) except `value`,
+ * which is exposed as `selectedOption`, and `className`, which styles the
+ * wrapper here — use `selectClassName` to target CustomSelect's container.
  */
-type FormDropdownProps = {
+type FormDropdownProps = Omit<CustomSelectProps, 'value' | 'className'> & {
     /** Display label for the dropdown field */
     label: ReactNode;
-    /** Array of selectable options with display and value properties */
-    options: SelectOption[];
     /** Currently selected option value */
     selectedOption: string;
-    /** Callback function when selection changes */
-    onChange: (value: string) => void;
-    /** Optional CSS class names for additional styling */
+    /** Optional CSS class names for the wrapper element */
     className?: string;
-    /** Whether this dropdown is disabled */
-    disabled?: boolean;
-    /** Placeholder text shown in muted style when no option is selected */
-    placeholder?: string;
+    /** Optional CSS class names for the CustomSelect container */
+    selectClassName?: string;
 };
 
 /**
@@ -54,10 +50,12 @@ type FormDropdownProps = {
  * @param options - Selectable options array
  * @param selectedOption - Current selection value
  * @param onChange - Selection change handler
- * @param className - Additional styling classes
+ * @param className - Additional wrapper styling classes
+ * @param selectClassName - Additional CustomSelect container classes
+ * @param selectProps - Any remaining CustomSelect props, passed through
  * @returns Labeled dropdown form component
  */
-const FormDropdown = ({ label, options, selectedOption, onChange, className="", disabled = false, placeholder }: FormDropdownProps) => {
+const FormDropdown = ({ label, selectedOption, className = "", selectClassName, disabled = false, showDropdownArrow = true, ...selectProps }: FormDropdownProps) => {
     return (
         <div className={className}>
             {/* Form label with consistent styling */}
@@ -65,12 +63,11 @@ const FormDropdown = ({ label, options, selectedOption, onChange, className="", 
 
             {/* Dropdown selection component */}
             <CustomSelect
+                {...selectProps}
                 value={selectedOption}
-                onChange={onChange}
-                options={options}
+                className={selectClassName}
                 disabled={disabled}
-                placeholder={placeholder}
-                showDropdownArrow={true}
+                showDropdownArrow={showDropdownArrow}
             />
         </div>
     );

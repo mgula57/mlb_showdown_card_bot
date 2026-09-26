@@ -4,9 +4,7 @@ import FormDropdown from '../customs/FormDropdown';
 import ManagerStyleFields from './ManagerStyleFields';
 import SimSettingToggle from './SimSettingToggle';
 import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
-import { setOptionsForSource } from '../../domain/teamSets';
-import { CardSource } from '../../types/cardSource';
-import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
 import { BetaBadge } from '../shared/BetaBadge';
 import { fetchUserTeams, type TeamSummary } from '../../api/userTeams';
 import {
@@ -18,7 +16,45 @@ function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-const CARD_SET_OPTIONS = setOptionsForSource(CardSource.BOT).map(set => ({ label: set, value: set }));
+// Bot-generated cards are pinned to one baseline set (WOTC's freely-combinable sets don't apply
+// here), so the picker is just `showdownSets` filtered to the ones the bot actually renders —
+// reusing the shared list gives the dropdown its set artwork for free.
+const BOT_SET_VALUES = new Set(['2000', '2001', 'CLASSIC', '2002', '2003', '2004', '2005', 'EXPANDED']);
+const CARD_SET_OPTIONS = showdownSets.filter(option => BOT_SET_VALUES.has(option.value));
+
+/** Engine settings that represent a standing user preference (independent of season/team/manager),
+ *  persisted so a repeat "Simulate a season" starts from how they last configured it. */
+const SIM_SETTINGS_STORAGE_KEY = 'simSetup.engineSettings';
+
+type PersistedSimSettings = {
+    set?: string;
+    enableInjuries?: boolean;
+    simulatePostseason?: boolean;
+    postseasonFormat?: string;
+    tradeDeadlineEnabled?: boolean;
+    tradeDeadlineRespectsStandings?: boolean;
+    regressSmallSampleStats?: boolean;
+    enablePlatoonEffect?: boolean;
+};
+
+function loadPersistedSimSettings(): PersistedSimSettings {
+    if (typeof window === 'undefined') return {};
+    try {
+        const raw = window.localStorage.getItem(SIM_SETTINGS_STORAGE_KEY);
+        return raw ? JSON.parse(raw) as PersistedSimSettings : {};
+    } catch {
+        return {};
+    }
+}
+
+function savePersistedSimSettings(settings: PersistedSimSettings) {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(SIM_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    } catch {
+        // Ignore quota/availability errors — settings just won't be remembered this time.
+    }
+}
 
 const POSTSEASON_FORMAT_OPTIONS = [
     { value: 'DYNAMIC', label: 'Era-accurate (default)' },
@@ -68,7 +104,7 @@ export function SeasonSimSetupForm(props: Props) {
 
     const [seasons, setSeasons] = useState<number[]>([]);
     const [year, setYear] = useState<number | null>(null);
-    const [set, setSet] = useState(userShowdownSet || '2000');
+    const [set, setSet] = useState(() => loadPersistedSimSettings().set || userShowdownSet || '2000');
     const [clubsFor, setClubsFor] = useState<{ year: number; teams: TakeoverClub[] } | null>(null);
     const [focusAbbr, setFocusAbbr] = useState<string>('');
 
@@ -78,16 +114,27 @@ export function SeasonSimSetupForm(props: Props) {
     const [takeoverReplaces, setTakeoverReplaces] = useState<string>('');
     const [manager, setManager] = useState<ManagerPreference>(NEUTRAL_MANAGER);
 
-    const [enableInjuries, setEnableInjuries] = useState(true);
-    const [simulatePostseason, setSimulatePostseason] = useState(true);
-    const [postseasonFormat, setPostseasonFormat] = useState('DYNAMIC');
+    const [enableInjuries, setEnableInjuries] = useState(() => loadPersistedSimSettings().enableInjuries ?? true);
+    const [simulatePostseason, setSimulatePostseason] = useState(() => loadPersistedSimSettings().simulatePostseason ?? true);
+    const [postseasonFormat, setPostseasonFormat] = useState(() => loadPersistedSimSettings().postseasonFormat ?? 'DYNAMIC');
     const [resumeEnabled, setResumeEnabled] = useState(false);
     const [mergeRealStats, setMergeRealStats] = useState(false);
     const [resumePostseasonEnabled, setResumePostseasonEnabled] = useState(false);
-    const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(true);
-    const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(true);
-    const [regressSmallSampleStats, setRegressSmallSampleStats] = useState(false);
-    const [enablePlatoonEffect, setEnablePlatoonEffect] = useState(false);
+    const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(() => loadPersistedSimSettings().tradeDeadlineEnabled ?? true);
+    const [tradeDeadlineRespectsStandings, setTradeDeadlineRespectsStandings] = useState(() => loadPersistedSimSettings().tradeDeadlineRespectsStandings ?? true);
+    const [regressSmallSampleStats, setRegressSmallSampleStats] = useState(() => loadPersistedSimSettings().regressSmallSampleStats ?? false);
+    const [enablePlatoonEffect, setEnablePlatoonEffect] = useState(() => loadPersistedSimSettings().enablePlatoonEffect ?? false);
+
+    // Remember these as a standing preference for next time — season/club/takeover selections stay
+    // per-run since they're tied to context that won't carry over (a different season's clubs, a
+    // manager profile scoped to "never saved to the team").
+    useEffect(() => {
+        savePersistedSimSettings({
+            set, enableInjuries, simulatePostseason, postseasonFormat,
+            tradeDeadlineEnabled, tradeDeadlineRespectsStandings,
+            regressSmallSampleStats, enablePlatoonEffect,
+        });
+    }, [set, enableInjuries, simulatePostseason, postseasonFormat, tradeDeadlineEnabled, tradeDeadlineRespectsStandings, regressSmallSampleStats, enablePlatoonEffect]);
 
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -240,6 +287,8 @@ export function SeasonSimSetupForm(props: Props) {
                     options={CARD_SET_OPTIONS}
                     selectedOption={set}
                     onChange={setSet}
+                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) select-none w-full"
+                    imageClassName="object-contain object-center max-w-18"
                 />
             </div>
 

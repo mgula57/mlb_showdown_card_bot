@@ -60,7 +60,7 @@ type SelectOption = {
  * Props for the CustomSelect component
  * Provides extensive customization options for styling and behavior
  */
-type CustomSelectProps = {
+export type CustomSelectProps = {
     /** Currently selected value */
     value: string;
     /** Callback function called when selection changes */
