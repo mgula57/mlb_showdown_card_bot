@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaLayerGroup, FaStar, FaUsers, FaClockRotateLeft, FaTrophy } from 'react-icons/fa6';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
@@ -65,6 +65,82 @@ type Hit =
     | { kind: 'historical'; team: HistoricalTeam };
 
 const TYPE_RANK: Record<string, number> = { official: 0, user: 1, historical: 2, era: 3 };
+
+// Per-section identity: alternating background tone, an accent color (reusing the existing
+// challenge palette so we don't invent new brand colors — see index.css), and the icon/copy
+// for a consistent large title + description atop every section, in every tab.
+const SECTION_META: Record<'featured' | 'community' | 'era' | 'historical', {
+    tone: string;
+    accent: string;
+    icon: ReactNode;
+    title: string;
+    description: string;
+}> = {
+    featured: {
+        tone: 'bg-(--background-secondary)',
+        accent: '--challenge-legendary',
+        icon: <FaStar />,
+        title: 'Featured',
+        description: 'Curated collections handpicked from the community.',
+    },
+    community: {
+        tone: 'bg-(--background-tertiary)',
+        accent: '--challenge-budget',
+        icon: <FaUsers />,
+        title: 'Community',
+        description: 'Public teams built and shared by other players.',
+    },
+    era: {
+        tone: 'bg-(--background-secondary)',
+        accent: '--challenge-superteam',
+        icon: <FaTrophy />,
+        title: 'Eras',
+        description: "Every franchise's best-ever roster — all-time, or a single decade — drafted from each player's single greatest qualifying season.",
+    },
+    historical: {
+        tone: 'bg-(--background-tertiary)',
+        accent: '--challenge-themed',
+        icon: <FaClockRotateLeft />,
+        title: 'Historical',
+        description: 'Real MLB rosters and All-Star squads, season by season.',
+    },
+};
+
+/** Full-bleed colored band around one browse section, with a large title + description and a
+ *  faint oversized icon watermark tied to the section's accent color. Breaks out to the true
+ *  edge of the nearest `@container` ancestor (ignoring the page's centered max-width), then
+ *  re-centers its content with the same max-width so it still lines up with the header/tabs. */
+function BrowseSection({ meta, horizontalPadding, children }: {
+    meta: typeof SECTION_META[keyof typeof SECTION_META];
+    horizontalPadding: string;
+    children: ReactNode;
+}) {
+    const { tone, accent, icon, title, description } = meta;
+    return (
+        <div
+            className={`relative overflow-hidden ${tone}`}
+            style={{ marginLeft: 'calc((100% - 100cqw) / 2)', marginRight: 'calc((100% - 100cqw) / 2)' }}
+        >
+            <div
+                aria-hidden
+                className="pointer-events-none absolute -top-8 -right-8 text-[160px] leading-none opacity-[0.06] select-none"
+                style={{ color: `var(${accent})` }}
+            >
+                {icon}
+            </div>
+            <div className="relative max-w-4xl lg:max-w-7xl mx-auto w-full flex flex-col gap-3 py-6">
+                <div className={horizontalPadding}>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[18px]" style={{ color: `var(${accent})` }}>{icon}</span>
+                        <h2 className="text-[22px] font-black text-(--text-primary) tracking-tight">{title}</h2>
+                    </div>
+                    <p className="text-[12px] text-(--text-secondary) mt-0.5 max-w-2xl">{description}</p>
+                </div>
+                {children}
+            </div>
+        </div>
+    );
+}
 
 type BrowseTeamsProps = {
     onOpenTeam: (team: TeamSummary) => void;
@@ -297,53 +373,40 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                     </div>
                 )
             ) : (
-                <>
+                <div className="flex flex-col">
                     {(type === 'all' || type === 'featured') && (
-                        <FeaturedCollections
-                            onOpen={onOpenTeam}
-                            onOpenCollection={slug => navigate(`/teams/collections/${slug}`)}
-                            horizontalPadding={px}
-                            query={type === 'featured' ? q : undefined}
-                            showdownSet={effectiveSet}
-                        />
+                        <BrowseSection meta={SECTION_META.featured} horizontalPadding={px}>
+                            <FeaturedCollections
+                                onOpen={onOpenTeam}
+                                onOpenCollection={slug => navigate(`/teams/collections/${slug}`)}
+                                horizontalPadding={px}
+                                query={type === 'featured' ? q : undefined}
+                                showdownSet={effectiveSet}
+                            />
+                        </BrowseSection>
                     )}
                     {(type === 'all' || type === 'community') && (
-                        <CommunityTeams
-                            onOpen={onOpenTeam}
-                            horizontalPadding={px}
-                            hideSearch
-                            externalQuery={type === 'community' ? q : ''}
-                            showdownSet={effectiveSet}
-                        />
+                        <BrowseSection meta={SECTION_META.community} horizontalPadding={px}>
+                            <CommunityTeams
+                                onOpen={onOpenTeam}
+                                horizontalPadding={px}
+                                hideSearch
+                                externalQuery={type === 'community' ? q : ''}
+                                showdownSet={effectiveSet}
+                            />
+                        </BrowseSection>
                     )}
                     {(type === 'all' || type === 'era') && (
-                        <div className={`flex flex-col gap-2`}>
-                            {type === 'all' && (
-                                <div className={px}>
-                                    <h3 className="text-[15px] font-black text-(--text-primary)">Era Teams</h3>
-                                    <p className="text-[12px] text-(--text-secondary)">
-                                        Every franchise's best-ever roster — all-time, or a single decade — drafted from each player's single greatest qualifying season.
-                                    </p>
-                                </div>
-                            )}
+                        <BrowseSection meta={SECTION_META.era} horizontalPadding={px}>
                             <EraTeams horizontalPadding={px} hideSearch externalQuery={type === 'era' ? q : ''} showdownSet={effectiveSet} />
-                        </div>
+                        </BrowseSection>
                     )}
                     {(type === 'all' || type === 'historical') && (
-                        <div className={`flex flex-col gap-2`}>
-                            {type === 'all' && (
-                                <div className={px}>
-                                    <h3 className="text-[15px] font-black text-(--text-primary)">Historical Teams</h3>
-                                    <p className="text-[12px] text-(--text-secondary)">
-                                        Real MLB rosters and All-Star squads, season by season.
-                                    </p>
-                                </div>
-                            )}
+                        <BrowseSection meta={SECTION_META.historical} horizontalPadding={px}>
                             <HistoricalTeams horizontalPadding={px} hideSearch externalQuery={type === 'historical' ? q : ''} showdownSet={effectiveSet} />
-                        </div>
+                        </BrowseSection>
                     )}
-
-                </>
+                </div>
             )}
         </div>
     );
