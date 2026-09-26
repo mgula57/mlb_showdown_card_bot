@@ -754,6 +754,11 @@ class PlayerStatsNormalizer:
 
                 for key, value in stats.items():
 
+                    # PITCHING SPLITS CAN INCLUDE BOTH 'hitByPitch' AND 'hitBatsmen', WHICH BOTH MAP TO 'HBP'
+                    # SKIP 'hitByPitch' FOR PITCHERS TO AVOID DOUBLE-COUNTING
+                    if is_pitcher and key == 'hitByPitch':
+                        continue
+
                     # NORMALIZE STAT NAME AND TYPE
                     stat_key_normalized = stat_name_mapping.get(key, key)
                     is_non_counting_metric = stat_key_normalized in [
@@ -975,7 +980,12 @@ class PlayerStatsNormalizer:
             lg_id = split.team.league.abbreviation if split.team and split.team.league else None
             stats_normalized = {}
             for key, value in stats.items():
-                
+
+                # PITCHING SPLITS CAN INCLUDE BOTH 'hitByPitch' AND 'hitBatsmen', WHICH BOTH MAP TO 'HBP'
+                # SKIP 'hitByPitch' FOR PITCHERS TO AVOID DOUBLE-COUNTING
+                if not is_hitter and key == 'hitByPitch':
+                    continue
+
                 stat_key_normalized = stat_name_mapping.get(key, key)
 
                 if stat_key_normalized not in NormalizedPlayerStats.all_valid_field_names():
