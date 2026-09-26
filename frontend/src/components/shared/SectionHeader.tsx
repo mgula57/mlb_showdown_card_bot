@@ -19,15 +19,15 @@ type SectionHeaderProps = {
 
 const VARIANT_CLASSES: Record<SectionHeaderVariant, { container: string; row: string; label: string; total: string }> = {
     overlay: {
-        container: 'px-3 py-1.5 backdrop-blur-xs bg-(--background)/40',
+        container: 'px-4 py-1 backdrop-blur-xs bg-(--background)/40',
         row: 'flex items-center gap-1.5 opacity-75',
         label: 'text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide',
-        total: 'ml-auto text-[11px] font-semibold text-(--text-tertiary)',
+        total: 'ml-auto text-[10px] font-semibold text-(--text-tertiary)',
     },
     plain: {
-        container: 'pt-3 pb-1',
-        row: 'flex items-center gap-1.5',
-        label: 'text-[10px] font-semibold text-(--text-secondary) uppercase tracking-widest',
+        container: 'px-0 py-1 backdrop-blur-xs bg-(--background)/40',
+        row: 'flex items-center gap-1.5 opacity-75',
+        label: 'text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide',
         total: 'ml-auto text-[10px] font-semibold text-(--text-tertiary)',
     },
 };

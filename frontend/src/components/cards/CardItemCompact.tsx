@@ -223,7 +223,7 @@ export const CardItemCompact = ({
                                 <>
                                     {/* STAT 1 */}
                                     {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
-                                    {detailStat1Category === 'hr' && (`${card?.hr_range?.split('-')[0].split('+')[0]}+ HR`)}
+                                    {detailStat1Category === 'hr' && (`${card?.hr_range?.split('–')[0].split('+')[0]}+ HR`).replace('—+', '–')}
                                     {detailStat1Category === 'outs' && (`${card?.outs} OUT`)}
                                     {detailStat1Category === 'speed' && (`SPD ${card?.speed ?? '-'}`)}
 
