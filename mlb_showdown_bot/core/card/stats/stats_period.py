@@ -390,8 +390,13 @@ class StatsPeriod(BaseModel):
         if year is None: return False
 
         today = date.today()
-        if (today.month < 10 and year == today.year):
-            return True
+        match today.year:
+            case 2026:
+                # Season ends on September 27th
+                return year == today.year and today.month <= 9 and today.day <= 27
+            case _:
+                # Assume season ending on September 30th
+                return year == today.year and today.month <= 9 and today.day <= 30
         
         return False
 
