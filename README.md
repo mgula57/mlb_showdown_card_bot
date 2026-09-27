@@ -69,6 +69,10 @@ card = generate_card(
 - [Advanced Options](#more-options)
 - [Custom Images](#uploading-custom-images)
 
+### 🏟️ Team Builder & Simulation
+- [Team Builder](#-team-builder)
+- [Season Simulation](#-season-simulation)
+
 ### 🛠️ Development
 - [Running Locally](#-development--local-setup)
 - [API Documentation](#api)
@@ -1043,6 +1047,42 @@ This is because postseason and split data is not available through Baseball Refe
 ### Team Logos
 
 Team logos for MiLB affiliates are not currently supported. Cards will display a generic MiLB placeholder in place of the team logo. Logo support for MiLB teams is planned for a future update.
+
+## 🏟️ Team Builder
+
+Draft a custom roster using **any player from any season in MLB history**, then take it into a season simulation. Team Builder lives on its own page in the web app, backed by `mlb_showdown_bot/core/card/team_builder/`.
+
+**Ways to build a roster:**
+- **Draft manually** — search and add any player/year Showdown Bot can generate a card for, and slot them into your lineup, bench, rotation, and bullpen.
+- **Autofill** — let the bot fill open roster spots for you. It prefers players with a real, non-small-sample season (bench spots are exempt) and drafts a shape-aware bullpen — a premium closer plus a descending committee of setup/middle relief arms — rather than just grabbing the highest point totals.
+- **Fork a historical or All-Star roster** — turn any real MLB team-season, or an All-Star Game roster, into a starting Showdown lineup, then customize it from there.
+- **Browse & fork community teams** — explore public and Featured teams other users have built and use them as a starting point for your own.
+
+**Roster structure:** a team has a starting lineup, bench, a rotation (SP1–SP5), and bullpen roles including a designated closer (`CL`). Roster size can go past the hard bench/bullpen minimums at the drafter's discretion — a team is "complete" once those minimums are met and the roster is full, whatever split of extra bench/pen depth you choose.
+
+Saved teams are tied to your account (via Supabase auth) and can be kept private, shared publicly for others to browse, or entered directly into a [season simulation](#-season-simulation) as a **takeover team**.
+
+> 🛠️ **CLI:** `showdown_bot teams build-historical` and `showdown_bot teams build-asg-roster` pre-process real MLB team-season and All-Star rosters into the database tables the "fork a historical roster" flow reads from.
+
+## ⚾ Season Simulation
+
+Simulate real MLB seasons — or a team you built yourself — using a dice-based engine that plays every game off the exact `ShowdownPlayerCard`s Showdown Bot generates. On the web, simulation lives under the **MLB Season page → Simulate tab**, alongside a history of your recent runs.
+
+> 📖 **For a full plain-language walkthrough of every rule the engine follows** — rosters, rest, injuries, baserunning, pitching changes, awards, and more — see **[SIMULATION_GUIDE.md](mlb_showdown_bot/core/simulation/SIMULATION_GUIDE.md)**.
+
+**Simulation modes:**
+- **Full season** — the real schedule, real rosters (rebuilt from archived Showdown cards), real standings, and an era-correct postseason format, played out day by day.
+- **Season takeover** — drop a team you built in [Team Builder](#-team-builder) into a real club's slot for the year, inheriting that club's exact schedule, division, and opponents. Your lineup, rotation, and bullpen play exactly as assembled — no auto-resting, no auto-swapping.
+- **Tournament** — a round robin between several of your own built teams, with no real MLB data involved.
+- **Single real game** — simulate one real MLB game from scratch, or take over a live/finished game mid-play using the real box score up to that point.
+
+**Notable features:**
+- **Manager tendencies** — for a takeover team, dial steal aggression, baserunning aggression, bullpen hook, and closer usage from 1–5 each. The neutral (middle) setting is a complete no-op.
+- **Optional injuries** — every real-roster player gets an injury profile calibrated to how much he actually played in real life, with call-ups and IL returns handled automatically.
+- **Trade deadline logic** — real mid-season trades are re-evaluated against the *simulated* standings, so a club that's unexpectedly still in contention gets to keep its player.
+- **End-of-season awards** — MVP, Cy Young, Rookie of the Year, and Silver Slugger, computed by formula from the finished season's full stat line.
+
+> 🛠️ **CLI:** `showdown_bot sim --year 2019 --set 2001` runs a full season simulation from the terminal — see `showdown_bot sim --help` for takeover, tournament, injury, and postseason options.
 
 ## More Options
 
