@@ -21,20 +21,20 @@ type TeamShelfProps = {
 export function TeamShelf({ title, subtitle, onSeeAll, children, className, bleed }: TeamShelfProps) {
     return (
         <section className="flex flex-col">
-            <div className={`flex items-baseline justify-between mb-1.5 ${className ?? ''}`}>
-                <div className="flex items-baseline gap-2 min-w-0">
+            <div className={`flex flex-col gap-0.5 mb-1.5 ${className ?? ''}`}>
+                <div className="flex items-baseline justify-between min-w-0">
                     <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
-                    {subtitle && <span className="text-[11px] text-(--text-tertiary) shrink-0">{subtitle}</span>}
+                    {onSeeAll && (
+                        <button
+                            type="button"
+                            onClick={onSeeAll}
+                            className="flex items-center gap-1 text-[11px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer shrink-0"
+                        >
+                            See all <FaChevronRight className="text-[9px]" />
+                        </button>
+                    )}
                 </div>
-                {onSeeAll && (
-                    <button
-                        type="button"
-                        onClick={onSeeAll}
-                        className="flex items-center gap-1 text-[11px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer shrink-0"
-                    >
-                        See all <FaChevronRight className="text-[9px]" />
-                    </button>
-                )}
+                {subtitle && <p className="text-[11px] text-(--text-tertiary) truncate">{subtitle}</p>}
             </div>
             <div
                 className={`flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 scrollbar-hide ${className ?? ''}`}

@@ -26,6 +26,7 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
     const [newSlug, setNewSlug] = useState('');
     const [newTitle, setNewTitle] = useState('');
     const [newEmoji, setNewEmoji] = useState('');
+    const [collectionDescription, setCollectionDescription] = useState('');
     const [subtitle, setSubtitle] = useState(team.subtitle ?? '');
     const [credit, setCredit] = useState(team.credit ?? '');
     const [sortIndex, setSortIndex] = useState<string>('');
@@ -47,6 +48,16 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
     ], [collections]);
 
     const creatingNew = collectionSlug === NEW;
+    const selectedCollection = useMemo(
+        () => (creatingNew ? null : collections?.find(c => c.slug === collectionSlug) ?? null),
+        [collections, collectionSlug, creatingNew],
+    );
+
+    // Keep the description field in sync with whichever collection is selected, so editing
+    // it here updates that collection rather than leaving behind a stale value from before.
+    useEffect(() => {
+        setCollectionDescription(creatingNew ? '' : selectedCollection?.description ?? '');
+    }, [creatingNew, selectedCollection]);
 
     async function handlePublish() {
         setBusy(true);
@@ -58,8 +69,14 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
                 if (!cleanSlug || !newTitle.trim()) throw new Error('New collection needs a slug and title.');
                 await upsertAdminCollection(token, {
                     slug: cleanSlug, title: newTitle.trim(), cover_emoji: newEmoji.trim() || undefined,
+                    description: collectionDescription.trim() || undefined,
                 });
                 slug = cleanSlug;
+            } else if (selectedCollection && collectionDescription.trim() !== (selectedCollection.description ?? '')) {
+                await upsertAdminCollection(token, {
+                    slug: selectedCollection.slug, title: selectedCollection.title,
+                    description: collectionDescription.trim() || null,
+                });
             }
             const published = await publishTeam(token, {
                 source_team_id: team.team_id,
@@ -123,7 +140,18 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
                                 <span className="text-[12px] font-semibold text-(--text-secondary)">Slug</span>
                                 <input className={inputClass} value={newSlug} onChange={e => setNewSlug(e.target.value)} placeholder="all-time-lineups" />
                             </label>
+                            <label className="flex flex-col gap-1 col-span-3">
+                                <span className="text-[12px] font-semibold text-(--text-secondary)">Description <span className="text-(--text-tertiary)">(shown under the title)</span></span>
+                                <input className={inputClass} value={collectionDescription} onChange={e => setCollectionDescription(e.target.value)} placeholder="Teams featured by the creator of Showdown Bot." />
+                            </label>
                         </div>
+                    )}
+
+                    {!creatingNew && (
+                        <label className="flex flex-col gap-1">
+                            <span className="text-[12px] font-semibold text-(--text-secondary)">Collection description <span className="text-(--text-tertiary)">(shown under the title)</span></span>
+                            <input className={inputClass} value={collectionDescription} onChange={e => setCollectionDescription(e.target.value)} placeholder="Teams featured by the creator of Showdown Bot." />
+                        </label>
                     )}
 
                     <label className="flex flex-col gap-1">
