@@ -1405,7 +1405,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
 
                                             <FormEnabler
-                                                label={<span className="inline-flex items-center gap-1.5">Hide Split/Date Text <NewBadge /></span>}
+                                                label={
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        Hide Split/Date Text <NewBadge />
+                                                        <InfoTooltip text="Removes the banner that normally shows the split or date range used for this card's stats (e.g. 'First Half' or '2023-05-01 to 2023-10-01'). Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition, since those already communicate the card's context without it." />
+                                                    </span>
+                                                }
                                                 className='col-span-full'
                                                 isEnabled={form.disable_display_text_on_card || false}
                                                 onChange={(isEnabled) => setForm({ ...form, disable_display_text_on_card: !isEnabled })}
