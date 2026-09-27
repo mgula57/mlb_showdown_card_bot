@@ -95,6 +95,26 @@ _MAX_STATUS_LEN = 1000
 _SIM_MAX_RUNTIME_SECONDS = int(os.environ.get('SIM_MAX_RUNTIME_SECONDS', 240))
 
 
+def _process_memory_mb() -> tuple[float | None, float | None]:
+    """(current RSS, peak RSS) of this whole worker process in MB - process-wide, so another sim
+    running in the same worker shows up here too. Linux reads /proc; elsewhere only the peak is
+    available (`ru_maxrss` is bytes on macOS, KB on Linux)."""
+    try:
+        with open('/proc/self/status') as status:
+            fields = dict(line.split(':', 1) for line in status if line.startswith(('VmRSS', 'VmHWM')))
+        return int(fields['VmRSS'].split()[0]) / 1024, int(fields['VmHWM'].split()[0]) / 1024
+    except (OSError, KeyError, ValueError):
+        import resource
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return None, peak / 2**20 if sys.platform == 'darwin' else peak / 1024
+
+
+def _memory_str(rss: float | None, peak: float, start_rss: float | None = None) -> str:
+    rss_str = 'n/a' if rss is None else f"{rss:.0f} MB"
+    delta_str = f" ({rss - start_rss:+.0f} MB this run)" if rss is not None and start_rss is not None else ''
+    return f"worker rss {rss_str}{delta_str}, peak {peak:.0f} MB"
+
+
 def _dyno_id() -> str:
     """Identifies the process a sim worker runs in, stamped on the job row so a hung job can be
     lined up against platform restart logs. `DYNO` on Heroku (e.g. 'web.1'), hostname elsewhere;
@@ -1067,7 +1087,8 @@ def _run_sim_job(
     # LAST PHASE THE WORKER REPORTED - MIRRORED IN-PROCESS SO THE WATCHDOG, THE `finally` GUARD
     # AND THE CRASH LOGS CAN NAME WHERE A RUN DIED WITHOUT A DB READ.
     progress_state = {'phase': 'starting'}
-    print(f"[sim {job_id}] starting (thread={threading.current_thread().name}, dyno={dyno})")
+    start_rss, start_peak = _process_memory_mb()
+    print(f"[sim {job_id}] starting (thread={threading.current_thread().name}, dyno={dyno}, {_memory_str(start_rss, start_peak)})")
 
     def _elapsed() -> float:
         return time.monotonic() - started_at
@@ -1287,7 +1308,18 @@ def _run_sim_job(
                     )
         except Exception:
             traceback.print_exc()
-        print(f"[sim {job_id}] worker exited (t+{_elapsed():.0f}s)")
+        end_rss, end_peak = _process_memory_mb()
+        try:
+            with PostgresDB() as db:
+                db.record_sim_job_memory(job_id, {
+                    'rss_start_mb': round(start_rss, 1) if start_rss is not None else None,
+                    'rss_end_mb': round(end_rss, 1) if end_rss is not None else None,
+                    'peak_start_mb': round(start_peak, 1),
+                    'peak_end_mb': round(end_peak, 1),
+                })
+        except Exception:
+            traceback.print_exc()
+        print(f"[sim {job_id}] worker exited (t+{_elapsed():.0f}s, {_memory_str(end_rss, end_peak, start_rss)})")
 
 
 # ----------------------------------------------------------

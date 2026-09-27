@@ -8737,6 +8737,8 @@ class PostgresDB:
             # and the process it ran on (see `reap_stale_sim_jobs` / `update_sim_job_progress`).
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+            # WORKER PROCESS RSS AT START/END OF THE RUN (SEE `record_sim_job_memory`).
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS memory JSONB;")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_user_id ON internal.sim_job (user_id, created_at DESC);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_team_id ON internal.sim_job (team_id, created_at DESC);")
             # DRIVES BOTH THE STALE-JOB REAPER AND TTL CLEANUP
@@ -9232,6 +9234,7 @@ class PostgresDB:
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games_total INT;")
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
             cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS memory JSONB;")
         _sim_job_forensic_columns_ready = True
 
     def update_sim_job_progress(
@@ -9277,6 +9280,21 @@ class PostgresDB:
                  progress_games_total, last_status, dyno, job_id),
             )
             return cur.rowcount > 0
+
+    def record_sim_job_memory(self, job_id: str, memory: dict) -> None:
+        """Store the worker process's memory readings for a run (`rss_start_mb`, `rss_end_mb`,
+        `peak_start_mb`, `peak_end_mb`). Written after the job is terminal, so unlike the progress
+        writes this has no status guard. Ensures the column itself, so a run that failed before
+        `ensure_sim_job_progress_column` still records its memory."""
+        if not self.connection:
+            return
+        if not _sim_job_forensic_columns_ready:
+            self.ensure_sim_job_progress_column()
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.sim_job SET memory = %s WHERE job_id = %s",
+                (extras.Json(memory), job_id),
+            )
 
     def finish_sim_job(self, job_id: str, error: str | None = None, error_context: dict | None = None) -> None:
         """Terminal update. The result itself lives on `sim_season`, not here.
@@ -9418,6 +9436,7 @@ class PostgresDB:
             if not _sim_job_forensic_columns_ready:
                 cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
                 cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS memory JSONB;")
                 _sim_job_forensic_columns_ready = True
             cur.execute(
                 """
