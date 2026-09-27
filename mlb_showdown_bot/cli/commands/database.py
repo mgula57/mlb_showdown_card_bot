@@ -508,7 +508,7 @@ def build_logging_tables(
     """Build logging tables in the archive database"""
     from ...core.database.postgres_db import PostgresDB
 
-    print("Building logging tables in the archive database...")
+    print("Building logging tables in the database...")
     is_production = env.lower() == "prod"
     db = PostgresDB(is_archive=is_production)
     db.build_logging_tables()
