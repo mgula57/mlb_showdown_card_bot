@@ -228,6 +228,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
+    const [is2026NoticeDismissed, setIs2026NoticeDismissed] = useState(
+        () => localStorage.getItem('customCardBuilder2026StatsNotice') === 'true'
+    );
     const previewSectionRef = useRef<HTMLDivElement>(null);
     const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
 
@@ -1221,6 +1224,22 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                 {!isFormCollapsed && (
                                     <>
+                                        {!is2026NoticeDismissed && (
+                                            <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug text-blue-100 bg-linear-to-br from-blue-500 via-blue-700 to-red-700 shadow-lg shadow-blue-900/40">
+                                                <button
+                                                    onClick={() => {
+                                                        localStorage.setItem('customCardBuilder2026StatsNotice', 'true');
+                                                        setIs2026NoticeDismissed(true);
+                                                    }}
+                                                    aria-label="Dismiss"
+                                                    className="absolute top-2 right-2 text-blue-300 hover:text-white transition-colors cursor-pointer"
+                                                >
+                                                    <FaXmark size={12} />
+                                                </button>
+                                                Please note: 2026 cards may shift slightly over the next month as defensive metrics, weighting adjustments, and other finalizations are completed.
+                                            </div>
+                                        )}
+
                                         <PlayerSearchInput
                                             label=""
                                             value={query}
