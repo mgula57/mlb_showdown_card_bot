@@ -22,6 +22,14 @@ type BuildDefaultTeamPayloadArgs = {
     overrides?: Partial<TeamCreatePayload>;
 };
 
+/** Appends a "next" ordinal to a base name, e.g. for the Nth auto-named team sharing that base.
+ *  `priorCount` is how many teams already exist with that base name (0 for the first one). The
+ *  first team is left unnumbered ("Name"), matching how people naturally count: the second is
+ *  "Name 2", not "Name 1". */
+export function numberedName(base: string, priorCount: number): string {
+    return priorCount === 0 ? base : `${base} ${priorCount + 1}`;
+}
+
 export function buildDefaultTeamPayload({ displayName, showdownSet, defaultPrimaryColor, defaultSecondaryColor, overrides }: BuildDefaultTeamPayloadArgs): TeamCreatePayload {
     const name = `${displayName} New Team`;
     const abbreviation = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase() || 'TEAM';

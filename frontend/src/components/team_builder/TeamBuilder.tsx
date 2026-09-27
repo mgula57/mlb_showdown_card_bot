@@ -13,7 +13,7 @@ import {
     type TeamSummary,
     type TeamUpdatePayload,
 } from '../../api/userTeams';
-import { buildDefaultTeamPayload } from '../../domain/newTeam';
+import { buildDefaultTeamPayload, numberedName } from '../../domain/newTeam';
 import {
     fetchShowdownTeam, fetchAsgShowdownTeam, fetchEraShowdownTeam,
     type Season,
@@ -434,11 +434,17 @@ export default function TeamBuilder() {
             const existingTeams = await fetchUserTeams(token);
             const name = challenge
                 // Numbered per that challenge (by template, so every rotation of the same challenge
-                // shares the count), not across all teams.
-                ? `${displayName} - ${challenge.title} ${existingTeams.filter(t => t.origin_template_id === challenge.template_id).length + 1}`
+                // shares the count), not across all teams. The first attempt gets no number.
+                ? numberedName(
+                    `${displayName} - ${challenge.title}`,
+                    existingTeams.filter(t => t.origin_template_id === challenge.template_id).length,
+                )
                 // Numbered across the user's non-challenge teams only, so challenge attempts don't
-                // bump the plain "New Team" counter.
-                : `${displayName} Team ${existingTeams.filter(t => t.creation_source !== 'challenge').length + 1}`;
+                // bump the plain "New Team" counter. The first team gets no number.
+                : numberedName(
+                    `${displayName} Team`,
+                    existingTeams.filter(t => t.creation_source !== 'challenge').length,
+                );
             const payload = buildDefaultTeamPayload({
                 displayName,
                 showdownSet: userShowdownSet,
