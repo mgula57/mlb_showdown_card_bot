@@ -31,10 +31,16 @@ class GamesClient(BaseMLBClient):
         decisions_raw = live_data.get("decisions", {})
         plays_raw = live_data.get("plays", {})
 
+        official_date = game_data.get("datetime", {}).get("officialDate")
+        try:
+            game_year = int(official_date[:4]) if official_date else None
+        except ValueError:
+            game_year = None
+
         def _extract_team_info(side: str) -> dict:
             team_raw = game_data.get("teams", {}).get(side, {})
             abbreviation = team_raw.get("abbreviation", "")
-            team_match = ShowdownTeam.map_from_mlb_api_team(abbreviation)
+            team_match = ShowdownTeam.map_from_mlb_api_team(abbreviation, year=game_year)
             return {
                 "id": team_raw.get("id"),
                 "name": team_raw.get("name"),

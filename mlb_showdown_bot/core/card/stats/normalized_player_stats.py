@@ -9,6 +9,7 @@ from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Playe
 from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
+from ...shared.team import Team as ShowdownTeam
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague, TeamSelection
 from .datasource import Datasource
@@ -863,7 +864,7 @@ class PlayerStatsNormalizer:
             team = split.team
             if team and team.abbreviation:
                 games_played = split.stat.get('gamesPlayed', 0)
-                bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation)
+                bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation, year=split.season)
                 team_games_played[bref_id] = team_games_played.get(bref_id, 0) + games_played
 
         # REVERSE ORDER OF THE DICT
@@ -907,18 +908,11 @@ class PlayerStatsNormalizer:
         return PlayerStatsNormalizer._select_team_id(team_games_played, stats_period)
 
     @staticmethod
-    def _convert_to_bref_team_id(team_id: str) -> str:
-        """Converts MLB API team ID to Baseball Reference team ID if needed"""
-        conversion_map = {
-            'AZ': 'ARI',
-            'CWS': 'CHW',
-            'KC': 'KCR',
-            'SD': 'SDP',
-            'SF': 'SFG',
-            'TB': 'TBR',
-            'WSH': 'WSN',
-        }
-        return conversion_map.get(team_id, team_id)
+    def _convert_to_bref_team_id(team_id: str, year: Optional[str | int] = None) -> str:
+        """Converts an MLB API team abbreviation to its Baseball Reference team id, delegating to
+        Team.map_from_mlb_api_team so defunct franchises (e.g. 1953-65 Milwaukee) resolve
+        correctly when the stat split's `year` is passed."""
+        return ShowdownTeam.map_from_mlb_api_team(team_id, year=year).value
 
     @staticmethod
     def _extract_league_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
@@ -943,7 +937,7 @@ class PlayerStatsNormalizer:
             team = split.team
             if not team or not team.abbreviation:
                 continue
-            team_bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation)
+            team_bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation, year=split.season)
             if team_bref_id == primary_team_id:
                 if team.league and team.league.abbreviation:
                     return team.league.abbreviation
@@ -976,7 +970,7 @@ class PlayerStatsNormalizer:
             
             game_date = split.date
             game_pk = split.game.get('gamePk', None) if split.game else None
-            team_id = PlayerStatsNormalizer._convert_to_bref_team_id(split.team.abbreviation) if split.team and split.team.abbreviation else None
+            team_id = PlayerStatsNormalizer._convert_to_bref_team_id(split.team.abbreviation, year=split.season) if split.team and split.team.abbreviation else None
             lg_id = split.team.league.abbreviation if split.team and split.team.league else None
             stats_normalized = {}
             for key, value in stats.items():

@@ -249,7 +249,7 @@ def fetch_full_cards():
                 team_override = override_data.get('team', None)
                 if team_override:
                     # If team override, make sure it conforms to Team Enum
-                    team_cleaned = Team.map_from_mlb_api_team(team_override)  # This will raise an error if the team name is invalid
+                    team_cleaned = Team.map_from_mlb_api_team(team_override, year=int(season))  # This will raise an error if the team name is invalid
                     if 'color_primary' not in override_data:
                         override_data['color_primary'] = f'rgb({team_cleaned.primary_color[0]}, {team_cleaned.primary_color[1]}, {team_cleaned.primary_color[2]})'
                         override_data['color_secondary'] = f'rgb({team_cleaned.secondary_color[0]}, {team_cleaned.secondary_color[1]}, {team_cleaned.secondary_color[2]})'
@@ -295,7 +295,7 @@ def fetch_compact_cards():
                 team_override = override_data.get('team', None)
                 if team_override:
                     # If team override, make sure it conforms to Team Enum
-                    team_cleaned = Team.map_from_mlb_api_team(team_override)  # This will raise an error if the team name is invalid
+                    team_cleaned = Team.map_from_mlb_api_team(team_override, year=int(season))  # This will raise an error if the team name is invalid
                     if 'color_primary' not in override_data:
                         override_data['color_primary'] = f'rgb({team_cleaned.primary_color[0]}, {team_cleaned.primary_color[1]}, {team_cleaned.primary_color[2]})'
                         override_data['color_secondary'] = f'rgb({team_cleaned.secondary_color[0]}, {team_cleaned.secondary_color[1]}, {team_cleaned.secondary_color[2]})'

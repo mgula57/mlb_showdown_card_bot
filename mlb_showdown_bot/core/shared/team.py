@@ -168,8 +168,28 @@ class Team(str, Enum):
         return cls.MLB
     
     @staticmethod
-    def map_from_mlb_api_team(mlb_api_team: str) -> 'Team':
-        """Helper method to map a team object from the MLB API to a Team enum member. This is used to convert team data from the MLB API into the corresponding Team enum member based on the team's abbreviation."""
+    def map_from_mlb_api_team(mlb_api_team: str, year: Optional[int] = None) -> 'Team':
+        """Helper method to map a team object from the MLB API to a Team enum member. This is used to convert team data from the MLB API into the corresponding Team enum member based on the team's abbreviation.
+
+        The API reports a defunct franchise's own season-specific abbreviation (not a modern
+        one) for any year it played, and a couple of those codes collide with an unrelated
+        current franchise's abbreviation - 'MIL' is both the 1953-65 Milwaukee Braves and the
+        modern Brewers; 'WAS' is both Washington Senators franchises (the API doesn't even use
+        'WSH' for the pre-1961 one). Pass `year` whenever it's known so these resolve to the
+        correct bref-style historical Team instead of the wrong modern one (or, for 'WAS',
+        falling through to the generic `Team.MLB`).
+        """
+        try:
+            year_int = int(year)
+        except (TypeError, ValueError):
+            year_int = None
+
+        # Catch defunct franchises with overlapping modern abbreviations based on the year
+        if year_int is not None:
+            if mlb_api_team == 'MIL' and 1953 <= year_int <= 1965:
+                return Team.MLN
+            if mlb_api_team == 'WAS' and 1901 <= year_int <= 1960:
+                return Team.WSH
         conversion_map = {
             'AZ': 'ARI',
             'CWS': 'CHW',

@@ -27,7 +27,7 @@ def normalized_team_abbr(api_abbreviation: Optional[str], year: int) -> Optional
     """
     if api_abbreviation is None:
         return None
-    showdown_team = ShowdownTeam.map_from_mlb_api_team(api_abbreviation)
+    showdown_team = ShowdownTeam.map_from_mlb_api_team(api_abbreviation, year=year)
     if showdown_team is None or showdown_team == ShowdownTeam.MLB:
         return api_abbreviation
     return showdown_team.for_year(year).value

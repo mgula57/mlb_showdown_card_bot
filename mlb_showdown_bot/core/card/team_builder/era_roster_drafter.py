@@ -42,6 +42,16 @@ class EraRosterDrafter(RosterToTeamConverter):
     BULLPEN_MIN_SIZE = 7  # including the closer
     BENCH_MIN_SIZE = 5
 
+    # Pre-1980 bullpens were overwhelmingly starters-turned-relievers with far fewer dedicated
+    # roles than the modern game, while benches ran deeper -- so an era whose pool is entirely
+    # older than this cutoff (i.e. every decade through the 1970s) skews the floor toward the
+    # bench instead. Determined from the pool's own years (see __init__), not passed in, to keep
+    # this class's "no era-awareness of its own" design -- a decade pool is naturally all one side
+    # of the cutoff, while ALL_TIME's pool tops out in the present day and keeps the modern split.
+    PRE_1980_CUTOFF_YEAR = 1980
+    PRE_1980_BULLPEN_MIN_SIZE = 5
+    PRE_1980_BENCH_MIN_SIZE = 7
+
     # A card's `ip` rating (distinct from `real_ip`, that season's real innings total) is how
     # many innings that pitcher can go per appearance in the simulated game -- real bullpens are
     # overwhelmingly one-inning arms, so a bullpen stacked with multi-inning (ip > 1) firemen
@@ -94,6 +104,11 @@ class EraRosterDrafter(RosterToTeamConverter):
         fallback_only = [c for c in self._best_season_per_player(cards) if (c.mlb_id, c.player_type) not in qualified_keys]
         self._qualified_card_ids = {c.card_id for c in qualified_best}
         cards = self._cap_multi_inning_relievers(qualified_best + fallback_only)
+        years = [c.year for c in cards if c.year is not None]
+        if years and max(years) < self.PRE_1980_CUTOFF_YEAR:
+            self._bullpen_min_size, self._bench_min_size = self.PRE_1980_BULLPEN_MIN_SIZE, self.PRE_1980_BENCH_MIN_SIZE
+        else:
+            self._bullpen_min_size, self._bench_min_size = self.BULLPEN_MIN_SIZE, self.BENCH_MIN_SIZE
         super().__init__(
             cards=cards,
             team_id=team_id,
@@ -234,8 +249,10 @@ class EraRosterDrafter(RosterToTeamConverter):
         core_count: int, max_roster_size: int,
     ) -> tuple[list[ExploreDataRecord], list[ExploreDataRecord]]:
         """Fill the remaining roster slots (beyond lineup + rotation + closer) with a guaranteed
-        floor of BULLPEN_MIN_SIZE relievers (closer included) and BENCH_MIN_SIZE bench bats
-        (see _select_bench for the bench's own backup-catcher/infielder/outfielder quota).
+        floor of bullpen relievers (closer included) and bench bats -- BULLPEN_MIN_SIZE /
+        BENCH_MIN_SIZE, or the PRE_1980_* variants for an era pool that's entirely older than
+        PRE_1980_CUTOFF_YEAR (see __init__ and _bullpen_min_size/_bench_min_size) -- (see
+        _select_bench for the bench's own backup-catcher/infielder/outfielder quota).
 
         The base class pools bench and bullpen together and keeps whoever has the most points --
         fine for a real season, but a career-bests pool starves the bench entirely that way,
@@ -248,8 +265,8 @@ class EraRosterDrafter(RosterToTeamConverter):
         remaining = max(0, max_roster_size - core_count)
         bullpen_rest = [c for c in bullpen if c is not closer]
 
-        bullpen_min = max(0, min(self.BULLPEN_MIN_SIZE - (1 if closer else 0), len(bullpen_rest), remaining))
-        bench_min = min(self.BENCH_MIN_SIZE, len(bench), max(0, remaining - bullpen_min))
+        bullpen_min = max(0, min(self._bullpen_min_size - (1 if closer else 0), len(bullpen_rest), remaining))
+        bench_min = min(self._bench_min_size, len(bench), max(0, remaining - bullpen_min))
 
         guaranteed_bullpen = bullpen_rest[:bullpen_min]
         guaranteed_bench = self._select_bench(bench, bench_min)

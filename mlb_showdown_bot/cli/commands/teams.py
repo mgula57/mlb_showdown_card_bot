@@ -162,7 +162,7 @@ def build_historical_teams(
                     'team_id': api_team.id,
                     'abbreviation': team_abbr,
                     'name': api_team.name,
-                    'bref_team_id': api_team.bref_team,
+                    'bref_team_id': api_team.bref_team(year=season_year),
                     'league_id': api_team.league.id if api_team.league else None,
                     'league_name': api_team.league.name if api_team.league else None,
                     'division_name': api_team.division.name if api_team.division else None,
@@ -263,7 +263,7 @@ def build_era_rosters(
             abbr = api_team.abbreviation or str(api_team.id)
             team_specs.append(_EraTeamSpec(
                 id=api_team.id, name=api_team.name or abbr, abbreviation=abbr, team_abbr=abbr,
-                bref_team_id=api_team.bref_team,
+                bref_team_id=api_team.bref_team(year=current_year),
                 league_id=api_team.league.id if api_team.league else None,
                 league_name=api_team.league.name if api_team.league else None,
                 division_name=api_team.division.name if api_team.division else None,

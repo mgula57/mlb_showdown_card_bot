@@ -456,7 +456,7 @@ class MLBGameSimulator:
         team = self._team_node(side).get('team') or {}
         abbreviation = team.get('abbreviation') or side.upper()
         # NORMALIZE THROUGH THE SHOWDOWN TEAM ENUM SO THE ABBREVIATION MATCHES THE ONE CARDS USE.
-        showdown_team = ShowdownTeam.map_from_mlb_api_team(abbreviation)
+        showdown_team = ShowdownTeam.map_from_mlb_api_team(abbreviation, year=self.season)
         if showdown_team is not None and showdown_team != ShowdownTeam.MLB:
             abbreviation = showdown_team.value
         return SimTeamIdentity(

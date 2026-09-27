@@ -2051,7 +2051,7 @@ class PostgresDB:
             return []
         # The MLB API reports a franchise's modern abbreviation for every season, but the archive
         # stores the era-correct one (1998 Tampa Bay is TBD, not TBR), so resolve backwards first.
-        bref_team = Team.map_from_mlb_api_team(team_abbr).for_year(season)
+        bref_team = Team.map_from_mlb_api_team(team_abbr, year=season).for_year(season)
         if bref_team in (Team.MLB, Team.MILB):
             return []
         historical_query = sql.SQL("""
@@ -8602,7 +8602,7 @@ class PostgresDB:
                                 if game.teams:
                                     for tl in [game.teams.home, game.teams.away]:
                                         if tl and tl.is_winner and tl.team and tl.team.abbreviation:
-                                            winner_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                            winner_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                             break
                                 game.decisions.winner.card = winner_card
                         if game.decisions.loser and game.decisions.loser.id:
@@ -8611,7 +8611,7 @@ class PostgresDB:
                                 if game.teams:
                                     for tl in [game.teams.home, game.teams.away]:
                                         if tl and not tl.is_winner and tl.team and tl.team.abbreviation:
-                                            loser_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                            loser_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                             break
                                 game.decisions.loser.card = loser_card
                     continue
@@ -8624,7 +8624,7 @@ class PostgresDB:
                             pitcher_card = card_dict.get(team.probable_pitcher.id)
                             if pitcher_card:
                                 if team.team and team.team.abbreviation:
-                                    pitcher_card.update_with_mlb_api_team(team.team.abbreviation)
+                                    pitcher_card.update_with_mlb_api_team(team.team.abbreviation, year=season)
                                 team.probable_pitcher.card = pitcher_card
                     continue
 
@@ -8636,7 +8636,7 @@ class PostgresDB:
                             if offense_team_ref and offense_team_ref.id and game.teams:
                                 for tl in [game.teams.away, game.teams.home]:
                                     if tl and tl.team and tl.team.id == offense_team_ref.id and tl.team.abbreviation:
-                                        batter_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                        batter_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                         break
                             game.linescore.offense.batter.card = batter_card
                     if game.linescore.defense and game.linescore.defense.pitcher and game.linescore.defense.pitcher.id:
@@ -8646,7 +8646,7 @@ class PostgresDB:
                             if defense_team_ref and defense_team_ref.id and game.teams:
                                 for tl in [game.teams.away, game.teams.home]:
                                     if tl and tl.team and tl.team.id == defense_team_ref.id and tl.team.abbreviation:
-                                        pitcher_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                        pitcher_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                         break
                             game.linescore.defense.pitcher.card = pitcher_card
         
