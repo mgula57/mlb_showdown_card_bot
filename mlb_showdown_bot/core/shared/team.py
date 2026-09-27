@@ -191,6 +191,8 @@ class Team(str, Enum):
                 return Team.MLN
             if mlb_api_team == 'WAS' and 1901 <= year_int <= 1960:
                 return Team.WSH
+            if mlb_api_team == 'WAS' and 1961 <= year_int <= 1971:
+                return Team.WSA
             if mlb_api_team == 'SEA' and year_int == 1969:
                 return Team.SEP
         conversion_map = {

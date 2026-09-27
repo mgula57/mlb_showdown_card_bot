@@ -66,6 +66,7 @@ def build_historical_teams(
     season: Optional[int] = typer.Option(None, "--season", "-y", help="Single season to process (overrides the range)"),
     start_season: int = typer.Option(1901, "--start-season", help="First season of the range to process"),
     end_season: int = typer.Option(datetime.now().year, "--end-season", help="Last season of the range to process"),
+    teams: Optional[str] = typer.Option(None, "--teams", "-t", help="Comma-separated list of teams to restrict processing to: a current abbreviation (e.g. NYY,ATL) or a numeric MLB team id. Omit to process every team."),
     sport_id: int = typer.Option(1, "--sport-id", help="MLB Stats API sport id (1 = MLB)"),
     showdown_set: str = typer.Option("EXPANDED", "--set", "-s", help="Reference set whose cards drive the playing-time sort"),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Print each composed roster without writing to DB"),
@@ -77,6 +78,11 @@ def build_historical_teams(
     the resulting slots keyed by mlb_id. Slots are set-agnostic — the underlying playing time is
     the same across sets — so --set only picks which set's cards are read to do the sorting.
     Storing the result turns the request-time path into a lookup instead of a recomposition.
+
+    --teams filters by the MLB API's numeric team id (stable across a franchise's whole history,
+    unlike its abbreviation - e.g. id 144 covers both the 1955 Milwaukee Braves and the current
+    Atlanta Braves). A plain abbreviation is resolved against the *current* season's teams first,
+    so `--teams ATL` still pulls every Braves season back to 1901.
     """
     try:
         showdown_set_enum = Set(showdown_set)
@@ -88,6 +94,31 @@ def build_historical_teams(
     seasons.sort(reverse=True)
 
     api = MLBStatsAPI()
+
+    requested_team_ids: Optional[set[int]] = None
+    if teams:
+        tokens = [t.strip() for t in teams.split(",") if t.strip()]
+        requested_team_ids = set()
+        unresolved: list[str] = []
+        abbr_to_id: dict[str, int] = {}
+        for token in tokens:
+            if token.isdigit():
+                requested_team_ids.add(int(token))
+                continue
+            if not abbr_to_id:
+                # Lazily resolve current-season teams once, only if an abbreviation was given.
+                for current_team in api.teams.get_teams(season=None, sport_id=sport_id):
+                    if current_team.abbreviation:
+                        abbr_to_id[current_team.abbreviation.upper()] = current_team.id
+            team_id = abbr_to_id.get(token.upper())
+            if team_id is None:
+                unresolved.append(token)
+            else:
+                requested_team_ids.add(team_id)
+        if unresolved:
+            typer.echo(f"Could not resolve team(s): {', '.join(unresolved)}. Use a current abbreviation (e.g. NYY) or numeric MLB team id.", err=True)
+            raise typer.Exit(1)
+
     db = PostgresDB(is_archive=(env.lower() == "prod"))
     if not dry_run:
         db.build_historical_team_tables()
@@ -100,6 +131,11 @@ def build_historical_teams(
         except Exception as exc:
             typer.echo(f"  {season_year}: skipped — could not fetch teams ({exc})", err=True)
             continue
+
+        if requested_team_ids is not None:
+            api_teams = [t for t in api_teams if t.id in requested_team_ids]
+            if not api_teams:
+                continue
 
         season_teams = 0
         season_slots = 0
