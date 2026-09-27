@@ -266,6 +266,89 @@
     animation: card-glow-pulse 3s ease-in-out infinite;
 }
 
+/* Card processing ring — a comet of light that orbits the card's border while its image/data
+   loads. The conic gradient's start angle is a registered custom property so it can animate
+   smoothly; the mask punches out the content box, leaving only a `--ring-width` border. Colors
+   come from --ring-a/--ring-b (set inline to team colors), falling back to the Showdown palette. */
+@property --ring-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes card-ring-spin {
+    to { --ring-angle: 360deg; }
+}
+
+@keyframes card-ring-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.card-processing-ring {
+    --ring-width: 3px;
+    position: absolute;
+    inset: calc(var(--ring-width) * -1);
+    padding: var(--ring-width);
+    border-radius: calc(1rem + var(--ring-width));
+    pointer-events: none;
+    background: conic-gradient(
+        from var(--ring-angle),
+        transparent 0deg,
+        color-mix(in srgb, var(--ring-a, var(--showdown-blue)) 40%, transparent) 50deg,
+        var(--ring-a, var(--showdown-blue)) 110deg,
+        #ffffff 150deg,
+        var(--ring-b, var(--showdown-red)) 175deg,
+        transparent 180deg,
+        transparent 360deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    animation:
+        card-ring-spin 1.6s linear infinite,
+        card-ring-fade-in 0.3s ease-out;
+}
+
+/* Soft bloom trailing the ring — same gradient, wider and blurred. */
+.card-processing-ring--glow {
+    --ring-width: 8px;
+    filter: blur(10px);
+    opacity: 0.8;
+}
+
+/* Small matching spinner for the status pill. */
+.card-processing-spinner {
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background: conic-gradient(
+        from var(--ring-angle),
+        transparent 0deg,
+        var(--ring-a, var(--showdown-blue)) 200deg,
+        var(--ring-b, var(--showdown-red)) 360deg
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+    animation: card-ring-spin 0.9s linear infinite;
+}
+
+/* Logo centered on the card while it processes — slow breathe in sync-ish with the ring. */
+@keyframes card-processing-logo-breathe {
+    0%, 100% { transform: scale(1);    opacity: 0.9; }
+    50%      { transform: scale(1.04); opacity: 1; }
+}
+
+.card-processing-logo {
+    animation: card-processing-logo-breathe 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-processing-ring,
+    .card-processing-spinner { animation-duration: 4s; }
+    .card-processing-logo { animation: none; }
+}
+
 /* Live-game indicators. Was declared in inline <style> blocks inside ScoreHeader and
    MatchupStrip, which re-injected the same keyframes on every render. */
 @keyframes live-pulse {

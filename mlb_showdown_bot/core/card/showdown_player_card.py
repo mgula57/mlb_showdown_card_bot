@@ -1317,6 +1317,7 @@ class ShowdownPlayerCard(BaseModel):
             case PlayerSubType.STARTING_PITCHER:
                 if (ip_per_start or 0) > 0:
                     # USE IP/GS
+                    print(f"ip_per_start: {ip_per_start}, games_started: {games_started}, innings_pitched: {innings_pitched}, rounded: {round(ip_per_start)}")
                     ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
                 elif games_started > 0:
                     # HAVE GAMES STARTED DATA, ESTIMATE RP INNINGS AND NORMALIZE

@@ -12,13 +12,13 @@
 import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaBaseballBall } from 'react-icons/fa';
 import { FaPlus } from 'react-icons/fa6';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import CustomSelect from '../shared/CustomSelect';
+import ShowdownBotLogo from '../shared/ShowdownBotLogo';
 
 import { imageForSet, showdownSets } from "../shared/SiteSettingsContext";
 
@@ -552,59 +552,65 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                             />
                         </div>
                     )}
-                    <img
-                        src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
-                        alt="Blank Player"
-                        key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
-                        className={`
-                            block
-                            @2xl:mx-auto
-                            ${cardImageMaxHeight}
-                            rounded-2xl overflow-hidden
-                            object-contain
-                            fade-in
-                            ${isLoadingOverall ? 'blur-xs' : ''}
-                            ${activeCardData?.card?.image ? 'card-glow-pulse' : ''}
-                        `}
-                        style={activeCardData?.card?.image ? {
-                            '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
-                            '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
-                            '--card-glow-hi': addOpacityToRGB(teamGlowColor, 0.85),
-                        } as CSSProperties : {
-                            boxShadow: `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
-                                        0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
-                                        0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
-                        }}
-                    /> 
+                    {/* Wrapper shrinks to the rendered image so the processing ring traces the
+                        card's actual edges rather than the full grid column. */}
+                    <div className="relative w-fit @2xl:mx-auto">
+                        <img
+                            src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
+                            alt="Blank Player"
+                            key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
+                            className={`
+                                block
+                                @2xl:mx-auto
+                                ${cardImageMaxHeight}
+                                rounded-2xl overflow-hidden
+                                object-contain
+                                fade-in
+                                ${isLoadingOverall ? 'blur-xs' : ''}
+                                ${activeCardData?.card?.image ? 'card-glow-pulse' : ''}
+                            `}
+                            style={activeCardData?.card?.image ? {
+                                '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
+                                '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
+                                '--card-glow-hi': addOpacityToRGB(teamGlowColor, 0.85),
+                            } as CSSProperties : {
+                                boxShadow: `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
+                                            0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
+                                            0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
+                            }}
+                        />
 
-                    {/* Loading Overlay */}
-                    {isLoadingOverall && (
-                        <div className={`
-                            absolute inset-0 
-                            flex items-center justify-center 
-                        `}>
-                            <div className="
-                                flex flex-col items-center 
-                                bg-secondary/90 
-                                px-6 py-4 
-                            ">
-                                <FaBaseballBall 
-                                    className="
-                                        text-white text-3xl mb-2
-                                        animate-bounce
-                                    " 
-                                    style={{
-                                        animationDuration: '0.8s',
-                                        animationIterationCount: 'infinite'
-                                    }}
-                                />
-                                <p className="text-white text-sm font-semibold">
-                                    {isSwitchingSet ? 'Switching Set...' : `Generating ${isGeneratingImage ? 'Image...' : 'Card...'}`}
-                                </p>
+                        {/* Loading Overlay — orbiting border ring + glass status pill */}
+                        {isLoadingOverall && (
+                            <div
+                                className="absolute inset-0 flex items-center justify-center"
+                                style={activeCardData?.card?.image ? {
+                                    '--ring-a': teamGlowColor,
+                                    '--ring-b': teamGlowColor,
+                                } as CSSProperties : undefined}
+                            >
+                                <div className="card-processing-ring card-processing-ring--glow" />
+                                <div className="card-processing-ring" />
+                                <div className="fade-in flex flex-col items-center gap-4 w-1/2 max-w-56">
+                                    <ShowdownBotLogo className="card-processing-logo w-full drop-shadow-lg" />
+                                    <div className="
+                                        flex items-center gap-2
+                                        px-4 py-2
+                                        rounded-full whitespace-nowrap
+                                        bg-(--background-secondary)/70 backdrop-blur-md
+                                        border border-(--divider)
+                                        shadow-lg
+                                    ">
+                                        <div className="card-processing-spinner" />
+                                        <p className="text-xs font-semibold tracking-wide">
+                                            {isSwitchingSet ? 'Switching Set' : `Generating ${isGeneratingImage ? 'Image' : 'Card'}`}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>            
+                        )}
+                    </div>
+                </div>
 
                 {/* Right column */}
                 <div className={`flex flex-col gap-3 ${cardImageMaxHeight}`}>
