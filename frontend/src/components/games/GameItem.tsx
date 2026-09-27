@@ -60,7 +60,6 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
     const isPostponed = game.state === 'POSTPONED';
     const isInProgress = game.state === 'LIVE';
     const hasStarted = !isNotStarted;
-    const canSim = isNotStarted || isInProgress;
 
     const awayRecord = game.away.record;
     const homeRecord = game.home.record;
@@ -170,16 +169,6 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                     {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                    {canSim && onSimSelect && (
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onSimSelect(gamePk); }}
-                            className="flex items-center gap-1 rounded-full animated-showdown-gradient px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white cursor-pointer hover:opacity-90 transition-opacity"
-                        >
-                            <FaTerminal className="h-2.5 w-2.5" />
-                            Sim this
-                        </button>
-                    )}
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
                         {stateBadgeLabel}
                     </span>
@@ -206,6 +195,18 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                         )}
                     </div>
                 </div>
+
+                {/* Sim this - shown in place of the score for games that haven't started */}
+                {isNotStarted && onSimSelect && (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSimSelect(gamePk); }}
+                        className="flex flex-col items-center justify-center gap-0.5 rounded-lg animated-showdown-gradient px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide text-white cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                    >
+                        <FaTerminal className="h-3 w-3" />
+                        Sim It!
+                    </button>
+                )}
 
                 {/* Live Bases and Outs */}
                 {isInProgress && liveBasesAndOuts}
