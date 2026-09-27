@@ -2889,11 +2889,15 @@ class PostgresDB:
 
     def fetch_era_candidate_pool(self, team_abbr: Optional[str], showdown_set: str,
                                   start_year: int, end_year: int) -> list[ExploreDataRecord]:
-        """Every non-small-sample card_bot season recorded within [start_year, end_year] -- the
-        raw material for an Era Roster (all-time or a single decade; see RosterEraRegistry, whose
-        (start_year, end_year) the caller passes through) -- for one MLB team (`team_abbr` given),
-        or league-wide across every team (`team_abbr=None`, for a cross-team "All-MLB" era roster
-        -- see LEAGUE_WIDE_TEAM_ID) with no team filter at all.
+        """Every non-small-sample, organization='MLB' card_bot season recorded within
+        [start_year, end_year] -- the raw material for an Era Roster (all-time or a single decade;
+        see RosterEraRegistry, whose (start_year, end_year) the caller passes through) -- for one
+        MLB team (`team_abbr` given), or league-wide across every team (`team_abbr=None`, for a
+        cross-team "All-MLB" era roster -- see LEAGUE_WIDE_TEAM_ID) with no team filter at all.
+
+        The organization filter excludes non-MLB leagues (e.g. Negro Leagues rows tagged 'NGL',
+        such as NNL/NAL/ECL) that would otherwise be eligible now that ALL_TIME/decade eras reach
+        back into the 1920s.
 
         This is a coarse pre-filter only — is_small_sample_size is a low "played enough to show
         up" bar (250 PA / 75 IP-SP / 30 IP-RP). The caller (EraRosterDrafter) applies the real
@@ -2918,6 +2922,7 @@ class PostgresDB:
                 WHERE cards.year BETWEEN %s AND %s
                     AND cards.showdown_set = %s
                     AND COALESCE(cards.is_small_sample_size, false) = false
+                    AND COALESCE(cards.organization, 'MLB') = 'MLB'
             """)
             rows = self.execute_query(query=query, filter_values=(start_year, end_year, showdown_set))
             return [ExploreDataRecord(**row) for row in (rows or [])]
@@ -2943,6 +2948,7 @@ class PostgresDB:
                 WHERE cards.team_id = %s AND cards.year BETWEEN %s AND %s
                     AND cards.showdown_set = %s
                     AND COALESCE(cards.is_small_sample_size, false) = false
+                    AND COALESCE(cards.organization, 'MLB') = 'MLB'
             """)
             rows = self.execute_query(query=query, filter_values=(abbr, y0, y1, showdown_set))
             all_cards.extend(ExploreDataRecord(**row) for row in (rows or []))
