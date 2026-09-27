@@ -27,10 +27,11 @@ import supabase  # noqa: E402,F401
 # independently of what the request threads are doing.
 worker_class = 'gthread'
 
-# One sim per worker (`SIM_MAX_CONCURRENT=1`), so this is the dyno's concurrent-sim capacity: a
-# sim is CPU-bound and holds the GIL, so parallelism has to come from processes, not threads.
-# Sized for a 1 GB Standard-2X: a sim peaks ~170 MB above an idle worker, and a worker keeps ~100 MB
-# of that afterward. Check `internal.sim_job.memory` before raising it further.
+# The dyno runs up to `workers x SIM_MAX_CONCURRENT` sims at once. A sim is CPU-bound and holds the
+# GIL, so only the worker count buys real parallelism: sims sharing a worker take turns on one core
+# rather than running side by side. Memory scales with every concurrent sim though - sized for a
+# 1 GB Standard-2X, each peaks ~170 MB above an idle worker and a worker keeps ~100 MB of that
+# afterward. Check `internal.sim_job.memory` before raising either knob.
 workers = int(os.environ.get('WEB_CONCURRENCY', 2))
 threads = int(os.environ.get('WEB_THREADS', 4))
 
