@@ -1,4 +1,5 @@
 import { FaStar } from "react-icons/fa6";
+import { FaTerminal } from "react-icons/fa";
 
 import type { GameView } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
@@ -16,6 +17,7 @@ type GameItemProps = {
     cardMap?: Record<string | number, CardDatabaseRecord>;
     isLoadingCards?: boolean;
     onSelect?: (gamePk: number) => void;
+    onSimSelect?: (gamePk: number) => void;
 };
 
 const formatGameTime = (gameDate?: string): string => {
@@ -52,12 +54,13 @@ const formatGameDate = (gameDate?: string, includeTime: boolean = false): string
     }).format(parsedDate);
 };
 
-export default function GameItem({ game, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, cardMap, isLoadingCards, onSelect }: GameItemProps) {
+export default function GameItem({ game, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, cardMap, isLoadingCards, onSelect, onSimSelect }: GameItemProps) {
     const isFinal = game.state === 'FINAL';
     const isNotStarted = game.state === 'PREVIEW';
     const isPostponed = game.state === 'POSTPONED';
     const isInProgress = game.state === 'LIVE';
     const hasStarted = !isNotStarted;
+    const canSim = isNotStarted || isInProgress;
 
     const awayRecord = game.away.record;
     const homeRecord = game.home.record;
@@ -166,9 +169,21 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                     )}
                     {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
                 </div>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
-                    {stateBadgeLabel}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                    {canSim && onSimSelect && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onSimSelect(gamePk); }}
+                            className="flex items-center gap-1 rounded-full animated-showdown-gradient px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white cursor-pointer hover:opacity-90 transition-opacity"
+                        >
+                            <FaTerminal className="h-2.5 w-2.5" />
+                            Sim this
+                        </button>
+                    )}
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
+                        {stateBadgeLabel}
+                    </span>
+                </div>
             </div>
 
             <div className="border-t border-(--divider)" />

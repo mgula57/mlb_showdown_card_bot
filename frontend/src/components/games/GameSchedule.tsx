@@ -20,6 +20,7 @@ type GameScheduleProps = {
     starredTeamIds?: Set<number>;
     isLoading?: boolean;
     onGameSelect?: (gamePk: number) => void;
+    onGameSimSelect?: (gamePk: number) => void;
     onRefresh?: () => void;
 };
 
@@ -48,7 +49,7 @@ function GameItemSkeleton() {
     );
 }
 
-export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, isLoading, onGameSelect, onRefresh }: GameScheduleProps) {
+export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, isLoading, onGameSelect, onGameSimSelect, onRefresh }: GameScheduleProps) {
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoadingCards, setIsLoadingCards] = useState(false);
 
@@ -231,6 +232,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                             key={game.id}
                             game={game}
                             onSelect={onGameSelect}
+                            onSimSelect={onGameSimSelect}
                             showMatchupDetails={true}
                             cardMap={cardMap}
                             isLoadingCards={isLoadingCards}

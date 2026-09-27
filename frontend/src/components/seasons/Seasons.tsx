@@ -45,6 +45,7 @@ import { SimulationGuideModal } from "../simulate/SimulationGuideModal";
 import { RecentSims } from "../simulate/RecentSims";
 import { WhatsNewBanner } from "../shared/WhatsNewBanner";
 import { NewBadge } from "../shared/NewBadge";
+import { BetaBadge } from "../shared/BetaBadge";
 import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
 const formatScheduleDate = (date?: string): string => {
@@ -233,6 +234,21 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         navigate(`/seasons/game/${gamePk}`);
     };
 
+    // "Sim this" badge on a schedule item — opens straight into the game's sim/takeover setup.
+    const handleGameSimSelect = (gamePk: number) => {
+        navigate(`/seasons/game/${gamePk}?sim_setup=1`);
+    };
+
+    const openSimSetupOnGameLoad = selectedGamePk !== null && new URLSearchParams(location.search).get('sim_setup') === '1';
+
+    // Strip `?sim_setup=1` once consumed so it doesn't re-trigger on refresh/back-nav; GameDetail
+    // reads the flag on mount (via the prop above) before this clears it.
+    useEffect(() => {
+        if (!openSimSetupOnGameLoad || selectedGamePk === null) return;
+        navigate(`/seasons/game/${selectedGamePk}`, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openSimSetupOnGameLoad, selectedGamePk]);
+
     const handleGameBack = () => {
         navigate('/seasons', { replace: true });
     };
@@ -241,6 +257,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // is hidden for this release), and a running/finished sim still gets its own /simulate/:jobId page.
     const [isSimModalOpen, setIsSimModalOpen] = useState(false);
     const [isSimGuideOpen, setIsSimGuideOpen] = useState(false);
+
+    // Schedule tab beta callout — dismissed permanently once the user closes it
+    const GAMEDAY_BETA_NOTICE_KEY = "seasons.gamedaySimBetaNoticeDismissed";
+    const [isGamedayBetaNoticeDismissed, setIsGamedayBetaNoticeDismissed] = useState<boolean>(
+        () => getStoredValue(GAMEDAY_BETA_NOTICE_KEY) === "true"
+    );
+    const dismissGamedayBetaNotice = () => {
+        setStoredValue(GAMEDAY_BETA_NOTICE_KEY, "true");
+        setIsGamedayBetaNoticeDismissed(true);
+    };
 
     const handleOpenSim = (jobId: string) => {
         navigate(`/simulate/${jobId}`);
@@ -931,7 +957,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
-                                        {(tab.id === "awards" || tab.id === "simulate") && <NewBadge />}
+                                        {(tab.id === "awards" || tab.id === "simulate" || tab.id === "schedule") && <NewBadge />}
                                     </Tabs.Trigger>
 
                                     {isTeamsTab && (
@@ -1044,6 +1070,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             <div className="w-full bg-(--background-primary)">
                 <GameDetail
                     gamePk={selectedGamePk}
+                    openSimSetupOnMount={openSimSetupOnGameLoad}
                     sportId={selectedSport?.id}
                     season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : undefined}
                     showdownSet={userShowdownSet}
@@ -1249,6 +1276,22 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         forceMount
                                     >
                                         <div className="px-3 lg:px-0 space-y-5 lg:pt-6 lg:pr-6">
+                                                {!isGamedayBetaNoticeDismissed && (
+                                                    <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug border border-violet-500/30 bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                                                        <button
+                                                            type="button"
+                                                            onClick={dismissGamedayBetaNotice}
+                                                            aria-label="Dismiss"
+                                                            className="absolute top-2 right-2 text-violet-500/70 hover:text-violet-700 dark:hover:text-violet-200 transition-colors cursor-pointer"
+                                                        >
+                                                            <FaXmark size={12} />
+                                                        </button>
+                                                        <span className="inline-flex items-center gap-1.5 flex-wrap">
+                                                            <BetaBadge />
+                                                            Try the new Gameday and Sim Takeover experiences — jump into a live game or take over a season mid-way through and simulate the rest.
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div className="rounded-xl bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
@@ -1323,6 +1366,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
                                                     isLoading={isLoadingSchedule}
                                                     onGameSelect={handleGameSelect}
+                                                    onGameSimSelect={handleGameSimSelect}
                                                     onRefresh={() => {
                                                         // Force re-fetch games schedule for the current date
                                                         setGamesDate((previous) => new Date(previous));

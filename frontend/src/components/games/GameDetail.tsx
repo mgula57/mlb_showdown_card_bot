@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { bannerTokens, getReadableTextColor } from "../../functions/colors";
 import { ordinal } from "../../functions/formatters";
@@ -53,11 +53,13 @@ type GameDetailProps = {
     showdownSet?: string;
     /** When false, stops auto-refresh polling (e.g. user switched to another tab) */
     isActive?: boolean;
+    /** Opens the sim/takeover setup modal as soon as the game is eligible (e.g. from a "Sim this" badge) */
+    openSimSetupOnMount?: boolean;
     className?: string;
     onBack: () => void;
 };
 
-export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, className, onBack }: GameDetailProps) {
+export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, openSimSetupOnMount, className, onBack }: GameDetailProps) {
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
     const [mobileTab, setMobileTab] = useState<MobileTab>('field');
@@ -91,6 +93,20 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
         setLivePaused, applyBuffer,
     } = useGameDetailData({ gamePk, sportId, season, showdownSet, isActive, simResult });
+
+    // Deep-linked from a "Sim this" badge — open the setup modal as soon as we know the game is
+    // still simulatable. Guarded by a ref (not just the prop) since the caller clears the
+    // triggering query param right after navigating, which would otherwise re-run this on every
+    // boxscore refresh.
+    const hasAutoOpenedSimSetupRef = useRef(false);
+    useEffect(() => {
+        if (!openSimSetupOnMount || hasAutoOpenedSimSetupRef.current || !boxscore) return;
+        hasAutoOpenedSimSetupRef.current = true;
+        const state = fromBoxscoreDetail(boxscore, sportId).state;
+        if (state === "PREVIEW" || state === "LIVE") {
+            setShowSimSetup(true);
+        }
+    }, [openSimSetupOnMount, boxscore, sportId]);
 
     // The new panels all render from the canonical GameView; the raw boxscore stays the source
     // for the batting/pitching tables and game info, which carry MLB-only detail. The actual

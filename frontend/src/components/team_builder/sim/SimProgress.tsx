@@ -99,10 +99,13 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="absolute top-1 right-1 z-10 cursor-pointer rounded-lg border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-primary"
+                        className="absolute top-1 right-1 z-10 flex cursor-pointer flex-col items-center rounded-lg border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-primary"
                     >
-                        <FaRotate className="inline-block mr-1 text-[11px]" />
-                        Sim Stuck? Retry
+                        <span>Sim Stuck?</span>
+                        <span className="inline-flex items-center gap-1">
+                            <FaRotate className="text-[11px]" />
+                            Retry
+                        </span>
                     </button>
                 )}
 
