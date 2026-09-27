@@ -23,6 +23,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
     const [seasons, setSeasons] = useState<SimSeasonListItem[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [showAllSeasons, setShowAllSeasons] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(RECENT_LIMIT);
     const isGridLayout = layout === 'grid';
     const layoutClass = isGridLayout ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2';
 
@@ -45,7 +46,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
     const seasonToggle = seasonYear !== undefined && seasons && seasons.length > 0 && (hiddenByFilter > 0 || showAllSeasons) ? (
         <button
             type="button"
-            onClick={() => setShowAllSeasons(prev => !prev)}
+            onClick={() => { setShowAllSeasons(prev => !prev); setVisibleCount(RECENT_LIMIT); }}
             className="text-[11px] font-semibold text-(--text-secondary) hover:text-(--text-primary) underline underline-offset-2 cursor-pointer"
         >
             {showAllSeasons ? `Show only ${seasonYear}` : `Show all seasons${hiddenByFilter > 0 ? ` (${hiddenByFilter} more)` : ''}`}
@@ -87,10 +88,12 @@ export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
         );
     }
 
+    const remaining = visibleSeasons.length - visibleCount;
+
     return (
         <div className={layoutClass}>
             {seasonToggle && <div className="flex justify-end pb-0.5">{seasonToggle}</div>}
-            {visibleSeasons.slice(0, RECENT_LIMIT).map(entry => (
+            {visibleSeasons.slice(0, visibleCount).map(entry => (
                 <SimSeasonRow
                     key={entry.entry_id}
                     entry={entry}
@@ -99,6 +102,15 @@ export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
                     onOpen={() => entry.job_id && onOpen(entry.job_id)}
                 />
             ))}
+            {remaining > 0 && (
+                <button
+                    type="button"
+                    onClick={() => setVisibleCount(prev => prev + RECENT_LIMIT)}
+                    className="text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) py-2 cursor-pointer"
+                >
+                    Show more ({remaining} more)
+                </button>
+            )}
         </div>
     );
 }

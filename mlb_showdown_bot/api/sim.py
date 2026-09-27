@@ -31,7 +31,7 @@ sim_bp = Blueprint('sim', __name__)
 
 # A season sim is CPU-bound Python that holds the GIL for most of its run. This cap is PER WORKER
 # PROCESS, so a dyno actually runs up to `gunicorn workers x _MAX_CONCURRENT_SIMS` at once - with
-# the two workers in gunicorn.conf.py, two. Raising it does not get anyone their result sooner:
+# the four workers in gunicorn.conf.py, four. Raising it does not get anyone their result sooner:
 # the dyno's CPU is fixed, so concurrent sims just slow each other down until the borderline ones
 # cross `_SIM_MAX_RUNTIME_SECONDS` and get killed. `SIM_MAX_CONCURRENT` retunes it without a code
 # change (e.g. after moving to a bigger dyno).
