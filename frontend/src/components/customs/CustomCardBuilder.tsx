@@ -480,7 +480,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
                 if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
-                if (form.disable_display_text_on_card) summaries.push({ value: "Hide Split/Date Text", borderColor: 'border-green-500' });
+                if (form.disable_display_text_on_card) summaries.push({ value: "Hide Date Text", borderColor: 'border-green-500' });
                 break;
                 
             case 'image':
@@ -1407,7 +1407,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <FormEnabler
                                                 label={
                                                     <span className="inline-flex items-center gap-1.5">
-                                                        Hide Split/Date Text <NewBadge />
+                                                        Hide Date Text <NewBadge />
                                                         <InfoTooltip text="Removes the banner that normally shows the split or date range used for this card's stats (e.g. 'First Half' or '2023-05-01 to 2023-10-01'). Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition, since those already communicate the card's context without it." />
                                                     </span>
                                                 }
