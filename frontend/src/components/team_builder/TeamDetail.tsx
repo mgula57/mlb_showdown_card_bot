@@ -479,10 +479,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // Set restrictions are per card source, so the draft panel's filters follow the active tab.
     const { allowed_sets, allowed_sets_by_source, player_filters } = draft;
     // Team-settings player restrictions + allowed sets — locked, the drafter can't clear these.
+    // Player restrictions (team/bats/etc.) only make sense against Showdown Bot's generated
+    // pool — WOTC's card pool is fixed and historical, so those filters don't apply to it.
     const teamRestrictionFilters = useMemo(() => {
         const sets = allowedSetsForSource({ allowed_sets, allowed_sets_by_source }, draftSource);
         return {
-            ...(player_filters ?? {}),
+            ...(draftSource === CardSource.BOT ? (player_filters ?? {}) : {}),
             ...(sets.length ? { showdown_set: sets } : {}),
         };
     }, [draftSource, allowed_sets, allowed_sets_by_source, player_filters]);
