@@ -230,6 +230,13 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
     const filteredGGPositions = GG_POSITIONS.filter(pos => (Number(season) < 2022 ? pos !== 'UT' : true));
     const filteredSSPositions = SS_POSITIONS.filter(pos => (Number(season) < 2022 ? pos !== 'UT' : true));
 
+    // Awards did not exist (or were not awarded per-league) prior to these seasons
+    const showCyYoung = Number(season) >= 1967;
+    const showGoldGlove = Number(season) >= 1958;
+    const showSilverSlugger = Number(season) >= 1980;
+
+    const filteredSingleWinnerAwards = SINGLE_WINNER_AWARDS.filter(({ key }) => key !== 'CY' || showCyYoung);
+
     // ==========================================================================
     // MARK: - Render
     // ==========================================================================
@@ -253,7 +260,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
             ) : (
                 <div className="space-y-6">
                     {/* MVP / Cy Young / Rookie of the Year */}
-                    {SINGLE_WINNER_AWARDS.map(({ key, label }) => (
+                    {filteredSingleWinnerAwards.map(({ key, label }) => (
                         <div key={key}>
                             <div className="mb-3 lg:pr-6">
                                 <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
