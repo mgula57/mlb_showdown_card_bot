@@ -44,6 +44,7 @@ import { SeasonSimSetupForm } from "../simulate/SeasonSimSetupForm";
 import { SimulationGuideModal } from "../simulate/SimulationGuideModal";
 import { RecentSims } from "../simulate/RecentSims";
 import { WhatsNewBanner } from "../shared/WhatsNewBanner";
+import { NewBadge } from "../shared/NewBadge";
 import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
 const formatScheduleDate = (date?: string): string => {
@@ -930,6 +931,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
+                                        {(tab.id === "awards" || tab.id === "simulate") && <NewBadge />}
                                     </Tabs.Trigger>
 
                                     {isTeamsTab && (

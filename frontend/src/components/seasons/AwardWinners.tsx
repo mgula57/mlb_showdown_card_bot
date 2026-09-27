@@ -306,63 +306,67 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     ))}
 
                     {/* Gold Glove */}
-                    <div>
-                        <div className="mb-3 lg:pr-6">
-                            <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                                Gold Glove
-                            </span>
+                    {showGoldGlove && (
+                        <div>
+                            <div className="mb-3 lg:pr-6">
+                                <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                                    Gold Glove
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
+                                {LEAGUES.map(league => (
+                                    <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
+                                        <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                            {league}
+                                        </span>
+                                        <FieldView
+                                            lineup={buildGoldGloveLineup(league)}
+                                            cardMap={cardMap}
+                                            onSlotClick={() => {}}
+                                            readOnly
+                                            isLoadingCards={isLoadingCards}
+                                            positions={filteredGGPositions}
+                                            headerLabel="Gold Glove"
+                                            showDefenseSummary={true}
+                                            notFoundLabels={notFoundLabels}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
-                            {LEAGUES.map(league => (
-                                <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
-                                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                                        {league}
-                                    </span>
-                                    <FieldView
-                                        lineup={buildGoldGloveLineup(league)}
-                                        cardMap={cardMap}
-                                        onSlotClick={() => {}}
-                                        readOnly
-                                        isLoadingCards={isLoadingCards}
-                                        positions={filteredGGPositions}
-                                        headerLabel="Gold Glove"
-                                        showDefenseSummary={true}
-                                        notFoundLabels={notFoundLabels}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    )}
 
                     {/* Silver Slugger */}
-                    <div>
-                        <div className="mb-3 lg:pr-6">
-                            <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                                Silver Slugger
-                            </span>
+                    {showSilverSlugger && (
+                        <div>
+                            <div className="mb-3 lg:pr-6">
+                                <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                                    Silver Slugger
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
+                                {LEAGUES.map(league => (
+                                    <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
+                                        <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                            {league}
+                                        </span>
+                                        <FieldView
+                                            lineup={buildSilverSluggerLineup(league)}
+                                            cardMap={cardMap}
+                                            onSlotClick={() => {}}
+                                            readOnly
+                                            isLoadingCards={isLoadingCards}
+                                            positions={filteredSSPositions.filter(pos => (Number(season) < 2020 && Number(season) !== 2021 && league === 'NL' ? pos !== 'DH' : true))}
+                                            headerLabel="Silver Slugger"
+                                            showDefenseSummary={true}
+                                            detailStat1Category="hr"
+                                            notFoundLabels={notFoundLabels}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
-                            {LEAGUES.map(league => (
-                                <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
-                                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                                        {league}
-                                    </span>
-                                    <FieldView
-                                        lineup={buildSilverSluggerLineup(league)}
-                                        cardMap={cardMap}
-                                        onSlotClick={() => {}}
-                                        readOnly
-                                        isLoadingCards={isLoadingCards}
-                                        positions={filteredSSPositions.filter(pos => (Number(season) < 2020 && Number(season) !== 2021 && league === 'NL' ? pos !== 'DH' : true))}
-                                        headerLabel="Silver Slugger"
-                                        showDefenseSummary={true}
-                                        detailStat1Category="hr"
-                                        notFoundLabels={notFoundLabels}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    )}
                 </div>
             )}
 
