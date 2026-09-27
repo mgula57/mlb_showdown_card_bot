@@ -54,6 +54,7 @@ Follow any game pitch by pitch, or take over and let Showdown decide the rest.
 ### Custom Card Builder
 - New option to hide the split or date text on a card
 - New option to pull small sample sizes toward replacement level for more realistic stats
+- UI and animation updates
 
 ### Explore
 - Flip between card sets right from a card's detail view
