@@ -6,6 +6,8 @@ worker kills every simulation running in it, mid-phase, with no chance to record
 settings here exist mostly to stop that from happening.
 """
 
+import ctypes
+import ctypes.util
 import os
 
 # Set before the app is imported under `preload_app`, so `app.py` knows to skip its eager
@@ -58,6 +60,34 @@ accesslog = '-'
 errorlog = '-'
 
 
+# glibc `mallopt` params (malloc.h). Linux-only; `_libc` stays None elsewhere (e.g. macOS dev).
+_M_MMAP_THRESHOLD = -3
+_M_ARENA_MAX = -8
+_libc = ctypes.CDLL(ctypes.util.find_library('c')) if hasattr(ctypes.CDLL(None), 'mallopt') else None
+
+
+def _tune_malloc():
+    """Stop card-image buffers from lingering in the worker after a request.
+
+    Pillow frees image blocks (up to 16 MB each; a full card layer is ~12.6 MB) straight back to
+    malloc. glibc's default mmap threshold is adaptive: the first such free raises it to that
+    block size, so every later image lands in a heap arena instead, where fragmentation keeps it
+    from ever being returned to the OS. Pinning the threshold keeps large buffers on mmap, which
+    are unmapped the moment they're freed. Capping arenas stops each gthread thread from growing
+    its own heap.
+    """
+    if _libc is None:
+        return
+    _libc.mallopt(_M_MMAP_THRESHOLD, 1024 * 1024)
+    _libc.mallopt(_M_ARENA_MAX, 2)
+
+
+def post_request(worker, req, environ, resp):
+    """Hand freed-but-retained heap pages back to the OS after each request."""
+    if _libc is not None:
+        _libc.malloc_trim(0)
+
+
 def post_fork(server, worker):
     """Give each worker its own database connections.
 
@@ -68,6 +98,7 @@ def post_fork(server, worker):
     """
     from mlb_showdown_bot.core.database.postgres_db import _discard_pools_after_fork, _get_pool
 
+    _tune_malloc()
     _discard_pools_after_fork()
     _get_pool('DATABASE_URL_LOGS')
     _get_pool('DATABASE_URL_ARCHIVE')
