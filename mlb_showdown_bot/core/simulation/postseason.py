@@ -162,7 +162,7 @@ class Postseason:
     def __init__(
         self, year: int, standings: Standings, format: PostseasonFormat, start_date: date,
         collect_box_score: bool = False, platoon_roll_adjustment: int = 0,
-        real_bracket: Optional[RealPostseasonBracket] = None,
+        real_bracket: Optional[RealPostseasonBracket] = None, keep_innings: bool = True,
     ) -> None:
         self.year = year
         self.standings = standings
@@ -170,6 +170,7 @@ class Postseason:
         self.start_date = start_date
         self.collect_box_score = collect_box_score
         self.platoon_roll_adjustment = platoon_roll_adjustment
+        self.keep_innings = keep_innings
         # SET ONLY FOR A `resume_from_real_postseason` RUN - SEE `simulate` FOR HOW EACH SERIES
         # GETS SEEDED FROM IT.
         self.real_bracket = real_bracket
@@ -409,7 +410,7 @@ class Postseason:
                         home_team.process_il_returns_for_date(game_date=game.date)
                         away_team.process_il_returns_for_date(game_date=game.date)
                         game.setup(home_team=home_team, away_team=away_team, postseason=True)
-                        game.simulate(rng=rng, collect_box_score=self.collect_box_score, platoon_roll_adjustment=self.platoon_roll_adjustment)
+                        game.simulate(rng=rng, collect_box_score=self.collect_box_score, platoon_roll_adjustment=self.platoon_roll_adjustment, keep_innings=self.keep_innings)
                         if series.series_stats is not None:
                             series.series_stats.merge(game.home_team.stats)
                             series.series_stats.merge(game.away_team.stats)

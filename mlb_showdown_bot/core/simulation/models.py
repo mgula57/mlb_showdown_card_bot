@@ -255,6 +255,9 @@ class SeasonSimulationConfig(BaseModel):
 
     include_game_logs: bool = False
     include_box_scores: bool = False
+    # KEEP EACH FINISHED GAME'S `Inning`/`Runners` MODELS. OFF, THEY'RE DROPPED IN `finalize_game`
+    # ONCE THE LINESCORE IS BUILT - ~40 KB A GAME, ~100 MB OVER A FULL SEASON.
+    keep_game_innings: bool = False
 
     # REST-OF-SEASON PROJECTION. WHEN ENABLED, EVERY CLUB'S REAL RECORD AS OF `resume_as_of_date`
     # (DEFAULT: TODAY) SEEDS ITS SIMULATED ONE, AND ONLY GAMES AFTER THAT DATE ARE SIMULATED - SEE

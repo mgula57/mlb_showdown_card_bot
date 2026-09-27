@@ -76,7 +76,7 @@ def _get_pool(env_var_name: str) -> 'psycopg2_pool.ThreadedConnectionPool | None
         return _pools.get(env_var_name)
 from datetime import date, datetime, timezone
 from pydantic import BaseModel, Field
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, Iterator, List
 from enum import Enum
 
 # MODELS
@@ -467,7 +467,23 @@ class PostgresDB:
         output = [dict(row) for row in db_cursor.fetchall()]
 
         return output
-    
+
+    def iter_query_batches(self, query: sql.SQL, filter_values: tuple = None, batch_size: int = 200) -> Iterator[list[dict]]:
+        """`execute_query`, but rows are converted to Python (jsonb decoded) `batch_size` at a time,
+        so a wide result never has every decoded row alive at once."""
+
+        if self.connection is None:
+            return
+
+        with self.connection.cursor(cursor_factory=RealDictCursor) as db_cursor:
+            try:
+                db_cursor.execute(query, filter_values)
+            except:
+                print(db_cursor.mogrify(query, filter_values).decode())
+                return
+            while rows := db_cursor.fetchmany(batch_size):
+                yield [dict(row) for row in rows]
+
     def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:Team = None, type_override:PlayerType = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[PlayerArchive, float]:
         """Query the player_season_stats table for a particular player's data from a single year
         
@@ -1643,6 +1659,11 @@ class PostgresDB:
             return {}, {}, {}
 
         card_data_expression, values = self._card_data_select("dim.card_data", strip_diagnostics)
+        # EVERY REAL GAME A PLAYER PLAYED - ~83% OF A CARD'S `stats` AND UNREAD BY A REGULAR-SEASON
+        # CARD (`StatsPeriodType.stats_dict_key` IS None). DROPPED SERVER-SIDE SO IT'S NEVER DECODED.
+        card_data_expression = sql.SQL("({expression}) #- '{{stats,game_logs}}' #- '{{stats,postseason_game_logs}}'").format(
+            expression=card_data_expression,
+        )
         query = sql.SQL("""
             WITH pool AS MATERIALIZED (
                 SELECT
@@ -1664,24 +1685,29 @@ class PostgresDB:
         archive_card_ids: dict[str, str] = {}
         team_history: dict[str, tuple[list[str], dict[str, int]]] = {}
         try:
-            rows = sorted(self.execute_query(query=query, filter_values=tuple(values)) or [], key=lambda row: row['seq'])
-            for row in rows:
-                if not row.get('card_data'):
-                    continue
-                player_id = str(row['player_id'])
-                card = ShowdownPlayerCard(**row['card_data'])
-                cards[player_id] = card
-                archive_card_ids[card.id] = str(row['card_id'])
+            # CARDS ARE BUILT A BATCH AT A TIME AS ROWS DECODE, THEN PUT IN `seq` ORDER - HOLDING
+            # EVERY DECODED ROW AT ONCE LEFT ~90 MB OF FRAGMENTED HEAP BEHIND AFTER THE LOAD.
+            built: list[tuple[int, str, str, ShowdownPlayerCard]] = []
+            for batch in self.iter_query_batches(query=query, filter_values=tuple(values)):
+                for row in batch:
+                    if not row.get('card_data'):
+                        continue
+                    player_id = str(row['player_id'])
+                    built.append((row['seq'], player_id, str(row['card_id']), ShowdownPlayerCard(**row['card_data'])))
 
-                team_id_list = row.get('team_id_list') or []
-                if len(team_id_list) > 1:
-                    games_dict = row.get('team_games_played_dict')
-                    if isinstance(games_dict, str):
-                        games_dict = json.loads(games_dict) if games_dict else {}
-                    team_history[player_id] = (
-                        list(team_id_list),
-                        {str(k): int(v) for k, v in (games_dict or {}).items()},
-                    )
+                    team_id_list = row.get('team_id_list') or []
+                    if len(team_id_list) > 1:
+                        games_dict = row.get('team_games_played_dict')
+                        if isinstance(games_dict, str):
+                            games_dict = json.loads(games_dict) if games_dict else {}
+                        team_history[player_id] = (
+                            list(team_id_list),
+                            {str(k): int(v) for k, v in (games_dict or {}).items()},
+                        )
+
+            for _, player_id, card_id, card in sorted(built, key=lambda entry: entry[0]):
+                cards[player_id] = card
+                archive_card_ids[card.id] = card_id
         except Exception as e:
             print("Error fetching season card pool:", e)
             traceback.print_exc()

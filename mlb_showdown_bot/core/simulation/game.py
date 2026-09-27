@@ -128,6 +128,8 @@ class Game:
         self.home_box_score: Optional[TeamBoxScore] = None
         self.away_box_score: Optional[TeamBoxScore] = None
         self._collect_box_score = False
+        self._keep_innings = True
+        self.innings_played: Optional[int] = None
 
         # POPULATED IN `finalize_game` FROM `_pitchers_used[0]` - CAPTURED THERE RATHER THAN READ
         # LAZILY IN `as_result` BECAUSE `SimTeam._pitchers_used` IS REBUILT EVERY GAME.
@@ -187,9 +189,10 @@ class Game:
         home_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.away.runs_scored)
         away_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.home.runs_scored)
 
-    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False, platoon_roll_adjustment: int = 0):
+    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False, platoon_roll_adjustment: int = 0, keep_innings: bool = True):
 
         self._collect_box_score = collect_box_score
+        self._keep_innings = keep_innings
 
         total_pa = 0
         half_inning_pa = 0
@@ -363,6 +366,9 @@ class Game:
         self.home_starting_pitcher = self._starting_pitcher(self.home_team)
         self.away_starting_pitcher = self._starting_pitcher(self.away_team)
         self.linescore = self._build_linescore()
+        self.innings_played = self._count_innings_played()
+        if not self._keep_innings:
+            self.innings = []
         if self._collect_box_score:
             self.home_box_score = self._build_team_box_score(self.home_team)
             self.away_box_score = self._build_team_box_score(self.away_team)
@@ -586,8 +592,11 @@ class Game:
             pitching_totals=_sum_pitching_stats(pitching),
         )
 
+    def _count_innings_played(self) -> int:
+        return max((i.inning for i in self.innings if i.is_played), default=1)
+
     def as_result(self) -> GameResult:
-        innings_played = max((i.inning for i in self.innings if i.is_played), default=1)
+        innings_played = self.innings_played if self.innings_played is not None else self._count_innings_played()
         return GameResult(
             index=self.index,
             date=self.date,

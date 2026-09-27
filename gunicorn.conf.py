@@ -14,6 +14,11 @@ import os
 # them per worker instead, which is where they are actually used.
 os.environ['GUNICORN_PRELOAD'] = '1'
 
+# The app imports `supabase` lazily, on first upload. Every web worker uploads (each card build
+# does), so import it here in the master instead: forked workers then share one copy-on-write
+# instead of each importing a private ~40 MB of it after the fork.
+import supabase  # noqa: E402,F401
+
 # gthread, not the default sync worker. A sync worker only heartbeats to the arbiter *between*
 # requests, so any single request slower than `timeout` gets the whole process SIGKILLed - taking
 # every in-flight sim thread in it down as collateral. gthread heartbeats from its own loop

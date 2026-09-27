@@ -7,9 +7,11 @@ Handles file uploads to Supabase Storage buckets and general Supabase operations
 import mimetypes
 import os
 from pathlib import Path
-from typing import Optional
-from supabase import create_client, Client
+from typing import TYPE_CHECKING, Optional
 import logging
+
+if TYPE_CHECKING:
+    from supabase import Client
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class SupabaseClientManager:
         self.client = self._create_client()
     
     @staticmethod
-    def _create_client() -> Client:
+    def _create_client() -> 'Client':
         """
         Create and return a Supabase client for the specified environment.
         
@@ -53,6 +55,10 @@ class SupabaseClientManager:
                 f"Please set SUPABASE_URL and SUPABASE_KEY environment variables."
             )
         
+        # ~40 MB OF IMPORTS (storage3 PULLS IN pyiceberg), SO ONLY PAID BY A PROCESS THAT UPLOADS -
+        # gunicorn.conf.py PRELOADS IT FOR THE WEB DYNO, WHERE EVERY WORKER DOES.
+        from supabase import create_client
+
         return create_client(url, key)
     
     def upload_file(

@@ -47,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-tds', '--trade_deadline_respects_standings', action='store_true', help='With --trade_deadline: a selling club still contending in the sim keeps its player')
     parser.add_argument('-ars', '--active_roster_size', help='Active roster size for real-season teams', type=int, default=26)
     parser.add_argument('-frs', '--full_roster_size', help='Full (active + reserve) roster size for real-season teams', type=int, default=40)
+    parser.add_argument('-ki', '--keep_game_innings', action='store_true', help="Keep each finished game's inning-by-inning state in memory (~100 MB a season)")
     parser.add_argument('-hnd', '--enable_handedness', action='store_true', help='Same-handed matchups (RHP-RHB, LHP-LHB) favor the pitcher on the pitch/swing rolls; opposite-handed matchups favor the hitter')
     return parser.parse_args()
 
@@ -74,6 +75,7 @@ def main():
         tournament_name=args.tournament,
         tournament_games=args.tournament_games,
         include_game_logs=args.show_game_log,
+        keep_game_innings=args.keep_game_innings,
         enable_injuries=args.enable_injuries,
         injury_severity_multiplier=args.injury_severity,
         active_roster_size=args.active_roster_size,
