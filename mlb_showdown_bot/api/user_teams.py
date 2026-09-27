@@ -314,6 +314,15 @@ def autofill_team_route(team_id: str):
             if team_row is None:
                 return jsonify({'error': 'Team not found or access denied'}), 404
 
+            # Grab points per existing roster slot straight off the raw DB row before it's parsed
+            # into a Team: `TeamRosterSlot` deliberately drops card metadata like `points` (it's
+            # transient, refetched wherever it's needed), so this is the only place that data is
+            # available to compute how many points a partially-filled team has already spent.
+            existing_card_points: dict[str, int] = {
+                s['card_id']: s.get('points') or 0
+                for s in (team_row.get('roster') or [])
+            } if isinstance(team_row, dict) else {}
+
             team = Team.from_db_row(team_row) if isinstance(team_row, dict) else team_row
 
             # "Replace existing" wipes the current roster before filling, so autofill drafts a
@@ -324,6 +333,7 @@ def autofill_team_route(team_id: str):
                 team.roster = []
                 team.rotation = []
                 team.lineups = []
+                existing_card_points = {}
 
             if not team.pts_limit and not pts_target:
                 return jsonify({'error': 'Team must have a points limit set, or a target must be provided, to use autofill'}), 400
@@ -369,6 +379,7 @@ def autofill_team_route(team_id: str):
             defense_strategy=defense_strategy,
             catcher_defense_strategy=catcher_defense_strategy,
             pts_target=pts_target,
+            existing_card_points=existing_card_points,
         )
 
         if isinstance(result, tuple):

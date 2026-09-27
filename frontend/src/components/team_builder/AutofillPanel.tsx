@@ -248,7 +248,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                                 <span className="block text-[10.5px] text-(--text-tertiary) leading-snug">
                                     {replaceExisting
                                         ? `All ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''} will be cleared and re-drafted.`
-                                        : `Keep the ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''} and fill the rest.`}
+                                        : `Currently keeping the ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''}, fill the rest.`}
                                 </span>
                             </span>
                         </button>

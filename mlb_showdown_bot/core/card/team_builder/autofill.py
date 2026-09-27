@@ -786,9 +786,24 @@ def _fill_bullpen(
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def _existing_pts_by_bucket(team: Team, cardmap: dict[str, dict], bench_pts_multiplier: float) -> dict[str, int]:
-    """Return points already spent per bucket by slots already on the team."""
+def _existing_pts_by_bucket(
+    team: Team,
+    cardmap: dict[str, dict],
+    bench_pts_multiplier: float,
+    existing_card_points: dict[str, int] | None = None,
+) -> dict[str, int]:
+    """Return points already spent per bucket by slots already on the team.
+
+    `existing_card_points` (card_id -> points, straight from the team's own DB row) is the
+    authoritative source for a card already on the roster. `cardmap` only holds freshly-fetched
+    autofill candidates, which have no reason to include a card the team already owns — falling
+    back to it for an existing pick silently reads 0 points, understating (or zeroing out) what's
+    already spent and inflating every bucket's remaining target back toward the full budget."""
+    existing_card_points = existing_card_points or {}
+
     def pts(card_id: str) -> int:
+        if card_id in existing_card_points:
+            return existing_card_points[card_id] or 0
         return cardmap.get(card_id, {}).get('points') or 0
 
     offense_pos = set(OFFENSE_POSITIONS)
@@ -826,6 +841,7 @@ def autofill_team(
     pts_tolerance: int = 200,
     max_attempts: int = 8,
     pts_target: int | None = None,
+    existing_card_points: dict[str, int] | None = None,
 ) -> dict | tuple[None, str]:
     """
     Fill remaining roster slots using a randomized greedy algorithm.
@@ -834,6 +850,9 @@ def autofill_team(
     candidates_by_bucket: {bucket_name: [card_dicts]} fetched by the endpoint
     pts_distribution: fractions summing to 1.0 keyed by bucket name
     pts_target: one-off budget to use when the team itself has no pts_limit set
+    existing_card_points: card_id -> points for cards already on `team`'s roster/rotation, so
+        buckets that are partially filled get their remaining target reduced by what's already
+        spent (see `_existing_pts_by_bucket`). Omit for a team with no existing roster.
     """
     pts_limit = team.pts_limit or pts_target or 0
     existing_ids = _existing_card_ids(team)
@@ -861,7 +880,7 @@ def autofill_team(
         for c in cards:
             cardmap[c['card_id']] = c
 
-    existing_pts = _existing_pts_by_bucket(team, cardmap, team.bench_pts_multiplier)
+    existing_pts = _existing_pts_by_bucket(team, cardmap, team.bench_pts_multiplier, existing_card_points)
 
     offense_target  = max(0, round(pts_limit * pts_distribution.get('offense',  0.50)) - existing_pts['offense'])
     rotation_target = max(0, round(pts_limit * pts_distribution.get('rotation', 0.27)) - existing_pts['rotation'])
