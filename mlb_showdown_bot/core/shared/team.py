@@ -172,12 +172,13 @@ class Team(str, Enum):
         """Helper method to map a team object from the MLB API to a Team enum member. This is used to convert team data from the MLB API into the corresponding Team enum member based on the team's abbreviation.
 
         The API reports a defunct franchise's own season-specific abbreviation (not a modern
-        one) for any year it played, and a couple of those codes collide with an unrelated
+        one) for any year it played, and a few of those codes collide with an unrelated
         current franchise's abbreviation - 'MIL' is both the 1953-65 Milwaukee Braves and the
         modern Brewers; 'WAS' is both Washington Senators franchises (the API doesn't even use
-        'WSH' for the pre-1961 one). Pass `year` whenever it's known so these resolve to the
-        correct bref-style historical Team instead of the wrong modern one (or, for 'WAS',
-        falling through to the generic `Team.MLB`).
+        'WSH' for the pre-1961 one); 'SEA' is both the 1969 Seattle Pilots (the same franchise
+        id that became the Brewers in 1970) and the modern Mariners. Pass `year` whenever it's
+        known so these resolve to the correct bref-style historical Team instead of the wrong
+        modern one (or, for 'WAS', falling through to the generic `Team.MLB`).
         """
         try:
             year_int = int(year)
@@ -190,11 +191,14 @@ class Team(str, Enum):
                 return Team.MLN
             if mlb_api_team == 'WAS' and 1901 <= year_int <= 1960:
                 return Team.WSH
+            if mlb_api_team == 'SEA' and year_int == 1969:
+                return Team.SEP
         conversion_map = {
             'AZ': 'ARI',
             'CWS': 'CHW',
             'KC': 'KCR',
             'LA': 'LAD',
+            'NYH': 'NYY',  # New York Highlanders (1903-1912) - renamed to the Yankees in 1913, never relocated, so bref keeps 'NYY' for both eras.
             'SD': 'SDP',
             'SF': 'SFG',
             'TB': 'TBR',
