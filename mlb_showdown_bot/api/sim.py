@@ -77,7 +77,7 @@ _seasons_cache: dict[str, tuple[list, datetime]] = {}
 # Seasons the archive has full card coverage for. Before 1977 the card pool is Negro Leagues
 # plus a 16-team MLB whose franchise relocations (BRO/BSN/NYG/PHA/SLB) are not mapped yet, so
 # the schedule cannot be joined to cards - see Team.for_year.
-_EARLIEST_SEASON = 1975
+_EARLIEST_SEASON = 1920
 
 # Longest a single status/setup breadcrumb is allowed to be when stored on the job row.
 _MAX_STATUS_LEN = 1000
