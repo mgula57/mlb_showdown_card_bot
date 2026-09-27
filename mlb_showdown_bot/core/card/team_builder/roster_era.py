@@ -49,8 +49,8 @@ class RosterEraRegistry:
     """
 
     ALL_TIME_KEY = "ALL_TIME"
-    ALL_TIME_START_YEAR = 1901
-    _DECADE_START_FLOOR = 1900
+    ALL_TIME_START_YEAR = 1920
+    _DECADE_START_FLOOR = 1920
 
     @classmethod
     def all_time(cls) -> RosterEra:
