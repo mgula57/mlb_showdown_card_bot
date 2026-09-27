@@ -335,60 +335,65 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                 </div>
             )}
 
-            {searchQuery ? (
-                /* Search results — a flat grid spanning every season */
-                searching ? (
-                    <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
-                ) : searchResults.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
-                ) : (
-                    <div className={horizontalPadding ?? ''}>
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
-                                {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
-                            </div>
-                            <CustomSelect
-                                value={sortBy}
-                                onChange={v => setSortBy(v as SortKey)}
-                                options={SORT_OPTIONS}
-                                buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                                dropdownArrowSize={12}
-                            />
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                            {searchResults.map(team => (
-                                <TeamPreviewCard
-                                    key={`${team.season}-${team.team_id}`}
-                                    team={teamToPreview(team, userShowdownSet)}
-                                    onClick={() => openTeam(team)}
+            {/* Floors the content area to one shelf's height, so switching years (which can
+                drop the shelf list down to a single, still-loading season) doesn't collapse
+                the page and snap it back once data arrives. */}
+            <div className="min-h-80">
+                {searchQuery ? (
+                    /* Search results — a flat grid spanning every season */
+                    searching ? (
+                        <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                    ) : searchResults.length === 0 ? (
+                        <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
+                    ) : (
+                        <div className={horizontalPadding ?? ''}>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                                    {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+                                </div>
+                                <CustomSelect
+                                    value={sortBy}
+                                    onChange={v => setSortBy(v as SortKey)}
+                                    options={SORT_OPTIONS}
+                                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
+                                    dropdownArrowSize={12}
                                 />
-                            ))}
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                {searchResults.map(team => (
+                                    <TeamPreviewCard
+                                        key={`${team.season}-${team.team_id}`}
+                                        team={teamToPreview(team, userShowdownSet)}
+                                        onClick={() => openTeam(team)}
+                                    />
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                )
-            ) : loadingSeasons ? (
-                <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
-            ) : seasons.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No historical teams have been processed yet.</p>
-            ) : filteredSeasons.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams found for {selectedSeason}.</p>
-            ) : (
-                <>
-                    {filteredSeasons.slice(0, visibleCount).map(({ season, team_count }) => (
-                        <SeasonShelf
-                            key={season}
-                            season={season}
-                            teamCount={team_count}
-                            asgLeagues={asgLeaguesBySeason.get(season) ?? []}
-                            showdownSet={userShowdownSet}
-                            onOpenTeam={openTeam}
-                            onOpenAsg={openAsg}
-                            className={horizontalPadding ?? ''}
-                        />
-                    ))}
-                    <div ref={sentinelRef} className="h-8" />
-                </>
-            )}
+                    )
+                ) : loadingSeasons ? (
+                    <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                ) : seasons.length === 0 ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No historical teams have been processed yet.</p>
+                ) : filteredSeasons.length === 0 ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams found for {selectedSeason}.</p>
+                ) : (
+                    <>
+                        {filteredSeasons.slice(0, visibleCount).map(({ season, team_count }) => (
+                            <SeasonShelf
+                                key={season}
+                                season={season}
+                                teamCount={team_count}
+                                asgLeagues={asgLeaguesBySeason.get(season) ?? []}
+                                showdownSet={userShowdownSet}
+                                onOpenTeam={openTeam}
+                                onOpenAsg={openAsg}
+                                className={horizontalPadding ?? ''}
+                            />
+                        ))}
+                        <div ref={sentinelRef} className="h-8" />
+                    </>
+                )}
+            </div>
         </div>
     );
 }
