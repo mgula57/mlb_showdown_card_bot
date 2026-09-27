@@ -280,6 +280,7 @@ def build_era_rosters(
     if not dry_run:
         db.build_era_team_tables()
 
+    api = MLBStatsAPI()
     current_year = datetime.now().year
     if team_id == LEAGUE_WIDE_TEAM_ID:
         team_specs = [_EraTeamSpec(
@@ -288,7 +289,6 @@ def build_era_rosters(
             primary_color=None, secondary_color=None,
         )]
     else:
-        api = MLBStatsAPI()
         api_teams = api.teams.get_teams(season=current_year, sport_id=sport_id)
         if team_id is not None:
             api_teams = [t for t in api_teams if t.id == team_id]
@@ -298,6 +298,9 @@ def build_era_rosters(
             team_with_colors.load_colors_from_showdown_team()
             abbr = api_team.abbreviation or str(api_team.id)
             team_specs.append(_EraTeamSpec(
+                # `team_abbr` stays the *current* franchise abbreviation -- it's the crosswalk key
+                # fetch_era_candidate_pool resolves per-player-year against (base.for_year(year)),
+                # so it must never be swapped for a historical display abbreviation.
                 id=api_team.id, name=api_team.name or abbr, abbreviation=abbr, team_abbr=abbr,
                 bref_team_id=api_team.bref_team(year=current_year),
                 league_id=api_team.league.id if api_team.league else None,
@@ -307,11 +310,45 @@ def build_era_rosters(
                 secondary_color=team_with_colors.secondary_color,
             ))
 
+    _DisplayIdentity = tuple[str, str, Optional[str], Optional[str], Optional[str]]
+
+    def _era_display_identity(rep_year: int) -> dict[int, _DisplayIdentity]:
+        """(name, abbreviation, bref_team_id, primary_color, secondary_color) per numeric team id,
+        as the franchise actually was in `rep_year` -- e.g. the 1920s New York Giants rather than
+        today's San Francisco Giants. The MLB Stats API itself returns a team's era-correct name
+        and abbreviation for a historical `season` param, the same way `build-historical` resolves
+        it per season, so no separate historical-name lookup table is needed here."""
+        identity: dict[int, _DisplayIdentity] = {}
+        try:
+            era_api_teams = api.teams.get_teams(season=rep_year, sport_id=sport_id)
+        except Exception:
+            return identity
+        for et in era_api_teams:
+            twc = TeamWithColors(**et.model_dump())
+            twc.load_colors_from_showdown_team()
+            et_abbr = et.abbreviation or str(et.id)
+            identity[et.id] = (et.name or et_abbr, et_abbr, et.bref_team(year=rep_year), twc.primary_color, twc.secondary_color)
+        return identity
+
     total_rosters = 0
     for era in eras_to_build:
+        # ALL_TIME keeps each franchise's modern identity (unchanged); a single decade era instead
+        # displays as the franchise actually was at that decade's midpoint (capped at the present),
+        # which also splits a decade a relocation happened in toward whichever side had more of it.
+        if era.key == RosterEraRegistry.ALL_TIME_KEY:
+            display_identity_by_id: dict[int, _DisplayIdentity] = {}
+        else:
+            capped_end_year = min(era.end_year, current_year)
+            rep_year = era.start_year + (capped_end_year - era.start_year) // 2
+            display_identity_by_id = _era_display_identity(rep_year)
+
         for showdown_set_value in sets_to_build:
             set_teams = 0
             for spec in team_specs:
+                display_name, display_abbr, display_bref_team_id, display_primary, display_secondary = display_identity_by_id.get(
+                    spec.id, (spec.name, spec.abbreviation, spec.bref_team_id, spec.primary_color, spec.secondary_color)
+                )
+
                 candidates = db.fetch_era_candidate_pool(
                     team_abbr=spec.team_abbr, showdown_set=showdown_set_value,
                     start_year=era.start_year, end_year=min(era.end_year, current_year),
@@ -322,8 +359,8 @@ def build_era_rosters(
                 composed = EraRosterDrafter(
                     cards=candidates,
                     team_id=f"era-{era.key}-{sport_id}-{spec.id}-{showdown_set_value}",
-                    name=spec.name,
-                    abbreviation=spec.abbreviation,
+                    name=display_name,
+                    abbreviation=display_abbr,
                 ).build()
 
                 mlb_id_by_card_id = {c.card_id: c.mlb_id for c in candidates if c.card_id and c.mlb_id is not None}
@@ -351,7 +388,7 @@ def build_era_rosters(
                     continue
 
                 if dry_run:
-                    typer.echo(f"\n  [{era.key}/{showdown_set_value}] {spec.name} ({spec.abbreviation}) — {len(rows)} slots")
+                    typer.echo(f"\n  [{era.key}/{showdown_set_value}] {display_name} ({display_abbr}) — {len(rows)} slots")
                     for row in rows:
                         order = f" #{row['batting_order']}" if row['batting_order'] else ""
                         typer.echo(f"    {row['roster_position']:<4}{order:<4} {row['year']}  {row['player_name']}")
@@ -361,14 +398,14 @@ def build_era_rosters(
                         'showdown_set': showdown_set_value,
                         'sport_id': sport_id,
                         'team_id': spec.id,
-                        'abbreviation': spec.abbreviation,
-                        'name': spec.name,
-                        'bref_team_id': spec.bref_team_id,
+                        'abbreviation': display_abbr,
+                        'name': display_name,
+                        'bref_team_id': display_bref_team_id,
                         'league_id': spec.league_id,
                         'league_name': spec.league_name,
                         'division_name': spec.division_name,
-                        'primary_color': spec.primary_color,
-                        'secondary_color': spec.secondary_color,
+                        'primary_color': display_primary,
+                        'secondary_color': display_secondary,
                         'roster_count': len(rows),
                     })
                     db.upsert_era_roster_rows(era=era.key, showdown_set=showdown_set_value, sport_id=sport_id, team_id=spec.id, rows=rows)
