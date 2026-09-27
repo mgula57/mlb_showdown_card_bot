@@ -3,7 +3,7 @@
 What's new in each Showdown Bot release, newest first.
 
 ## 4.4 Release — Team Builder & Season Simulator
-_Unreleased_
+_Released 2026-09-27 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.4)_
 
 This release focuses on the brand new Team Builder, full-season simulations for any MLB season, a revamped live game experience, and upgrades to the Custom Card Builder and Explore.
 
