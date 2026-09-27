@@ -29,7 +29,7 @@ worker_class = 'gthread'
 # sim is CPU-bound and holds the GIL, so parallelism has to come from processes, not threads.
 # Sized for a 1 GB Standard-2X: a sim peaks ~170 MB above an idle worker, and a worker keeps ~100 MB
 # of that afterward. Check `internal.sim_job.memory` before raising it further.
-workers = int(os.environ.get('WEB_CONCURRENCY', 4))
+workers = int(os.environ.get('WEB_CONCURRENCY', 2))
 threads = int(os.environ.get('WEB_THREADS', 4))
 
 # Comfortably above the worst case for the routes that call the MLB Stats API, whose client

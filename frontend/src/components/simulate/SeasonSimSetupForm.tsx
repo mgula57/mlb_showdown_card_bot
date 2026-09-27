@@ -12,8 +12,17 @@ import {
     type TakeoverClub, type OpenSimPayload, type CreateSimLobbyPayload,
 } from '../../api/sim';
 
+/** Exact text of the backend's global-capacity 429 (`sim.py`'s `_sim_slots` semaphore) — every
+ *  worker process only runs so many sims at once, shared across all users. Matched so we can add
+ *  context explaining it's not specific to this account. */
+const SIM_BUSY_MESSAGE = 'The simulator is busy right now. Try again in a minute.';
+
 function errorMessage(err: unknown): string {
-    return err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error ? err.message : String(err);
+    if (message === SIM_BUSY_MESSAGE) {
+        return `${message} This isn't about your account — the simulator only has capacity for so many seasons running at once, and someone else's is using it up right now.`;
+    }
+    return message;
 }
 
 // Bot-generated cards are pinned to one baseline set (WOTC's freely-combinable sets don't apply
@@ -418,31 +427,32 @@ export function SeasonSimSetupForm(props: Props) {
                 </div>
             )}
 
-            {error && (
-                <div className="flex items-center justify-between gap-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
-                    <span>{error}</span>
-                    {props.mode === 'solo' && runningJob && (
-                        <button
-                            type="button"
-                            onClick={() => props.mode === 'solo' && props.onViewExisting(runningJob.jobId, runningJob.teamId)}
-                            className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
-                        >
-                            View it
-                        </button>
-                    )}
+            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t border-form-element backdrop-blur-2xl px-4 py-3">
+                {error && (
+                    <div className="flex items-center justify-between gap-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                        <span>{error}</span>
+                        {props.mode === 'solo' && runningJob && (
+                            <button
+                                type="button"
+                                onClick={() => props.mode === 'solo' && props.onViewExisting(runningJob.jobId, runningJob.teamId)}
+                                className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+                            >
+                                View it
+                            </button>
+                        )}
+                    </div>
+                )}
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={starting || loadingClubs || year === null}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg animated-showdown-gradient text-[13px] font-bold text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        {starting ? <FaSpinner className="animate-spin text-[11px]" /> : isLobby ? <FaUserGroup className="text-[11px]" /> : <FaPlay className="text-[11px]" />}
+                        {isLobby ? 'Create Lobby' : 'Simulate Season'}
+                    </button>
                 </div>
-            )}
-
-            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex justify-end border-t border-form-element backdrop-blur-2xl px-4 py-3">
-                <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={starting || loadingClubs || year === null}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg animated-showdown-gradient text-[13px] font-bold text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                    {starting ? <FaSpinner className="animate-spin text-[11px]" /> : isLobby ? <FaUserGroup className="text-[11px]" /> : <FaPlay className="text-[11px]" />}
-                    {isLobby ? 'Create Lobby' : 'Simulate Season'}
-                </button>
             </div>
         </div>
     );
