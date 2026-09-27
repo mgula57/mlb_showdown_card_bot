@@ -325,7 +325,7 @@ export default function Home() {
                 features={[
                     { icon: <FaPeopleGroup />, text: 'Team Builder: draft a roster and enter simulations to test your team' },
                     { icon: <FaCalendar />,    text: 'Seasons: simulate any MLB season start to finish' },
-                    { icon: <FaBolt />,        text: 'New gameday playback: watch games unfold pitch by pitch or take over and simulate the rest with Showdown' },
+                    { icon: <FaBolt />,        text: 'New gameday playback: watch games unfold pitch by pitch or take over and simulate the rest' },
                 ]}
                 onLoginClick={() => setShowBannerLoginModal(true)}
                 textSize="sm"
