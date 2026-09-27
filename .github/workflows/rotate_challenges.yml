@@ -1,8 +1,8 @@
 name: Rotate Team Challenges
 
 on:
-  schedule:
-    - cron: "0 12 * * 1"   # Mondays 12:00 UTC
+  # schedule:
+  #   - cron: "0 12 * * 1"   # Mondays 12:00 UTC — disabled for now
   workflow_dispatch:         # allow manual runs from the Actions tab
 
 jobs:
