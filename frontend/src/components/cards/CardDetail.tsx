@@ -71,6 +71,8 @@ type CardDetailProps = {
      * of the modal. Runs the same handler as the compact card item's action button (opens the
      * slot-fill flow for the roster slot this card sits in). */
     onDraft?: () => void;
+    /** Greys out the Draft button and blocks clicks — e.g. while a previous pick is still saving. */
+    draftDisabled?: boolean;
     /** When true, the Set badge next to the player name becomes a dropdown (styled like the
      * header's Showdown Set selector) that swaps the displayed card for the same player/year in
      * a different set. Selecting a new card elsewhere always discards this — it only affects the
@@ -117,7 +119,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, enableSetSwitcher=false }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false }: CardDetailProps) {
 
     const { session } = useAuth();
 
@@ -722,15 +724,17 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             {onDraft && (
                 <button
                     type="button"
+                    disabled={draftDisabled}
+                    title={draftDisabled ? 'Saving your last pick…' : undefined}
                     onClick={onDraft}
-                    className="
+                    className={`
                         absolute top-10 right-2 z-100
                         flex items-center gap-1
                         px-5 py-5 rounded-full
                         animated-showdown-gradient text-white font-bold text-sm
-                        shadow-lg hover:opacity-90 active:scale-95
-                        transition cursor-pointer
-                    "
+                        shadow-lg transition
+                        ${draftDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90 active:scale-95 cursor-pointer'}
+                    `}
                 >
                     <FaPlus className="w-4 h-4" />
                     Draft

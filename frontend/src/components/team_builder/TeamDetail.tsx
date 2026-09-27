@@ -669,6 +669,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     const isDrafting = isTeamDrafting(draft);
+    // Blocks a second pick from firing while the last one is still local-only or mid-save —
+    // the roster the search excludes/filters against (`draftedCardIds`, budget/position needs)
+    // is only trustworthy once the in-flight save round-trips, so rapid-fire picks could
+    // otherwise race each other against a stale view of the roster.
+    const draftActionDisabled = dirty || saveStatus === 'saving';
     const isMyOwnTeam = team.source === 'user' && team.user_id === user?.id;
     // The Lineup tab is only meaningful once every roster spot is filled — hide it while the
     // roster is still being built out.
@@ -977,6 +982,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             onCardPicked={handleCardPicked}
             onDismissPending={() => setPendingSlot(null)}
             fitsRosterToggle={runRate ? { enabled: fitsRosterEnabled, onToggle: () => setFitsRosterEnabled(v => !v) } : null}
+            actionDisabled={draftActionDisabled}
         />
     );
 
@@ -1788,6 +1794,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             onCardPicked={handleCardPicked}
                             resetTrigger={draftSearchResetKey}
                             hideSourceTabs
+                            actionDisabled={draftActionDisabled}
                         />
                     </SlideOver>
                 </>
@@ -2092,9 +2099,12 @@ type DraftPanelProps = {
     /** "Fits my roster" switch state, or null to hide it (e.g. no points budget on this team).
      *  Omitted entirely when `hideSourceTabs` is set — the caller renders it in its own header. */
     fitsRosterToggle?: { enabled: boolean; onToggle: () => void } | null;
+    /** Greys out the draft/select action (grid button, sidebar and modal "Draft" button) — set
+     *  while the last pick is still being saved, to prevent rapid-fire drafting. */
+    actionDisabled?: boolean;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, fitsRosterToggle }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, fitsRosterToggle, actionDisabled = false }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
@@ -2150,6 +2160,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                             label: 'Select',
                             bgColorClass: 'animated-showdown-gradient opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
                             onClick: onCardPicked,
+                            disabled: actionDisabled,
                         }}
                     />
                 </Tabs.Content>

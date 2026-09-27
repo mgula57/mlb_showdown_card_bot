@@ -21,6 +21,8 @@ export type CardItemActionButton = {
     label?: string;
     bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-red-500")
     placement?: 'left' | 'right'; // Optionally change which side the button appears on
+    /** Greys out the button and blocks clicks — e.g. while a previous pick is still saving. */
+    disabled?: boolean;
 };
 
 type CardItemCompactProps = {
@@ -273,15 +275,19 @@ export const CardItemCompact = ({
             {actionButton && (
                 <button
                     type="button"
-                    aria-label={actionButton.label}
-                    onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
+                    disabled={actionButton.disabled}
+                    aria-label={actionButton.disabled ? 'Saving your last pick…' : actionButton.label}
+                    title={actionButton.disabled ? 'Saving your last pick…' : undefined}
+                    onClick={(e) => { e.stopPropagation(); if (!actionButton.disabled) actionButton.onClick(); }}
                     className={`
                         absolute -top-2 ${actionButton.placement === 'left' ? '-left-2' : '-right-2'}
                         flex items-center justify-center
                         w-5 h-5 rounded
                         text-(--text-tertiary)
-                        hover:bg-(--background-quaternary) hover:text-(--text-primary)
                         transition-colors
+                        ${actionButton.disabled
+                            ? 'opacity-40 cursor-not-allowed'
+                            : 'hover:bg-(--background-quaternary) hover:text-(--text-primary)'}
                     `}
                 >
                     {actionButton.icon}

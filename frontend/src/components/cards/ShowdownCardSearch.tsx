@@ -90,6 +90,8 @@ type ShowdownCardSearchProps = {
         label?: string;
         bgColorClass?: string;
         onClick: (card: CardDatabaseRecord) => void;
+        /** Greys out the button and blocks clicks everywhere it's rendered (grid, sidebar, modal) — e.g. while a previous pick is still saving. */
+        disabled?: boolean;
     };
     /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
     excludeIds?: string[];
@@ -1407,7 +1409,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {/* Iterate through showdownCards and display each card */}
                         {displayedCards?.map((cardRecord, index) => {
                             const resolvedAction: CardItemActionButton | undefined = actionButton
-                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, onClick: () => actionButton.onClick(cardRecord) }
+                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, disabled: actionButton.disabled, onClick: () => actionButton.onClick(cardRecord) }
                                 : undefined;
                             return (
                                 <div
@@ -1521,6 +1523,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 onDraft={actionButton && selectedCardForSidebar
                                     ? () => { actionButton.onClick(selectedCardForSidebar); handleCloseSidebar(); }
                                     : undefined}
+                                draftDisabled={actionButton?.disabled}
                                 enableSetSwitcher={enableSetSwitcher}
                             />
                         </div>
@@ -1555,6 +1558,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         onDraft={actionButton && selectedCardForModal
                             ? () => { actionButton.onClick(selectedCardForModal); handleCloseModal(); }
                             : undefined}
+                        draftDisabled={actionButton?.disabled}
                         enableSetSwitcher={enableSetSwitcher}
                     />
                 </Modal>

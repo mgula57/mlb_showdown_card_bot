@@ -201,17 +201,18 @@ export const CardItem = ({
             {actionButton && (
                 <button
                     type="button"
-                    aria-label={actionButton.label}
-                    onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
+                    disabled={actionButton.disabled}
+                    aria-label={actionButton.disabled ? 'Saving your last pick…' : actionButton.label}
+                    title={actionButton.disabled ? 'Saving your last pick…' : undefined}
+                    onClick={(e) => { e.stopPropagation(); if (!actionButton.disabled) actionButton.onClick(); }}
                     className={`
                         absolute -top-1.5 ${actionButton.placement === 'left' ? 'left-1.5' : '-right-1.5'} z-5
                         flex items-center justify-center
                         p-1 ${actionButton.label ? 'rounded-lg' : 'rounded-full'}
-                        ${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'}
-                        text-(--text-tertiary)
-                        hover:bg-(--background-quaternary) hover:text-(--text-primary)
                         transition-colors
-                        cursor-pointer
+                        ${actionButton.disabled
+                            ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
+                            : `${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'} text-(--text-tertiary) hover:bg-(--background-quaternary) hover:text-(--text-primary) cursor-pointer`}
                     `}
                 >
                     {actionButton.icon}
