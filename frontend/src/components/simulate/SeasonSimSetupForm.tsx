@@ -13,16 +13,13 @@ import {
 } from '../../api/sim';
 
 /** Exact text of the backend's global-capacity 429 (`sim.py`'s `_sim_slots` semaphore) — every
- *  worker process only runs so many sims at once, shared across all users. Matched so we can add
- *  context explaining it's not specific to this account. */
+ *  worker process only runs so many sims at once, shared across all users, so this isn't a real
+ *  error so much as a "someone else is using it, try again shortly" — shown as a lighter warning
+ *  rather than the red error banner. */
 const SIM_BUSY_MESSAGE = 'The simulator is busy right now. Try again in a minute.';
 
 function errorMessage(err: unknown): string {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message === SIM_BUSY_MESSAGE) {
-        return `${message} This isn't about your account — the simulator only has capacity for so many seasons running at once, and someone else's is using it up right now.`;
-    }
-    return message;
+    return err instanceof Error ? err.message : String(err);
 }
 
 // Bot-generated cards are pinned to one baseline set (WOTC's freely-combinable sets don't apply
@@ -147,6 +144,10 @@ export function SeasonSimSetupForm(props: Props) {
 
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    /** Set instead of `error` when the backend's global sim-capacity 429 is hit — every worker is
+     *  already running one, unrelated to this account. Shown as a lighter warning since it's not
+     *  really a failure, just "wait a bit." */
+    const [busy, setBusy] = useState(false);
     const [runningJob, setRunningJob] = useState<{ jobId: string; teamId: string | null } | null>(null);
 
     useEffect(() => {
@@ -222,6 +223,7 @@ export function SeasonSimSetupForm(props: Props) {
         }
         setStarting(true);
         setError(null);
+        setBusy(false);
         setRunningJob(null);
         try {
             const engineSettings = {
@@ -254,7 +256,8 @@ export function SeasonSimSetupForm(props: Props) {
             }
         } catch (err: unknown) {
             if (props.mode === 'solo' && err instanceof SimAlreadyRunningError) setRunningJob({ jobId: err.jobId, teamId: err.teamId });
-            setError(errorMessage(err));
+            if (err instanceof Error && err.message === SIM_BUSY_MESSAGE) setBusy(true);
+            else setError(errorMessage(err));
             setStarting(false);
         }
     }
@@ -428,6 +431,11 @@ export function SeasonSimSetupForm(props: Props) {
             )}
 
             <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t border-form-element backdrop-blur-2xl px-4 py-3">
+                {busy && (
+                    <div className="text-[12px] text-yellow-500 px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                        The simulator is busy running other seasons right now — wait about a minute and try again.
+                    </div>
+                )}
                 {error && (
                     <div className="flex items-center justify-between gap-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
                         <span>{error}</span>
