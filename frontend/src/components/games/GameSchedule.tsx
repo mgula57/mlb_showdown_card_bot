@@ -49,9 +49,55 @@ function GameItemSkeleton() {
     );
 }
 
+type GameScheduleHeaderProps = {
+    dateLabel: string;
+    description?: string;
+    onRefresh?: () => void;
+};
+
+function GameScheduleHeader({ dateLabel, description, onRefresh }: GameScheduleHeaderProps) {
+    return (
+        <div className="flex justify-between items-center">
+            <div>
+                <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
+                {description && (
+                    <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
+                )}
+            </div>
+
+            {/* Refresh button */}
+            {onRefresh && (
+                <button
+                    className="
+                        hidden md:flex ml-4 px-4 py-2 items-center gap-1
+                        bg-secondary text-white rounded-lg
+                        hover:bg-(--showdown-blue)/50 transition-colors
+                        cursor-pointer
+                    "
+                    onClick={onRefresh}
+                >
+                    <FaArrowsRotate className="inline-block mr-1" />
+                    Refresh
+                </button>
+            )}
+        </div>
+    );
+}
+
 export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, isLoading, onGameSelect, onGameSimSelect, onRefresh }: GameScheduleProps) {
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoadingCards, setIsLoadingCards] = useState(false);
+
+    // Only show the "no games" message once a fetch has actually completed — the
+    // parent starts with isLoading=false before its first request, so an empty
+    // `games` on mount doesn't mean the day has no games. Tracked as a
+    // loading → not-loading transition (adjusted during render, not in an effect).
+    const [wasLoading, setWasLoading] = useState(!!isLoading);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+    if (!!isLoading !== wasLoading) {
+        setWasLoading(!!isLoading);
+        if (!isLoading) setHasLoadedOnce(true);
+    }
 
     const gameViews = useMemo(() => games.map((game) => fromScheduledGame(game, sportId)), [games, sportId]);
 
@@ -163,18 +209,14 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         return () => document.removeEventListener("visibilitychange", onVisibility);
     }, []);
 
-    if (!games.length) {
-        if (!isLoading) {
-            return null;
-        }
+    if (!games.length && !hasLoadedOnce && !isLoading) {
+        return null;
+    }
+
+    if (!games.length && isLoading) {
         return (
             <div className="space-y-3">
-                <div>
-                    <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
-                    {description && (
-                        <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
-                    )}
-                </div>
+                <GameScheduleHeader dateLabel={dateLabel} description={description} />
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
                     {Array.from({ length: 6 }).map((_, index) => (
                         <GameItemSkeleton key={index} />
@@ -198,53 +240,34 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
 
     return (
         <div ref={containerRef} className="space-y-3">
-            <div className="flex justify-between items-center">
-                <div>
-                    <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
-                    {description && (
-                        <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
-                    )}
+            <GameScheduleHeader dateLabel={dateLabel} description={description} onRefresh={onRefresh} />
+
+            {!sortedGames.length ? (
+                <div className="rounded-xl border-2 border-dashed border-(--divider) py-10 text-center text-sm font-semibold text-(--text-secondary)">
+                    No games scheduled for this day.
                 </div>
-
-                {/* Refresh button */}
-                {onRefresh && (
-                    <button
-                        className="
-                            hidden md:flex ml-4 px-4 py-2 items-center gap-1
-                            bg-secondary text-white rounded-lg
-                            hover:bg-(--showdown-blue)/50 transition-colors
-                            cursor-pointer
-                        "
-                        onClick={onRefresh}
-                    >
-                        <FaArrowsRotate className="inline-block mr-1" />
-                        Refresh
-                    </button>
-                )}
-
-            </div>
-
-
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
-                {sortedGames.map((game) => {
-                    return (
-                        <GameItem
-                            key={game.id}
-                            game={game}
-                            onSelect={onGameSelect}
-                            onSimSelect={onGameSimSelect}
-                            showMatchupDetails={true}
-                            cardMap={cardMap}
-                            isLoadingCards={isLoadingCards}
-                            isStarred={
-                                starredTeamIds
-                                    ? (starredTeamIds.has(Number(game.away.team.id) || -1) || starredTeamIds.has(Number(game.home.team.id) || -1))
-                                    : false
-                            }
-                        />
-                    );
-                })}
-            </div>
+            ) : (
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
+                    {sortedGames.map((game) => {
+                        return (
+                            <GameItem
+                                key={game.id}
+                                game={game}
+                                onSelect={onGameSelect}
+                                onSimSelect={onGameSimSelect}
+                                showMatchupDetails={true}
+                                cardMap={cardMap}
+                                isLoadingCards={isLoadingCards}
+                                isStarred={
+                                    starredTeamIds
+                                        ? (starredTeamIds.has(Number(game.away.team.id) || -1) || starredTeamIds.has(Number(game.home.team.id) || -1))
+                                        : false
+                                }
+                            />
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
