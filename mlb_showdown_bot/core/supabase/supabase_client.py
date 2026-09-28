@@ -4,11 +4,14 @@ Supabase client configuration and utilities for the MLB Showdown Bot.
 Handles file uploads to Supabase Storage buckets and general Supabase operations.
 """
 
+import mimetypes
 import os
 from pathlib import Path
-from typing import Optional
-from supabase import create_client, Client
+from typing import TYPE_CHECKING, Optional
 import logging
+
+if TYPE_CHECKING:
+    from supabase import Client
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ class SupabaseClientManager:
         self.client = self._create_client()
     
     @staticmethod
-    def _create_client() -> Client:
+    def _create_client() -> 'Client':
         """
         Create and return a Supabase client for the specified environment.
         
@@ -52,6 +55,10 @@ class SupabaseClientManager:
                 f"Please set SUPABASE_URL and SUPABASE_KEY environment variables."
             )
         
+        # ~40 MB OF IMPORTS (storage3 PULLS IN pyiceberg), SO ONLY PAID BY A PROCESS THAT UPLOADS -
+        # gunicorn.conf.py PRELOADS IT FOR THE WEB DYNO, WHERE EVERY WORKER DOES.
+        from supabase import create_client
+
         return create_client(url, key)
     
     def upload_file(
@@ -59,16 +66,20 @@ class SupabaseClientManager:
         bucket_name: str,
         file_path: str | Path,
         destination_path: str,
-        overwrite: bool = False
+        overwrite: bool = False,
+        content_type: str | None = None
     ) -> dict:
         """
         Upload a file to a Supabase Storage bucket.
-        
+
         Args:
             bucket_name: Name of the Supabase bucket (e.g., 'card-images')
             file_path: Local file path to upload
             destination_path: Path in the bucket (e.g., 'cards/2025/image.png')
             overwrite: Whether to overwrite if file exists
+            content_type: MIME type to store the object as. Defaults to a guess
+                from the destination extension; storage3 would otherwise send
+                text/plain, which buckets with allowed_mime_types reject.
         
         Returns:
             Dictionary with upload result containing:
@@ -101,11 +112,16 @@ class SupabaseClientManager:
             with open(file_path, 'rb') as f:
                 file_content = f.read()
             
-            # Determine file options based on overwrite setting
+            # Determine file options based on overwrite setting. `upsert` must be a
+            # string ("true"/"false") — it's forwarded verbatim as the x-upsert header.
             file_options = {
                 'cacheControl': '3600',
-                'upsert': overwrite
+                'upsert': str(bool(overwrite)).lower()
             }
+
+            resolved_content_type = content_type or mimetypes.guess_type(str(destination_path))[0]
+            if resolved_content_type:
+                file_options['content-type'] = resolved_content_type
             
             response = self.client.storage.from_(bucket_name).upload(
                 destination_path,
@@ -187,6 +203,31 @@ class SupabaseClientManager:
                 'error': str(e)
             }
     
+    def copy_file(
+        self,
+        bucket_name: str,
+        from_path: str,
+        to_path: str
+    ) -> dict:
+        """
+        Copy an object within a bucket (server-side, no download round-trip).
+
+        Args:
+            bucket_name: Name of the bucket
+            from_path: Existing object path
+            to_path: Destination object path
+
+        Returns:
+            Dictionary with copy result ('success', 'path', 'error')
+        """
+        try:
+            self.client.storage.from_(bucket_name).copy(from_path, to_path)
+            logger.info(f"Successfully copied {bucket_name}/{from_path} to {to_path}")
+            return {'success': True, 'path': to_path, 'error': None}
+        except Exception as e:
+            logger.error(f"Error copying file: {str(e)}")
+            return {'success': False, 'path': None, 'error': str(e)}
+
     def list_files(
         self,
         bucket_name: str,
@@ -213,20 +254,24 @@ class SupabaseClientManager:
 def upload_to_supabase(
     bucket_name: str,
     file_path: str | Path,
-    destination_path: str
+    destination_path: str,
+    overwrite: bool = False,
+    content_type: str | None = None
 ) -> Optional[str]:
     """
     Upload a file to Supabase in a single call.
-    
+
     Args:
         bucket_name: Name of the bucket
         file_path: Local file path
         destination_path: Destination path in bucket
-        env: Environment ('staging' or 'prod')
-    
+        overwrite: Whether to replace an existing object at destination_path
+        content_type: MIME type to store the object as (defaults to a guess from
+            the destination extension)
+
     Returns:
         Public URL of the uploaded file if successful, else None
-        
+
     Example:
         >>> result = upload_to_supabase(
         ...     bucket_name='card-images',
@@ -235,5 +280,8 @@ def upload_to_supabase(
         ... )
     """
     manager = SupabaseClientManager()
-    upload_data = manager.upload_file(bucket_name, file_path, destination_path)
+    upload_data = manager.upload_file(
+        bucket_name, file_path, destination_path,
+        overwrite=overwrite, content_type=content_type,
+    )
     return upload_data

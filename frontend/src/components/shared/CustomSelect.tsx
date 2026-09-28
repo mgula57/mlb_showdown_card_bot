@@ -60,7 +60,7 @@ type SelectOption = {
  * Props for the CustomSelect component
  * Provides extensive customization options for styling and behavior
  */
-type CustomSelectProps = {
+export type CustomSelectProps = {
     /** Currently selected value */
     value: string;
     /** Callback function called when selection changes */
@@ -85,6 +85,8 @@ type CustomSelectProps = {
     placeholder?: string;
     /** Optionally include visual dropdown arrow */
     showDropdownArrow?: boolean;
+    /** Dropdown Arrow size number */
+    dropdownArrowSize?: number;
 };
 
 /**
@@ -101,7 +103,7 @@ type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 16 }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -289,7 +291,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         : <span className={`${labelClassName} text-tertiary`}>{placeholder}</span>
                     }
                     {suffix && <span className='ml-1'>{suffix}</span>}
-                    {showDropdownArrow && <FaCaretDown className={`ml-1 ${isOpen ? 'rotate-180' : ''} opacity-75`} size={20} />}
+                    {showDropdownArrow && <FaCaretDown className={`ml-1 ${isOpen ? 'rotate-180' : ''} opacity-75`} size={dropdownArrowSize} />}
                 </div>
             </button>
 
@@ -305,7 +307,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
                             bg-(--background-primary) rounded-xl shadow-lg
                             border border-(--background-tertiary)
-                            overflow-auto
+                            overflow-auto scrollbar-hide
                         `}
                         style={{ left: menuPos.left, top: menuPos.top, minWidth: menuPos.minWidth, maxWidth: menuPos.maxWidth, maxHeight: menuPos.maxHeight }}
                     >

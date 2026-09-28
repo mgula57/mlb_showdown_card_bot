@@ -2,12 +2,13 @@ import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
-import { getContrastColor } from "../shared/Color";
+import { getContrastTextColor } from "../../functions/colors";
 import { useTheme } from "../shared/SiteSettingsContext";
 import { CardSource } from "../../types/cardSource";
-import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard } from 'react-icons/fa6';
+import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles } from 'react-icons/fa6';
 import type { CardItemActionButton } from './CardItemCompact';
 import { formatYear } from "../../functions/formatters";
+import CardIcon from "./card_elements/CardIcon";
 
 /**
  * Props for the CardItem component
@@ -35,6 +36,8 @@ type CardItemProps = {
     cardPointsEstimated?: number;
     cardPointsDiffEstimatedVsActual?: number;
     cardPtsChange?: number | null;
+    /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
+    cardPtsMultiplier?: number;
     cardPtsChangeLabel?: string;
 
     // Command and Outs
@@ -110,7 +113,7 @@ type CardItemProps = {
 export const CardItem = ({
     cardId, cardTeam, cardName, cardYear, cardStatsPeriod,
     cardCommand, cardIsPitcher,
-    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange, cardPtsChangeLabel,
+    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual, cardPtsChange, cardPtsMultiplier, cardPtsChangeLabel,
     cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
     cardIsErrata, cardNotes, cardIsStatsEstimate,
     cardPrimaryColor, cardSecondaryColor, cardEdition,
@@ -122,6 +125,9 @@ export const CardItem = ({
 
     const { isDark } = useTheme();
     const isRedacted = cardId === null || cardId === undefined;
+
+    const hasPtsMultiplier = !!cardPtsMultiplier && cardPtsMultiplier !== 1 && cardPoints != null;
+    const effectivePoints = hasPtsMultiplier ? Math.round(cardPoints! * cardPtsMultiplier!) : cardPoints;
     
     // Team-specific color handling for better contrast (NYM, SDP, JPN use secondary first)
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
@@ -129,7 +135,7 @@ export const CardItem = ({
         : cardPrimaryColor) || 'rgb(0, 0, 0)';
     const colorStylingPrimary = { 
         backgroundColor: primaryColor, 
-        color: getContrastColor(primaryColor) 
+        color: getContrastTextColor(primaryColor) 
     };
     
     const secondaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
@@ -137,7 +143,7 @@ export const CardItem = ({
         : cardSecondaryColor) || 'rgb(0, 0, 0)';
     const colorStylingSecondary = { 
         backgroundColor: secondaryColor, 
-        color: getContrastColor(secondaryColor) 
+        color: getContrastTextColor(secondaryColor) 
     };
 
     // Determine whether the stats have been estimated
@@ -148,10 +154,10 @@ export const CardItem = ({
 
     // Dynamic border styling based on selection state and theme
     const borderSettings = isSelected
-        ? (isDark ? 'border-3' : `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`)
+        ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
         : (isDark
-            ? `border-white/10${isClickable ? ' hover:border-white/50' : ''}`
-            : `shadow-xl border-gray-200${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+            ? `border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
+            : `border-gray-200 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     // Calculate width of the set and expansion display for proper spacing
     const has_expansion = cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion);
@@ -195,17 +201,18 @@ export const CardItem = ({
             {actionButton && (
                 <button
                     type="button"
-                    aria-label={actionButton.label}
-                    onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
+                    disabled={actionButton.disabled}
+                    aria-label={actionButton.disabled ? 'Saving your last pick…' : actionButton.label}
+                    title={actionButton.disabled ? 'Saving your last pick…' : undefined}
+                    onClick={(e) => { e.stopPropagation(); if (!actionButton.disabled) actionButton.onClick(); }}
                     className={`
-                        absolute -top-1.5 -right-1.5 z-5
+                        absolute -top-1.5 ${actionButton.placement === 'left' ? 'left-1.5' : '-right-1.5'} z-5
                         flex items-center justify-center
                         p-1 ${actionButton.label ? 'rounded-lg' : 'rounded-full'}
-                        ${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'}
-                        text-(--text-tertiary)
-                        hover:bg-(--background-quaternary) hover:text-(--text-primary)
                         transition-colors
-                        cursor-pointer
+                        ${actionButton.disabled
+                            ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
+                            : `${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'} text-(--text-tertiary) hover:bg-(--background-quaternary) hover:text-(--text-primary) cursor-pointer`}
                     `}
                 >
                     {actionButton.icon}
@@ -214,7 +221,7 @@ export const CardItem = ({
             <div
                 className={`
                     ${className}
-                    flex flex-col p-2 gap-1
+                    flex flex-col pl-2 py-2 gap-1
                     bg-secondary
                     rounded-xl
                     border-3
@@ -281,17 +288,13 @@ export const CardItem = ({
                             
                             {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
                             {cardIcons?.map((icon, index) => (
-                                <div 
-                                    key={index} 
-                                    className="
-                                        text-[9px] flex w-4 h-4 
-                                        items-center font-bold justify-center 
-                                        rounded-full tracking-tight shrink-0
-                                    " 
-                                    style={colorStylingSecondary} 
-                                >
-                                    {icon}
-                                </div>
+                                <CardIcon
+                                    key={`${cardId}-icon-${index}`} 
+                                    color={secondaryColor} 
+                                    value={icon} 
+                                    circleSize="4" 
+                                    textSize={9} 
+                                />
                             ))}
                         </div>
                         
@@ -300,7 +303,12 @@ export const CardItem = ({
                             <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>
                                 {isRedacted ? (
                                     <span className="text-transparent">REDACTED</span>
-                                ) : ( 
+                                ) : hasPtsMultiplier ? (
+                                    <span className="flex items-center gap-1">
+                                        <span className="line-through opacity-60">{cardPoints}</span>
+                                        <span>{effectivePoints} PTS</span>
+                                    </span>
+                                ) : (
                                     <>
                                         {`${cardPoints} PTS`}
                                     </>
@@ -325,17 +333,19 @@ export const CardItem = ({
                 </div>
 
                 {/* Interactive chart showing dice roll outcomes */}
-                <CardChart
-                    chartRanges={cardChartRanges || {}} 
-                    showdownSet={cardSet || '2001'}
-                    primaryColor={colorStylingPrimary.backgroundColor}
-                    secondaryColor={colorStylingSecondary.backgroundColor}
-                    team={cardTeam}
-                    cellClassName="min-w-6 md:min-w-8" 
-                />
+                <div className="overflow-x-scroll scrollbar-hide">
+                    <CardChart
+                        chartRanges={cardChartRanges || {}}
+                        showdownSet={cardSet || '2001'}
+                        primaryColor={colorStylingPrimary.backgroundColor}
+                        secondaryColor={colorStylingSecondary.backgroundColor}
+                        team={cardTeam}
+                        cellClassName="min-w-6 md:min-w-8"
+                    />
+                </div>
 
                 {/* Bottom bar */}
-                <div className="flex flex-row justify-between items-center gap-x-1">
+                <div className="flex flex-row justify-between items-center gap-x-1 pr-0.5">
 
                     {/* Statistical highlights ribbon */}
                     <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
@@ -403,6 +413,9 @@ export const CardItem = ({
                         {cardSource === 'WOTC' && (
                             <FaHatWizard className="inline-block w-3 h-3" title="Wizards of the Coast" />
                         )}
+                        {cardSource === 'CUSTOM' && (
+                            <FaWandMagicSparkles className="inline-block w-3 h-3" title="Custom Card" />
+                        )}
                         {cardSetNumber && (
                             <span className="font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
                         )}
@@ -447,9 +460,11 @@ type CardItemFromCardProps = {
     ptsChange?: number | null;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    /** Override the source badge shown (e.g. CUSTOM) — `card.is_wotc` only distinguishes WOTC vs BOT, so callers displaying a user's own custom card (which also has is_wotc: false) must pass this explicitly. */
+    sourceOverride?: CardSource;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -457,13 +472,15 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
     const secondaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_primary 
                             : card?.image.color_secondary) || 'rgb(0, 0, 0)';
+    const cardYear = card?.stats_period?.year || card?.year;
+    const cardId = card === undefined || card === null ? undefined : `${card.bref_id}-${cardYear}-${card.set}`;
     return (
         <CardItem
-            cardId={card === undefined || card === null ? undefined : `${card.bref_id}-${card.stats_period.year}-${card.set}`}
+            cardId={cardId}
             cardTeam={card?.wbc_team || card?.team}
             cardLeague={card?.league || undefined}
             cardName={card?.name}
-            cardYear={hideYear ? undefined : (card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year))}
+            cardYear={hideYear ? undefined : (card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period?.year))}
             cardStatsPeriod={card?.stats_period}
             cardCommand={card?.chart.command}
             cardOuts={card?.chart.outs}
@@ -489,7 +506,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             cardAwardList={card?.image.award_summary_list || []}
             cardStatHighlightsList={card?.image.stat_highlights_list || []}
             cardChartRanges={card?.chart.ranges || {}}
-            cardSource={card?.is_wotc ? 'WOTC' : 'BOT'}
+            cardSource={sourceOverride || (card?.is_wotc ? 'WOTC' : 'BOT')}
             onClick={onClick}
             className={className}
             isSelected={isSelected}
@@ -517,9 +534,18 @@ type CardItemFromCardDatabaseRecordProps = {
     ptsChangeField?: 'points_change' | 'points_change_yoy';
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
+    cardPtsMultiplier?: number;
+    /** Overrides `card.stat_highlights_list` (the card's own real-life highlights) — e.g. a
+     * simulated season's line instead of the real one, on the sim result screens. */
+    statHighlightsOverride?: string[];
+    /** Overrides `card.awards_list` (the card's own real-life awards) — pass e.g. `['SIM:']` on
+     * sim result screens, since a card's real awards have nothing to do with what it did in a
+     * simulated season and showing them alongside `statHighlightsOverride` would be misleading. */
+    awardListOverride?: string[];
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, ptsChangeField = 'points_change', actionButton }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, ptsChangeField = 'points_change', actionButton, cardPtsMultiplier, statHighlightsOverride, awardListOverride }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -555,10 +581,11 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardExpansion={card?.expansion || undefined}
             cardSetNumber={card?.set_number ? parseInt(card?.set_number) : undefined}
             cardIcons={card?.icons_list || []}
-            cardAwardList={card?.awards_list || []}
-            cardStatHighlightsList={card?.stat_highlights_list || []}
+            cardAwardList={awardListOverride ?? (card?.awards_list || [])}
+            cardStatHighlightsList={statHighlightsOverride ?? (card?.stat_highlights_list || [])}
             cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
+            cardPtsMultiplier={cardPtsMultiplier}
             onClick={onClick}
             className={className}
             isSelected={isSelected}

@@ -1,11 +1,20 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import ClassVar, Optional
 from ..base_client import BaseMLBClient
 from ..models.teams.team import Team
 from ..models.teams.roster import Roster, RosterTypeEnum
 
 class TeamsClient(BaseMLBClient):
     """Client for team related endpoints - inherits all base functionality"""
+
+    # BREF-style abbreviations for defunct franchises that the MLB Stats API reports differently.
+    # e.g. it reuses 'MIL' for the Milwaukee Braves (1953-1965), the same code as the modern
+    # Brewers, and reports 'WAS' (not 'WSH') for the original Washington Senators (1901-1960).
+    # The `season` filter on the request disambiguates which franchise comes back.
+    BREF_TO_MLB_API_ABBREVIATION: ClassVar[dict[str, str]] = {
+        'MLN': 'MIL',
+        'WSH': 'WAS',
+    }
 
     # -------------------------
     # TEAMS LIST
@@ -71,13 +80,14 @@ class TeamsClient(BaseMLBClient):
             Team object with team details
         """
         try:
+            mlb_api_abbreviation = self.BREF_TO_MLB_API_ABBREVIATION.get(abbreviation.upper(), abbreviation)
             params = {'sportId': sport_id}
             if season:
                 params['season'] = season
             data = self._make_request('teams', params=params)
             teams = data.get('teams', [])
             for team in teams:
-                if team.get('abbreviation', '').upper() == abbreviation.upper():
+                if team.get('abbreviation', '').upper() == mlb_api_abbreviation.upper():
                     return Team(**team)
             raise Exception(f"Team with abbreviation {abbreviation} not found")
         except Exception as e:

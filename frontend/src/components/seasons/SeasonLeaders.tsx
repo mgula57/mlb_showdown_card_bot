@@ -229,7 +229,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                     <CardItemFromCardDatabaseRecord
                         card={card}
                         className={[
-                            'max-w-full w-full',
+                            'max-w-96 w-full',
                             card ? 'cursor-pointer' : 'pointer-events-none',
                             isPlaceholder ? 'animate-pulse opacity-40' : '',
                             !card && isLoadingCards ? 'animate-pulse opacity-60' : '',
@@ -350,7 +350,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
 
             {/* Modal for selected card */}
             <div className={selectedModalCard ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={() => setSelectedModalCard(null)} isVisible={!!selectedModalCard}>
+                <Modal onClose={() => setSelectedModalCard(null)} isVisible={!!selectedModalCard} size='xl'>
                     <CardDetail
                         showdownBotCardData={selectedModalCard!}
                         hideTrendGraphs={true}

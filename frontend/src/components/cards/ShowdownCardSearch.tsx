@@ -20,12 +20,12 @@ import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDa
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
-import { useSiteSettings } from "../shared/SiteSettingsContext";
+import { useSiteSettings, showdownSets } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
     FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical,
-    FaChartLine
+    FaChartLine, FaLock
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -36,8 +36,8 @@ import FormInput from "../customs/FormInput";
 import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
-import type { SelectOption } from '../shared/CustomSelect';
-import { CardItemFromCardDatabaseRecord, CardItemFromCard } from "./CardItem";
+import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
+import { CardItemFromCardDatabaseRecord, CardItemFromCard, CardItemSkeleton } from "./CardItem";
 import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
@@ -46,7 +46,6 @@ import { TeamHierarchy } from "./TeamHierarchy";
 import SortButton from "./SortButton";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { QuickFiltersDropdown } from './QuickFiltersDropdown';
 import { useAuth } from '../auth/AuthContext';
 
@@ -62,8 +61,18 @@ type ShowdownCardSearchProps = {
     verticalOffset?: string;
     /** Source of the card data */
     source: CardSource;
-    /** Optional default filters merged on top of source defaults */
+    /**
+     * Optional default filters merged on top of source defaults. Seeded on mount and
+     * re-applied whenever this prop changes; the user can still remove them unless the
+     * key is also listed in `lockedFilters`.
+     */
     defaultFilters?: Partial<FilterSelections>;
+    /**
+     * Keys from `defaultFilters` the user cannot clear: their controls in the filter
+     * modal are disabled and their chip in the "Selected Filters" row shows a lock icon
+     * instead of an ✕. Keys not listed here seed as normal, removable chips.
+     */
+    lockedFilters?: string[];
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
     /**
@@ -81,9 +90,28 @@ type ShowdownCardSearchProps = {
         label?: string;
         bgColorClass?: string;
         onClick: (card: CardDatabaseRecord) => void;
+        /** Greys out the button and blocks clicks everywhere it's rendered (grid, sidebar, modal) — e.g. while a previous pick is still saving. */
+        disabled?: boolean;
     };
     /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
     excludeIds?: string[];
+    /**
+     * Change this value (e.g. bump a counter) to clear the search text and reset all filters
+     * back to source defaults — used by callers to start fresh after a pick completes.
+     */
+    resetTrigger?: unknown;
+    /**
+     * Lets the user preview the selected card in a different Showdown set from the detail
+     * modal/sidebar (see `CardDetail`'s `enableSetSwitcher`). Off by default — only pages that
+     * want this (currently just the Cards explorer) should pass it.
+     */
+    enableSetSwitcher?: boolean;
+    /**
+     * Shows a Showdown set dropdown in the filters bar that overrides the header's set for this
+     * search only (not persisted). Only applies to sources without their own `showdown_set`
+     * filter. Off by default — currently just the Cards explorer.
+     */
+    enableSetOverride?: boolean;
 };
 
 // =============================================================================
@@ -101,7 +129,7 @@ type ShowdownCardSearchProps = {
  * - Player characteristics (position, handedness)
  * - Data quality indicators
  */
-interface FilterSelections {
+export interface FilterSelections {
     // Sorting and display order
     /** Field to sort results by */
     sort_by?: string;
@@ -148,6 +176,32 @@ interface FilterSelections {
     min_outs?: number;
     /** Maximum outs on chart */
     max_outs?: number;
+    /** Minimum fielding rating — matches if ANY of the player's positions meets this rating */
+    min_fielding?: number;
+    /** Maximum fielding rating — matches if ANY of the player's positions meets this rating */
+    max_fielding?: number;
+
+    /** Minimum number of chart slots (1-20, excludes 21+ overflow) for a given chart category */
+    min_chart_pu?: number;
+    max_chart_pu?: number;
+    min_chart_so?: number;
+    max_chart_so?: number;
+    min_chart_gb?: number;
+    max_chart_gb?: number;
+    min_chart_fb?: number;
+    max_chart_fb?: number;
+    min_chart_bb?: number;
+    max_chart_bb?: number;
+    min_chart_1b?: number;
+    max_chart_1b?: number;
+    'min_chart_1b+'?: number;
+    'max_chart_1b+'?: number;
+    min_chart_2b?: number;
+    max_chart_2b?: number;
+    min_chart_3b?: number;
+    max_chart_3b?: number;
+    min_chart_hr?: number;
+    max_chart_hr?: number;
 
     // Temporal filters
     /** Minimum season year */
@@ -218,6 +272,11 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
                 sort_direction: "desc",
             };
         case CardSource.WBC:
+            return {
+                sort_by: "points",
+                sort_direction: "desc",
+            };
+        case CardSource.CUSTOM:
             return {
                 sort_by: "points",
                 sort_direction: "desc",
@@ -420,6 +479,10 @@ const getSortOptions = (source: CardSource): SelectOption[] => {
                 ...WOTC_SPECIFIC_SORT_OPTIONS,
                 ...baseOptions,
             ];
+        case CardSource.CUSTOM:
+            // A personal card list — only the fields the backend flattens out of card_result
+            // are sortable (no defense/chart-value breakdown columns like Bot/WOTC have).
+            return BASE_SORT_OPTIONS;
         default:
             return baseOptions;
     }
@@ -461,6 +524,28 @@ const SHOWDOWN_METADATA_RANGE_FILTERS: RangeDef[] = [
 const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
     { label: "Ctrl/OB", minKey: "min_command", maxKey: "max_command", step: 1 },
     { label: "Outs", minKey: "min_outs", maxKey: "max_outs", step: 1 },
+];
+
+/** Fielding range filter — matches if ANY of the player's positions meets the rating (OR) */
+const SHOWDOWN_FIELDING_RANGE_FILTERS: RangeDef[] = [
+    { label: "Fielding (Any Position)", minKey: "min_fielding", maxKey: "max_fielding", step: 1 },
+];
+
+/**
+ * Per-category chart slot-count range filters. Counts reflect the number of chart slots
+ * (out of 20) awarded to the category — 21+ overflow slots (expanded sets) are excluded.
+ */
+const SHOWDOWN_CHART_VALUES_RANGE_FILTERS: RangeDef[] = [
+    { label: "PU", minKey: "min_chart_pu", maxKey: "max_chart_pu", step: 1 },
+    { label: "SO", minKey: "min_chart_so", maxKey: "max_chart_so", step: 1 },
+    { label: "GB", minKey: "min_chart_gb", maxKey: "max_chart_gb", step: 1 },
+    { label: "FB", minKey: "min_chart_fb", maxKey: "max_chart_fb", step: 1 },
+    { label: "BB", minKey: "min_chart_bb", maxKey: "max_chart_bb", step: 1 },
+    { label: "1B", minKey: "min_chart_1b", maxKey: "max_chart_1b", step: 1 },
+    { label: "1B+", minKey: "min_chart_1b+", maxKey: "max_chart_1b+", step: 1 },
+    { label: "2B", minKey: "min_chart_2b", maxKey: "max_chart_2b", step: 1 },
+    { label: "3B", minKey: "min_chart_3b", maxKey: "max_chart_3b", step: 1 },
+    { label: "HR", minKey: "min_chart_hr", maxKey: "max_chart_hr", step: 1 },
 ];
 
 // =============================================================================
@@ -564,7 +649,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false, compact = false, actionButton, excludeIds }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -599,7 +684,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Global application state
     /** Current user's selected Showdown set */
     const { userShowdownSet } = useSiteSettings();
+    /** Optional per-search set override (see `enableSetOverride`); null falls back to the header's set */
+    const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
+    const showSetOverride = enableSetOverride && !isFilterAvailable('showdown_set', source);
+    const effectiveShowdownSet = (showSetOverride ? showdownSetOverride : null) ?? userShowdownSet;
+    const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
     const { session } = useAuth();
+    // Only My Customs needs auth — derived so other sources see a stable `undefined` and don't
+    // treat an unrelated session change (e.g. resolving on mount) as a reason to refetch.
+    const authToken = source === CardSource.CUSTOM ? session?.access_token : undefined;
 
     // Separate search from filters
     const [searchText, setSearchText] = useState('');
@@ -607,21 +700,23 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     // Filters
     const defaultFiltersForSource = { ...getDefaultFilterSelections(source), ...defaultFilters };
-    const lockedDefaultFilters = useMemo(
+    // Every provided default filter is seeded and re-applied whenever `defaultFilters` changes.
+    const seededDefaultFilters = useMemo(
         () => Object.fromEntries(Object.entries(defaultFilters).filter(([, value]) => value !== undefined)) as Partial<FilterSelections>,
         [defaultFilters]
     );
+    // The subset of those the user isn't allowed to remove.
     const lockedFilterKeys = useMemo(
-        () => new Set(Object.keys(lockedDefaultFilters) as (keyof FilterSelections)[]),
-        [lockedDefaultFilters]
+        () => new Set(lockedFilters ?? []),
+        [lockedFilters]
     );
     const isFilterLocked = (key: keyof FilterSelections) => lockedFilterKeys.has(key);
     const applyLockedFilters = useCallback(
-        (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...lockedDefaultFilters }),
-        [lockedDefaultFilters]
+        (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...seededDefaultFilters }),
+        [seededDefaultFilters]
     );
-    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
-    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
+    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
+    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
     const filtersWithoutSortingForEditing = { ...filtersForEditing, sort_by: null, sort_direction: null };
     const defaultsWithoutSorting = { ...defaultFiltersForSource, sort_by: null, sort_direction: null };
@@ -668,13 +763,27 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         [excludeIds?.join(',')]
     );
     const displayedCards = useMemo(
-        () => (excludeSet && showdownCards ? showdownCards.filter(c => !excludeSet.has(c.id)) : showdownCards),
+        // Roster slots key on `card_id` (the showdown card's own id), which is what callers pass
+        // in `excludeIds`. Fall back to `id` (the archive row identity) for sources like CUSTOM
+        // whose search rows don't carry a separate `card_id`.
+        () => (excludeSet && showdownCards
+            ? showdownCards.filter(c => !excludeSet.has(c.card_id) && !excludeSet.has(c.id))
+            : showdownCards),
         [showdownCards, excludeSet]
     );
+
+    /** Initial load with nothing to show yet: render card skeletons instead of the spinner overlay */
+    const showSkeletons = isLoading && (!displayedCards || displayedCards.length === 0);
 
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
     const sidebarContainerRef = useRef<HTMLDivElement>(null);
+
+    // Tracks the in-flight card fetch so a new search/filter change cancels the prior run
+    // instead of waiting for it to finish. `cardsRequestIdRef` additionally guards against a
+    // stale (aborted or slow) response landing after a newer one and clobbering it.
+    const cardsAbortControllerRef = useRef<AbortController | null>(null);
+    const cardsRequestIdRef = useRef(0);
 
     // Sidebar resize
     const [sidebarWidth, setSidebarWidth] = useState(384); // matches w-96
@@ -738,16 +847,30 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
     }, [source]);
 
+    // Re-seed whenever the injected `defaultFilters` change. A key that was seeded before but
+    // is gone from the new seed (e.g. the caller dismissed a "fill this position" flow) is
+    // reset to the source default so it doesn't linger in the search.
+    const prevSeedRef = useRef<Partial<FilterSelections>>(seededDefaultFilters);
     useEffect(() => {
-        setFilters((prev) => {
-            const next = applyLockedFilters(prev);
+        const removedKeys = Object.keys(prevSeedRef.current).filter(k => !(k in seededDefaultFilters));
+        prevSeedRef.current = seededDefaultFilters;
+        const reseed = (prev: FilterSelections): FilterSelections => {
+            const sourceDefaults = getDefaultFilterSelections(source);
+            const cleared = { ...prev } as FilterSelections;
+            for (const k of removedKeys) {
+                cleared[k as keyof FilterSelections] = sourceDefaults[k as keyof FilterSelections] as never;
+            }
+            return applyLockedFilters(cleared);
+        };
+        setFilters(prev => {
+            const next = reseed(prev);
             return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
         });
-        setFiltersForEditing((prev) => {
-            const next = applyLockedFilters(prev);
+        setFiltersForEditing(prev => {
+            const next = reseed(prev);
             return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
         });
-    }, [applyLockedFilters]);
+    }, [applyLockedFilters, seededDefaultFilters, source]);
 
     // On initial load
     useEffect(() => {
@@ -779,14 +902,23 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         setHasMore(true);
         setShowdownCards(null); // Clear existing cards immediately
 
-        if (!userShowdownSet || isLoading) return;
+        // Note: intentionally not guarding on `isLoading` — a filter/search change while a
+        // previous load is still running should start a fresh fetch now (which aborts the
+        // stale one in `getCardsData`), not wait for the old one to finish.
+        if (!effectiveShowdownSet) return;
 
         const timeoutId = setTimeout(() => {
             getCardsData();
         }, 200); // Small delay to prevent rapid successive calls
 
         return () => clearTimeout(timeoutId);
-    }, [userShowdownSet, filters, debouncedSearchText]);
+    // Only My Customs' request depends on the session (sent as a bearer token, required to scope
+    // the search) — `authToken` stays a stable `undefined` for other sources so a session
+    // resolving/changing (e.g. restoring one from storage on refresh) doesn't refetch every tab.
+    }, [effectiveShowdownSet, filters, debouncedSearchText, authToken]);
+
+    // Abort any in-flight card fetch on unmount
+    useEffect(() => () => cardsAbortControllerRef.current?.abort(), []);
 
     // Debounce search text only
     useEffect(() => {
@@ -818,6 +950,25 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     const getCardsData = async (pageNum: number = 1, append: boolean = false) => {
 
+        // My Customs is scoped to the signed-in user — skip the request entirely rather than
+        // asking the backend to resolve an empty result for an anonymous "custom card" search.
+        if (source === CardSource.CUSTOM && !session) {
+            setShowdownCards([]);
+            setHasMore(false);
+            setWarningMessage("Sign in to see your custom cards.");
+            setIsLoading(false);
+            setIsLoadingMore(false);
+            return;
+        }
+
+        // Cancel any in-flight request so a filter/search change doesn't have to wait for the
+        // previous (possibly slow) fetch to finish before its results apply.
+        cardsAbortControllerRef.current?.abort();
+        const abortController = new AbortController();
+        cardsAbortControllerRef.current = abortController;
+        const requestId = ++cardsRequestIdRef.current;
+        const isStale = () => requestId !== cardsRequestIdRef.current;
+
         // Loading indicators
         if (pageNum === 1) {
             setIsLoading(true);
@@ -830,10 +981,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const pageLimit = 50;
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
 
-            // Only include userShowdownSet if filters.showdown_set is not already populated
-        const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
-            ? {} 
-            : { showdown_set: userShowdownSet };
+            // Only include the effective set if filters.showdown_set is not already populated
+            const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
+                ? {} 
+                : { showdown_set: effectiveShowdownSet };
 
             const combinedFilters = {
                 ...filters,
@@ -847,7 +998,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const cleanedFilters = Object.fromEntries(
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
-            const data = await fetchCardData(source, cleanedFilters);
+            const data = await fetchCardData(source, cleanedFilters, authToken, abortController.signal);
+
+            // A newer request superseded this one — drop the response so it can't clobber it.
+            if (isStale()) return;
 
             console.log("Fetched cards data:", { source, filters: cleanedFilters, data });
 
@@ -885,10 +1039,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             }
 
         } catch (error) {
+            // An aborted request was intentionally cancelled by a newer run — not an error.
+            if (error instanceof DOMException && error.name === 'AbortError') return;
             console.error("Error fetching showdown cards:", error);
         } finally {
-            setIsLoading(false);
-            setIsLoadingMore(false);
+            // Only the latest request owns the loading indicators; a stale run finishing later
+            // must not flip them off while the newer fetch is still going.
+            if (!isStale()) {
+                setIsLoading(false);
+                setIsLoadingMore(false);
+            }
         }
     };
 
@@ -991,6 +1151,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         }
     }
 
+    // Let callers force a clean slate (e.g. after a pick completes) by bumping resetTrigger.
+    useEffect(() => {
+        if (resetTrigger === undefined) return;
+        setSearchText('');
+        resetFilters(['filters', 'editing']);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resetTrigger]);
+
     const makeRemoveFilter = (
         state: FilterSelections,
         setter: React.Dispatch<React.SetStateAction<FilterSelections>>,
@@ -1016,6 +1184,18 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const removeFilterForEditing = makeRemoveFilter(filtersForEditing, setFiltersForEditing);
 
     const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>) => {
+        if (key.startsWith('min_chart_') || key.startsWith('max_chart_')) {
+            const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
+            const category = key.replace('min_chart_', '').replace('max_chart_', '').toUpperCase();
+            const correspondingKey = key.startsWith('min_') ? key.replace('min_chart_', 'max_chart_') : key.replace('max_chart_', 'min_chart_');
+
+            if (overallList[correspondingKey] === value) {
+                return key.startsWith('min_') ? `Chart ${category}: ${value}` : undefined;
+            }
+
+            return `Chart ${category} ${comparisonOperator} ${value}`;
+        }
+
         if (key.startsWith('min_') || key.startsWith('max_')) {
 
             const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
@@ -1107,23 +1287,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             `}
         >
 
-            {!compact && <WhatsNewBanner
-                storageKey="exploreWhatsNew_v1"
-                features={[
-                    { icon: <FaCalendarAlt />, text: '2026 cards, updated daily' },
-                    { icon: <FaChartLine />,   text: "See who's trending WoW in PTS" },
-                    { icon: <FaSort />,        text: 'Easier access to sorting options and direction' },
-                    { icon: <FaFilter />,      text: 'Save filter presets (login required)' },
-                ]}
-            />}
-
             {/* Search Bar and Filters */}
             <div
-                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur p-3 transition-[width] duration-300 ease-in-out"
+                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur py-3 transition-[width] duration-300 ease-in-out"
                 style={{ width: `calc(100% - ${showPlayerDetailSidebar ? sidebarWidth : 0}px)` }}
             >
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 px-3">
 
                     <div className="flex flex-1 items-center gap-2">
                         {/* Search Input */}
@@ -1160,6 +1330,28 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             <FaFilter className="text-primary" />
                             <span className="hidden @2xl:inline">Filter</span>
                         </button>
+
+                        {/* Showdown Set Override */}
+                        {showSetOverride && (
+                            <CustomSelect
+                                className="shrink-0"
+                                buttonClassName="
+                                    h-11 px-3
+                                    rounded-xl bg-(--background-secondary) border-2 border-form-element
+                                    flex items-center cursor-pointer
+                                    hover:bg-(--background-secondary-hover)
+                                "
+                                imageClassName="object-contain object-center h-6 w-16 mr-1"
+                                labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
+                                value={showdownSetOverride ?? ''}
+                                onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
+                                options={[
+                                    { value: '', label: ' (Default)', image: userDefaultSetImage },
+                                    ...showdownSets,
+                                ]}
+                                showDropdownArrow={true}
+                            />
+                        )}
                     </div>
                     
 
@@ -1182,7 +1374,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 {/* Show selected filters with X to remove */}
                 <div className="relative flex flex-row gap-2">
 
-                    <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
+                    <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide px-3">
                         {/* Sorting Summary */}
                         <SortButton
                             selectedOption={selectedSortOption}
@@ -1194,18 +1386,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             disableSortDirection={isFilterLocked('sort_direction')}
                         />
 
-                        {/* Selected Filters */}
+                        {/* Selected Filters — locked ones stay visible but can't be removed */}
                         {/* The last element should add lots of padding */}
                         {Object.entries(filtersWithoutSorting)
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
-                            .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
+                            .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                             .map(([key, value]) => {
                                 const displayText = filterDisplayText(key, value, filtersWithoutSorting);
                                 if (!displayText) return null;
+                                const locked = isFilterLocked(key as keyof FilterSelections);
                                 return (
-                                    <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
-                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value, filtersWithoutSorting)}</span>
-                                        {!isFilterLocked(key as keyof FilterSelections) && (
+                                    <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
+                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
+                                        {locked ? (
+                                            <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
+                                        ) : (
                                             <button onClick={() => removeFilter(key)} className="ml-1 cursor-pointer">
                                                 <FaTimes />
                                             </button>
@@ -1239,10 +1434,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
                 >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
+                        {/* Skeleton placeholders while loading with no cards yet */}
+                        {showSkeletons && Array.from({ length: 30 }, (_, i) => (
+                            <CardItemSkeleton key={`skeleton-${i}`} />
+                        ))}
+
                         {/* Iterate through showdownCards and display each card */}
                         {displayedCards?.map((cardRecord, index) => {
                             const resolvedAction: CardItemActionButton | undefined = actionButton
-                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, onClick: () => actionButton.onClick(cardRecord) }
+                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, disabled: actionButton.disabled, onClick: () => actionButton.onClick(cardRecord) }
                                 : undefined;
                             return (
                                 <div
@@ -1256,6 +1456,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             onClick={() => handleRowClick(cardRecord)}
                                             isSelected={selectedCard?.id === cardRecord.id}
                                             actionButton={resolvedAction}
+                                        />
+                                    )}
+                                    {source === CardSource.CUSTOM && (
+                                        <CardItemFromCard
+                                            card={cardRecord.card_data}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                            sourceOverride={CardSource.CUSTOM}
                                         />
                                     )}
                                     {source === CardSource.BOT && (
@@ -1344,6 +1553,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 hideTrendGraphs={true}
                                 context='explore'
                                 parent="sidebar"
+                                onDraft={actionButton && selectedCardForSidebar
+                                    ? () => { actionButton.onClick(selectedCardForSidebar); handleCloseSidebar(); }
+                                    : undefined}
+                                draftDisabled={actionButton?.disabled}
+                                enableSetSwitcher={enableSetSwitcher}
                             />
                         </div>
                     </div>
@@ -1353,7 +1567,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             </div>
 
             {/* Add Loading Indicator in the middle of the screen */}
-            {isLoading && (
+            {isLoading && !showSkeletons && (
                 <div className="
                     absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                     bg-(--primary)/10 backdrop-blur
@@ -1374,6 +1588,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         hideTrendGraphs={true}
                         context='explore'
                         parent="modal"
+                        onDraft={actionButton && selectedCardForModal
+                            ? () => { actionButton.onClick(selectedCardForModal); handleCloseModal(); }
+                            : undefined}
+                        draftDisabled={actionButton?.disabled}
+                        enableSetSwitcher={enableSetSwitcher}
                     />
                 </Modal>
             </div>
@@ -1442,14 +1661,17 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                                 {Object.entries(filtersWithoutSortingForEditing)
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
-                                    .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
+                                    .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                                     .map(([key, value]) => {
                                         const displayText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
                                         if (!displayText) return null;
+                                        const locked = isFilterLocked(key as keyof FilterSelections);
                                         return (
-                                            <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
+                                            <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
                                                 <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
-                                                {!isFilterLocked(key as keyof FilterSelections) && (
+                                                {locked ? (
+                                                    <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
+                                                ) : (
                                                     <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
                                                         <FaTimes />
                                                     </button>
@@ -1749,6 +1971,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     />
                                 ))}
 
+                                {SHOWDOWN_FIELDING_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
+                                    />
+                                ))}
+
                                 <MultiSelect
                                     label="Icons"
                                     options={[
@@ -1771,19 +2001,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             </FormSection>
 
                             <FormSection title="Showdown Chart" icon={<FaTable />} isOpenByDefault={true}>
-                                {isFilterAvailable('is_chart_outlier', source) && (
-                                    <MultiSelect
-                                        label="Chart Outlier?"
-                                        options={[
-                                            { value: 'true', label: 'Yes' },
-                                            { value: 'false', label: 'No' },
-                                        ]}
-                                        selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
-                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
-                                        disabled={isFilterLocked('is_chart_outlier')}
-                                    />
-                                )}
-
                                 {isFilterAvailable('is_errata', source) && (
                                     <MultiSelect
                                         label="Errata?"
@@ -1796,7 +2013,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         disabled={isFilterLocked('is_errata')}
                                     />
                                 )}
-                
+
                                 {SHOWDOWN_CHART_RANGE_FILTERS.map(def => (
                                     <RangeFilter
                                         key={def.minKey as string}
@@ -1805,6 +2022,30 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     />
                                 ))}
 
+                                <p className="col-span-full text-xs text-secondary -mb-2">
+                                    Chart Values: number of chart slots (out of 20) per category. Excludes 21+ overflow slots.
+                                </p>
+
+                                {SHOWDOWN_CHART_VALUES_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
+                                    />
+                                ))}
+
+                                {isFilterAvailable('is_chart_outlier', source) && (
+                                    <MultiSelect
+                                        label="Chart Outlier?"
+                                        options={[
+                                            { value: 'true', label: 'Yes' },
+                                            { value: 'false', label: 'No' },
+                                        ]}
+                                        selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
+                                        disabled={isFilterLocked('is_chart_outlier')}
+                                    />
+                                )}
 
                             </FormSection>
 

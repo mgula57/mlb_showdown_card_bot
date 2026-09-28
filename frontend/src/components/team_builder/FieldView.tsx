@@ -1,28 +1,34 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../../api/userTeams';
+import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus, FaPencil } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
-import { type KpiTile, buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
+import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
+import { SectionHeader } from '../shared/SectionHeader';
 import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
+import { SlotSavingOverlay } from './SlotSavingOverlay';
+import { CardNotFoundOverlay } from '../shared/CardNotFoundOverlay';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
-const POSITION_COORDS: Record<string, [number, number]> = {
-    CF:  [50, 16],
-    LF:  [20, 24],
-    RF:  [80, 24],
-    SS:  [32, 43],
-    '2B': [68, 43],
-    '3B': [18, 63],
-    '1B': [82, 63],
-    C:   [50, 85],
-    DH:  [84, 85],
+export const POSITION_COORDS: Record<string, [number, number]> = {
+    CF:  [50, 20],
+    LF:  [16, 26],
+    RF:  [84, 26],
+    SS:  [32, 45],
+    '2B': [68, 45],
+    '3B': [18, 65],
+    '1B': [82, 65],
+    C:   [50, 87],
+    DH:  [84, 87],
+    // Award-winner-only slots (Gold Glove Pitcher/Utility, Silver Slugger Utility)
+    P:   [50, 67],
+    UT:  [84, 87],
 };
 
-const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
-const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
+export const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
 
 export type FieldViewRosterData = {
     roster: TeamRosterSlot[];
@@ -31,53 +37,52 @@ export type FieldViewRosterData = {
     minBench: number;
     minBullpen: number;
     maxRotation: number;
+    /** How many bench / bullpen rows to render (filled + trailing empty "add" placeholders).
+     *  Set only while drafting/editing; omitted for read-only views, which show filled only. */
+    draftSlots?: { bench: number; bullpen: number };
 };
 
 type FieldViewProps = {
     lineup: Lineup;
     cardMap: Record<string, CardDatabaseRecord | null>;
     onSlotClick: (position: string, currentSlot: LineupSlot | null) => void;
-    onBenchClick?: (role: string, current: TeamRosterSlot | null) => void;
+    /** Bench is free-form: `current` is the row being replaced, or null to add a new one. */
+    onBenchClick?: (current: TeamRosterSlot | null) => void;
+    /** Bullpen is free-form: `current` is the arm being replaced, or null to add a new one. */
+    onBullpenClick?: (current: PitcherAssignment | null) => void;
     onRoleClick?: (role: string, current: PitcherAssignment | null) => void;
     readOnly?: boolean;
     activePosition?: string | null;
     rosterData?: FieldViewRosterData;
     hoveredCardId?: string | null;
     onCardHover?: (cardId: string | null) => void;
+    /** True while cardMap entries are still being fetched — shows loading placeholders for filled-but-unresolved slots */
+    isLoadingCards?: boolean;
+    /** Field positions / rotation roles whose draft pick just landed but whose lineup/rotation
+     *  the server hasn't re-derived yet — the slot gets a spinner overlay until the save lands. */
+    pendingPositions?: ReadonlySet<string>;
+    /** Which field slots to render, e.g. append 'P'/'UT' for a Gold Glove/Silver Slugger showcase. Defaults to the standard 9-man lineup. */
+    positions?: readonly string[];
+    /** Label shown in the header above the field (defaults to "Starting Lineup") */
+    headerLabel?: string;
+    /** Hides the OF/IF/CA defense badges and points totals — off by default for read-only showcases where they don't apply */
+    showDefenseSummary?: boolean;
+    /** Shows the total points banner above the field — off by default for read-only showcases where it doesn't apply */
+    showTotalPoints?: boolean;
+    /** Which detail stat to show on the cards (defaults to 'defense') */
+    detailStat1Category?: 'defense' | 'hr' | 'outs';
+    /** card_id -> a simulated season's statline (`SimStatLine.stats`) - when a slot's card_id has
+     * an entry, the card-detail modal opened from that slot shows a SIM column (see
+     * `CardDetail`'s `simStats` prop) alongside the card's projection and real-life stat. */
+    simStatsMap?: Record<string, Record<string, number>>;
+    /** Passed to `CardDetail`'s `tooltip` when the opened slot has a `simStatsMap` entry - see
+     * `CardDetail`'s prop of the same name. */
+    simStatsTooltip?: string;
+    /** card_id -> display name/id, surfaced on the "card not found" overlay for a filled-but-unresolved
+     *  position slot (e.g. an award recipient whose card_bot card couldn't be located). */
+    notFoundLabels?: Record<string, { name?: string; playerId?: number | string }>;
 };
 
-
-// ---- Section header ----
-
-function FieldViewSectionHeader({ label, filledCount, maxPlayers, total, kpis }: {
-    label: string;
-    filledCount: number;
-    maxPlayers?: number;
-    total: number;
-    kpis?: KpiTile[];
-}) {
-    return (
-        <div className="px-3 py-1.5 backdrop-blur-xs bg-(--background)/40">
-            <div className="flex items-center gap-1.5 opacity-75">
-                <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{label}</span>
-                <span className="text-[10px] text-(--text-tertiary)">{filledCount}{maxPlayers !== undefined ? `/${maxPlayers}` : ''}</span>
-                {total > 0 && (
-                    <span className="ml-auto text-[11px] font-semibold text-(--text-tertiary)">{total} pts</span>
-                )}
-            </div>
-            {kpis && kpis.length > 0 && (
-                <div className="flex items-center gap-3 mt-1.5 overflow-x-auto pb-0.5">
-                    {kpis.map(({ label: kLabel, value }) => (
-                        <div key={kLabel} className="flex flex-col items-center shrink-0">
-                            <span className="text-[8px] text-(--text-tertiary) uppercase tracking-wider opacity-75">{kLabel}</span>
-                            <span className="text-[11px] font-bold text-(--text-secondary)">{value}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
 
 function sumGroupDefense(positions: readonly string[], slotByPosition: Record<string, LineupSlot>, cardMap: Record<string, CardDatabaseRecord | null>): number | null {
     let total = 0;
@@ -90,8 +95,17 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
     return total;
 }
 
-export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleClick, readOnly = false, activePosition, rosterData, hoveredCardId, onCardHover }: FieldViewProps) {
-    const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
+export function FieldView({
+    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition,
+    rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
+    positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
+    simStatsMap, simStatsTooltip, notFoundLabels,
+}: FieldViewProps) {
+    // `onDraft` runs the same handler as the card's inline action button (opens the slot-fill
+    // flow) — surfaced as a "Draft" button inside the CardDetail modal while editing.
+    const [detailCard, setDetailCard] = useState<{ card: CardDatabaseRecord; onDraft?: () => void } | null>(null);
+    const openDetail = (card: CardDatabaseRecord, draft?: () => void) =>
+        setDetailCard({ card, onDraft: readOnly || !draft ? undefined : draft });
 
     const slotByPosition = Object.fromEntries(
         lineup.slots.map(s => [s.field_position, s])
@@ -107,7 +121,7 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
     const totalDefIF = sumGroupDefense(IF_POSITIONS, slotByPosition, cardMap);
     const totalCountOfFilledIF = IF_POSITIONS.filter(pos => slotByPosition[pos]).length;
     const avgDefIF = totalCountOfFilledIF > 0 ? (totalDefIF! / totalCountOfFilledIF) : null;
-    const colorDefIF = avgDefIF !== null ? (avgDefIF > 3 ? 'text-(--green)' : avgDefIF >= 1.75 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
+    const colorDefIF = avgDefIF !== null ? (avgDefIF >= 2.5 ? 'text-(--green)' : avgDefIF >= 1.75 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
 
     // Catcher Arm
     const cSlot = slotByPosition['C'];
@@ -117,31 +131,36 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
 
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
 
-    // Build role-indexed maps so each slot renders in order (filled or placeholder)
-    const benchRoles    = rosterData ? Array.from({ length: rosterData.minBench },   (_, i) => `BE${i + 1}`) : [];
-    const bullpenRoles  = rosterData ? Array.from({ length: rosterData.minBullpen }, (_, i) => `RP${i + 1}`) : [];
-    const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE');
-    const benchByRole   = Object.fromEntries(benchRoles.flatMap((role, i) => benchSlots[i] ? [[role, benchSlots[i]]] : []));
+    // Rotation stays slot-precise (SP1..SPn). Bench and bullpen are free-form: sorted by card
+    // points descending, with a fixed number of rows (filled cards + trailing empty "add"
+    // placeholders) — `rosterData.draftSlots` while editing, else just the filled count.
+    const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
+    const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
-    const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role));
-    const bullByRole    = Object.fromEntries(bullpenRoles.flatMap((role, i) => bullpenSlots[i] ? [[role, bullpenSlots[i]]] : []));
+    const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).slice().sort(byPointsDesc);
 
-    const lineupPts = lineup.slots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
-    const benchPts    = benchRoles.reduce((sum, role) => { const s = benchByRole[role]; return s ? sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)) : sum; }, 0);
+    const benchRowCount   = rosterData ? (rosterData.draftSlots?.bench   ?? benchSlots.length)   : 0;
+    const bullpenRowCount = rosterData ? (rosterData.draftSlots?.bullpen ?? bullpenSlots.length) : 0;
+
+    // With no DH filled, the Default lineup carries a synthetic 9th "batting" slot
+    // (field_position: 'SP') for the starting pitcher himself. He's already counted under
+    // Rotation, so exclude that slot here to avoid double-counting his points/slot-count.
+    const positionPlayerSlots = lineup.slots.filter(s => s.field_position !== 'SP');
+    const lineupPts = positionPlayerSlots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
+    const benchPts    = benchSlots.reduce((sum, s) => sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)), 0);
     const rotationPts = (ROTATION_ROLES as readonly string[]).reduce((sum, role) => { const r = rotByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
-    const bullpenPts  = bullpenRoles.reduce((sum, role) => { const r = bullByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
+    const bullpenPts  = bullpenSlots.reduce((sum, r) => sum + pts(r.card_id), 0);
+    const totalPts    = lineupPts + benchPts + rotationPts + bullpenPts;
 
     // ---- KPI computations ----
 
-    const filledLineupCards = lineup.slots
+    const filledLineupCards = positionPlayerSlots
         .map(s => cardMap[s.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
     const lineupKpis = buildLineupKpis(filledLineupCards, lineupPts, totalDefIF, totalDefOF);
 
-    const filledBenchCards = benchRoles
-        .map(role => benchByRole[role])
-        .filter(Boolean)
-        .map(s => cardMap[s!.card_id])
+    const filledBenchCards = benchSlots
+        .map(s => cardMap[s.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
     const benchKpis = buildBenchKpis(filledBenchCards, rosterData?.benchPtsMultiplier ?? 1);
 
@@ -153,40 +172,55 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
         .filter((c): c is CardDatabaseRecord => !!c);
     const rotationKpis = buildPitcherKpis(filledRotCards, rotationPts);
 
-    const filledBullCards = bullpenRoles
-        .map(role => bullByRole[role])
-        .filter(Boolean)
-        .map(r => cardMap[r!.card_id])
+    const filledBullCards = bullpenSlots
+        .map(r => cardMap[r.card_id])
         .filter((c): c is CardDatabaseRecord => !!c);
     const bullpenKpis = buildPitcherKpis(filledBullCards, bullpenPts);
 
+    // A single generic section shape drives all three groups. Rotation keys off its real role
+    // slots; bench/bullpen key off a synthetic index (label is always the generic 'BE' / 'RP').
+    const genericRoles = (n: number, prefix: string) => Array.from({ length: n }, (_, i) => `${prefix}${i + 1}`);
+
     const sections = rosterData ? [
-        {
-            label: 'Bench',
-            total: benchPts,
-            roles: benchRoles,
-            kpis: benchKpis,
-            getCard:    (role: string) => { const s = benchByRole[role]; return s ? cardMap[s.card_id] : null; },
-            onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(role, benchByRole[role] ?? null) : undefined,
-        },
         {
             label: 'Rotation', total: rotationPts, maxPlayers: rosterData.maxRotation,
             roles: [...ROTATION_ROLES].slice(0, rosterData?.maxRotation) as string[],
+            placeholderLabel: undefined as string | undefined,
             kpis: rotationKpis,
             getCard:    (role: string) => { const r = rotByRole[role]; return r ? cardMap[r.card_id] : null; },
+            hasAssignment: (role: string) => !!rotByRole[role],
             onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, rotByRole[role] ?? null) : undefined,
         },
         {
             label: 'Bullpen', total: bullpenPts,
-            roles: bullpenRoles,
+            roles: genericRoles(bullpenRowCount, 'RP'),
+            placeholderLabel: 'RP',
             kpis: bullpenKpis,
-            getCard:    (role: string) => { const r = bullByRole[role]; return r ? cardMap[r.card_id] : null; },
-            onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, bullByRole[role] ?? null) : undefined,
+            getCard:    (role: string) => { const r = bullpenSlots[Number(role.slice(2)) - 1]; return r ? cardMap[r.card_id] : null; },
+            hasAssignment: (role: string) => !!bullpenSlots[Number(role.slice(2)) - 1],
+            onItemClick: onBullpenClick && !readOnly ? (role: string) => onBullpenClick(bullpenSlots[Number(role.slice(2)) - 1] ?? null) : undefined,
+        },
+        {
+            label: 'Bench',
+            total: benchPts,
+            roles: genericRoles(benchRowCount, 'BE'),
+            placeholderLabel: 'BE',
+            kpis: benchKpis,
+            getCard:    (role: string) => { const s = benchSlots[Number(role.slice(2)) - 1]; return s ? cardMap[s.card_id] : null; },
+            hasAssignment: (role: string) => !!benchSlots[Number(role.slice(2)) - 1],
+            onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(benchSlots[Number(role.slice(2)) - 1] ?? null) : undefined,
+            ptsMultiplier: rosterData?.benchPtsMultiplier,
         },
     ] : [];
 
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col @container">
+            {showTotalPoints && (
+                <div className="flex items-center justify-center gap-2 p-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-(--text-tertiary)">Total Points</span>
+                    <span className="text-sm font-black tabular-nums text-(--text-primary)">{totalPts}</span>
+                </div>
+            )}
             <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
                 <img
                     src="/images/teams/Field.png"
@@ -195,29 +229,49 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                     draggable={false}
                 />
 
-                {([
-                    { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF, top: 80, left: 15 },
-                    { label: 'TOTAL IF', value: totalDefIF, color: colorDefIF, top: 84, left: 15 },
-                    { label: 'CA ARM',   value: armC,       color: colorArmC,  top: 88, left: 15 },
-                ] as const).map(({ label, value, color, top, left }) => value !== null && (
+                {showDefenseSummary && (
                     <div
-                        key={label}
-                        className="absolute -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none select-none"
-                        style={{ top: `${top}%`, left: `${left}%` }}
+                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-xl bg-primary backdrop-blur-xs pointer-events-none select-none"
+                        style={{ top: '80%', left: '15%' }}
                     >
-                        <span className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">{label}</span>
-                        <span className={`text-xs font-black ${color}`}>
-                            {value > 0 ? `+${value}` : value}
-                        </span>
+                        {([
+                            { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF },
+                            { label: 'TOTAL IF', value: totalDefIF, color: colorDefIF },
+                            { label: 'CA ARM',   value: armC,       color: colorArmC },
+                        ] as const).map(({ label, value, color }) => (
+                            <Fragment key={label}>
+                                <span className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-wide">{label}</span>
+                                <span className={`text-xs font-black text-right ${color}`}>
+                                    {
+                                        value === null ?
+                                            '-'
+                                         : (
+                                            value > 0 ? `+${value}`
+                                            : value
+                                        )
+                                    }
+                                </span>
+                            </Fragment>
+                        ))}
                     </div>
-                ))}
+                )}
 
-                <div className="absolute inset-0" >
-                    <FieldViewSectionHeader label="Starting Lineup" filledCount={lineup.slots.length} maxPlayers={9} total={lineupPts} kpis={lineupKpis} />
+                <div className="absolute inset-0">
+                    <SectionHeader
+                        variant="overlay"
+                        label={headerLabel}
+                        filledCount={positionPlayerSlots.length}
+                        maxPlayers={positions.length}
+                        total={showDefenseSummary ? lineupPts : 0}
+                        kpis={showDefenseSummary ? lineupKpis : undefined}
+                    />
                 </div>
 
-                {FIELD_POSITIONS.map(pos => {
-                    const [left, top] = POSITION_COORDS[pos];
+                {positions.map(pos => {
+                    // UT normally reuses DH's spot, but shifts left when both are shown together (e.g. Silver Slugger) to avoid overlapping
+                    const [left, top] = pos === 'UT' && positions.includes('DH')
+                        ? [16, 85]
+                        : (POSITION_COORDS[pos] ?? [50, 50]);
                     const slot = slotByPosition[pos] ?? null;
                     const card = slot ? cardMap[slot.card_id] : null;
                     const isActive = activePosition === pos;
@@ -226,7 +280,12 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                     return (
                         <div
                             key={pos}
-                            className={`absolute transition-all duration-200 ${isActive ? 'z-10' : ''}`}
+                            className={`
+                                absolute transition-all duration-200 
+                                ${isActive ? 'z-10' : ''}
+                                ${pos === 'CF' ? 'translate-y-[20%] @[400px]:translate-y-0' : ''}
+                                ${['LF', 'RF'].includes(pos) ? 'translate-y-[10%] @[400px]:translate-y-0' : ''}
+                            `}
                             style={{
                                 left: `${left}%`,
                                 top: `${top}%`,
@@ -238,83 +297,113 @@ export function FieldView({ lineup, cardMap, onSlotClick, onBenchClick, onRoleCl
                             onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                             onMouseLeave={() => onCardHover?.(null)}
                         >
-                            <div className={isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}>
+                            <div className={`relative ${isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}`}>
                                 {card ? (
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
                                         className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
-                                        size="lg"
                                         fieldPosition={pos}
-                                        onClick={() => setDetailCard(card)}
+                                        detailStat1Category={detailStat1Category}
+                                        onClick={() => openDetail(card, () => onSlotClick(pos, slot))}
                                         isSelected={isActive}
                                         actionButton={!readOnly ? {
-                                            icon: <FaPencil className="w-2.5 h-2.5" />,
+                                            icon: <FaPencil />,
                                             onClick: () => onSlotClick(pos, slot),
                                             label: 'Replace card',
+                                            placement: 'left'
                                         } : undefined}
                                     />
+                                ) : slot && isLoadingCards ? (
+                                    <PositionSlotLoadingPlaceholder position={pos} />
                                 ) : (
-                                    <PositionSlotPlaceholder
-                                        position={pos}
-                                        isActive={isActive}
-                                        onClick={readOnly ? undefined : () => onSlotClick(pos, null)}
-                                    />
+                                    <>
+                                        <PositionSlotPlaceholder
+                                            position={pos}
+                                            isActive={isActive}
+                                            onClick={readOnly ? undefined : () => onSlotClick(pos, null)}
+                                        />
+                                        {slot && (
+                                            <CardNotFoundOverlay
+                                                variant="field"
+                                                playerName={notFoundLabels?.[slot.card_id]?.name}
+                                                playerId={notFoundLabels?.[slot.card_id]?.playerId}
+                                            />
+                                        )}
+                                    </>
                                 )}
+                                {pendingPositions?.has(pos) && <SlotSavingOverlay variant="field" />}
                             </div>
                         </div>
                     );
                 })}
             </div>
 
-            {sections.map(({ label, roles, total, kpis, getCard, onItemClick, maxPlayers }) => {
+            {sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier, placeholderLabel }) => {
                 const filledCount = roles.filter(r => getCard(r)).length;
                 return (
                     <div key={label} className="border-t border-(--divider)" onClick={onItemClick ? e => e.stopPropagation() : undefined}>
-                        <FieldViewSectionHeader label={label} filledCount={filledCount} maxPlayers={maxPlayers} total={total} kpis={kpis} />
+                        <SectionHeader variant="overlay" label={label} filledCount={filledCount} maxPlayers={maxPlayers} total={total} kpis={kpis} />
                         <div className="grid grid-cols-2 gap-1.5 px-3 pb-3">
                             {roles.map(role => {
                                 const card = getCard(role);
                                 const isPeerHovered = !!card && card.card_id === hoveredCardId;
-                                return card ? (
-                                    <div
-                                        key={role}
-                                        onMouseEnter={() => onCardHover?.(card.card_id)}
-                                        onMouseLeave={() => onCardHover?.(null)}
-                                    >
-                                        <CardItemCompactFromCardDatabaseRecord
-                                            card={card}
-                                            className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
-                                            size="lg"
-                                            onClick={() => setDetailCard(card)}
-                                            actionButton={onItemClick ? {
-                                                icon: <FaPencil className="w-2.5 h-2.5" />,
-                                                onClick: () => onItemClick(role),
-                                                label: 'Replace card',
-                                            } : undefined}
-                                        />
+                                const isPending = !card && hasAssignment(role) && isLoadingCards;
+                                const isNotFound = !card && hasAssignment(role) && !isLoadingCards;
+                                // Bench/bullpen key off a synthetic 'BE1'/'RP1' index, so only real
+                                // rotation roles ('SP1'…) ever match a pending pick here.
+                                const isSaving = !!pendingPositions?.has(role);
+                                return (
+                                    <div key={role} className="relative">
+                                        {card ? (
+                                            <div
+                                                onMouseEnter={() => onCardHover?.(card.card_id)}
+                                                onMouseLeave={() => onCardHover?.(null)}
+                                            >
+                                                <CardItemCompactFromCardDatabaseRecord
+                                                    card={card}
+                                                    className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
+                                                    ptsMultiplier={ptsMultiplier}
+                                                    onClick={() => openDetail(card, onItemClick ? () => onItemClick(role) : undefined)}
+                                                    actionButton={onItemClick ? {
+                                                        icon: <FaPencil />,
+                                                        onClick: () => onItemClick(role),
+                                                        label: 'Replace card',
+                                                        placement: 'left',
+                                                    } : undefined}
+                                                />
+                                            </div>
+                                        ) : isPending ? (
+                                            <SlotLoadingPlaceholder />
+                                        ) : (
+                                            <>
+                                                <PositionSlotPlaceholder
+                                                    position={placeholderLabel ?? role}
+                                                    onClick={onItemClick ? () => onItemClick(role) : undefined}
+                                                    isActive={isPeerHovered}
+                                                />
+                                                {isNotFound && <CardNotFoundOverlay variant="row" />}
+                                            </>
+                                        )}
+                                        {isSaving && <SlotSavingOverlay variant="row" />}
                                     </div>
-                                ) : (
-                                    <button
-                                        key={role}
-                                        type="button"
-                                        onClick={onItemClick ? () => onItemClick(role) : undefined}
-                                        disabled={!onItemClick}
-                                        className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-dashed
-                                            text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-40
-                                            border-(--divider) text-(--text-tertiary) hover:border-(--secondary)/50 hover:text-(--secondary)"
-                                    >
-                                        <FaPlus className="text-[9px]" />
-                                        <span>Empty</span>
-                                    </button>
                                 );
                             })}
                         </div>
                     </div>
                 );
             })}
+
+            {/* Add padding at the end */}
+            <div className="h-48" />
+
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>
-                    <CardDetail cardId={detailCard?.card_id} context="roster" />
+                <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard} size='xl'>
+                    <CardDetail
+                        cardId={detailCard?.card.card_id}
+                        context="roster"
+                        simStats={detailCard ? simStatsMap?.[detailCard.card.card_id] : undefined}
+                        tooltip={detailCard && simStatsMap?.[detailCard.card.card_id] ? simStatsTooltip : undefined}
+                    />
                 </Modal>
             </div>
         </div>
@@ -335,7 +424,7 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             onClick={onClick}
             className={`
                 w-full flex items-center justify-between gap-1
-                rounded-lg px-2 h-12
+                rounded-lg px-2 h-12 @[340px]:h-16
                 border-2 border-dashed
                 backdrop-blur-[2px]
                 ${isActive
@@ -349,5 +438,30 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             <span className={`text-[11px] font-black ${isActive ? 'text-(--secondary)' : 'text-white/70'}`}>{position}</span>
             {onClick && <FaPlus className={`text-[9px] shrink-0 ${isActive ? 'text-(--secondary)' : 'text-white/50'}`} />}
         </button>
+    );
+}
+
+const LoadingDots = ({ dotClassName }: { dotClassName: string }) => (
+    <span className="flex items-center gap-1 shrink-0">
+        <span className={`w-1 h-1 rounded-full animate-bounce ${dotClassName}`} style={{ animationDelay: '0ms' }} />
+        <span className={`w-1 h-1 rounded-full animate-bounce ${dotClassName}`} style={{ animationDelay: '150ms' }} />
+        <span className={`w-1 h-1 rounded-full animate-bounce ${dotClassName}`} style={{ animationDelay: '300ms' }} />
+    </span>
+);
+
+function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
+    return (
+        <div className="w-full flex items-center justify-between gap-1 rounded-lg px-2 h-12 border-2 border-dashed border-white/30 bg-black/20 backdrop-blur-[2px]">
+            <span className="text-[11px] font-black text-white/70">{position}</span>
+            <LoadingDots dotClassName="bg-white/60" />
+        </div>
+    );
+}
+
+function SlotLoadingPlaceholder() {
+    return (
+        <div className="flex items-center justify-center h-9 rounded-lg border border-dashed border-(--divider)">
+            <LoadingDots dotClassName="bg-(--text-tertiary)" />
+        </div>
     );
 }

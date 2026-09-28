@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
     FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
-    FaCompass, FaCalendar, FaUser, FaImages, FaIdBadge,
-    FaChartBar
+    FaCompass, FaCalendar, FaAward
 } from 'react-icons/fa';
-import { FaXmark, FaCloudArrowUp, FaArrowsRotate } from 'react-icons/fa6';
+import CardBuildIcon from './customs/CardBuildIcon';
+import { FaXmark, FaPeopleGroup } from 'react-icons/fa6';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
@@ -13,15 +13,16 @@ import { useSiteSettings } from './shared/SiteSettingsContext';
 import { useAuth } from './auth/AuthContext';
 import { fetchTodaysSchedule, fetchSeasons, fetchSeasonLeaders } from '../api/mlbAPI';
 import type { GameScheduled, Season, LeadersGroup } from '../api/mlbAPI';
+import { fromScheduledGame } from '../domain/adapters/fromMlbApi';
+import type { GameState } from '../domain/game';
+import { TeamChip } from './shared/TeamChip';
+import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
 
 // Modal
 import { Modal } from './shared/Modal';
 import { LoginModal } from './auth/LoginModal';
 import { WhatsNewBanner } from './shared/WhatsNewBanner';
-
-// Create Card Sampler
-import { PlayerSearchInput } from './customs/PlayerSearchInput';
-import type { PlayerSearchSelection } from './customs/PlayerSearchInput';
+import ShowdownBotLogo from './shared/ShowdownBotLogo';
 
 // Card Components
 import { CardItemFromCard } from './cards/CardItem';
@@ -29,10 +30,9 @@ import CardCommand from './cards/card_elements/CardCommand';
 import { CardChart } from './cards/card_elements/CardChart';
 import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
 import { CardDetail } from './cards/CardDetail';
-import { getReadableTextColor } from '../functions/colors';
 
 // API
-import { fetchCardById, buildCardsFromIds } from '../api/showdownBotCard';
+import { buildCardsFromIds } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
 import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
@@ -41,13 +41,44 @@ import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
 
+type HomeNavTileData = {
+    label: string;
+    desc: string;
+    Icon: React.ComponentType<{ className?: string }>;
+    to: string;
+    iconColor: string;
+    isNew?: boolean;
+};
+
+/**
+ * A Home quick-nav tile. Shares the "NEW" badge state with the side menu — visiting
+ * the destination from either surface clears the badge on both.
+ */
+function HomeNavTile({ tile, isDark }: { tile: HomeNavTileData; isDark: boolean }) {
+    const { label, desc, Icon, to, iconColor } = tile;
+    const isNew = useNavItemIsNew(to, tile.isNew);
+    return (
+        <Link
+            to={to}
+            onClick={() => markNavItemSeen(to)}
+            className={`relative overflow-hidden rounded-2xl p-4 flex flex-col gap-1 shadow-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-neutral-900 border-neutral-700 hover:bg-neutral-800' : 'bg-white border-neutral-200 hover:bg-neutral-50'}`}
+        >
+            <Icon className={`absolute -bottom-2 -right-2 text-7xl opacity-5`} />
+            <Icon className={`text-3xl mb-1 ${iconColor}`} />
+            <span className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{label}</span>
+            <span className={`text-xs leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{desc}</span>
+            {isNew && (
+                <span className="absolute top-2 right-2 text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-blue-600 text-white">
+                    NEW
+                </span>
+            )}
+        </Link>
+    );
+}
+
 export default function Home() {
 
     // State
-    const [searchQuery, _] = useState<string>('');
-    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
-    const [isLoadingSearchCard, setIsLoadingSearchCard] = useState<boolean>(false);
-    const [isRefreshingTrends, setIsRefreshingTrends] = useState<boolean>(false);
     const [selectedModalCard, setSelectedModalCard] = useState<ShowdownBotCard | null>(null);
 
     // Today's games ticker
@@ -231,7 +262,6 @@ export default function Home() {
     }, [recentCardModal]);
 
     const refreshPlayerTrends = () => {
-        setIsRefreshingTrends(true);
         // Fetch card of the day
         fetchCardOfTheDay(userShowdownSet).then(card => {
             setCardOfTheDay(card);
@@ -258,19 +288,6 @@ export default function Home() {
             setSpotlightCards(cards);
         }).catch(err => {
             console.error('Failed to fetch spotlight cards:', err);
-        }).finally(() => {
-            setIsRefreshingTrends(false);
-        });
-    };
-
-    /** Simulated card lookup based on search query */
-    const handlePlayerSelect = (selection: PlayerSearchSelection) => {
-        // Simulate fetching a card based on the selected player and year
-        const cardId = `${selection.year}-${selection.player_id}${selection.player_type_override ? `-(${selection.player_type_override.toLowerCase()})` : ''}-${userShowdownSet}`;
-        setIsLoadingSearchCard(true);
-        fetchCardById(cardId, 'home-search').then(card => {
-            setSelectedCard(card.card || null);
-            setIsLoadingSearchCard(false);
         });
     };
 
@@ -298,19 +315,17 @@ export default function Home() {
                 md:space-y-10
                 gradient-page
                 pb-24
-                pt-8
+                pt-3 sm:pt-5 lg:pt-8
             `}>
 
             {/* What's New Banner */}
             <WhatsNewBanner
-                storageKey="featureBanner_home_v1_dismissed"
+                storageKey="featureBanner_home_v4.4_dismissed"
+                version='4.4'
                 features={[
-                    { icon: <FaUser />,         text: 'User accounts are now live!' },
-                    { icon: <FaCloudArrowUp />, text: 'Store your card creations' },
-                    { icon: <FaArrowsRotate />, text: 'Sync settings across devices' },
-                    { icon: <FaImages />,       text: 'Gallery to browse past builds' },
-                    { icon: <FaChartBar/>,      text: 'Redesigned breakdowns in Card Builder'},
-                    { icon: <FaCompass />,      text: '2026 cards in Explore' },
+                    { icon: <FaPeopleGroup />, text: 'Team Builder: draft a roster and enter simulations to test your team' },
+                    { icon: <FaCalendar />,    text: 'Seasons: simulate any MLB season start to finish' },
+                    { icon: <FaBolt />,        text: 'New gameday playback: watch games unfold pitch by pitch or take over and simulate the rest' },
                 ]}
                 onLoginClick={() => setShowBannerLoginModal(true)}
                 textSize="sm"
@@ -319,25 +334,41 @@ export default function Home() {
                 <LoginModal onClose={() => setShowBannerLoginModal(false)} />
             )}
 
-            {/* Quick Nav */}
-            <div className="max-w-7xl mx-auto w-full py-4 block sm:hidden">
-                <div className="grid grid-cols-3 gap-3">
-                    {([
-                        { label: 'Card Builder', desc: 'Build and customize your own cards', Icon: FaIdBadge,   to: '/customs', iconColor: 'text-red-500' },
-                        { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
-                        { label: 'Live Seasons',       desc: 'Follow the 2026 season using Showdown',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500' },
-                    ] as const).map(({ label, desc, Icon, to, iconColor }) => (
-                        <Link
-                            key={to}
-                            to={to}
-                            className={`relative overflow-hidden rounded-2xl p-4 flex flex-col gap-1 shadow-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-neutral-900 border-neutral-700 hover:bg-neutral-800' : 'bg-white border-neutral-200 hover:bg-neutral-50'}`}
-                        >
-                            <Icon className={`absolute -bottom-2 -right-2 text-7xl opacity-5`} />
-                            <Icon className={`text-3xl mb-1 ${iconColor}`} />
-                            <span className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{label}</span>
-                            <span className={`text-xs leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{desc}</span>
-                        </Link>
-                    ))}
+            {/* Hero Section */}
+            <div className="max-w-7xl mx-auto py-2">
+                <div className="flex flex-col items-start gap-4">
+                    <div className="flex flex-col items-start gap-3 max-w-2xl">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className={`hidden sm:inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                                <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} />
+                                <span className='leading-tight'>Showdown cards in seconds</span>
+                            </span>
+                            <div className={`leading-tight inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
+                                <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
+                                <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
+                            </div>
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold leading-tight">
+                            Digital Cards that Play Ball.
+                        </h1>
+                        <p className={`text-base max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+                            Turn real stats into Showdown cards, draft a team, and simulate full seasons — you're the GM of your own digital baseball-verse.
+                        </p>
+                    </div>
+
+                    {/* Quick Nav */}
+                    <div className="w-full pt-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl">
+                            {([
+                                { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
+                                { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
+                                { label: 'Team Builder',  desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-yellow-500', isNew: true },
+                                { label: 'Seasons',       desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500', isNew: true },
+                            ] as const).map((tile) => (
+                                <HomeNavTile key={tile.to} tile={tile} isDark={isDark} />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -367,6 +398,14 @@ export default function Home() {
                     </Link>
                 </div>
 
+                {/* Sim hint */}
+                {todaysGames.length > 0 && (
+                    <div className={`flex items-center gap-1.5 px-4 md:px-6 py-1.5 text-[11px] font-medium border-b border-(--divider) ${isDark ? 'bg-neutral-800/40 text-neutral-400' : 'bg-neutral-50 text-neutral-500'}`}>
+                        <FaDiceD20 className="text-primary shrink-0" />
+                        <span>Click a game to watch it play out pitch by pitch, or take over and sim the rest yourself</span>
+                    </div>
+                )}
+
                 {/* Scrollable game cards row */}
                 <div className="overflow-x-auto scrollbar-hide">
                     <div className="flex gap-0 min-w-max">
@@ -379,57 +418,44 @@ export default function Home() {
                                 </div>
                             ))
                         )}
-                        {!isLoadingGames && todaysGames.length === 0 && !tickerSeason && (
+                        {!isLoadingGames && todaysGames.length === 0 &&  (
                             <div className={`px-6 py-4 text-sm ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                                 No games scheduled today.
                             </div>
                         )}
-                        {!isLoadingGames && [...todaysGames].sort((a, b) => {
+                        {!isLoadingGames && todaysGames.map((game) => fromScheduledGame(game)).sort((a, b) => {
                             const seasonId = tickerSeason?.season_id ?? '';
-                            const aStarred = starredTeamKeys.includes(`${a.teams?.away?.team?.id}-${seasonId}`) || starredTeamKeys.includes(`${a.teams?.home?.team?.id}-${seasonId}`);
-                            const bStarred = starredTeamKeys.includes(`${b.teams?.away?.team?.id}-${seasonId}`) || starredTeamKeys.includes(`${b.teams?.home?.team?.id}-${seasonId}`);
+                            const aStarred = starredTeamKeys.includes(`${a.away.team.id}-${seasonId}`) || starredTeamKeys.includes(`${a.home.team.id}-${seasonId}`);
+                            const bStarred = starredTeamKeys.includes(`${b.away.team.id}-${seasonId}`) || starredTeamKeys.includes(`${b.home.team.id}-${seasonId}`);
                             if (aStarred !== bStarred) return aStarred ? -1 : 1;
-                            const statusOrder: Record<string, number> = { "Live": 0, "Scheduled": 1, "Final": 2 };
-                            return (statusOrder[a.status?.abstract_game_state || ""] ?? 3) - (statusOrder[b.status?.abstract_game_state || ""] ?? 3);
+                            const statusOrder: Record<GameState, number> = { LIVE: 0, PREVIEW: 1, FINAL: 2, POSTPONED: 3 };
+                            return statusOrder[a.state] - statusOrder[b.state];
                         }).map((game) => {
-                            const away = game.teams?.away;
-                            const home = game.teams?.home;
-                            const awayAbbr = away?.team?.abbreviation ?? '???';
-                            const homeAbbr = home?.team?.abbreviation ?? '???';
-                            const awayScore = away?.score;
-                            const homeScore = home?.score;
-                            const awayBadgeBg = away?.team?.primary_color ?? undefined;
-                            const awayBadgeText = awayBadgeBg ? getReadableTextColor(awayBadgeBg, '#ffffff') : undefined;
-                            const homeBadgeBg = home?.team?.primary_color ?? undefined;
-                            const homeBadgeText = homeBadgeBg ? getReadableTextColor(homeBadgeBg, '#ffffff') : undefined;
-                            const state = game.status?.abstract_game_state;
-                            const detailedState = game.status?.detailed_state;
-                            const isFinal = state === 'Final';
-                            const isLive = state === 'Live';
-                            const linescore = game.linescore;
-                            const inning = linescore?.current_inning;
-                            const inningHalf = linescore?.inning_half === 'Top' ? '▲' : linescore?.inning_half === 'Bottom' ? '▼' : '';
-                            const isAwayStarred = starredTeamKeys.includes(`${away?.team?.id}-${tickerSeason?.season_id}`);
-                            const isHomeStarred = starredTeamKeys.includes(`${home?.team?.id}-${tickerSeason?.season_id}`);
+                            const isFinal = game.state === 'FINAL';
+                            const isLive = game.state === 'LIVE';
+                            const inning = game.situation?.inning;
+                            const inningHalf = game.situation?.isTop ? '▲' : game.situation ? '▼' : '';
+                            const isAwayStarred = starredTeamKeys.includes(`${game.away.team.id}-${tickerSeason?.season_id}`);
+                            const isHomeStarred = starredTeamKeys.includes(`${game.home.team.id}-${tickerSeason?.season_id}`);
                             const statusLabel = isFinal
                                 ? 'FINAL'
                                 : isLive
                                 ? `${inningHalf}${inning ?? ''}`
-                                : game.game_date
-                                ? new Date(game.game_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-                                : detailedState ?? '';
+                                : game.date
+                                ? new Date(game.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                                : game.detailedState ?? '';
 
                             return (
                                 <Link
-                                    key={game.game_pk}
-                                    to={`/seasons?gamePk=${game.game_pk}`}
+                                    key={game.id}
+                                    to={`/seasons/game/${game.id}${tickerSeason ? `?season=${tickerSeason.season_id}` : ''}`}
                                     className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) hover:brightness-105 transition ${isDark ? 'hover:bg-neutral-800/60' : 'hover:bg-neutral-50'}`}
                                 >
                                     {/* Status badge */}
                                     <div className="mb-2 flex items-center justify-between gap-1.5">
                                         <span className={`text-[10px] font-bold uppercase tracking-wide py-0.5 ${isLive || isFinal ? 'px-1.5 rounded' : ''} ${
                                             isLive
-                                                ? 'bg-yellow-400/10 text-yellow-400'
+                                                ? 'bg-(--live)/10 text-(--live)'
                                                 : isFinal
                                                 ? 'bg-green-500/10 text-green-300'
                                                 : isDark ? 'text-neutral-100' : 'text-neutral-500'
@@ -437,44 +463,22 @@ export default function Home() {
                                             {isLive ? 'LIVE' : statusLabel}
                                         </span>
                                         {isLive && inning != null && (
-                                            <span className="text-[10px] font-bold text-yellow-400">
+                                            <span className="text-[10px] font-bold text-(--live)">
                                                 {inningHalf} {inning}
                                             </span>
                                         )}
                                     </div>
 
                                     {/* Away team */}
-                                    <div className={`flex items-center justify-between gap-1 mb-1`}>
-                                        <div className="flex items-center gap-2">
-                                            <span 
-                                                className={`flex items-center gap-0.5 text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`}
-                                                style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
-                                            >
-                                                {awayAbbr}
-                                                {isAwayStarred && <FaStar className="text-yellow-400 w-2 h-2" />}
-                                            </span>
-                                            {away?.league_record && (
-                                                <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{away.league_record.wins}-{away.league_record.losses}</span>
-                                            )}
-                                        </div>
-                                        <span className={`text-sm font-black tabular-nums `}>{awayScore === undefined || awayScore === null ? "-" : awayScore}</span>
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                        <TeamChip team={game.away.team} record={game.away.record} size="sm" isStarred={isAwayStarred} />
+                                        <span className="text-sm font-black tabular-nums">{game.away.score == null ? "-" : game.away.score}</span>
                                     </div>
 
                                     {/* Home team */}
-                                    <div className={`flex items-center justify-between gap-1`}>
-                                        <div className="flex items-center gap-2">
-                                            <span 
-                                                className={`flex items-center gap-0.5 text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`} 
-                                                style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
-                                            >
-                                                {homeAbbr}
-                                                {isHomeStarred && <FaStar className="text-yellow-400 w-2 h-2" />}
-                                            </span>
-                                            {home?.league_record && (
-                                                <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{home.league_record.wins}-{home.league_record.losses}</span>
-                                            )}
-                                        </div>
-                                            <span className={`text-sm font-black tabular-nums`}>{homeScore === undefined || homeScore === null ? "-" : homeScore}</span>
+                                    <div className="flex items-center justify-between gap-1">
+                                        <TeamChip team={game.home.team} record={game.home.record} size="sm" isStarred={isHomeStarred} />
+                                        <span className="text-sm font-black tabular-nums">{game.home.score == null ? "-" : game.home.score}</span>
                                     </div>
                                 </Link>
                             );
@@ -598,64 +602,6 @@ export default function Home() {
                 </div>,
                 document.body
             )}
-
-            {/* Hero Section */}
-            <div className="max-w-7xl mx-auto py-4 flex flex-col md:flex-row items-center justify-between gap-10">
-
-                {/* Left: Text and Actions */}
-                <div className="w-full md:w-1/2 3xl:flex-[0.6] flex flex-col gap-4 items-start">
-                    <div className="flex items-center gap-3 mb-2">
-                        <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                            <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> 
-                            <span className='leading-tight'>Showdown cards in seconds</span>
-                        </span>
-                        <div className={`leading-tight inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
-                            <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
-                            <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
-                        </div>
-                    </div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold leading-tight">
-                        Digital Cards that Play Ball.
-                    </h1>
-                    <p className={`text-lg max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                        Enter a player and season. We turn real stats into a simulated card for the iconic 20-sided dice game — ready to share, use in your league, or just admire.
-                    </p>
-                    
-                    <div className="flex gap-4 mt-2">
-                        <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition bg-(--showdown-red) ${isDark ? 'text-white' : 'text-white'}`}>
-                            Build your Own <FaChevronRight />
-                        </Link>
-                        <Link to="/cards" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
-                            Explore Cards <FaChevronRight />
-                        </Link>
-                    </div>
-                    <form className={`rounded-2xl p-6 flex flex-col w-full gap-4 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <PlayerSearchInput label='Try it out! Search for a player' value={searchQuery} onChange={handlePlayerSelect} searchOptions={{ exclude_multi_year: true }} />
-                        <CardItemFromCard card={selectedCard || undefined} className={`${selectedCard ? '' : 'pointer-events-none'} ${isLoadingSearchCard ? 'blur-xs' : ''}`} onClick={() => setSelectedModalCard(selectedCard)} />
-                    </form>
-                </div>
-
-                {/* Right: Random Card of the Day */}
-                <div className="flex-1 3xl:flex-[0.4] flex flex-col items-center md:items-end w-full">
-                    <div className={`rounded-3xl p-6 w-full max-w-md min-h-100 flex flex-col relative gap-2 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="flex justify-between items-center mb-2">
-                            <span className={`text-lg font-semibold ${isDark ? 'text-white/80' : 'text-black/80'}`}>Card of the Day</span>
-                            <span className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Generated by the Community</span>
-                        </div>
-                        <div className="flex-1 flex flex-col justify-center items-center gap-4">
-                            <img src={cardOfDayImageSrc} alt="Sample Showdown Card" className={`min-h-64 max-h-124 rounded-lg object-contain shadow-2xl ${isRefreshingTrends ? 'animate-pulse' : ''}`} />                        </div>
-                        <div className={`left-4 right-4 text-xs text-left pt-2 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                            {cardOfTheDay ? (
-                                <>
-                                    <span className="font-semibold">{cardOfTheDay.card_data.name}</span> - {cardOfTheDay.card_data.team} ({cardOfTheDay.card_data.year})<br />
-                                </>
-                            ) : (
-                                <>Loading...</>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             {/* How it Works */}
             <div className="max-w-7xl mx-auto py-6 border-t border-form-element">
@@ -803,7 +749,26 @@ export default function Home() {
                         Explore Cards <FaChevronRight />
                     </Link>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+                    <div className={`rounded-2xl p-6 overflow-hidden flex flex-col ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
+                        <div className="font-semibold mb-2 flex items-center gap-2"><FaAward className="text-emerald-500" /> Card of the Day</div>
+                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Generated by the community, refreshed daily.</div>
+                        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
+                            <img
+                                src={cardOfDayImageSrc}
+                                alt="Card of the Day"
+                                className={`w-full h-full max-w-full max-h-full rounded-lg object-contain shadow-lg ${cardOfTheDay ? 'cursor-pointer' : 'animate-pulse'}`}
+                                onClick={cardOfTheDay ? () => setSelectedModalCard(cardOfTheDay.card_data) : undefined}
+                            />
+                            <div className={`text-xs text-center ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                {cardOfTheDay ? (
+                                    <><span className="font-semibold">{cardOfTheDay.card_data.name}</span> - {cardOfTheDay.card_data.team} ({cardOfTheDay.card_data.year})</>
+                                ) : (
+                                    'Loading...'
+                                )}
+                            </div>
+                        </div>
+                    </div>
                     <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaFire className="text-red-500" /> Trending this week</div>
                         <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Players and seasons gaining attention recently.</div>
@@ -824,7 +789,7 @@ export default function Home() {
                             <div className='space-y-3'>
                                 {popularCards.slice(0, 4).map((card, index) => (
                                     <div className="relative max-w-full">
-                                        <span className={`absolute text-[12px] -right-2 -top-2 ${gradientBlueBg} font-bold backdrop-blur-sm rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
+                                        <span className={`absolute z-10 text-[12px] -right-2 -top-2 ${gradientBlueBg} font-bold backdrop-blur-sm rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
                                         <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
                                     </div>
                                 ))}
@@ -848,7 +813,7 @@ export default function Home() {
                     </div>
                 </div>
             </div>
-        
+
             {/* FAQ Section */}
             <div className="max-w-7xl mx-auto py-6 border-t border-form-element">
                 <h2 className="text-2xl font-bold mb-8">FAQ</h2>
@@ -873,7 +838,8 @@ export default function Home() {
             </div>
 
             {/* Footer */}
-            <div className={`max-w-7xl mx-auto py-4 border-t border-form-element flex justify-center`}>
+            <div className={`max-w-7xl mx-auto py-4 border-t border-form-element flex flex-col items-center gap-2`}>
+                <ShowdownBotLogo className="max-w-28 opacity-70" />
                 <Link to="/privacy" className={`text-xs ${isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-neutral-400 hover:text-neutral-600'} transition`}>
                     Privacy Policy
                 </Link>

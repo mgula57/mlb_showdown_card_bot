@@ -10,6 +10,8 @@
  */
 
 import { type ShowdownBotCard, type ShowdownBotCardAPIResponse, type ShowdownBotCardCompact } from "./showdownBotCard";
+import { type Team as TeamBuilderTeam } from "./userTeams";
+import { type CardDatabaseRecord } from "./card_db/cardDatabase";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -117,14 +119,204 @@ export const fetchSeasonLeaders = async (
     return response.json() as Promise<LeadersResponse>;
 };
 
-export const fetchTeamRoster = async (season: Season, teamId: number, rosterType: string, sportId: number, teamAbbr: string, showdownSet?: string): Promise<Roster> => {
-    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/roster?roster_type=${rosterType}${showdownSet ? `&showdown_set=${encodeURIComponent(showdownSet)}` : ''}&sport_id=${sportId}&team_abbr=${teamAbbr}`);
+export interface AwardRecipientPosition {
+    code?: string;
+    name?: string;
+    abbreviation?: string;
+}
+
+export interface AwardRecipientPlayer {
+    id: number;
+    name_first_last?: string;
+    primary_position?: AwardRecipientPosition;
+}
+
+export interface AwardRecipient {
+    id: string;
+    name: string;
+    date?: string;
+    season?: string;
+    player: AwardRecipientPlayer;
+}
+
+export type SeasonAwardsByLeague<T> = { AL: T | null; NL: T | null };
+
+export interface SeasonAwards {
+    MVP: SeasonAwardsByLeague<AwardRecipient>;
+    CY: SeasonAwardsByLeague<AwardRecipient>;
+    ROY: SeasonAwardsByLeague<AwardRecipient>;
+    GG: SeasonAwardsByLeague<AwardRecipient[]>;
+    SS: SeasonAwardsByLeague<AwardRecipient[]>;
+}
+
+export const fetchSeasonAwards = async (seasonId: string): Promise<SeasonAwards> => {
+    const response = await fetch(`${API_BASE}/seasons/${seasonId}/awards`);
     if (!response.ok) {
-        throw new Error(`Failed to fetch roster for season ${season.season_id} and team ${teamId}: ${response.statusText}`);
+        throw new Error(`Failed to fetch awards for season ${seasonId}: ${response.statusText}`);
     }
     const data = await response.json();
-    return data.roster as Roster;
+    return data.awards as SeasonAwards;
+};
+
+export const fetchShowdownTeam = async (season: Season, teamId: number, sportId: number, teamAbbr: string, teamName?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
+    const params = new URLSearchParams({ sport_id: String(sportId), team_abbr: teamAbbr });
+    if (teamName) params.set('team_name', teamName);
+    if (showdownSet) params.set('showdown_set', showdownSet);
+    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/showdown_team?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch showdown team for season ${season.season_id} and team ${teamId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.team as TeamBuilderTeam;
 }
+
+/** A pre-processed historical team from internal.dim_historical_team.
+ *  Identity is stored; `total_points` and `top_players` are computed per Showdown set. */
+export type HistoricalTeam = {
+    season: number;
+    sport_id: number;
+    team_id: number;
+    name: string;
+    abbreviation: string;
+    bref_team_id?: string | null;
+    league_id?: number | null;
+    league_name?: string | null;
+    division_name?: string | null;
+    primary_color?: string | null;
+    secondary_color?: string | null;
+    roster_count: number;
+    total_points: number;
+    top_players?: CardDatabaseRecord[];
+};
+
+export type HistoricalSeasonRef = { season: number; team_count: number };
+
+export const fetchHistoricalTeams = async (options: {
+    showdownSet?: string;
+    season?: number;
+    q?: string;
+    sportId?: number;
+    limit?: number;
+    offset?: number;
+    /** 'season' (default) shelves newest-first; 'points' flattens every season into one
+     *  points-descending list, for the "See all" grid. */
+    sort?: 'season' | 'points';
+} = {}): Promise<{ teams: HistoricalTeam[]; seasons: HistoricalSeasonRef[] }> => {
+    const params = new URLSearchParams({ sport_id: String(options.sportId ?? 1) });
+    if (options.showdownSet) params.set('showdown_set', options.showdownSet);
+    if (options.season != null) params.set('season', String(options.season));
+    if (options.q) params.set('q', options.q);
+    if (options.limit != null) params.set('limit', String(options.limit));
+    if (options.offset != null) params.set('offset', String(options.offset));
+    if (options.sort) params.set('sort', options.sort);
+    const response = await fetch(`${API_BASE}/seasons/historical/teams?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch historical teams: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return { teams: (data.teams ?? []) as HistoricalTeam[], seasons: (data.seasons ?? []) as HistoricalSeasonRef[] };
+};
+
+/** An All-Star team available in the asg_roster lookup table. */
+export type AsgTeamRef = { season: number; league: string };
+
+export const fetchAsgSeasons = async (): Promise<AsgTeamRef[]> => {
+    const response = await fetch(`${API_BASE}/seasons/asg`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch All-Star teams: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return (data.asg_teams ?? []) as AsgTeamRef[];
+};
+
+export const fetchAsgShowdownTeam = async (seasonId: string | number, league: string, sportId: number, showdownSet?: string): Promise<TeamBuilderTeam> => {
+    const params = new URLSearchParams({ sport_id: String(sportId) });
+    if (showdownSet) params.set('showdown_set', showdownSet);
+    const response = await fetch(`${API_BASE}/seasons/${seasonId}/asg/${league}/showdown_team?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${league} All-Star team for ${seasonId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.team as TeamBuilderTeam;
+};
+
+/** One of the fixed set of eras Era Rosters can be browsed for — ALL_TIME (a franchise's full
+ *  history) plus each decade. See RosterEraRegistry (backend) for the canonical list. */
+export type RosterEra = {
+    key: string;
+    label: string;
+    start_year: number;
+    end_year: number;
+};
+
+export const ALL_TIME_ERA_KEY = 'ALL_TIME';
+/** Sentinel `era` value meaning "every era combined" — the Era Teams "See all" grid, which
+ *  ignores whatever single era the shelf was scoped to. */
+export const ALL_ERAS_KEY = 'ALL';
+
+export const fetchRosterEras = async (): Promise<RosterEra[]> => {
+    const response = await fetch(`${API_BASE}/seasons/eras`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch roster eras: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return (data.eras ?? []) as RosterEra[];
+};
+
+/** A pre-processed Era Team from internal.dim_era_team — the best individual season any player
+ *  had for a current MLB franchise within the given era (all-time, or a single decade), drafted
+ *  into a full roster. Selection itself (not just the card lookup) is scoped to a Showdown set. */
+export type EraTeam = {
+    era: string;
+    showdown_set: string;
+    sport_id: number;
+    team_id: number;
+    name: string;
+    abbreviation: string;
+    bref_team_id?: string | null;
+    league_id?: number | null;
+    league_name?: string | null;
+    division_name?: string | null;
+    primary_color?: string | null;
+    secondary_color?: string | null;
+    roster_count: number;
+    total_points: number;
+    top_players?: CardDatabaseRecord[];
+};
+
+export const fetchEraTeams = async (options: {
+    era?: string;
+    showdownSet?: string;
+    q?: string;
+    sportId?: number;
+    limit?: number;
+    offset?: number;
+} = {}): Promise<{ teams: EraTeam[] }> => {
+    const params = new URLSearchParams({ sport_id: String(options.sportId ?? 1), era: options.era ?? ALL_TIME_ERA_KEY });
+    if (options.showdownSet) params.set('showdown_set', options.showdownSet);
+    if (options.q) params.set('q', options.q);
+    if (options.limit != null) params.set('limit', String(options.limit));
+    if (options.offset != null) params.set('offset', String(options.offset));
+    const response = await fetch(`${API_BASE}/seasons/eras/teams?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch era teams: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return { teams: (data.teams ?? []) as EraTeam[] };
+};
+
+export const fetchEraShowdownTeam = async (teamId: number, sportId: number, era?: string, teamAbbr?: string, teamName?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
+    const params = new URLSearchParams({ sport_id: String(sportId), era: era ?? ALL_TIME_ERA_KEY });
+    if (teamAbbr) params.set('team_abbr', teamAbbr);
+    if (teamName) params.set('team_name', teamName);
+    if (showdownSet) params.set('showdown_set', showdownSet);
+    const response = await fetch(`${API_BASE}/seasons/eras/teams/${teamId}/showdown_team?${params}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch era team ${teamId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.team as TeamBuilderTeam;
+};
 
 const getUserTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
 
@@ -262,6 +454,10 @@ export interface Standings {
     division?: Division;
     league?: League;
     team_records?: TeamRecords[];
+
+    /** Wild-card standings only: number of wild-card spots — render a cutoff divider after this row.
+     *  Set by the sim standings builder; never populated by the real MLB API path. */
+    wildCardCutLine?: number;
 }
 
 export type GameType =
@@ -457,32 +653,6 @@ export interface Schedule {
     games?: GameScheduled[];
 }
 
-export interface Roster {
-
-    roster_type: 'active' | '40Man' | 'fullSeason' | 'fullRoster' | 'gameday' | 'depthChart';
-    team_id?: number;
-    roster?: RosterSlot[];
-}
-
-export interface RosterSlot {
-    person: Player;
-    position: {
-        code?: string;
-        name?: string;
-        type?: string;
-        abbreviation?: string;
-        description?: string;
-    };
-    status?: string | {
-        code?: string;
-        description?: string;
-    };
-    jersey_number?: string;
-    parent_team_id?: number;
-    /** True only for the synthetic extra slot inserted for two-way players pitching role. */
-    is_pitcher_slot?: boolean;
-}
-
 export interface Player {
 
     id: number;
@@ -640,18 +810,32 @@ export interface BoxscoreLinescoreTeams {
     home: BoxscoreLinescoreTeamTotals;
 }
 
+/** A linescore offense/defense slot. Null when unoccupied — an empty base, no on-deck hitter
+ * between innings, or a defense that isn't set yet before first pitch. */
+export interface BoxscorePersonRef {
+    id: number;
+    full_name: string;
+}
+
 export interface BoxscoreLinescoreOffense {
-    batter?: string;
-    batter_id?: number;
-    on_deck?: string;
-    first?: string;
-    second?: string;
-    third?: string;
+    batter?: BoxscorePersonRef | null;
+    on_deck?: BoxscorePersonRef | null;
+    in_hole?: BoxscorePersonRef | null;
+    first?: BoxscorePersonRef | null;
+    second?: BoxscorePersonRef | null;
+    third?: BoxscorePersonRef | null;
 }
 
 export interface BoxscoreLinescoreDefense {
-    pitcher?: string;
-    pitcher_id?: number;
+    pitcher?: BoxscorePersonRef | null;
+    catcher?: BoxscorePersonRef | null;
+    first?: BoxscorePersonRef | null;
+    second?: BoxscorePersonRef | null;
+    third?: BoxscorePersonRef | null;
+    shortstop?: BoxscorePersonRef | null;
+    left?: BoxscorePersonRef | null;
+    center?: BoxscorePersonRef | null;
+    right?: BoxscorePersonRef | null;
 }
 
 export interface BoxscoreLinescore {
@@ -771,14 +955,22 @@ export interface PlayMatchup {
     splits?: PlayMatchupSplits;
 }
 
+export interface PlayCount {
+    balls?: number;
+    strikes?: number;
+    outs?: number;
+}
+
 export interface MostRecentPlay {
     result?: PlayResult;
     about?: PlayAbout;
     matchup?: PlayMatchup;
+    count?: PlayCount;
 }
 
 export interface GameBoxscoreDetail {
     game_pk: number;
+    game_type?: GameType | null;
     status: GameStatus;
     datetime: {
         date_time?: string;
@@ -795,6 +987,7 @@ export interface GameBoxscoreDetail {
     linescore: BoxscoreLinescore;
     decisions: BoxscoreDecisions;
     most_recent_play?: MostRecentPlay;
+    plays?: MostRecentPlay[];
 }
 
 export interface SituationCode {

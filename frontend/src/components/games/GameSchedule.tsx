@@ -1,14 +1,14 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { type GameScheduled } from "../../api/mlbAPI";
 import { fetchCardData, type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardSource } from "../../types/cardSource";
 import { FaArrowsRotate } from "react-icons/fa6";
+import { fromScheduledGame } from "../../domain/adapters/fromMlbApi";
+import { cardKey } from "../../domain/players";
+import type { GameState } from "../../domain/game";
 import GameItem from "./GameItem";
 
 type CardMap = Record<string, CardDatabaseRecord>;
-
-// TODO: replace hard-coded IDs with a general two-way player detection strategy
-const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 
 type GameScheduleProps = {
     games: GameScheduled[];
@@ -18,48 +18,67 @@ type GameScheduleProps = {
     season?: number;
     showdownSet?: string;
     starredTeamIds?: Set<number>;
+    isLoading?: boolean;
     onGameSelect?: (gamePk: number) => void;
+    onGameSimSelect?: (gamePk: number) => void;
     onRefresh?: () => void;
 };
 
-export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, onGameSelect, onRefresh }: GameScheduleProps) {
+const STATE_SORT_ORDER: Record<GameState, number> = { LIVE: 0, PREVIEW: 1, FINAL: 2, POSTPONED: 3 };
+
+function GameItemSkeleton() {
+    return (
+        <div className="rounded-xl border-2 border-(--divider) bg-(--background-secondary) overflow-hidden p-3 animate-pulse">
+            <div className="w-full space-y-2 py-2">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="h-3.5 w-24 rounded bg-(--background-quaternary)" />
+                    <div className="h-4 w-6 rounded bg-(--background-quaternary)" />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="h-3.5 w-24 rounded bg-(--background-quaternary)" />
+                    <div className="h-4 w-6 rounded bg-(--background-quaternary)" />
+                </div>
+                <div className="border-t border-(--divider) my-1" />
+                <div className="pt-1 flex gap-2 items-center">
+                    <div className="h-8 flex-1 rounded bg-(--background-quaternary)" />
+                    <div className="h-3 w-6 rounded bg-(--background-quaternary)" />
+                    <div className="h-8 flex-1 rounded bg-(--background-quaternary)" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function GameSchedule({ games, dateLabel, description, sportId, season, showdownSet, starredTeamIds, isLoading, onGameSelect, onGameSimSelect, onRefresh }: GameScheduleProps) {
     const [cardMap, setCardMap] = useState<CardMap>({});
     const [isLoadingCards, setIsLoadingCards] = useState(false);
 
+    const gameViews = useMemo(() => games.map((game) => fromScheduledGame(game, sportId)), [games, sportId]);
+
     // Derive a stable key from only the IDs relevant to each game's current state,
     // so the card-fetch effect only re-runs when those IDs actually change.
-    // Two-way players are encoded with a role suffix (e.g. "660271-H" vs "660271-P")
-    // so the key changes when their on-field role changes.
     const idsKey = useMemo(() => {
         const ids = new Set<string>();
-        const encodeId = (id: number, role: 'H' | 'P'): string =>
-            TWO_WAY_PLAYER_IDS.has(id) ? `${id}-${role}` : String(id);
-
-        for (const game of games) {
-            const coded = game.status?.coded_game_state;
-            const isFinal = coded === 'F' || game.status?.status_code === 'F';
-            const isNotStarted = coded === 'P' || coded === 'S';
-            const isInProgress = !isFinal && !isNotStarted;
-
-            if (isFinal) {
+        for (const game of gameViews) {
+            if (game.state === 'FINAL') {
                 const winner = game.decisions?.winner?.id;
                 const loser = game.decisions?.loser?.id;
-                if (winner != null) ids.add(encodeId(winner, 'P'));
-                if (loser != null) ids.add(encodeId(loser, 'P'));
-            } else if (isInProgress) {
-                const batter = game.linescore?.offense?.batter?.id;
-                const pitcher = game.linescore?.defense?.pitcher?.id;
-                if (batter != null) ids.add(encodeId(batter, 'H'));
-                if (pitcher != null) ids.add(encodeId(pitcher, 'P'));
+                if (typeof winner === 'number') ids.add(cardKey(winner, 'P'));
+                if (typeof loser === 'number') ids.add(cardKey(loser, 'P'));
+            } else if (game.state === 'LIVE') {
+                const batter = game.situation?.batter?.id;
+                const pitcher = game.situation?.pitcher?.id;
+                if (typeof batter === 'number') ids.add(cardKey(batter, 'H'));
+                if (typeof pitcher === 'number') ids.add(cardKey(pitcher, 'P'));
             } else {
-                const awayPitcher = game.teams?.away?.probable_pitcher?.id;
-                const homePitcher = game.teams?.home?.probable_pitcher?.id;
-                if (awayPitcher != null) ids.add(encodeId(awayPitcher, 'P'));
-                if (homePitcher != null) ids.add(encodeId(homePitcher, 'P'));
+                const awayPitcher = game.away.probablePitcher?.id;
+                const homePitcher = game.home.probablePitcher?.id;
+                if (typeof awayPitcher === 'number') ids.add(cardKey(awayPitcher, 'P'));
+                if (typeof homePitcher === 'number') ids.add(cardKey(homePitcher, 'P'));
             }
         }
         return [...ids].sort().join(',');
-    }, [games]);
+    }, [gameViews]);
 
     useEffect(() => {
         if (!season || !showdownSet || !idsKey) return;
@@ -86,11 +105,10 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                 for (const record of records) {
                     const id = record.mlb_id;
                     if (id == null) continue;
-                    if (TWO_WAY_PLAYER_IDS.has(Number(id))) {
-                        map[`${id}-${record.is_pitcher ? "P" : "H"}`] = record;
-                    } else {
-                        map[String(id)] = record;
+                    if (typeof id === 'number' || !Number.isNaN(Number(id))) {
+                        map[cardKey(Number(id), record.is_pitcher ? "P" : "H")] = record;
                     }
+                    map[String(id)] = record;
                 }
                 setCardMap(map);
             })
@@ -102,25 +120,84 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
         return () => { cancelled = true; };
     }, [idsKey, season, showdownSet, sportId]);
 
+    // Refresh the schedule whenever this component actually becomes visible again:
+    // returning to the browser tab, switching back to the Games tab, or navigating
+    // back to Seasons — which stays mounted (CSS-toggled, not remounted) while the
+    // user is on other screens. An IntersectionObserver covers the CSS-toggle and
+    // scroll cases (a `display: none` element never intersects), so we never refresh
+    // while the schedule is off-screen; `visibilitychange` covers the browser tab.
+    const onRefreshRef = useRef(onRefresh);
+    useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
+
+    const isVisibleRef = useRef(false);
+    const observerRef = useRef<IntersectionObserver | null>(null);
+
+    // Ref callback rather than a mount effect: the root node is only rendered once
+    // `games` arrives (the component returns null while empty), so we must (re)attach
+    // the observer whenever that node appears or disappears.
+    const containerRef = useCallback((el: HTMLDivElement | null) => {
+        observerRef.current?.disconnect();
+        observerRef.current = null;
+        isVisibleRef.current = false;
+        if (!el) return;
+
+        let isFirstCallback = true;
+        const observer = new IntersectionObserver(([entry]) => {
+            const nowVisible = entry.isIntersecting;
+            const wasVisible = isVisibleRef.current;
+            isVisibleRef.current = nowVisible;
+            // The first callback just syncs current visibility (data is already
+            // fresh from mount); only later hidden → visible transitions refresh.
+            if (isFirstCallback) { isFirstCallback = false; return; }
+            if (nowVisible && !wasVisible && !document.hidden) onRefreshRef.current?.();
+        });
+        observer.observe(el);
+        observerRef.current = observer;
+    }, []);
+
+    useEffect(() => {
+        const onVisibility = () => {
+            if (!document.hidden && isVisibleRef.current) onRefreshRef.current?.();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => document.removeEventListener("visibilitychange", onVisibility);
+    }, []);
+
     if (!games.length) {
-        return null;
+        if (!isLoading) {
+            return null;
+        }
+        return (
+            <div className="space-y-3">
+                <div>
+                    <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
+                    {description && (
+                        <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
+                    )}
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                        <GameItemSkeleton key={index} />
+                    ))}
+                </div>
+            </div>
+        );
     }
 
-    // Sort: starred-team games first, then by game state (live → upcoming → final)
-    const statusOrder: Record<string, number> = { "Live": 0, "Scheduled": 1, "Final": 2 };
-    const sortedGames = [...games].sort((a, b) => {
+    // Sort: starred-team games first, then by game state (live → upcoming → final → postponed)
+    const sortedGames = [...gameViews].sort((a, b) => {
         const aStarred = starredTeamIds
-            ? (starredTeamIds.has(a.teams?.away?.team?.id ?? -1) || starredTeamIds.has(a.teams?.home?.team?.id ?? -1))
+            ? (starredTeamIds.has(Number(a.away.team.id) || -1) || starredTeamIds.has(Number(a.home.team.id) || -1))
             : false;
         const bStarred = starredTeamIds
-            ? (starredTeamIds.has(b.teams?.away?.team?.id ?? -1) || starredTeamIds.has(b.teams?.home?.team?.id ?? -1))
+            ? (starredTeamIds.has(Number(b.away.team.id) || -1) || starredTeamIds.has(Number(b.home.team.id) || -1))
             : false;
         if (aStarred !== bStarred) return aStarred ? -1 : 1;
-        return (statusOrder[a.status?.abstract_game_state || ""] ?? 3) - (statusOrder[b.status?.abstract_game_state || ""] ?? 3);
+        return STATE_SORT_ORDER[a.state] - STATE_SORT_ORDER[b.state];
     });
 
     return (
-        <div className="space-y-3">
+        <div ref={containerRef} className="space-y-3">
             <div className="flex justify-between items-center">
                 <div>
                     <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
@@ -128,13 +205,13 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                         <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
                     )}
                 </div>
-                
+
                 {/* Refresh button */}
                 {onRefresh && (
                     <button
                         className="
                             hidden md:flex ml-4 px-4 py-2 items-center gap-1
-                            bg-(--showdown-blue) text-white rounded-lg
+                            bg-secondary text-white rounded-lg
                             hover:bg-(--showdown-blue)/50 transition-colors
                             cursor-pointer
                         "
@@ -146,22 +223,22 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                 )}
 
             </div>
-            
+
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
                 {sortedGames.map((game) => {
                     return (
                         <GameItem
-                            key={game.game_pk}
+                            key={game.id}
                             game={game}
-                            sportId={sportId}
                             onSelect={onGameSelect}
+                            onSimSelect={onGameSimSelect}
                             showMatchupDetails={true}
                             cardMap={cardMap}
                             isLoadingCards={isLoadingCards}
                             isStarred={
                                 starredTeamIds
-                                    ? (starredTeamIds.has(game.teams?.away?.team?.id ?? -1) || starredTeamIds.has(game.teams?.home?.team?.id ?? -1))
+                                    ? (starredTeamIds.has(Number(game.away.team.id) || -1) || starredTeamIds.has(Number(game.home.team.id) || -1))
                                     : false
                             }
                         />

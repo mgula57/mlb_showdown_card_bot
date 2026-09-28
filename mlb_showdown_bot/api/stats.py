@@ -29,9 +29,8 @@ def get_stat_ranges():
     try:
         season = str(season_param).strip().replace(',', '+')  # Ensure season string is + delimited for conversion
         season = convert_year_string_to_list(season)
-        db = PostgresDB()
-        ranges = db.get_season_stat_ranges(seasons=season, player_type=player_type, pitcher_role=pitcher_role)
-        db.close_connection()
+        with PostgresDB() as db:
+            ranges = db.get_season_stat_ranges(seasons=season, player_type=player_type, pitcher_role=pitcher_role)
 
         payload = {'season': season, 'player_type': player_type, 'pitcher_role': pitcher_role, 'ranges': ranges}
         _ranges_cache[cache_key] = (payload, datetime.now())

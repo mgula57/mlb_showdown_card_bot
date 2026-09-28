@@ -43,6 +43,21 @@ import Seasons from "./components/seasons/Seasons";
 import Privacy from "./components/Privacy";
 import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
 import TeamBuilder from "./components/team_builder/TeamBuilder";
+import SeasonSimulator from "./components/simulate/SeasonSimulator";
+
+// MLB seasons selectable on the Seasons page: current season first, then prior years.
+const MLB_SEASONS_EARLIEST_YEAR = 1920;
+const mlbSeasons = [
+    { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
+    ...Array.from({ length: 2025 - MLB_SEASONS_EARLIEST_YEAR + 1 }, (_, index) => {
+        const year = 2025 - index;
+        return {
+            regular_season_start_date: `${year}-03-20`,
+            season_end_date: `${year}-11-15`,
+            season_id: `${year}`,
+        };
+    }),
+];
 
 /**
  * Inner application content component that handles route-based visibility
@@ -79,6 +94,8 @@ const AppContent = () => {
         if (path === '/home') return '/';
         if (path === '/explore') return '/cards';
         if (path.startsWith('/teams/')) return '/teams';
+        if (path.startsWith('/seasons/')) return '/seasons';
+        if (path.startsWith('/simulate/')) return '/simulate';
         return path;
     };
     
@@ -97,10 +114,6 @@ const AppContent = () => {
     useEffect(() => {
         if (location.pathname === '/explore') {
             navigate('/cards', { replace: true });
-        }
-        // TODO: When feature is implemented, remove this redirect and allow users to access the teams page directly
-        if (location.pathname === '/teams' || location.pathname.startsWith('/teams/')) {
-            navigate('/', { replace: true });
         }
     }, [location.pathname, navigate]);
 
@@ -171,12 +184,17 @@ const AppContent = () => {
                     <Seasons
                         type="mlb"
                         title="Seasons"
-                        subtitle="Browse season standings, teams, and players with Showdown context"
+                        subtitle="Watch real MLB seasons play out pitch by pitch, or simulate your own. All brought to life with MLB Showdown cards."
                         staticSports={[{ id: 1, name: 'MLB' }]}
-                        staticSeasons={[
-                            { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
-                        ]}
+                        staticSeasons={mlbSeasons}
                     />
+                </div>
+            )}
+
+            {/* Simulate - Mount when first visited */}
+            {mountedRoutes.has('/simulate') && (
+                <div className={isActive('/simulate') ? 'block' : 'hidden'}>
+                    <SeasonSimulator />
                 </div>
             )}
 

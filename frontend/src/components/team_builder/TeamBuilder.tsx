@@ -1,76 +1,363 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
     fetchUserTeams,
-    fetchPublicTeams,
     fetchTeam,
     createTeam,
     updateTeam,
+    forkTeam,
+    deleteTeam,
+    toggleTeamLike,
     type Team,
+    type TeamSummary,
     type TeamUpdatePayload,
 } from '../../api/userTeams';
+import { buildDefaultTeamPayload, numberedName } from '../../domain/newTeam';
+import {
+    fetchShowdownTeam, fetchAsgShowdownTeam, fetchEraShowdownTeam,
+    type Season,
+} from '../../api/mlbAPI';
+import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamCard } from './TeamCard';
+import { TeamSearchInput } from './TeamSearchInput';
+import { matchesTeamQuery } from './teamSearch';
+import { TeamPreviewCard } from './TeamPreviewCard';
+import { TeamShelf } from './TeamShelf';
 import { TeamDetail } from './TeamDetail';
-import { NewTeamModal } from './NewTeamModal';
-import { RecentTeamsCarousel, trackRecentTeam } from './RecentTeamsCarousel';
-import { FaPlus, FaSpinner } from 'react-icons/fa6';
-import type { TeamCreatePayload } from '../../api/userTeams';
+import { TeamBuilderWelcome } from './TeamBuilderWelcome';
+import { BrowseTeams } from './BrowseTeams';
+import { CollectionDetail } from './CollectionDetail';
+import { asgIdentity, HistoricalTeamsAllPage, type HistoricalNavState } from './HistoricalTeams';
+import { EraTeamsAllPage } from './EraTeams';
+import { SimSeasonView } from './sim/SimSeasonView';
+import { SimulationsTab } from './sim/SimulationsTab';
+import { RecentSimsShelf } from './sim/RecentSimsShelf';
+import { ChallengeDetail } from './sim/ChallengeDetail';
+import { AdminChallengesView } from './sim/admin/AdminChallengesView';
+import { Tabs, type TabItem } from '../shared/Tabs';
+import { BetaBadge } from '../shared/BetaBadge';
+import BackButton from '../shared/BackButton';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
+import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar, FaWandMagicSparkles, FaListCheck, FaTrophy, FaDice } from 'react-icons/fa6';
+import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
+
+// A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
+// team, or an Era Roster (all-time or all-decade).
+type TeamRef =
+    | { kind: 'saved'; teamId: string }
+    | { kind: 'historical'; sportId: number; season: string; teamId: number }
+    | { kind: 'asg'; season: string; league: string }
+    | { kind: 'era'; sportId: number; era: string; teamId: number };
+
+// Path segments reserved for non-"saved" team refs and other top-level Team Builder screens —
+// none of these should ever fall through to being parsed as a saved team's UUID.
+const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'all', 'collections', 'admin'];
+
+function parseTeamRef(pathname: string): TeamRef | null {
+    const parts = pathname.split('/').filter(Boolean);
+    if (parts[0] !== 'teams' || !parts[1]) return null;
+    if (parts[1] === 'historical' && parts[4] !== undefined) {
+        return { kind: 'historical', sportId: Number(parts[2]), season: parts[3], teamId: Number(parts[4]) };
+    }
+    if (parts[1] === 'asg' && parts[3] !== undefined) {
+        return { kind: 'asg', season: parts[2], league: parts[3].toUpperCase() };
+    }
+    if (parts[1] === 'era' && parts[4] !== undefined) {
+        return { kind: 'era', sportId: Number(parts[2]), era: parts[3], teamId: Number(parts[4]) };
+    }
+    if (!RESERVED_TEAM_PATH_SEGMENTS.includes(parts[1])) {
+        return { kind: 'saved', teamId: parts[1] };
+    }
+    return null;
+}
+
+// A running simulation gets its own URL (/teams/:teamId/sim/:jobId) so a refresh mid-run
+// reconnects to the job instead of losing it — the job's state lives in Postgres.
+function parseSimJobId(pathname: string): string | null {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[2] === 'sim' && parts[3] ? parts[3] : null;
+}
+
+// A challenge gets its own shareable URL (/teams/challenges/:instanceId), independent of the
+// team editor/list state below — landing here bypasses both entirely.
+function parseChallengeInstanceId(pathname: string): string | null {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'challenges' && parts[2] ? parts[2] : null;
+}
+
+// The full "My Teams" list (with search) is its own screen at /teams/all — shareable, and the
+// browser back button returns to the tabbed list.
+function isAllTeamsView(pathname: string): boolean {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'all';
+}
+
+// A curated collection has its own shareable page at /teams/collections/:slug.
+function parseCollectionSlug(pathname: string): string | null {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'collections' && parts[2] ? parts[2] : null;
+}
+
+// The Era section's "See all" page — every era combined into one points-descending list,
+// ignoring whatever single era the shelf was filtered to — has its own shareable page at
+// /teams/era/all. A separate, independent load from the shelf's, by design.
+function isEraAllPath(pathname: string): boolean {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'era' && parts[2] === 'all';
+}
+
+// The Historical Teams section's "See all" page — every pre-processed season flattened into one
+// points-descending list — has its own shareable page at /teams/historical/all.
+function isHistoricalAllPath(pathname: string): boolean {
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'historical' && parts[2] === 'all';
+}
+
+// Admin-only challenge-template manager, its own route so it isn't buried under the Challenges
+// sub-tab state. Gated by `isAdmin` on top of the server-side `require_admin`.
+function isAdminChallengesPath(pathname: string): boolean {
+    return pathname.replace(/\/+$/, '') === '/teams/admin/challenges';
+}
+
+// =============================================================================
+// MARK: - Recent Team Tracking
+// =============================================================================
+
+const RECENTLY_VIEWED_KEY = 'showdown_recent_teams';
+const MAX_RECENT = 10;
+
+export function trackRecentTeam(teamId: string) {
+    try {
+        const ids: string[] = JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) ?? '[]');
+        const next = [teamId, ...ids.filter(id => id !== teamId)].slice(0, MAX_RECENT);
+        localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(next));
+    } catch {}
+}
+
+function untrackRecentTeam(teamId: string) {
+    try {
+        const ids: string[] = JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) ?? '[]');
+        localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(ids.filter(id => id !== teamId)));
+    } catch { /* localStorage unavailable */ }
+}
+
+function getRecentTeamIds(): string[] {
+    try { return JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) ?? '[]'); }
+    catch { return []; }
+}
 
 type ViewState =
     | { mode: 'list' }
+    | { mode: 'loading' }
     | { mode: 'editor'; team: Team; readOnly: boolean };
 
+// The "All Teams" list on the My Teams tab collapses to this many (most recently updated)
+// until the user hits "Show all", which also reveals a search bar over the full list.
+const TEAM_LIST_PREVIEW_COUNT = 10;
+
+type TabId = 'mine' | 'browse' | 'simulations';
+const ACTIVE_TAB_KEY = 'teams.activeTab';
+const TAB_IDS: TabId[] = ['mine', 'browse', 'simulations'];
+// Legacy stored values from when Community and Historical were their own tabs.
+const LEGACY_TAB_MAP: Record<string, TabId> = { community: 'browse', historical: 'browse' };
+const TABS: TabItem<TabId>[] = [
+    { id: 'mine', label: 'My Teams', shortLabel: 'Mine', icon: <FaUsers /> },
+    { id: 'simulations', label: 'Challenges', shortLabel: 'Challenges', icon: <FaRankingStar /> },
+    { id: 'browse', label: 'Browse', shortLabel: 'Browse', icon: <FaGlobe /> },
+];
+
 export default function TeamBuilder() {
-    const { session } = useAuth();
+    const { session, username, isAdmin, userSettings } = useAuth();
+    const { userShowdownSet } = useSiteSettings();
     const location = useLocation();
     const navigate = useNavigate();
     const token = session?.access_token;
 
-    const [userTeams, setUserTeams] = useState<Team[]>([]);
-    const [officialTeams, setOfficialTeams] = useState<Team[]>([]);
+    const [userTeams, setUserTeams] = useState<TeamSummary[]>([]);
     const [view, setView] = useState<ViewState>({ mode: 'list' });
     const [loading, setLoading] = useState(true);
+    const [listLoaded, setListLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [creatingTeam, setCreatingTeam] = useState(false);
+    // Teams created in this session — an untouched (0-pick) one is auto-deleted if the user
+    // backs out of it, so abandoned "New Team" clicks don't litter the list.
+    const createdThisSessionRef = useRef<Set<string>>(new Set());
+    // Search query for the full "My Teams" list screen (/teams/all).
+    const [teamSearch, setTeamSearch] = useState('');
+    const [activeTab, setActiveTab] = useState<TabId>(() => {
+        const stored = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_TAB_KEY) : null;
+        const mapped = (stored && LEGACY_TAB_MAP[stored]) || stored;
+        return TAB_IDS.includes(mapped as TabId) ? (mapped as TabId) : 'mine';
+    });
+    // Browse and Challenges are heavier tabs (their own data fetches) — each mounts the first time
+    // the user visits it, then stays mounted (just hidden) so switching tabs doesn't lose its state.
+    const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set([activeTab]));
 
-    // Extract teamId from URL: /teams/:teamId — only when actually on a /teams/ path
-    const teamIdFromUrl = location.pathname.startsWith('/teams/')
-        ? (location.pathname.split('/')[2] ?? null)
-        : null;
+    // UX Spacing
+    const px = 'px-4 sm:px-8';
+
+    // Archived teams are hidden everywhere except the /teams/all screen (behind a toggle), so
+    // most of the list UI works off the active subset.
+    const activeUserTeams = useMemo(() => userTeams.filter(t => !t.is_archived), [userTeams]);
+    const archivedCount = userTeams.length - activeUserTeams.length;
+    // Challenge-created teams are grouped on their own at the bottom of the My Teams tab and kept
+    // out of the primary list and the Recent Teams shelf, so they don't crowd out hand-built teams.
+    const isChallengeTeam = (t: TeamSummary) => t.creation_source === 'challenge';
+    // Whether the /teams/all screen currently reveals archived teams.
+    const [showArchived, setShowArchived] = useState(false);
+
+    // Recent teams shelf — recently viewed teams (from localStorage) first, then most recently updated.
+    const recentTeamIds = useMemo(getRecentTeamIds, []);
+    const recentTeams = useMemo(() => {
+        const withPlayers = activeUserTeams.filter(t => t.roster_count > 0 && !isChallengeTeam(t));
+
+        if (recentTeamIds.length > 0) {
+            const teamById = new Map(withPlayers.map(t => [t.team_id, t]));
+            const ordered: TeamSummary[] = [];
+            for (const id of recentTeamIds) {
+                const t = teamById.get(id);
+                if (t) ordered.push(t);
+            }
+            const inOrdered = new Set(ordered.map(t => t.team_id));
+            const rest = withPlayers
+                .filter(t => !inOrdered.has(t.team_id))
+                .sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1);
+            return [...ordered, ...rest].slice(0, 6);
+        }
+
+        return [...withPlayers]
+            .sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1)
+            .slice(0, 8);
+    }, [activeUserTeams, recentTeamIds]);
+
+    // The user's active (non-archived) teams, most recently updated first. The My Teams tab shows
+    // the first TEAM_LIST_PREVIEW_COUNT of these; the full, search-filtered list lives on its own
+    // screen, where archived teams can be revealed with a toggle.
+    const sortByUpdated = (list: TeamSummary[]) =>
+        [...list].sort((a, b) => (b.updated_at ?? '') > (a.updated_at ?? '') ? 1 : -1);
+    const sortedUserTeams = useMemo(() => sortByUpdated(activeUserTeams), [activeUserTeams]);
+    const primaryUserTeams = useMemo(() => sortedUserTeams.filter(t => !isChallengeTeam(t)), [sortedUserTeams]);
+    const challengeUserTeams = useMemo(() => sortedUserTeams.filter(isChallengeTeam), [sortedUserTeams]);
+    const filteredUserTeams = useMemo(() => {
+        // Archived teams (when revealed) sit after the active ones rather than interleaved by date.
+        const base = showArchived
+            ? [...sortedUserTeams, ...sortByUpdated(userTeams.filter(t => t.is_archived))]
+            : sortedUserTeams;
+        const q = teamSearch.trim();
+        return q ? base.filter(t => matchesTeamQuery(t, q)) : base;
+    }, [sortedUserTeams, userTeams, showArchived, teamSearch]);
+
+    // Parse the team addressed by the current URL (saved UUID, historical, or All-Star).
+    const teamRef = parseTeamRef(location.pathname);
+    const simJobId = parseSimJobId(location.pathname);
+    const challengeInstanceId = parseChallengeInstanceId(location.pathname);
+    const allTeamsView = isAllTeamsView(location.pathname);
+    const collectionSlug = parseCollectionSlug(location.pathname);
+    const eraAllView = isEraAllPath(location.pathname);
+    const historicalAllView = isHistoricalAllPath(location.pathname);
+    // Carries the Browse tab's current Showdown set filter across into the "See all" pages, e.g.
+    // /teams/historical/all?set=2005 — falls back to the site-wide set when absent (a cold link).
+    const seeAllShowdownSet = new URLSearchParams(location.search).get('set') ?? undefined;
+    const adminChallengesView = isAdminChallengesPath(location.pathname);
+    // The team currently resolved into the editor, so we don't re-resolve on re-render. Keyed on
+    // the ref rather than the pathname so entering/leaving a sim URL doesn't refetch the team.
+    const teamRefKey = teamRef ? JSON.stringify(teamRef) : null;
+    const resolvedPathRef = useRef<string | null>(null);
 
     useEffect(() => {
+        window.localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+        setVisitedTabs(prev => prev.has(activeTab) ? prev : new Set(prev).add(activeTab));
+    }, [activeTab]);
+
+    // Auth change invalidates the cached list
+    useEffect(() => { setListLoaded(false); }, [token]);
+
+    // Load the (lightweight) teams list lazily — only when viewing the list, so a direct
+    // visit to a team URL opens the team without first loading every team.
+    useEffect(() => {
+        if (teamRef || challengeInstanceId || listLoaded) return;
         loadTeams();
-    }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.pathname, listLoaded, token]);
 
-    // When URL contains a team ID, fetch and open that team
+    // When the URL addresses a team, resolve and open it in the full-detail editor. Works for
+    // saved teams (DB fetch) as well as synthetic historical / All-Star teams (built on the fly),
+    // so every team type gets its own shareable link.
     useEffect(() => {
-        if (!teamIdFromUrl) {
-            setView({ mode: 'list' });
+        if (!teamRef) {
+            resolvedPathRef.current = null;
+            setView(v => v.mode === 'list' ? v : { mode: 'list' });
             return;
         }
-        if (view.mode === 'editor' && view.team.team_id === teamIdFromUrl) return;
+        if (resolvedPathRef.current === teamRefKey && view.mode === 'editor') return;
 
-        fetchTeam(teamIdFromUrl, token ?? undefined)
-            .then(team => {
-                const readOnly = !token || team.user_id !== session?.user?.id;
+        setView({ mode: 'loading' });
+        resolveTeamRef(teamRef)
+            .then(({ team, readOnly }) => {
+                resolvedPathRef.current = teamRefKey;
                 setView({ mode: 'editor', team, readOnly });
             })
             .catch(() => {
                 navigate('/teams', { replace: true });
             });
-    }, [teamIdFromUrl, token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [teamRefKey, token, userShowdownSet]);
+
+    // Resolve a URL team ref into a full Team + read-only flag for the editor.
+    async function resolveTeamRef(ref: TeamRef): Promise<{ team: Team; readOnly: boolean }> {
+        if (ref.kind === 'saved') {
+            const team = await fetchTeam(ref.teamId, token ?? undefined);
+            const readOnly = !token || team.user_id !== session?.user?.id;
+            return { team, readOnly };
+        }
+        if (ref.kind === 'asg') {
+            const team = await fetchAsgShowdownTeam(ref.season, ref.league, 1, userShowdownSet);
+            const id = asgIdentity(ref.season, ref.league);
+            return {
+                team: {
+                    ...team,
+                    name: id.name,
+                    primary_color: id.primary_color || team.primary_color,
+                    secondary_color: id.secondary_color || team.secondary_color,
+                },
+                readOnly: true,
+            };
+        }
+        if (ref.kind === 'era') {
+            // Nav state carries the plain (unprefixed) name/abbr from the Browse tile as a warm-path
+            // optimization for a cold-fallback team the CLI backfill hasn't covered yet -- the era
+            // label prefix ("1990s New York Yankees") is applied server-side, once, on the response.
+            const navState = location.state as HistoricalNavState | null;
+            const team = await fetchEraShowdownTeam(ref.teamId, ref.sportId, ref.era, navState?.abbr, navState?.name, userShowdownSet);
+            return { team, readOnly: true };
+        }
+        // historical MLB team — nav state is the warm-path optimization only. Pre-processed teams
+        // carry their own identity on the payload, so a cold link needs no client-side resolution.
+        const navState = location.state as HistoricalNavState | null;
+        const seasonObj = { season_id: ref.season } as Season;
+        const team = await fetchShowdownTeam(
+            seasonObj, ref.teamId, ref.sportId,
+            navState?.abbr ?? String(ref.teamId), navState?.name, userShowdownSet,
+        );
+        return {
+            team: {
+                ...team,
+                name: navState?.name || team.name,
+                primary_color: navState?.primary_color || team.primary_color,
+                secondary_color: navState?.secondary_color || team.secondary_color,
+            },
+            readOnly: true,
+        };
+    }
 
     async function loadTeams() {
         setLoading(true);
         setError(null);
         try {
-            const [publicTeams, myTeams] = await Promise.all([
-                fetchPublicTeams(undefined, 100),
-                token ? fetchUserTeams(token) : Promise.resolve([]),
-            ]);
-            setOfficialTeams(publicTeams.filter(t => t.source !== 'user'));
+            const myTeams = token ? await fetchUserTeams(token) : [];
             setUserTeams(myTeams);
+            setListLoaded(true);
         } catch (err: any) {
             setError(err.message ?? 'Failed to load teams.');
         } finally {
@@ -78,39 +365,364 @@ export default function TeamBuilder() {
         }
     }
 
-    function openTeam(team: Team, readOnly: boolean) {
+    function openTeam(team: TeamSummary) {
         trackRecentTeam(team.team_id);
+        setView({ mode: 'loading' });
         navigate('/teams/' + team.team_id);
-        setView({ mode: 'editor', team, readOnly });
+    }
+
+    // Opens a previously-played season's result screen. Shared by every entry point that lists
+    // sim history (Challenges tab, a challenge's own page, the My Teams recent-sims shelf).
+    function openSeason(teamId: string, jobId: string) {
+        trackRecentTeam(teamId);
+        navigate(`/teams/${teamId}/sim/${jobId}`);
+    }
+
+    // A team created this session that the user leaves without drafting anyone is treated as an
+    // abandoned "New Team" click and removed, so it doesn't linger in the list. Best-effort:
+    // only fires on the explicit back action, not a tab close or browser-back. The roster is
+    // re-checked server-side first so a pick made just before an auto-save fired isn't lost.
+    function maybeDeleteAbandonedTeam() {
+        if (view.mode !== 'editor' || !token) return;
+        const t = view.team;
+        if (view.readOnly || t.source !== 'user') return;
+        if (!createdThisSessionRef.current.has(t.team_id)) return;
+        createdThisSessionRef.current.delete(t.team_id);
+        const teamId = t.team_id;
+        fetchTeam(teamId, token)
+            .then(fresh => {
+                if (fresh.roster.length > 0) return;
+                untrackRecentTeam(teamId);
+                return deleteTeam(teamId, token).then(() => setListLoaded(false));
+            })
+            .catch(() => {});
     }
 
     function goBack() {
+        maybeDeleteAbandonedTeam();
         navigate('/teams');
         setView({ mode: 'list' });
     }
 
-    async function handleCreate(payload: TeamCreatePayload) {
+    // Refetch the currently open team (used by the "updated on another device" reload prompt).
+    // Only saved teams can go stale; synthetic historical/ASG teams are rebuilt from the URL.
+    function reloadCurrentTeam() {
+        if (!teamRef || teamRef.kind !== 'saved') { setListLoaded(false); return; }
+        fetchTeam(teamRef.teamId, token ?? undefined)
+            .then(team => {
+                const readOnly = !token || team.user_id !== session?.user?.id;
+                setView({ mode: 'editor', team, readOnly });
+            })
+            .catch(() => {});
+    }
+
+    // Prefer the profile username (a single handle, not a full name) over the email's local
+    // part, matching how AccountAvatar derives a display identity elsewhere in the app.
+    const displayName = username || session?.user?.email?.split('@')[0] || 'My';
+
+    // Create an already-configured (but empty) team with sensible defaults and drop the user
+    // straight onto the team page's setup step — there's no pre-creation modal anymore.
+    // `challenge`, when set, is carried through so the page can offer "Play Challenge" as soon
+    // as the roster is ready and pre-fills the budget / player filters.
+    async function createAndOpenTeam(challenge?: ChallengeInstance) {
+        if (!token || creatingTeam) return;
+        setCreatingTeam(true);
+        try {
+            // Fetched fresh (rather than off `userTeams` state) since a challenge's own page can be
+            // reached by a cold link that never loads the team list, which would otherwise always
+            // count zero prior attempts.
+            const existingTeams = await fetchUserTeams(token);
+            const name = challenge
+                // Numbered per that challenge (by template, so every rotation of the same challenge
+                // shares the count), not across all teams. The first attempt gets no number.
+                ? numberedName(
+                    `${displayName} - ${challenge.title}`,
+                    existingTeams.filter(t => t.origin_template_id === challenge.template_id).length,
+                )
+                // Numbered across the user's non-challenge teams only, so challenge attempts don't
+                // bump the plain "New Team" counter. The first team gets no number.
+                : numberedName(
+                    `${displayName} Team`,
+                    existingTeams.filter(t => t.creation_source !== 'challenge').length,
+                );
+            const payload = buildDefaultTeamPayload({
+                displayName,
+                showdownSet: userShowdownSet,
+                defaultPrimaryColor: userSettings?.default_primary_color,
+                defaultSecondaryColor: userSettings?.default_secondary_color,
+                overrides: challenge ? {
+                    name,
+                    // Public by default so the run shows up on the Community recent-sims feed;
+                    // challenge teams are excluded from Browse regardless (see get_public_teams).
+                    is_public: true,
+                    pts_limit: challenge.pts_limit,
+                    // Challenge teams are pre-sized to the challenge's own roster minimum (25 by
+                    // default), with a modern active-roster bucket split (3 bench / 5 bullpen /
+                    // 5 starters) beneath it.
+                    roster_size: challenge.roster_size,
+                    num_starters: 5,
+                    min_bench: 3,
+                    min_bullpen: 5,
+                    origin_template_id: challenge.template_id,
+                    player_filters: challenge.player_filters,
+                    creation_source: 'challenge',
+                } : { name, creation_source: 'new_team' },
+            });
+            const newTeam = await createTeam(payload, token);
+            createdThisSessionRef.current.add(newTeam.team_id);
+            setListLoaded(false); // list must refresh to include the new team
+            trackRecentTeam(newTeam.team_id);
+            navigate('/teams/' + newTeam.team_id, { state: { isNewTeam: true, ...(challenge ? { challenge } : {}) } });
+            setView({ mode: 'editor', team: newTeam, readOnly: false });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create team.');
+        } finally {
+            setCreatingTeam(false);
+        }
+    }
+
+    const handleNewTeam = () => createAndOpenTeam();
+    const handleChallengeNewTeam = (challenge: ChallengeInstance) => createAndOpenTeam(challenge);
+
+    function handleUseExistingTeam(challenge: ChallengeInstance, teamId: string) {
+        trackRecentTeam(teamId);
+        navigate('/teams/' + teamId, { state: { challenge } });
+    }
+
+    // Opens a challenge's own shareable page. The challenge is carried as router state too, so
+    // the card that linked here can paint the header instantly instead of waiting on the fetch.
+    function openChallenge(challenge: ChallengeInstance) {
+        navigate('/teams/challenges/' + challenge.instance_id, { state: { challenge } });
+    }
+
+    async function handleFork(source: Team) {
         if (!token) return;
-        const newTeam = await createTeam(payload, token);
-        setUserTeams(prev => [newTeam, ...prev]);
-        setShowCreateModal(false);
+        const newTeam = await forkTeam(source, token);
+        setListLoaded(false); // list must refresh to include the forked copy
+        setActiveTab('mine');
         trackRecentTeam(newTeam.team_id);
-        navigate('/teams/' + newTeam.team_id);
+        // The URL change below re-triggers the team-ref resolver effect, which unmounts and
+        // remounts TeamDetail with the freshly-fetched team — any toast state set directly on
+        // the current (about-to-unmount) instance would be lost. Route it through location.state
+        // instead, same as `isNewTeam`, so the new instance can seed it on mount.
+        navigate('/teams/' + newTeam.team_id, { state: { justCopied: true } });
         setView({ mode: 'editor', team: newTeam, readOnly: false });
     }
 
     async function handleSave(teamId: string, updates: TeamUpdatePayload) {
         if (!token) return;
         const saved = await updateTeam(teamId, updates, token);
-        setUserTeams(prev => prev.map(t => t.team_id === teamId ? saved : t));
+        setListLoaded(false); // summary (points, drafting, top players) may have changed
         setView(prev => prev.mode === 'editor' && prev.team.team_id === teamId
             ? { ...prev, team: saved }
             : prev
         );
     }
 
+    async function handleToggleLike(teamId: string) {
+        if (!token) return;
+        const { liked, like_count } = await toggleTeamLike(teamId, token);
+        setView(prev => prev.mode === 'editor' && prev.team.team_id === teamId
+            ? { ...prev, team: { ...prev.team, liked_by_me: liked, like_count } }
+            : prev
+        );
+    }
+
+    // Admin-only challenge-template manager. Its own route so it's reachable directly and not
+    // gated behind the Challenges sub-tab state. Non-admins landing here fall through to the
+    // normal tabs (the server would 403 every call anyway).
+    if (adminChallengesView && isAdmin && token) {
+        return (
+            <div className="@container w-full">
+                <div className={`flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full ${px}`}>
+                    <AdminChallengesView
+                        token={token}
+                        onBack={() => { setActiveTab('simulations'); navigate('/teams'); }}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // A curated collection's own shareable page.
+    if (collectionSlug) {
+        return (
+            <div className="@container w-full">
+                <CollectionDetail
+                    slug={collectionSlug}
+                    onOpenTeam={openTeam}
+                    onBack={() => { setActiveTab('browse'); navigate('/teams'); }}
+                    horizontalPadding={px}
+                />
+            </div>
+        );
+    }
+
+    // The Era section's "See all" grid — every era combined, ignoring the shelf's era filter.
+    if (eraAllView) {
+        return (
+            <div className="@container w-full">
+                <EraTeamsAllPage
+                    showdownSet={seeAllShowdownSet}
+                    onBack={() => { setActiveTab('browse'); navigate('/teams'); }}
+                    horizontalPadding={px}
+                />
+            </div>
+        );
+    }
+
+    // The Historical Teams section's "See all" grid — every season flattened, points descending.
+    if (historicalAllView) {
+        return (
+            <div className="@container w-full">
+                <HistoricalTeamsAllPage
+                    showdownSet={seeAllShowdownSet}
+                    onBack={() => { setActiveTab('browse'); navigate('/teams'); }}
+                    horizontalPadding={px}
+                />
+            </div>
+        );
+    }
+
+    // A challenge addressed by URL takes over the view entirely, independent of the team
+    // list/editor state above — this is the shareable page, so it must resolve on a cold link
+    // with no prior navigation state.
+    if (challengeInstanceId) {
+        return (
+            <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
+                <div className={px}>
+                    <ChallengeDetail
+                        key={challengeInstanceId}
+                        instanceId={challengeInstanceId}
+                        initialChallenge={(location.state as { challenge?: ChallengeInstance } | null)?.challenge}
+                        token={token}
+                        onBack={() => navigate('/teams')}
+                        onNewTeam={handleChallengeNewTeam}
+                        onUseExistingTeam={handleUseExistingTeam}
+                        onOpenSeason={openSeason}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // The full "My Teams" list with search is its own screen (/teams/all) — shareable, and the
+    // back button returns to the tabbed list. Only the signed-in user's own teams live here.
+    if (allTeamsView) {
+        const q = teamSearch.trim();
+        return (
+            <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
+                <div className={`flex items-center gap-3 ${px}`}>
+                    <BackButton onBack={() => { setTeamSearch(''); navigate('/teams'); }} />
+                    <div>
+                        <h1 className="text-[20px] font-black text-(--text-primary)">My Teams</h1>
+                        <p className="text-[12px] text-(--text-secondary)">
+                            {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
+                            {archivedCount > 0 && ` · ${archivedCount} archived`}
+                        </p>
+                    </div>
+                </div>
+
+                <div className={`flex flex-col gap-2 sm:flex-row sm:items-center ${px}`}>
+                    <div className="flex-1">
+                        <TeamSearchInput
+                            value={teamSearch}
+                            onChange={setTeamSearch}
+                            placeholder="Search your teams by name or set…"
+                            autoFocus
+                        />
+                    </div>
+                    {archivedCount > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowArchived(v => !v)}
+                            className="shrink-0 text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer self-start sm:self-auto"
+                        >
+                            {showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
+                        </button>
+                    )}
+                </div>
+
+                {error && (
+                    <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                        {error}
+                    </div>
+                )}
+
+                {loading ? (
+                    <div className="flex justify-center py-12">
+                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                    </div>
+                ) : !token ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
+                        Sign in to view your teams.
+                    </p>
+                ) : filteredUserTeams.length === 0 ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
+                        {q ? `No teams match “${q}”.` : 'You haven’t created any teams yet.'}
+                    </p>
+                ) : (
+                    <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 ${px}`}>
+                        {filteredUserTeams.map(team => (
+                            <div key={team.team_id} className={team.is_archived ? 'opacity-55' : undefined}>
+                                <TeamCard team={team} onClick={() => openTeam(team)} />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    if (view.mode === 'loading') {
+        return (
+            <div className="flex flex-col h-full items-center justify-center py-12">
+                <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+            </div>
+        );
+    }
+
     if (view.mode === 'editor') {
         const { team, readOnly } = view;
+
+        // A simulation addressed by URL takes over the view; the team is still resolved behind
+        // it so going back is instant and the sim can show whose season it is.
+        if (simJobId) {
+            return (
+                <div className="flex flex-col h-full">
+                    <SimSeasonView
+                        // Remounts on a new job id so state resets naturally instead of an
+                        // effect clearing it — going straight from one result to another (e.g.
+                        // via the leaderboard) must not show the previous season's data.
+                        key={simJobId}
+                        jobId={simJobId}
+                        teamName={team.name}
+                        token={token}
+                        onBack={() => navigate('/teams/' + team.team_id)}
+                        onBackToChallenges={() => { setActiveTab('simulations'); navigate('/teams'); }}
+                        onOpenChallengeLeaderboard={(instanceId) => navigate('/teams/challenges/' + instanceId)}
+                        onTryAgain={(instanceId) => {
+                            // Back to the editor with the challenge primed (roster already lives on
+                            // the team) so the user can tweak and re-run. Same handoff shape as
+                            // handleUseExistingTeam. Fall back to a plain open if the instance has
+                            // since expired/rotated out.
+                            if (!instanceId) { navigate('/teams/' + team.team_id); return; }
+                            fetchChallengeInstance(instanceId, token)
+                                .then(challenge => navigate('/teams/' + team.team_id, { state: challenge ? { challenge } : undefined }))
+                                .catch(() => navigate('/teams/' + team.team_id));
+                        }}
+                    />
+                </div>
+            );
+        }
+
+        // Any read-only team the builder can open can be forked into the user's own editable copy:
+        // a public community team, or a synthetic historical MLB / All-Star roster.
+        const canFork = readOnly && !!token && (team.source !== 'user' || team.is_public);
+        // Set only when this team page was reached from a challenge card - not stored on the
+        // team itself, so a team isn't permanently bound to one instance and a page refresh just
+        // drops back to the team's normal "Play" action.
+        const challenge = (location.state as { challenge?: ChallengeInstance } | null)?.challenge;
         return (
             <div className="flex flex-col h-full">
                 <TeamDetail
@@ -118,110 +730,204 @@ export default function TeamBuilder() {
                     readOnly={readOnly}
                     onSave={updates => handleSave(team.team_id, updates)}
                     onBack={goBack}
-                    onReload={loadTeams}
+                    onReload={reloadCurrentTeam}
                     token={token}
+                    onFork={canFork ? () => handleFork(team) : undefined}
+                    onToggleLike={team.team_id && (team.source === 'user' || team.source === 'official')
+                        ? () => handleToggleLike(team.team_id)
+                        : undefined}
+                    onArchive={!readOnly && token && team.source === 'user' && team.team_id
+                        ? archived => handleSave(team.team_id, { is_archived: archived })
+                        : undefined}
+                    challenge={challenge}
+                    isNewTeam={(location.state as { isNewTeam?: boolean } | null)?.isNewTeam}
+                    justCopied={(location.state as { justCopied?: boolean } | null)?.justCopied}
                 />
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col gap-6 py-4 max-w-4xl mx-auto w-full">
+        // `@container` here spans the full content region, so shelves flagged `bleed` can
+        // run to the screen edge past the centered max-width below.
+        <div className="@container w-full">
+        <WhatsNewBanner
+            storageKey="teamBuilderWhatsNew_v4.4"
+            version="4.4"
+            features={[
+                { icon: <FaUsers />,              text: 'Build a roster from any era with live points and draft tracking' },
+                { icon: <FaWandMagicSparkles />,  text: 'Autofill completes your lineup, rotation, and bullpen in one click' },
+                { icon: <FaListCheck />,          text: 'Set your lineup and depth chart on an interactive field view' },
+                { icon: <FaDice />,               text: 'Simulate a full 162 game season with your team' },
+                { icon: <FaTrophy />,             text: 'Sim Challenges: rotating scenarios with a leaderboard to track the best managers' },
+                { icon: <FaGlobe />,              text: 'Browse and fork community teams and curated collections' },
+            ]}
+        />
+        <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
-            <div className="flex items-center px-4 justify-between">
+            <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">Teams</h1>
-                    <p className="text-[13px] text-(--text-secondary)">
-                        Build and share your own Showdown rosters
+                    <h1 className="flex items-center gap-2 text-[20px] font-black text-(--text-primary)">
+                        Team Builder
+                        <BetaBadge />
+                    </h1>
+                    <p className="text-[12px] text-(--text-secondary)">
+                        Build your team, compete in challenges, and explore community creations.
                     </p>
                 </div>
                 {token && (
                     <button
                         type="button"
-                        onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity"
+                        onClick={handleNewTeam}
+                        disabled={creatingTeam}
+                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-xl bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                        <FaPlus className="text-[10px]" /> 
+                        {creatingTeam ? <FaSpinner className="animate-spin" /> : <FaPlus />}
                         New
-                        <span className="hidden sm:inline">Team</span>
+                        <span className="hidden md:inline">Team</span>
                     </button>
                 )}
             </div>
 
-            {showCreateModal && (
-                <NewTeamModal
-                    onConfirm={handleCreate}
-                    onCancel={() => setShowCreateModal(false)}
-                />
-            )}
+            {/* Tabs */}
+            <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} className={px} fullWidth />
 
             {error && (
-                <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
                     {error}
                 </div>
             )}
 
-            {!loading && (
-                <RecentTeamsCarousel
-                    teams={[...userTeams, ...officialTeams]}
-                    onClick={team => openTeam(team, !token || team.user_id !== session?.user?.id)}
-                />
-            )}
-
-            {loading ? (
-                <div className="flex justify-center py-12">
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                </div>
-            ) : (
+            {/* My Teams tab */}
+            {activeTab === 'mine' && (
                 <>
-                    {/* My Teams */}
-                    {token && (
-                        <section className="px-4">
-                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
-                                My Teams
-                            </div>
-                            {userTeams.length === 0 ? (
-                                <p className="text-[13px] text-(--text-tertiary) py-4">
-                                    You haven't created any teams yet.
-                                </p>
+                    {!loading && recentTeams.length > 0 && (
+                        <TeamShelf title="Recent Teams" className={px} bleed>
+                            {recentTeams.map(team => (
+                                <TeamPreviewCard key={team.team_id} team={team} onClick={() => openTeam(team)} />
+                            ))}
+                        </TeamShelf>
+                    )}
+                    {!loading && token && (
+                        <div className={px}>
+                            <RecentSimsShelf token={token} onOpenSeason={openSeason} />
+                        </div>
+                    )}
+                    {loading ? (
+                        <div className="flex justify-center py-12">
+                            <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                        </div>
+                    ) : (
+                        <section className={`${px}`}>
+                            {!token || userTeams.length === 0 ? (
+                                <TeamBuilderWelcome
+                                    px=""
+                                    signedOut={!token}
+                                    onCreate={handleNewTeam}
+                                    onGoToTab={setActiveTab}
+                                    onOpenTeam={openTeam}
+                                />
                             ) : (
-                                <div className="flex flex-col gap-2">
-                                    {userTeams.map(team => (
-                                        <TeamCard
-                                            key={team.team_id}
-                                            team={team}
-                                            onClick={() => openTeam(team, false)}
+                                <div className="space-y-6">
+                                    {(primaryUserTeams.length > 0 || archivedCount > 0) && (
+                                        <TeamListSection
+                                            title="My Teams"
+                                            teams={primaryUserTeams}
+                                            previewCount={TEAM_LIST_PREVIEW_COUNT}
+                                            onOpen={openTeam}
+                                            emptyNote={primaryUserTeams.length === 0
+                                                ? 'All your teams are archived. Use “Show all” to view them.'
+                                                : undefined}
+                                            showAll={(primaryUserTeams.length > TEAM_LIST_PREVIEW_COUNT || archivedCount > 0)
+                                                ? { count: primaryUserTeams.length, onClick: () => { setTeamSearch(''); setShowArchived(archivedCount > 0 && primaryUserTeams.length === 0); navigate('/teams/all'); } }
+                                                : undefined}
                                         />
-                                    ))}
+                                    )}
+                                    {challengeUserTeams.length > 0 && (
+                                        <TeamListSection
+                                            title="Challenge Teams"
+                                            teams={challengeUserTeams}
+                                            previewCount={TEAM_LIST_PREVIEW_COUNT}
+                                            onOpen={openTeam}
+                                            showAll={challengeUserTeams.length > TEAM_LIST_PREVIEW_COUNT
+                                                ? { count: challengeUserTeams.length, onClick: () => { setTeamSearch(''); setShowArchived(false); navigate('/teams/all'); } }
+                                                : undefined}
+                                        />
+                                    )}
+                                    {/* Whitespace for scrolling */}
+                                    <div className="h-24 shrink-0" />
                                 </div>
                             )}
                         </section>
                     )}
-
-                    {/* Official & ASG Teams */}
-                    {officialTeams.length > 0 && (
-                        <section className="px-4">
-                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
-                                Official &amp; All-Star Teams
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                {officialTeams.map(team => (
-                                    <TeamCard
-                                        key={team.team_id}
-                                        team={team}
-                                        onClick={() => openTeam(team, true)}
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
-                    {!token && officialTeams.length === 0 && (
-                        <p className="text-[13px] text-(--text-tertiary) py-4 text-center">
-                            Sign in to create your own teams.
-                        </p>
-                    )}
                 </>
+            )}
+
+            {/* Browse tab — featured collections, community teams, and historical rosters.
+                Mounts on first visit, then stays mounted (hidden) so its state survives tab switches. */}
+            <div hidden={activeTab !== 'browse'}>
+                {visitedTabs.has('browse') && (
+                    <BrowseTeams
+                        onOpenTeam={openTeam}
+                        horizontalPadding={px}
+                        currentUserId={session?.user?.id}
+                        myTeams={sortedUserTeams}
+                    />
+                )}
+            </div>
+
+            {/* Team Challenges tab — same lazy-mount-then-keep-alive treatment as Browse. */}
+            <div hidden={activeTab !== 'simulations'}>
+                {visitedTabs.has('simulations') && (
+                    <SimulationsTab
+                        token={token}
+                        horizontalPadding={px}
+                        onOpenSeason={openSeason}
+                        onNewTeam={handleChallengeNewTeam}
+                        onUseExistingTeam={handleUseExistingTeam}
+                        onOpenChallenge={openChallenge}
+                        onOpenChallengeLeaderboard={(instanceId) => navigate('/teams/challenges/' + instanceId)}
+                        onManageChallenges={() => navigate('/teams/admin/challenges')}
+                    />
+                )}
+            </div>
+        </div>
+        </div>
+    );
+}
+
+/** One titled block of TeamCards on the My Teams tab — the primary list and the challenge-teams
+ *  group share this shape. Collapses to `previewCount` cards with an optional "Show all" link. */
+function TeamListSection({ title, teams, previewCount, onOpen, showAll, emptyNote }: {
+    title: string;
+    teams: TeamSummary[];
+    previewCount: number;
+    onOpen: (team: TeamSummary) => void;
+    showAll?: { count: number; onClick: () => void };
+    emptyNote?: string;
+}) {
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
+                {showAll && (
+                    <button
+                        type="button"
+                        onClick={showAll.onClick}
+                        className="shrink-0 text-[12px] font-bold text-(--secondary) hover:opacity-80 cursor-pointer"
+                    >
+                        Show all ({showAll.count})
+                    </button>
+                )}
+            </div>
+            {teams.length === 0 ? (
+                <p className="text-[13px] text-(--text-tertiary) py-4">{emptyNote}</p>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                    {teams.slice(0, previewCount).map(team => (
+                        <TeamCard key={team.team_id} team={team} onClick={() => onOpen(team)} />
+                    ))}
+                </div>
             )}
         </div>
     );

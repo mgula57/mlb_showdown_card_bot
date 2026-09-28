@@ -4,12 +4,13 @@ from prettytable import PrettyTable
 
 from ...core.mlb_stats_api import MLBStatsAPI
 from ...core.database.postgres_db import PostgresDB
-from ...core.mlb_stats_api.models.leagues.league import SportEnum
+from ...core.mlb_stats_api.models.leagues.league import SportEnum, LeagueEnum
 from ...core.mlb_stats_api.models.teams.team import Team
 from ...core.mlb_stats_api.models.teams.roster import RosterTypeEnum
 from ...core.mlb_stats_api.models.games.schedule import Schedule
 from ...core.mlb_stats_api.models.stats.leaders import PlayerLeader
 from ...core.mlb_stats_api.models.stats.enums import LeaderLeaderStatEnum, PlayerPoolEnum, StatGroupEnum
+from ...core.shared.player_position import PlayerType
 
 app = typer.Typer()
 
@@ -155,23 +156,52 @@ def schedule(
 @app.command("leaders")
 def leaders(
     season: int = typer.Option(..., "--season", "-s", help="Season year."),
-    categories: str = typer.Option("HOME_RUNS,BATTING_AVERAGE,EARNED_RUN_AVERAGE,STRIKEOUTS", "--categories", "-c", help="Comma-separated leader categories (e.g. HOME_RUNS,BATTING_AVERAGE)."),
-    stat_group: str = typer.Option(None, "--stat_group", "-sg", help="Stat group to filter by: hitting, pitching, fielding."),
+    player_type: str = typer.Option(None, "--player_type", "-pt", help="Player type to filter by: HITTER, PITCHER. Fills in --stat_group and --categories with sensible defaults when those aren't provided."),
+    league: str = typer.Option(None, "--league", "-lg", help="League abbreviation to restrict leaders to (e.g. AL, NL)."),
+    categories: str = typer.Option(None, "--categories", "-c", help="Comma-separated leader categories (e.g. HOME_RUNS,BATTING_AVERAGE). Defaults depend on --player_type, or a general mix if omitted."),
+    stat_group: str = typer.Option(None, "--stat_group", "-sg", help="Stat group to filter by: hitting, pitching, fielding. Inferred from --player_type if omitted."),
     sport_id: int = typer.Option(1, "--sport_id", "-sp", help="MLB sport ID. Default is 1 (MLB)."),
     limit: int = typer.Option(5, "--limit", "-l", help="Number of leaders to show per category."),
     days_back: int = typer.Option(None, "--days_back", "-db", help="Optionally filter leaders to only include stats from the last X days."),
 ):
     """Fetch stat leaders from MLB Stats API"""
 
-    category_enums = []
-    for cat in categories.split(','):
-        cat = cat.strip().upper()
+    player_type_enum = None
+    if player_type:
         try:
-            category_enums.append(LeaderLeaderStatEnum(cat))
-        except ValueError:
-            valid = [e.value for e in LeaderLeaderStatEnum]
-            typer.echo(f"Invalid category '{cat}'. Valid options:\n  {', '.join(valid)}", err=True)
+            player_type_enum = PlayerType(player_type.strip().upper())
+        except Exception:
+            typer.echo(f"Invalid player_type '{player_type}'. Valid options: {', '.join(pt.name for pt in PlayerType)}", err=True)
             raise typer.Exit(1)
+
+    league_id = None
+    if league:
+        try:
+            league_id = LeagueEnum[league.strip().upper()].value
+        except KeyError:
+            valid = [e.name for e in LeagueEnum]
+            typer.echo(f"Invalid league '{league}'. Valid options: {', '.join(valid)}", err=True)
+            raise typer.Exit(1)
+
+    category_enums = None
+    if categories:
+        category_enums = []
+        for cat in categories.split(','):
+            cat = cat.strip().upper()
+            try:
+                category_enums.append(LeaderLeaderStatEnum(cat))
+            except ValueError:
+                valid = [e.value for e in LeaderLeaderStatEnum]
+                typer.echo(f"Invalid category '{cat}'. Valid options:\n  {', '.join(valid)}", err=True)
+                raise typer.Exit(1)
+    elif not player_type_enum:
+        # No categories or player_type given - fall back to a general mix of well-known stats
+        category_enums = [
+            LeaderLeaderStatEnum.HOME_RUNS,
+            LeaderLeaderStatEnum.BATTING_AVERAGE,
+            LeaderLeaderStatEnum.EARNED_RUN_AVERAGE,
+            LeaderLeaderStatEnum.STRIKEOUTS,
+        ]
 
     stat_group_enums = None
     if stat_group:
@@ -189,11 +219,14 @@ def leaders(
         statGroups=stat_group_enums,
         limit=limit,
         days_back=days_back,
+        league_id=league_id,
+        player_type=player_type_enum,
     )
 
+    league_label = f" [{league.upper()}]" if league else ""
     for group in groups:
         category_label = (group.leader_category or "Unknown").replace("_", " ").title()
-        typer.echo(f"\n── {category_label} ({season}) ──")
+        typer.echo(f"\n── {category_label} ({season}){league_label} ──")
 
         table = PrettyTable()
         table.field_names = ["Rank", "Player", "Team", "Value"]

@@ -1,12 +1,14 @@
 import type { ShowdownBotCard, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardCommand from "./card_elements/CardCommand";
-import { getContrastColor } from "../shared/Color";
+import { getContrastTextColor } from "../../functions/colors";
 import { useTheme } from "../shared/SiteSettingsContext";
 import { formatYear } from "../../functions/formatters";
-import { FaHatWizard } from "react-icons/fa6";
+import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { defenseAtPosition } from "../shared/DefenseUtils";
+import CardIcon from "./card_elements/CardIcon";
+import { getFirstName, getLastName, getFirstInitial } from "../../functions/names"
 
 // =============================================================================
 // TYPES
@@ -18,6 +20,9 @@ export type CardItemActionButton = {
     /** aria-label for the action button */
     label?: string;
     bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-red-500")
+    placement?: 'left' | 'right'; // Optionally change which side the button appears on
+    /** Greys out the button and blocks clicks — e.g. while a previous pick is still saving. */
+    disabled?: boolean;
 };
 
 type CardItemCompactProps = {
@@ -28,29 +33,55 @@ type CardItemCompactProps = {
     onClick?: () => void;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
-    /**
-     * sm: minimal (no pts, no extra details)
-     * md: auto-size via ResizeObserver (default)
-     * lg: always show a second row with defense/IP
-     */
-    size?: 'sm' | 'md' | 'lg';
-    /** When size='lg', show defense only for this position (e.g. 'SS', 'CF'). Falls back to full string. */
+    /** Show defense only for this position (e.g. 'SS', 'CF'). Falls back to full string. */
     fieldPosition?: string;
+    /** Optional override for the player's defensive rating at the specified field position */
+    detailStat1Category?: 'defense' | 'hr' | 'outs' | 'speed';
+    /** Always hide the set icon and defense/handedness row, regardless of container width */
+    hideDetails?: boolean;
+    /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
+    ptsMultiplier?: number;
+    /** Hide the CardCommand badge — for layouts too tight for it (e.g. on-field markers). Also hides the set icon, which leans on the same badge for context. */
+    hideCommand?: boolean;
+    /** Hide the team/points row, leaving just the name and (if shown) the detail-stat row */
+    hideTeamPoints?: boolean;
+    /** For pitchers with detailStat1Category 'defense': show this in-game IP instead of the card's season IP (e.g. a live boxscore line) */
+    liveIp?: number | string | null;
+    /** Override the card's border color, e.g. to distinguish offense/defense on a field diagram. Any CSS color value. */
+    accentColor?: string;
+    /** Optional background settings for the card container, e.g., "bg-secondary" */
+    backgroundSettings?: string;
 };
 
 // =============================================================================
 // COMPONENT
 // =============================================================================
 
-function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fieldPosition?: string): string | number {
+function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fieldPosition?: string, liveIp?: number | string | null): string | number {
     if (!card) return 'N/A';
-    if (card.is_pitcher) return `IP ${card.ip ?? 0}`;
+    if (card.is_pitcher) return `IP ${liveIp ?? card.ip ?? 0}`;
     if (fieldPosition === 'DH') return 'DH';
 
     const defAtPos = defenseAtPosition(card.positions_and_defense, fieldPosition || '');
     if (defAtPos !== null) return `${fieldPosition}${defAtPos >= 0 ? '+' : ''}${defAtPos}`;
     return defenseAtPosition(card.positions_and_defense, fieldPosition || '') || card.positions_and_defense_string || 'N/A';
 }
+
+const CardItemCompactIcons = ({ className, iconsList, color, cardId }: { className?: string; iconsList: string[]; color: string; cardId: string }) => {
+    return (
+        <div className={`flex gap-0.5 ${className || ''}`}>
+            {iconsList.map((icon, index) => (
+                <CardIcon 
+                    key={`${cardId}-icon-${index}`} 
+                    color={color} 
+                    value={icon} 
+                    circleSize={((iconsList?.length ?? 0) > 2 ? "3" : "4")}
+                    textSize={(iconsList?.length ?? 0) > 2 ? 8 : 9} 
+                />
+            ))}
+        </div>
+    );
+};
 
 export const CardItemCompact = ({
     card,
@@ -59,8 +90,15 @@ export const CardItemCompact = ({
     isLoading,
     onClick,
     actionButton,
-    size = 'md',
     fieldPosition,
+    detailStat1Category,
+    hideDetails,
+    ptsMultiplier,
+    hideCommand,
+    hideTeamPoints,
+    liveIp,
+    accentColor,
+    backgroundSettings
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
@@ -75,40 +113,31 @@ export const CardItemCompact = ({
 
     const pointsBadgeStyle = {
         backgroundColor: secondaryColor,
-        color: getContrastColor(secondaryColor),
+        color: getContrastTextColor(secondaryColor),
     };
 
     const teamStyle = {
         backgroundColor: primaryColor,
-        color: getContrastColor(primaryColor),
+        color: getContrastTextColor(primaryColor),
     };
+
+    const isClickable = onClick !== undefined;
 
     const borderSettings = isSelected
-        ? (isDark ? 'border-2' : 'border-2')
-        : (isDark ? 'border-2 border-white/10' : 'border-2 border-gray-200');
-
-    const getLastName = (name?: string): string => {
-        if (!name) return 'Unknown Player';
-        const trimmed = name.trim();
-        if (!trimmed) return 'Unknown Player';
-        const parts = trimmed.split(/\s+/);
-        if (parts.length === 1) return parts[0];
-        const last = parts[parts.length - 1].replace('.', '').toUpperCase();
-        if (['JR', 'SR', 'II', 'III', 'IV', 'V'].includes(last) && parts.length > 1) {
-            return `${parts[parts.length - 2]} ${parts[parts.length - 1]}`;
-        }
-        return parts[parts.length - 1];
-    };
-
-    const getFirstInitial = (name?: string): string => {
-        if (!name) return '';
-        const trimmed = name.trim();
-        if (!trimmed) return '';
-        return trimmed.split(/\s+/)[0][0].toUpperCase();
-    };
+        ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
+        : (isDark
+            ? `border-2 border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
+            : `border-2 border-black/10 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
     const isRedacted = card?.isEmpty || false;
-    const displayName = isRedacted ? 'REDACTED NAME' : `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
+
+    const hasPtsMultiplier = !!ptsMultiplier && ptsMultiplier !== 1 && card?.points != null;
+    const effectivePoints = hasPtsMultiplier ? Math.round(card!.points * ptsMultiplier!) : card?.points;
+
+    // Name
+    const firstInitial = getFirstInitial(card?.name);
+    const firstName = getFirstName(card?.name);
+    const lastName = getLastName(card?.name);
 
     return (
         <div
@@ -116,83 +145,157 @@ export const CardItemCompact = ({
             tabIndex={onClick ? 0 : undefined}
             onClick={onClick}
             onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+            style={accentColor ? { borderColor: accentColor } : undefined}
             className={`
                 ${className || ''}
                 relative @container
                 w-full min-w-0
                 flex items-top gap-2
-                rounded-lg px-2 py-1
-                bg-secondary
+                rounded-lg pl-1 py-1
+                ${backgroundSettings || 'bg-secondary'}
                 ${borderSettings}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
             `}
         >
-            <CardCommand
-                isPitcher={card?.is_pitcher || false}
-                primaryColor={primaryColor}
-                secondaryColor={secondaryColor}
-                command={card?.command}
-                team={card?.team || 'N/A'}
-                className={`w-6.5 h-6.5 shrink-0 ${['md', 'lg'].includes(size) ? 'mt-1.5' : 'mt-1'}`}
-            />
+            {!hideCommand && (
+                <CardCommand
+                    isPitcher={card?.is_pitcher || false}
+                    primaryColor={primaryColor}
+                    secondaryColor={secondaryColor}
+                    command={card?.command}
+                    team={card?.team || 'N/A'}
+                    className={`w-5 h-5 @[75px]:w-6 @[75px]:h-6 shrink-0 mt-1 ${hideDetails ? '' : '@[70px]:mt-1.5'}`}
+                />
+            )}
 
-            <div className="min-w-0 flex-1 space-y-0.5 text-left">
-                <div className={`text-[12px] font-black text-(--text-primary) truncate ${isRedacted ? 'redacted' : ''}`}>
-                    {displayName}
-                </div>
-                <div className="flex items-center gap-1 min-w-0">
-                    <div
-                        className={`text-[9px] flex leading-none shrink-0 font-semibold rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
-                        style={isRedacted ? undefined : teamStyle}
-                    >
-                        {card?.team || 'N/A'}
-                        <span className="hidden @[150px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
-                    </div>
-                    <div
-                        className={`hidden @[100px]:flex shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
-                        style={isRedacted ? undefined : pointsBadgeStyle}
-                    >
-                        {card?.points != null ? `${card.points} PTS` : '-- PTS'}
-                    </div>
-                </div>
-                {size !== 'sm' && (
-                    <div className={`flex py-0.5 text-[9px] w-full font-bold text-(--text-tertiary) truncate text-wrap ${isRedacted ? 'redacted' : ''}`}>
-                        {isRedacted ? '--- • ---' : (
+            <div className="min-w-0 items-center flex-1 space-y-0.5 text-left">
+                <div className={`flex gap-x-0.5 text-[12px] font-black text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
+                    {isRedacted 
+                        ? 'REDACTED NAME' 
+                        : 
                             <>
-                                {getDefenseDisplay(card, fieldPosition)}
-                                <span className="px-0.5 opacity-50">•</span>
-                                {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                                {/* First Initial */}
+                                <span className={`hidden @[95px]:flex @[110px]:hidden`}>{firstInitial}. </span>
+
+                                {/* Full First Name */}
+                                {firstName !== 'TBD' && (
+                                    <span className={`hidden @[110px]:flex`}>{firstName} </span>
+                                )}
+                            
+                                {/* Last Name */}
+                                <span className={`max-w-15 truncate @[95px]:max-w-full`}>{lastName} </span>
                             </>
-                        )}
+                    }
+                    <CardItemCompactIcons
+                        className="ml-0.5 hidden @[200px]:flex"
+                        cardId={card?.id || 'card'}
+                        iconsList={card?.icons_list || []}
+                        color={secondaryColor}
+                    />
+                    
+                </div>
+                {!hideTeamPoints && (
+                    <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll scrollbar-hide">
+                        <div
+                            className={`flex text-[9px] leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            style={isRedacted ? undefined : teamStyle}
+                        >
+                            {card?.team || 'N/A'}
+                            <span className="hidden @[100px]:block @[130px]:hidden ml-0.5"> {formatYear(card?.year || '-', true)}</span>
+                            <span className="hidden @[130px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
+                        </div>
+                        <div
+                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold tracking-tight text-nowrap rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            style={isRedacted ? undefined : pointsBadgeStyle}
+                        >
+                            {hasPtsMultiplier ? (
+                                <span className="flex items-center gap-0.5">
+                                    <span className="line-through opacity-60">{card!.points}</span>
+                                    <span>{effectivePoints} PT</span>
+                                </span>
+                            ) : (
+                                card?.points != null ? `${card.points} PT` : '-- PT'
+                            )}
+                            <span className="hidden @[120px]:block">S</span>
+                        </div>
                     </div>
+                )}
+                {!hideDetails && (
+                    <>
+                        {(detailStat1Category === 'defense' && !card?.is_pitcher && hideTeamPoints) && (
+                            <div className="hidden @[70px]:block @[95px]:hidden fixed top-1/2 translate-y-[-50%] right-0 text-[9px] bg-(--text-primary)/50 tracking-tight font-bold text-(--text-tertiary) truncate text-nowrap px-1">
+                                {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
+                            </div>
+                        )}
+                        <div className={`hidden @[95px]:flex ${hideTeamPoints ? 'py-0': 'py-0.5'} text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                            {isRedacted ? '--- • ---' : (
+                                <>
+                                    {/* STAT 1 */}
+                                    {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
+                                    {detailStat1Category === 'hr' && (`${card?.hr_range?.split('–')[0].split('+')[0]}+ HR`).replace('—+', '–')}
+                                    {detailStat1Category === 'outs' && (`${card?.outs} OUT`)}
+                                    {detailStat1Category === 'speed' && (`SPD ${card?.speed ?? '-'}`)}
+
+                                    {/* OUTS/SPEED */}
+                                    <span className="hidden @[90px]:flex">
+                                        <span className="px-0.5 opacity-50">•</span>
+                                        {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
+                                    </span>
+
+                                    {/* HANDEDNESS */}
+                                    <span className="hidden @[110px]:flex">
+                                        <span className="px-0.5 opacity-50">•</span>
+                                        {card?.is_pitcher ? `${card?.hand}HP` : `${card?.hand}H`}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                    </>
                 )}
             </div>
 
             {/* Absolute positioned elements */}
-            {size !== 'sm' && !isRedacted && (
-                <div className="absolute bottom-1 left-1.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
-                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} className="h-3.5 object-contain object-center" />
+            {!hideDetails && !isRedacted && !hideCommand && (
+                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
                 </div>
             )}
 
             {card?.source === 'WOTC' && (
-                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="WOTC Card" />
+                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary) bg-(--background-primary)/50" title="WOTC Card" />
+            )}
+            {card?.source === 'CUSTOM' && (
+                <FaWandMagicSparkles className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="Custom Card" />
             )}
 
-            {/* Optional action button — top-right corner */}
+            {/* Icons - top-right corner */}
+            <div className="absolute -top-2 -right-0.5">
+                <CardItemCompactIcons
+                    className="ml-0.5 @[200px]:hidden"
+                    cardId={card?.id || 'card'}
+                    iconsList={card?.icons_list || []}
+                    color={secondaryColor}
+                />
+            </div>
+
+            {/* Optional action button — top corner */}
             {actionButton && (
                 <button
                     type="button"
-                    aria-label={actionButton.label}
-                    onClick={(e) => { e.stopPropagation(); actionButton.onClick(); }}
-                    className="
-                        absolute top-0.5 right-0.5
+                    disabled={actionButton.disabled}
+                    aria-label={actionButton.disabled ? 'Saving your last pick…' : actionButton.label}
+                    title={actionButton.disabled ? 'Saving your last pick…' : undefined}
+                    onClick={(e) => { e.stopPropagation(); if (!actionButton.disabled) actionButton.onClick(); }}
+                    className={`
+                        absolute -top-2 ${actionButton.placement === 'left' ? '-left-2' : '-right-2'}
                         flex items-center justify-center
                         w-5 h-5 rounded
                         text-(--text-tertiary)
-                        hover:bg-(--background-quaternary) hover:text-(--text-primary)
                         transition-colors
-                    "
+                        ${actionButton.disabled
+                            ? 'opacity-40 cursor-not-allowed'
+                            : 'hover:bg-(--background-quaternary) hover:text-(--text-primary)'}
+                    `}
                 >
                     {actionButton.icon}
                 </button>
@@ -216,14 +319,20 @@ export const CardItemCompact = ({
 type CardItemCompactFromCardProps = {
     card?: ShowdownBotCard | null;
     className?: string;
-    size?: 'sm' | 'md' | 'lg';
     fieldPosition?: string;
+    hideDetails?: boolean;
+    detailStat1Category?: 'defense' | 'hr' | 'outs' | 'speed';
     isSelected?: boolean;
     onClick?: () => void;
     actionButton?: CardItemActionButton;
+    hideCommand?: boolean;
+    hideTeamPoints?: boolean;
+    liveIp?: number | string | null;
+    accentColor?: string;
+    backgroundSettings?: string;
 };
 
-export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPosition, isSelected, onClick, actionButton }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -250,15 +359,24 @@ export const CardItemCompactFromCard = ({ card, className, size = 'md', fieldPos
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
                 speed: card?.speed.speed || null,
+                icons_list: card?.icons || [],
+                hand: card?.hand || null,
+                hr_range: card?.chart.ranges.HR || null,
                 source: card?.is_wotc ? 'WOTC' : 'BOT',
                 isEmpty: card == null || card === undefined,
             }}
             className={className}
             isSelected={isSelected}
-            size={size}
             fieldPosition={fieldPosition}
+            hideDetails={hideDetails}
+            detailStat1Category={detailStat1Category}
             onClick={onClick}
             actionButton={actionButton}
+            hideCommand={hideCommand}
+            hideTeamPoints={hideTeamPoints}
+            liveIp={liveIp}
+            accentColor={accentColor}
+            backgroundSettings={backgroundSettings}
         />
     );
 };
@@ -270,11 +388,14 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     isLoading?: boolean;
     onClick?: () => void;
     actionButton?: CardItemActionButton;
-    size?: 'sm' | 'md' | 'lg';
     fieldPosition?: string;
+    detailStat1Category?: 'defense' | 'hr' | 'outs';
+    hideDetails?: boolean;
+    ptsMultiplier?: number;
+    backgroundSettings?: string;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, size, fieldPosition }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, ptsMultiplier, backgroundSettings }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -301,6 +422,9 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 positions_and_defense: card?.positions_and_defense || {},
                 ip: card?.ip || 0,
                 speed: card?.speed || null,
+                hand: card?.hand || null,
+                hr_range: card?.chart_ranges?.HR || null,
+                icons_list: card?.icons_list || [],
                 source: card?.source || 'BOT',
                 isEmpty: card == null || card === undefined,
             }}
@@ -309,8 +433,11 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             isLoading={isLoading}
             onClick={onClick}
             actionButton={actionButton}
-            size={size}
             fieldPosition={fieldPosition}
+            hideDetails={hideDetails}
+            detailStat1Category={detailStat1Category}
+            ptsMultiplier={ptsMultiplier}
+            backgroundSettings={backgroundSettings}
         />
     );
 };

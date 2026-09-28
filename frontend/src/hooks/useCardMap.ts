@@ -8,10 +8,13 @@ export type CardSlotRef = { card_id: string; card_source: CardSourceType };
 
 /**
  * Fetches cards for a list of roster slots, routing each fetch to the correct
- * source table (BOT / WOTC / WBC). Missing card IDs are stored as null to
+ * source table (BOT / WOTC / WBC / CUSTOM). Missing card IDs are stored as null to
  * prevent repeated re-fetch attempts.
+ *
+ * @param token - Supabase access token. Required to hydrate CUSTOM slots, whose lookup is
+ *   scoped to the requesting user; ignored (but harmless to pass) for other sources.
  */
-export function useCardMap(slots: CardSlotRef[]) {
+export function useCardMap(slots: CardSlotRef[], token?: string | null) {
     const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord | null>>({});
     const [loading, setLoading] = useState(false);
 
@@ -45,7 +48,7 @@ export function useCardMap(slots: CardSlotRef[]) {
                 const results = await Promise.all(
                     [...bySource].map(([src, ids]) => {
                         const key = src === CardSource.BOT ? 'card_id' : 'id';
-                        return fetchCardData(src, { [key]: ids, limit: ids.length });
+                        return fetchCardData(src, { [key]: ids, limit: ids.length }, token);
                     }),
                 );
                 if (cancelled) return;

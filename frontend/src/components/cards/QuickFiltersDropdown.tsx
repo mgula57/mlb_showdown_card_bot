@@ -196,7 +196,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                 `}
             >
                 <FaBolt className={selectedPresetFiltersMatch ? 'text-(--success)' : 'text-primary'} />
-                <span className="hidden sm:inline font-medium">
+                <span className="hidden @2xl:inline font-medium">
                     {selectedPresetFiltersMatch
                         ? ([...userFilters, ...defaultPresets].find(p => p.id === selectedPresetId)?.name ?? 'Presets')
                         : 'Presets'}

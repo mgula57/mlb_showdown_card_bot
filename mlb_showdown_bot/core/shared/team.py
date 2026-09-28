@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 from .color import color_name
 
 class Team(str, Enum):
@@ -167,12 +168,39 @@ class Team(str, Enum):
         return cls.MLB
     
     @staticmethod
-    def map_from_mlb_api_team(mlb_api_team: str) -> 'Team':
-        """Helper method to map a team object from the MLB API to a Team enum member. This is used to convert team data from the MLB API into the corresponding Team enum member based on the team's abbreviation."""
+    def map_from_mlb_api_team(mlb_api_team: str, year: Optional[int] = None) -> 'Team':
+        """Helper method to map a team object from the MLB API to a Team enum member. This is used to convert team data from the MLB API into the corresponding Team enum member based on the team's abbreviation.
+
+        The API reports a defunct franchise's own season-specific abbreviation (not a modern
+        one) for any year it played, and a few of those codes collide with an unrelated
+        current franchise's abbreviation - 'MIL' is both the 1953-65 Milwaukee Braves and the
+        modern Brewers; 'WAS' is both Washington Senators franchises (the API doesn't even use
+        'WSH' for the pre-1961 one); 'SEA' is both the 1969 Seattle Pilots (the same franchise
+        id that became the Brewers in 1970) and the modern Mariners. Pass `year` whenever it's
+        known so these resolve to the correct bref-style historical Team instead of the wrong
+        modern one (or, for 'WAS', falling through to the generic `Team.MLB`).
+        """
+        try:
+            year_int = int(year)
+        except (TypeError, ValueError):
+            year_int = None
+
+        # Catch defunct franchises with overlapping modern abbreviations based on the year
+        if year_int is not None:
+            if mlb_api_team == 'MIL' and 1953 <= year_int <= 1965:
+                return Team.MLN
+            if mlb_api_team == 'WAS' and 1901 <= year_int <= 1960:
+                return Team.WSH
+            if mlb_api_team == 'WAS' and 1961 <= year_int <= 1971:
+                return Team.WSA
+            if mlb_api_team == 'SEA' and year_int == 1969:
+                return Team.SEP
         conversion_map = {
             'AZ': 'ARI',
             'CWS': 'CHW',
             'KC': 'KCR',
+            'LA': 'LAD',
+            'NYH': 'NYY',  # New York Highlanders (1903-1912) - renamed to the Yankees in 1913, never relocated, so bref keeps 'NYY' for both eras.
             'SD': 'SDP',
             'SF': 'SFG',
             'TB': 'TBR',
@@ -181,6 +209,75 @@ class Team(str, Enum):
         if mlb_api_team in conversion_map:
             return Team(conversion_map[mlb_api_team])
         return Team(mlb_api_team)
+
+    def for_year(self, year: int) -> 'Team':
+        """The abbreviation this franchise actually used in `year`.
+
+        The MLB API reports a franchise's *modern* abbreviation for every season it played, but
+        the card archive stores the era-correct one - 1998 Tampa Bay is TBD, not TBR - so any
+        historical lookup has to resolve backwards before the two can be joined on team.
+
+        Each alias is bounded on both ends by the years the code was in use, so a year outside a
+        franchise's lifetime falls through unchanged.
+        """
+        match self.value:
+            case 'LAA' if 1965 <= year <= 1996: return Team.CAL
+            case 'LAA' if 1997 <= year <= 2004: return Team.ANA
+            case 'WSN' if 1969 <= year <= 2004: return Team.MON
+            case 'MIA' if 1993 <= year <= 2011: return Team.FLA
+            case 'TBR' if 1998 <= year <= 2007: return Team.TBD
+            case 'ATH' if 1968 <= year <= 2024: return Team.OAK
+            case 'ATH' if 1955 <= year <= 1967: return Team.KCA
+            case 'ATH' if 1901 <= year <= 1954: return Team.PHA
+            case 'ATL' if 1953 <= year <= 1965: return Team.MLN
+            case 'ATL' if 1901 <= year <= 1952: return Team.BSN
+            case 'LAD' if 1901 <= year <= 1957: return Team.BRO
+            case 'SFG' if 1901 <= year <= 1957: return Team.NYG
+            case 'BAL' if 1902 <= year <= 1953: return Team.SLB
+            case 'MIN' if 1901 <= year <= 1960: return Team.WSH
+            case 'TEX' if 1961 <= year <= 1971: return Team.WSA
+            case 'MIL' if year == 1969: return Team.SEP
+            case _: return self
+
+    @property
+    def nickname(self) -> Optional[str]:
+        """The franchise's mascot/nickname alone, with no city -- e.g. 'Braves' for ATL, not
+        'Atlanta Braves'. Used to name a franchise-spanning display (an Era Roster covering
+        Boston/Milwaukee/Atlanta all at once has no single correct city to show), so this is
+        only defined for the 30 current MLB franchises; anything else falls back to None and
+        the caller keeps whatever full name it already had."""
+        match self.value:
+            case 'ARI': return 'Diamondbacks'
+            case 'ATH' | 'OAK': return 'Athletics'
+            case 'ATL': return 'Braves'
+            case 'BAL': return 'Orioles'
+            case 'BOS': return 'Red Sox'
+            case 'CHC': return 'Cubs'
+            case 'CHW': return 'White Sox'
+            case 'CIN': return 'Reds'
+            case 'CLE': return 'Guardians'
+            case 'COL': return 'Rockies'
+            case 'DET': return 'Tigers'
+            case 'HOU': return 'Astros'
+            case 'KCR': return 'Royals'
+            case 'LAA': return 'Angels'
+            case 'LAD': return 'Dodgers'
+            case 'MIA': return 'Marlins'
+            case 'MIL': return 'Brewers'
+            case 'MIN': return 'Twins'
+            case 'NYM': return 'Mets'
+            case 'NYY': return 'Yankees'
+            case 'PHI': return 'Phillies'
+            case 'PIT': return 'Pirates'
+            case 'SDP': return 'Padres'
+            case 'SEA': return 'Mariners'
+            case 'SFG': return 'Giants'
+            case 'STL': return 'Cardinals'
+            case 'TBR': return 'Rays'
+            case 'TEX': return 'Rangers'
+            case 'TOR': return 'Blue Jays'
+            case 'WSN': return 'Nationals'
+            case _: return None
 
 # ------------------------------------------------------------------------
 # COLOR

@@ -1,0 +1,270 @@
+from datetime import date, timedelta
+from random import Random
+from typing import Optional, Union
+
+from pydantic import BaseModel, Field
+
+from ..card.chart import Chart
+from ..card.showdown_player_card import ShowdownPlayerCard
+from ..shared.hand import Hand
+from ..shared.player_position import PlayerSubType, PlayerType, Position, PositionSlot
+from .result import Result
+from .runners import Runner
+
+#-------------------------------------------------------
+
+class SimPlayer(BaseModel):
+    """A ShowdownPlayerCard wrapped with simulation state.
+
+    The card itself is treated as immutable; all mutable per-game/per-season state
+    (position slot, pitching usage) lives on the wrapper.
+    """
+
+    card: ShowdownPlayerCard
+    id: str = None
+    position_slot: PositionSlot = PositionSlot.NONE
+    preset_lineup_spot: Optional[int] = None                 # BATTING ORDER (1-9) FROM A BUILDER TEAM LINEUP
+    preset_position_slot: Optional[PositionSlot] = None      # FIELD POSITION FROM A BUILDER TEAM LINEUP
+    # THE TEAM THE PLAYER SUITS UP FOR IN THIS SIM, WHEN IT ISN'T THE CARD'S OWN CLUB. A BUILDER
+    # ROSTER IS DRAFTED FROM ANY ERA, SO WITHOUT THIS EVERY STATLINE WOULD REPORT THE CLUB THE
+    # PLAYER REALLY PLAYED FOR RATHER THAN THE TEAM THEY PLAYED FOR HERE.
+    team_override: Optional[str] = None
+    results_list: list[Result] = Field(default_factory=list) # PRECOMPUTED ROLL (1-N) -> RESULT LOOKUP
+
+    def model_post_init(self, __context) -> None:
+        if self.id is None:
+            self.id = self.card.id
+        if len(self.results_list) == 0:
+            self.results_list = [Result(category.value.lower()) for category in self.card.chart.results_as_list]
+
+    # ------------------------------------------------------------------
+    # CARD PASS-THROUGHS
+    # ------------------------------------------------------------------
+
+    @property
+    def name(self) -> str:
+        return self.card.name
+
+    @property
+    def team(self) -> Optional[str]:
+        if self.team_override:
+            return self.team_override
+        return self.card.team.value if self.card.team else None
+
+    @property
+    def points(self) -> int:
+        return self.card.points
+
+    @property
+    def speed(self) -> int:
+        return self.card.speed.speed
+
+    @property
+    def chart(self) -> Chart:
+        return self.card.chart
+
+    @property
+    def hand(self) -> Hand:
+        """Batting hand for a hitter, throwing hand for a pitcher."""
+        return self.card.hand
+
+    @property
+    def stats(self) -> dict:
+        return self.card.stats
+
+    @property
+    def projected(self) -> dict:
+        return self.card.projected
+
+    @property
+    def real_ops(self) -> Optional[float]:
+        value = self.card.stats.get('onbase_plus_slugging', None)
+        return float(value) if value is not None else None
+
+    @property
+    def player_type(self) -> PlayerType:
+        return self.card.player_type
+
+    @property
+    def player_sub_type(self) -> PlayerSubType:
+        return self.card.player_sub_type
+
+    @property
+    def positions_list(self) -> list[Position]:
+        return self.card.positions_list
+
+    @property
+    def positions_and_defense(self) -> dict[Position, int]:
+        return self.card.positions_and_defense
+
+    @property
+    def primary_position(self) -> Position:
+        return self.card.primary_position
+
+    def has_position(self, position: Position) -> bool:
+        return self.card.has_position(position)
+
+    def defense_for_position_slot(self, position_slot: PositionSlot) -> int:
+        return self.card.defense_for_position_slot(position_slot)
+
+    # ------------------------------------------------------------------
+    # SIMULATION
+    # ------------------------------------------------------------------
+
+    def result_for_roll(self, roll: int) -> Result:
+        """Chart result for a swing roll. Rolls above the chart's range use the last (best) result."""
+        index = min(roll, len(self.results_list)) - 1
+        return self.results_list[index]
+
+    @property
+    def expected_games_between_rest(self) -> int:
+        """ Expected number of games between rest days.
+
+        Player's with more value (PTS) will have longer periods between rest. Catchers will be lower than other positions.
+        """
+
+        # VARIABLES
+        rest_multiplier = min([pos.rest_multiplier for pos in self.positions_list])
+        max_rest = 15
+        min_rest = 2
+        max_pts = 500
+        min_pts = 0
+        pts_for_calc = min(max(self.points, 100), 500)
+
+        # PCT RANK
+        pts_percentile = (pts_for_calc - min_pts) / (max_pts - min_pts)
+        rest_games = ( (max_rest - min_rest) * pts_percentile ) + min_pts
+        rest_games_adjusted_for_ca = max(int(rest_multiplier * rest_games), 1)
+        return rest_games_adjusted_for_ca
+
+    def player_rest_rating(self, games_since_rest: int, add_pts_multiplier: bool = True) -> float:
+        return (1.0 - (float(games_since_rest) / float(self.expected_games_between_rest))) * (max(self.stats.get("G", 70), 70) if add_pts_multiplier else 1.0)
+
+    def convert_to_runner(self, base: int, pitcher_id: str) -> Runner:
+        """ Converts player to runner object """
+        return Runner(id=self.id, name=self.name, base=base, speed=self.speed, pitcher_id=pitcher_id)
+
+
+# A START THAT'S FALLEN APART GETS A HOOK REGARDLESS OF HOW FAR UNDER HIS IP ALLOWANCE THE
+# STARTER STILL IS. EITHER HE'S ALREADY BLOWN UP EARLY (`_SHELLED_MIN_RUNS`) OR HE'S BEEN BLED
+# DRY AT A SUSTAINED RATE OVER AT LEAST AN INNING (`_SHELLED_RUNS_PER_IP`).
+_SHELLED_MIN_RUNS = 5
+_SHELLED_RUNS_PER_IP = 1.5
+_SHELLED_MIN_IP_FOR_RATE = 1.0
+
+# A STARTER WHO'S REACHED HIS IP ALLOWANCE WITH A CLEAN-ISH LINE GETS A CHANCE EACH PA TO STAY
+# IN RATHER THAN COMING OUT RIGHT ON SCHEDULE, SIMULATING A MANAGER LETTING A GUY WHO'S DEALING
+# KEEP GOING.
+_DOMINANT_RUNS_ALLOWED_MAX = 1
+_EXTENSION_CHANCE_PER_PA = 0.35
+
+# WITHOUT A LONG-HORIZON THROTTLE, A RELIEVER WHOSE PROJECTION EDGES OUT THE REST OF THE STAFF
+# (INCLUDING PURE SMALL-SAMPLE NOISE FROM A FEW-GAME CALLUP - SEE `Roster.select` IN roster.py)
+# WINS THE ARGMAX IN `Bullpen.suggested_reliever` NEAR EVERY TIME HE'S AVAILABLE, SNOWBALLING INTO
+# A SEASON TOTAL NO REAL BULLPEN ARM WOULD SEE. ONCE HIS SEASON APPEARANCES PASS THE PEN'S
+# AVERAGE BY THIS MUCH, `situational_fit` STARTS DISCOUNTING HIM SO OTHER ARMS GET A FAIR SHARE.
+# THE MIN-SAMPLE GATE KEEPS THIS FROM FIRING OFF NOISE IN THE FIRST FEW WEEKS, WHEN ONE OR TWO
+# EXTRA APPEARANCES IS A HUGE RELATIVE OVERAGE BUT MEANS NOTHING YET.
+_WORKLOAD_MIN_AVG_GAMES_SAMPLE = 8.0
+_WORKLOAD_DAMPING_RATE = 0.4
+_WORKLOAD_MULTIPLIER_FLOOR = 0.35
+
+
+class SimPitcher(SimPlayer):
+
+    start_inning: Union[int, float, None] = None
+    end_inning: Union[int, float, None] = None
+    runs_allowed: int = 0
+
+    # THIS PITCHER'S TEAM'S / THE OPPONENT'S RUN TOTAL THE MOMENT HE ENTERED (SNAPSHOTTED IN
+    # `SimTeam.mark_pitcher_entered`). THE ONLY LEAD-STATE HISTORY THE ENGINE KEEPS - `Game`
+    # DERIVES W / L / SV / BS FROM THESE PLUS THE FINAL SCORE.
+    team_runs_at_entry: int = 0
+    opp_runs_at_entry: int = 0
+
+    # SEASON-LONG ROTATION STATE, NOT CLEARED BY `reset()` BELOW - `Rotation.starter_for_date`
+    # READS THESE ACROSS GAMES TO PICK POSTSEASON STARTERS BY REST. UNUSED IN THE REGULAR SEASON.
+    last_start_date: Optional[date] = None
+    postseason_starts: int = 0
+
+    @property
+    def ip(self) -> int:
+        return self.card.ip
+
+    def innings_pitched(self, inning) -> float:
+        return (self.end_inning or inning.inning_num_full) - (self.start_inning or 0)
+
+    def is_tired(self, inning, ip_adjustment: float = 0.0, rng: Optional[Random] = None) -> bool:
+        """Args:
+          ip_adjustment: Innings added to the fatigue threshold by the manager's bullpen hook.
+            Negative pulls a starter sooner; 0.0 (a neutral manager) is the original behavior.
+          rng: Used to occasionally stretch a dominant start past its IP allowance. Omitted (as in
+            tests probing the base formula) just skips that chance - no automatic extension, but
+            no automatic pull either.
+        """
+        ip_pitched = self.innings_pitched(inning)
+
+        # SHELLED: a start that's fallen apart ends now, regardless of how far under his IP
+        # allowance he still is.
+        is_early_disaster = self.runs_allowed >= _SHELLED_MIN_RUNS
+        is_sustained_shelling = ip_pitched >= _SHELLED_MIN_IP_FOR_RATE and self.runs_allowed >= ip_pitched * _SHELLED_RUNS_PER_IP
+        if is_early_disaster or is_sustained_shelling:
+            return True
+
+        threshold = self.ip + ip_adjustment
+        if ip_pitched < threshold:
+            return (ip_pitched + int(self.runs_allowed / 3.0)) >= threshold
+
+        # DEALING: a starter who's reached his allowance with a clean-ish line earns a per-PA
+        # chance to stay in rather than coming out right on schedule.
+        is_dominant_starter = self.start_inning == 1 and self.runs_allowed <= _DOMINANT_RUNS_ALLOWED_MAX
+        if is_dominant_starter and rng is not None and rng.random() < _EXTENSION_CHANCE_PER_PA:
+            return False
+
+        return True
+
+    def situational_fit(self, ops_index: int, total_pitchers: int, run_diff: int, inning: int, recent_ip: float, is_save_situation: bool = False, is_closer: bool = False, closer_nonsave_fit_multiplier: float = 0.5, season_games: int = 0, season_games_avg: float = 0.0) -> float:
+        """ Creates a situational fit rating, 1.0 being the best and 0.0 the worst fit
+
+        Factors:
+          1. Situation: Does the reliever fit the situation well?
+          2. Rest: Has the pitcher pitched recently?
+          3. Season workload: Has he already pitched far more than the rest of the pen?
+
+        Args:
+          recent_ip: Innings this pitcher has thrown in the last few days.
+          season_games: This pitcher's appearances so far this season.
+          season_games_avg: The bullpen's average appearances so far this season.
+        """
+
+        staff_pct_rank = 1 - ( (ops_index + 1) / total_pitchers )
+
+        score_tightness_pct_rank = 1 - ( abs(run_diff) / 6.0 )
+        score_tightness_score_min = 0.5
+        score_tightness_score = ( (1.0 - score_tightness_score_min) * (1 - abs(score_tightness_pct_rank - staff_pct_rank)) ) + score_tightness_score_min
+
+        game_rp_completion_pct = min(max(inning - 5.0, 0.0) / 4.0, 1.0)
+        game_completion_score_min = 0.4
+        game_completion_score = ( (1.0 - game_completion_score_min) * (1 - abs(game_rp_completion_pct - staff_pct_rank)) ) + game_completion_score_min
+
+        rest_multiplier = 1 - min(recent_ip / 3.1, 0.9)
+
+        # REDUCE LIKELIHOOD OF PITCHING THE CLOSER IN A NON-SAVE SITUATION. THE MANAGER'S CLOSER
+        # USAGE SETS HOW MUCH (`closer_nonsave_fit_multiplier` DEFAULTS TO 0.5, THE OLD CONSTANT).
+        closer_fit_multiplier = closer_nonsave_fit_multiplier if is_closer and not is_save_situation else 1.0
+
+        workload_multiplier = 1.0
+        if season_games_avg >= _WORKLOAD_MIN_AVG_GAMES_SAMPLE and season_games > season_games_avg:
+            overage_pct = (season_games - season_games_avg) / season_games_avg
+            workload_multiplier = max(_WORKLOAD_MULTIPLIER_FLOOR, 1 - overage_pct * _WORKLOAD_DAMPING_RATE)
+
+        final_score = (score_tightness_score + game_completion_score) / 2.0 * rest_multiplier * closer_fit_multiplier * workload_multiplier
+
+        return final_score
+
+    def reset(self) -> None:
+        self.start_inning = None
+        self.end_inning = None
+        self.runs_allowed = 0
+        self.team_runs_at_entry = 0
+        self.opp_runs_at_entry = 0

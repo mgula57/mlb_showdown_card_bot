@@ -9,14 +9,18 @@
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect, memo, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaBaseballBall } from 'react-icons/fa';
+import { FaPlus } from 'react-icons/fa6';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
+import { fetchCardData } from '../../api/card_db/cardDatabase';
+import { CardSource } from '../../types/cardSource';
+import CustomSelect from '../shared/CustomSelect';
+import ShowdownBotLogo from '../shared/ShowdownBotLogo';
 
-import { imageForSet } from "../shared/SiteSettingsContext";
+import { imageForSet, showdownSets } from "../shared/SiteSettingsContext";
 
 // Chart accuracy table (kept as table — compact and precise)
 import { ChartSelectionBreakdown } from './card_detail/ChartSelectionBreakdown';
@@ -30,6 +34,7 @@ import ChartPlayerPointsTrend from './card_detail/ChartPlayerPointsTrend';
 
 // Live game integration
 import GameItem from '../games/GameItem';
+import { fromBoxscoreDetail } from '../../domain/adapters/fromMlbApi';
 
 // Visual breakdown panels
 import OutcomeProbability from './card_detail/OutcomeProbability';
@@ -50,9 +55,29 @@ type CardDetailProps = {
     /** Loading state for the main card data */
     isLoading?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail';
+    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail' | 'sim_result';
     parent?: string;
     showdownSetForPlaceholder?: string; // Used to determine placeholder image when card image is not available
+    /** A simulated season's statline (`SimStatLine.stats`) — adds a SIM column to "Card vs Real
+     * Stats" alongside the card's own projection and real-life stat, e.g. for a sim result's
+     * award-winner card, where "real" is the player's actual season and this is what they did in
+     * the simulated one. */
+    simStats?: Record<string, number>;
+    /** Optional message shown directly below the player name/set/attributes row, styled like the
+     * warnings/errata banner above it — e.g. explaining that `simStats` reflects a simulated
+     * season rather than the card's own real one. */
+    tooltip?: string;
+    /** Team-builder draft/edit mode: when set, renders a "Draft" button pinned to the bottom-right
+     * of the modal. Runs the same handler as the compact card item's action button (opens the
+     * slot-fill flow for the roster slot this card sits in). */
+    onDraft?: () => void;
+    /** Greys out the Draft button and blocks clicks — e.g. while a previous pick is still saving. */
+    draftDisabled?: boolean;
+    /** When true, the Set badge next to the player name becomes a dropdown (styled like the
+     * header's Showdown Set selector) that swaps the displayed card for the same player/year in
+     * a different set. Selecting a new card elsewhere always discards this — it only affects the
+     * currently displayed card, not any persisted preference. */
+    enableSetSwitcher?: boolean;
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
@@ -94,7 +119,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false }: CardDetailProps) {
 
     const { session } = useAuth();
 
@@ -107,8 +132,14 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
      * Allows component to maintain its own copy for features like image regeneration
      */
     const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null | undefined>(showdownBotCardData);
-    const [internalCardId, setInternalCardId] = useState<string | undefined>(cardId);
-    
+    // Tracks the last `cardId` PROP value this component has already fetched/synced from —
+    // deliberately separate from "the id of the card currently on screen" (which the set
+    // switcher below reassigns locally). Comparing against that instead would make Case 2 think
+    // the parent handed us a new card every time the parent re-renders after a local set switch
+    // (e.g. a background session refresh when the browser tab regains focus), re-fetching the
+    // stale prop id and silently reverting the user's chosen set.
+    const handledCardIdPropRef = useRef<string | undefined>(cardId);
+
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
 
@@ -127,7 +158,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
      */
     useEffect(() => {
         const fetchRanges = (card: NonNullable<ShowdownBotCardAPIResponse['card']>) => {
-            const yearList = card.stats_period.year_list || [];
+            const yearList = card.stats_period?.year_list || [];
             const playerType = card.player_type.toUpperCase() as "HITTER" | "PITCHER";
             const subType: string | undefined = card.player_sub_type;
             const pitcherRole: 'SP' | 'RP' | undefined =
@@ -151,18 +182,22 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
         // Case 1: New data provided via prop
         if (showdownBotCardData && showdownBotCardData.card) {
-            // Skip if same card (by bref_id + year + set)
+            // Skip if same card (by bref_id + year + set). With `enableSetSwitcher`, the set is
+            // excluded from this check: the same player/year re-arriving from the parent at its
+            // default set (e.g. a background search refresh after the browser tab regains focus)
+            // must not be treated as a "new" card and clobber a set the user manually switched to
+            // — only a genuinely different player/year should do that.
             const isSameCard =
                 context !== 'custom' &&
                 (
                     (internalCardData?.card?.bref_id || internalCardData?.card?.mlb_id) === (showdownBotCardData?.card?.bref_id || showdownBotCardData?.card?.mlb_id) &&
                     internalCardData?.card?.year === showdownBotCardData?.card?.year &&
-                    internalCardData?.card?.set === showdownBotCardData?.card?.set
+                    (enableSetSwitcher || internalCardData?.card?.set === showdownBotCardData?.card?.set)
                 );
             console.log("CardDetail: Checking for prop data update, isSameCard =", isSameCard);
             if (!isSameCard) {
                 setInternalCardData(showdownBotCardData);
-                setInternalCardId(cardId);
+                setSetSwitchError(null);
 
                 // Load image if necessary
                 console.log("Image Output Filename:", showdownBotCardData.card);
@@ -179,18 +214,20 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 fetchRanges(showdownBotCardData.card);
             }
 
+            handledCardIdPropRef.current = cardId;
             return;
         }
 
         // Case 2: No data but cardId provided - fetch it from DB
-        if (cardId && cardId !== internalCardId) {
+        if (cardId && cardId !== handledCardIdPropRef.current) {
+            handledCardIdPropRef.current = cardId;
             setIsLoadingFromId(true);
             fetchCardById(cardId, 'card-detail')
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {
                         const cardResponse = data as ShowdownBotCardAPIResponse;
-                        setInternalCardId(cardId);
+                        setSetSwitchError(null);
 
                         // Load image if necessary
                         const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
@@ -221,8 +258,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
     const [isLoadingFromId, setIsLoadingFromId] = useState<boolean>(false);
 
+    // Set Switcher State (enableSetSwitcher only) — looks up the same player/year in a different
+    // set via the existing search + by-id endpoints, no dedicated backend support needed.
+    const [isSwitchingSet, setIsSwitchingSet] = useState<boolean>(false);
+    const [setSwitchError, setSetSwitchError] = useState<string | null>(null);
+
     // Mark if isLoading or isGeneratingImage
-    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId;
+    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId || isSwitchingSet;
 
     // Game
     const showGameBoxscore = (): boolean => {
@@ -260,7 +302,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
         points: `${activeCardData.card.points} PTS`,
         year: activeCardData.card.year,
-        stats_period_summary: activeCardData.card.stats_period.type !== "REGULAR" ? activeCardData.card.stats_period.display_text || null : null,
+        stats_period_summary: activeCardData.card.stats_period?.type !== "REGULAR" ? activeCardData.card.stats_period?.display_text || null : null,
         expansion: activeCardData.card.image.expansion == "BS" ? null : activeCardData.card.image.expansion,
         edition: activeCardData.card.image.edition == "NONE" || activeCardData.card.image.edition == undefined ? null : activeCardData.card.image.edition,
         chart_version: activeCardData.card.chart_version === 1 || activeCardData.card.chart_version == undefined ? null : `CHART ${activeCardData.card.chart_version}`,
@@ -296,6 +338,51 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             .finally(() => {
                 setIsGeneratingImage(false);
             });
+    };
+
+    // Handle Showdown Set Switching (enableSetSwitcher only)
+    const handleSetSwitch = async (newSet: string) => {
+        const currentCard = activeCardData?.card;
+        if (!currentCard || newSet === currentCard.set || isSwitchingSet) return;
+
+        setIsSwitchingSet(true);
+        setSetSwitchError(null);
+
+        try {
+            const source = currentCard.is_wotc ? CardSource.WOTC : CardSource.BOT;
+            const matches = await fetchCardData(source, {
+                bref_id: currentCard.bref_id,
+                year: currentCard.year,
+                is_pitcher: currentCard.chart?.is_pitcher,
+                showdown_set: [newSet],
+                limit: 1,
+            });
+
+            const match = matches?.[0];
+            if (!match?.card_id) {
+                setSetSwitchError(`Not available in the ${newSet} set`);
+                return;
+            }
+
+            // WOTC/WBC search rows embed full card_data; BOT rows don't, so hydrate by id.
+            const cardResponse = match.card_data
+                ? ({ card: match.card_data, error: null, error_for_user: null } as ShowdownBotCardAPIResponse)
+                : await fetchCardById(match.card_id, 'card-detail-set-switch');
+
+            setInternalCardData(cardResponse);
+
+            // This particular set's image may not be pre-rendered yet — generate it on demand,
+            // same as the initial-load path does.
+            const isDataWithoutImage = !cardResponse.card?.image.output_file_name && !cardResponse.card?.image.storage_path && cardResponse.card;
+            if (isDataWithoutImage) {
+                handleGenerateImage(cardResponse);
+            }
+        } catch (error) {
+            console.error("Error switching showdown set:", error);
+            setSetSwitchError(`Not available in the ${newSet} set`);
+        } finally {
+            setIsSwitchingSet(false);
+        }
     };
 
     // Changing opacity of color
@@ -370,12 +457,30 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 </a>
 
                 {/* Card Set */}
-                {imageForSet(activeCardData?.card?.set || '') && (
-                    <img 
-                        src={imageForSet(activeCardData?.card?.set || '') || ''}
-                        alt={activeCardData?.card?.set || ''}
-                        className="inline object-contain align-middle h-7"
-                    />
+                {enableSetSwitcher && activeCardData?.card ? (
+                    <div className="flex flex-col items-start">
+                        <CustomSelect
+                            className="w-28"
+                            buttonClassName="flex justify-center items-center cursor-pointer select-none disabled:opacity-50 disabled:cursor-wait border border-(--divider) rounded-lg py-1 px-2"
+                            imageClassName="object-contain object-center h-6"
+                            value={activeCardData.card.set}
+                            onChange={handleSetSwitch}
+                            options={showdownSets}
+                            showDropdownArrow={true}
+                            disabled={isSwitchingSet}
+                        />
+                        {setSwitchError && (
+                            <span className="text-[10px] text-(--showdown-red) font-semibold whitespace-nowrap">{setSwitchError}</span>
+                        )}
+                    </div>
+                ) : (
+                    imageForSet(activeCardData?.card?.set || '') && (
+                        <img
+                            src={imageForSet(activeCardData?.card?.set || '') || ''}
+                            alt={activeCardData?.card?.set || ''}
+                            className="inline object-contain align-middle h-7"
+                        />
+                    )
                 )}
 
                 {/* Iterate through attributes */}
@@ -402,6 +507,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     </div>
                 ))}
             </div>
+
+            {/* Tooltip */}
+            {tooltip && (
+                <div className="bg-(--showdown-red)/5 border-2 border-(--showdown-red) text-(--showdown-red) p-2 rounded-md text-xs">
+                    {tooltip}
+                </div>
+            )}
 
             {/* Notes */}
             {activeCardData?.card?.notes && (
@@ -435,64 +547,70 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     {showGameBoxscore() && activeCardData?.latest_game_box_score && (
                         <div className='@xl:hidden mb-3'>
                             <GameItem
-                                game={activeCardData.latest_game_box_score}
+                                game={fromBoxscoreDetail(activeCardData.latest_game_box_score)}
                                 playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
                             />
                         </div>
                     )}
-                    <img
-                        src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
-                        alt="Blank Player"
-                        key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
-                        className={`
-                            block
-                            @2xl:mx-auto
-                            ${cardImageMaxHeight}
-                            rounded-2xl overflow-hidden
-                            object-contain
-                            fade-in
-                            ${isLoadingOverall ? 'blur-xs' : ''}
-                            ${activeCardData?.card?.image ? 'card-glow-pulse' : ''}
-                        `}
-                        style={activeCardData?.card?.image ? {
-                            '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
-                            '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
-                            '--card-glow-hi': addOpacityToRGB(teamGlowColor, 0.85),
-                        } as CSSProperties : {
-                            boxShadow: `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
-                                        0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
-                                        0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
-                        }}
-                    /> 
+                    {/* Wrapper shrinks to the rendered image so the processing ring traces the
+                        card's actual edges rather than the full grid column. */}
+                    <div className="relative w-fit @2xl:mx-auto">
+                        <img
+                            src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
+                            alt="Blank Player"
+                            key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
+                            className={`
+                                block
+                                @2xl:mx-auto
+                                ${cardImageMaxHeight}
+                                rounded-2xl overflow-hidden
+                                object-contain
+                                fade-in
+                                ${isLoadingOverall ? 'blur-xs' : ''}
+                                ${activeCardData?.card?.image ? 'card-glow-pulse' : ''}
+                            `}
+                            style={activeCardData?.card?.image ? {
+                                '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
+                                '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
+                                '--card-glow-hi': addOpacityToRGB(teamGlowColor, 0.85),
+                            } as CSSProperties : {
+                                boxShadow: `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
+                                            0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
+                                            0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
+                            }}
+                        />
 
-                    {/* Loading Overlay */}
-                    {isLoadingOverall && (
-                        <div className={`
-                            absolute inset-0 
-                            flex items-center justify-center 
-                        `}>
-                            <div className="
-                                flex flex-col items-center 
-                                bg-secondary/90 
-                                px-6 py-4 
-                            ">
-                                <FaBaseballBall 
-                                    className="
-                                        text-white text-3xl mb-2
-                                        animate-bounce
-                                    " 
-                                    style={{
-                                        animationDuration: '0.8s',
-                                        animationIterationCount: 'infinite'
-                                    }}
-                                />
-                                <p className="text-white text-sm font-semibold">
-                                    Generating {isGeneratingImage ? 'Image...' : 'Card...'}
-                                </p>
+                        {/* Loading Overlay — orbiting border ring + glass status pill */}
+                        {isLoadingOverall && (
+                            <div
+                                className="absolute inset-0 flex items-center justify-center"
+                                style={activeCardData?.card?.image ? {
+                                    '--ring-a': teamGlowColor,
+                                    '--ring-b': teamGlowColor,
+                                } as CSSProperties : undefined}
+                            >
+                                <div className="card-processing-ring card-processing-ring--glow" />
+                                <div className="card-processing-ring" />
+                                <div className="fade-in flex flex-col items-center gap-4 w-1/2 max-w-56">
+                                    <ShowdownBotLogo className="card-processing-logo w-full" />
+                                    <div className="
+                                        flex items-center gap-2
+                                        px-4 py-2
+                                        rounded-full whitespace-nowrap
+                                        bg-(--background-secondary)/70 backdrop-blur-md
+                                        border border-(--divider)
+                                        shadow-lg
+                                    ">
+                                        <div className="card-processing-spinner" />
+                                        <p className="text-xs font-semibold tracking-wide">
+                                            {isSwitchingSet ? 'Switching Set' : `Generating ${isGeneratingImage ? 'Image' : 'Card'}`}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>            
+                        )}
+                    </div>
+                </div>
 
                 {/* Right column */}
                 <div className={`flex flex-col gap-3 ${cardImageMaxHeight}`}>
@@ -500,7 +618,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     {showGameBoxscore() && activeCardData?.latest_game_box_score && (
                         <div className='hidden @xl:block'>
                             <GameItem
-                                game={activeCardData.latest_game_box_score}
+                                game={fromBoxscoreDetail(activeCardData.latest_game_box_score)}
                                 playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
                             />
                         </div>
@@ -514,6 +632,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                             statRanges={seasonStatRanges}
                             isLoading={isRangesLoading}
                             playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
+                            simStats={simStats}
                         />
                         <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">
                             <i>* Real stat is estimated (limited data, adjusted era, etc.)</i>
@@ -604,6 +723,29 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 </SectionPanel>
 
             </div>
+
+            {/* Draft button — pinned to the bottom-right of the modal (anchors to the Modal's
+                `relative` container, so it stays put as the detail content scrolls). The root's
+                `pb-24` keeps the last panel clear of it. */}
+            {onDraft && (
+                <button
+                    type="button"
+                    disabled={draftDisabled}
+                    title={draftDisabled ? 'Saving your last pick…' : undefined}
+                    onClick={onDraft}
+                    className={`
+                        absolute top-10 right-2 z-100
+                        flex items-center gap-1
+                        px-5 py-5 rounded-full
+                        animated-showdown-gradient text-white font-bold text-sm
+                        shadow-lg transition
+                        ${draftDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90 active:scale-95 cursor-pointer'}
+                    `}
+                >
+                    <FaPlus className="w-4 h-4" />
+                    Draft
+                </button>
+            )}
 
         </div>
     );

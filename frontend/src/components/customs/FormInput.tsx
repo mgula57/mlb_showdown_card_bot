@@ -20,6 +20,8 @@ type FormInputProps = {
     value: string | number;
     /** Callback function when input value changes */
     onChange?: (value: string | null) => void;
+    /** Callback function when the input loses focus */
+    onBlur?: () => void;
     /** Optional CSS class names for additional styling */
     className?: string;
     /** HTML input type (text, number, date, file, etc.) */
@@ -40,6 +42,8 @@ type FormInputProps = {
     showSearchIcon?: boolean;
     /** Step increment for number inputs */
     step?: number | string;
+    /** Maximum character length for text input */
+    maxLength?: number;
 };
 
 /**
@@ -82,10 +86,13 @@ type FormInputProps = {
  * @param isTitleCase - Auto-format text in title case
  * @returns Versatile input component with label
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step, maxLength }) => {
 
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
+
+    /** Search inputs get the shared red→blue gradient frame (see PlayerSearchInput / SearchGradientBorder). */
+    const useSearchGradient = showSearchIcon && !isFileInput;
 
     /**
      * Handle file selection for upload inputs
@@ -103,7 +110,14 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
             <label className="text-sm font-medium text-secondary">{label}</label>
 
             {/* Input container with border styling */}
-            <div className="flex items-stretch focus:outline-none border-2 border-form-element rounded-xl mt-1">
+            <div
+                className={
+                    useSearchGradient
+                        ? "flex items-stretch focus:outline-none rounded-xl mt-1 bg-linear-to-r from-blue-500 to-red-500 p-0.5"
+                        : "flex items-stretch focus:outline-none border-2 border-form-element rounded-xl mt-1"
+                }
+            >
+              <div className={useSearchGradient ? "flex items-stretch w-full bg-primary rounded-[10px]" : "contents"}>
 
                 {/* File upload input with custom styling */}
                 {isFileInput ? (
@@ -126,6 +140,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                         "
                         autoComplete="off"
                         spellCheck="false"
+                        autoCorrect="off"
                     />
                 ) : (
                     <>
@@ -145,7 +160,9 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                             autoComplete="off"
                             spellCheck="false"
                             step={step}
+                            maxLength={maxLength}
                             onChange={(e) => onChange && onChange(e.target.value)}
+                            onBlur={onBlur}
                             disabled={disabled}
                             className={`
                                 w-full py-2 pl-2 ${ isClearable ? 'pr-0' : 'pr-2' }
@@ -171,9 +188,10 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                         )}
                     </>
                 )}
-                
+              </div>
+
             </div>
-            
+
         </div>
     );
 }

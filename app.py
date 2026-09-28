@@ -33,6 +33,9 @@ from mlb_showdown_bot.api.gallery import gallery_bp
 from mlb_showdown_bot.api.metadata import metadata_bp
 from mlb_showdown_bot.api.stats import stats_bp
 from mlb_showdown_bot.api.user_teams import user_teams_bp
+from mlb_showdown_bot.api.admin_teams import admin_teams_bp
+from mlb_showdown_bot.api.admin_challenges import admin_challenges_bp
+from mlb_showdown_bot.api.sim import sim_bp
 
 app.register_blueprint(cards_bp, url_prefix='/api')
 app.register_blueprint(search_bp, url_prefix='/api')
@@ -45,12 +48,21 @@ app.register_blueprint(gallery_bp, url_prefix='/api')
 app.register_blueprint(metadata_bp, url_prefix='/api')
 app.register_blueprint(stats_bp, url_prefix='/api')
 app.register_blueprint(user_teams_bp, url_prefix='/api')
+app.register_blueprint(admin_teams_bp, url_prefix='/api')
+app.register_blueprint(admin_challenges_bp, url_prefix='/api')
+app.register_blueprint(sim_bp, url_prefix='/api')
 
 # Warm up DB connection pools at startup so the first request doesn't
 # pay the TCP + SSL handshake cost.
-from mlb_showdown_bot.core.database.postgres_db import _get_pool
-_get_pool('DATABASE_URL_LOGS')
-_get_pool('DATABASE_URL_ARCHIVE')
+#
+# Skipped under `gunicorn --preload`: this module is imported by the master process, and pools
+# built there are discarded by every child after the fork (psycopg2 connections are not
+# fork-safe), so warming here would just leave idle connections on the master. `post_fork` in
+# gunicorn.conf.py does the warm-up per worker instead.
+if not os.environ.get('GUNICORN_PRELOAD'):
+    from mlb_showdown_bot.core.database.postgres_db import _get_pool
+    _get_pool('DATABASE_URL_LOGS')
+    _get_pool('DATABASE_URL_ARCHIVE')
 
 @app.route('/static/card_of_the_day/<path:filename>')
 def serve_card_of_the_day_files(filename):

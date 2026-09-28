@@ -29,9 +29,9 @@ class ShowdownBotCardCompact(BaseModel):
     positions_and_defense: Optional[dict] = None
     ip: Optional[int] = None
 
-    def update_with_mlb_api_team(self, mlb_api_team_name: str):
+    def update_with_mlb_api_team(self, mlb_api_team_name: str, year: Optional[int] = None):
         """Helper method to update the team name and colors for this card based on the MLB API team name, which can help ensure consistency in team naming and coloring across different data sources"""
-        team_enum = Team.map_from_mlb_api_team(mlb_api_team_name)
+        team_enum = Team.map_from_mlb_api_team(mlb_api_team_name, year=year)
         if team_enum != Team.MLB:
             self.team = team_enum.value
             self.color_primary = f'rgb({team_enum.primary_color[0]}, {team_enum.primary_color[1]}, {team_enum.primary_color[2]})'

@@ -1,5 +1,7 @@
 import json
 import os
+import threading
+import uuid
 from pprint import pprint
 import psycopg2
 import traceback
@@ -16,28 +18,65 @@ from psycopg2 import sql
 # ----------------------------------------------------------------
 _pools: dict[str, psycopg2_pool.ThreadedConnectionPool] = {}
 
+# Pools are NOT fork-safe: a psycopg2 connection is a socket, and two processes writing to the
+# same one interleave on the wire and corrupt the protocol stream. `gunicorn --preload` imports
+# the app - and `app.py` warms these pools - in the master process *before* it forks, so every
+# worker would otherwise inherit and share the parent's connections. Stamping the owning pid and
+# rebuilding on mismatch makes an inherited pool a no-op in each child.
+_pools_pid: int | None = None
+# Safe to inherit across the fork: a child that woke up holding a lock its parent never released
+# would deadlock, but the master only touches pools single-threaded at import (and under
+# `--preload` skips even that - see app.py), so it is never held at fork time.
+_pools_lock = threading.Lock()
+
+
+def _discard_pools_after_fork() -> None:
+    """Drop (never close) pools inherited from a parent process.
+
+    Closing would send a termination packet down a socket the parent still owns, breaking *its*
+    connection too - so the inherited objects are simply abandoned. The handful of leaked fds
+    (minconn=1 per pool) live until the worker exits, which is the standard trade here.
+    """
+    global _pools_pid
+    pid = os.getpid()
+    if _pools_pid == pid:
+        return
+    _pools.clear()
+    _pools_pid = pid
+
+# Set once per process after the `internal.sim_job` forensic columns (last_status, dyno) have
+# been ensured, so `reap_stale_sim_jobs` - which runs on every job poll - doesn't take an
+# ACCESS EXCLUSIVE lock with a no-op ALTER every time. `build_sim_job_table` is a manual CLI
+# step, so like every other post-original sim_job column these are added defensively at a call site.
+_sim_job_forensic_columns_ready = False
+
 def _get_pool(env_var_name: str) -> 'psycopg2_pool.ThreadedConnectionPool | None':
-    if env_var_name not in _pools:
-        url = os.getenv(env_var_name)
-        if not url:
-            return None
-        try:
-            _pools[env_var_name] = psycopg2_pool.ThreadedConnectionPool(
-                1, 5, url,
-                sslmode='require',
-                keepalives=1,
-                keepalives_idle=30,
-                keepalives_interval=10,
-                keepalives_count=5,
-            )
-            extensions.register_adapter(dict, extras.Json)
-        except Exception as e:
-            print(f"Error creating connection pool for {env_var_name}: {e}")
-            return None
-    return _pools.get(env_var_name)
+    # LOCKED BECAUSE A WORKER NOW RUNS SEVERAL REQUEST THREADS ALONGSIDE ITS SIM THREADS: WITHOUT
+    # IT, TWO THREADS COULD BOTH MISS ON THE SAME KEY AND BUILD A POOL, LEAVING THE LOSER'S
+    # CONNECTIONS ORPHANED AND OPEN AGAINST A DATABASE WITH A HARD CONNECTION LIMIT.
+    with _pools_lock:
+        _discard_pools_after_fork()
+        if env_var_name not in _pools:
+            url = os.getenv(env_var_name)
+            if not url:
+                return None
+            try:
+                _pools[env_var_name] = psycopg2_pool.ThreadedConnectionPool(
+                    1, 20, url,
+                    sslmode='require',
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5,
+                )
+                extensions.register_adapter(dict, extras.Json)
+            except Exception as e:
+                print(f"Error creating connection pool for {env_var_name}: {e}")
+                return None
+        return _pools.get(env_var_name)
 from datetime import date, datetime, timezone
 from pydantic import BaseModel, Field
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, Iterator, List
 from enum import Enum
 
 # MODELS
@@ -73,7 +112,7 @@ class PlayerArchive(BaseModel):
     pa: Optional[int]
     ip: Optional[float]
     war: Optional[float] = None
-    lg_id: str
+    lg_id: Optional[str] = None
     team_id: str
     team_id_list: list[str]
     team_games_played_dict: dict
@@ -95,6 +134,35 @@ class PlayerArchive(BaseModel):
             return 'RELIEF_PITCHER'
 
 
+class ArchivePlayingTime(BaseModel):
+    """Playing-time-only projection of a `player_season_stats` row.
+
+    The full row carries a `stats` JSONB blob an order of magnitude larger than these columns.
+    Callers that only need to decide *whether* a player clears a PA/IP floor fetch this first
+    and pull full rows for the survivors.
+    """
+    id: str
+    player_type: str
+    pa: Optional[int] = None
+    ip: Optional[float] = None
+
+    def meets_playing_time(self, min_pa: int, min_ip: int) -> bool:
+        if self.player_type.upper() == 'PITCHER':
+            return (self.ip or 0) >= min_ip
+        return (self.pa or 0) >= min_pa
+
+
+# `card_data` keys that only the card-detail UI renders. They are ~70% of the stored JSON
+# (`command_out_accuracy_breakdowns` alone is ~60%), all default-valued on `ShowdownPlayerCard`,
+# and never read outside that UI - so bulk loads can strip them server-side.
+CARD_DATA_DIAGNOSTIC_KEYS = [
+    'command_out_accuracy_breakdowns',
+    'command_out_accuracies',
+    'points_breakdown',
+    'real_vs_projected_stats',
+]
+
+
 class ImageMatchType(str, Enum):
     """Types of image matches available"""
     EXACT = "exact"
@@ -107,6 +175,7 @@ class ExploreDataRecord(BaseModel):
     
     # Base identifiers
     id: str
+    card_id: Optional[str] = Field(None, description="The showdown card's own identifier (distinct from `id`, the archive row identity) — matches CardDatabaseRecord.card_id on the frontend")
     year: int
     bref_id: Optional[str] = None
     mlb_id: Optional[int] = None
@@ -120,7 +189,7 @@ class ExploreDataRecord(BaseModel):
     # Position information
     primary_positions: List[str]
     secondary_positions: List[str]
-    positions_list: List[str]
+    positions_list: List[Position]
     
     # Basic stats
     g: int = Field(description="Games played")
@@ -162,6 +231,7 @@ class ExploreDataRecord(BaseModel):
     real_bwar: Optional[float] = Field(None, description="Real bWAR")
     real_onbase_plus_slugging: Optional[float] = Field(None, description="Real on-base plus slugging (OPS)")
     real_earned_run_avg: Optional[float] = Field(None, description="Real earned run average (ERA)")
+    real_sv: Optional[int] = Field(None, description="Real saves")
     
     # Awards and stats
     awards_list: List[str] = Field(default_factory=list, description="List of awards/achievements")
@@ -266,6 +336,16 @@ class ExploreDataRecord(BaseModel):
 
 
 
+def _is_uuid(value) -> bool:
+    """True if `value` parses as a UUID. Used to validate free-form ids (e.g. a forked team's
+    source id, which may be a synthetic non-persisted team) before they hit a UUID column."""
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
 # ----------------------------------------------------------------
 # MARK: - POSTGRES DB CLASS
 # ----------------------------------------------------------------
@@ -288,6 +368,7 @@ class PostgresDB:
         """
         pool = _get_pool(self.env_var_name)
         if pool is not None:
+            conn = None
             try:
                 conn = pool.getconn()
                 # Validate the connection is still alive (catches stale connections after dyno sleep)
@@ -295,6 +376,7 @@ class PostgresDB:
                     conn.cursor().execute("SELECT 1")
                 except Exception:
                     pool.putconn(conn, close=True)
+                    conn = None
                     conn = pool.getconn()
                 # Roll back any open transaction before setting autocommit
                 # (psycopg2 starts a transaction implicitly; setting autocommit inside one raises ProgrammingError)
@@ -307,6 +389,12 @@ class PostgresDB:
             except Exception as e:
                 print(f"Error getting connection from pool for {self.env_var_name}: {e}")
                 traceback.print_exc()
+                # Return the borrowed connection so the pool slot isn't lost before falling back
+                if conn is not None:
+                    try:
+                        pool.putconn(conn, close=True)
+                    except Exception:
+                        pass
         
         # Fallback: direct connection
         DATABASE_URL = os.getenv(self.env_var_name)
@@ -379,7 +467,23 @@ class PostgresDB:
         output = [dict(row) for row in db_cursor.fetchall()]
 
         return output
-    
+
+    def iter_query_batches(self, query: sql.SQL, filter_values: tuple = None, batch_size: int = 200) -> Iterator[list[dict]]:
+        """`execute_query`, but rows are converted to Python (jsonb decoded) `batch_size` at a time,
+        so a wide result never has every decoded row alive at once."""
+
+        if self.connection is None:
+            return
+
+        with self.connection.cursor(cursor_factory=RealDictCursor) as db_cursor:
+            try:
+                db_cursor.execute(query, filter_values)
+            except:
+                print(db_cursor.mogrify(query, filter_values).decode())
+                return
+            while rows := db_cursor.fetchmany(batch_size):
+                yield [dict(row) for row in rows]
+
     def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:Team = None, type_override:PlayerType = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[PlayerArchive, float]:
         """Query the player_season_stats table for a particular player's data from a single year
         
@@ -669,12 +773,23 @@ class PostgresDB:
         """Fetch a single explore data record from the database by card ID."""
         
         query = sql.SQL("""
-            SELECT *
+            SELECT id, card_data
             FROM internal.dim_card
             WHERE id = %s
             LIMIT 1
         """)
+
+        if '-WOTC' in card_id:
+            query = sql.SQL("""
+                SELECT id, card_data
+                FROM public.card_wotc
+                WHERE id = %s
+                LIMIT 1
+            """)
+
+        # CHECK FOR DATA
         raw_data = self.execute_query(query=query, filter_values=(card_id,))
+        
         if len(raw_data) == 0:
             # Check in the WBC table if not found in the main card table (since some WBC cards are only stored there)
             query_wbc = sql.SQL("""
@@ -765,38 +880,323 @@ class PostgresDB:
 
         return [ExploreDataRecord(**row) for row in raw_data]
 
-    def fetch_card_list(self, filters: dict = {}) -> list[dict]:
-        """Fetch all card data from the database with support for lists and min/max filtering."""
+    # Card-list sources backed by a real table. CUSTOM is a per-user subquery over
+    # internal.log_custom_card_bot - see _card_list_from_clause.
+    _CARD_LIST_TABLES = {'bot': 'card_bot', 'wotc': 'card_wotc', 'wbc': 'card_wbc'}
+
+    def _card_list_from_clause(self, source: str, filters: dict, user_id: Optional[str]) -> Optional[tuple[sql.Composable, list]]:
+        """FROM target for a card-list query plus the values it binds, or None when nothing may be
+        returned (unknown source, or a custom-card browse without a verified user).
+
+        For `source: 'custom'`, an explicit `id` filter is treated as a direct-lookup-by-id (e.g.
+        hydrating a card already drafted onto a team roster) and is not scoped by ownership - same
+        trust model as the BOT/WOTC tables, and consistent with `fetch_cards_for_roster_slots`.
+        Any other custom-card query is a browse/search scoped to `user_id`'s own (non-hidden) cards.
+        """
+        table = self._CARD_LIST_TABLES.get(source)
+        if table:
+            return sql.Identifier(table), []
+        if source != 'custom':
+            return None
+
+        is_custom_id_lookup = bool(filters.get('id'))
+        if not is_custom_id_lookup and not user_id:
+            return None
+        # log_custom_card_bot stores the card as jsonb (`card_result`), not flat columns like
+        # card_bot/card_wotc - flatten the fields the generic filter/sort logic expects (points,
+        # command, outs, etc.) in a subquery so that logic can run unmodified for this source too.
+        scope_clause = sql.SQL("TRUE") if is_custom_id_lookup else sql.SQL("user_id = %s AND coalesce(is_hidden, FALSE) = FALSE")
+        from_clause = sql.SQL("""(
+            SELECT
+                id::text AS id,
+                name,
+                year,
+                (card_result->>'bref_id') AS bref_id,
+                set AS showdown_set,
+                created_on AS updated_at,
+                card_result AS card_data,
+                (card_result->>'points')::int AS points,
+                (card_result->'chart'->>'command')::int AS command,
+                (card_result->'chart'->>'outs_full')::int AS outs,
+                (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
+                (card_result->'speed'->>'speed')::int AS speed,
+                (card_result->>'ip')::int AS ip,
+                (card_result->>'hand') AS hand,
+                (card_result->'positions_and_defense') AS positions_and_defense,
+                (card_result->'chart'->'ranges') AS chart_ranges
+            FROM internal.log_custom_card_bot
+            WHERE
+                error IS NULL AND
+                ({scope_clause})
+        ) sub""").format(scope_clause=scope_clause)
+        return from_clause, ([] if is_custom_id_lookup else [user_id])
+
+    def _card_list_filter_clauses(self, source: str, filters: dict) -> tuple[list[sql.Composable], list]:
+        """WHERE clauses (AND-ed by the caller) and their bound values for a card-list `filters`
+        dict: list filters become IN / array-overlap tests, `min_`/`max_` prefixes become range
+        bounds, plus the special-cased search / multi-team / chart-slot / fielding filters."""
+        filter_clauses: list[sql.Composable] = []
+        filter_values: list = []
+        if not filters:
+            return filter_clauses, filter_values
+
+        # SOURCE SPECIFIC FILTERS
+        match source:
+            case 'wotc':
+                sets = filters.get('showdown_set', [])
+                # FILTER TO SPECIFIC SETS IF USER HAS `CLASSIC` OR `EXPANDED` SELECTED - THEY DIDNT EXIST IN WOTC
+                if isinstance(sets, str):
+                    if sets == 'CLASSIC':
+                        filters['showdown_set'] = ['2000', '2001']
+                    elif sets == 'EXPANDED':
+                        filters['showdown_set'] = ['2002', '2003', '2004', '2005']
+
+        for key, value in filters.items():
+            if value is None:
+                continue
+
+            # Fielding min/max — applies as an OR across every position the player is rated at
+            # (e.g. min_fielding=3 matches a player who is +3 or better at ANY of their listed
+            # positions), since there's no single "fielding" column. `min_fielding_if`/`_of`/`_ca`
+            # narrow that OR to one coarse defensive group (infield/outfield/catcher) instead of
+            # every position - e.g. a "defense-first infield" filter shouldn't pass on a corner
+            # outfielder's arm rating. Position.fielding_group_values is the single source of
+            # truth for which raw position keys fall in each group.
+            if key in ('min_fielding', 'max_fielding') or key.startswith(('min_fielding_', 'max_fielding_')):
+                is_min = key.startswith('min_')
+                comparison = '>=' if is_min else '<='
+                group = key[len('min_fielding_'):] if key.startswith('min_fielding_') else key[len('max_fielding_'):] if key.startswith('max_fielding_') else None
+                position_filter_sql = sql.SQL("")
+                if group is not None:
+                    position_values = Position.fielding_group_values(group)
+                    if position_values is None:
+                        continue  # unrecognized group suffix - not a real filter, ignore rather than error
+                    position_filter_sql = sql.SQL("pd.pos = ANY(%s) AND ")
+                    filter_values.append(position_values)
+                filter_clauses.append(sql.SQL("""
+                    EXISTS (
+                        SELECT 1 FROM jsonb_each_text(coalesce(positions_and_defense, '{{}}'::jsonb)) AS pd(pos, val)
+                        WHERE {position_filter}val ~ '^-?[0-9]+$' AND val::numeric {comparison} %s
+                    )
+                """).format(comparison=sql.SQL(comparison), position_filter=position_filter_sql))
+                filter_values.append(value)
+                continue
+
+            # Chart category slot-count min/max (e.g. min_chart_hr, max_chart_1b+).
+            # Counts the number of chart slots (out of 20) assigned to the category by
+            # parsing `chart_ranges` (e.g. "12–17" -> 6, "20+" -> 1, "—" -> 0), explicitly
+            # excluding any slots past 20 (the 21+ overflow used by some expanded sets).
+            if key.startswith('min_chart_') or key.startswith('max_chart_'):
+                category = key[len('min_chart_'):].upper()
+                comparison = '>=' if key.startswith('min_') else '<='
+                filter_clauses.append(sql.SQL("""
+                    (SELECT CASE
+                        WHEN x.r IS NULL OR x.r = '—' THEN 0
+                        WHEN right(x.r, 1) = '+' THEN greatest(0, 21 - left(x.r, length(x.r) - 1)::int)
+                        WHEN position('–' in x.r) > 0 THEN greatest(0, least(split_part(x.r, '–', 2)::int, 20) - split_part(x.r, '–', 1)::int + 1)
+                        WHEN x.r::int > 20 THEN 0
+                        ELSE 1
+                    END
+                    FROM (SELECT chart_ranges->>%s AS r) AS x) {comparison} %s
+                """).format(comparison=sql.SQL(comparison)))
+                filter_values.append(category)
+                filter_values.append(value)
+                continue
+
+            # Handle min/max filtering. `min_` keeps NULL rows (matches the historical
+            # `coalesce(field >= x, true)` behavior) but is written as an OR so the planner
+            # can still use a btree on the field - wrapping the column in coalesce() made
+            # `min_year` unindexable, forcing a full walk of the set (~2.5s) instead of a
+            # range lookup on idx_card_bot_year_set (~5ms).
+            if key.startswith('min_'):
+                field_name = key[4:]  # Remove 'min_' prefix
+                filter_clauses.append(sql.SQL("({field} >= %s OR {field} IS NULL)").format(
+                    field=sql.Identifier(field_name)
+                ))
+                filter_values.append(value)
+
+            elif key.startswith('max_'):
+                field_name = key[4:]  # Remove 'max_' prefix
+                filter_clauses.append(sql.SQL("{field} <= %s").format(
+                    field=sql.Identifier(field_name)
+                ))
+                filter_values.append(value)
+
+            elif key == 'search':
+                # Handle search text filtering (ILIKE %value%)
+                filter_clauses.append(sql.SQL("REPLACE(LOWER({field}), '.', '') ILIKE %s").format(
+                    field=sql.Identifier("name")
+                ))
+                filter_values.append(f"%{value}%")
+
+            elif key == 'is_multi_team':
+                # Handle multi-team filtering based on cardinality of team_id_list
+                if isinstance(value, list) and len(value) > 0:
+                    multi_team_conditions = []
+
+                    for multi_team_value in value:
+                        if multi_team_value.lower() == 'true':
+                            # Players with multiple teams (cardinality > 1)
+                            multi_team_conditions.append(sql.SQL("cardinality(team_id_list) > 1"))
+                        elif multi_team_value.lower() == 'false':
+                            # Players with single team (cardinality = 1 or NULL/empty array)
+                            multi_team_conditions.append(sql.SQL("(cardinality(team_id_list) <= 1 OR team_id_list IS NULL)"))
+
+                    if multi_team_conditions:
+                        # Use OR to combine conditions (show records matching any of the selected values)
+                        filter_clauses.append(sql.SQL("({})").format(
+                            sql.SQL(" OR ").join(multi_team_conditions)
+                        ))
+
+            # Handle list filtering (IN clause)
+            elif isinstance(value, list) and len(value) > 0:
+                # For JSONB array fields, use @> operator to check if array contains any of the values
+                match key:
+                    case 'positions':
+                        # Check if any of the provided positions are in the player's positions
+                        filter_clauses.append(sql.SQL("positions_list && %s"))
+                        filter_values.append(value)
+                    case 'icons':
+                        # Check if any of the provided icons are in the player's icons
+                        filter_clauses.append(sql.SQL("icons_list && %s"))
+                        filter_values.append(value)
+                    case 'awards':
+                        # Check if any of the provided awards are in the player's awards
+                        # Handle partial matching for values ending with '-'
+                        award_conditions = []
+                        for award in value:
+                            if award.endswith('-*'):
+                                # Partial match: check if any element in the array starts with the prefix
+                                award_prefix = award[:-2]  # Remove the trailing '-*'
+                                award_conditions.append(sql.SQL("EXISTS (SELECT 1 FROM unnest(awards_list) AS award WHERE award LIKE %s)"))
+                                filter_values.append(f"{award_prefix}-%")
+                            else:
+                                # Exact match: check if the exact value exists in the array
+                                award_conditions.append(sql.SQL("%s = ANY(awards_list)"))
+                                filter_values.append(award)
+
+                        if award_conditions:
+                            filter_clauses.append(sql.SQL("({})").format(
+                                sql.SQL(" OR ").join(award_conditions)
+                            ))
+                    case 'include_small_sample_size':
+                        # Only filter if array is ["false"]
+                        if value == ["false"]:
+                            filter_clauses.append(sql.SQL("not is_small_sample_size"))
+                    case 'is_hof':
+                        # Filter based on Hall of Fame status
+                        if value == ['true']:
+                            filter_clauses.append(sql.SQL("is_hof = TRUE"))
+                        elif value == ['false']:
+                            filter_clauses.append(sql.SQL("is_hof IS NOT TRUE"))
+                    case 'pro_league':
+                        # Use the 'league' field for filtering since 'pro_league_list' is only used for WBC and would be empty for other sources
+                        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                        filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
+                            field=sql.Identifier("league"),
+                            placeholders=placeholders
+                        ))
+                        filter_values.extend(value)
+
+                    case _:
+                        # Regular IN clause for non-array fields
+                        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                        filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
+                            field=sql.Identifier(key),
+                            placeholders=placeholders
+                        ))
+                        filter_values.extend(value)
+
+            # Handle regular equality filtering
+            else:
+                filter_clauses.append(sql.SQL("{field} = %s").format(
+                    field=sql.Identifier(key)
+                ))
+                filter_values.append(value)
+
+        return filter_clauses, filter_values
+
+    def _card_list_order_clause(self, source: str, sort_by: str, sort_direction: str) -> tuple[sql.Composable, list]:
+        """Primary ORDER BY expression (and its bound values) for a card-list `sort_by` key,
+        resolving the jsonb-backed keys (positions_and_defense_*, chart_values_*, real_stats_*)."""
+        if sort_direction not in ['asc', 'desc']:
+            sort_direction = 'desc'
+        sort_values: list = []
+
+        # CHECK FOR JSONB USE CASES
+        if 'positions_and_defense' in sort_by:
+            sort_by = sort_by.replace('positions_and_defense_', '').upper()
+            # For 1B, 2B, 3B, SS we need to check both the position and the 'IF' key
+            # For CF, LF/RF we need to check both the position and the 'OF' key
+            check_if_key = sort_by in ['1B', '2B', '3B', 'SS']
+            check_of_key = sort_by in ['CF', 'LF/RF']
+            if check_if_key or check_of_key:
+                additional_key = 'IF' if check_if_key else 'OF'
+                final_sort = sql.SQL("""CASE
+                                            WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric
+                                            WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric
+                                            ELSE null
+                                        END {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+                sort_values += [sort_by, sort_by, additional_key, additional_key]
+            else:
+                final_sort = sql.SQL("""CASE WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric ELSE null END {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+                sort_values += [sort_by, sort_by]
+
+        elif 'chart_values' in sort_by:
+            chart_key = sort_by.replace('chart_values_', '').upper()
+            if source == 'wotc':
+                final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+            else:
+                final_sort = sql.SQL("""(chart_values->>%s)::float {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+            sort_values += [chart_key]
+
+        elif 'real_stats' in sort_by:
+            real_stats_key = sort_by.replace('real_stats_', 'real_').lower()
+            final_sort = sql.SQL("""{field} {direction} NULLS LAST""").format(
+                field=sql.Identifier(real_stats_key),
+                direction=sql.SQL(sort_direction)
+            )
+
+        else:
+            if sort_by.lower() == 'random()':
+                final_sort = sql.SQL("random() {direction} NULLS LAST").format(
+                    direction=sql.SQL(sort_direction)
+                )
+            else:
+                final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
+                    field=sql.Identifier(sort_by),
+                    direction=sql.SQL(sort_direction)
+                )
+
+        return final_sort, sort_values
+
+    def fetch_card_list(self, filters: dict = {}, user_id: Optional[str] = None) -> list[dict]:
+        """Fetch all card data from the database with support for lists and min/max filtering.
+
+        Args:
+          filters: Query filters. `source` picks the table (BOT / WOTC / WBC / CUSTOM), `sort_by`,
+            `sort_direction`, `page` and `limit` drive ordering + pagination, and everything else
+            becomes a WHERE clause - see `_card_list_filter_clauses`. Custom-card ownership scoping
+            is described on `_card_list_from_clause`.
+          user_id: Verified requester id (from the JWT). Required for a custom-card browse/search;
+            not consulted for an id-based custom-card lookup.
+        """
 
         if not self.connection:
             return None
-        
+
         try:
 
             # Pop Out Source
             source = str(filters.pop('source', 'BOT')).lower()
-
-            match source:
-                case 'bot':
-                    query = sql.SQL("""
-                        SELECT *, 'BOT' as source
-                        FROM card_bot
-                        WHERE TRUE
-                    """)
-                case 'wotc':
-                    query = sql.SQL("""
-                        SELECT *, 'WOTC' as source
-                        FROM card_wotc
-                        WHERE TRUE
-                    """)
-                case 'wbc':
-                    query = sql.SQL("""
-                        select *, 'WBC' as source
-                        from card_wbc
-                        where true
-                    """)
-
-            filter_values = []
 
             # Pop out sorting filters
             sort_by = str(filters.pop('sort_by', 'points'))
@@ -806,188 +1206,25 @@ class PostgresDB:
             page = int(filters.pop('page', 1))
             limit = int(filters.pop('limit', 50))
 
+            from_clause = self._card_list_from_clause(source, filters, user_id)
+            if from_clause is None:
+                return []
+            from_sql, filter_values = from_clause
+
+            query = sql.SQL("SELECT *, {source} AS source FROM {from_sql} WHERE TRUE").format(
+                source=sql.Literal(source.upper()),
+                from_sql=from_sql,
+            )
+
             # Apply filters if any
-            if filters and len(filters) > 0:
-                filter_clauses = []
-
-                # SOURCE SPECIFIC FILTERS
-                match source:
-                    case 'wotc':
-                        sets = filters.get('showdown_set', [])
-                        # FILTER TO SPECIFIC SETS IF USER HAS `CLASSIC` OR `EXPANDED` SELECTED - THEY DIDNT EXIST IN WOTC
-                        if isinstance(sets, str):
-                            if sets == 'CLASSIC':
-                                filters['showdown_set'] = ['2000', '2001']
-                            elif sets == 'EXPANDED':
-                                filters['showdown_set'] = ['2002', '2003', '2004', '2005']
-
-                
-                for key, value in filters.items():
-                    if value is None:
-                        continue
-                        
-                    # Handle min/max filtering
-                    if key.startswith('min_'):
-                        field_name = key[4:]  # Remove 'min_' prefix
-                        filter_clauses.append(sql.SQL("coalesce({field} >= %s, true)").format(
-                            field=sql.Identifier(field_name)
-                        ))
-                        filter_values.append(value)
-                        
-                    elif key.startswith('max_'):
-                        field_name = key[4:]  # Remove 'max_' prefix
-                        filter_clauses.append(sql.SQL("{field} <= %s").format(
-                            field=sql.Identifier(field_name)
-                        ))
-                        filter_values.append(value)
-
-                    elif key == 'search':
-                        # Handle search text filtering (ILIKE %value%)
-                        filter_clauses.append(sql.SQL("{field} ILIKE %s").format(
-                            field=sql.Identifier("name")
-                        ))
-                        filter_values.append(f"%{value}%")
-
-                    elif key == 'is_multi_team':
-                        # Handle multi-team filtering based on cardinality of team_id_list
-                        if isinstance(value, list) and len(value) > 0:
-                            multi_team_conditions = []
-                            
-                            for multi_team_value in value:
-                                if multi_team_value.lower() == 'true':
-                                    # Players with multiple teams (cardinality > 1)
-                                    multi_team_conditions.append(sql.SQL("cardinality(team_id_list) > 1"))
-                                elif multi_team_value.lower() == 'false':
-                                    # Players with single team (cardinality = 1 or NULL/empty array)
-                                    multi_team_conditions.append(sql.SQL("(cardinality(team_id_list) <= 1 OR team_id_list IS NULL)"))
-                            
-                            if multi_team_conditions:
-                                # Use OR to combine conditions (show records matching any of the selected values)
-                                filter_clauses.append(sql.SQL("({})").format(
-                                    sql.SQL(" OR ").join(multi_team_conditions)
-                                ))
-                            
-                    # Handle list filtering (IN clause)
-                    elif isinstance(value, list) and len(value) > 0:
-                        # For JSONB array fields, use @> operator to check if array contains any of the values
-                        match key:
-                            case 'positions':
-                                # Check if any of the provided positions are in the player's positions
-                                filter_clauses.append(sql.SQL("positions_list && %s"))
-                                filter_values.append(value)
-                            case 'icons':
-                                # Check if any of the provided icons are in the player's icons
-                                filter_clauses.append(sql.SQL("icons_list && %s"))
-                                filter_values.append(value)
-                            case 'awards':
-                                # Check if any of the provided awards are in the player's awards
-                                # Handle partial matching for values ending with '-'
-                                award_conditions = []
-                                for award in value:
-                                    if award.endswith('-*'):
-                                        # Partial match: check if any element in the array starts with the prefix
-                                        award_prefix = award[:-2]  # Remove the trailing '-*'
-                                        award_conditions.append(sql.SQL("EXISTS (SELECT 1 FROM unnest(awards_list) AS award WHERE award LIKE %s)"))
-                                        filter_values.append(f"{award_prefix}-%")
-                                    else:
-                                        # Exact match: check if the exact value exists in the array
-                                        award_conditions.append(sql.SQL("%s = ANY(awards_list)"))
-                                        filter_values.append(award)
-                                
-                                if award_conditions:
-                                    filter_clauses.append(sql.SQL("({})").format(
-                                        sql.SQL(" OR ").join(award_conditions)
-                                    ))
-                            case 'include_small_sample_size':
-                                # Only filter if array is ["false"]
-                                if value == ["false"]:
-                                    filter_clauses.append(sql.SQL("not is_small_sample_size"))
-                            case 'is_hof':
-                                # Filter based on Hall of Fame status
-                                if value == ['true']:
-                                    filter_clauses.append(sql.SQL("is_hof = TRUE"))
-                                elif value == ['false']:
-                                    filter_clauses.append(sql.SQL("is_hof IS NOT TRUE"))
-                            case 'pro_league':
-                                # Use the 'league' field for filtering since 'pro_league_list' is only used for WBC and would be empty for other sources
-                                placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
-                                filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
-                                    field=sql.Identifier("league"),
-                                    placeholders=placeholders
-                                ))
-                                filter_values.extend(value)
-                                
-                            case _:
-                                # Regular IN clause for non-array fields
-                                placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
-                                filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
-                                    field=sql.Identifier(key),
-                                    placeholders=placeholders
-                                ))
-                                filter_values.extend(value)
-                            
-                    # Handle regular equality filtering
-                    else:
-                        filter_clauses.append(sql.SQL("{field} = %s").format(
-                            field=sql.Identifier(key)
-                        ))
-                        filter_values.append(value)
-
-                if filter_clauses:
-                    query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
+            filter_clauses, clause_values = self._card_list_filter_clauses(source, filters)
+            filter_values += clause_values
+            if filter_clauses:
+                query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
 
             # ADD SORTING
-            if sort_direction not in ['asc', 'desc']:
-                sort_direction = 'desc'
-
-            # CHECK FOR JSONB USE CASES
-            if 'positions_and_defense' in sort_by:
-                sort_by = sort_by.replace('positions_and_defense_', '').upper()
-                # For 1B, 2B, 3B, SS we need to check both the position and the 'IF' key
-                # For CF, LF/RF we need to check both the position and the 'OF' key
-                check_if_key = sort_by in ['1B', '2B', '3B', 'SS']
-                check_of_key = sort_by in ['CF', 'LF/RF']
-                if check_if_key or check_of_key:
-                    additional_key = 'IF' if check_if_key else 'OF'
-                    final_sort = sql.SQL("""CASE 
-                                                WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric 
-                                                WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric 
-                                                ELSE null 
-                                            END {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                    filter_values += [sort_by, sort_by, additional_key, additional_key]
-                else:
-                    final_sort = sql.SQL("""CASE WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric ELSE null END {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                    filter_values += [sort_by, sort_by]
-
-            elif 'chart_values' in sort_by:
-                chart_key = sort_by.replace('chart_values_', '').upper()
-                if source == 'wotc':
-                    final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                else:
-                    final_sort = sql.SQL("""(chart_values->>%s)::float {direction} NULLS LAST""").format(
-                        direction=sql.SQL(sort_direction)
-                    )
-                filter_values += [chart_key]
-
-            elif 'real_stats' in sort_by:
-                real_stats_key = sort_by.replace('real_stats_', 'real_').lower()
-                final_sort = sql.SQL("""{field} {direction} NULLS LAST""").format(
-                    field=sql.Identifier(real_stats_key),
-                    direction=sql.SQL(sort_direction)
-                )
-
-            else:
-                final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
-                    field=sql.Identifier(sort_by),
-                    direction=sql.SQL(sort_direction)
-                )
-
+            final_sort, sort_values = self._card_list_order_clause(source, sort_by, sort_direction)
+            filter_values += sort_values
             query += sql.SQL(" ORDER BY {}, points DESC, bref_id, year").format(final_sort)
 
             # ADD LIMIT AND PAGINATION
@@ -1006,6 +1243,80 @@ class PostgresDB:
             return result_list
         except Exception as e:
             print("Error fetching card data:", e)
+            traceback.print_exc()
+            return []
+
+    def fetch_card_sample_by_price_band(self, filters: dict, bands: list[tuple[int, int, int]], columns: Optional[list[str]] = None, user_id: Optional[str] = None) -> list[dict]:
+        """Random sample of cards matching `filters`, stratified across points bands, in ONE query.
+
+        `bands` is `[(min_points, max_points, limit), ...]`; a card falls into the first band whose
+        inclusive range contains its points, and up to `limit` cards are drawn at random from each.
+        `filters` uses the same keys/semantics as `fetch_card_list` (minus sort/pagination);
+        `columns` narrows the projection (default `*`).
+
+        Replaces issuing one `ORDER BY random() LIMIT n` query per band: each of those had to walk
+        the entire filtered slice of the table (~90K wide rows per set) just to keep n of them, so
+        a 4-bucket x 5-band autofill paid for ~20 full walks and shipped ~2KB per row. Here the
+        walk happens once - only ctid + band go through the random sort - and the sampled rows are
+        fetched back by ctid in the same statement, so the projection is applied to the final
+        few hundred rows rather than the whole slice. Measured ~5x faster per bucket on the
+        archive DB (365ms vs 1.2-9s depending on cache state).
+        """
+        if not self.connection or not bands:
+            return []
+
+        try:
+            filters = dict(filters)
+            source = str(filters.pop('source', 'BOT')).lower()
+            for key in ('sort_by', 'sort_direction', 'page', 'limit'):
+                filters.pop(key, None)
+
+            from_clause = self._card_list_from_clause(source, filters, user_id)
+            if from_clause is None:
+                return []
+            from_sql, from_values = from_clause
+            filter_clauses, clause_values = self._card_list_filter_clauses(source, filters)
+            where_sql = sql.SQL(" AND ").join([sql.SQL("TRUE")] + filter_clauses)
+
+            # Row identity for the fetch-back: the physical ctid on a real table (a TID scan is a
+            # direct heap fetch, no index round trip), or the flattened `id` on the custom subquery.
+            row_key = sql.SQL("ctid") if source in self._CARD_LIST_TABLES else sql.Identifier("id")
+
+            band_cases = sql.SQL(" ").join(
+                sql.SQL("WHEN points BETWEEN %s AND %s THEN {}").format(sql.Literal(i)) for i in range(len(bands))
+            )
+            band_values = [v for lo, hi, _ in bands for v in (lo, hi)]
+            band_limits = [int(limit) for _, _, limit in bands]
+            select_cols = sql.SQL(", ").join(sql.Identifier(c) for c in columns) if columns else sql.SQL("*")
+
+            query = sql.SQL("""
+                SELECT {cols}, {source} AS source
+                FROM {from_sql}
+                WHERE {row_key} = ANY(ARRAY(
+                    SELECT {row_key} FROM (
+                        SELECT {row_key}, band, row_number() OVER (PARTITION BY band ORDER BY random()) AS rn
+                        FROM (
+                            SELECT {row_key}, CASE {band_cases} END AS band
+                            FROM {from_sql}
+                            WHERE {where_sql}
+                        ) pool
+                        WHERE band IS NOT NULL
+                    ) ranked
+                    WHERE rn <= (%s::int[])[band + 1]
+                ))
+            """).format(
+                cols=select_cols,
+                source=sql.Literal(source.upper()),
+                from_sql=from_sql,
+                row_key=row_key,
+                band_cases=band_cases,
+                where_sql=where_sql,
+            )
+            # Bound in textual order: outer FROM, band CASE, inner FROM, WHERE, per-band limits.
+            values = from_values + band_values + from_values + clause_values + [band_limits]
+            return self.execute_query(query=query, filter_values=tuple(values)) or []
+        except Exception as e:
+            print("Error sampling card data:", e)
             traceback.print_exc()
             return []
 
@@ -1273,7 +1584,11 @@ class PostgresDB:
                         FROM unnest(%s::int[], %s::int[]) AS input(mlb_id, year)
                         LEFT JOIN internal.dim_player_id_map ON dim_player_id_map.mlb_id = input.mlb_id
                         LEFT JOIN internal.dim_card 
-                            ON dim_card.player_id = (input.year::text || '-' || dim_player_id_map.bref_id)
+                            ON dim_card.player_id = 
+                                case
+                                    when input.year >= 2026 then (input.year::text || '-' || input.mlb_id::text)
+                                    else (input.year::text || '-' || dim_player_id_map.bref_id)
+                                end
                             AND dim_card.showdown_set = %s
                     """)
                     results = self.execute_query(query=query, filter_values=(mlb_api_ids, years, showdown_set))
@@ -1292,6 +1607,171 @@ class PostgresDB:
             print("Error fetching cards for player IDs:", e)
             traceback.print_exc()
             return {}
+
+    @staticmethod
+    def _card_data_select(column: str, strip_diagnostics: bool) -> tuple[sql.Composable, list]:
+        """SELECT expression for a `card_data` column, optionally minus the UI-only diagnostic keys.
+
+        Returns the expression plus the filter values it introduces. Those values must be spliced
+        into the query's value tuple at the position the expression appears in the statement.
+        """
+        expression = sql.SQL(column)
+        if not strip_diagnostics:
+            return expression, []
+        return sql.SQL("{column} - %s::text[]").format(column=expression), [CARD_DATA_DIAGNOSTIC_KEYS]
+
+    def fetch_season_card_pool(self, year: int, set: Set, strip_diagnostics: bool = True) -> tuple[dict[str, ShowdownPlayerCard], dict[str, str], dict[str, tuple[list[str], dict[str, int]]]]:
+        """Every pre-built bot card for a season/set, keyed by archive player id ('{year}-{bref_id}'),
+        plus a second map from each card's own computed `ShowdownPlayerCard.id` to the `card_bot.card_id`
+        it's actually archived under, plus a third map from archive player id to that player's
+        `(team_id_list, team_games_played_dict)` - the chronological club history the in-sim trade
+        deadline (`enable_trade_deadline`) reads. The history map only carries multi-team players;
+        single-club and history-less rows are omitted.
+
+        Those two ids are built by unrelated formulas (`card_id` prefers `mlb_id` over `bref_id`,
+        omits the set's `expansion`, and lowercases everything - see `build_card_bot_view`) and
+        essentially never match, so a caller that needs to fetch this exact card back by id later
+        (e.g. linking a sim statline to its real card) has to carry the archive's own id forward
+        rather than recomputing it from the card's fields.
+
+        One joined round trip: `card_bot` supplies the year/set index plus the archive id, `dim_card`
+        the payload. Projecting to those columns is the point - `SELECT *` on `card_bot` moves ~60
+        wide columns per row and measured ~25x slower than this for the same result set.
+
+        The filter/sort runs in a MATERIALIZED CTE against `card_bot` alone, answered by
+        `idx_card_bot_year_set` without touching a heap page - `dim_card` is only joined in
+        afterward, once the small ordered id list already exists. Doing the sort before the join
+        keeps the wide `card_data` jsonb (~10KB/card even with diagnostics stripped) out of the
+        sort step; sorting the joined rows forces an external disk sort since a season's payload
+        (~15MB) is several times work_mem.
+
+        The ORDER BY is load-bearing, not cosmetic. Callers feed the cards dict straight into roster
+        construction, which walks it in insertion order, so the dict must be built best-first.
+        `seq` is assigned once in the CTE and the rows are re-ordered by it in Python: the nested
+        loop over the CTE happens to emit rows in `seq` order already, but that isn't guaranteed,
+        and asking the server to `ORDER BY seq` re-introduces exactly the wide-row disk sort the
+        CTE exists to avoid (measured 1.6s of the query's 1.8s on the archive DB). Sorting ~1.5K
+        ints client-side is free.
+        """
+
+        if self.connection is None:
+            print("No database connection available for fetching a season card pool.")
+            return {}, {}, {}
+
+        card_data_expression, values = self._card_data_select("dim.card_data", strip_diagnostics)
+        # EVERY REAL GAME A PLAYER PLAYED - ~83% OF A CARD'S `stats` AND UNREAD BY A REGULAR-SEASON
+        # CARD (`StatsPeriodType.stats_dict_key` IS None). DROPPED SERVER-SIDE SO IT'S NEVER DECODED.
+        card_data_expression = sql.SQL("({expression}) #- '{{stats,game_logs}}' #- '{{stats,postseason_game_logs}}'").format(
+            expression=card_data_expression,
+        )
+        query = sql.SQL("""
+            WITH pool AS MATERIALIZED (
+                SELECT
+                    id AS player_id,
+                    card_id,
+                    team_id_list,
+                    team_games_played_dict,
+                    row_number() OVER (ORDER BY points DESC NULLS LAST, bref_id, year) AS seq
+                FROM card_bot
+                WHERE year = %s AND showdown_set = %s
+            )
+            SELECT pool.seq, pool.player_id, pool.card_id, pool.team_id_list, pool.team_games_played_dict, {card_data} AS card_data
+            FROM pool
+            JOIN internal.dim_card dim ON dim.id = pool.card_id
+        """).format(card_data=card_data_expression)
+        values = [int(year), set.value if isinstance(set, Set) else str(set)] + values
+
+        cards: dict[str, ShowdownPlayerCard] = {}
+        archive_card_ids: dict[str, str] = {}
+        team_history: dict[str, tuple[list[str], dict[str, int]]] = {}
+        try:
+            # CARDS ARE BUILT A BATCH AT A TIME AS ROWS DECODE, THEN PUT IN `seq` ORDER - HOLDING
+            # EVERY DECODED ROW AT ONCE LEFT ~90 MB OF FRAGMENTED HEAP BEHIND AFTER THE LOAD.
+            built: list[tuple[int, str, str, ShowdownPlayerCard]] = []
+            for batch in self.iter_query_batches(query=query, filter_values=tuple(values)):
+                for row in batch:
+                    if not row.get('card_data'):
+                        continue
+                    player_id = str(row['player_id'])
+                    built.append((row['seq'], player_id, str(row['card_id']), ShowdownPlayerCard(**row['card_data'])))
+
+                    team_id_list = row.get('team_id_list') or []
+                    if len(team_id_list) > 1:
+                        games_dict = row.get('team_games_played_dict')
+                        if isinstance(games_dict, str):
+                            games_dict = json.loads(games_dict) if games_dict else {}
+                        team_history[player_id] = (
+                            list(team_id_list),
+                            {str(k): int(v) for k, v in (games_dict or {}).items()},
+                        )
+
+            for _, player_id, card_id, card in sorted(built, key=lambda entry: entry[0]):
+                cards[player_id] = card
+                archive_card_ids[card.id] = card_id
+        except Exception as e:
+            print("Error fetching season card pool:", e)
+            traceback.print_exc()
+
+        return cards, archive_card_ids, team_history
+
+    def fetch_archive_playing_time(self, year_list: list[int]) -> list[ArchivePlayingTime]:
+        """Playing-time projection of the season archive, for cheaply deciding which players matter."""
+
+        query = sql.SQL("SELECT id, player_type, pa, ip FROM {table} WHERE year IN %s AND historical_date IS NULL") \
+                    .format(table=sql.Identifier("player_season_stats"))
+        return [ArchivePlayingTime(**row) for row in self.execute_query(query=query, filter_values=(tuple(year_list),))]
+
+    def fetch_cards_for_roster_slots(self, slots: list, strip_diagnostics: bool = False) -> dict[str, ShowdownPlayerCard]:
+        """Fetch full card data for team_builder roster slots across card sources.
+
+        Args:
+          slots: TeamRosterSlot objects (or dicts) with `card_id` and `card_source` ("BOT", "WOTC", "CUSTOM").
+          strip_diagnostics: Drop `CARD_DATA_DIAGNOSTIC_KEYS` from the payload. Safe for consumers that
+            never render the card-detail UI (the simulation); leave off when the card is served to it.
+
+        Returns:
+          Dict keyed by card_id with hydrated ShowdownPlayerCard values. Card ids that can't be resolved are omitted.
+        """
+
+        if self.connection is None:
+            print("No database connection available for fetching cards for roster slots.")
+            return {}
+
+        ids_by_source: dict[str, list[str]] = {}
+        for slot in slots:
+            card_id = slot.get('card_id') if isinstance(slot, dict) else slot.card_id
+            source = slot.get('card_source') if isinstance(slot, dict) else slot.card_source
+            source = str(source.value if hasattr(source, 'value') else source).upper()
+            ids_by_source.setdefault(source, []).append(str(card_id))
+
+        cards: dict[str, ShowdownPlayerCard] = {}
+        try:
+            for source, card_ids in ids_by_source.items():
+                match source:
+                    case 'BOT':
+                        table, id_column, data_column = "internal.dim_card", "id", "card_data"
+                    case 'WOTC':
+                        table, id_column, data_column = "card_wotc", "card_id", "card_data"
+                    case 'CUSTOM':
+                        table, id_column, data_column = "internal.log_custom_card_bot", "id::text", "card_result"
+                    case _:
+                        continue
+
+                card_data_expression, values = self._card_data_select(data_column, strip_diagnostics)
+                query = sql.SQL("SELECT {id_column} AS id, {card_data} AS card_data FROM {table} WHERE {id_column} = ANY(%s)").format(
+                    id_column=sql.SQL(id_column),
+                    card_data=card_data_expression,
+                    table=sql.SQL(table),
+                )
+                for row in (self.execute_query(query=query, filter_values=tuple(values + [card_ids])) or []):
+                    card_data = row.get('card_data')
+                    if card_data:
+                        cards[str(row['id'])] = ShowdownPlayerCard(**card_data)
+        except Exception as e:
+            print("Error fetching cards for roster slots:", e)
+            traceback.print_exc()
+
+        return cards
 
     def add_showdown_cards_to_mlb_api_roster(self, roster: Roster, showdown_set: Set, season: int, sport_id: int, team_abbr: Optional[str] = None) -> Roster:
         """Fetch card data for a list of MLB API roster data from the dim_card table."""
@@ -1474,6 +1954,40 @@ class PostgresDB:
                 
                 results = self.execute_query(query=query, filter_values=filter_values)
 
+                # Pre-2025 seasons have no internal.dim_roster_history snapshots, so the query
+                # above comes back empty. Fall back to the pre-processed historical rosters
+                # (internal.dim_historical_roster, populated by `showdown_bot teams build-historical`),
+                # pricing them the same way _HISTORICAL_TEAM_SUMMARY_SELECT does: bench slots
+                # discounted by _HISTORICAL_BENCH_PTS_MULTIPLIER, card year rolled back before May 1st.
+                if not results and standing.league.abbreviation != 'WBC':
+                    sport_id = standing.league.sport.id if standing.league.sport else 1
+                    historical_query = sql.SQL(f"""
+                        SELECT
+                            r.team_id::int AS team_id,
+                            COALESCE(SUM(
+                                CASE
+                                    WHEN r.roster_position = 'BE'
+                                    THEN COALESCE(cb.points, 0) * {self._HISTORICAL_BENCH_PTS_MULTIPLIER}
+                                    ELSE COALESCE(cb.points, 0)
+                                END
+                            ), 0)::int AS total_points
+                        FROM internal.dim_historical_roster r
+                        LEFT JOIN LATERAL (
+                            SELECT points FROM card_bot
+                            WHERE mlb_id = r.mlb_id
+                                AND player_type = r.player_type
+                                AND year = CASE WHEN CURRENT_DATE < make_date(r.season, 5, 1) THEN r.season - 1 ELSE r.season END
+                                AND showdown_set = %s
+                            LIMIT 1
+                        ) cb ON TRUE
+                        WHERE r.season = %s AND r.sport_id = %s
+                        GROUP BY r.team_id
+                    """)
+                    results = self.execute_query(
+                        query=historical_query,
+                        filter_values=(showdown_set, standing.league.season, sport_id),
+                    )
+
                 points_by_team_id = {row['team_id']: row['total_points'] for row in results}
                 for record in standing.team_records:
                     record.showdown_points = points_by_team_id.get(record.team.id, 0)
@@ -1488,6 +2002,957 @@ class PostgresDB:
             print("Error fetching points for MLB API standings:", e)
             traceback.print_exc()
             return standings
+
+    @staticmethod
+    def _wbc_row_to_explore_record(row: dict) -> ExploreDataRecord:
+        """Adapt a card_wbc row into an ExploreDataRecord.
+
+        card_wbc doesn't carry the primary/secondary position breakdown or the
+        team-history columns that the card_bot materialized view does, so those are
+        backfilled with best-effort defaults before construction.
+        """
+        row = dict(row)
+        row.setdefault('primary_positions', row.get('positions_list') or [])
+        row.setdefault('secondary_positions', [])
+        row.setdefault('team_id_list', [row['team_id']] if row.get('team_id') else [])
+        row.setdefault('team_games_played_dict', {})
+        row.setdefault('updated_at', row.get('modified_date'))
+        return ExploreDataRecord(**row)
+
+    def fetch_team_season_card_pool(self, season: int, showdown_set: str, team_id: int, team_abbr: Optional[str] = None, sport_id: int = 1) -> list[ExploreDataRecord]:
+        """Fetch card records for every player on a team's roster in a given season.
+
+        Used to construct an on-the-fly team builder Team for an MLB/WBC team.
+        Sources, in priority order:
+          1. WBC (sport_id 51): card_wbc filtered by wbc_team_id + wbc_season.
+          2. MLB season with roster snapshots: latest internal.dim_roster_history snapshot joined to card_bot.
+          3. Historical MLB season (no snapshot rows): card_bot filtered by the team's bref abbreviation + year.
+
+        Args:
+            season: The season (year) of the roster.
+            showdown_set: The showdown set to filter cards by (ex: '2000', 'CLASSIC').
+            team_id: MLB API team id (or WBC team id for sport_id 51).
+            team_abbr: MLB API team abbreviation, used for the historical card_bot path.
+            sport_id: MLB API sport id (1 = MLB, 51 = International/WBC).
+
+        Returns:
+            List of ExploreDataRecord cards, each tagged with its `.source` ('BOT' or 'WBC').
+        """
+
+        if self.connection is None:
+            return []
+
+        if SportEnum(sport_id) == SportEnum.INTERNATIONAL:
+            query = sql.SQL("""
+                SELECT *, 'WBC' AS source
+                FROM card_wbc
+                WHERE wbc_team_id = %s AND wbc_season = %s AND showdown_set = %s
+            """)
+            rows = self.execute_query(query=query, filter_values=(team_id, season, showdown_set))
+            return [self._wbc_row_to_explore_record(row) for row in rows]
+
+        # For MLB seasons before May 1st, cards are still built from the prior year's stats
+        card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
+
+        roster_history_query = sql.SQL("""
+            WITH latest_roster AS (
+                SELECT player_id
+                FROM internal.dim_roster_history
+                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM internal.dim_roster_history WHERE season = %s)
+                    AND season = %s
+                    AND team_id = %s
+                    AND status = 'Active'
+            )
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            JOIN latest_roster ON cards.mlb_id::text = latest_roster.player_id
+            WHERE cards.year = %s AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=roster_history_query, filter_values=(season, season, str(team_id), card_year, showdown_set))
+        if rows:
+            return [ExploreDataRecord(**row) for row in rows]
+
+        # Historical fallback: no roster snapshots for this season, use the cards' own team assignment.
+        if not team_abbr:
+            return []
+        # The MLB API reports a franchise's modern abbreviation for every season, but the archive
+        # stores the era-correct one (1998 Tampa Bay is TBD, not TBR), so resolve backwards first.
+        bref_team = Team.map_from_mlb_api_team(team_abbr, year=season).for_year(season)
+        if bref_team in (Team.MLB, Team.MILB):
+            return []
+        historical_query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            WHERE 
+                cards.team_id = %s 
+                AND cards.year = %s 
+                AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=historical_query, filter_values=(bref_team.value, season, showdown_set))
+        return [ExploreDataRecord(**row) for row in rows]
+
+    # ------------------------------------------------------------------------
+    # ALL-STAR GAME ROSTERS
+    # ------------------------------------------------------------------------
+
+    def build_asg_roster_table(self) -> None:
+        """Create internal.asg_roster — a lookup of All-Star Game participants by season/league.
+
+        One row per participant, capturing the real starting lineup positions, batting order,
+        and starting pitcher (populated on demand by scripts/build_asg_roster.py from the MLB
+        Stats API). Read at request time to build a read-only Showdown team, mirroring the
+        dim_roster_history pattern.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.asg_roster (
+                    season              INT     NOT NULL,
+                    sport_id            INT     NOT NULL DEFAULT 1,
+                    league              VARCHAR(4) NOT NULL,
+                    mlb_id              INT     NOT NULL,
+                    player_name         TEXT,
+                    position            VARCHAR(4),
+                    batting_order       INT,
+                    is_starter          BOOLEAN NOT NULL DEFAULT FALSE,
+                    is_starting_pitcher BOOLEAN NOT NULL DEFAULT FALSE,
+                    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (season, league, mlb_id)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_asg_roster_season_league
+                    ON internal.asg_roster (season, league);
+            """)
+
+    def upsert_asg_roster_rows(self, season: int, sport_id: int, rows: list[dict]) -> int:
+        """Replace all ASG roster rows for a season with `rows`. Returns the number inserted.
+
+        Each row: {league, mlb_id, player_name, position, batting_order, is_starter, is_starting_pitcher}.
+        """
+        if not self.connection or not rows:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute("DELETE FROM internal.asg_roster WHERE season = %s AND sport_id = %s", (season, sport_id))
+            values = [
+                (
+                    season, sport_id, r['league'], r['mlb_id'], r.get('player_name'),
+                    r.get('position'), r.get('batting_order'),
+                    bool(r.get('is_starter', False)), bool(r.get('is_starting_pitcher', False)),
+                )
+                for r in rows
+            ]
+            cur.executemany(
+                """
+                INSERT INTO internal.asg_roster
+                    (season, sport_id, league, mlb_id, player_name, position,
+                     batting_order, is_starter, is_starting_pitcher)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (season, league, mlb_id) DO UPDATE SET
+                    player_name = EXCLUDED.player_name,
+                    position = EXCLUDED.position,
+                    batting_order = EXCLUDED.batting_order,
+                    is_starter = EXCLUDED.is_starter,
+                    is_starting_pitcher = EXCLUDED.is_starting_pitcher,
+                    updated_at = NOW()
+                """,
+                values,
+            )
+        return len(values)
+
+    def fetch_asg_seasons(self) -> list[dict]:
+        """Return the distinct (season, league) pairs that have ASG roster data, newest first."""
+        if not self.connection:
+            return []
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT DISTINCT season, league
+                FROM internal.asg_roster
+                ORDER BY season DESC, league ASC
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+    def fetch_asg_roster(self, season: int, league: str, sport_id: int = 1) -> list[dict]:
+        """Return the stored ASG participant metadata rows for one season/league team."""
+        if not self.connection:
+            return []
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT mlb_id, player_name, position, batting_order, is_starter, is_starting_pitcher
+                FROM internal.asg_roster
+                WHERE season = %s AND league = %s AND sport_id = %s
+                """,
+                (season, league, sport_id),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def fetch_asg_card_pool(self, season: int, showdown_set: str, league: str, sport_id: int = 1) -> tuple[list[ExploreDataRecord], list[dict]]:
+        """Fetch the ASG team's participant cards plus their stored starter/position metadata.
+
+        Returns (cards, meta_rows). `cards` are card_bot ExploreDataRecords for the participants;
+        `meta_rows` are the internal.asg_roster rows (keyed by mlb_id) so the caller can build the
+        forced-position / batting-order / starting-pitcher overrides for RosterToTeamConverter.
+        """
+        if self.connection is None:
+            return [], []
+        meta_rows = self.fetch_asg_roster(season, league, sport_id)
+        if not meta_rows:
+            return [], []
+        mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
+        if not mlb_ids:
+            return [], meta_rows
+        # Before May 1st the season's cards are still built from the prior year's stats.
+        card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
+        query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
+        cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        return cards, meta_rows
+
+    # ------------------------------------------------------------------------
+    # HISTORICAL TEAMS (PRE-PROCESSED ROSTER SLOTS)
+    # ------------------------------------------------------------------------
+
+    def build_historical_team_tables(self) -> None:
+        """Create internal.dim_historical_team and internal.dim_historical_roster.
+
+        A parent/bridge pair deliberately shaped like internal.user_teams +
+        internal.user_team_roster, so the same summary-query machinery works for both.
+        The bridge stores the *pre-computed* roster slot for each player, keyed by
+        (mlb_id, player_type) rather than card_id — that is what makes it set-agnostic,
+        since the underlying playing time is identical across Showdown sets. player_type
+        keeps a two-way player's pitching and hitting slots as two distinct rows. The card
+        for a given set is resolved at request time by joining (mlb_id, player_type) -> card_bot.
+
+        Populated by `showdown_bot teams build-historical`.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_historical_team (
+                    season          INT  NOT NULL,
+                    sport_id        INT  NOT NULL DEFAULT 1,
+                    team_id         INT  NOT NULL,
+                    abbreviation    TEXT,
+                    name            TEXT,
+                    bref_team_id    TEXT,
+                    league_id       INT,
+                    league_name     TEXT,
+                    division_name   TEXT,
+                    primary_color   TEXT,
+                    secondary_color TEXT,
+                    roster_count    INT  NOT NULL DEFAULT 0,
+                    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (season, sport_id, team_id)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_historical_team_season
+                    ON internal.dim_historical_team (season DESC);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_historical_team_abbr
+                    ON internal.dim_historical_team (abbreviation);
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_historical_roster (
+                    season          INT NOT NULL,
+                    sport_id        INT NOT NULL DEFAULT 1,
+                    team_id         INT NOT NULL,
+                    mlb_id          INT NOT NULL,
+                    player_type     VARCHAR(8) NOT NULL DEFAULT 'HITTER',
+                    player_name     TEXT,
+                    roster_position VARCHAR(4),
+                    batting_order   INT,
+                    slot_order      INT NOT NULL DEFAULT 0,
+                    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (season, sport_id, team_id, mlb_id, player_type)
+                );
+            """)
+            # Migration for tables created before player_type joined the key. A two-way player
+            # (e.g. Ohtani) holds two roster slots under one mlb_id — a pitching slot and a
+            # hitting slot — so mlb_id alone can't be the key without one slot clobbering the other.
+            cur.execute("""
+                ALTER TABLE internal.dim_historical_roster
+                    ADD COLUMN IF NOT EXISTS player_type VARCHAR(8);
+            """)
+            cur.execute("""
+                UPDATE internal.dim_historical_roster
+                SET player_type = CASE
+                    WHEN roster_position IN ('RP', 'CL') OR roster_position LIKE 'SP%' THEN 'PITCHER'
+                    ELSE 'HITTER'
+                END
+                WHERE player_type IS NULL;
+            """)
+            cur.execute("ALTER TABLE internal.dim_historical_roster ALTER COLUMN player_type SET DEFAULT 'HITTER';")
+            cur.execute("ALTER TABLE internal.dim_historical_roster ALTER COLUMN player_type SET NOT NULL;")
+            cur.execute("ALTER TABLE internal.dim_historical_roster DROP CONSTRAINT IF EXISTS dim_historical_roster_pkey;")
+            cur.execute("""
+                ALTER TABLE internal.dim_historical_roster
+                    ADD CONSTRAINT dim_historical_roster_pkey
+                    PRIMARY KEY (season, sport_id, team_id, mlb_id, player_type);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_historical_roster_team
+                    ON internal.dim_historical_roster (season, sport_id, team_id);
+            """)
+        # The summary/pool queries below join mlb_id -> card_bot for a given year + set;
+        # without this index every shelf request seq-scans a multi-GB table. Built
+        # CONCURRENTLY so card uploads aren't blocked while it builds — that requires running
+        # outside a transaction, which holds because the pool sets autocommit. A CONCURRENTLY
+        # build that fails leaves an INVALID index behind; drop it and rerun.
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute("""
+                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_mlb_year_set
+                        ON card_bot (mlb_id, year, showdown_set);
+                """)
+        except Exception as e:
+            print(f"Skipped idx_card_bot_mlb_year_set: {e}")
+
+        # fetch_season_card_pool filters on (year, showdown_set) alone (no mlb_id), so it can't
+        # use idx_card_bot_mlb_year_set as a real range scan - Postgres ends up walking the whole
+        # index checking the condition per entry instead of seeking. This index leads with the
+        # columns that query actually filters on, with the small archive-id/order-by columns
+        # included so the season-pool lookup is answered from the index alone.
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute("""
+                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_year_set
+                        ON card_bot (year, showdown_set)
+                        INCLUDE (id, card_id, points, bref_id);
+                """)
+        except Exception as e:
+            print(f"Skipped idx_card_bot_year_set: {e}")
+
+    def upsert_historical_team(self, team: dict) -> None:
+        """Upsert one identity row into internal.dim_historical_team.
+
+        `team` keys: season, sport_id, team_id, abbreviation, name, bref_team_id,
+        league_id, league_name, division_name, primary_color, secondary_color, roster_count.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.dim_historical_team
+                    (season, sport_id, team_id, abbreviation, name, bref_team_id,
+                     league_id, league_name, division_name, primary_color, secondary_color, roster_count)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (season, sport_id, team_id) DO UPDATE SET
+                    abbreviation = EXCLUDED.abbreviation,
+                    name = EXCLUDED.name,
+                    bref_team_id = EXCLUDED.bref_team_id,
+                    league_id = EXCLUDED.league_id,
+                    league_name = EXCLUDED.league_name,
+                    division_name = EXCLUDED.division_name,
+                    primary_color = EXCLUDED.primary_color,
+                    secondary_color = EXCLUDED.secondary_color,
+                    roster_count = EXCLUDED.roster_count,
+                    updated_at = NOW()
+                """,
+                (
+                    team['season'], team.get('sport_id', 1), team['team_id'],
+                    team.get('abbreviation'), team.get('name'), team.get('bref_team_id'),
+                    team.get('league_id'), team.get('league_name'), team.get('division_name'),
+                    team.get('primary_color'), team.get('secondary_color'), team.get('roster_count', 0),
+                ),
+            )
+
+    def upsert_historical_roster_rows(self, season: int, sport_id: int, team_id: int, rows: list[dict]) -> int:
+        """Replace a team's stored roster slots with `rows`. Returns the number written.
+
+        Each row: {mlb_id, player_type, player_name, roster_position, batting_order, slot_order}.
+        `player_type` ('HITTER'/'PITCHER') is part of the key so a two-way player's pitching
+        and hitting slots are stored as two distinct rows rather than colliding on mlb_id.
+        """
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.dim_historical_roster WHERE season = %s AND sport_id = %s AND team_id = %s",
+                (season, sport_id, team_id),
+            )
+            if not rows:
+                return 0
+            values = [
+                (
+                    season, sport_id, team_id, r['mlb_id'], (r.get('player_type') or 'HITTER'),
+                    r.get('player_name'), r.get('roster_position'), r.get('batting_order'), r.get('slot_order', i),
+                )
+                for i, r in enumerate(rows)
+            ]
+            cur.executemany(
+                """
+                INSERT INTO internal.dim_historical_roster
+                    (season, sport_id, team_id, mlb_id, player_type, player_name, roster_position, batting_order, slot_order)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (season, sport_id, team_id, mlb_id, player_type) DO UPDATE SET
+                    player_name = EXCLUDED.player_name,
+                    roster_position = EXCLUDED.roster_position,
+                    batting_order = EXCLUDED.batting_order,
+                    slot_order = EXCLUDED.slot_order,
+                    updated_at = NOW()
+                """,
+                values,
+            )
+        return len(values)
+
+    # Lightweight per-team summary for the Historical tab shelves — the historical
+    # analogue of _TEAM_SUMMARY_SELECT. Points and the top-3 player refs are computed
+    # here rather than stored, because both are set-specific: `showdown_set` is a
+    # parameter, so the same stored roster yields correct numbers for every set and
+    # can never go stale when cards are rebuilt. The card year is resolved per row —
+    # before May 1st a season's cards are still built from the prior year's stats.
+    _HISTORICAL_CARD_YEAR = "CASE WHEN CURRENT_DATE < make_date(t.season, 5, 1) THEN t.season - 1 ELSE t.season END"
+
+    # Historical rosters carry stored 'BE' bench slots but no per-team bench_pts_multiplier
+    # column (unlike internal.user_teams). Bench cards are auto-discounted by this factor when
+    # summing a team's points, mirroring how the team builder prices its own bench bucket and
+    # how _TEAM_SUMMARY_SELECT applies t.bench_pts_multiplier.
+    _HISTORICAL_BENCH_PTS_MULTIPLIER = 0.2
+
+    _HISTORICAL_TEAM_SUMMARY_SELECT = f"""
+        SELECT
+            t.season, t.sport_id, t.team_id,
+            t.name, t.abbreviation, t.bref_team_id,
+            t.league_id, t.league_name, t.division_name,
+            t.primary_color, t.secondary_color, t.updated_at,
+            'mlb'::text AS source,
+            COUNT(r.mlb_id) AS roster_count,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
+            COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
+            COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position = 'BE'
+                    THEN COALESCE(cb.points, 0) * {_HISTORICAL_BENCH_PTS_MULTIPLIER}
+                    ELSE COALESCE(cb.points, 0)
+                END
+            ), 0)::int AS total_points,
+            COALESCE(tp.refs, '[]'::jsonb) AS top_player_refs
+        FROM internal.dim_historical_team t
+        LEFT JOIN internal.dim_historical_roster r
+            ON r.season = t.season AND r.sport_id = t.sport_id AND r.team_id = t.team_id
+        LEFT JOIN LATERAL (
+            SELECT points FROM card_bot
+            WHERE mlb_id = r.mlb_id AND player_type = r.player_type
+                AND year = {_HISTORICAL_CARD_YEAR} AND showdown_set = %s
+            LIMIT 1
+        ) cb ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+                jsonb_build_object('card_id', x.card_id, 'card_source', 'BOT')
+                ORDER BY x.pts DESC
+            ) AS refs
+            FROM (
+                SELECT cbx.card_id, cbx.points AS pts
+                FROM internal.dim_historical_roster rr
+                JOIN LATERAL (
+                    SELECT card_id, points FROM card_bot
+                    WHERE mlb_id = rr.mlb_id AND player_type = rr.player_type
+                        AND year = {_HISTORICAL_CARD_YEAR} AND showdown_set = %s
+                    LIMIT 1
+                ) cbx ON TRUE
+                WHERE rr.season = t.season AND rr.sport_id = t.sport_id AND rr.team_id = t.team_id
+                ORDER BY cbx.points DESC NULLS LAST
+                LIMIT 3
+            ) x
+        ) tp ON TRUE
+    """
+
+    def fetch_historical_teams(self, showdown_set: str, season: Optional[int] = None, q: Optional[str] = None,
+                               sport_id: int = 1, limit: int = 60, offset: int = 0, sort: str = 'season') -> list[dict]:
+        """Return pre-processed historical teams as TeamSummary-shaped rows.
+
+        Ordered newest season first, then by total points descending within each season, so
+        each shelf leads with that year's most expensive rosters. Pass `sort='points'` to flip
+        that to a single points-descending list across every season (the "See all" grid).
+
+        Args:
+            showdown_set: Showdown set the points / top players should be scoped to.
+            season: Restrict to one season. Omit to page across all seasons.
+            q: Case-insensitive search over team name, abbreviation, and season (all seasons).
+            sport_id: MLB API sport id (1 = MLB).
+            limit / offset: Pagination over the team rows.
+            sort: 'season' (default) or 'points'.
+        """
+        if not self.connection:
+            return []
+        conditions = ["t.sport_id = %s", "t.roster_count > 0"]
+        # The two %s in the summary select (points join, top-3 join) come first.
+        params: list = [showdown_set, showdown_set, sport_id]
+        if season is not None:
+            conditions.append("t.season = %s")
+            params.append(season)
+        if q:
+            conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s OR t.season::text ILIKE %s)")
+            like = f"%{q}%"
+            params.extend([like, like, like])
+        # Newest season first, and the most expensive rosters lead each season's shelf.
+        # total_points is set-scoped, so the ordering shifts with the requested set.
+        order_clause = (
+            "ORDER BY total_points DESC, t.season DESC, t.abbreviation ASC"
+            if sort == 'points'
+            else "ORDER BY t.season DESC, total_points DESC, t.abbreviation ASC"
+        )
+        query = self._HISTORICAL_TEAM_SUMMARY_SELECT + f"""
+            WHERE {' AND '.join(conditions)}
+            GROUP BY t.season, t.sport_id, t.team_id, tp.refs
+            {order_clause}
+            LIMIT %s OFFSET %s
+        """
+        params += [limit, offset]
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            rows = [dict(r) for r in cur.fetchall()]
+        return self._serialize_team_summaries(rows)
+
+    def fetch_historical_seasons(self, sport_id: int = 1) -> list[dict]:
+        """Return {season, team_count} for every season with pre-processed teams, newest first."""
+        if not self.connection:
+            return []
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT season, COUNT(*)::int AS team_count
+                FROM internal.dim_historical_team
+                WHERE sport_id = %s AND roster_count > 0
+                GROUP BY season
+                ORDER BY season DESC
+                """,
+                (sport_id,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def fetch_historical_team(self, season: int, team_id: int, sport_id: int = 1) -> Optional[dict]:
+        """Return the stored identity row for one historical team, or None if not pre-processed."""
+        if not self.connection:
+            return None
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT season, sport_id, team_id, name, abbreviation, bref_team_id,
+                       league_id, league_name, division_name, primary_color, secondary_color
+                FROM internal.dim_historical_team
+                WHERE season = %s AND sport_id = %s AND team_id = %s
+                """,
+                (season, sport_id, team_id),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def fetch_historical_team_card_pool(self, season: int, showdown_set: str, team_id: int, sport_id: int = 1) -> tuple[list[ExploreDataRecord], list[dict]]:
+        """Fetch the cards for a pre-processed team's stored roster, plus the stored slot rows.
+
+        Returns (cards, meta_rows). `meta_rows` carry the pre-computed roster_position /
+        batting_order keyed by (mlb_id, player_type) — a two-way player has one row per type —
+        so the caller can rebuild the Team without re-running the playing-time heuristics.
+        Empty when the team has not been pre-processed.
+        """
+        if self.connection is None:
+            return [], []
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT mlb_id, player_type, player_name, roster_position, batting_order, slot_order
+                FROM internal.dim_historical_roster
+                WHERE season = %s AND sport_id = %s AND team_id = %s
+                ORDER BY slot_order
+                """,
+                (season, sport_id, team_id),
+            )
+            meta_rows = [dict(r) for r in cur.fetchall()]
+        if not meta_rows:
+            return [], []
+        mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
+        if not mlb_ids:
+            return [], meta_rows
+        # Before May 1st the season's cards are still built from the prior year's stats.
+        card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
+        query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
+        cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        return cards, meta_rows
+
+    # ------------------------------------------------------------------------
+    # ALL-TIME TEAMS (PRE-PROCESSED ROSTER SLOTS)
+    # ------------------------------------------------------------------------
+
+    def build_era_team_tables(self) -> None:
+        """Create internal.dim_era_team and internal.dim_era_roster.
+
+        Backs "Era Rosters" -- all-time and all-decade team rosters (see RosterEraRegistry).
+        Same parent/bridge shape as dim_historical_team/dim_historical_roster, but unlike that
+        pair this one is NOT set-agnostic: the selection itself (not just the card lookup) is
+        ranked by `points`, which is set-specific, so `showdown_set` is part of both tables'
+        primary keys, alongside `era` (RosterEraRegistry key, e.g. 'ALL_TIME' or '1990s'). Each
+        roster row also stores the specific `year` its card came from, since an era roster has
+        no single season to imply it. Populated by `showdown_bot teams build-era-rosters`.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_era_team (
+                    era             TEXT NOT NULL,
+                    showdown_set    TEXT NOT NULL,
+                    sport_id        INT  NOT NULL DEFAULT 1,
+                    team_id         INT  NOT NULL,
+                    abbreviation    TEXT,
+                    name            TEXT,
+                    bref_team_id    TEXT,
+                    league_id       INT,
+                    league_name     TEXT,
+                    division_name   TEXT,
+                    primary_color   TEXT,
+                    secondary_color TEXT,
+                    roster_count    INT  NOT NULL DEFAULT 0,
+                    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (era, showdown_set, sport_id, team_id)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_era_team_abbr
+                    ON internal.dim_era_team (abbreviation);
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_era_roster (
+                    era             TEXT NOT NULL,
+                    showdown_set    TEXT NOT NULL,
+                    sport_id        INT  NOT NULL DEFAULT 1,
+                    team_id         INT  NOT NULL,
+                    mlb_id          INT  NOT NULL,
+                    player_type     VARCHAR(8) NOT NULL DEFAULT 'HITTER',
+                    year            INT  NOT NULL,
+                    player_name     TEXT,
+                    roster_position VARCHAR(4),
+                    batting_order   INT,
+                    slot_order      INT  NOT NULL DEFAULT 0,
+                    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (era, showdown_set, sport_id, team_id, mlb_id, player_type)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_era_roster_team
+                    ON internal.dim_era_roster (era, showdown_set, sport_id, team_id);
+            """)
+        # The candidate-pool fetch filters card_bot on (team_id, year, showdown_set) across a
+        # franchise's whole history — without this index that's a seq-scan of a multi-GB table.
+        # Built CONCURRENTLY (outside the transaction the pool already runs in via autocommit) so
+        # card uploads aren't blocked while it builds. A failed CONCURRENTLY build leaves an
+        # INVALID index behind; drop it and rerun.
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute("""
+                    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_team_year_set
+                        ON card_bot (team_id, year, showdown_set);
+                """)
+        except Exception as e:
+            print(f"Skipped idx_card_bot_team_year_set: {e}")
+
+    def upsert_era_team(self, team: dict) -> None:
+        """Upsert one identity row into internal.dim_era_team.
+
+        `team` keys: era, showdown_set, sport_id, team_id, abbreviation, name, bref_team_id,
+        league_id, league_name, division_name, primary_color, secondary_color, roster_count.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.dim_era_team
+                    (era, showdown_set, sport_id, team_id, abbreviation, name, bref_team_id,
+                     league_id, league_name, division_name, primary_color, secondary_color, roster_count)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (era, showdown_set, sport_id, team_id) DO UPDATE SET
+                    abbreviation = EXCLUDED.abbreviation,
+                    name = EXCLUDED.name,
+                    bref_team_id = EXCLUDED.bref_team_id,
+                    league_id = EXCLUDED.league_id,
+                    league_name = EXCLUDED.league_name,
+                    division_name = EXCLUDED.division_name,
+                    primary_color = EXCLUDED.primary_color,
+                    secondary_color = EXCLUDED.secondary_color,
+                    roster_count = EXCLUDED.roster_count,
+                    updated_at = NOW()
+                """,
+                (
+                    team['era'], team['showdown_set'], team.get('sport_id', 1), team['team_id'],
+                    team.get('abbreviation'), team.get('name'), team.get('bref_team_id'),
+                    team.get('league_id'), team.get('league_name'), team.get('division_name'),
+                    team.get('primary_color'), team.get('secondary_color'), team.get('roster_count', 0),
+                ),
+            )
+
+    def upsert_era_roster_rows(self, era: str, showdown_set: str, sport_id: int, team_id: int, rows: list[dict]) -> int:
+        """Replace a team's stored era roster slots with `rows`. Returns the number written.
+
+        Each row: {mlb_id, player_type, year, player_name, roster_position, batting_order, slot_order}.
+        `player_type` is part of the key so a two-way player's pitching and hitting slots are
+        stored as two distinct rows rather than colliding on mlb_id.
+        """
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.dim_era_roster WHERE era = %s AND showdown_set = %s AND sport_id = %s AND team_id = %s",
+                (era, showdown_set, sport_id, team_id),
+            )
+            if not rows:
+                return 0
+            values = [
+                (
+                    era, showdown_set, sport_id, team_id, r['mlb_id'], (r.get('player_type') or 'HITTER'), r['year'],
+                    r.get('player_name'), r.get('roster_position'), r.get('batting_order'), r.get('slot_order', i),
+                )
+                for i, r in enumerate(rows)
+            ]
+            cur.executemany(
+                """
+                INSERT INTO internal.dim_era_roster
+                    (era, showdown_set, sport_id, team_id, mlb_id, player_type, year, player_name, roster_position, batting_order, slot_order)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (era, showdown_set, sport_id, team_id, mlb_id, player_type) DO UPDATE SET
+                    year = EXCLUDED.year,
+                    player_name = EXCLUDED.player_name,
+                    roster_position = EXCLUDED.roster_position,
+                    batting_order = EXCLUDED.batting_order,
+                    slot_order = EXCLUDED.slot_order,
+                    updated_at = NOW()
+                """,
+                values,
+            )
+        return len(values)
+
+    _ERA_TEAM_SUMMARY_SELECT = f"""
+        SELECT
+            t.era, t.showdown_set, t.sport_id, t.team_id,
+            t.name, t.abbreviation, t.bref_team_id,
+            t.league_id, t.league_name, t.division_name,
+            t.primary_color, t.secondary_color, t.updated_at,
+            'mlb'::text AS source,
+            COUNT(r.mlb_id) AS roster_count,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
+            COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
+            COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position = 'BE'
+                    THEN COALESCE(cb.points, 0) * {_HISTORICAL_BENCH_PTS_MULTIPLIER}
+                    ELSE COALESCE(cb.points, 0)
+                END
+            ), 0)::int AS total_points,
+            COALESCE(tp.refs, '[]'::jsonb) AS top_player_refs
+        FROM internal.dim_era_team t
+        LEFT JOIN internal.dim_era_roster r
+            ON r.era = t.era AND r.showdown_set = t.showdown_set AND r.sport_id = t.sport_id AND r.team_id = t.team_id
+        LEFT JOIN LATERAL (
+            SELECT points FROM card_bot
+            WHERE mlb_id = r.mlb_id AND player_type = r.player_type
+                AND year = r.year AND showdown_set = t.showdown_set
+            LIMIT 1
+        ) cb ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+                jsonb_build_object('card_id', x.card_id, 'card_source', 'BOT')
+                ORDER BY x.pts DESC
+            ) AS refs
+            FROM (
+                SELECT cbx.card_id, cbx.points AS pts
+                FROM internal.dim_era_roster rr
+                JOIN LATERAL (
+                    SELECT card_id, points FROM card_bot
+                    WHERE mlb_id = rr.mlb_id AND player_type = rr.player_type
+                        AND year = rr.year AND showdown_set = t.showdown_set
+                    LIMIT 1
+                ) cbx ON TRUE
+                WHERE rr.era = t.era AND rr.showdown_set = t.showdown_set AND rr.sport_id = t.sport_id AND rr.team_id = t.team_id
+                ORDER BY cbx.points DESC NULLS LAST
+                LIMIT 3
+            ) x
+        ) tp ON TRUE
+    """
+
+    def fetch_era_teams(self, era: Optional[str], showdown_set: str, q: Optional[str] = None,
+                         sport_id: int = 1, limit: int = 60, offset: int = 0) -> list[dict]:
+        """Return pre-processed era teams as TeamSummary-shaped rows, highest points first.
+
+        Pass era=None to combine every era into one flat list (the Browse tab's "See all" grid)
+        instead of scoping to a single one — each row still carries its own `era`, so navigation
+        and the on-tile era label stay correct.
+        """
+        if not self.connection:
+            return []
+        conditions = ["t.showdown_set = %s", "t.sport_id = %s", "t.roster_count > 0"]
+        params: list = [showdown_set, sport_id]
+        if era is not None:
+            conditions.insert(0, "t.era = %s")
+            params.insert(0, era)
+        if q:
+            conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s)")
+            like = f"%{q}%"
+            params.extend([like, like])
+        query = self._ERA_TEAM_SUMMARY_SELECT + f"""
+            WHERE {' AND '.join(conditions)}
+            GROUP BY t.era, t.showdown_set, t.sport_id, t.team_id, tp.refs
+            ORDER BY total_points DESC, t.abbreviation ASC
+            LIMIT %s OFFSET %s
+        """
+        params += [limit, offset]
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            rows = [dict(r) for r in cur.fetchall()]
+        summaries = self._serialize_team_summaries(rows)
+        # An Era Roster spans a franchise's whole relocation history (the Braves alone have
+        # played as the Boston/Milwaukee/Atlanta Braves), so the stored plain name -- the
+        # franchise's *current* city + nickname -- reads wrong for an all-time or older-decade
+        # roster. Swap in the nickname alone here (RosterEra.team_name does the same for the
+        # single-team detail fetch) rather than persisting it, so this stays in sync with
+        # Team.nickname without a dim_era_team backfill.
+        for team in summaries:
+            nickname = Team.map_from_mlb_api_team(team['abbreviation']).nickname if team.get('abbreviation') else None
+            if nickname:
+                team['name'] = nickname
+        return summaries
+
+    def fetch_era_team(self, team_id: int, era: str, showdown_set: str, sport_id: int = 1) -> Optional[dict]:
+        """Return the stored identity row for one team's era roster, or None if not pre-processed."""
+        if not self.connection:
+            return None
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT era, showdown_set, sport_id, team_id, name, abbreviation, bref_team_id,
+                       league_id, league_name, division_name, primary_color, secondary_color
+                FROM internal.dim_era_team
+                WHERE era = %s AND showdown_set = %s AND sport_id = %s AND team_id = %s
+                """,
+                (era, showdown_set, sport_id, team_id),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def fetch_era_team_card_pool(self, team_id: int, era: str, showdown_set: str, sport_id: int = 1) -> tuple[list[ExploreDataRecord], list[dict]]:
+        """Fetch the cards for a pre-processed era team's stored roster, plus the stored slot rows.
+
+        Unlike fetch_historical_team_card_pool, each stored slot carries its own `year` (there's
+        no single shared season to imply it), so the card lookup fetches by mlb_id + showdown_set
+        and then filters down in Python to exactly the (mlb_id, player_type, year) triples the
+        stored slots point at.
+        """
+        if self.connection is None:
+            return [], []
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT mlb_id, player_type, year, player_name, roster_position, batting_order, slot_order
+                FROM internal.dim_era_roster
+                WHERE era = %s AND showdown_set = %s AND sport_id = %s AND team_id = %s
+                ORDER BY slot_order
+                """,
+                (era, showdown_set, sport_id, team_id),
+            )
+            meta_rows = [dict(r) for r in cur.fetchall()]
+        if not meta_rows:
+            return [], []
+        mlb_ids = list({r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None})
+        if not mlb_ids:
+            return [], meta_rows
+        query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            WHERE cards.mlb_id IN %s AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), showdown_set))
+        all_cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        wanted = {(r['mlb_id'], r.get('player_type') or 'HITTER', r['year']) for r in meta_rows}
+        cards = [c for c in all_cards if (c.mlb_id, c.player_type, c.year) in wanted]
+        return cards, meta_rows
+
+    def fetch_era_candidate_pool(self, team_abbr: Optional[str], showdown_set: str,
+                                  start_year: int, end_year: int) -> list[ExploreDataRecord]:
+        """Every non-small-sample, organization='MLB' card_bot season recorded within
+        [start_year, end_year] -- the raw material for an Era Roster (all-time or a single decade;
+        see RosterEraRegistry, whose (start_year, end_year) the caller passes through) -- for one
+        MLB team (`team_abbr` given), or league-wide across every team (`team_abbr=None`, for a
+        cross-team "All-MLB" era roster -- see LEAGUE_WIDE_TEAM_ID) with no team filter at all.
+
+        The organization filter excludes non-MLB leagues (e.g. Negro Leagues rows tagged 'NGL',
+        such as NNL/NAL/ECL) that would otherwise be eligible now that ALL_TIME/decade eras reach
+        back into the 1920s.
+
+        This is a coarse pre-filter only — is_small_sample_size is a low "played enough to show
+        up" bar (250 PA / 75 IP-SP / 30 IP-RP). The caller (EraRosterDrafter) applies the real
+        batting-title / ERA-title "qualified" standard on top of this pool in Python rather than
+        persisting it as a card_bot column, so a September call-up's 40-game cameo can clear this
+        filter but still won't out-qualify a real everyday player at the drafting step.
+
+        card_bot.team_id is a bref-style abbreviation, era-correct for the year it was recorded
+        (1998 Tampa Bay is 'TBD', not 'TBR') — not the numeric MLB API team id. Team.for_year(...)
+        already resolves this (see fetch_team_season_card_pool's historical fallback), so this
+        reuses it directly rather than introducing any separate crosswalk table: the requested
+        year range is split into contiguous sub-ranges of the same bref abbreviation, and each is
+        queried against card_bot separately (most franchises are a single abbreviation across any
+        given range; a handful of modern relocations are 2-3 — see Team.for_year).
+        """
+        if self.connection is None:
+            return []
+        if team_abbr is None:
+            query = sql.SQL("""
+                SELECT cards.*, 'BOT' AS source
+                FROM card_bot AS cards
+                WHERE cards.year BETWEEN %s AND %s
+                    AND cards.showdown_set = %s
+                    AND COALESCE(cards.is_small_sample_size, false) = false
+                    AND COALESCE(cards.organization, 'MLB') = 'MLB'
+            """)
+            rows = self.execute_query(query=query, filter_values=(start_year, end_year, showdown_set))
+            return [ExploreDataRecord(**row) for row in (rows or [])]
+        base = Team.map_from_mlb_api_team(team_abbr)
+        if base in (Team.MLB, Team.MILB):
+            return []
+        ranges: list[tuple[str, int, int]] = []
+        current_abbr, range_start = None, start_year
+        for year in range(start_year, end_year + 1):
+            abbr = base.for_year(year).value
+            if abbr != current_abbr:
+                if current_abbr is not None:
+                    ranges.append((current_abbr, range_start, year - 1))
+                current_abbr, range_start = abbr, year
+        if current_abbr is not None:
+            ranges.append((current_abbr, range_start, end_year))
+
+        all_cards: list[ExploreDataRecord] = []
+        for abbr, y0, y1 in ranges:
+            query = sql.SQL("""
+                SELECT cards.*, 'BOT' AS source
+                FROM card_bot AS cards
+                WHERE cards.team_id = %s AND cards.year BETWEEN %s AND %s
+                    AND cards.showdown_set = %s
+                    AND COALESCE(cards.is_small_sample_size, false) = false
+                    AND COALESCE(cards.organization, 'MLB') = 'MLB'
+            """)
+            rows = self.execute_query(query=query, filter_values=(abbr, y0, y1, showdown_set))
+            all_cards.extend(ExploreDataRecord(**row) for row in (rows or []))
+        return all_cards
 
 # ------------------------------------------------------------------------
 # CARD DATA UPLOADS (BOT AND WOTC)
@@ -1541,6 +3006,17 @@ class PostgresDB:
             print("Error creating dim_card table:", e)
             traceback.print_exc()
             return False
+
+    def build_card_wotc_indexes(self) -> None:
+        """Ensure every card_wotc index exists. Idempotent; called by upload_wotc_card_data."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_wotc_card_id
+                ON card_wotc (card_id);
+            """)
+        print("  → Ensured card_wotc indexes exist.")
 
     def upload_wotc_card_data(self, wotc_card_data: list[ShowdownPlayerCard], drop_existing:bool=False) -> bool:
         """Upload WOTC card data to the database.
@@ -1710,6 +3186,8 @@ class PostgresDB:
             ]:
                 cursor.execute(f"ALTER TABLE card_wotc ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
             print("  → Ensured card_wotc columns are up to date.")
+
+            self.build_card_wotc_indexes()
 
             # CLEAR EXISTING DATA
             cursor.execute("DELETE FROM card_wotc;")
@@ -2913,22 +4391,10 @@ class PostgresDB:
             cursor.execute(upsert_query)
             rows_affected = cursor.rowcount
             print(f"  → Processed {rows_affected} records.")
-            
+
             # CREATE INDEXES IF NOT EXISTS
-            cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version 
-                ON card_bot (id, showdown_set, showdown_bot_version);
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_card_bot_modified_dates 
-                ON card_bot (stats_modified_date, card_modified_date);
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_card_bot_updated_at 
-                ON card_bot (updated_at);
-            """)
-            print("  → Ensured indexes exist.")
-            
+            self.build_card_bot_indexes()
+
             # RUN ANALYZE
             cursor.execute("ANALYZE card_bot;")
             print("  → Analyzed card_bot table.")
@@ -2962,6 +4428,93 @@ class PostgresDB:
         finally:
             if cursor:
                 cursor.close()
+
+    def build_card_bot_indexes(self) -> None:
+        """Ensure every card_bot index exists. Idempotent; called at the end of build_card_bot_view."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version
+                ON card_bot (id, showdown_set, showdown_bot_version);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_bot_modified_dates
+                ON card_bot (stats_modified_date, card_modified_date);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_bot_updated_at
+                ON card_bot (updated_at);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_bot_card_id
+                ON card_bot (card_id);
+            """)
+            print("  → Ensured indexes exist.")
+
+            # EXPLORE / CARD SEARCH INDEXES (fetch_card_list)
+            # Built CONCURRENTLY so the explore page isn't blocked while they build - requires
+            # running outside a transaction, which holds because the pool sets autocommit. A
+            # failed CONCURRENTLY build leaves an INVALID index behind; drop it and rerun.
+            #
+            # idx_card_bot_set_points: the default explore query is `showdown_set = X AND
+            # organization = 'MLB' AND NOT is_small_sample_size ORDER BY points DESC NULLS LAST,
+            # bref_id, year LIMIT 50`. Leading with (set, points, bref_id, year) in the query's
+            # exact sort order lets the planner walk the index in order and stop after 50 matches
+            # instead of bitmap-scanning all ~92K rows of the set (~2KB each) into a top-N sort.
+            # organization / is_small_sample_size / year range are trailing key columns so they're
+            # checked inside the index (no heap fetch for rejected entries) without being required
+            # for the ordering - so the index still applies when those filters are absent.
+            #
+            # idx_card_bot_name_trgm: the `search` filter is `replace(lower(name), '.', '') ILIKE
+            # '%text%'`; a leading-wildcard pattern can only be indexed by pg_trgm. The expression
+            # must match the filter in fetch_card_list exactly for the planner to use it.
+            for index_sql in [
+                """
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_set_points
+                    ON card_bot (showdown_set, points DESC NULLS LAST, bref_id, year, organization, is_small_sample_size);
+                """,
+                "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
+                """
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_name_trgm
+                    ON card_bot USING gin (replace(lower(name), '.', '') gin_trgm_ops);
+                """,
+            ]:
+                try:
+                    cursor.execute(index_sql)
+                except Exception as e:
+                    print(f"  → Skipped index: {e}")
+
+    def build_app_schema(self) -> None:
+        """Create/upgrade every app-owned table and index in dependency order. Idempotent, so it
+        is safe to re-run; it only creates schema, it never populates data (the historical / era /
+        ASG roster imports under `showdown_bot teams` do that).
+
+        Order matters: sim_season FKs user_teams, sim_lobby references sim_job + user_teams, and
+        challenge tables ALTER both user_teams and sim_season.
+        """
+        if not self.connection:
+            print("No database connection available.")
+            return
+        steps = [
+            ("user_settings",             self.build_user_settings_table),
+            ("user_teams",                self.build_user_teams_table),
+            ("asg_roster",                self.build_asg_roster_table),
+            ("team_collection",           self.build_team_collection_table),
+            ("sim_job / sim_season",      self.build_sim_job_table),
+            ("sim_lobby",                 self.build_sim_lobby_tables),
+            ("challenge tables",          self.build_challenge_tables),
+            ("sim_game",                  self.build_sim_game_table),
+            ("historical team tables",    self.build_historical_team_tables),
+            ("era team tables",           self.build_era_team_tables),
+            ("card_bot indexes",          self.build_card_bot_indexes),
+            ("card_wotc indexes",         self.build_card_wotc_indexes),
+            ("player_season_stats",       self.create_player_season_stats_table),
+        ]
+        for label, step in steps:
+            print(f"→ {label}...")
+            step()
+        print("✅ Schema up to date.")
 
     def build_team_search_view(self, drop_existing:bool = False) -> None:
         """Build or refresh the team_search materialized view. Used in the explore for filtering
@@ -3067,6 +4620,18 @@ class PostgresDB:
             db_cursor.execute(create_table_statement)
         except:
             return
+
+        # Every season-scoped read (sim playing-time probe, fetch_all_stats_from_archive) filters
+        # on `year` plus `historical_date IS NULL` / `= date`; without this the table's only index
+        # is the PK, so each one seq-scans ~94K rows (~160MB, 600ms+) to return one season.
+        # CONCURRENTLY so archive writes aren't blocked - fine here since the pool sets autocommit.
+        try:
+            db_cursor.execute(f"""
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_player_season_stats{table_suffix}_year_snapshot
+                    ON player_season_stats{table_suffix} (year, historical_date);
+            """)
+        except Exception as e:
+            print(f"Skipped idx_player_season_stats{table_suffix}_year_snapshot: {e}")
 
     def build_auto_image_table(self, refresh_explore: bool=False, drop_existing:bool = False) -> None:
         """Creates and replaces the internal.dim_auto_image table in the database."""
@@ -3455,13 +5020,32 @@ class PostgresDB:
         with self.connection.cursor() as cur:
             cur.execute(schema_sql)
             cur.execute(table_sql)
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ADD COLUMN IF NOT EXISTS default_primary_color VARCHAR(50) DEFAULT '#1a3b5f';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ADD COLUMN IF NOT EXISTS default_secondary_color VARCHAR(50) DEFAULT '#9a362f';
+            """)
+            # ADD COLUMN IF NOT EXISTS above is a no-op once the column already exists, so it
+            # won't pick up a changed DEFAULT on an already-migrated DB. Re-assert it here.
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ALTER COLUMN default_primary_color SET DEFAULT '#1a3b5f';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ALTER COLUMN default_secondary_color SET DEFAULT '#9a362f';
+            """)
 
     def get_user_settings(self, user_id: str) -> dict | None:
         """Fetch settings for the given Supabase user UUID. Returns None if no row exists."""
         if not self.connection:
             return None
         query = """
-            SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url
+            SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url,
+                   default_primary_color, default_secondary_color
             FROM internal.user_settings
             WHERE user_id = %s
         """
@@ -3581,7 +5165,10 @@ class PostgresDB:
         """Insert or update user settings. Only keys present in settings_dict are written."""
         if not self.connection or not settings_dict:
             return
-        ALLOWED = {'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url'}
+        ALLOWED = {
+            'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url',
+            'default_primary_color', 'default_secondary_color',
+        }
         fields = {k: v for k, v in settings_dict.items() if k in ALLOWED}
         if not fields:
             return
@@ -3690,14 +5277,23 @@ class PostgresDB:
 # USER TEAMS
 # ------------------------------------------------------------------------
 
-    # roster slots live in user_team_roster; lineups/rotation stay as JSONB
+    # Roster slots live in user_team_roster; the rotation and the computed "Default" lineup are
+    # derived from it on read. Each roster slot carries the chart/real stats the default batting
+    # order is built from (see LineupBuilder) — null for WBC/CUSTOM cards, which the builder
+    # tolerates and sorts last. User-created lineups come from the pre-aggregated `ul` LATERAL:
+    # it must stay a LATERAL rather than a plain join, or it would fan out against the
+    # one-to-many roster join and corrupt both json_agg(roster) and SUM(total_points).
     _TEAM_BASE_SELECT = """
         SELECT
             t.team_id, t.user_id, t.name, t.abbreviation,
             t.primary_color, t.secondary_color,
-            t.is_public, t.source,
+            t.is_public, t.source, t.logo_url, t.is_archived,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
-            t.lineups, t.rotation, t.created_at, t.updated_at, t.allowed_sets, t.player_filters, t.allowed_card_sources,
+            t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
+            t.origin_template_id, t.creation_source,
+            t.view_count, t.like_count, t.fork_count, t.forked_from_id,
+            t.collection_slug, t.subtitle, t.credit, t.collection_sort_index,
+            t.published_by, t.published_at, t.origin_published_from, t.strategy_deck,
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -3705,22 +5301,113 @@ class PostgresDB:
                         'card_source',     r.card_source,
                         'roster_position', r.roster_position,
                         'draft_order',     r.draft_order,
-                        'pick_source',     r.pick_source
+                        'pick_source',     r.pick_source,
+                        'points',          COALESCE(cb.points, cw.points),
+                        'command',         COALESCE(cb.command, cw.command),
+                        'outs',            COALESCE(cb.outs, cw.outs),
+                        'speed',           COALESCE(cb.speed, cw.speed),
+                        'onbase_perc',     COALESCE(cb.real_onbase_perc, cw.real_onbase_perc),
+                        'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc),
+                        'team',            COALESCE(cb.team, cw.team),
+                        'hand',            COALESCE(cb.hand, cw.hand),
+                        'year',            COALESCE(cb.year, cw.year),
+                        'positions_and_defense', COALESCE(cb.positions_and_defense, cw.positions_and_defense),
+                        'chart_ranges',    COALESCE(cb.chart_ranges, cw.chart_ranges)
                     ) ORDER BY r.sort_order, r.id
                 ) FILTER (WHERE r.card_id IS NOT NULL),
                 '[]'::json
             ) AS roster,
             COALESCE(SUM(
                 CASE
-                    WHEN r.roster_position IN ('BE', 'RP')
+                    WHEN r.roster_position = 'BE'
                     THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
                     ELSE COALESCE(cb.points, cw.points, 0)
                 END
-            ), 0)::int AS total_points
+            ), 0)::int AS total_points,
+            COALESCE(MAX(ul.lineups::text)::json, '[]'::json) AS lineups
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
+        LEFT JOIN LATERAL (
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year,
+                   positions_and_defense, chart_ranges
+            FROM card_bot  WHERE card_id = r.card_id LIMIT 1
+        ) cb ON r.card_source = 'BOT'
+        LEFT JOIN LATERAL (
+            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year AS year,
+                   positions_and_defense, chart_ranges
+            FROM card_wotc WHERE card_id = r.card_id LIMIT 1
+        ) cw ON r.card_source = 'WOTC'
+        LEFT JOIN LATERAL (
+            SELECT json_agg(g.lineup ORDER BY g.lineup_index) AS lineups
+            FROM (
+                SELECT
+                    l.lineup_index,
+                    json_build_object(
+                        'name',  MIN(l.lineup_name),
+                        'index', l.lineup_index,
+                        'slots', json_agg(
+                            json_build_object(
+                                'card_id',       l.card_id,
+                                'card_source',   l.card_source,
+                                'batting_order', l.batting_order
+                            ) ORDER BY l.batting_order
+                        )
+                    ) AS lineup
+                FROM internal.user_team_lineups l
+                WHERE l.team_id = t.team_id
+                GROUP BY l.lineup_index
+            ) g
+        ) ul ON TRUE
+    """
+
+    # Lightweight per-team summary for the teams-list/carousel views. Avoids returning
+    # the full roster: only counts, total_points, and the top-3 player refs (hydrated
+    # into full card records afterwards via fetch_card_list).
+    _TEAM_SUMMARY_SELECT = """
+        SELECT
+            t.team_id, t.user_id, t.name, t.abbreviation,
+            t.primary_color, t.secondary_color,
+            t.is_public, t.source, t.logo_url, t.is_archived,
+            t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
+            t.allowed_sets, t.allowed_sets_by_source, t.allowed_card_sources, t.created_at, t.updated_at,
+            t.origin_template_id, t.creation_source,
+            t.view_count, t.like_count, t.fork_count, t.forked_from_id,
+            t.collection_slug, t.subtitle, t.credit, t.collection_sort_index,
+            p.username AS creator_username,
+            COUNT(r.card_id) AS roster_count,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH')) AS filled_field,
+            COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]')                                    AS filled_starters,
+            COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL'))                                   AS filled_bullpen,
+            COUNT(*) FILTER (WHERE r.roster_position = 'BE')                                           AS filled_bench,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.roster_position = 'BE'
+                    THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
+                    ELSE COALESCE(cb.points, cw.points, 0)
+                END
+            ), 0)::int AS total_points,
+            COALESCE(tp.refs, '[]'::jsonb) AS top_player_refs
+        FROM internal.user_teams t
+        LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
+        LEFT JOIN public.profiles p ON p.id::text = t.user_id
         LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = r.card_id LIMIT 1) cb ON r.card_source = 'BOT'
         LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = r.card_id LIMIT 1) cw ON r.card_source = 'WOTC'
+        LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+                jsonb_build_object('card_id', x.card_id, 'card_source', x.card_source)
+                ORDER BY x.pts DESC
+            ) AS refs
+            FROM (
+                SELECT rr.card_id, rr.card_source,
+                       COALESCE(cbx.points, cwx.points, 0) AS pts
+                FROM internal.user_team_roster rr
+                LEFT JOIN LATERAL (SELECT points FROM card_bot  WHERE card_id = rr.card_id LIMIT 1) cbx ON rr.card_source = 'BOT'
+                LEFT JOIN LATERAL (SELECT points FROM card_wotc WHERE card_id = rr.card_id LIMIT 1) cwx ON rr.card_source = 'WOTC'
+                WHERE rr.team_id = t.team_id
+                ORDER BY pts DESC
+                LIMIT 3
+            ) x
+        ) tp ON TRUE
     """
 
     def build_user_teams_table(self) -> None:
@@ -3745,8 +5432,6 @@ class PostgresDB:
                     min_bench            INT          DEFAULT 4,
                     min_bullpen          INT          DEFAULT 5,
                     bench_pts_multiplier FLOAT        DEFAULT 1.0,
-                    lineups              JSONB        DEFAULT '[]',
-                    rotation             JSONB        DEFAULT '[]',
                     created_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
                     updated_at           TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
                 );
@@ -3842,40 +5527,259 @@ class PostgresDB:
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS allowed_card_sources TEXT[] DEFAULT '{}';
             """)
+            # Per-source set restrictions ({"BOT": ["2002"], "WOTC": ["2000","2001"]}). Teams
+            # predating this column fall back to the flat allowed_sets (see Team.sets_for_source).
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS allowed_sets_by_source JSONB DEFAULT '{}';
+            """)
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS logo_url TEXT;
+            """)
+            # Owner-toggled "hide this team" flag. Archived teams drop out of the owner's
+            # team list (still reachable by direct link) and are excluded from every public
+            # listing regardless of is_public — unarchiving restores their prior visibility.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;
+            """)
+            # How the team was first created, so it can be filtered later. Free-form text set by
+            # the create route: 'new_team' (plain New Team button), 'challenge' (the New Team
+            # button on a ChallengeCard), 'fork' (copied from another team). NULL for teams
+            # predating this column and for admin/CLI inserts.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS creation_source TEXT;
+            """)
+            # Curation metadata for admin-published teams (source = 'official'). `collection_slug`
+            # groups a team under a browseable collection (internal.team_collection); `subtitle` /
+            # `credit` are the display blurb + attribution; `collection_sort_index` orders tiles
+            # within the collection. `strategy_deck` holds card-count JSON for a curated tournament
+            # team. The three `published_*` fields are audit only. All NULL for drafted user teams.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS collection_slug        TEXT,
+                    ADD COLUMN IF NOT EXISTS subtitle               TEXT,
+                    ADD COLUMN IF NOT EXISTS credit                 TEXT,
+                    ADD COLUMN IF NOT EXISTS collection_sort_index  INT,
+                    ADD COLUMN IF NOT EXISTS strategy_deck          JSONB DEFAULT '{}',
+                    ADD COLUMN IF NOT EXISTS published_by           TEXT,
+                    ADD COLUMN IF NOT EXISTS published_at           TIMESTAMP WITHOUT TIME ZONE,
+                    ADD COLUMN IF NOT EXISTS origin_published_from   UUID;
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_teams_collection
+                    ON internal.user_teams (collection_slug)
+                    WHERE collection_slug IS NOT NULL;
+            """)
+            # View/like/fork counters. Only meaningful for teams reachable from Browse
+            # (is_public = TRUE or source = 'official'), but tracked on every row for
+            # uniformity — private teams simply never accrue any since Browse can't reach them.
+            # `forked_from_id` records lineage whenever a team is created via Fork, regardless of
+            # the source team's visibility (forking is allowed from any team the user can open).
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS view_count  INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS like_count  INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS fork_count  INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS forked_from_id UUID
+                        REFERENCES internal.user_teams(team_id) ON DELETE SET NULL;
+            """)
+            # Per-user likes. The UNIQUE constraint makes liking idempotent (one like per user
+            # per team) and is what a "did I like this" lookup queries against.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_team_likes (
+                    id         BIGSERIAL PRIMARY KEY,
+                    team_id    UUID NOT NULL REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    user_id    TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (team_id, user_id)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_likes_team_id
+                    ON internal.user_team_likes (team_id);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_likes_user_id
+                    ON internal.user_team_likes (user_id);
+            """)
+            # lineups/rotation are now derived from the roster (user_team_roster.roster_position),
+            # so drop the redundant JSONB columns.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    DROP COLUMN IF EXISTS lineups,
+                    DROP COLUMN IF EXISTS rotation;
+            """)
+            # User-created batting orders. One row per lineup slot. The team's "Default"
+            # lineup is computed on read and is never stored here. Defensive position is
+            # not stored either — it belongs to user_team_roster.roster_position.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_team_lineups (
+                    id            BIGSERIAL PRIMARY KEY,
+                    team_id       UUID NOT NULL REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    lineup_index  INT  NOT NULL,
+                    lineup_name   TEXT NOT NULL,
+                    card_id       TEXT NOT NULL,
+                    card_source   TEXT NOT NULL DEFAULT 'BOT',
+                    batting_order INT  NOT NULL,
+                    updated_at    TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_team_lineups_team_id
+                    ON internal.user_team_lineups (team_id);
+            """)
 
-    def get_user_teams(self, user_id: str) -> list[dict]:
-        """Return all teams belonging to user_id, newest first."""
+    def build_team_collection_table(self) -> None:
+        """Create internal.team_collection — the browseable groupings for admin-published teams.
+
+        Hand-authored (via the admin UI or the `teams collections` CLI) and rarely change.
+        A team joins a collection through internal.user_teams.collection_slug. Run after
+        build_user_teams_table.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.team_collection (
+                    slug         TEXT PRIMARY KEY,
+                    title        TEXT NOT NULL,
+                    description  TEXT,
+                    cover_emoji  TEXT,
+                    sort_index   INT NOT NULL DEFAULT 0,
+                    is_visible   BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+
+    # ------------------------------------------------------------------
+    # TEAM COLLECTIONS (admin-curated groupings)
+    # ------------------------------------------------------------------
+
+    def get_team_collections(self, include_hidden: bool = False) -> list[dict]:
+        """Return collections ordered by sort_index, each with a `team_count`.
+
+        `include_hidden=False` (the public path) drops collections flagged is_visible = FALSE.
+        """
         if not self.connection:
             return []
-        query = self._TEAM_BASE_SELECT + """
+        where = "" if include_hidden else "WHERE c.is_visible = TRUE"
+        query = f"""
+            SELECT c.slug, c.title, c.description, c.cover_emoji, c.sort_index, c.is_visible,
+                   COUNT(t.team_id) FILTER (
+                       WHERE t.is_public = TRUE AND t.source = 'official' AND t.is_archived = FALSE
+                   ) AS team_count
+            FROM internal.team_collection c
+            LEFT JOIN internal.user_teams t ON t.collection_slug = c.slug
+            {where}
+            GROUP BY c.slug
+            ORDER BY c.sort_index ASC, c.title ASC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query)
+            rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r['team_count'] = int(r.get('team_count') or 0)
+        return rows
+
+    def upsert_team_collection(self, slug: str, **fields) -> dict:
+        """Insert or update a collection. `fields` may include title, description, cover_emoji,
+        sort_index, is_visible. Returns the stored row."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        allowed = {'title', 'description', 'cover_emoji', 'sort_index', 'is_visible'}
+        data = {k: v for k, v in fields.items() if k in allowed and v is not None}
+        cols = ['slug'] + list(data.keys())
+        vals = [slug] + list(data.values())
+        updates = ', '.join(f"{k} = EXCLUDED.{k}" for k in data) or "slug = EXCLUDED.slug"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""INSERT INTO internal.team_collection ({', '.join(cols)})
+                    VALUES ({', '.join(['%s'] * len(cols))})
+                    ON CONFLICT (slug) DO UPDATE SET {updates}, updated_at = NOW()
+                    RETURNING slug, title, description, cover_emoji, sort_index, is_visible""",
+                vals,
+            )
+            return dict(cur.fetchone())
+
+    def delete_team_collection(self, slug: str) -> str | None:
+        """Delete a collection. Refuses (returns 'in_use') while any team references it, else
+        returns 'deleted', or None if no such collection."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM internal.user_teams WHERE collection_slug = %s LIMIT 1", (slug,)
+            )
+            if cur.fetchone():
+                return 'in_use'
+            cur.execute("DELETE FROM internal.team_collection WHERE slug = %s", (slug,))
+            return 'deleted' if cur.rowcount > 0 else None
+
+    def get_user_teams(self, user_id: str) -> list[dict]:
+        """Return lightweight summaries for all teams belonging to user_id, newest first."""
+        if not self.connection:
+            return []
+        query = self._TEAM_SUMMARY_SELECT + """
             WHERE t.user_id = %s
-            GROUP BY t.team_id
+            GROUP BY t.team_id, tp.refs, p.username
             ORDER BY t.updated_at DESC
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (user_id,))
-            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+        return self._serialize_team_summaries(rows, user_id=user_id)
 
-    def get_public_teams(self, source: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
-        """Return public teams, optionally filtered by source ('official', 'asg', 'user')."""
+    def get_public_teams(
+        self,
+        source: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        q: str | None = None,
+        collection: str | None = None,
+        user_id: str | None = None,
+    ) -> list[dict]:
+        """Return public teams, optionally filtered by source and a name search.
+
+        `source` accepts a single value ('official', 'asg', 'user') or a comma-separated list
+        ('official,user') for the unified Browse view. `collection` narrows to one curated
+        collection's teams (implies the official source).
+        """
         if not self.connection:
             return []
-        conditions = ["t.is_public = TRUE"]
+        # Challenge-created teams are public by default (so their sim results show on the
+        # Community feed), but they're purpose-built for one challenge attempt, not something
+        # to browse or fork - so they're excluded from this listing regardless of source filter.
+        conditions = ["t.is_public = TRUE", "t.is_archived = FALSE", "t.creation_source IS DISTINCT FROM 'challenge'"]
         params: list = []
-        if source:
-            conditions.append("t.source = %s")
-            params.append(source)
+        sources = [s.strip() for s in source.split(',')] if source else []
+        sources = [s for s in sources if s]
+        if sources:
+            conditions.append("t.source = ANY(%s)")
+            params.append(sources)
+        if collection:
+            conditions.append("t.collection_slug = %s")
+            params.append(collection)
+        if q:
+            conditions.append("(t.name ILIKE %s OR t.abbreviation ILIKE %s)")
+            like = f"%{q}%"
+            params.extend([like, like])
         where = " AND ".join(conditions)
-        query = self._TEAM_BASE_SELECT + f"""
+        query = self._TEAM_SUMMARY_SELECT + f"""
             WHERE {where}
-            GROUP BY t.team_id
-            ORDER BY t.source ASC, t.name ASC
+            GROUP BY t.team_id, tp.refs, p.username
+            ORDER BY t.source ASC, t.collection_sort_index ASC NULLS LAST, t.name ASC
             LIMIT %s OFFSET %s
         """
         params += [limit, offset]
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
-            return [self._serialize_team_row(dict(r)) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+        return self._serialize_team_summaries(rows, user_id=user_id)
 
     def get_team(self, team_id: str, user_id: str | None = None) -> dict | None:
         """Return a single team by team_id. Enforces ownership unless is_public or user_id is None."""
@@ -3892,14 +5796,75 @@ class PostgresDB:
             if not row:
                 print(f"Team {team_id} not found or access denied for user {user_id}.")
                 return None
-            return self._serialize_team_row(dict(row))
-        
+            row = dict(row)
+            if user_id is not None:
+                cur.execute(
+                    "SELECT 1 FROM internal.user_team_likes WHERE team_id = %s AND user_id = %s",
+                    (team_id, user_id),
+                )
+                row['liked_by_me'] = bool(cur.fetchone())
+            return self._serialize_team_row(row)
+
+    def record_team_view(self, team_id: str) -> None:
+        """Increment a team's view counter. Fire-and-forget — the caller (route) has already
+        decided this view should count (e.g. skipping the team's own owner)."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.user_teams SET view_count = view_count + 1 WHERE team_id = %s",
+                (team_id,),
+            )
+
+    def toggle_team_like(self, team_id: str, user_id: str) -> dict | None:
+        """Like the team if user_id hasn't already liked it, else unlike it.
+        Returns {'liked': bool, 'like_count': int}, or None if the team doesn't exist."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute("SELECT 1 FROM internal.user_teams WHERE team_id = %s", (team_id,))
+            if not cur.fetchone():
+                return None
+            cur.execute(
+                "DELETE FROM internal.user_team_likes WHERE team_id = %s AND user_id = %s",
+                (team_id, user_id),
+            )
+            if cur.rowcount > 0:
+                cur.execute(
+                    "UPDATE internal.user_teams SET like_count = GREATEST(like_count - 1, 0) "
+                    "WHERE team_id = %s RETURNING like_count",
+                    (team_id,),
+                )
+                liked = False
+            else:
+                cur.execute(
+                    "INSERT INTO internal.user_team_likes (team_id, user_id) VALUES (%s, %s) "
+                    "ON CONFLICT (team_id, user_id) DO NOTHING",
+                    (team_id, user_id),
+                )
+                cur.execute(
+                    "UPDATE internal.user_teams SET like_count = like_count + 1 "
+                    "WHERE team_id = %s RETURNING like_count",
+                    (team_id,),
+                )
+                liked = True
+            like_count = cur.fetchone()[0]
+        return {'liked': liked, 'like_count': like_count}
+
     def create_team(self, user_id: str | None, payload: dict) -> str:
-        """Insert a new team row and return the generated team_id UUID string."""
+        """Insert a new team row and return the generated team_id UUID string.
+        If payload carries forked_from_id, also increments that source team's fork_count."""
         if not self.connection:
             raise RuntimeError("No database connection")
         roster = payload.get('roster', [])
+        lineups = payload.get('lineups', [])
         fields = self._team_payload_fields(payload)
+        # `forked_from_id` is a UUID column, but the fork source may be a synthetic team (source
+        # 'mlb'/'asg') that's synthesized on-the-fly and never persisted to user_teams — its
+        # team_id (e.g. "era-ALL_TIME-1-0-2005") isn't a real row, so there's nothing to link.
+        forked_from_id = fields.get('forked_from_id')
+        if forked_from_id and not _is_uuid(forked_from_id):
+            fields.pop('forked_from_id')
         cols = ', '.join(['user_id'] + list(fields.keys()))
         placeholders = ', '.join(['%s'] * (1 + len(fields)))
         values = [user_id] + [
@@ -3913,6 +5878,13 @@ class PostgresDB:
             )
             team_id = str(cur.fetchone()[0])
             self._upsert_roster(cur, team_id, roster)
+            self._upsert_lineups(cur, team_id, lineups)
+            forked_from_id = fields.get('forked_from_id')
+            if forked_from_id:
+                cur.execute(
+                    "UPDATE internal.user_teams SET fork_count = fork_count + 1 WHERE team_id = %s",
+                    (forked_from_id,),
+                )
         return team_id
 
     def update_team(self, team_id: str, user_id: str, payload: dict) -> bool:
@@ -3920,8 +5892,9 @@ class PostgresDB:
         if not self.connection:
             return False
         roster = payload.get('roster')
+        lineups = payload.get('lineups')
         fields = self._team_payload_fields(payload)
-        if not fields and roster is None:
+        if not fields and roster is None and lineups is None:
             return False
         with self.connection.cursor() as cur:
             if fields:
@@ -3936,16 +5909,18 @@ class PostgresDB:
                 )
                 if cur.rowcount == 0:
                     return False
+            if (roster is not None or lineups is not None) and not fields:
+                # Verify ownership when only child tables are changing
+                cur.execute(
+                    "SELECT 1 FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
+                    (team_id, user_id),
+                )
+                if not cur.fetchone():
+                    return False
             if roster is not None:
-                if not fields:
-                    # Verify ownership when only the roster is changing
-                    cur.execute(
-                        "SELECT 1 FROM internal.user_teams WHERE team_id = %s AND user_id = %s",
-                        (team_id, user_id),
-                    )
-                    if not cur.fetchone():
-                        return False
                 self._upsert_roster(cur, team_id, roster)
+            if lineups is not None:
+                self._upsert_lineups(cur, team_id, lineups)
         return True
 
     def delete_team(self, team_id: str, user_id: str) -> bool:
@@ -3961,13 +5936,14 @@ class PostgresDB:
 
     def admin_upsert_team(self, payload: dict) -> str:
         """Insert or update a team with no user_id ownership check (admin/CLI use only).
-        If team_id is present in payload, attempts UPDATE first, then INSERT on miss.
-        Returns team_id."""
+        If team_id is present in payload, attempts UPDATE first, then INSERT on miss (keeping
+        the caller-supplied team_id, so bulk imports are idempotent). Returns team_id."""
         if not self.connection:
             raise RuntimeError("No database connection")
         roster = payload.get('roster', [])
+        lineups = payload.get('lineups', [])
         team_id = payload.get('team_id')
-        fields = self._team_payload_fields(payload)
+        fields = self._admin_team_payload_fields(payload)
         with self.connection.cursor() as cur:
             if team_id:
                 set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
@@ -3981,10 +5957,12 @@ class PostgresDB:
                 )
                 if cur.rowcount > 0:
                     self._upsert_roster(cur, team_id, roster)
+                    self._upsert_lineups(cur, team_id, lineups)
                     return team_id
-            cols = ', '.join(['user_id'] + list(fields.keys()))
-            placeholders = ', '.join(['%s'] * (1 + len(fields)))
-            values = [None] + [
+            has_id = bool(team_id)
+            cols = ', '.join((['team_id'] if has_id else []) + ['user_id'] + list(fields.keys()))
+            placeholders = ', '.join(['%s'] * ((1 if has_id else 0) + 1 + len(fields)))
+            values = ([team_id] if has_id else []) + [None] + [
                 PostgresDB._serialize_team_field(k, v)
                 for k, v in fields.items()
             ]
@@ -3994,7 +5972,94 @@ class PostgresDB:
             )
             team_id = str(cur.fetchone()[0])
             self._upsert_roster(cur, team_id, roster)
+            self._upsert_lineups(cur, team_id, lineups)
             return team_id
+
+    def admin_update_team(self, team_id: str, payload: dict) -> bool:
+        """Update a team by id with no ownership check (admin only). Writes the admin-writable
+        column set plus roster/lineups when present. Returns True if the row exists."""
+        if not self.connection:
+            return False
+        roster = payload.get('roster')
+        lineups = payload.get('lineups')
+        fields = self._admin_team_payload_fields(payload)
+        with self.connection.cursor() as cur:
+            cur.execute("SELECT 1 FROM internal.user_teams WHERE team_id = %s", (team_id,))
+            if not cur.fetchone():
+                return False
+            if fields:
+                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                values = [PostgresDB._serialize_team_field(k, v) for k, v in fields.items()]
+                cur.execute(
+                    f"UPDATE internal.user_teams SET {set_clause}, updated_at = NOW() WHERE team_id = %s",
+                    values + [team_id],
+                )
+            if roster is not None:
+                self._upsert_roster(cur, team_id, roster)
+            if lineups is not None:
+                self._upsert_lineups(cur, team_id, lineups)
+        return True
+
+    def admin_delete_team(self, team_id: str) -> bool:
+        """Delete a team by id with no ownership check (admin only). Returns True if a row went."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("DELETE FROM internal.user_teams WHERE team_id = %s", (team_id,))
+            return cur.rowcount > 0
+
+    def find_published_team_id(self, origin_team_id: str) -> str | None:
+        """The curated ('official') team previously published from `origin_team_id`, if any."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "SELECT team_id FROM internal.user_teams "
+                "WHERE origin_published_from = %s AND source = 'official' LIMIT 1",
+                (origin_team_id,),
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
+    def resolve_wotc_card(
+        self, name: str, showdown_set: str | None = None, year: str | int | None = None,
+        team: str | None = None, limit: int = 8,
+    ) -> list[dict]:
+        """Fuzzy-match a player name against card_wotc for the CLI tournament importer.
+
+        Returns candidate rows (card_id, name, year, showdown_set, team, points, is_pitcher)
+        ranked by match quality then points. `showdown_set` / `year` / `team` narrow the pool
+        when the source file supplies them.
+        """
+        if not self.connection:
+            return []
+        conditions = ["name ILIKE %s"]
+        params: list = [f"%{name}%"]
+        if showdown_set:
+            conditions.append("showdown_set = %s")
+            params.append(str(showdown_set))
+        if year is not None:
+            conditions.append("year = %s")
+            params.append(str(year))
+        if team:
+            conditions.append("team = %s")
+            params.append(team.upper())
+        params.extend([name.lower(), f"{name.lower()}%", limit])
+        query = f"""
+            SELECT card_id, name, year, showdown_set, team, points, is_pitcher,
+                   CASE
+                       WHEN LOWER(name) = %s THEN 1
+                       WHEN LOWER(name) LIKE %s THEN 2
+                       ELSE 3
+                   END AS match_rank
+            FROM card_wotc
+            WHERE {' AND '.join(conditions)} AND card_id IS NOT NULL
+            ORDER BY match_rank ASC, points DESC NULLS LAST
+            LIMIT %s
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            return [dict(r) for r in cur.fetchall()]
 
     @staticmethod
     def _upsert_roster(cur, team_id: str, roster: list) -> None:
@@ -4022,7 +6087,40 @@ class PostgresDB:
             VALUES %s
         """, batch)
 
-    _TEAM_JSONB_FIELDS = frozenset({'lineups', 'rotation', 'player_filters'})
+    @staticmethod
+    def _upsert_lineups(cur, team_id: str, lineups: list) -> None:
+        """Replace all user-created lineups for a team in user_team_lineups.
+
+        The computed 'Default' lineup is never stored, so callers are expected to have
+        filtered it out (see validation in the PUT route).
+        """
+        cur.execute("DELETE FROM internal.user_team_lineups WHERE team_id = %s", (team_id,))
+        if not lineups:
+            return
+        now = datetime.now(tz=timezone.utc)
+        batch = [
+            (
+                team_id,
+                lineup_index,
+                lineup.get('name') or f'Lineup {lineup_index}',
+                slot['card_id'],
+                slot.get('card_source', 'BOT'),
+                slot['batting_order'],
+                now,
+            )
+            # lineup_index starts at 1 — index 0 is reserved for the computed Default
+            for lineup_index, lineup in enumerate(lineups, start=1)
+            for slot in lineup.get('slots') or []
+        ]
+        if not batch:
+            return
+        execute_values(cur, """
+            INSERT INTO internal.user_team_lineups
+                (team_id, lineup_index, lineup_name, card_id, card_source, batting_order, updated_at)
+            VALUES %s
+        """, batch)
+
+    _TEAM_JSONB_FIELDS = frozenset({'player_filters', 'allowed_sets_by_source', 'strategy_deck'})
 
     @staticmethod
     def _serialize_team_field(key: str, value) -> object:
@@ -4031,24 +6129,130 @@ class PostgresDB:
             return extras.Json(value)
         return value
 
+    # Columns a team's owner may write through the normal create/update routes. `source` and the
+    # curation columns are deliberately absent — only the admin routes (_ADMIN_TEAM_FIELDS) set
+    # those, so a user can't self-publish a team as 'official' or slot it into a collection.
+    _USER_TEAM_FIELDS = {
+        'name', 'abbreviation', 'primary_color', 'secondary_color',
+        'is_public', 'logo_url', 'is_archived',
+        'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
+        'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
+        'origin_template_id', 'creation_source', 'forked_from_id',
+    }
+    _ADMIN_TEAM_FIELDS = _USER_TEAM_FIELDS | {
+        'source', 'collection_slug', 'subtitle', 'credit', 'collection_sort_index',
+        'strategy_deck', 'published_by', 'published_at', 'origin_published_from',
+    }
+
     @staticmethod
     def _team_payload_fields(payload: dict) -> dict:
-        ALLOWED = {
-            'name', 'abbreviation', 'primary_color', 'secondary_color',
-            'is_public', 'source',
-            'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
-            'lineups', 'rotation', 'allowed_sets', 'player_filters', 'allowed_card_sources',
-        }
-        return {k: v for k, v in payload.items() if k in ALLOWED}
+        return {k: v for k, v in payload.items() if k in PostgresDB._USER_TEAM_FIELDS}
+
+    @staticmethod
+    def _admin_team_payload_fields(payload: dict) -> dict:
+        return {k: v for k, v in payload.items() if k in PostgresDB._ADMIN_TEAM_FIELDS}
 
     @staticmethod
     def _serialize_team_row(row: dict) -> dict:
+        from ..card.team_builder.team import derive_lineups_rotation
         row['team_id'] = str(row['team_id'])
         if row.get('created_at'):
             row['created_at'] = row['created_at'].isoformat()
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
+        row['is_archived'] = bool(row.get('is_archived'))
+        row['view_count'] = int(row.get('view_count') or 0)
+        row['like_count'] = int(row.get('like_count') or 0)
+        row['fork_count'] = int(row.get('fork_count') or 0)
+        row['forked_from_id'] = str(row['forked_from_id']) if row.get('forked_from_id') else None
+        row.setdefault('liked_by_me', False)
+        # The rotation and the 'Default' lineup are derived from the roster; user-created
+        # lineups come off the row and are re-indexed behind the Default.
+        row['lineups'], row['rotation'] = derive_lineups_rotation(
+            row.get('roster') or [], row.get('lineups') or []
+        )
         return row
+
+    def _serialize_team_summaries(self, rows: list[dict], user_id: str | None = None) -> list[dict]:
+        """Finalize lightweight team-summary rows: hydrate top-3 player refs into full
+        card records (batched per source via fetch_card_list) and compute is_drafting.
+        When `user_id` is given, batches a single lookup of which of these teams they've
+        liked, rather than joining user_team_likes into the shared SELECT (which would
+        fan out against the existing one-to-many roster/lineup joins)."""
+        # Collect the unique top-player card ids per source across all teams
+        ids_by_source: dict[str, set] = {}
+        for row in rows:
+            for ref in (row.get('top_player_refs') or []):
+                ids_by_source.setdefault(ref['card_source'], set()).add(ref['card_id'])
+        # Hydrate in a single query per source, keyed by (source, card_id)
+        cards_by_key: dict[tuple, dict] = {}
+        for source, ids in ids_by_source.items():
+            id_list = list(ids)
+            records = self.fetch_card_list({'source': source, 'card_id': id_list, 'limit': len(id_list)}) or []
+            for rec in records:
+                cards_by_key[(source, rec.get('card_id'))] = rec
+        liked_team_ids: set = set()
+        if user_id and rows:
+            team_ids = [str(row['team_id']) for row in rows]
+            with self.connection.cursor() as cur:
+                cur.execute(
+                    "SELECT team_id FROM internal.user_team_likes WHERE user_id = %s AND team_id = ANY(%s::uuid[])",
+                    (user_id, team_ids),
+                )
+                liked_team_ids = {r[0] for r in cur.fetchall()}
+        return [self._serialize_team_summary_row(row, cards_by_key, liked_team_ids) for row in rows]
+
+    @staticmethod
+    def _serialize_team_summary_row(row: dict, cards_by_key: dict, liked_team_ids: set | None = None) -> dict:
+        team_id = row['team_id']
+        row['liked_by_me'] = bool(liked_team_ids) and team_id in liked_team_ids
+        row['team_id'] = str(team_id)
+        if row.get('created_at'):
+            row['created_at'] = row['created_at'].isoformat()
+        if row.get('updated_at'):
+            row['updated_at'] = row['updated_at'].isoformat()
+        row['roster_count'] = int(row.get('roster_count') or 0)
+        row['view_count'] = int(row.get('view_count') or 0)
+        row['like_count'] = int(row.get('like_count') or 0)
+        row['fork_count'] = int(row.get('fork_count') or 0)
+        row['forked_from_id'] = str(row['forked_from_id']) if row.get('forked_from_id') else None
+        # Synthetic (historical) summaries carry no creator — the key won't be on the row.
+        row.setdefault('creator_username', None)
+        # Synthetic (historical) summaries have no is_archived column — always treat as visible.
+        row['is_archived'] = bool(row.get('is_archived'))
+        row['is_drafting'] = PostgresDB._compute_is_drafting(row)
+        # Hydrate top players in ranked (ref) order, dropping any that no longer resolve
+        refs = row.pop('top_player_refs', None) or []
+        row['top_players'] = [
+            cards_by_key[(ref['card_source'], ref['card_id'])]
+            for ref in refs
+            if (ref['card_source'], ref['card_id']) in cards_by_key
+        ]
+        # Internal counts used only to compute is_drafting — not part of the payload
+        for key in ('filled_field', 'filled_starters', 'filled_bullpen', 'filled_bench'):
+            row.pop(key, None)
+        return row
+
+    @staticmethod
+    def _compute_is_drafting(row: dict) -> bool:
+        """Mirror the frontend isTeamDrafting thresholds using roster position counts."""
+        # Synthesized (mlb) and admin-curated (official) rosters are presented as finished
+        # regardless of shape — they're never drafted in the builder.
+        if row.get('source') in ('mlb', 'official'):
+            return False
+        if (row.get('filled_field') or 0) < 9:
+            return True
+        if (row.get('filled_starters') or 0) < (row.get('num_starters') or 0):
+            return True
+        if (row.get('filled_bench') or 0) < (row.get('min_bench') or 0):
+            return True
+        if (row.get('filled_bullpen') or 0) < (row.get('min_bullpen') or 0):
+            return True
+        # Past the hard minimums, roster_size slack can land in bench or bullpen (drafter's
+        # call), so the team isn't done until every roster slot is filled.
+        if (row.get('roster_count') or 0) < (row.get('roster_size') or 0):
+            return True
+        return False
 
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""
@@ -4119,7 +6323,8 @@ class PostgresDB:
                 thumbnail_storage_path text,
                 user_id text,
                 is_hidden boolean NOT NULL DEFAULT FALSE,
-                card_result jsonb
+                card_result jsonb,
+                generation_source character varying(64) NOT NULL DEFAULT 'web_customs_tab'
             );
         """
 
@@ -4134,6 +6339,10 @@ class PostgresDB:
             ALTER TABLE internal.log_custom_card_bot
                 ADD COLUMN IF NOT EXISTS is_hidden boolean NOT NULL DEFAULT FALSE;
         """
+        migrate_generation_source_sql = """
+            ALTER TABLE internal.log_custom_card_bot
+                ADD COLUMN IF NOT EXISTS generation_source character varying(64) NOT NULL DEFAULT 'web_customs_tab';
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(schema_check_sql)
@@ -4141,6 +6350,7 @@ class PostgresDB:
                 cur.execute(index_sql)
                 cur.execute(user_id_index_sql)
                 cur.execute(migrate_is_hidden_sql)
+                cur.execute(migrate_generation_source_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -6424,7 +8634,7 @@ class PostgresDB:
                                 if game.teams:
                                     for tl in [game.teams.home, game.teams.away]:
                                         if tl and tl.is_winner and tl.team and tl.team.abbreviation:
-                                            winner_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                            winner_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                             break
                                 game.decisions.winner.card = winner_card
                         if game.decisions.loser and game.decisions.loser.id:
@@ -6433,7 +8643,7 @@ class PostgresDB:
                                 if game.teams:
                                     for tl in [game.teams.home, game.teams.away]:
                                         if tl and not tl.is_winner and tl.team and tl.team.abbreviation:
-                                            loser_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                            loser_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                             break
                                 game.decisions.loser.card = loser_card
                     continue
@@ -6446,7 +8656,7 @@ class PostgresDB:
                             pitcher_card = card_dict.get(team.probable_pitcher.id)
                             if pitcher_card:
                                 if team.team and team.team.abbreviation:
-                                    pitcher_card.update_with_mlb_api_team(team.team.abbreviation)
+                                    pitcher_card.update_with_mlb_api_team(team.team.abbreviation, year=season)
                                 team.probable_pitcher.card = pitcher_card
                     continue
 
@@ -6458,7 +8668,7 @@ class PostgresDB:
                             if offense_team_ref and offense_team_ref.id and game.teams:
                                 for tl in [game.teams.away, game.teams.home]:
                                     if tl and tl.team and tl.team.id == offense_team_ref.id and tl.team.abbreviation:
-                                        batter_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                        batter_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                         break
                             game.linescore.offense.batter.card = batter_card
                     if game.linescore.defense and game.linescore.defense.pitcher and game.linescore.defense.pitcher.id:
@@ -6468,9 +8678,1424 @@ class PostgresDB:
                             if defense_team_ref and defense_team_ref.id and game.teams:
                                 for tl in [game.teams.away, game.teams.home]:
                                     if tl and tl.team and tl.team.id == defense_team_ref.id and tl.team.abbreviation:
-                                        pitcher_card.update_with_mlb_api_team(tl.team.abbreviation)
+                                        pitcher_card.update_with_mlb_api_team(tl.team.abbreviation, year=season)
                                         break
                             game.linescore.defense.pitcher.card = pitcher_card
         
         return schedule
         
+# -----------------------------------------------------------------------
+# SIMULATION JOBS
+# -----------------------------------------------------------------------
+
+    # A season sim takes 15-30s - too long for a request under Heroku's 30s router timeout, and
+    # too heavy to hold one of three gunicorn workers. The row is the shared state: whichever
+    # worker runs the sim writes progress here, and any worker can serve the client's polling.
+    # Only the projected summary is stored; the full ~6 MB result is discarded (see summary.py).
+
+    SIM_JOB_TTL_HOURS = 24 * 7
+    # Backstop only - the worker's own in-process watchdog (`_SIM_MAX_RUNTIME_SECONDS` in
+    # api/sim.py) fails a wedged job with a stack trace. This just catches the case that watchdog
+    # can't: the whole thread/process dying with it (dyno restart, OOM, crash).
+    #
+    # MUST STAY ABOVE `_SIM_MAX_RUNTIME_SECONDS`. Reaping is not a neutral observation - it flips
+    # the row terminal, and the worker's next progress write then raises `SimCancelled` and throws
+    # away a season that was still being computed. So this window has to clear the longest stretch
+    # a *healthy* run goes without writing, which is not the per-game loop (that ticks every
+    # second) but the silent tail: `Postseason.simulate` takes no callback, and neither does
+    # `SeasonSummaryBuilder.build` or the multi-MB `record_sim_season` insert after it.
+    SIM_JOB_STALE_MINUTES = 5
+
+    def build_sim_job_table(self) -> None:
+        """Create the sim_job table."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_job (
+                    job_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id         TEXT,
+                    team_id         UUID,
+                    status          TEXT NOT NULL DEFAULT 'queued',
+                    phase           TEXT,
+                    games_completed INT  NOT NULL DEFAULT 0,
+                    games_total     INT  NOT NULL DEFAULT 0,
+                    config          JSONB,
+                    summary         JSONB,
+                    error           TEXT,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    finished_at     TIMESTAMP WITHOUT TIME ZONE,
+                    expires_at      TIMESTAMP WITHOUT TIME ZONE
+                );
+            """)
+            # STRUCTURED DETAIL FOR A FAILURE THE `error` TEXT ONLY SUMMARIZES - CURRENTLY THE
+            # GAME STATE CAPTURED WHEN A SIMULATED GAME GETS STUCK (SEE `GameStuckError`).
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS error_context JSONB;")
+            # RUNNING GAME-BY-GAME RECORD FOR THE TAKEOVER CLUB, STREAMED WHILE THE SEASON PLAYS SO
+            # THE WEB PROGRESS SCREEN CAN ANIMATE ITS WIN% CHART LIVE (SEE `update_sim_job_progress`).
+            # `progress_games_total` IS THAT CLUB'S FULL SCHEDULED GAME COUNT, SO THE CHART CAN FIX
+            # ITS X-AXIS INSTEAD OF RESCALING AS POINTS ARRIVE.
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games JSONB;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games_total INT;")
+            # FORENSICS FOR A HUNG JOB: the last raw setup/roster breadcrumb the worker emitted,
+            # and the process it ran on (see `reap_stale_sim_jobs` / `update_sim_job_progress`).
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+            # WORKER PROCESS RSS AT START/END OF THE RUN (SEE `record_sim_job_memory`).
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS memory JSONB;")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_user_id ON internal.sim_job (user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_team_id ON internal.sim_job (team_id, created_at DESC);")
+            # DRIVES BOTH THE STALE-JOB REAPER AND TTL CLEANUP
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_job_status ON internal.sim_job (status) WHERE status IN ('queued', 'running');")
+
+            # RENAMED FROM sim_leaderboard: THE TABLE IS THE PERMANENT RECORD OF A PLAYED SEASON,
+            # NOT JUST A RANKING ROW.
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables
+                                WHERE table_schema = 'internal' AND table_name = 'sim_leaderboard')
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.tables
+                                        WHERE table_schema = 'internal' AND table_name = 'sim_season')
+                    THEN
+                        ALTER TABLE internal.sim_leaderboard RENAME TO sim_season;
+                    END IF;
+                END $$;
+            """)
+
+            # The permanent record of a played season. Job rows are transient progress tracking
+            # and expire; this holds the full result summary so a season stays viewable forever.
+            # Team branding is snapshotted because the team can be edited afterwards, but
+            # eligibility is *not* - `is_public` is joined live at read time so making a team
+            # private immediately removes it from other users' view.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_season (
+                    entry_id           BIGSERIAL PRIMARY KEY,
+                    job_id             UUID,
+                    user_id            TEXT,
+                    team_id            UUID REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    team_name          TEXT,
+                    team_abbreviation  TEXT,
+                    primary_color      TEXT,
+                    secondary_color    TEXT,
+                    year               INT  NOT NULL,
+                    showdown_set       TEXT,
+                    replaced_abbr      TEXT,
+                    wins               INT  NOT NULL DEFAULT 0,
+                    losses             INT  NOT NULL DEFAULT 0,
+                    win_pct            FLOAT NOT NULL DEFAULT 0,
+                    points             INT  NOT NULL DEFAULT 0,
+                    division           TEXT,
+                    division_rank      INT,
+                    made_playoffs      BOOLEAN DEFAULT FALSE,
+                    is_champion        BOOLEAN DEFAULT FALSE,
+                    longest_win_streak INT DEFAULT 0,
+                    seed               INT,
+                    summary            JSONB,
+                    created_at         TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            # The viewable result moved here from sim_job, which now only tracks progress.
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS summary JSONB;")
+            cur.execute("ALTER TABLE internal.sim_job DROP COLUMN IF EXISTS summary;")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_season_year ON internal.sim_season (year, wins DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_season_user ON internal.sim_season (user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_season_team ON internal.sim_season (team_id, created_at DESC);")
+            # One entry per job, so a retried write can never double-count a season.
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sim_season_job ON internal.sim_season (job_id);")
+
+    def build_challenge_tables(self) -> None:
+        """Create the challenge_template/challenge_instance tables and link them into
+        sim_season (the played result) and user_teams (the team built for one).
+
+        Templates are hand-authored and rarely change; instances are generated on a schedule from
+        them (see the `challenges rotate` CLI command) and expire after a week. Must run after
+        `build_sim_job_table` and `build_user_teams_tables` - it ALTERs both of those tables.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.challenge_template (
+                    template_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    slug            TEXT NOT NULL UNIQUE,
+                    title           TEXT NOT NULL,
+                    description     TEXT NOT NULL,
+                    goal_type       TEXT NOT NULL,   -- 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record'
+                    goal_value      JSONB,           -- e.g. {"min_wins": 90} or {"target_abbr": "NYY"}
+                    pts_limit       INT,             -- null = no cap
+                    roster_size     INT NOT NULL DEFAULT 25,          -- minimum roster size a team needs to take this on
+                    year_pool       TEXT NOT NULL DEFAULT 'any',      -- 'any' | comma list of years | 'random_range:1977,2024'
+                    replaces_pool   TEXT NOT NULL DEFAULT 'any',      -- 'any' | 'worst_record' | comma list of abbrs
+                    -- Same shape/semantics as user_teams.player_filters (min_year/max_year/team/
+                    -- hand/etc, applied generically by fetch_card_list) - restricts which players
+                    -- are eligible for a team built against this template. Null = no restriction.
+                    player_filters  JSONB,
+                    active          BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS player_filters JSONB;")
+            # MINIMUM ROSTER SIZE A TEAM NEEDS TO TAKE ON THE CHALLENGE - THE "USE AN EXISTING
+            # TEAM" PICKER FILTERS TO THIS, AND A CHALLENGE'S "NEW TEAM" IS PRE-SIZED TO IT.
+            # COPIED ONTO THE INSTANCE AT GENERATION TIME, SAME AS pts_limit.
+            cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS roster_size INT NOT NULL DEFAULT 25;")
+            # PRESENTATION GROUPING FOR THE CHALLENGES LIST (accent color + one-of-each weekly
+            # rotation) - 'legendary' | 'budget_cap' | 'superteam' | 'themed'. NOT A MECHANIC; THE
+            # goal_type/pts_limit/player_filters DO THE ACTUAL WORK. READ VIA A JOIN FROM THE
+            # INSTANCE (DISPLAY-ONLY, SO IT DOESN'T NEED SNAPSHOTTING LIKE pts_limit DOES).
+            cur.execute("ALTER TABLE internal.challenge_template ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'themed';")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.challenge_instance (
+                    instance_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    template_id     UUID NOT NULL REFERENCES internal.challenge_template(template_id),
+                    year            INT NOT NULL,
+                    replaces_abbr   TEXT NOT NULL,
+                    pts_limit       INT,             -- copied from the template at generation time
+                    roster_size     INT NOT NULL DEFAULT 25,  -- copied from the template at generation time
+                    player_filters  JSONB,           -- copied from the template at generation time
+                    starts_at       TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                    expires_at      TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS player_filters JSONB;")
+            cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS roster_size INT NOT NULL DEFAULT 25;")
+            # ONLY SET FOR A `beat_team_record` GOAL - THE REAL HISTORICAL CLUB (NAME/W/L) ITS
+            # TARGET_ABBR NAMES, OR - FOR A `BeatTarget` SENTINEL LIKE "BEST_RECORD" - WHICHEVER
+            # REAL CLUB THAT ACTUALLY WAS THAT SEASON, RESOLVED ONCE AT GENERATION TIME AGAINST
+            # THE MLB STATS API SO THE CHALLENGE CARD CAN NAME IT WITHOUT A LIVE LOOKUP. DISPLAY
+            # FLAVOR ONLY: THE ACTUAL PASS/FAIL CHECK RE-RESOLVES A SENTINEL DYNAMICALLY AGAINST
+            # THE PLAYED (SIMULATED) SEASON'S OWN STANDINGS, SINCE THAT CAN DIFFER FROM HISTORY.
+            cur.execute("ALTER TABLE internal.challenge_instance ADD COLUMN IF NOT EXISTS beat_team_record JSONB;")
+            # NOT A PARTIAL INDEX: NOW() ISN'T IMMUTABLE, SO IT CAN'T APPEAR IN AN INDEX
+            # PREDICATE (ONLY IN A QUERY'S WHERE CLAUSE). THE TABLE IS TINY (A HANDFUL OF ROWS
+            # PER TEMPLATE) SO A PLAIN INDEX ON expires_at IS PLENTY.
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_challenge_instance_active
+                    ON internal.challenge_instance (expires_at);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_challenge_instance_template
+                    ON internal.challenge_instance (template_id);
+            """)
+
+            # LINKS A PLAYED SEASON BACK TO THE CHALLENGE IT WAS ATTEMPTING. `ON DELETE SET NULL`
+            # SO PRUNING OLD INSTANCE ROWS NEVER ORPHANS OR BLOCKS DELETING A HISTORICAL SEASON -
+            # THE SEASON KEEPS ITS OWN YEAR/REPLACED_ABBR/RESULT REGARDLESS OF WHETHER THE
+            # INSTANCE ROW STILL EXISTS.
+            cur.execute("""
+                ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS challenge_instance_id UUID
+                    REFERENCES internal.challenge_instance(instance_id) ON DELETE SET NULL;
+            """)
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS challenge_result TEXT;")  # 'passed' | 'failed', null if not a challenge run
+            # `is_champion` IS THE WORLD SERIES WINNER; THIS IS THE DISTINCT LEAGUE/PENNANT WINNER
+            # (THE CHAMPIONSHIP-ROUND SERIES, ONE STEP BEFORE THE WORLD SERIES).
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS won_pennant BOOLEAN;")
+            # ACTUAL ROSTER COST AT SIM TIME - DISTINCT FROM THE EXISTING `points` COLUMN, WHICH IS
+            # STANDINGS POINTS FROM THE SIM ENGINE, NOT BUDGET SPENT. POWERS THE WINS-PER-POINT "GM
+            # EFFICIENCY" LEADERBOARD SORT FOR EVERY SEASON, NOT JUST CHALLENGE RUNS.
+            cur.execute("ALTER TABLE internal.sim_season ADD COLUMN IF NOT EXISTS roster_points INT;")
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sim_season_challenge_instance
+                    ON internal.sim_season (challenge_instance_id, user_id) WHERE challenge_instance_id IS NOT NULL;
+            """)
+
+            # TAGS A TEAM WITH THE TEMPLATE (NOT INSTANCE) IT WAS BUILT FOR, SO "MY CHALLENGE
+            # TEAMS" STAYS MEANINGFUL AFTER THAT WEEK'S INSTANCE EXPIRES AND ROTATES OUT.
+            cur.execute("""
+                ALTER TABLE internal.user_teams ADD COLUMN IF NOT EXISTS origin_template_id UUID
+                    REFERENCES internal.challenge_template(template_id) ON DELETE SET NULL;
+            """)
+
+    def get_challenge_instance(self, instance_id: str, user_id: str | None = None) -> dict | None:
+        """A single challenge instance joined to its template, active or not - the caller checks
+        `expires_at` itself, since a just-expired instance still needs to explain why it 404s.
+        This is the shareable challenge-detail page's lookup, so it must resolve regardless of
+        expiration. When user_id is given, attaches the caller's own best attempt, same as
+        `fetch_active_challenges` does for the list."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            """
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.beat_team_record, i.expires_at,
+                   t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
+                   attempt.challenge_result, attempt.attempted_at,
+                   stats.entrants, stats.passes
+              FROM internal.challenge_instance i
+              JOIN internal.challenge_template t ON t.template_id = i.template_id
+              LEFT JOIN LATERAL (
+                  SELECT s.challenge_result, s.created_at AS attempted_at
+                    FROM internal.sim_season s
+                   WHERE s.challenge_instance_id = i.instance_id AND s.user_id = %(user_id)s
+                   ORDER BY (s.challenge_result = 'passed') DESC, s.created_at DESC
+                   LIMIT 1
+              ) attempt ON TRUE
+              LEFT JOIN LATERAL (
+                  SELECT COUNT(*)::int AS entrants,
+                         COUNT(*) FILTER (WHERE per_team.passed)::int AS passes
+                    FROM (
+                        SELECT bool_or(s.challenge_result = 'passed') AS passed
+                          FROM internal.sim_season s
+                         WHERE s.challenge_instance_id = i.instance_id
+                         GROUP BY s.team_id
+                    ) per_team
+              ) stats ON TRUE
+             WHERE i.instance_id = %(instance_id)s
+            """,
+            {'instance_id': instance_id, 'user_id': user_id},
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        row['instance_id'] = str(row['instance_id'])
+        row['template_id'] = str(row['template_id'])
+        return row
+
+    def fetch_active_challenges(self, user_id: str | None = None) -> list[dict]:
+        """Active (unexpired) challenge instances joined to their template, soonest-expiring
+        first. When user_id is given, attaches the caller's own best attempt at each instance -
+        a pass beats a fail, and among same-result attempts the most recent wins."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT i.instance_id, i.template_id, i.year, i.replaces_abbr, i.pts_limit, i.roster_size, i.player_filters, i.beat_team_record, i.expires_at,
+                   t.slug, t.title, t.description, t.goal_type, t.goal_value, t.category,
+                   attempt.challenge_result, attempt.attempted_at,
+                   stats.entrants, stats.passes
+              FROM internal.challenge_instance i
+              JOIN internal.challenge_template t ON t.template_id = i.template_id
+              LEFT JOIN LATERAL (
+                  SELECT s.challenge_result, s.created_at AS attempted_at
+                    FROM internal.sim_season s
+                   WHERE s.challenge_instance_id = i.instance_id AND s.user_id = %(user_id)s
+                   ORDER BY (s.challenge_result = 'passed') DESC, s.created_at DESC
+                   LIMIT 1
+              ) attempt ON TRUE
+              LEFT JOIN LATERAL (
+                  SELECT COUNT(*)::int AS entrants,
+                         COUNT(*) FILTER (WHERE per_team.passed)::int AS passes
+                    FROM (
+                        SELECT bool_or(s.challenge_result = 'passed') AS passed
+                          FROM internal.sim_season s
+                         WHERE s.challenge_instance_id = i.instance_id
+                         GROUP BY s.team_id
+                    ) per_team
+              ) stats ON TRUE
+             WHERE i.expires_at > NOW()
+             ORDER BY i.expires_at ASC
+            """,
+            {'user_id': user_id},
+        )
+        for row in rows:
+            row['instance_id'] = str(row['instance_id'])
+            row['template_id'] = str(row['template_id'])
+        return rows
+
+    def prune_expired_challenge_instances(self, older_than_days: int = 30) -> int:
+        """Delete instance rows expired more than `older_than_days` ago. Returns the count
+        removed. Safe at any time - `sim_season.challenge_instance_id` is ON DELETE SET NULL,
+        so a played season is never orphaned or blocked by this."""
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.challenge_instance WHERE expires_at < NOW() - make_interval(days => %s)",
+                (older_than_days,),
+            )
+            return cur.rowcount
+
+    def create_challenge_template(
+        self, slug: str, title: str, description: str, goal_type: str, goal_value: dict | None,
+        pts_limit: int | None, year_pool: str, replaces_pool: str, active: bool = True,
+        player_filters: dict | None = None, category: str = 'themed', roster_size: int = 25,
+    ) -> str:
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.challenge_template
+                    (slug, title, description, goal_type, goal_value, pts_limit, roster_size, year_pool, replaces_pool, active, player_filters, category)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING template_id
+                """,
+                (
+                    slug, title, description, goal_type,
+                    extras.Json(goal_value) if goal_value is not None else None,
+                    pts_limit, roster_size, year_pool, replaces_pool, active,
+                    extras.Json(player_filters) if player_filters is not None else None,
+                    category,
+                ),
+            )
+            return str(cur.fetchone()[0])
+
+    def list_challenge_templates(self) -> list[dict]:
+        """Every template, active or not - for CLI/admin listing (contrast with
+        `list_active_challenge_templates`, which the generator uses and only wants active ones).
+
+        Each row also carries `last_instanced_at` (newest instance `created_at`, or null) and
+        `live_instance_count` (unexpired instances) so the admin UI can show rotation status
+        without a second query."""
+        rows = self.execute_query(
+            "SELECT t.template_id, t.slug, t.title, t.description, t.goal_type, t.goal_value, "
+            "t.pts_limit, t.roster_size, t.year_pool, t.replaces_pool, t.active, t.player_filters, "
+            "t.category, t.created_at, MAX(i.created_at) AS last_instanced_at, "
+            "COUNT(i.instance_id) FILTER (WHERE i.expires_at > NOW()) AS live_instance_count "
+            "FROM internal.challenge_template t "
+            "LEFT JOIN internal.challenge_instance i ON i.template_id = t.template_id "
+            "GROUP BY t.template_id ORDER BY t.created_at DESC"
+        )
+        for row in rows:
+            row['template_id'] = str(row['template_id'])
+        return rows
+
+    _CHALLENGE_TEMPLATE_EDITABLE = (
+        'slug', 'title', 'description', 'goal_type', 'goal_value', 'pts_limit', 'roster_size',
+        'year_pool', 'replaces_pool', 'active', 'player_filters', 'category',
+    )
+
+    def update_challenge_template(self, template_id: str, fields: dict) -> dict | None:
+        """Patch an existing template. Only keys in `_CHALLENGE_TEMPLATE_EDITABLE` are applied;
+        `goal_value` / `player_filters` are JSON-encoded. Returns the updated row, or None if no
+        template has that id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        updates = {k: v for k, v in fields.items() if k in self._CHALLENGE_TEMPLATE_EDITABLE}
+        if not updates:
+            return self.get_challenge_template(template_id)
+        json_cols = {'goal_value', 'player_filters'}
+        set_clause = ', '.join(f"{col} = %s" for col in updates)
+        values = [
+            extras.Json(val) if col in json_cols and val is not None else val
+            for col, val in updates.items()
+        ]
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"UPDATE internal.challenge_template SET {set_clause} "
+                "WHERE template_id = %s RETURNING *",
+                (*values, template_id),
+            )
+            row = cur.fetchone()
+        if row:
+            row = dict(row)
+            row['template_id'] = str(row['template_id'])
+        return row
+
+    def delete_challenge_template(self, template_id: str) -> str:
+        """Delete a template. Returns 'not_found', 'in_use' (a live instance still references it -
+        deactivate instead), or 'ok' (deleted, along with any of its already-expired instances)."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM internal.challenge_template WHERE template_id = %s", (template_id,)
+            )
+            if cur.fetchone() is None:
+                return 'not_found'
+            cur.execute(
+                "SELECT 1 FROM internal.challenge_instance "
+                "WHERE template_id = %s AND expires_at > NOW() LIMIT 1",
+                (template_id,),
+            )
+            if cur.fetchone() is not None:
+                return 'in_use'
+            cur.execute("DELETE FROM internal.challenge_instance WHERE template_id = %s", (template_id,))
+            cur.execute("DELETE FROM internal.challenge_template WHERE template_id = %s", (template_id,))
+        return 'ok'
+
+    def list_active_challenge_templates(self) -> list[dict]:
+        """Every template flagged active, each with `last_instanced_at` (the newest instance's
+        `created_at`, or null if never generated) - the generator rotates one template per
+        category per cycle, least-recently-instanced first.
+
+        `goal_type`/`goal_value` are included so the generator can enforce goal-specific
+        constraints (e.g. a `beat_team_record` instance must never replace the target club).
+        """
+        return self.execute_query(
+            "SELECT t.template_id, t.slug, t.title, t.pts_limit, t.roster_size, t.year_pool, "
+            "t.replaces_pool, t.player_filters, t.category, t.goal_type, t.goal_value, "
+            "MAX(i.created_at) AS last_instanced_at "
+            "FROM internal.challenge_template t "
+            "LEFT JOIN internal.challenge_instance i ON i.template_id = t.template_id "
+            "WHERE t.active = TRUE "
+            "GROUP BY t.template_id"
+        )
+
+    def get_challenge_template(self, template_id: str) -> dict | None:
+        """One template by id, active or not, with all columns."""
+        rows = self.execute_query(
+            "SELECT * FROM internal.challenge_template WHERE template_id = %s", (template_id,)
+        )
+        if not rows:
+            return None
+        rows[0]['template_id'] = str(rows[0]['template_id'])
+        return rows[0]
+
+    def get_challenge_template_by_slug(self, slug: str) -> dict | None:
+        """One template by slug, active or not - backs `challenges instance <slug>`, the manual
+        override that instances a specific template outside the category rotation."""
+        rows = self.execute_query(
+            "SELECT template_id, slug, title, pts_limit, roster_size, year_pool, replaces_pool, "
+            "player_filters, category, goal_type, goal_value, active "
+            "FROM internal.challenge_template WHERE slug = %s",
+            (slug,),
+        )
+        return rows[0] if rows else None
+
+    def has_unexpired_challenge_instance(self, template_id: str) -> bool:
+        rows = self.execute_query(
+            "SELECT 1 FROM internal.challenge_instance WHERE template_id = %s AND expires_at > NOW() LIMIT 1",
+            (template_id,),
+        )
+        return bool(rows)
+
+    def has_unexpired_challenge_instance_for_category(self, category: str) -> bool:
+        """True if any active-or-not template in `category` has a live instance - the category
+        rotation skips a whole category while one of its challenges is still playable."""
+        rows = self.execute_query(
+            "SELECT 1 FROM internal.challenge_instance i "
+            "JOIN internal.challenge_template t ON t.template_id = i.template_id "
+            "WHERE t.category = %s AND i.expires_at > NOW() LIMIT 1",
+            (category,),
+        )
+        return bool(rows)
+
+    def create_challenge_instance(
+        self, template_id: str, year: int, replaces_abbr: str, pts_limit: int | None,
+        expires_in_days: int = 7, player_filters: dict | None = None, roster_size: int = 25,
+        beat_team_record: dict | None = None,
+    ) -> str:
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.challenge_instance (template_id, year, replaces_abbr, pts_limit, roster_size, player_filters, beat_team_record, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW() + make_interval(days => %s))
+                RETURNING instance_id
+                """,
+                (
+                    template_id, year, replaces_abbr, pts_limit, roster_size,
+                    extras.Json(player_filters) if player_filters is not None else None,
+                    extras.Json(beat_team_record) if beat_team_record is not None else None,
+                    expires_in_days,
+                ),
+            )
+            return str(cur.fetchone()[0])
+
+    def create_sim_job(self, user_id: str | None, team_id: str | None, config: dict) -> str:
+        """Insert a queued job and return its id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_job (user_id, team_id, status, phase, config, expires_at)
+                VALUES (%s, %s, 'queued', 'Queued', %s, NOW() + %s * INTERVAL '1 hour')
+                RETURNING job_id
+                """,
+                (user_id, team_id, extras.Json(config), self.SIM_JOB_TTL_HOURS),
+            )
+            return str(cur.fetchone()[0])
+
+    def merge_sim_job_config(self, job_id: str, patch: dict) -> None:
+        """Shallow-merge keys into a job's stored `config` echo.
+
+        The echo is written at queue time, but the fields naming the real clubs involved
+        (`replaces`, `focus_abbr`, `takeovers`) aren't known until the worker resolves them against
+        the season's standings - an MLB Stats API call that deliberately does not happen in the
+        request. This is how the worker fills them in once it has them, so the progress screen can
+        name the club the user is playing as.
+
+        Purely cosmetic: `||` on a missing/NULL config would yield NULL, so the COALESCE keeps a
+        job whose echo somehow went missing from losing its config entirely.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET config = COALESCE(config, '{}'::jsonb) || %s::jsonb
+                 WHERE job_id = %s
+                """,
+                (extras.Json(patch), job_id),
+            )
+
+    def ensure_sim_job_progress_column(self) -> None:
+        """Lazily add the `sim_job` live-progress + forensic columns so a deploy that hasn't run
+        `build_sim_job_table` still streams progress and records where a hung job died
+        (`last_status`, `dyno`). Called once per worker run rather than on every progress write,
+        which fires ~once a second."""
+        if not self.connection:
+            return
+        global _sim_job_forensic_columns_ready
+        with self.connection.cursor() as cur:
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games JSONB;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS progress_games_total INT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+            cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS memory JSONB;")
+        _sim_job_forensic_columns_ready = True
+
+    def update_sim_job_progress(
+        self, job_id: str, phase: str | None = None, games_completed: int | None = None,
+        games_total: int | None = None, progress_games: list | None = None,
+        progress_games_total: int | None = None, last_status: str | None = None,
+        dyno: str | None = None,
+    ) -> bool:
+        """Mark the job running and record progress. Called from the worker thread on its own
+        connection - it cannot share the one the simulation is using.
+
+        `progress_games` is the takeover club's running game-by-game record so far - streamed so
+        the web progress screen can animate a live win% chart - and `progress_games_total` is that
+        club's full scheduled game count (the chart's fixed x-axis max). `last_status` is the most
+        recent raw setup/roster breadcrumb and `dyno` the worker's process id - both purely for
+        explaining a hung job. COALESCE keeps the last value when a write omits any of them, so a
+        plain progress tick never wipes them. Assumes `ensure_sim_job_progress_column` has already
+        run this process (the worker calls it before the first progress write).
+
+        Returns False if the row has left the queued/running state out from under it - a user
+        cancel, or the in-process watchdog (`_SIM_MAX_RUNTIME_SECONDS`) failing it for running too
+        long - which the worker treats as a signal to stop simulating (see `SimCancelled`).
+        """
+        if not self.connection:
+            return True
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET status          = 'running',
+                       phase           = COALESCE(%s, phase),
+                       games_completed = COALESCE(%s, games_completed),
+                       games_total     = COALESCE(%s, games_total),
+                       progress_games  = COALESCE(%s, progress_games),
+                       progress_games_total = COALESCE(%s, progress_games_total),
+                       last_status     = COALESCE(%s, last_status),
+                       dyno            = COALESCE(%s, dyno),
+                       updated_at      = NOW()
+                 WHERE job_id = %s AND status IN ('queued', 'running')
+                """,
+                (phase, games_completed, games_total,
+                 extras.Json(progress_games) if progress_games is not None else None,
+                 progress_games_total, last_status, dyno, job_id),
+            )
+            return cur.rowcount > 0
+
+    def record_sim_job_memory(self, job_id: str, memory: dict) -> None:
+        """Store the worker process's memory readings for a run (`rss_start_mb`, `rss_end_mb`,
+        `peak_start_mb`, `peak_end_mb`). Written after the job is terminal, so unlike the progress
+        writes this has no status guard. Ensures the column itself, so a run that failed before
+        `ensure_sim_job_progress_column` still records its memory."""
+        if not self.connection:
+            return
+        if not _sim_job_forensic_columns_ready:
+            self.ensure_sim_job_progress_column()
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.sim_job SET memory = %s WHERE job_id = %s",
+                (extras.Json(memory), job_id),
+            )
+
+    def finish_sim_job(self, job_id: str, error: str | None = None, error_context: dict | None = None) -> None:
+        """Terminal update. The result itself lives on `sim_season`, not here.
+
+        `error_context` is optional structured detail for the failure (e.g. the game state a
+        `GameStuckError` carries), stored alongside the human-readable `error` summary. The
+        `error_context` column is added lazily here rather than by a migration step so a deploy
+        that hasn't run `build_sim_job_table` still completes jobs normally.
+
+        Only touches a job still in `queued`/`running` - so a race with a user cancel, or with the
+        worker's own watchdog timing it out, can't stomp a row that already reached a terminal
+        state back to failed/succeeded.
+        """
+        if not self.connection:
+            return
+        status = 'failed' if error else 'succeeded'
+        phase = 'Failed' if error else 'Complete'
+        with self.connection.cursor() as cur:
+            if error_context is not None:
+                # ONLY TOUCHED ON A STRUCTURED FAILURE - THE COMMON SUCCESS/CANCEL PATHS NEVER
+                # NAME THIS COLUMN, SO A DEPLOY THAT HASN'T RUN `build_sim_job_table` STILL WORKS.
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS error_context JSONB;")
+                cur.execute(
+                    """
+                    UPDATE internal.sim_job
+                       SET status = %s, error = %s, error_context = %s, phase = %s,
+                           updated_at = NOW(), finished_at = NOW()
+                     WHERE job_id = %s AND status IN ('queued', 'running')
+                    """,
+                    (status, error, extras.Json(error_context), phase, job_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE internal.sim_job
+                       SET status = %s, error = %s, phase = %s,
+                           updated_at = NOW(), finished_at = NOW()
+                     WHERE job_id = %s AND status IN ('queued', 'running')
+                    """,
+                    (status, error, phase, job_id),
+                )
+
+    def cancel_sim_job(self, job_id: str, user_id: str) -> bool:
+        """User-initiated cancel. Only affects a job still in flight and owned by this user.
+
+        The worker thread notices on its next progress write (see `update_sim_job_progress`) and
+        stops simulating - this just flips the terminal state so the API responds immediately.
+        """
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET status = 'cancelled', error = 'Cancelled by user.', phase = 'Cancelled',
+                       updated_at = NOW(), finished_at = NOW()
+                 WHERE job_id = %s AND user_id = %s AND status IN ('queued', 'running')
+                """,
+                (job_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    def is_sim_job_cancelled(self, job_id: str) -> bool:
+        """Cheap terminal-state check, used right after a simulation finishes to catch a cancel
+        that landed in the window since the last progress write."""
+        if not self.connection:
+            return False
+        rows = self.execute_query("SELECT status FROM internal.sim_job WHERE job_id = %s", (job_id,))
+        return bool(rows) and rows[0]['status'] == 'cancelled'
+
+    def is_sim_job_terminal(self, job_id: str) -> bool:
+        """True if the job has reached any terminal state (succeeded / failed / cancelled) or no
+        longer exists. The worker's `finally` guard uses this to decide whether it still needs to
+        close the row out itself rather than leave it for the stale-job reaper."""
+        if not self.connection:
+            return True
+        rows = self.execute_query("SELECT status FROM internal.sim_job WHERE job_id = %s", (job_id,))
+        return not rows or rows[0]['status'] in ('succeeded', 'failed', 'cancelled')
+
+    def get_sim_job(self, job_id: str, user_id: str | None = None) -> dict | None:
+        """Fetch a job's progress. A job with no user_id is public; otherwise owner-only."""
+        if not self.connection:
+            return None
+        self.reap_stale_sim_jobs()
+        rows = self.execute_query(
+            """
+            SELECT job_id, user_id, team_id, status, phase, games_completed, games_total,
+                   config, error, progress_games, progress_games_total, created_at, updated_at, finished_at,
+                   last_status, dyno
+              FROM internal.sim_job
+             WHERE job_id = %s AND (user_id IS NULL OR user_id = %s)
+            """,
+            (job_id, user_id),
+        )
+        if not rows:
+            return None
+        row = dict(rows[0])
+        row['job_id'] = str(row['job_id'])
+        row['team_id'] = str(row['team_id']) if row['team_id'] else None
+        return row
+
+    def get_active_sim_job(self, user_id: str) -> dict | None:
+        """This user's in-flight job, if any - at most one, since starting a new one is blocked
+        while another is queued/running. Reaps stale rows first so a job nobody has polled can't
+        permanently block a new one from starting."""
+        if not self.connection:
+            return None
+        self.reap_stale_sim_jobs()
+        rows = self.execute_query(
+            """
+            SELECT job_id, team_id, phase, games_completed, games_total, created_at
+              FROM internal.sim_job
+             WHERE user_id = %s AND status IN ('queued','running')
+             ORDER BY created_at DESC
+             LIMIT 1
+            """,
+            (user_id,),
+        )
+        if not rows:
+            return None
+        row = dict(rows[0])
+        row['job_id'] = str(row['job_id'])
+        row['team_id'] = str(row['team_id']) if row['team_id'] else None
+        return row
+
+    def reap_stale_sim_jobs(self) -> None:
+        """Fail jobs whose worker stopped reporting.
+
+        The runner is a thread inside the web process, so a dyno restart or crash leaves a row
+        stuck in 'running' forever. Anything silent past the stale window is declared dead - the
+        recorded `error` captures the last phase, the last raw setup breadcrumb, how far into the
+        schedule it got, how long it had been silent, and which process it was on, so the row
+        says *where* it died instead of just that it did.
+        """
+        if not self.connection:
+            return
+        global _sim_job_forensic_columns_ready
+        with self.connection.cursor() as cur:
+            if not _sim_job_forensic_columns_ready:
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS last_status TEXT;")
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS dyno TEXT;")
+                cur.execute("ALTER TABLE internal.sim_job ADD COLUMN IF NOT EXISTS memory JSONB;")
+                _sim_job_forensic_columns_ready = True
+            cur.execute(
+                """
+                UPDATE internal.sim_job
+                   SET status = 'failed', finished_at = NOW(), updated_at = NOW(),
+                       phase = 'Failed',
+                       error = COALESCE(
+                           error,
+                           'Simulation stopped responding'
+                           || ' in phase "' || COALESCE(NULLIF(phase, ''), '?') || '"'
+                           || CASE WHEN games_total > 0
+                                   THEN ' at game ' || games_completed || '/' || games_total
+                                   ELSE '' END
+                           || CASE WHEN NULLIF(last_status, '') IS NOT NULL
+                                   THEN ' (last: ' || last_status || ')' ELSE '' END
+                           || ' - silent for '
+                           || EXTRACT(EPOCH FROM (NOW() - COALESCE(updated_at, created_at, NOW())))::int || 's'
+                           || CASE WHEN dyno IS NOT NULL THEN ' on ' || dyno ELSE '' END
+                       )
+                 WHERE status IN ('queued','running')
+                   AND updated_at < NOW() - %s * INTERVAL '1 minute'
+                """,
+                (self.SIM_JOB_STALE_MINUTES,),
+            )
+            cur.execute("DELETE FROM internal.sim_job WHERE expires_at IS NOT NULL AND expires_at < NOW()")
+
+    def record_sim_season(
+        self, job_id: str, user_id: str | None, team_id: str | None, team: dict, summary: dict,
+        challenge_instance_id: str | None = None, challenge_result: str | None = None,
+        won_pennant: bool | None = None, roster_points: int | None = None,
+    ) -> None:
+        """Permanently record a played season, result included. Idempotent on job_id.
+
+        `challenge_instance_id`/`challenge_result`/`won_pennant` are only set for a challenge run
+        (all null otherwise); `roster_points` is set for every run - it powers the wins-per-point
+        leaderboard sort regardless of whether this was a challenge.
+        """
+        if not self.connection:
+            return
+        team_season = summary.get('team') or {}
+        identity = team_season.get('identity') or {}
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_season (
+                    job_id, user_id, team_id, team_name, team_abbreviation,
+                    primary_color, secondary_color, year, showdown_set, replaced_abbr,
+                    wins, losses, win_pct, points, division, division_rank,
+                    made_playoffs, is_champion, longest_win_streak, seed, summary,
+                    challenge_instance_id, challenge_result, won_pennant, roster_points
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (job_id) DO NOTHING
+                """,
+                (
+                    job_id, user_id, team_id,
+                    team.get('name') or identity.get('name'),
+                    team.get('abbreviation') or identity.get('abbreviation'),
+                    team.get('primary_color'), team.get('secondary_color'),
+                    summary.get('year'), summary.get('set'), team_season.get('replaced_abbr'),
+                    team_season.get('wins', 0), team_season.get('losses', 0),
+                    team_season.get('win_pct', 0), team_season.get('points', 0),
+                    team_season.get('division'), team_season.get('division_rank'),
+                    team_season.get('made_playoffs', False), team_season.get('is_champion', False),
+                    team_season.get('longest_win_streak', 0), summary.get('seed'),
+                    extras.Json(summary),
+                    challenge_instance_id, challenge_result, won_pennant, roster_points,
+                ),
+            )
+
+    def fetch_sim_leaderboard(
+        self, user_id: str | None = None, year: int | None = None, per_season_limit: int = 25,
+        sort: str = 'wins',
+    ) -> list[dict]:
+        """Seasons that have been played, each with its ranked entries - one row per team,
+        showing that team's best run at the season.
+
+        Entries rank within their own group: a challenge run only competes against other runs at
+        the same challenge instance, and open-play runs (no challenge) only against each other -
+        comparing wins across different budgets/goals would be meaningless otherwise. Rows arrive
+        ordered so callers can split each season into an open-play group followed by one group per
+        challenge instance, alphabetically by title.
+
+        Visibility is joined live against `user_teams.is_public`, so a team turned private drops
+        off other users' boards immediately. A user always sees their own entries, which is why
+        a rank is "among the entries this viewer can see" rather than a global position.
+
+        Args:
+          user_id: Viewer. Used to mark their own rows and to include their private teams.
+          year: Restrict to a single season.
+          per_season_limit: Teams kept per season, per group.
+          sort: 'wins' (default - best record) or 'efficiency' (best wins per roster point spent,
+            the "GM efficiency" view - works for every season, not just challenge runs). Anything
+            else falls back to 'wins'.
+        """
+        if not self.connection:
+            return []
+        # NOT AN F-STRING OF THE `sort` ARGUMENT ITSELF - CHOSEN FROM TWO FIXED SQL LITERALS BY
+        # STRICT EQUALITY, SO THIS CANNOT BECOME A SQL INJECTION VECTOR.
+        rank_order = (
+            "(CASE WHEN roster_points > 0 THEN wins::float / roster_points ELSE 0 END) DESC, wins DESC, created_at ASC"
+            if sort == 'efficiency' else
+            "wins DESC, win_pct DESC, is_champion DESC, created_at ASC"
+        )
+        rows = self.execute_query(
+            f"""
+            -- COLUMNS ARE ENUMERATED RATHER THAN `l.*`: THE SUMMARY BLOB IS ~70 KB A ROW AND
+            -- MUST NOT BE CARRIED THROUGH THE WINDOW FUNCTIONS JUST TO BE DISCARDED.
+            WITH visible AS (
+                SELECT l.entry_id, l.job_id, l.team_id, l.team_name, l.team_abbreviation,
+                       l.primary_color, l.secondary_color, l.year, l.showdown_set, l.replaced_abbr,
+                       l.wins, l.losses, l.win_pct, l.points, l.division, l.division_rank,
+                       l.made_playoffs, l.is_champion, l.longest_win_streak, l.seed, l.created_at,
+                       l.roster_points, l.challenge_instance_id, l.challenge_result,
+                       ct.title AS challenge_title, ct.slug AS challenge_slug, ct.description AS challenge_description,
+                       ci.starts_at AS challenge_starts_at, ci.expires_at AS challenge_expires_at,
+                       p.username AS creator_username,
+                       (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
+                  FROM internal.sim_season l
+                  JOIN internal.user_teams t ON t.team_id = l.team_id
+                  LEFT JOIN public.profiles p ON p.id::text = l.user_id
+                  LEFT JOIN internal.challenge_instance ci ON ci.instance_id = l.challenge_instance_id
+                  LEFT JOIN internal.challenge_template ct ON ct.template_id = ci.template_id
+                 WHERE (t.is_public = TRUE OR l.user_id IS NOT DISTINCT FROM %(user_id)s)
+                   AND (%(year)s IS NULL OR l.year = %(year)s)
+            ),
+            -- One row per team per group per season: its best run. Without this a team that
+            -- replays a season/challenge would occupy several slots and crowd out everyone else.
+            best_per_team AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY year, team_id, challenge_instance_id ORDER BY {rank_order}
+                       ) AS run_rank,
+                       COUNT(*) OVER (PARTITION BY year, team_id, challenge_instance_id) AS attempts
+                  FROM visible
+            ),
+            ranked AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY year, challenge_instance_id ORDER BY {rank_order}
+                       ) AS rank
+                  FROM best_per_team
+                 WHERE run_rank = 1
+            )
+            SELECT entry_id, job_id, team_id, team_name, team_abbreviation,
+                   primary_color, secondary_color, year, showdown_set, replaced_abbr,
+                   wins, losses, win_pct, points, division, division_rank,
+                   made_playoffs, is_champion, longest_win_streak, seed, created_at,
+                   roster_points, challenge_instance_id, challenge_result,
+                   challenge_title, challenge_slug, challenge_description,
+                   challenge_starts_at, challenge_expires_at, creator_username, is_own, rank, attempts
+              FROM ranked
+             WHERE rank <= %(limit)s
+             ORDER BY year DESC, (challenge_instance_id IS NOT NULL) ASC, challenge_title ASC,
+                      challenge_instance_id ASC, rank ASC
+            """,
+            {'user_id': user_id, 'year': year, 'limit': per_season_limit},
+        )
+        for row in rows:
+            row['job_id'] = str(row['job_id']) if row['job_id'] else None
+            row['team_id'] = str(row['team_id']) if row['team_id'] else None
+            row['challenge_instance_id'] = str(row['challenge_instance_id']) if row['challenge_instance_id'] else None
+        return rows
+
+    # COLUMNS SHARED BY THE HISTORY LIST AND THE LEADERBOARD. THE SUMMARY IS DELIBERATELY ABSENT -
+    # IT IS ~70 KB A ROW AND ONLY THE DETAIL FETCH NEEDS IT.
+    _SIM_SEASON_LIST_COLUMNS = """
+        s.entry_id, s.job_id, s.team_id, s.team_name, s.team_abbreviation,
+        s.primary_color, s.secondary_color, s.year, s.showdown_set, s.replaced_abbr,
+        s.wins, s.losses, s.win_pct, s.points, s.division, s.division_rank,
+        s.made_playoffs, s.is_champion, s.longest_win_streak, s.seed, s.created_at,
+        s.challenge_instance_id, s.challenge_result, s.won_pennant, s.roster_points,
+        p.username AS creator_username
+    """
+
+    # Pairs with `_SIM_SEASON_LIST_COLUMNS` - every query selecting those columns must also carry
+    # this join so `creator_username` resolves (profiles are keyed by the auth user id as text).
+    _SIM_SEASON_LIST_JOINS = "LEFT JOIN public.profiles p ON p.id::text = s.user_id"
+
+    @staticmethod
+    def _stringify_sim_season_ids(rows: list[dict]) -> list[dict]:
+        for row in rows:
+            row['job_id'] = str(row['job_id']) if row.get('job_id') else None
+            row['team_id'] = str(row['team_id']) if row.get('team_id') else None
+            row['challenge_instance_id'] = str(row['challenge_instance_id']) if row.get('challenge_instance_id') else None
+        return rows
+
+    def fetch_sim_season(self, job_id: str, user_id: str | None = None) -> dict | None:
+        """One played season with its full result.
+
+        Readable when the team is public or the viewer owns the season, matching the leaderboard's
+        visibility rule so a link shared from the board resolves for whoever can already see it.
+        An open sim has no `team_id` at all (no roster to own), so it is always readable - a
+        `LEFT JOIN` rather than an inner join, or the row would never resolve for anyone.
+        """
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, s.summary,
+                   (s.user_id IS NOT DISTINCT FROM %s) AS is_own
+              FROM internal.sim_season s
+              LEFT JOIN internal.user_teams t ON t.team_id = s.team_id
+              {self._SIM_SEASON_LIST_JOINS}
+             WHERE s.job_id = %s
+               AND (s.team_id IS NULL OR t.is_public = TRUE OR s.user_id IS NOT DISTINCT FROM %s)
+            """,
+            (user_id, job_id, user_id),
+        )
+        if not rows:
+            return None
+        season = self._stringify_sim_season_ids(rows)[0]
+        if season.get('challenge_instance_id'):
+            season['challenge_standing'] = self.get_challenge_standing(job_id, user_id)
+        return season
+
+    def get_challenge_standing(self, job_id: str, user_id: str | None = None) -> dict | None:
+        """Where one challenge run lands on its instance's leaderboard - for the result screen's
+        "Attempt #N / #rank of M / New best" callout.
+
+        Returns None for a non-challenge run. `rank`/`attempts`/`best_job_id` describe the run's
+        team within the `(year, challenge_instance)` group, collapsed to each team's best run and
+        ranked by record (matching the leaderboard's default 'wins' sort). Visibility mirrors
+        `fetch_sim_leaderboard`: public teams plus the viewer's own.
+        """
+        if not self.connection:
+            return None
+        target_rows = self.execute_query(
+            """
+            SELECT s.year, s.team_id, s.challenge_instance_id, s.wins, s.roster_points, ci.pts_limit
+              FROM internal.sim_season s
+              JOIN internal.challenge_instance ci ON ci.instance_id = s.challenge_instance_id
+             WHERE s.job_id = %(job_id)s AND s.challenge_instance_id IS NOT NULL
+            """,
+            {'job_id': job_id},
+        )
+        if not target_rows:
+            return None
+        target = target_rows[0]
+        rows = self.execute_query(
+            """
+            WITH visible AS (
+                SELECT s.job_id, s.team_id, s.wins, s.win_pct, s.is_champion, s.created_at
+                  FROM internal.sim_season s
+                  JOIN internal.user_teams ut ON ut.team_id = s.team_id
+                 WHERE s.year = %(year)s
+                   AND s.challenge_instance_id = %(instance_id)s
+                   AND (ut.is_public = TRUE OR s.user_id IS NOT DISTINCT FROM %(user_id)s)
+            ),
+            best_per_team AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY team_id
+                           ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
+                       ) AS run_rank,
+                       COUNT(*) OVER (PARTITION BY team_id) AS attempts
+                  FROM visible
+            )
+            SELECT job_id, team_id, attempts,
+                   ROW_NUMBER() OVER (
+                       ORDER BY wins DESC, win_pct DESC, is_champion DESC, created_at ASC
+                   ) AS rank
+              FROM best_per_team
+             WHERE run_rank = 1
+             ORDER BY rank
+            """,
+            {'year': target['year'], 'instance_id': target['challenge_instance_id'], 'user_id': user_id},
+        )
+        team_id = str(target['team_id'])
+        my_row = next((r for r in rows if str(r['team_id']) == team_id), None)
+        best_job_id = str(my_row['job_id']) if my_row else None
+        return {
+            'rank': my_row['rank'] if my_row else None,
+            'entrants': len(rows),
+            'attempts': my_row['attempts'] if my_row else 1,
+            'is_best': best_job_id == str(job_id),
+            'best_job_id': best_job_id,
+            'roster_points': target['roster_points'],
+            'pts_limit': target['pts_limit'],
+            'wins': target['wins'],
+        }
+
+    def fetch_user_sim_seasons(
+        self, user_id: str, limit: int = 100, team_id: str | None = None, challenges_only: bool = False,
+    ) -> list[dict]:
+        """A user's own played seasons, newest first. Every run, not just their best."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, TRUE AS is_own
+              FROM internal.sim_season s
+              {self._SIM_SEASON_LIST_JOINS}
+             WHERE s.user_id = %s
+               AND (%s IS NULL OR s.team_id = %s::uuid)
+               AND (NOT %s OR s.challenge_instance_id IS NOT NULL)
+             ORDER BY s.created_at DESC
+             LIMIT %s
+            """,
+            (user_id, team_id, team_id, challenges_only, limit),
+        )
+        return self._stringify_sim_season_ids(rows)
+
+    def fetch_team_sim_seasons(self, team_id: str, viewer_user_id: str | None = None, limit: int = 10) -> list[dict]:
+        """Every season played with a given team, newest first, regardless of who ran it.
+
+        A public team can be simulated by any signed-in user (`get_team`'s own visibility rule),
+        so its history can span multiple users - unlike `fetch_user_sim_seasons`, which is one
+        viewer's own runs. Visibility here is at the team level: callers are expected to already
+        know the viewer can see this team (they're looking at its detail page), so the only check
+        is that the team is public or the viewer owns it - not a per-row owner check.
+        """
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, (s.user_id IS NOT DISTINCT FROM %(viewer)s) AS is_own
+              FROM internal.sim_season s
+              JOIN internal.user_teams t ON t.team_id = s.team_id
+              {self._SIM_SEASON_LIST_JOINS}
+             WHERE s.team_id = %(team_id)s::uuid
+               AND (t.is_public = TRUE OR t.user_id IS NOT DISTINCT FROM %(viewer)s)
+             ORDER BY s.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'team_id': team_id, 'viewer': viewer_user_id, 'limit': limit},
+        )
+        return self._stringify_sim_season_ids(rows)
+
+    def fetch_recent_sim_seasons(
+        self, exclude_user_id: str | None = None, limit: int = 5, challenges_only: bool = False,
+    ) -> list[dict]:
+        """The most recently played seasons across every OTHER user, newest first - a community
+        activity feed rather than a ranking. Same visibility rule as the leaderboard (public teams,
+        or team-less open sims), which works because challenge teams default to public - dropping a
+        team to private removes its runs here too. The viewer's own runs are excluded when
+        `exclude_user_id` is given so "Community" doesn't just echo their own "Mine" list.
+        """
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_SEASON_LIST_COLUMNS}, FALSE AS is_own
+              FROM internal.sim_season s
+              LEFT JOIN internal.user_teams t ON t.team_id = s.team_id
+              {self._SIM_SEASON_LIST_JOINS}
+             WHERE (s.team_id IS NULL OR t.is_public = TRUE)
+               AND (%(exclude_user)s IS NULL OR s.user_id IS DISTINCT FROM %(exclude_user)s)
+               AND (NOT %(challenges_only)s OR s.challenge_instance_id IS NOT NULL)
+             ORDER BY s.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'exclude_user': exclude_user_id, 'limit': limit, 'challenges_only': challenges_only},
+        )
+        return self._stringify_sim_season_ids(rows)
+
+    # ----------------------------------------------------------
+    # MARK: - SIM LOBBY (MULTIPLAYER)
+    # ----------------------------------------------------------
+
+    # UNCLAIMED/ABANDONED LOBBIES DON'T LINGER THE WAY A PLAYED SEASON DOES - THEY EXPIRE FAST.
+    SIM_LOBBY_TTL_HOURS = 24 * 3
+
+    def build_sim_lobby_tables(self) -> None:
+        """Create the sim_lobby + sim_lobby_member tables.
+
+        `sim_season` stays one row per job with `team_id NULL` for a lobby's run, same as a solo
+        open sim - membership (who claimed which club, with which team) lives entirely here.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_lobby (
+                    lobby_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    host_user_id    TEXT NOT NULL,
+                    join_code       TEXT NOT NULL UNIQUE,
+                    year            INT  NOT NULL,
+                    showdown_set    TEXT NOT NULL,
+                    config          JSONB,
+                    status          TEXT NOT NULL DEFAULT 'open',  -- open | running | finished
+                    job_id          UUID,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    expires_at      TIMESTAMP WITHOUT TIME ZONE
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_lobby_host ON internal.sim_lobby (host_user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_lobby_status ON internal.sim_lobby (status) WHERE status IN ('open','running');")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_lobby_member (
+                    lobby_id    UUID NOT NULL REFERENCES internal.sim_lobby(lobby_id) ON DELETE CASCADE,
+                    user_id     TEXT NOT NULL,
+                    club_abbr   TEXT NOT NULL,
+                    team_id     UUID REFERENCES internal.user_teams(team_id) ON DELETE SET NULL,  -- NULL = follow only
+                    joined_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    UNIQUE (lobby_id, club_abbr),  -- ONE CLAIMANT PER CLUB
+                    UNIQUE (lobby_id, user_id)     -- ONE CLUB PER MEMBER
+                );
+            """)
+
+    def create_sim_lobby(self, host_user_id: str, join_code: str, year: int, showdown_set: str, config: dict) -> str:
+        """Insert a new open lobby and return its id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_lobby (host_user_id, join_code, year, showdown_set, config, expires_at)
+                VALUES (%s, %s, %s, %s, %s, NOW() + %s * INTERVAL '1 hour')
+                RETURNING lobby_id
+                """,
+                (host_user_id, join_code, year, showdown_set, extras.Json(config), self.SIM_LOBBY_TTL_HOURS),
+            )
+            return str(cur.fetchone()[0])
+
+    @staticmethod
+    def _stringify_sim_lobby_ids(row: dict) -> dict:
+        row['lobby_id'] = str(row['lobby_id'])
+        row['job_id'] = str(row['job_id']) if row.get('job_id') else None
+        return row
+
+    def get_sim_lobby(self, lobby_id: str) -> dict | None:
+        """One lobby's own row. Visibility/membership checks belong to the caller - a lobby is
+        joined by code/link, so there is no owner-only read restriction here."""
+        if not self.connection:
+            return None
+        self.reap_stale_sim_lobbies()
+        rows = self.execute_query(
+            """
+            SELECT lobby_id, host_user_id, join_code, year, showdown_set, config, status, job_id, created_at, expires_at
+              FROM internal.sim_lobby WHERE lobby_id = %s::uuid
+            """,
+            (lobby_id,),
+        )
+        if not rows:
+            return None
+        return self._stringify_sim_lobby_ids(dict(rows[0]))
+
+    def get_sim_lobby_by_code(self, join_code: str) -> dict | None:
+        if not self.connection:
+            return None
+        self.reap_stale_sim_lobbies()
+        rows = self.execute_query("SELECT lobby_id FROM internal.sim_lobby WHERE join_code = %s", (join_code,))
+        if not rows:
+            return None
+        return self.get_sim_lobby(str(rows[0]['lobby_id']))
+
+    def get_sim_lobby_members(self, lobby_id: str) -> list[dict]:
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT m.user_id, m.club_abbr, m.team_id, m.joined_at,
+                   t.name AS team_name, t.abbreviation AS team_abbreviation
+              FROM internal.sim_lobby_member m
+              LEFT JOIN internal.user_teams t ON t.team_id = m.team_id
+             WHERE m.lobby_id = %s::uuid
+             ORDER BY m.joined_at ASC
+            """,
+            (lobby_id,),
+        )
+        for row in rows:
+            row['team_id'] = str(row['team_id']) if row['team_id'] else None
+        return rows
+
+    def claim_sim_lobby_club(self, lobby_id: str, user_id: str, club_abbr: str, team_id: str | None) -> bool:
+        """Insert or update the caller's own claim, so a member can switch clubs/teams before
+        start. Returns False (instead of raising) when another member already holds `club_abbr` -
+        the `(lobby_id, club_abbr)` unique constraint catches a race the app-level check can't
+        (two members claiming the same club at once). The connection pool runs in autocommit
+        mode, so a caught violation here doesn't leave the connection's next query stuck behind
+        an aborted transaction.
+        """
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO internal.sim_lobby_member (lobby_id, user_id, club_abbr, team_id)
+                    VALUES (%s::uuid, %s, %s, %s::uuid)
+                    ON CONFLICT (lobby_id, user_id) DO UPDATE
+                       SET club_abbr = EXCLUDED.club_abbr, team_id = EXCLUDED.team_id
+                    """,
+                    (lobby_id, user_id, club_abbr, team_id),
+                )
+            except psycopg2.errors.UniqueViolation:
+                return False
+        return True
+
+    def leave_sim_lobby(self, lobby_id: str, user_id: str) -> None:
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.sim_lobby_member WHERE lobby_id = %s::uuid AND user_id = %s",
+                (lobby_id, user_id),
+            )
+
+    def set_sim_lobby_running(self, lobby_id: str, job_id: str) -> None:
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.sim_lobby SET status = 'running', job_id = %s::uuid WHERE lobby_id = %s::uuid",
+                (job_id, lobby_id),
+            )
+
+    def finish_sim_lobby(self, lobby_id: str) -> None:
+        """Marks a running lobby's job as done. Called lazily from the lobby-state route once the
+        underlying `sim_job` resolves, rather than from the worker thread - the worker doesn't
+        know it's running for a lobby, only `sim_job.config`/`sim_lobby.job_id` link the two."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("UPDATE internal.sim_lobby SET status = 'finished' WHERE lobby_id = %s::uuid", (lobby_id,))
+
+    def reap_stale_sim_lobbies(self) -> None:
+        """Expire lobbies nobody ever started - a running/finished lobby is left alone even past
+        its `expires_at`, since its job/result rows are the durable record at that point."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("DELETE FROM internal.sim_lobby WHERE status = 'open' AND expires_at IS NOT NULL AND expires_at < NOW()")
+
+    # ----------------------------------------------------------
+    # MARK: - SIMULATED MLB GAMES
+    # ----------------------------------------------------------
+
+    # EVERYTHING A LIST ROW NEEDS. THE `result` BLOB IS DELIBERATELY EXCLUDED - IT IS ~200 KB AND
+    # ONLY THE DETAIL VIEW READS IT.
+    _SIM_GAME_LIST_COLUMNS = """
+        g.sim_id, g.user_id, g.game_pk, g.season, g.showdown_set, g.game_date,
+        g.away_abbr, g.home_abbr, g.away_score, g.home_score,
+        g.is_takeover, g.takeover_inning, g.seed, g.created_at
+    """
+
+    def build_sim_game_table(self) -> None:
+        """Create the sim_game table - the permanent record of a simulated real MLB game.
+
+        Unlike a season sim there is no job row: one game runs in milliseconds and is returned
+        synchronously, so this is written on the request path rather than by a worker.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_game (
+                    sim_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id         TEXT,
+                    game_pk         BIGINT NOT NULL,
+                    season          INT,
+                    showdown_set    TEXT,
+                    game_date       DATE,
+                    away_abbr       TEXT,
+                    home_abbr       TEXT,
+                    away_score      INT NOT NULL DEFAULT 0,
+                    home_score      INT NOT NULL DEFAULT 0,
+                    is_takeover     BOOLEAN NOT NULL DEFAULT FALSE,
+                    takeover_inning INT,
+                    seed            BIGINT,
+                    result          JSONB,
+                    created_at      TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_user ON internal.sim_game (user_id, created_at DESC);")
+            # BACKS "OTHER PEOPLE'S SIMS OF THIS GAME", WHICH IS THE ONLY WAY TO DISCOVER ONE.
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_game_pk ON internal.sim_game (game_pk, created_at DESC);")
+
+    def record_sim_game(self, user_id: str | None, result: dict) -> str | None:
+        """Store one simulated game and return its id.
+
+        Args:
+          result: An `MLBGameSimResult` dumped in JSON mode. The scalar columns are projected out
+            of it so listing a user's games never has to parse the blob.
+        """
+        if not self.connection:
+            return None
+
+        game = result.get('game') or {}
+        setup = result.get('setup') or {}
+        start_state = setup.get('start_state') or {}
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_game (
+                    user_id, game_pk, season, showdown_set, game_date,
+                    away_abbr, home_abbr, away_score, home_score,
+                    is_takeover, takeover_inning, seed, result
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING sim_id
+                """,
+                (
+                    user_id, result.get('game_pk'), result.get('season'), result.get('showdown_set'),
+                    game.get('date'),
+                    game.get('away_team'), game.get('home_team'),
+                    game.get('away_score', 0), game.get('home_score', 0),
+                    bool(result.get('is_takeover')),
+                    start_state.get('inning') if result.get('is_takeover') else None,
+                    result.get('seed'),
+                    extras.Json(result),
+                ),
+            )
+            row = cur.fetchone()
+        # THE RAW CURSOR RETURNS TUPLES - ONLY `execute_query` USES A DICT CURSOR.
+        return str(row[0]) if row else None
+
+    def fetch_sim_game(self, sim_id: str, user_id: str | None = None) -> dict | None:
+        """One simulated game with its full result.
+
+        Readable by anyone with the link. A simulated game carries no private roster - it is two
+        real MLB clubs - so there is nothing here to gate, and a shareable URL is the point.
+        `user_id` only marks the row as the viewer's own.
+        """
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_GAME_LIST_COLUMNS}, g.result,
+                   (g.user_id IS NOT DISTINCT FROM %s) AS is_own
+              FROM internal.sim_game g
+             WHERE g.sim_id = %s::uuid
+            """,
+            (user_id, sim_id),
+        )
+        return self._stringify_sim_game_ids(rows)[0] if rows else None
+
+    def fetch_sim_games_for_game(self, game_pk: int, user_id: str | None = None, limit: int = 10) -> list[dict]:
+        """Previous simulations of one real game, newest first."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_GAME_LIST_COLUMNS}, (g.user_id IS NOT DISTINCT FROM %s) AS is_own
+              FROM internal.sim_game g
+             WHERE g.game_pk = %s
+             ORDER BY g.created_at DESC
+             LIMIT %s
+            """,
+            (user_id, int(game_pk), limit),
+        )
+        return self._stringify_sim_game_ids(rows)
+
+    @staticmethod
+    def _stringify_sim_game_ids(rows: list[dict]) -> list[dict]:
+        """UUIDs and dates come back as objects psycopg won't hand to `jsonify`."""
+        for row in rows:
+            if row.get('sim_id') is not None:
+                row['sim_id'] = str(row['sim_id'])
+            if row.get('game_date') is not None:
+                row['game_date'] = str(row['game_date'])
+            if row.get('created_at') is not None:
+                row['created_at'] = str(row['created_at'])
+        return rows

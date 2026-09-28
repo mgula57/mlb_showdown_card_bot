@@ -17,7 +17,7 @@ from collections import Counter
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageChops
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageChops, ImageOps
 from prettytable import PrettyTable
 from pprint import pprint
 from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
@@ -32,7 +32,7 @@ from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
 from .utils import showdown_constants as sc, colors
-from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, total_ip_for_calculations
+from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, convert_year_string_to_list, total_ip_for_calculations
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
@@ -49,7 +49,7 @@ from .trends.trends import TrendDatapoint
 
 from ..supabase import upload_to_supabase
 
-from ..data.stat_reduction import nerf_stats_by_run_value
+from ..data.stat_reduction import nerf_stats_by_run_value, shrink_stats_toward_replacement_level
 
 from ..version import __version__
 
@@ -96,6 +96,7 @@ class ShowdownPlayerCard(BaseModel):
     is_variable_speed_00_01: bool = False
     is_wotc: bool = False
     nerf_by_run_value: Optional[float] = None
+    regress_small_sample_to_replacement: bool = False
     
     # ENVIRONMENT
     build_on_init: bool = True
@@ -250,6 +251,20 @@ class ShowdownPlayerCard(BaseModel):
             self.is_stats_estimate = True
             self.warnings.append(f"Stats have been nerfed by a run value of {self.nerf_by_run_value}. The purpose is to normalize stats for players coming from different leagues (e.g. KBO, NPB, MINORS) to create a more accurate card against MLB pitching/hitting.")
 
+        # IF STATS SHOULD BE REGRESSED TOWARD REPLACEMENT LEVEL FOR A SMALL REAL SAMPLE
+        if self.regress_small_sample_to_replacement:
+            try:
+                shrink_year = max(convert_year_string_to_list(self.year))
+                self.stats_period.stats = shrink_stats_toward_replacement_level(
+                    stats=self.stats,
+                    year=shrink_year,
+                    is_pitcher=self.is_pitcher,
+                )
+                self.is_stats_estimate = True
+                self.warnings.append("Stats have been regressed toward replacement level to account for a small real sample size.")
+            except (KeyError, ValueError):
+                pass
+
         # UPDATE IMAGE COLORS
         self.image.color_primary = self._team_color_rgb_str()
         self.image.color_secondary = self._team_color_rgb_str(is_secondary_color=True)
@@ -260,7 +275,7 @@ class ShowdownPlayerCard(BaseModel):
         self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
         self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
         self.player_sub_type = self.calculate_player_sub_type()
-        self.ip: int = self._innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
+        self.ip: int = self._innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', None))
         hand_raw = self.stats_for_card.get('hand', None) if self.player_type == PlayerType.HITTER else ( self.stats_for_card.get('hand_throw', None) or self.stats_for_card.get('hand', None) )
         self.hand: Hand = self._handedness(hand_raw=hand_raw)
         self.speed: Speed = self.calculate_speed()
@@ -278,7 +293,8 @@ class ShowdownPlayerCard(BaseModel):
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
-        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not self.nerf_by_run_value else self.stats)
+        stats_are_adjusted = self.nerf_by_run_value or self.regress_small_sample_to_replacement
+        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not stats_are_adjusted else self.stats)
         self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
         if show_image or self.image.output_folder_path or self.image.upload_to_supabase:
@@ -455,8 +471,14 @@ class ShowdownPlayerCard(BaseModel):
 
     @property
     def id(self) -> str:
-        """Generate a unique ID to classify the player's card. Does not include image styling."""
-        fields = [self.year, self.bref_id, self.set.value, self.image.expansion.value,]
+        """Generate a unique ID to classify the player's card. Does not include image styling.
+        Falls back to `mlb_id` when `bref_id` is blank (e.g. a very recent call-up not yet synced
+        to Baseball-Reference) - otherwise every blank-`bref_id` player in the same year/set would
+        collide on this id, silently clobbering each other in any dict keyed by it (see
+        `PostgresDB.fetch_season_card_pool`'s `archive_card_ids`).
+        """
+        player_id = self.bref_id or (f"mlb{self.mlb_id}" if self.mlb_id else '')
+        fields = [self.year, player_id, self.set.value, self.image.expansion.value,]
         if self.player_type_override:
             fields.append(self.player_type_override.value)
         if self.is_wotc:
@@ -1282,6 +1304,7 @@ class ShowdownPlayerCard(BaseModel):
         match self.player_sub_type:
             case PlayerSubType.RELIEF_PITCHER:
                 # REMOVE STARTER INNINGS AND GAMES STARTED
+                ip_per_start = ip_per_start or (5.0 if self.stats_period.last_year >= 2026 else 0)
                 ip_as_starter = games_started * ip_per_start
                 innings_pitched -= ip_as_starter
                 games -= games_started
@@ -1292,8 +1315,9 @@ class ShowdownPlayerCard(BaseModel):
                 ip = min(round(innings_pitched / games), cap)
 
             case PlayerSubType.STARTING_PITCHER:
-                if ip_per_start > 0:
+                if (ip_per_start or 0) > 0:
                     # USE IP/GS
+                    print(f"ip_per_start: {ip_per_start}, games_started: {games_started}, innings_pitched: {innings_pitched}, rounded: {round(ip_per_start)}")
                     ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
                 elif games_started > 0:
                     # HAVE GAMES STARTED DATA, ESTIMATE RP INNINGS AND NORMALIZE
@@ -1664,9 +1688,9 @@ class ShowdownPlayerCard(BaseModel):
         current_accolades = [at[0] for at in accolades_rank_and_priority_tuples]
 
         # CHECK FOR TRIPLE CROWN
-        substrings_triple_crown = [ba_champ_text, 'HR LEADER', 'RBI LEADER']
+        substrings_triple_crown = [ba_champ_text, 'HR LEADER', 'RBI LEADER'] if self.is_hitter else ['ERA LEADER', 'WINS LEADER', 'SO LEADER']
         num_triple_crown_leading = len([cat for cat in substrings_triple_crown if self.is_substring_in_list(cat, current_accolades)])
-        if num_seasons == 1 and self.is_hitter and num_triple_crown_leading == 3:
+        if num_seasons == 1 and num_triple_crown_leading == 3:
             accolades_rank_and_priority_tuples.append( (f'{self.league} TRIPLE CROWN', 0, 0) )
             accolades_to_remove = []
             for accolade_tuple in accolades_rank_and_priority_tuples:
@@ -3016,7 +3040,7 @@ class ShowdownPlayerCard(BaseModel):
             # LOAD DIRECTLY FROM GOOGLE DRIVE
             response = requests.get(cached_img_link)
             card_image = Image.open(BytesIO(response.content))
-            self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix, disable_add_border=True)
+            self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
             return
         
         # CHECK FOR SPECIAL EDITION
@@ -3032,19 +3056,24 @@ class ShowdownPlayerCard(BaseModel):
         card_image = self._background_image()
         
         # PLAYER IMAGE
+        # RELEASED ONLY AFTER THE LOOP: THE SAME LAYER OBJECT CAN APPEAR MORE THAN ONCE (EX: ELLIPSES)
         player_image_layers = self._player_image_layers()
         for img, coordinates in player_image_layers:
             card_image.paste(img, coordinates, img)
+        self._release_images(*[img for img, _ in player_image_layers])
+        del player_image_layers
 
         # ADD HOLIDAY THEME
         if self.image.edition == Edition.HOLIDAY:
             holiday_image_path = self._template_img_path('Holiday')
             holiday_image = Image.open(holiday_image_path)
             card_image.paste(holiday_image,self._coordinates_adjusted_for_bordering(coordinates=(0,0)),holiday_image)
+            self._release_images(holiday_image)
 
         # LOAD SHOWDOWN TEMPLATE
         showdown_template_frame_image = self._template_image()
         card_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
+        self._release_images(showdown_template_frame_image)
 
         # CREATE NAME TEXT
         name_text, color = self._player_name_text_image()
@@ -3056,7 +3085,9 @@ class ShowdownPlayerCard(BaseModel):
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
             shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
             card_image.paste(colors.BLACK, self._coordinates_adjusted_for_bordering(shadow_paste_coordinates), name_text_blurred)
+            self._release_images(name_text_blurred)
         card_image.paste(color, self._coordinates_adjusted_for_bordering(name_paste_location),  name_text)
+        self._release_images(name_text)
 
         # ADD TEAM LOGO
         is_2000_logo_override = self.image.edition.has_additional_logo_00_01 \
@@ -3067,6 +3098,7 @@ class ShowdownPlayerCard(BaseModel):
         if not disable_team_logo:
             team_logo, team_logo_coords = self._team_logo_image()
             card_image.paste(team_logo, self._coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
+            self._release_images(team_logo)
 
         # ADDITIONAL LOGO
         card_image = self._add_additional_logo(image=card_image)
@@ -3078,17 +3110,20 @@ class ShowdownPlayerCard(BaseModel):
             metadata_image_x += -10
         metadata_paste_coordinates = self._coordinates_adjusted_for_bordering((metadata_image_x, metadata_image_y))
         card_image.paste(color, metadata_paste_coordinates, metadata_image)
+        self._release_images(metadata_image)
 
         # CHART
         chart_image, color = self._chart_image()
         chart_cords = self.set.template_component_paste_coordinates(TemplateImageComponent.CHART, player_type=self.player_type)
         card_image.paste(color, self._coordinates_adjusted_for_bordering(chart_cords), chart_image)
+        self._release_images(chart_image)
 
         # STYLE (IF APPLICABLE)
         if self.set.is_showdown_bot:
             style_img = self._style_image()
             style_coordinates = self._coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE))
             card_image.paste(style_img, style_coordinates, style_img)
+            self._release_images(style_img)
         
         # ICONS
         card_image = self._add_icons_to_image(card_image)
@@ -3096,6 +3131,7 @@ class ShowdownPlayerCard(BaseModel):
         # SET
         set_image = self._set_and_year_image()
         card_image.paste(set_image, self._coordinates_adjusted_for_bordering((0,0)), set_image)
+        self._release_images(set_image)
 
         # YEAR CONTAINER
         if self.image.show_year_text and not self.set.is_year_container_text:
@@ -3107,17 +3143,20 @@ class ShowdownPlayerCard(BaseModel):
 
             year_container_img = self._year_container_add_on()
             card_image.paste(year_container_img, self._coordinates_adjusted_for_bordering(paste_location), year_container_img)
+            self._release_images(year_container_img)
 
         # SPLIT/DATE RANGE
         if self.stats_period.show_text_on_card_image:
             split_image = self._stats_period_type_text_img()
             paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career)
             card_image.paste(split_image, self._coordinates_adjusted_for_bordering(paste_coordinates), split_image)
+            self._release_images(split_image)
 
         # STAT HIGHLIGHTS
         if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
             stat_highlights_img, paste_coordinates = self._stat_highlights_image()
             card_image.paste(stat_highlights_img, self._coordinates_adjusted_for_bordering(paste_coordinates), stat_highlights_img)
+            self._release_images(stat_highlights_img)
 
         # EXPANSION
         if self.image.expansion.has_image:
@@ -3129,6 +3168,7 @@ class ShowdownPlayerCard(BaseModel):
                     expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
                 
                 card_image.paste(expansion_image, self._coordinates_adjusted_for_bordering(expansion_location), expansion_image)
+                self._release_images(expansion_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm or bordered
@@ -5214,23 +5254,14 @@ class ShowdownPlayerCard(BaseModel):
         # CHECK FOR USER UPLOADED IMAGE
         player_img_user_uploaded = None
         player_img_user_upload_transparency_pct = 0.0
-        # ---- LOCAL/UPLOADED IMAGE -----
-        if self.image.source.path:
+        # ---- LOCAL/UPLOADED IMAGE OR IMAGE FROM URL -----
+        if self.image.source.path or self.image.source.url:
             try:
-                player_img_uploaded_raw = Image.open(self.image.source.path).convert('RGBA')
-                player_img_user_uploaded, paste_coords = self._user_uploaded_player_image_crop(player_img_uploaded_raw)
-                images_to_paste.append((player_img_user_uploaded, paste_coords))
-                player_img_user_upload_transparency_pct = self._img_transparency_pct(player_img_user_uploaded)
-            except Exception as err:
-                self.image.error = str(err)
-        
-        # ---- IMAGE FROM URL -----
-        elif self.image.source.url:
-            # LOAD IMAGE FROM URL
-            try:
-                response = requests.get(self.image.source.url)
-                player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
+                player_img_raw = self._load_user_uploaded_player_image()
                 player_img_user_uploaded, paste_coords = self._user_uploaded_player_image_crop(player_img_raw)
+                if player_img_user_uploaded is not player_img_raw:
+                    # RAW UPLOADS CAN BE FULL-RES PHOTOS; DON'T HOLD THEM FOR THE REST OF THE BUILD
+                    self._release_images(player_img_raw)
                 images_to_paste.append((player_img_user_uploaded, paste_coords))
                 player_img_user_upload_transparency_pct = self._img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
@@ -5361,11 +5392,11 @@ class ShowdownPlayerCard(BaseModel):
                         try:
                             # GRAB MOST COMMON COLOR FROM ASG LOGO
                             logo_path = self._team_logo_path(name=f'ASG-{self.stats_period.last_year or self.year}')
-                            image = Image.open(logo_path).convert("RGBA")
-                            pixels = list(image.getdata())
-                            opaque_pixels = [pixel for pixel in pixels if pixel[3] > 200 and (pixel[0] * 0.299 + pixel[1] * 0.587 + pixel[2] * 0.114) < 200]
-                            pixels = opaque_pixels if opaque_pixels else pixels
-                            most_common_rgba = Counter(pixels).most_common(1)[0][0]
+                            with Image.open(logo_path) as logo_image:
+                                logo_image = logo_image.convert("RGBA")
+                                color_counts = logo_image.getcolors(maxcolors=logo_image.width * logo_image.height)
+                            opaque_color_counts = [(count, pixel) for count, pixel in color_counts if pixel[3] > 200 and (pixel[0] * 0.299 + pixel[1] * 0.587 + pixel[2] * 0.114) < 200]
+                            _, most_common_rgba = max(opaque_color_counts or color_counts, key=lambda count_and_pixel: count_and_pixel[0])
                             most_common_rgba = (most_common_rgba[0], most_common_rgba[1], most_common_rgba[2], 255)
                             
                             # APPLY TO NEW BACKGROUND IMAGE
@@ -5971,6 +6002,29 @@ class ShowdownPlayerCard(BaseModel):
         """
         image.save(path, quality=100)
 
+    def _load_user_uploaded_player_image(self) -> Image.Image:
+        """Open the user's uploaded image (local path or url) as RGBA.
+
+        JPEGs are decoded at the smallest power-of-two scale that still covers the bordered
+        card size, so a full-resolution phone photo never has to be decoded at full size.
+
+        Args:
+          None
+
+        Returns:
+          RGBA PIL Image of the user's upload.
+        """
+
+        if self.image.source.path:
+            source = self.image.source.path
+        else:
+            response = requests.get(self.image.source.url)
+            source = BytesIO(response.content)
+
+        with Image.open(source) as raw_image:
+            raw_image.draft(None, self.set.card_size_bordered)
+            return raw_image.convert('RGBA')
+
     def _user_uploaded_player_image_crop(self, image:Image.Image) -> tuple[Image.Image, tuple[int,int]]:
         """Crop and center user uploaded player image
         
@@ -6153,24 +6207,16 @@ class ShowdownPlayerCard(BaseModel):
           Float for percentage of image with transparent pixels.
         """
 
-        img_width, img_height = image.size
-
-        results: list[int] = []
-        for x_coord in range(1, img_width):
-            for y_coord in range(1, img_height):
-                coordinates = (x_coord, y_coord)
-                try:
-                    pixel = image.getpixel(coordinates)
-                    pixel_opacity = pixel[3]
-                    results.append(int(pixel_opacity < 200))
-                except:
-                    continue
-        
-        if len(results) == 0:
+        if 'A' not in image.getbands():
             return 0.0
-        
-        pct = sum(results) / len(results)
-        return pct
+
+        # INDEX = OPACITY (0-255), VALUE = NUMBER OF PIXELS AT THAT OPACITY
+        alpha_histogram = image.getchannel('A').histogram()
+        num_pixels = sum(alpha_histogram)
+        if num_pixels == 0:
+            return 0.0
+
+        return sum(alpha_histogram[:200]) / num_pixels
 
     def _crop_template_image(self, image:Image.Image) -> Image.Image:
         """Crops a full sized template image to it's proper size based on bordered vs unbordered output.
@@ -6239,7 +6285,7 @@ class ShowdownPlayerCard(BaseModel):
             draw.text((x, y-border_size), text, font=font, spacing=spacing, fill=border_color, align=alignment)
             draw.text((x, y+border_size), text, font=font, spacing=spacing, fill=border_color, align=alignment)
         draw.text((x, y), text, font=font, spacing=spacing, fill=fill, align=alignment)
-        rotated_text_layer = text_layer.rotate(rotation, expand=1, resample=Image.BICUBIC)
+        rotated_text_layer = text_layer.rotate(rotation, expand=1, resample=Image.BICUBIC) if rotation else text_layer
 
         # OPTIONAL IMAGE OVERLAY
         if overlay_image_path is not None:
@@ -6253,7 +6299,7 @@ class ShowdownPlayerCard(BaseModel):
             mask_img_draw.text((x, y), text, fill=0, font=font, spacing=spacing, align=alignment)
             # CREATE FINAL IMAGE
             combined_image = Image.composite(transparent_overlay_image, texture_background, mask_img)
-            combined_image_rotated = combined_image.rotate(rotation, expand=1, resample=Image.BICUBIC)
+            combined_image_rotated = combined_image.rotate(rotation, expand=1, resample=Image.BICUBIC) if rotation else combined_image
             return combined_image_rotated
         else:
             return rotated_text_layer
@@ -6320,6 +6366,23 @@ class ShowdownPlayerCard(BaseModel):
         size_multiplier = best_size / safe_base_size
 
         return best_font, size_multiplier
+
+    def _release_images(self, *images:Optional[Image.Image]) -> None:
+        """Free the pixel buffers of images that are no longer needed.
+
+        Closing drops the buffer immediately rather than whenever the last reference goes away,
+        which keeps the peak (and so what the worker process retains afterward) down while a
+        card is composited. Safe to call more than once on the same image.
+
+        Args:
+          images: PIL images to release. None entries are ignored.
+
+        Returns:
+          None
+        """
+        for image in images:
+            if image is not None:
+                image.close()
 
     def _round_corners(self, image:Image.Image, radius:int) -> Image.Image:
         """Round corners of a given image to a certain radius.
@@ -6766,11 +6829,13 @@ class ShowdownPlayerCard(BaseModel):
     def save_image(self, image:Image.Image, start_time:datetime, show:bool=False, img_name_prefix:str='', img_name_suffix:str='') -> None:
         """Stores image in proper folder depending on the context of the run.
 
+        Takes ownership of `image`: its pixel buffer is released once it's written, so callers
+        must not use it afterward.
+
         Args:
           image: PIL image object
           start_time: Datetime in which card image processing began.
           show: Boolean flag for whether to open the final image after creation.
-          disable_add_border: Optional flag to skip border addition.
           img_name_prefix: Optional prefix added to the image name.
           img_name_suffix: Optional suffix added to the image name.
 
@@ -6784,24 +6849,24 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.set_name:
             self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {name_safe}{img_name_suffix}.png'            
         
-        if self.set.convert_final_image_to_rgb:
-            image = image.convert('RGB')
+        try:
+            if self.set.convert_final_image_to_rgb:
+                rgb_image = image.convert('RGB')
+                self._release_images(image)
+                image = rgb_image
 
-        
-        
-        if self.is_running_on_website:
-            default_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output')
-            flask_img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
-            image.save(flask_img_path, dpi=(300, 300), quality=100)
-        else:
-            default_path = os.path.join(os.path.dirname(__file__), 'image_output')
-            save_img_path = os.path.join(self.image.output_folder_path or default_path, self.image.output_file_name)
-            image.save(save_img_path, dpi=(300, 300), quality=100)
+            image.save(self._output_img_path(self.image.output_file_name), dpi=(300, 300))
 
-        # OPEN THE IMAGE LOCALLY
-        if show:
-            image_title = f"{self.name} - {self.year}"
-            image.show(title=image_title)
+            # BUILD THE THUMBNAIL FROM THE IN-MEMORY IMAGE SO UPLOAD DOESN'T RE-DECODE THE FULL PNG
+            if self.image.upload_to_supabase:
+                self._save_thumbnail(image=image, path=self._output_img_path(self._thumbnail_file_name))
+
+            # OPEN THE IMAGE LOCALLY
+            if show:
+                image_title = f"{self.name} - {self.year}"
+                image.show(title=image_title)
+        finally:
+            self._release_images(image)
 
         self._clean_images_directory()
 
@@ -6823,12 +6888,7 @@ class ShowdownPlayerCard(BaseModel):
             print("Image output file name is not set. Skipping upload.")
             return
 
-        # GET IMAGE PATH
-        if self.is_running_on_website:
-            img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
-        else:
-            img_path = os.path.join(os.path.dirname(__file__), 'image_output', self.image.output_file_name)
-
+        img_path = self._output_img_path(self.image.output_file_name)
         card_bucket = 'card_images'
         card_folder_destination = f'users/{self.user_id}' if self.user_id else f'public/{self.set.name}'
 
@@ -6842,40 +6902,65 @@ class ShowdownPlayerCard(BaseModel):
         self.image.storage_path = upload_result_data.get('path', None)
         print("Full image uploaded to Supabase storage with path: ", self.image.storage_path)
 
-        # CREATE AND UPLOAD THUMBNAIL
+        # UPLOAD THUMBNAIL
+        thumb_filename = self._thumbnail_file_name
+        thumb_path = self._output_img_path(thumb_filename)
         try:
-            from PIL import Image
-            # Load the saved image
-            with Image.open(img_path) as img:
-                # Create thumbnail (200px wide, maintains aspect ratio)
-                thumbnail = img.copy()
-                thumbnail.thumbnail((200, 280), Image.Resampling.LANCZOS)
+            # NORMALLY WRITTEN BY save_image; ONLY FALL BACK TO DECODING THE FULL IMAGE IF IT'S MISSING
+            if not os.path.exists(thumb_path):
+                with Image.open(img_path) as img:
+                    self._save_thumbnail(image=img, path=thumb_path)
 
-                # Save thumbnail to temp file
-                thumb_filename = self.image.output_file_name.replace('.png', '-thumb.png')
-                if self.is_running_on_website:
-                    thumb_path = os.path.join(self.image.output_folder_path, thumb_filename)
-                else:
-                    thumb_path = os.path.join(os.path.dirname(__file__), 'image_output', thumb_filename)
-                thumbnail.save(thumb_path, dpi=(72, 72), quality=85, optimize=True)
-
-                # Upload thumbnail
-                thumb_dest_path = f'{card_folder_destination}/{thumb_filename}'
-                thumb_upload_result = upload_to_supabase(
-                    bucket_name=card_bucket,
-                    file_path=thumb_path,
-                    destination_path=thumb_dest_path
-                )
-                self.image.thumbnail_storage_path = thumb_upload_result.get('path', None)
-
-                # Clean up temp thumbnail file
-                if os.path.exists(thumb_path):
-                    os.remove(thumb_path)
+            thumb_upload_result = upload_to_supabase(
+                bucket_name=card_bucket,
+                file_path=thumb_path,
+                destination_path=f'{card_folder_destination}/{thumb_filename}'
+            )
+            self.image.thumbnail_storage_path = thumb_upload_result.get('path', None)
         except Exception as e:
             print(f"Failed to create/upload thumbnail: {e}")
             # Don't fail the whole upload if thumbnail fails
             import traceback
             traceback.print_exc()
+        finally:
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+
+    @property
+    def _thumbnail_file_name(self) -> str:
+        """File name for the card's thumbnail, derived from the full-size output file name."""
+        return self.image.output_file_name.replace('.png', '-thumb.png')
+
+    def _output_img_path(self, file_name:str) -> str:
+        """Local path an output file (card image or thumbnail) is written to and uploaded from.
+
+        Args:
+          file_name: Name of the file in the output folder.
+
+        Returns:
+          Full path in the configured output folder, or the package's image_output folder if none is set.
+        """
+        output_folder_path = self.image.output_folder_path or os.path.join(os.path.dirname(__file__), 'image_output')
+        return os.path.join(output_folder_path, file_name)
+
+    def _save_thumbnail(self, image:Image.Image, path:str) -> None:
+        """Save a 200x280-bounded thumbnail of the card image.
+
+        Resizes straight from the source rather than via `copy()` + `thumbnail()`, which would
+        hold a second full-size buffer just to shrink it.
+
+        Args:
+          image: Full-size card image. Left unmodified.
+          path: Where to write the thumbnail.
+
+        Returns:
+          None
+        """
+        thumbnail = ImageOps.contain(image, (200, 280), Image.Resampling.LANCZOS)
+        try:
+            thumbnail.save(path, dpi=(72, 72), optimize=True)
+        finally:
+            self._release_images(thumbnail)
 
     def _clean_images_directory(self) -> None:
         """Removes all images from output folder that are not the current card. Leaves

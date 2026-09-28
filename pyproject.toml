@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlb-showdown-bot"
-version = "4.3"
+version = "4.4"
 description = "Create custom MLB Showdown cards"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
@@ -24,6 +24,7 @@ classifiers = [
 dependencies = [
     "apiclient>=1.0.4",
     "beautifulsoup4>=4.9.0",
+    "better-profanity>=0.7.0",
     "chardet>=3.0.4",
     "cloudscraper>=1.2.71",
     "firebase-admin>=6.0.1",
@@ -47,6 +48,7 @@ dependencies = [
     "supabase>=2.4.0",
     "termcolor>=2.0.1",
     "thefuzz>=0.22.1",
+    "tqdm>=4.66.0",
     "typer>=0.16.0",
     "Unidecode>=1.2.0",
     "webcolors>=1.13",
