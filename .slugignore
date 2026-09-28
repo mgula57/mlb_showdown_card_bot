@@ -1,5 +1,8 @@
 # Documentation
-*.md
+# Root-level only: SIMULATION_GUIDE.md is read at runtime by api/sim.py
+# (.slugignore doesn't support `!` negation, so don't use a blanket *.md)
+/*.md
+.claude/
 docs/
 README*
 LICENSE
