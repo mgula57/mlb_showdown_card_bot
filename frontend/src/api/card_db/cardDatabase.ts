@@ -176,9 +176,13 @@ export interface TeamHierarchyRecord {
  * 
  * @param source - Source of the card data (CardSource enum)
  * @param payload - Filter parameters (year, team, player name, etc.)
+ * @param token - Supabase access token. Required for `CardSource.CUSTOM`, whose results are
+ *   scoped to the requesting user; ignored (but harmless to pass) for other sources.
+ * @param signal - Optional AbortSignal so callers can cancel a stale in-flight request
+ *   (e.g. when filters/search change before the previous load finishes).
  * @returns Promise resolving to array of card records
  * @throws Error if API request fails
- * 
+ *
  * @example
  * ```typescript
  * const cards = await fetchCardData(CardSource.BOT, {
@@ -189,14 +193,16 @@ export interface TeamHierarchyRecord {
  * });
  * ```
  */
-export async function fetchCardData(source: CardSource, payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
+export async function fetchCardData(source: CardSource, payload: Record<string, any>, token?: string | null, signal?: AbortSignal) : Promise<CardDatabaseRecord[]> {
 
     const res = await fetch(`${API_BASE}/cards/search`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ source, ...payload }),
+        signal,
     });
 
     // Handle errors

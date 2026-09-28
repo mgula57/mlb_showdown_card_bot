@@ -1,0 +1,435 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, type NavigateFunction } from 'react-router-dom';
+import {
+    fetchHistoricalTeams, fetchAsgSeasons,
+    type HistoricalTeam, type HistoricalSeasonRef, type AsgTeamRef,
+} from '../../api/mlbAPI';
+import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
+import { TeamShelf } from './TeamShelf';
+import { TeamGridPage } from './TeamGridPage';
+import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
+import { FaSpinner, FaChevronRight } from 'react-icons/fa6';
+import { TeamSearchInput } from './TeamSearchInput';
+
+// League team-colors for the All-Star tiles / detail header.
+export const ASG_COLORS: Record<string, { primary: string; secondary: string }> = {
+    AL: { primary: 'rgb(200,16,46)', secondary: 'rgb(255,255,255)' },
+    NL: { primary: 'rgb(0,45,114)', secondary: 'rgb(255,255,255)' },
+};
+
+/** Display identity for an All-Star team — shared by the tile and the full-detail header overlay. */
+export function asgIdentity(season: string | number, league: string) {
+    return {
+        abbr: league,
+        name: `${season} ${league} All-Stars`,
+        primary_color: ASG_COLORS[league]?.primary,
+        secondary_color: ASG_COLORS[league]?.secondary,
+    };
+}
+
+/** Identity carried on navigation so the detail view can render colors/name without re-resolving. */
+export type HistoricalNavState = {
+    abbr: string;
+    name: string;
+    primary_color?: string;
+    secondary_color?: string;
+};
+
+/** How many season shelves to mount at a time as the user scrolls back through history. */
+const SEASONS_PER_PAGE = 4;
+const SEARCH_LIMIT = 60;
+
+// How many season shelves were paged in, remembered per session so navigating into a team's
+// detail page (which fully unmounts this tree) and back doesn't collapse the list back down to
+// the first page -- BrowseTeams' own scroll restoration needs the page to already be as tall as
+// it was when the user clicked away, or there's nothing to scroll back down to.
+const VISIBLE_COUNT_STORAGE_KEY = 'historicalTeams.visibleCount';
+
+// Each restored shelf fires its own team fetch immediately on mount (SeasonShelf doesn't wait
+// for the near-viewport check -- that only gates whether cards or skeletons render once data
+// arrives), unlike normal scrolling, where growth is paced by the user and the sentinel. Capping
+// how much a single remount will restore bounds that burst to a reasonable number of concurrent
+// requests, even after a very long scroll-back session.
+const MAX_RESTORED_VISIBLE_COUNT = SEASONS_PER_PAGE * 5;
+
+function loadStoredVisibleCount(): number {
+    try {
+        const stored = Number(sessionStorage.getItem(VISIBLE_COUNT_STORAGE_KEY));
+        if (Number.isFinite(stored) && stored > SEASONS_PER_PAGE) {
+            return Math.min(stored, MAX_RESTORED_VISIBLE_COUNT);
+        }
+    } catch {
+        // ignore
+    }
+    return SEASONS_PER_PAGE;
+}
+
+type SortKey = 'season' | 'points' | 'name' | 'roster';
+
+const SORT_OPTIONS: SelectOption[] = [
+    { value: 'season', label: 'Newest Season' },
+    { value: 'points', label: 'Most Points' },
+    { value: 'name', label: 'Name (A–Z)' },
+    { value: 'roster', label: 'Roster Size' },
+];
+
+function sortTeams(list: HistoricalTeam[], sortBy: SortKey): HistoricalTeam[] {
+    const sorted = [...list];
+    switch (sortBy) {
+        case 'points': sorted.sort((a, b) => b.total_points - a.total_points); break;
+        case 'name': sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+        case 'roster': sorted.sort((a, b) => b.roster_count - a.roster_count); break;
+        case 'season':
+        default: sorted.sort((a, b) => b.season - a.season || b.total_points - a.total_points); break;
+    }
+    return sorted;
+}
+
+const teamToPreview = (team: HistoricalTeam, showdownSet?: string): TeamPreviewData => ({
+    abbreviation: team.abbreviation || team.name,
+    name: team.name,
+    primary_color: team.primary_color,
+    secondary_color: team.secondary_color,
+    total_points: team.total_points,
+    top_players: team.top_players,
+    source: 'mlb',
+    allowed_sets: showdownSet ? [showdownSet] : undefined,
+    badge: String(team.season),
+});
+
+// Navigate to a historical team's own shareable detail page — shared by the shelves and the
+// "See all" grid. Identity is passed via nav state so the detail view renders instantly; a cold
+// link resolves identity server-side.
+const openHistoricalTeam = (navigate: NavigateFunction, team: HistoricalTeam) => {
+    const state: HistoricalNavState = {
+        abbr: team.abbreviation || team.name,
+        name: team.name,
+        primary_color: team.primary_color ?? undefined,
+        secondary_color: team.secondary_color ?? undefined,
+    };
+    navigate(`/teams/historical/${team.sport_id}/${team.season}/${team.team_id}`, { state });
+};
+
+/** One season's shelf. Teams are fetched when the shelf mounts, so scrolling back through
+ *  history pages the data in rather than loading every season up front. */
+function SeasonShelf({ season, teamCount, asgLeagues, showdownSet, onOpenTeam, onOpenAsg, className }: {
+    season: number;
+    teamCount: number;
+    asgLeagues: string[];
+    showdownSet?: string;
+    onOpenTeam: (team: HistoricalTeam) => void;
+    onOpenAsg: (season: number, league: string) => void;
+    className?: string;
+}) {
+    const [teams, setTeams] = useState<HistoricalTeam[]>([]);
+    const [loading, setLoading] = useState(true);
+    // Once loaded, real cards (and their images) are swapped for lightweight skeletons whenever
+    // the shelf scrolls well outside the viewport, so a long scroll session doesn't keep every
+    // previously-seen shelf's tiles resident in memory at once. Data already fetched is kept in
+    // state, so scrolling back just re-renders the same teams instantly.
+    const [isNearViewport, setIsNearViewport] = useState(true);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        fetchHistoricalTeams({ season, showdownSet, limit: 200 })
+            .then(result => { if (!cancelled) setTeams(result.teams); })
+            .catch(() => { if (!cancelled) setTeams([]); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [season, showdownSet]);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            entries => setIsNearViewport(entries[0]?.isIntersecting ?? true),
+            { rootMargin: '800px 0px' },
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    const asgPreview = (league: string): TeamPreviewData => {
+        const id = asgIdentity(season, league);
+        return {
+            abbreviation: id.abbr, name: id.name,
+            primary_color: id.primary_color, secondary_color: id.secondary_color,
+            badge: 'All-Star',
+            source: 'asg',
+            allowed_sets: showdownSet ? [showdownSet] : undefined,
+        };
+    };
+
+    const showSkeletons = loading || !isNearViewport;
+    const skeletonCount = loading ? 6 : asgLeagues.length + teams.length;
+
+    return (
+        <div ref={containerRef}>
+            <TeamShelf title={String(season)} subtitle={`${teamCount} teams`} className={className} bleed>
+                {showSkeletons
+                    ? Array.from({ length: skeletonCount }, (_, i) => <TeamPreviewCardSkeleton key={i} />)
+                    : (
+                        <>
+                            {asgLeagues.map(league => (
+                                <TeamPreviewCard key={`asg-${season}-${league}`} team={asgPreview(league)} onClick={() => onOpenAsg(season, league)} />
+                            ))}
+                            {teams.map(team => (
+                                <TeamPreviewCard key={team.team_id} team={teamToPreview(team, showdownSet)} onClick={() => onOpenTeam(team)} />
+                            ))}
+                        </>
+                    )}
+            </TeamShelf>
+        </div>
+    );
+}
+
+/** Browse pre-processed historical MLB rosters and All-Star teams music-app style.
+ *  Seasons are shelves ordered newest-first — no dropdowns; each tile opens its own shareable page. */
+type HistoricalTeamsProps = {
+    horizontalPadding?: string;
+    /** When embedded in the Browse tab, the parent owns the search box — hide the local one. */
+    hideSearch?: boolean;
+    /** Search query supplied by the parent when `hideSearch` is set. */
+    externalQuery?: string;
+    /** Overrides the global site Showdown set filter, e.g. from a "Set" toggle in the parent. */
+    showdownSet?: string;
+};
+
+export function HistoricalTeams({ horizontalPadding, hideSearch = false, externalQuery, showdownSet }: HistoricalTeamsProps) {
+    const { userShowdownSet: globalShowdownSet } = useSiteSettings();
+    // Historical rosters always render as some concrete set — "All Sets" (empty string) still
+    // needs a fallback here so the tile's set badge is never blank.
+    const userShowdownSet = showdownSet || globalShowdownSet;
+    const navigate = useNavigate();
+
+    const [seasons, setSeasons] = useState<HistoricalSeasonRef[]>([]);
+    const [visibleCount, setVisibleCount] = useState(loadStoredVisibleCount);
+    const [asgTeams, setAsgTeams] = useState<AsgTeamRef[]>([]);
+
+    const [internalQuery, setInternalQuery] = useState('');
+    const query = hideSearch ? (externalQuery ?? '') : internalQuery;
+    const setQuery = setInternalQuery;
+    const [sortBy, setSortBy] = useState<SortKey>('season');
+    const [rawSearchResults, setRawSearchResults] = useState<HistoricalTeam[]>([]);
+    const [searching, setSearching] = useState(false);
+
+    // Year filter — narrows the shelves (and any active search) to a single season. `null` means
+    // "All Years", the default, which keeps the existing infinite-scroll-through-history behavior.
+    const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+    const seasonOptions: SelectOption[] = useMemo(() => [
+        { value: 'all', label: 'All Years' },
+        ...seasons.map(({ season }) => ({ value: String(season), label: String(season) })),
+    ], [seasons]);
+    const filteredSeasons = useMemo(
+        () => selectedSeason == null ? seasons : seasons.filter(s => s.season === selectedSeason),
+        [seasons, selectedSeason],
+    );
+
+    const [loadingSeasons, setLoadingSeasons] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        try { sessionStorage.setItem(VISIBLE_COUNT_STORAGE_KEY, String(visibleCount)); } catch {
+            // ignore
+        }
+    }, [visibleCount]);
+
+    // Initial load: which seasons have pre-processed teams, and which have All-Star data.
+    useEffect(() => {
+        fetchHistoricalTeams({ showdownSet: userShowdownSet, limit: 1 })
+            .then(result => setSeasons(result.seasons))
+            .catch(err => setError(err.message ?? 'Failed to load historical teams.'))
+            .finally(() => setLoadingSeasons(false));
+        fetchAsgSeasons().then(setAsgTeams).catch(() => setAsgTeams([]));
+    }, [userShowdownSet]);
+
+    // Server-side search across every season — matches by name, abbreviation, or season — debounced.
+    const searchQuery = query.trim();
+    useEffect(() => {
+        if (!searchQuery) { setRawSearchResults([]); setSearching(false); return; }
+        let cancelled = false;
+        setSearching(true);
+        const timer = setTimeout(() => {
+            fetchHistoricalTeams({ q: searchQuery, season: selectedSeason ?? undefined, showdownSet: userShowdownSet, limit: SEARCH_LIMIT })
+                .then(result => { if (!cancelled) setRawSearchResults(result.teams); })
+                .catch(() => { if (!cancelled) setRawSearchResults([]); })
+                .finally(() => { if (!cancelled) setSearching(false); });
+        }, 300);
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [searchQuery, selectedSeason, userShowdownSet]);
+
+    const searchResults = useMemo(() => sortTeams(rawSearchResults, sortBy), [rawSearchResults, sortBy]);
+
+    // Mount more season shelves as the sentinel scrolls into view.
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel || searchQuery) return;
+        const observer = new IntersectionObserver(entries => {
+            if (entries[0]?.isIntersecting) {
+                setVisibleCount(count => Math.min(count + SEASONS_PER_PAGE, filteredSeasons.length));
+            }
+        }, { rootMargin: '400px' });
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [filteredSeasons.length, searchQuery]);
+
+    // Navigate to a team's own shareable detail page. Identity is passed via nav state so the
+    // detail view renders instantly; a cold link resolves identity server-side.
+    const openTeam = useCallback((team: HistoricalTeam) => openHistoricalTeam(navigate, team), [navigate]);
+
+    const openAsg = useCallback((season: number, league: string) => {
+        navigate(`/teams/asg/${season}/${league}`);
+    }, [navigate]);
+
+    // AL before NL, so the All-Star tiles lead each shelf in a stable order.
+    const asgLeaguesBySeason = useMemo(() => {
+        const map = new Map<number, string[]>();
+        for (const asg of asgTeams) {
+            const leagues = map.get(asg.season) ?? [];
+            leagues.push(asg.league);
+            map.set(asg.season, leagues);
+        }
+        map.forEach(leagues => leagues.sort());
+        return map;
+    }, [asgTeams]);
+
+    return (
+        <div className="relative flex flex-col gap-5">
+            {/* Search across every season — replaces the old season/sport dropdowns. Hidden when
+                embedded in the Browse "All" view, which drives search from its own unified box.
+                The year filter stays available either way, narrowing the shelves (and search) to
+                a single season; "All Years" is the default. */}
+            <div className={`${horizontalPadding ?? ''} flex flex-wrap items-center gap-3`}>
+                {!hideSearch && (
+                    <TeamSearchInput
+                        value={query}
+                        onChange={setQuery}
+                        placeholder="Search by team or season (e.g. 1998)…"
+                        className="w-full sm:max-w-xs"
+                    />
+                )}
+                <CustomSelect
+                    value={selectedSeason == null ? 'all' : String(selectedSeason)}
+                    onChange={v => setSelectedSeason(v === 'all' ? null : Number(v))}
+                    options={seasonOptions}
+                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
+                    dropdownArrowSize={12}
+                />
+                <button
+                    type="button"
+                    onClick={() => navigate(`/teams/historical/all?set=${encodeURIComponent(userShowdownSet)}`)}
+                    className="ml-auto flex items-center gap-1 text-[11px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer shrink-0"
+                >
+                    See all <FaChevronRight className="text-[9px]" />
+                </button>
+            </div>
+
+            {error && (
+                <div className={`${horizontalPadding ?? ''} mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>
+                    {error}
+                </div>
+            )}
+
+            {/* Floors the content area to one shelf's height, so switching years (which can
+                drop the shelf list down to a single, still-loading season) doesn't collapse
+                the page and snap it back once data arrives. */}
+            <div className="min-h-80">
+                {searchQuery ? (
+                    /* Search results — a flat grid spanning every season */
+                    searching ? (
+                        <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                    ) : searchResults.length === 0 ? (
+                        <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
+                    ) : (
+                        <div className={horizontalPadding ?? ''}>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                                    {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+                                </div>
+                                <CustomSelect
+                                    value={sortBy}
+                                    onChange={v => setSortBy(v as SortKey)}
+                                    options={SORT_OPTIONS}
+                                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
+                                    dropdownArrowSize={12}
+                                />
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                {searchResults.map(team => (
+                                    <TeamPreviewCard
+                                        key={`${team.season}-${team.team_id}`}
+                                        team={teamToPreview(team, userShowdownSet)}
+                                        onClick={() => openTeam(team)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )
+                ) : loadingSeasons ? (
+                    <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                ) : seasons.length === 0 ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No historical teams have been processed yet.</p>
+                ) : filteredSeasons.length === 0 ? (
+                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams found for {selectedSeason}.</p>
+                ) : (
+                    <>
+                        {filteredSeasons.slice(0, visibleCount).map(({ season, team_count }) => (
+                            <SeasonShelf
+                                key={season}
+                                season={season}
+                                teamCount={team_count}
+                                asgLeagues={asgLeaguesBySeason.get(season) ?? []}
+                                showdownSet={userShowdownSet}
+                                onOpenTeam={openTeam}
+                                onOpenAsg={openAsg}
+                                className={horizontalPadding ?? ''}
+                            />
+                        ))}
+                        <div ref={sentinelRef} className="h-8" />
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export default HistoricalTeams;
+
+type HistoricalTeamsAllPageProps = {
+    showdownSet?: string;
+    onBack: () => void;
+    horizontalPadding?: string;
+};
+
+/** "See all" page for Historical Teams — every pre-processed season flattened into one
+ *  points-descending list, paged in as the user scrolls. */
+export function HistoricalTeamsAllPage({ showdownSet, onBack, horizontalPadding }: HistoricalTeamsAllPageProps) {
+    const { userShowdownSet: globalShowdownSet } = useSiteSettings();
+    const userShowdownSet = showdownSet || globalShowdownSet;
+    const navigate = useNavigate();
+
+    const openTeam = useCallback((team: HistoricalTeam) => openHistoricalTeam(navigate, team), [navigate]);
+    const fetchPage = useCallback(
+        (offset: number, limit: number) => fetchHistoricalTeams({ showdownSet: userShowdownSet, sort: 'points', limit, offset }).then(r => r.teams),
+        [userShowdownSet],
+    );
+
+    return (
+        <TeamGridPage
+            title="All Historical Teams"
+            subtitle="Sorted by total points"
+            onBack={onBack}
+            horizontalPadding={horizontalPadding}
+            fetchPage={fetchPage}
+            getKey={team => `${team.season}-${team.team_id}`}
+            toPreview={team => teamToPreview(team, userShowdownSet)}
+            onOpenTeam={openTeam}
+            emptyMessage="No historical teams have been processed yet."
+        />
+    );
+}

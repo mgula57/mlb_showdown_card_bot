@@ -1,0 +1,82 @@
+import type { ReactNode } from 'react';
+import { FaChevronRight } from 'react-icons/fa6';
+import { TeamPreviewCardSkeleton } from './TeamPreviewCard';
+
+type TeamShelfProps = {
+    title: string;
+    subtitle?: string;
+    className?: string;
+    /** Optional "See all" affordance shown on the right of the header. */
+    onSeeAll?: () => void;
+    /**
+     * Let the scrolling row run flush to the right edge of the nearest `@container`
+     * ancestor (the full content region), ignoring the page's centered max-width and
+     * right padding. The left inset and the header's alignment are unaffected.
+     */
+    bleed?: boolean;
+    children: ReactNode;
+};
+
+/** A titled, horizontally-scrolling row of team tiles — the music-app "shelf" pattern. */
+export function TeamShelf({ title, subtitle, onSeeAll, children, className, bleed }: TeamShelfProps) {
+    return (
+        <section className="flex flex-col">
+            <div className={`flex flex-col gap-0.5 mb-1.5 ${className ?? ''}`}>
+                <div className="flex items-baseline justify-between min-w-0">
+                    <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
+                    {onSeeAll && (
+                        <button
+                            type="button"
+                            onClick={onSeeAll}
+                            className="flex items-center gap-1 text-[11px] font-bold text-(--text-secondary) hover:text-(--text-primary) cursor-pointer shrink-0"
+                        >
+                            See all <FaChevronRight className="text-[9px]" />
+                        </button>
+                    )}
+                </div>
+                {subtitle && <p className="text-[11px] text-(--text-tertiary) truncate">{subtitle}</p>}
+            </div>
+            <div
+                className={`flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 scrollbar-hide ${className ?? ''}`}
+                style={{
+                    // No explicit `touch-action` — the native overflow scroller detects drag
+                    // direction on its own. Forcing `pan-x` here swallowed vertical swipes that
+                    // began on a tile, so the page couldn't scroll from over the shelf.
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehaviorX: 'contain',
+                    // Keep the left inset (from `className`) so the first tile still starts
+                    // aligned under the header — it's ordinary padding on the scrollable box,
+                    // so it scrolls away with the content instead of sitting outside it like a
+                    // margin would. Drop the right inset and pull that edge out to the
+                    // `@container` boundary so the row can reach the true edge of the screen.
+                    ...(bleed ? { paddingRight: 0, marginRight: 'calc((100% - 100cqw) / 2)' } : {}),
+                }}
+            >
+                {children}
+                {/* Trailing spacer so the last tile doesn't butt right up against the scroll
+                    edge — part of the scrollable content, so it scrolls into view like any tile. */}
+                <div aria-hidden className="shrink-0 w-4 sm:w-8" />
+            </div>
+        </section>
+    );
+}
+
+/** Loading placeholder for one or more shelves — a pulsing title bar over a row of tile skeletons. */
+export function TeamShelfSkeleton({ shelves = 1, tiles = 6, className }: { shelves?: number; tiles?: number; className?: string }) {
+    return (
+        <>
+            {Array.from({ length: shelves }, (_, s) => (
+                <section key={s} className="flex flex-col" aria-hidden>
+                    <div className={`mb-1.5 ${className ?? ''}`}>
+                        <div className="h-4 w-32 rounded bg-(--background-secondary) animate-pulse" />
+                    </div>
+                    <div className={`flex gap-3 overflow-hidden pb-1 py-2 ${className ?? ''}`}>
+                        {Array.from({ length: tiles }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
+                    </div>
+                </section>
+            ))}
+        </>
+    );
+}
+
+export default TeamShelf;

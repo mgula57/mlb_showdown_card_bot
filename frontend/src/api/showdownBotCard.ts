@@ -452,7 +452,7 @@ export type ShowdownBotCard = {
 
     /** Stats Object */
     stats: Record<string, any>;
-    stats_period: StatsPeriod;
+    stats_period?: StatsPeriod;
     is_stats_estimate?: boolean;
 
     /** Flag indicating if the card is a WOTC card */
@@ -480,6 +480,9 @@ export type ShowdownBotCardCompact = {
     positions_and_defense?: Record<string, number> | null;
     ip: number | null;
     speed: number | null;
+    hand: string | null;
+    hr_range: string | null;
+    icons_list?: string[] | null;
     source: CardSource;
     isEmpty?: boolean;
 }

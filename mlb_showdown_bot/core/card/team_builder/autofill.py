@@ -1,7 +1,8 @@
 import random
 from dataclasses import dataclass, field
+from typing import Callable
 
-from .team import Team, TeamRosterSlot, LineupSlot, PitcherAssignment, CardSource, PickSource
+from .team import Team, TeamRosterSlot, CardSource, PickSource, derive_lineups_rotation
 
 # ---------------------------------------------------------------------------
 # Bucket definitions
@@ -15,67 +16,336 @@ BUCKET_QUERY_FILTERS: dict[str, dict] = {
     'offense': {'player_type': ['HITTER'], 'positions': ['C', '1B', '2B', '3B', 'SS', 'LF/RF', 'CF', 'DH']},
     'rotation': {'player_type': ['PITCHER'], 'positions': ['STARTER']},
     'bench':    {'player_type': ['HITTER']},
-    'bullpen':  {'player_type': ['PITCHER'], 'positions': ['RELIEVER', 'STARTER']},
+    # Closers carry their own 'CLOSER' position (mutually exclusive with 'RELIEVER'), so the
+    # pen pool has to ask for both or it can never draft an actual closer.
+    'bullpen':  {'player_type': ['PITCHER'], 'positions': ['RELIEVER', 'CLOSER']},
 }
+
+# ---------------------------------------------------------------------------
+# Candidate pool fetching
+# ---------------------------------------------------------------------------
+
+# Price bands with card limits per band, used to stratify candidate fetches across the full
+# points range. Cheaper tiers get more cards so autofill has bench/bargain options instead of
+# a pool dominated by whatever a flat sort-and-limit query happens to return (which skews toward
+# the query's sort direction rather than covering the full price range).
+_CANDIDATE_PRICE_BANDS: list[dict] = [
+    {'min': 10,  'max': 100,  'limit': 100, 'player_type': 'HITTER'},   # Cheap tier: max options for bench fill
+    {'min': 10,  'max': 100,  'limit': 50,  'player_type': 'PITCHER'},  # Cheap tier: options for rotation + bullpen
+    {'min': 100, 'max': 200,  'limit': 150},  # Low-mid tier
+    {'min': 200, 'max': 350,  'limit': 150},  # Mid tier (avg ~250)
+    {'min': 350, 'max': 550,  'limit': 100},  # High-mid tier
+    {'min': 550, 'max': 1000, 'limit': 80},   # Premium tier (sparse)
+]
+
+
+# The only card fields autofill reads (see _sort_candidates / _is_small_sample / the pickers).
+# Fetching just these instead of `*` keeps ~2KB/row of chart ranges, awards, image ids etc. off
+# the wire for the ~2K candidates an autofill pulls.
+_CANDIDATE_COLUMNS = [
+    'card_id', 'points', 'positions_list', 'positions_and_defense', 'chart_values', 'command',
+    'speed', 'real_slugging_perc', 'real_batting_avg', 'is_small_sample_size', 'year', 'real_ip', 'pa',
+]
+
+
+def _price_bands_for_player_types(player_types: list[str] | None) -> list[tuple[int, int, int]]:
+    """`(min, max, limit)` bands for one candidate query. A band's player_type is a cheap-tier
+    override, not a relaxation - it's dropped if it contradicts the query's own player_type filter
+    (e.g. the pitcher cheap-tier band would otherwise leak cheap pitchers into a hitter-only
+    bucket like bench). Bands sharing a range (both cheap tiers, for an untyped query) merge."""
+    merged: dict[tuple[int, int], int] = {}
+    for band in _CANDIDATE_PRICE_BANDS:
+        band_player_type = band.get('player_type')
+        if band_player_type and player_types and band_player_type not in player_types:
+            continue
+        key = (band['min'], band['max'])
+        merged[key] = merged.get(key, 0) + band['limit']
+    return [(lo, hi, limit) for (lo, hi), limit in merged.items()]
+
+
+def fetch_stratified_candidates(
+    db,
+    bucket_filters: dict,
+    active_filters: dict,
+    card_sources: list[str],
+    sets_by_source: dict[str, list[str]] | None = None,
+) -> list[dict]:
+    """Fetch a candidate pool for one bucket, stratified across price bands (10-1000 pts) and
+    every allowed card source, so the pool has representation at all budget levels rather than
+    clustering wherever a single sort-and-limit query happens to land. One query per source: the
+    DB samples every band in a single pass (`fetch_card_sample_by_price_band`) rather than one
+    full-table walk per band. `db` is any object with that method (duck-typed to avoid importing
+    PostgresDB here). `sets_by_source`, if given, restricts each source to its allowed showdown
+    sets unless `active_filters` already specifies `showdown_set`."""
+    merged_all: list[dict] = []
+    seen_ids: set[str] = set()
+
+    for source in card_sources:
+        base = {**bucket_filters, **active_filters, 'source': source}
+        if 'showdown_set' not in base and sets_by_source:
+            source_sets = sets_by_source.get(source)
+            if source_sets:
+                base['showdown_set'] = source_sets
+
+        bands = _price_bands_for_player_types(base.get('player_type'))
+        cards = db.fetch_card_sample_by_price_band(filters=base, bands=bands, columns=_CANDIDATE_COLUMNS) or []
+        for c in cards:
+            if c['card_id'] not in seen_ids:
+                c['_card_source'] = source
+                merged_all.append(c)
+                seen_ids.add(c['card_id'])
+
+    return merged_all
+
 
 # ---------------------------------------------------------------------------
 # Strategy sort config
 # ---------------------------------------------------------------------------
 
-PITCHING_SORT: dict[str, tuple[str | None, str | None]] = {
-    'high_control': ('command', 'desc'),
-    'groundball':   ('chart_values_GB', 'desc'),
-    'no_doubles':   ('chart_values_2B', 'asc'),
-    'strikeout':    ('chart_values_SO', 'desc'),
+# Card dicts from the DB don't carry flat 'chart_values_2B' / 'defense' keys — chart values live
+# in a nested `chart_values` dict and fielding ratings in a per-position `positions_and_defense`
+# dict, so strategy sorting needs small extractor functions rather than a bare attribute name.
+
+
+def _chart_value(card: dict, key: str) -> float | None:
+    return (card.get('chart_values') or {}).get(key)
+
+
+def _defense_value(card: dict) -> float | None:
+    """Best fielding rating across a hitter's non-catcher positions (excludes DH, which always
+    rates 0 and would otherwise drag down anyone who can also DH)."""
+    ratings = [v for pos, v in (card.get('positions_and_defense') or {}).items() if pos not in ('DH', 'C')]
+    return max(ratings) if ratings else None
+
+
+def _catcher_defense_value(card: dict) -> float | None:
+    return (card.get('positions_and_defense') or {}).get('C')
+
+
+_Extractor = Callable[[dict], float | None]
+
+PITCHING_SORT: dict[str, tuple[_Extractor | None, str | None]] = {
+    'high_control': (lambda c: c.get('command'), 'desc'),
+    'groundball':   (lambda c: _chart_value(c, 'GB'), 'desc'),
+    'no_doubles':   (lambda c: _chart_value(c, '2B'), 'asc'),
+    'strikeout':    (lambda c: _chart_value(c, 'SO'), 'desc'),
 }
 
-HITTING_SORT: dict[str, tuple[str | None, str | None]] = {
+HITTING_SORT: dict[str, tuple[_Extractor | None, str | None]] = {
     'high_ob': (None, None),  # computed post-fetch
-    'speed':   ('speed', 'desc'),
-    'slug':    ('real_slugging_perc', 'desc'),
-    'contact': ('real_batting_avg', 'desc'),
+    'speed':   (lambda c: c.get('speed'), 'desc'),
+    'slug':    (lambda c: c.get('real_slugging_perc'), 'desc'),
+    'contact': (lambda c: c.get('real_batting_avg'), 'desc'),
+}
+
+DEFENSE_SORT: dict[str, tuple[_Extractor | None, str | None]] = {
+    'low_defense':     (_defense_value, 'asc'),
+    'medium_defense':  (_defense_value, 'desc'),
+    'high_defense':    (_defense_value, 'desc'),
+    'elite_defense':   (_defense_value, 'desc'),
+}
+
+CATCHER_DEFENSE_SORT: dict[str, tuple[_Extractor | None, str | None]] = {
+    'low_catcher_defense':     (_catcher_defense_value, 'asc'),
+    'medium_catcher_defense':  (_catcher_defense_value, 'desc'),
+    'high_catcher_defense':    (_catcher_defense_value, 'desc'),
+    'elite_catcher_defense':   (_catcher_defense_value, 'desc'),
 }
 
 # Fraction of the sorted pool to randomly sample from when a strategy is set
 _STRATEGY_TIER_FRACTION = 0.4
+
+# Gamma shape used to randomize per-slot spend targets within a bucket, so a fill doesn't
+# draft every slot at ~the same point value. Mean weight is always 1.0 (normalized); lower
+# shape = more spread (a stud pick offset by a bargain pick), higher = closer to uniform.
+_VARIETY_SHAPE = 3.5
+# Weights are clipped to this multiple of the mean before a final renormalize, so a long
+# gamma tail can't starve a later slot below what any candidate could plausibly cost.
+_VARIETY_WEIGHT_BOUNDS = (0.55, 1.7)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
+def _slot_weights(n: int, max_weight: float | None = None) -> list[float]:
+    """Randomized per-slot spend weights, mean 1.0, summing to `n`, bounded to `max_weight`
+    (defaults to `_VARIETY_WEIGHT_BOUNDS`). Clipping is applied twice: a single clip-then-
+    renormalize pass can push values back outside the bound (renormalizing to restore the
+    sum-to-`n` invariant scales every value, including ones already at the clip edge), so a
+    second pass tightens that back down. Two passes converge well enough in practice.
+
+    The lower bound tightens in lockstep, mirrored around 1.0, whenever `max_weight` squeezes
+    the ceiling below the default — e.g. a bucket whose average target already sits close to
+    the pool's max price (a thin rotation pool). Without that, a "bargain" slot could still
+    undershoot by the full default margin while the compensating slot has almost no headroom
+    left to make up the difference, since it's capped near the ceiling — an imbalance that's
+    unrecoverable, not just off-target.
+    """
+    if n <= 1:
+        return [1.0] * max(n, 0)
+    default_lo, default_hi = _VARIETY_WEIGHT_BOUNDS
+    hi = max(default_lo, default_hi if max_weight is None else max_weight)
+    lo = max(default_lo, 2 - hi)
+    weights = [random.gammavariate(_VARIETY_SHAPE, 1.0) for _ in range(n)]
+    for _ in range(2):
+        total = sum(weights) or 1.0
+        weights = [max(lo, min(hi, w / total * n)) for w in weights]
+    total = sum(weights) or 1.0
+    return [w / total * n for w in weights]
+
+
+def _slot_plan(pts_target: float, n: int, candidates: list[dict], price_fn=None) -> tuple[list[float], float]:
+    """Build the per-slot weight schedule for a bucket fill, plus a price ceiling.
+
+    The ceiling is the price of the `n`-th priciest candidate, not the pool's true max — if
+    several slots' weights land near the top simultaneously (expected with `n` draws), they'd
+    all compete for the single most expensive card and cascade down to whatever's left,
+    landing well short of target with nothing later able to recover the gap. Pricing the
+    ceiling off the `n`-th candidate guarantees enough supply for every slot to plausibly
+    reach it at once. Callers must still clamp each slot's *live* target to this ceiling —
+    `_next_target` recomputes off the actual remaining budget as slots get picked, and small
+    per-pick shortfalls (candidate granularity) can otherwise drift a later slot back over it.
+    """
+    price = price_fn or (lambda c: c.get('points') or 0)
+    if n <= 0 or not candidates:
+        return _slot_weights(n), float('inf')
+    prices_desc = sorted((price(c) for c in candidates), reverse=True)
+    ceiling_price = prices_desc[min(n, len(prices_desc)) - 1]
+    if ceiling_price <= 0:
+        return _slot_weights(n), float('inf')
+    avg_target = pts_target / n
+    ceiling = _VARIETY_WEIGHT_BOUNDS[1] if avg_target <= 0 else min(_VARIETY_WEIGHT_BOUNDS[1], ceiling_price / avg_target)
+    return _slot_weights(n, ceiling), ceiling_price
+
+
+def _next_target(pts_remaining: float, weights: list[float], i: int) -> float:
+    """Target spend for slot `i`, proportional to its weight among remaining slots so the
+    bucket still totals `pts_remaining` even as variety pulls individual slots off-average."""
+    remaining_weight = sum(weights[i:])
+    if remaining_weight <= 0:
+        return pts_remaining / max(1, len(weights) - i)
+    return pts_remaining * weights[i] / remaining_weight
+
+
 def _ob_score(card: dict) -> float:
     cv = card.get('chart_values') or {}
     return sum(cv.get(k, 0) or 0 for k in ('BB', '1B', '2B', '3B', 'HR'))
 
 
-def _sort_candidates(candidates: list[dict], strategy: str | None, is_pitcher: bool) -> list[dict]:
-    """Sort by strategy metric with tier-based sampling, or pure shuffle if balanced."""
-    sort_map = PITCHING_SORT if is_pitcher else HITTING_SORT
-    config = sort_map.get(strategy or '', (None, None))
-    sort_key, direction = config
+def _strategy_rank(group: list[dict], strategy: str | None, is_pitcher: bool) -> dict[str, float]:
+    """Rank-normalize `group` by `strategy`'s metric: 1.0 = best fit, 0.0 = worst. Returns {}
+    for an unset/unrecognized strategy (e.g. 'balanced'), letting callers treat it as neutral."""
+    if not strategy or not group:
+        return {}
 
-    if sort_key is None and strategy != 'high_ob':
-        shuffled = candidates[:]
-        random.shuffle(shuffled)
-        return shuffled
+    if strategy in DEFENSE_SORT:
+        sort_map = DEFENSE_SORT
+    elif strategy in CATCHER_DEFENSE_SORT:
+        sort_map = CATCHER_DEFENSE_SORT
+    else:
+        sort_map = PITCHING_SORT if is_pitcher else HITTING_SORT
+    extractor, direction = sort_map.get(strategy, (None, None))
 
     if strategy == 'high_ob':
-        sorted_candidates = sorted(candidates, key=_ob_score, reverse=True)
+        ordered = sorted(group, key=_ob_score, reverse=True)
+    elif extractor is None:
+        return {}
     else:
         reverse = direction == 'desc'
-        sorted_candidates = sorted(
-            candidates,
-            key=lambda c: (c.get(sort_key) is not None, c.get(sort_key) or 0),
+        ordered = sorted(
+            group,
+            key=lambda c: (extractor(c) is not None, extractor(c) or 0),
             reverse=reverse,
         )
 
-    tier_size = max(1, int(len(sorted_candidates) * _STRATEGY_TIER_FRACTION))
-    top = sorted_candidates[:tier_size]
-    rest = sorted_candidates[tier_size:]
-    random.shuffle(top)
-    random.shuffle(rest)
-    return top + rest
+    n = len(ordered)
+    if n <= 1:
+        return {c['card_id']: 1.0 for c in ordered}
+    return {c['card_id']: 1.0 - i / (n - 1) for i, c in enumerate(ordered)}
+
+
+def _sort_candidates(
+    candidates: list[dict],
+    is_pitcher: bool,
+    pitching_strategy: str | None = None,
+    hitting_strategy: str | None = None,
+    defense_strategy: str | None = None,
+    catcher_defense_strategy: str | None = None,
+) -> tuple[list[dict], dict[str, float]]:
+    """Sort by a rank-blend of every strategy set at once, with tier-based sampling, or pure
+    shuffle if none apply. A hitting strategy and a defense strategy set together both shape
+    the sort (via averaged rank) rather than one silently discarding the other. For position
+    players, catchers use catcher_defense_strategy (falling back to defense_strategy) in place
+    of defense_strategy, still blended with hitting_strategy.
+
+    Also returns a `card_id -> combined rank score` map (1.0 = best fit) for every card that had
+    at least one strategy applied to its group — the list order alone doesn't survive downstream
+    price-based filtering, so callers that need to actually honor the strategy (not just get a
+    shuffled pool) use this map via `_prefer_strategy_fit`. Cards from a group with no strategy
+    set are absent from the map, signaling "no preference" to callers."""
+    if is_pitcher:
+        groups: list[tuple[list[dict], list[str]]] = [
+            (candidates, [pitching_strategy] if pitching_strategy else []),
+        ]
+    else:
+        catchers = [c for c in candidates if 'C' in (c.get('positions_list') or [])]
+        non_catchers = [c for c in candidates if 'C' not in (c.get('positions_list') or [])]
+        catcher_def = catcher_defense_strategy or defense_strategy
+        groups = [
+            (catchers, [s for s in (catcher_def, hitting_strategy) if s]),
+            (non_catchers, [s for s in (defense_strategy, hitting_strategy) if s]),
+        ]
+
+    sorted_candidates = []
+    rank_scores: dict[str, float] = {}
+    for group, strategies in groups:
+        if not group:
+            continue
+
+        ranks = [r for r in (_strategy_rank(group, s, is_pitcher) for s in strategies) if r]
+        if not ranks:
+            shuffled = group[:]
+            random.shuffle(shuffled)
+            sorted_candidates.extend(shuffled)
+            continue
+
+        def combined_score(c: dict, ranks=ranks) -> float:
+            return sum(r.get(c['card_id'], 0.5) for r in ranks) / len(ranks)
+
+        for c in group:
+            rank_scores[c['card_id']] = combined_score(c)
+
+        group_sorted = sorted(group, key=combined_score, reverse=True)
+        tier_size = max(1, int(len(group_sorted) * _STRATEGY_TIER_FRACTION))
+        top = group_sorted[:tier_size]
+        rest = group_sorted[tier_size:]
+        random.shuffle(top)
+        random.shuffle(rest)
+        sorted_candidates.extend(top + rest)
+
+    return sorted_candidates, rank_scores
+
+
+def _prefer_strategy_fit(
+    candidates: list[dict],
+    rank_scores: dict[str, float] | None,
+    fraction: float = _STRATEGY_TIER_FRACTION,
+) -> list[dict]:
+    """Narrow to the top-fitting fraction of `candidates` by strategy rank score, so the price-
+    closeness picker actually chooses among strategy-preferred cards instead of the whole
+    affordable pool. Falls back to the full (unfiltered) input when no strategy applies to any
+    of these candidates (`rank_scores` has nothing for this group) — this is what keeps
+    no-strategy-set behavior unchanged."""
+    if not rank_scores:
+        return candidates
+    scored = [c for c in candidates if c['card_id'] in rank_scores]
+    if not scored:
+        return candidates
+    scored.sort(key=lambda c: rank_scores[c['card_id']], reverse=True)
+    tier_size = max(1, int(len(scored) * fraction))
+    return scored[:tier_size]
 
 
 def _existing_card_ids(team: Team) -> set[str]:
@@ -85,6 +355,37 @@ def _existing_card_ids(team: Team) -> set[str]:
     for pa in team.rotation:
         ids.add(pa.card_id)
     return ids
+
+
+def _existing_source_counts(team: Team) -> dict[str, int]:
+    """Seed source-balance counts from cards already on the team (manual picks count too)."""
+    counts: dict[str, int] = {}
+    for slot in team.roster:
+        counts[slot.card_source.value] = counts.get(slot.card_source.value, 0) + 1
+    for pa in team.rotation:
+        counts[pa.card_source.value] = counts.get(pa.card_source.value, 0) + 1
+    return counts
+
+
+def _pick_balanced(candidates: list[dict], closeness_key, source_counts: dict[str, int] | None) -> dict:
+    """Pick the candidate closest to the per-slot points target (per `closeness_key`),
+    preferring whichever card source is currently least represented on the team so autofill
+    doesn't lean entirely on one source just because it happens to have denser coverage near
+    the target points."""
+    if source_counts:
+        sources_here = {c.get('_card_source', 'BOT').upper() for c in candidates}
+        if len(sources_here) > 1:
+            least = min(source_counts.get(s, 0) for s in sources_here)
+            preferred_sources = {s for s in sources_here if source_counts.get(s, 0) == least}
+            preferred = [c for c in candidates if c.get('_card_source', 'BOT').upper() in preferred_sources]
+            if preferred:
+                candidates = preferred
+
+    picked = min(candidates, key=closeness_key)
+    if source_counts is not None:
+        src = picked.get('_card_source', 'BOT').upper()
+        source_counts[src] = source_counts.get(src, 0) + 1
+    return picked
 
 
 def _pos_matches(card: dict, position: str) -> bool:
@@ -97,15 +398,119 @@ def _pos_matches(card: dict, position: str) -> bool:
     return position in pos_list
 
 
+# Completed-season small-sample thresholds — mirror the card_bot SQL definition in
+# PostgresDB.build_card_bot_view (postgres_db.py, "SMALL SAMPLE" case expression).
+_SMALL_SAMPLE_PA = 250
+_SMALL_SAMPLE_IP_SP = 75
+_SMALL_SAMPLE_IP_RP = 30
+# 2020 played ~1/3 of a normal schedule; its completed-season is_small_sample_size flag
+# isn't schedule-adjusted, so recompute against 1/3 thresholds from the card's raw counts.
+_SHORT_SEASON_YEARS = {2020}
+_SHORT_SEASON_FRACTION = 1 / 3
+
+
+def _is_small_sample(card: dict) -> bool:
+    """True if the card should be treated as a small-sample season. Uses the precomputed
+    `is_small_sample_size` flag (None for non-BOT sources -> False), except for 2020, where
+    the raw `pa` / `real_ip` counts are checked against 1/3 thresholds. Falls back to the
+    flag when the raw counts aren't present (e.g. WOTC rows carry no real stats)."""
+    flag = bool(card.get('is_small_sample_size'))
+    if card.get('year') not in _SHORT_SEASON_YEARS:
+        return flag
+    positions = set(card.get('positions_list') or [])
+    if {'STARTER', 'RELIEVER', 'CLOSER'} & positions:
+        ip = card.get('real_ip')
+        if ip is None:
+            return flag
+        limit = _SMALL_SAMPLE_IP_SP if 'STARTER' in positions else _SMALL_SAMPLE_IP_RP
+        return ip < limit * _SHORT_SEASON_FRACTION
+    pa = card.get('pa')
+    if pa is None:
+        return flag
+    return pa < _SMALL_SAMPLE_PA * _SHORT_SEASON_FRACTION
+
+
+def _prefer_full_sample(candidates: list[dict]) -> list[dict]:
+    """Drop small-sample-size cards, but only if that leaves something to pick from.
+    Applied to starters (lineup / rotation / bullpen); the bench keeps small-sample cards."""
+    full = [c for c in candidates if not _is_small_sample(c)]
+    return full or candidates
+
+
+def _prefer_closers(candidates: list[dict]) -> list[dict]:
+    """Narrow to cards that carry the 'CLOSER' position, unless none are available — used for
+    the bullpen's anchor slot so the pen leads with a real closer, not a pricey setup arm."""
+    closers = [c for c in candidates if 'CLOSER' in (c.get('positions_list') or [])]
+    return closers or candidates
+
+
+# Bullpen spend shape: draft one premium closer, then a committee that fans out from mid down
+# to low tier instead of n arms all priced near the average.
+_BULLPEN_CLOSER_WEIGHT = 2.2       # closer slot targets this * (pen budget / n arms)...
+_BULLPEN_CLOSER_MAX_SHARE = 0.7    # ...but never more than this fraction of the whole pen budget
+_BULLPEN_COMMITTEE_HI = 1.3        # first committee arm, as a multiple of the committee average
+_BULLPEN_COMMITTEE_LO = 0.5        # last committee arm
+
+
+def _committee_ramp(m: int) -> list[float]:
+    """`m` descending weights ramping from `_BULLPEN_COMMITTEE_HI` down to `_BULLPEN_COMMITTEE_LO`
+    (both as multiples of the average), before any rescale."""
+    if m <= 0:
+        return []
+    if m == 1:
+        return [1.0]
+    span = _BULLPEN_COMMITTEE_HI - _BULLPEN_COMMITTEE_LO
+    return [_BULLPEN_COMMITTEE_HI - span * j / (m - 1) for j in range(m)]
+
+
+def _bullpen_slot_weights(n: int, with_closer: bool = True) -> list[float]:
+    """Per-slot spend weights (mean 1.0, summing to `n`) for the bullpen. With `with_closer`,
+    slot 0 is a heavy closer weight and the rest ramp down from above-average to well below so
+    the committee spans mid to low tier; without it (a closer is already on the roster) every
+    slot is committee-shaped. Feeds the same `_next_target` machinery as every other bucket."""
+    if n <= 1:
+        return [1.0] * max(n, 0)
+    if not with_closer:
+        ramp = _committee_ramp(n)
+        scale = n / sum(ramp)
+        return [r * scale for r in ramp]
+    closer = min(_BULLPEN_CLOSER_WEIGHT, n * _BULLPEN_CLOSER_MAX_SHARE)
+    ramp = _committee_ramp(n - 1)
+    scale = (n - closer) / sum(ramp)
+    return [closer] + [r * scale for r in ramp]
+
+
+def _diagnose_bucket_failure(
+    bucket: str,
+    candidates: list[dict],
+    used_ids: set[str],
+    pts_remaining: int,
+    bench_pts_multiplier: float = 1.0,
+) -> str:
+    """Diagnose why a bucket couldn't be filled and return a detailed error message."""
+    available = [c for c in candidates if c['card_id'] not in used_ids]
+    if not available:
+        return f"No {bucket} players available in candidate pool"
+
+    # Apply multiplier for bench bucket
+    price_fn = (lambda c: round((c.get('points') or 0) * bench_pts_multiplier)) if bucket == 'bench' else (lambda c: c.get('points') or 0)
+    prices = [price_fn(c) for c in available]
+    cheapest = min(prices)
+
+    if cheapest > pts_remaining:
+        return f"Cheapest available {bucket} player costs {cheapest} pts, but only {pts_remaining} pts remaining in budget"
+    else:
+        return f"Unable to complete {bucket} fill within tolerance (budget constraints)"
+
+
 # ---------------------------------------------------------------------------
 # Per-bucket fill functions
 # ---------------------------------------------------------------------------
 
 @dataclass
 class _BucketResult:
+    # Only the roster is accumulated — lineups and rotation are derived from it.
     roster_slots: list[TeamRosterSlot] = field(default_factory=list)
-    lineup_slots: list[LineupSlot] = field(default_factory=list)
-    rotation_slots: list[PitcherAssignment] = field(default_factory=list)
     pts_used: int = 0
 
 
@@ -123,6 +528,8 @@ def _fill_offense(
     filled_positions: set[str],
     pts_target: int,
     pts_tolerance: int,
+    source_counts: dict[str, int] | None = None,
+    rank_scores: dict[str, float] | None = None,
 ) -> tuple[_BucketResult | None, set[str]]:
     """Returns (result, picked_ids). picked_ids so bench can exclude them."""
     open_positions = [p for p in OFFENSE_POSITIONS if p not in filled_positions]
@@ -133,25 +540,27 @@ def _fill_offense(
     used_ids: set[str] = set()
     pts_remaining = pts_target
     n_open = len(open_positions)
+    weights, max_price = _slot_plan(pts_target, n_open, candidates)
 
     for i, position in enumerate(open_positions):
-        slots_left = n_open - i
-        target_per_slot = pts_remaining / slots_left
+        target_per_slot = min(_next_target(pts_remaining, weights, i), max_price)
 
         eligible = [
             c for c in candidates
             if c['card_id'] not in used_ids and _pos_matches(c, position)
         ]
         if not eligible:
-            print(f"No eligible candidates for position {position} with {pts_remaining} pts remaining")
             return None, set()
 
         affordable = [c for c in eligible if (c.get('points') or 0) <= pts_remaining]
         if not affordable:
-            print(f"No affordable candidates for position {position} with {pts_remaining} pts remaining")
             return None, set()
 
-        picked = min(affordable, key=lambda c: abs((c.get('points') or 0) - target_per_slot))
+        picked = _pick_balanced(
+            _prefer_strategy_fit(_prefer_full_sample(affordable), rank_scores),
+            lambda c: abs((c.get('points') or 0) - target_per_slot),
+            source_counts,
+        )
 
         card_id = picked['card_id']
         pts = picked.get('points') or 0
@@ -163,10 +572,6 @@ def _fill_offense(
         result.roster_slots.append(TeamRosterSlot(
             card_id=card_id, card_source=src, roster_position=position,
             pick_source=PickSource.AUTOFILL,
-        ))
-        result.lineup_slots.append(LineupSlot(
-            card_id=card_id, card_source=src,
-            field_position=position, batting_order=None,
         ))
 
     if abs(result.pts_used - pts_target) > pts_tolerance:
@@ -183,6 +588,8 @@ def _fill_bench(
     pts_target: int,
     pts_tolerance: int,
     bench_pts_multiplier: float,
+    source_counts: dict[str, int] | None = None,
+    rank_scores: dict[str, float] | None = None,
 ) -> _BucketResult | None:
     open_count = max(0, min_bench - bench_count)
     if open_count == 0:
@@ -191,10 +598,11 @@ def _fill_bench(
     result = _BucketResult()
     pts_remaining = pts_target
     used_ids: set[str] = exclude_ids.copy()
+    bench_price = lambda c: round((c.get('points') or 0) * bench_pts_multiplier)
+    weights, max_price = _slot_plan(pts_target, open_count, candidates, bench_price)
 
     for i in range(open_count):
-        slots_left = open_count - i
-        target_per_slot = pts_remaining / slots_left
+        target_per_slot = min(_next_target(pts_remaining, weights, i), max_price)
 
         eligible = [c for c in candidates if c['card_id'] not in used_ids]
         affordable = [
@@ -205,9 +613,10 @@ def _fill_bench(
             print(f"No affordable candidates for bench with {pts_remaining} pts remaining")
             return None
 
-        picked = min(
-            affordable,
-            key=lambda c: abs(round((c.get('points') or 0) * bench_pts_multiplier) - target_per_slot),
+        picked = _pick_balanced(
+            _prefer_strategy_fit(affordable, rank_scores),
+            lambda c: abs(round((c.get('points') or 0) * bench_pts_multiplier) - target_per_slot),
+            source_counts,
         )
 
         card_id = picked['card_id']
@@ -233,6 +642,8 @@ def _fill_rotation(
     num_starters: int,
     pts_target: int,
     pts_tolerance: int,
+    source_counts: dict[str, int] | None = None,
+    rank_scores: dict[str, float] | None = None,
 ) -> _BucketResult | None:
     all_roles = [f'SP{i}' for i in range(1, num_starters + 1)]
     open_roles = [r for r in all_roles if r not in filled_roles]
@@ -243,19 +654,23 @@ def _fill_rotation(
     pts_remaining = pts_target
     used_ids: set[str] = set()
     n_open = len(open_roles)
+    weights, max_price = _slot_plan(pts_target, n_open, candidates)
 
     # Pick starters without assigning roles yet
     picked_cards: list[dict] = []
     for i in range(n_open):
-        slots_left = n_open - i
-        target_per_slot = pts_remaining / slots_left
+        target_per_slot = min(_next_target(pts_remaining, weights, i), max_price)
 
         eligible = [c for c in candidates if c['card_id'] not in used_ids]
         affordable = [c for c in eligible if (c.get('points') or 0) <= pts_remaining]
         if not affordable:
             return None
 
-        picked = min(affordable, key=lambda c: abs((c.get('points') or 0) - target_per_slot))
+        picked = _pick_balanced(
+            _prefer_strategy_fit(_prefer_full_sample(affordable), rank_scores),
+            lambda c: abs((c.get('points') or 0) - target_per_slot),
+            source_counts,
+        )
 
         used_ids.add(picked['card_id'])
         pts_remaining -= picked.get('points') or 0
@@ -274,26 +689,23 @@ def _fill_rotation(
             card_id=card_id, card_source=src, roster_position=role,
             pick_source=PickSource.AUTOFILL,
         ))
-        result.rotation_slots.append(PitcherAssignment(
-            card_id=card_id, card_source=src, role=role,
-        ))
 
     return result
 
 
 def _fill_bullpen(
     candidates: list[dict],
-    filled_roles: set[str],
+    already_filled: int,
     min_bullpen: int,
     pts_target: int,
     pts_tolerance: int,
+    source_counts: dict[str, int] | None = None,
+    rank_scores: dict[str, float] | None = None,
 ) -> _BucketResult | None:
-    # Roles: one CL + remaining as RP
-    all_roles = ['CL'] + ['RP'] * (min_bullpen - 1)
-    # Count already-filled bullpen slots
-    already_filled = sum(
-        1 for r in filled_roles if r in ('CL', 'RP') or r.startswith('RP')
-    )
+    # Every arm is a generic 'RP' slot, but the spend is shaped like a real pen: the first pick
+    # is the closer (a premium arm, ideally CLOSER-tagged) and the rest are a mid-to-low
+    # committee. The caller passes how many arms are already on the roster.
+    all_roles = ['RP'] * min_bullpen
     open_count = max(0, min_bullpen - already_filled)
     if open_count == 0:
         return _BucketResult()
@@ -304,17 +716,54 @@ def _fill_bullpen(
     pts_remaining = pts_target
     used_ids: set[str] = set()
     n_open = len(roles_to_fill)
+    # If the caller already drafted a pen arm, assume the closer is covered and fill the rest
+    # committee-shaped rather than handing another slot the closer's heavy weight.
+    closer_still_open = already_filled == 0
+    weights = _bullpen_slot_weights(n_open, with_closer=closer_still_open)
+
+    sorted_prices = sorted(c.get('points') or 0 for c in candidates)
+    # Priciest arm in the pool — the closer slot may reach for it; committee targets stay well under.
+    max_price = sorted_prices[-1] if sorted_prices else float('inf')
+    # Flatten the closer-led shape toward uniform when the budget barely clears the cost of the
+    # cheapest possible pen, so the weighting itself never turns a fillable pen into a failure.
+    min_pen_cost = sum(sorted_prices[:n_open])
+    headroom = max(0.0, (pts_target - min_pen_cost) / pts_target) if pts_target > 0 else 0.0
+    shape_strength = min(1.0, headroom / 0.35)
+    if shape_strength < 1.0:
+        weights = [1.0 + (w - 1.0) * shape_strength for w in weights]
 
     for i, role in enumerate(roles_to_fill):
-        slots_left = n_open - i
-        target_per_slot = pts_remaining / slots_left
+        slots_after = n_open - i - 1
 
         eligible = [c for c in candidates if c['card_id'] not in used_ids]
         affordable = [c for c in eligible if (c.get('points') or 0) <= pts_remaining]
         if not affordable:
             return None
 
-        picked = min(affordable, key=lambda c: abs((c.get('points') or 0) - target_per_slot))
+        # Reserve the cost of the cheapest still-available arm for every slot after this one,
+        # so a closer-heavy (or just unlucky) early pick can never spend the pen into a corner
+        # where a later slot has nothing affordable left. A genuine "budget can't cover the pen"
+        # case still surfaces via `not affordable` above / the tolerance check below.
+        cheapest_after = sorted(c.get('points') or 0 for c in eligible)[:slots_after]
+        reserve = sum(cheapest_after)
+        floor_price = cheapest_after[0] if cheapest_after else 0
+        spend_ceiling = max(pts_remaining - reserve, floor_price)
+        target_per_slot = min(_next_target(pts_remaining, weights, i), max_price, spend_ceiling)
+
+        pool = _prefer_full_sample(affordable)
+        # Keep the reserve intact: prefer arms at or under the spend ceiling, fall back only if
+        # none exist (then a later slot may fail — a real budget failure, not the weighting).
+        reserve_safe = [c for c in pool if (c.get('points') or 0) <= spend_ceiling]
+        pool = reserve_safe or pool
+        if i == 0 and closer_still_open:
+            pool = _prefer_closers(pool)
+        pool = _prefer_strategy_fit(pool, rank_scores)
+
+        picked = _pick_balanced(
+            pool,
+            lambda c: abs((c.get('points') or 0) - target_per_slot),
+            source_counts,
+        )
 
         card_id = picked['card_id']
         pts = picked.get('points') or 0
@@ -327,9 +776,6 @@ def _fill_bullpen(
             card_id=card_id, card_source=src, roster_position=role,
             pick_source=PickSource.AUTOFILL,
         ))
-        result.rotation_slots.append(PitcherAssignment(
-            card_id=card_id, card_source=src, role=role,
-        ))
 
     if abs(result.pts_used - pts_target) > pts_tolerance:
         return None
@@ -340,9 +786,24 @@ def _fill_bullpen(
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def _existing_pts_by_bucket(team: Team, cardmap: dict[str, dict], bench_pts_multiplier: float) -> dict[str, int]:
-    """Return points already spent per bucket by slots already on the team."""
+def _existing_pts_by_bucket(
+    team: Team,
+    cardmap: dict[str, dict],
+    bench_pts_multiplier: float,
+    existing_card_points: dict[str, int] | None = None,
+) -> dict[str, int]:
+    """Return points already spent per bucket by slots already on the team.
+
+    `existing_card_points` (card_id -> points, straight from the team's own DB row) is the
+    authoritative source for a card already on the roster. `cardmap` only holds freshly-fetched
+    autofill candidates, which have no reason to include a card the team already owns — falling
+    back to it for an existing pick silently reads 0 points, understating (or zeroing out) what's
+    already spent and inflating every bucket's remaining target back toward the full budget."""
+    existing_card_points = existing_card_points or {}
+
     def pts(card_id: str) -> int:
+        if card_id in existing_card_points:
+            return existing_card_points[card_id] or 0
         return cardmap.get(card_id, {}).get('points') or 0
 
     offense_pos = set(OFFENSE_POSITIONS)
@@ -354,23 +815,46 @@ def _existing_pts_by_bucket(team: Team, cardmap: dict[str, dict], bench_pts_mult
     }
 
 
+def _split_extra_roster_slots(extra: int, min_bench: int, min_bullpen: int) -> tuple[int, int]:
+    """Split roster slots beyond the fixed minimums (9 lineup + num_starters + min_bench +
+    min_bullpen) between bench and bullpen, in the same ratio as their configured minimums —
+    e.g. min_bullpen=4, min_bench=2 sends extras 2:1 in bullpen's favor. Falls back to an even
+    split when both minimums are 0. Returns (bench_extra, bullpen_extra)."""
+    if extra <= 0:
+        return 0, 0
+    total = min_bench + min_bullpen
+    if total <= 0:
+        bullpen_extra = extra // 2
+        return extra - bullpen_extra, bullpen_extra
+    bullpen_extra = min(extra, round(extra * min_bullpen / total))
+    return extra - bullpen_extra, bullpen_extra
+
+
 def autofill_team(
     team: Team,
     candidates_by_bucket: dict[str, list[dict]],
     pts_distribution: dict[str, float],
     pitching_strategy: str | None,
     hitting_strategy: str | None,
+    defense_strategy: str | None = None,
+    catcher_defense_strategy: str | None = None,
     pts_tolerance: int = 200,
-    max_attempts: int = 2,
-) -> dict | None:
+    max_attempts: int = 8,
+    pts_target: int | None = None,
+    existing_card_points: dict[str, int] | None = None,
+) -> dict | tuple[None, str]:
     """
     Fill remaining roster slots using a randomized greedy algorithm.
-    Returns merged roster/lineups/rotation dict on success, or None on failure.
+    Returns merged roster/lineups/rotation dict on success, or (None, error_msg) on failure.
 
     candidates_by_bucket: {bucket_name: [card_dicts]} fetched by the endpoint
     pts_distribution: fractions summing to 1.0 keyed by bucket name
+    pts_target: one-off budget to use when the team itself has no pts_limit set
+    existing_card_points: card_id -> points for cards already on `team`'s roster/rotation, so
+        buckets that are partially filled get their remaining target reduced by what's already
+        spent (see `_existing_pts_by_bucket`). Omit for a team with no existing roster.
     """
-    pts_limit = team.pts_limit or 0
+    pts_limit = team.pts_limit or pts_target or 0
     existing_ids = _existing_card_ids(team)
 
     filled_lineup_pos = set()
@@ -378,8 +862,17 @@ def autofill_team(
         filled_lineup_pos = {s.field_position for s in team.lineups[0].slots}
 
     filled_rotation_roles = {p.role for p in team.rotation if p.role.startswith('SP')}
-    filled_bullpen_roles  = {p.role for p in team.rotation if not p.role.startswith('SP')}
+    filled_bullpen_count  = sum(1 for p in team.rotation if not p.role.startswith('SP'))
     bench_count = sum(1 for s in team.roster if s.roster_position == 'BE')
+
+    # roster_size may allow more than the fixed minimums (9 lineup + num_starters + min_bench
+    # + min_bullpen) — any slack gets distributed across bench/bullpen so autofill actually
+    # fills the roster instead of stopping at the configured floor.
+    base_min_roster = len(OFFENSE_POSITIONS) + team.num_starters + team.min_bench + team.min_bullpen
+    extra_slots = max(0, team.roster_size - base_min_roster)
+    bench_extra, bullpen_extra = _split_extra_roster_slots(extra_slots, team.min_bench, team.min_bullpen)
+    effective_min_bench   = team.min_bench + bench_extra
+    effective_min_bullpen = team.min_bullpen + bullpen_extra
 
     # Build a flat cardmap so we can look up points for existing picks
     cardmap: dict[str, dict] = {}
@@ -387,84 +880,98 @@ def autofill_team(
         for c in cards:
             cardmap[c['card_id']] = c
 
-    existing_pts = _existing_pts_by_bucket(team, cardmap, team.bench_pts_multiplier)
+    existing_pts = _existing_pts_by_bucket(team, cardmap, team.bench_pts_multiplier, existing_card_points)
 
     offense_target  = max(0, round(pts_limit * pts_distribution.get('offense',  0.50)) - existing_pts['offense'])
     rotation_target = max(0, round(pts_limit * pts_distribution.get('rotation', 0.27)) - existing_pts['rotation'])
     bullpen_target  = max(0, round(pts_limit * pts_distribution.get('bullpen',  0.18)) - existing_pts['bullpen'])
     bench_target    = max(0, round(pts_limit * pts_distribution.get('bench',    0.05)) - existing_pts['bench'])
 
+    # Only worth balancing across sources if candidates were actually pulled from more than
+    # one — a single-source pool (or team) just falls through to plain greedy picking.
+    all_sources = {(c.get('_card_source') or 'BOT').upper() for c in cardmap.values()}
+    track_balance = len(all_sources) > 1
+
     for _ in range(max_attempts):
-        # Fresh sort/shuffle each attempt
+        # Fresh sort/shuffle, and a fresh balance tally seeded from cards already on the
+        # team, each attempt.
+        source_counts = _existing_source_counts(team) if track_balance else None
+
         sorted_candidates: dict[str, list[dict]] = {}
+        rank_scores: dict[str, dict[str, float]] = {}
         for bucket, raw in candidates_by_bucket.items():
             is_pitcher = bucket in ('rotation', 'bullpen')
-            strategy = pitching_strategy if is_pitcher else hitting_strategy
             pool = [c for c in raw if c['card_id'] not in existing_ids]
-            sorted_candidates[bucket] = _sort_candidates(pool, strategy, is_pitcher)
+            sorted_candidates[bucket], rank_scores[bucket] = _sort_candidates(
+                pool, is_pitcher,
+                pitching_strategy=pitching_strategy,
+                hitting_strategy=hitting_strategy,
+                defense_strategy=defense_strategy,
+                catcher_defense_strategy=catcher_defense_strategy,
+            )
 
         offense_result, offense_ids = _fill_offense(
             sorted_candidates['offense'], filled_lineup_pos,
-            offense_target, pts_tolerance,
+            offense_target, pts_tolerance, source_counts,
+            rank_scores=rank_scores['offense'],
         )
         if offense_result is None:
-            print("Offense fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('lineup', sorted_candidates['offense'], set(), offense_target)
             continue
 
         bench_result = _fill_bench(
             sorted_candidates['bench'],
             existing_ids | offense_ids,  # exclude all cards already picked
-            bench_count, team.min_bench,
+            bench_count, effective_min_bench,
             bench_target, pts_tolerance,
-            team.bench_pts_multiplier,
+            team.bench_pts_multiplier, source_counts,
+            rank_scores=rank_scores['bench'],
         )
         if bench_result is None:
-            print("Bench fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('bench', sorted_candidates['bench'], existing_ids | offense_ids, bench_target, team.bench_pts_multiplier)
             continue
 
         rotation_result = _fill_rotation(
             sorted_candidates['rotation'], filled_rotation_roles,
-            team.num_starters, rotation_target, pts_tolerance,
+            team.num_starters, rotation_target, pts_tolerance, source_counts,
+            rank_scores=rank_scores['rotation'],
         )
         if rotation_result is None:
-            print("Rotation fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('rotation', sorted_candidates['rotation'], set(), rotation_target)
             continue
 
         bullpen_result = _fill_bullpen(
-            sorted_candidates['bullpen'], filled_bullpen_roles,
-            team.min_bullpen, bullpen_target, pts_tolerance,
+            sorted_candidates['bullpen'], filled_bullpen_count,
+            effective_min_bullpen, bullpen_target, pts_tolerance, source_counts,
+            rank_scores=rank_scores['bullpen'],
         )
         if bullpen_result is None:
-            print("Bullpen fill failed, retrying...")
+            last_failure = _diagnose_bucket_failure('bullpen', sorted_candidates['bullpen'], set(), bullpen_target)
             continue
 
-        # Build merged roster
+        # Build merged roster. Autofilled slots get a draft_order continuing from the team's
+        # existing max, so they show up in the Draft History tab alongside manual picks.
         new_roster = [s.model_dump() for s in team.roster]
+        next_draft_order = max([0, *(s.draft_order or 0 for s in team.roster)]) + 1
         for slot in (
             offense_result.roster_slots
             + bench_result.roster_slots
             + rotation_result.roster_slots
             + bullpen_result.roster_slots
         ):
+            slot.draft_order = next_draft_order
+            next_draft_order += 1
             new_roster.append(slot.model_dump())
 
-        # Build merged lineups (update first lineup's slots)
-        existing_lineups = []
-        for ln in team.lineups:
-            existing_lineups.append({
-                'name': ln.name,
-                'slots': [s.model_dump() for s in ln.slots],
-            })
-
-        if existing_lineups:
-            existing_lineups[0]['slots'] += [s.model_dump() for s in offense_result.lineup_slots]
-        else:
-            existing_lineups = [{'name': 'Default', 'slots': [s.model_dump() for s in offense_result.lineup_slots]}]
-
-        # Build merged rotation
-        new_rotation = [p.model_dump() for p in team.rotation]
-        for pa in rotation_result.rotation_slots + bullpen_result.rotation_slots:
-            new_rotation.append(pa.model_dump())
+        # Lineups and rotation both fall out of the merged roster, so derive rather than
+        # assemble them in parallel. Any user-created lineups on the team are preserved.
+        existing_lineups, new_rotation = derive_lineups_rotation(
+            new_roster,
+            [
+                {'name': ln.name, 'slots': [s.model_dump() for s in ln.slots]}
+                for ln in team.stored_lineups
+            ],
+        )
 
         return {
             'roster': new_roster,
@@ -472,4 +979,6 @@ def autofill_team(
             'rotation': new_rotation,
         }
 
-    return None
+    # All attempts exhausted
+    last_failure = last_failure if 'last_failure' in locals() else 'Unable to complete roster after all attempts'
+    return (None, f"{last_failure}. Try adjusting your points targets, strategy, or removing some manual picks.")

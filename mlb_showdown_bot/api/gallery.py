@@ -20,15 +20,14 @@ def get_gallery():
         expansion = request.args.get('expansion') or None
         team = request.args.get('team') or None
         show_hidden = request.args.get('show_hidden', 'false').lower() == 'true'
-        db = PostgresDB()
-        gallery = db.get_user_gallery(
-            g.user_id, limit=limit, offset=offset,
-            set_name=set_name, player_name=player_name,
-            year=year, player_type=player_type,
-            edition=edition, expansion=expansion, team=team,
-            show_hidden=show_hidden,
-        )
-        db.close_connection()
+        with PostgresDB() as db:
+            gallery = db.get_user_gallery(
+                g.user_id, limit=limit, offset=offset,
+                set_name=set_name, player_name=player_name,
+                year=year, player_type=player_type,
+                edition=edition, expansion=expansion, team=team,
+                show_hidden=show_hidden,
+            )
         return jsonify({'gallery': gallery, 'has_more': len(gallery) == limit}), 200
     except Exception as exc:
         traceback.print_exc()
@@ -39,9 +38,8 @@ def get_gallery():
 @require_auth
 def delete_gallery_card(gallery_id: int):
     try:
-        db = PostgresDB()
-        deleted = db.delete_user_gallery_card(g.user_id, gallery_id)
-        db.close_connection()
+        with PostgresDB() as db:
+            deleted = db.delete_user_gallery_card(g.user_id, gallery_id)
         if deleted:
             return jsonify({'success': True}), 200
         return jsonify({'error': 'Card not found or access denied'}), 404
@@ -54,9 +52,8 @@ def delete_gallery_card(gallery_id: int):
 @require_auth
 def unhide_gallery_card(gallery_id: int):
     try:
-        db = PostgresDB()
-        updated = db.unhide_user_gallery_card(g.user_id, gallery_id)
-        db.close_connection()
+        with PostgresDB() as db:
+            updated = db.unhide_user_gallery_card(g.user_id, gallery_id)
         if updated:
             return jsonify({'success': True}), 200
         return jsonify({'error': 'Card not found or access denied'}), 404

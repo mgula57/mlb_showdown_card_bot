@@ -8,6 +8,7 @@ from .clients.sports_client import SportsClient, SportEnum
 from .clients.games_client import GamesClient, Schedule
 from .clients.stats_client import StatsClient, StatTypeEnum
 from .clients.metadata_client import MetadataClient
+from .clients.awards_client import AwardsClient
 from .models.person import Player, Players
 from .models.leagues.league import LeagueListEnum
 from typing import Optional
@@ -55,6 +56,7 @@ class MLBStatsAPI:
         self.games = GamesClient(**config)
         self.stats = StatsClient(**config)
         self.metadata = MetadataClient(**config)
+        self.awards = AwardsClient(**config)
         
     # -------------------------
     # PLAYER SEARCH + BUILD

@@ -1,0 +1,898 @@
+import type { ManagerPreference } from './manager';
+
+const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
+
+// =============================================================================
+// MARK: - TYPES
+// =============================================================================
+
+/** Mirrors `SimTeamIdentity` — branding for any team referenced by schedule key. */
+export type SimTeamIdentity = {
+    abbreviation: string;
+    name: string;
+    primary_color: string | null;
+    secondary_color: string | null;
+    league: string | null;
+};
+
+/** A real club available to take over, with the record it actually posted. */
+export type TakeoverClub = {
+    abbreviation: string;
+    name: string;
+    league: string | null;
+    division: string | null;
+    wins: number;
+    losses: number;
+};
+
+/**
+ * A statline with rate stats already computed server-side. `stats` is keyed by StatCategory
+ * value ('ops', 'ops+', 'era', 'wRC+', …) — the backend materializes these because they are
+ * Python properties that need league context, so never recompute them here.
+ */
+export type SimStatLine = {
+    id: string;
+    name: string;
+    team: string | null;
+    position?: string | null;
+    points: number;
+    command: number;
+    player_type: string | null;
+    stats: Record<string, number>;
+    /** Pairs with `id` as the (card_id, card_source) `useCardMap` fetches cards with — populated
+     * for every player, not just the user's own roster. Null/absent only for summaries persisted
+     * before this field existed. */
+    card_source?: string | null;
+};
+
+/** One award winner. `value`/`value_label` are the deciding stat for that category, already
+ * formatted server-side (see `AwardsBuilder` in `core/simulation/awards.py`). */
+export type AwardWinner = {
+    category: 'MVP' | 'CY_YOUNG' | 'ROY' | 'SILVER_SLUGGER';
+    league: string;
+    position?: string | null;
+    value: number;
+    value_label: string;
+    player: SimStatLine;
+};
+
+/** Most valuable player of one postseason series (LCS or World Series), always from the winning
+ * club. `player.stats` is that player's line over the series, not the season. */
+export type SeriesMVP = {
+    round: 'CS' | 'WS';
+    league: string | null;
+    team: string;
+    value: number;
+    value_label: string;
+    player: SimStatLine;
+};
+
+/** Absent/empty for summaries persisted before awards existed. */
+export type SeasonAwards = {
+    mvp: AwardWinner[];
+    cy_young: AwardWinner[];
+    rookie_of_year: AwardWinner[];
+    silver_sluggers: AwardWinner[];
+    /** Absent for summaries persisted before series MVPs existed. */
+    series_mvps?: SeriesMVP[];
+};
+
+/** Mirrors `PlayerSubType` — keys of `SeasonSimSummary.top_players`. */
+export type PlayerSubType = 'position_player' | 'starting_pitcher' | 'relief_pitcher';
+
+/** One player's sim-vs-real-life OPS gap — mirrors `OutlierEntry`. */
+export type OutlierEntry = {
+    id: string;
+    name: string;
+    team: string | null;
+    player_type: string;
+    card_source?: string | null;
+    sim_ops: number;
+    real_ops: number;
+    diff: number;
+    /** Full sim-side stat category map (same shape as a League Leaders row's `SimStatLine.stats`)
+     *  — for the Card Detail modal's "Card vs Real Stats" panel when opened from this entry. */
+    stats?: Record<string, number>;
+};
+
+/** Biggest OPS gaps for one `PlayerType`, split by direction — mirrors `OutlierGroup`. */
+export type OutlierGroup = {
+    positive: OutlierEntry[];
+    negative: OutlierEntry[];
+};
+
+export type SimGameLine = {
+    date: string;
+    opponent: string;
+    opponent_identity: SimTeamIdentity | null;
+    is_home: boolean;
+    runs_scored: number;
+    runs_allowed: number;
+    is_win: boolean;
+    /** Running record after this game — backs the streak chart. */
+    wins: number;
+    losses: number;
+};
+
+/** The takeover club's running game-by-game record, streamed onto the job row while the season
+ *  plays so the progress screen can animate a live win% chart. A trimmed `SimGameLine` — just the
+ *  four fields `SimWinPctChart` reads. Absent until the first regular-season game finishes, and on
+ *  an open sim with no focus club. */
+export type SimProgressGameLine = {
+    date: string;
+    is_win: boolean;
+    /** Running record after this game. */
+    wins: number;
+    losses: number;
+};
+
+/** One game of the season, from neither club's point of view — the backing data for
+ *  `useClubSeason`, which derives every club's own `SimGameLine` list from this instead of the
+ *  backend duplicating it per club. Populated only for an open sim (`SeasonSimSummary.team` is
+ *  null); empty for a takeover/challenge run, which already has its own `games` above. */
+export type SimSeasonGameLine = {
+    date: string;
+    home_team: string;
+    away_team: string;
+    home_score: number;
+    away_score: number;
+};
+
+/** A game's starting pitcher — enough to show a card chip (command + points) without a fetch,
+ * plus `(id, card_source)` to open the real Showdown card, the same pair `SimStatLine` carries. */
+export type SimGameStarter = {
+    id: string;
+    name: string;
+    team: string;
+    points: number;
+    command: number;
+    card_source?: string | null;
+};
+
+export type SimPostseasonGameLine = {
+    date: string;
+    home_team: string;
+    away_team: string;
+    home_score: number;
+    away_score: number;
+    winner: string | null;
+    /** Absent for summaries persisted before postseason starting pitchers were recorded. */
+    home_starting_pitcher?: SimGameStarter | null;
+    away_starting_pitcher?: SimGameStarter | null;
+};
+
+export type SimSeriesLine = {
+    round: string;
+    league: string | null;
+    home_team: string;
+    away_team: string;
+    home_team_wins: number;
+    away_team_wins: number;
+    winner: string | null;
+    /** Absent for summaries persisted before per-game postseason data existed. */
+    games?: SimPostseasonGameLine[];
+};
+
+export type SimTeamRecord = {
+    name: string;
+    identity: SimTeamIdentity | null;
+    league: string | null;
+    division: string | null;
+    points: number;
+    wins: number;
+    losses: number;
+    win_pct: number;
+    games_back: number | null;
+    playoff_seeding: number | null;
+};
+
+export type SimTeamSeason = {
+    identity: SimTeamIdentity | null;
+    replaced_abbr: string | null;
+    wins: number;
+    losses: number;
+    win_pct: number;
+    points: number;
+    division: string | null;
+    division_rank: number | null;
+    division_size: number | null;
+    games_back: number | null;
+    playoff_seeding: number | null;
+    made_playoffs: boolean;
+    is_champion: boolean;
+    longest_win_streak: number;
+    longest_losing_streak: number;
+};
+
+export type SeasonSimSummary = {
+    year: number;
+    set: string;
+    seed: number | null;
+    runtime_seconds: number;
+    schedule_length: number;
+    original_schedule_length: number;
+    generated_at: string;
+    /** Null for an open sim, which has no single focus team — use `useClubSeason` to derive a
+     *  club's own team/games/players instead of reading these fields directly. Non-null (never
+     *  absent) for a takeover/challenge run, as before. */
+    team: SimTeamSeason | null;
+    games: SimGameLine[];
+    players: SimStatLine[];
+    standings: { divisions: Record<string, SimTeamRecord[]> };
+    postseason: SimSeriesLine[];
+    champion: string | null;
+    /** Schedule key -> branding, for every club in the league. */
+    identities: Record<string, SimTeamIdentity>;
+    top_players: Record<PlayerSubType, SimStatLine[]>;
+    league_totals: Record<string, SimStatLine>;
+    real_league_averages: Record<string, SimStatLine>;
+    /** Keyed by PlayerType value ('Hitter'/'Pitcher'). Empty for a tournament (no real-life
+     *  baseline). Absent for summaries persisted before this field existed. */
+    outliers?: Record<string, OutlierGroup>;
+    /** Absent for summaries persisted before awards existed. */
+    awards?: SeasonAwards | null;
+    /** Every game of the season, once. Absent for summaries persisted before open sims existed,
+     *  and empty for a takeover/challenge run — see `useClubSeason`. */
+    season_games?: SimSeasonGameLine[];
+    /** Schedule key -> [wins, losses] each club started the sim with. Absent/empty outside a
+     *  rest-of-season projection, where every club started 0-0. */
+    seeded_records?: Record<string, [number, number]>;
+    /** Schedule keys of every club replaced by a builder team this run. Absent for summaries
+     *  persisted before open sims existed. */
+    takeover_abbrs?: string[];
+    /** Schedule key -> the non-neutral manager profile that club played with this run. Absent
+     *  for a plain sim and for summaries persisted before manager preference existed. */
+    manager_preferences?: Record<string, ManagerPreference>;
+    /** For a rest-of-season projection with real stats merged in: the least-stale date the
+     *  merged players' archive rows were last scraped. The archive holds one current snapshot
+     *  per player-year, not a history, so this may lag the run's own resume date — show this
+     *  date, not that one, when describing what the merged stats cover. Null otherwise. */
+    real_stats_as_of?: string | null;
+    /** Players relocated by the in-sim trade deadline. Absent for summaries persisted before the
+     *  feature existed, empty for a run that didn't use it. */
+    deadline_trades?: DeadlineTrade[];
+    /** 40-man roster moves (IL / activation / callup) — every club's for an open sim, just the
+     *  focus club's for a takeover/challenge run. Absent unless injuries were enabled. */
+    transactions?: SimTransaction[];
+    /** Schedule key -> { stints, games_missed, callups } roll-up for every club. */
+    injury_summary?: Record<string, { stints: number; games_missed: number; callups: number }>;
+};
+
+/** One player moved by the in-sim trade deadline (`enable_trade_deadline`). */
+export type DeadlineTrade = {
+    date: string;
+    player_id: string;
+    player_name: string;
+    position: string;
+    player_type: string;
+    from_team: string;
+    to_team: string;
+    from_team_record: string;
+    to_team_record: string;
+};
+
+/** A 40-man roster move, trimmed for display. */
+export type SimTransaction = {
+    date: string;
+    team: string;
+    /** "IL" | "ACT" | "UP" */
+    type: string;
+    player_name: string;
+    position: string;
+    related_player_name: string | null;
+    il_days: number | null;
+    return_date: string | null;
+    games_missed: number | null;
+    detail: string;
+};
+
+export type SimJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+/**
+ * Progress only — never carries the result. Job rows expire after a week, so once `status` is
+ * 'succeeded' the result is read from `fetchSimSeason(job_id)` instead, which is permanent.
+ */
+export type SimJob = {
+    job_id: string;
+    user_id: string | null;
+    team_id: string | null;
+    status: SimJobStatus;
+    phase: string | null;
+    games_completed: number;
+    games_total: number;
+    config: Record<string, unknown> | null;
+    error: string | null;
+    /** Takeover club's game-by-game running record so far — streamed while `status` is 'running'
+     *  so `SimWinPctChart` can animate live. Null/absent for an open sim or before the first game. */
+    progress_games?: SimProgressGameLine[] | null;
+    /** That club's full scheduled game count — the live chart's fixed x-axis max, so it doesn't
+     *  rescale as points stream in. Pairs with `progress_games`. */
+    progress_games_total?: number | null;
+    created_at: string;
+    updated_at: string;
+    finished_at: string | null;
+};
+
+/**
+ * A played season's list-view fields — shared by the leaderboard and personal history.
+ * Branding is snapshotted from when the season was played, since the team can change afterward.
+ */
+export type SimSeasonListItem = {
+    entry_id: number;
+    job_id: string | null;
+    team_id: string | null;
+    team_name: string | null;
+    team_abbreviation: string | null;
+    primary_color: string | null;
+    secondary_color: string | null;
+    year: number;
+    showdown_set: string | null;
+    replaced_abbr: string | null;
+    wins: number;
+    losses: number;
+    win_pct: number;
+    points: number;
+    division: string | null;
+    division_rank: number | null;
+    made_playoffs: boolean;
+    is_champion: boolean;
+    longest_win_streak: number;
+    seed: number | null;
+    created_at: string;
+    /** Belongs to the signed-in viewer. */
+    is_own: boolean;
+    /** Non-null only for a challenge run. */
+    challenge_instance_id: string | null;
+    challenge_result: 'passed' | 'failed' | null;
+    won_pennant: boolean | null;
+    /** Actual roster cost at sim time - set for every run, challenge or not. Powers the
+     *  wins-per-point "GM efficiency" leaderboard sort. */
+    roster_points: number | null;
+    /** Username of whoever ran this season. Null for a run by a since-deleted account, or one
+     *  persisted before this was joined in. */
+    creator_username?: string | null;
+};
+
+/** A leaderboard row: one team's best run at a season, ranked against every other team's best. */
+export type SimLeaderboardEntry = SimSeasonListItem & {
+    /** Rank within the season, among the entries this viewer can see. */
+    rank: number;
+    /** How many times this team has played this season. The row shows its best run. */
+    attempts: number;
+};
+
+/** One ranked group within a season: open play (`challenge_instance_id: null`) or a single
+ *  challenge instance. Entries only rank against others in the same group — wins aren't
+ *  comparable across different budgets/goals. */
+export type SimLeaderboardGroup = {
+    challenge_instance_id: string | null;
+    /** Null for the open-play group. */
+    challenge_title: string | null;
+    challenge_slug: string | null;
+    challenge_description: string | null;
+    /** The instance's live window. Null for the open-play group, or for an instance pruned
+     *  before this column existed. */
+    challenge_starts_at: string | null;
+    challenge_expires_at: string | null;
+    entries: SimLeaderboardEntry[];
+};
+
+export type SimLeaderboardSeason = {
+    year: number;
+    has_own_entry: boolean;
+    groups: SimLeaderboardGroup[];
+};
+
+/** Where a challenge run lands on its instance's leaderboard — drives the result screen's
+ *  "Attempt #N / #rank of M / New best" callout. Present only on a challenge run. */
+export type ChallengeStanding = {
+    /** This team's rank within the challenge instance, by record. Null if not visible. */
+    rank: number | null;
+    /** Distinct teams ranked on this challenge instance (visible to the viewer). */
+    entrants: number;
+    /** How many times this team has run this challenge. */
+    attempts: number;
+    /** Whether this specific run is the team's best. */
+    is_best: boolean;
+    /** Job id of the team's best run on this challenge. */
+    best_job_id: string | null;
+    roster_points: number | null;
+    pts_limit: number | null;
+    wins: number;
+};
+
+/** A season's full result, permanently addressable by the job id that produced it. */
+export type SimSeasonDetail = SimSeasonListItem & {
+    summary: SeasonSimSummary;
+    /** Present only when this season was a challenge run. */
+    challenge_standing?: ChallengeStanding | null;
+};
+
+export type StartSeasonSimPayload = {
+    team_id: string;
+    year: number;
+    set?: string;
+    /** Era-correct club abbreviation. Omitted means the season's worst club. */
+    replaces?: string;
+    seed?: number | null;
+    /** Per-run manager tendencies for the takeover club. Omitted (or neutral) plays the default. */
+    manager?: ManagerPreference;
+    /** When set, the backend pulls year/replaces from the instance itself (ignoring the fields
+     *  above) and enforces the instance's pts_limit against the team's actual roster cost. */
+    challenge_instance_id?: string;
+};
+
+/** One of the caller's own teams taking over a real club for an open sim. */
+export type OpenSimTakeover = {
+    team_id: string;
+    /** Era-correct club abbreviation. Omitted means the season's worst club (mirrors `resolve()`
+     *  on the backend, same as `StartSeasonSimPayload.replaces`). */
+    replaces?: string;
+    /** Per-run manager tendencies for this takeover club. Omitted (or neutral) plays the default. */
+    manager?: ManagerPreference;
+};
+
+export type OpenSimPayload = {
+    year: number;
+    set?: string;
+    /** Club to center the result screen on at launch — still switchable afterward via
+     *  `useClubSeason`, since the summary covers every club regardless. Omitted means the
+     *  season's worst club. */
+    focus_abbr?: string;
+    seed?: number | null;
+    /** Any number of clubs replaced by one of the caller's own teams. Omitted/empty plays every
+     *  club with its real roster. */
+    takeovers?: OpenSimTakeover[];
+    games_limit?: number;
+    pct_of_games?: number;
+    enable_injuries?: boolean;
+    injury_severity_multiplier?: number;
+    simulate_postseason?: boolean;
+    postseason_format?: string;
+    /** Rest-of-season projection: every club's real record as of this date (YYYY-MM-DD) seeds
+     *  its simulated one, and only games after it are simulated. Omitted means a plain
+     *  full-season sim, starting every club 0-0. */
+    resume_as_of_date?: string;
+    /** Additionally merge each player's real season stats to date into their simulated totals.
+     *  Only takes effect alongside `resume_as_of_date` — a separate toggle since the merged
+     *  stats reflect the archive's last scrape, which may not land exactly on the resume date. */
+    merge_real_stats?: boolean;
+    /** Skips the regular season entirely: every club starts from its real final record, and the
+     *  postseason bracket itself picks up from real results played so far this October, only
+     *  simulating what hasn't happened yet. Only available with no `takeovers` — a takeover club
+     *  never played the real postseason results it would otherwise inherit. */
+    resume_from_real_postseason?: boolean;
+    /** Move a player who was really traded mid-season to his real next club on an era-appropriate
+     *  deadline date, instead of playing the whole sim for the one club his card resolved to. */
+    enable_trade_deadline?: boolean;
+    /** With `enable_trade_deadline`: a selling club still contending in the simulated standings at
+     *  the deadline keeps its player (the real trade is cancelled for that run). */
+    trade_deadline_respects_standings?: boolean;
+    /** Rebuilds any card below the full-sample PA reference with its rate stats regressed toward
+     *  that year's replacement level before roster tiering, so a hot small-sample line (a
+     *  September callup, a spot starter) can't outvalue a proven regular's full season on noise. */
+    regress_small_sample_stats?: boolean;
+    /** Same-handed matchups (RHP-RHB, LHP-LHB) nudge the pitch/swing rolls toward the pitcher;
+     *  opposite-handed matchups (including every switch hitter) nudge them toward the hitter. */
+    enable_platoon_effect?: boolean;
+};
+
+export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record';
+
+/** Presentation grouping for the challenges list — drives the accent color and the one-per-
+ *  category weekly rotation. Not a mechanic; the goal/budget/filters do the actual work. */
+export type ChallengeCategory = 'legendary' | 'budget_cap' | 'superteam' | 'themed';
+
+/** A live challenge instance joined to its template. */
+export type ChallengeInstance = {
+    instance_id: string;
+    template_id: string;
+    year: number;
+    replaces_abbr: string;
+    pts_limit: number | null;
+    /** Minimum roster size a team needs to take on this challenge. The "use an existing team"
+     *  picker filters to teams with at least this many players, and a challenge's "New Team" is
+     *  pre-sized to it. Defaults to 25. */
+    roster_size: number;
+    /** Restricts which players are eligible for a team built for this instance (e.g. team/hand/
+     *  year), same shape as a team's own `player_filters`. Null = no restriction. */
+    player_filters: Record<string, unknown> | null;
+    expires_at: string;
+    slug: string;
+    title: string;
+    description: string;
+    category: ChallengeCategory;
+    goal_type: ChallengeGoalType;
+    goal_value: { min_wins?: number; target_abbr?: string } | null;
+    /** The real club a `beat_team_record` goal's `target_abbr` names, resolved once at
+     *  generation time (fixed abbr or a `BeatTarget` sentinel like "best_record" — both resolve
+     *  to one real club). Display flavor only, shown before anyone has played the instance; the
+     *  actual pass/fail check re-resolves a sentinel dynamically against the played season.
+     *  Null for any other goal type. */
+    beat_team_record: { abbr: string; name: string; wins: number; losses: number } | null;
+    /** The signed-in caller's own best attempt at this instance. Null/absent when logged out or
+     *  never attempted. */
+    challenge_result?: 'passed' | 'failed' | null;
+    attempted_at?: string | null;
+    /** Distinct teams that have run this instance, and how many of them have a passing run —
+     *  backs the "success rate" stat. Counts every entrant, not just the ones visible to the
+     *  viewer, since a rate is anonymous. */
+    entrants?: number;
+    passes?: number;
+};
+
+/** The signed-in user's own in-flight job - at most one can exist at a time. */
+export type ActiveSimJob = {
+    job_id: string;
+    team_id: string | null;
+    phase: string | null;
+    games_completed: number;
+    games_total: number;
+    created_at: string;
+};
+
+/**
+ * Thrown by `startSeasonSim` when the user already has a simulation running. Carries the
+ * blocking job's own id/team - which may belong to a different team than the one just
+ * requested, since the cap is per-user, not per-team - so the caller can link straight to it.
+ */
+export class SimAlreadyRunningError extends Error {
+    jobId: string;
+    teamId: string | null;
+
+    constructor(message: string, jobId: string, teamId: string | null) {
+        super(message);
+        this.name = 'SimAlreadyRunningError';
+        this.jobId = jobId;
+        this.teamId = teamId;
+    }
+}
+
+// =============================================================================
+// MARK: - REQUESTS
+// =============================================================================
+
+async function parseError(res: Response, fallback: string): Promise<never> {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${fallback}: ${res.status}`);
+}
+
+// Season and club lists are stable for a given year, so they are cached for the browser
+// session the same way `_splitsCache` works in mlbAPI.
+const _seasonsCache: { value: number[] | null } = { value: null };
+const _clubsCache = new Map<number, { teams: TakeoverClub[]; default: string | null }>();
+const _guideCache: { value: string | null } = { value: null };
+
+/** The plain-language "how a season sim works" guide, sourced from `SIMULATION_GUIDE.md` on the
+ *  backend so the in-app explainer never drifts from that doc. Static for the life of the
+ *  deployment, so it's cached for the browser session like the seasons/clubs lists above. */
+export async function fetchSimGuide(): Promise<string> {
+    if (_guideCache.value) return _guideCache.value;
+    const res = await fetch(`${API_BASE}/sim/guide`);
+    if (!res.ok) await parseError(res, 'Failed to load simulation guide');
+    const data = await res.json();
+    _guideCache.value = data.content ?? '';
+    return _guideCache.value!;
+}
+
+export async function fetchSimSeasons(): Promise<number[]> {
+    if (_seasonsCache.value) return _seasonsCache.value;
+    const res = await fetch(`${API_BASE}/sim/seasons`);
+    if (!res.ok) await parseError(res, 'Failed to load seasons');
+    const data = await res.json();
+    _seasonsCache.value = data.seasons ?? [];
+    return _seasonsCache.value!;
+}
+
+export async function fetchSimSeasonTeams(year: number): Promise<{ teams: TakeoverClub[]; default: string | null }> {
+    const cached = _clubsCache.get(year);
+    if (cached) return cached;
+    const res = await fetch(`${API_BASE}/sim/seasons/${year}/teams`);
+    if (!res.ok) await parseError(res, 'Failed to load teams');
+    const data = await res.json();
+    const value = { teams: data.teams ?? [], default: data.default ?? null };
+    _clubsCache.set(year, value);
+    return value;
+}
+
+export async function startSeasonSim(payload: StartSeasonSimPayload, token: string): Promise<{ job_id: string; replaces: string }> {
+    const res = await fetch(`${API_BASE}/sim/season`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    });
+    if (res.status === 429) {
+        const err = await res.json().catch(() => ({}));
+        if (err.job_id) throw new SimAlreadyRunningError(err.error ?? 'A simulation is already running.', err.job_id, err.team_id ?? null);
+    }
+    if (!res.ok) await parseError(res, 'Failed to start simulation');
+    return res.json();
+}
+
+/** Queues an open sim - every club plays a season, with any requested clubs taken over by one of
+ *  the caller's own teams. Separate from `startSeasonSim`, which is scoped to a single takeover
+ *  and Team Challenge validation that doesn't apply here. */
+export async function startOpenSim(payload: OpenSimPayload, token: string): Promise<{ job_id: string; focus_abbr: string | null }> {
+    const res = await fetch(`${API_BASE}/sim/open_season`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    });
+    if (res.status === 429) {
+        const err = await res.json().catch(() => ({}));
+        if (err.job_id) throw new SimAlreadyRunningError(err.error ?? 'A simulation is already running.', err.job_id, err.team_id ?? null);
+    }
+    if (!res.ok) await parseError(res, 'Failed to start simulation');
+    return res.json();
+}
+
+export type SimLeaderboardSort = 'wins' | 'efficiency';
+
+/**
+ * Played seasons with their ranked entries, newest season first. Public teams only, plus the
+ * viewer's own private results when a token is supplied.
+ */
+export async function fetchSimLeaderboard(token?: string, year?: number, sort: SimLeaderboardSort = 'wins'): Promise<SimLeaderboardSeason[]> {
+    const params = new URLSearchParams();
+    if (year) params.set('year', String(year));
+    if (sort !== 'wins') params.set('sort', sort);
+    const query = params.toString() ? `?${params}` : '';
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/sim/leaderboard${query}`, { headers });
+    if (!res.ok) await parseError(res, 'Failed to load leaderboard');
+    const data = await res.json();
+    return data.seasons ?? [];
+}
+
+/** Active (unexpired) challenge instances. An anonymous caller just sees the list; a signed-in
+ *  one also gets `challenge_result`/`attempted_at` for instances they've already attempted. */
+export async function fetchChallenges(token?: string): Promise<ChallengeInstance[]> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/sim/challenges`, { headers });
+    if (!res.ok) await parseError(res, 'Failed to load challenges');
+    const data = await res.json();
+    return data.challenges ?? [];
+}
+
+/**
+ * A single challenge instance, active or expired — backs the shareable `/teams/challenges/:id`
+ * page, so unlike `fetchChallenges` this resolves even after the instance has rotated out.
+ * Returns null on a 404 (unknown or pruned instance) rather than throwing, since that's a normal
+ * outcome for a stale shared link.
+ */
+export async function fetchChallengeInstance(instanceId: string, token?: string): Promise<ChallengeInstance | null> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/sim/challenges/${instanceId}`, { headers });
+    if (res.status === 404) return null;
+    if (!res.ok) await parseError(res, 'Failed to load challenge');
+    const data = await res.json();
+    return data.challenge ?? null;
+}
+
+/** Which of the caller's own teams pass this challenge's budget/drafting/player_filters checks
+ *  right now — the same checks `start_season_sim` enforces at launch, run ahead of time so the
+ *  "use an existing team" picker doesn't offer a team that would just fail at launch. */
+export async function fetchEligibleTeamIds(instanceId: string, token: string): Promise<string[]> {
+    const res = await fetch(`${API_BASE}/sim/challenges/${instanceId}/eligible_teams`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to check team eligibility');
+    const data = await res.json();
+    return data.team_ids ?? [];
+}
+
+/** Poll a job's progress. Returns 404 once the job row has expired — the result outlives it. */
+export async function fetchSimJob(jobId: string, token: string): Promise<SimJob> {
+    const res = await fetch(`${API_BASE}/sim/jobs/${jobId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to load simulation');
+    return res.json();
+}
+
+/** Cancel the signed-in user's own queued/running job. The worker thread notices on its next
+ *  progress write and stops simulating - the caller's next poll picks up the new status. */
+export async function cancelSimJob(jobId: string, token: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/sim/jobs/${jobId}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to cancel simulation');
+}
+
+/** The signed-in user's own in-flight job, if any - lets a caller check without attempting a
+ *  start first. */
+export async function fetchActiveSimJob(token: string): Promise<ActiveSimJob | null> {
+    const res = await fetch(`${API_BASE}/sim/jobs/active`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to check for an active simulation');
+    const data = await res.json();
+    return data.job ?? null;
+}
+
+/**
+ * A played season's full result. Works indefinitely, including for jobs whose progress row has
+ * long since expired — this is the permanent record. `token` is optional: an anonymous caller
+ * sees it if the team is public.
+ */
+export async function fetchSimSeason(jobId: string, token?: string): Promise<SimSeasonDetail | null> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/sim/season/${jobId}`, { headers });
+    if (res.status === 404) return null;
+    if (!res.ok) await parseError(res, 'Failed to load season');
+    return res.json();
+}
+
+/** The signed-in user's own played seasons, newest first — every run, not just the best. */
+export async function fetchSimHistory(token: string, teamId?: string, challengesOnly = false, limit?: number): Promise<SimSeasonListItem[]> {
+    const params = new URLSearchParams();
+    if (teamId) params.set('team_id', teamId);
+    if (challengesOnly) params.set('challenges_only', 'true');
+    if (limit) params.set('limit', String(limit));
+    const query = params.toString() ? `?${params}` : '';
+    const res = await fetch(`${API_BASE}/sim/history${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to load your simulation history');
+    const data = await res.json();
+    return data.seasons ?? [];
+}
+
+/**
+ * The most recently played seasons across the community, newest first — public teams (and
+ * team-less open sims) only. A signed-in caller's own runs are excluded server-side, since this
+ * backs the "Community" column next to the caller's own "Mine" recent-sims list.
+ */
+export async function fetchRecentSims(token?: string, limit = 5, challengesOnly = false): Promise<SimSeasonListItem[]> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (challengesOnly) params.set('challenges_only', 'true');
+    const res = await fetch(`${API_BASE}/sim/recent?${params}`, { headers });
+    if (!res.ok) await parseError(res, 'Failed to load recent simulations');
+    const data = await res.json();
+    return data.seasons ?? [];
+}
+
+/**
+ * Every season played with a specific team, newest first, regardless of who ran it — a public
+ * team can be simulated by any signed-in user. Used to decide whether a team's own "Sims" tab
+ * has anything to show.
+ */
+export async function fetchTeamSimSeasons(teamId: string, token?: string, limit = 10): Promise<SimSeasonListItem[]> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/sim/teams/${teamId}/seasons?limit=${limit}`, { headers });
+    if (!res.ok) await parseError(res, 'Failed to load simulations for this team');
+    const data = await res.json();
+    return data.seasons ?? [];
+}
+
+// =============================================================================
+// MARK: - SIM LOBBY (MULTIPLAYER)
+// =============================================================================
+
+export type SimLobbyStatus = 'open' | 'running' | 'finished';
+
+export type SimLobby = {
+    lobby_id: string;
+    host_user_id: string;
+    join_code: string;
+    year: number;
+    showdown_set: string;
+    config: Record<string, unknown> | null;
+    status: SimLobbyStatus;
+    /** Set once the host starts the lobby. Once set, `/simulate/:job_id` (the same screen a solo
+     *  open sim uses) takes over — the lobby room itself is only the waiting phase. */
+    job_id: string | null;
+    created_at: string;
+    expires_at: string | null;
+};
+
+export type SimLobbyMember = {
+    user_id: string;
+    club_abbr: string;
+    /** Null means following only — not taking the club over with a built team. */
+    team_id: string | null;
+    team_name: string | null;
+    team_abbreviation: string | null;
+    joined_at: string;
+};
+
+/** `{ lobby, members, job }` returned by every lobby route — `job` is only ever non-null while
+ *  reconciling a running lobby against its (possibly just-finished) `sim_job`. */
+export type SimLobbyState = {
+    lobby: SimLobby;
+    members: SimLobbyMember[];
+    job: SimJob | null;
+};
+
+export type CreateSimLobbyPayload = {
+    year: number;
+    set?: string;
+    seed?: number | null;
+    games_limit?: number;
+    pct_of_games?: number;
+    enable_injuries?: boolean;
+    injury_severity_multiplier?: number;
+    simulate_postseason?: boolean;
+    postseason_format?: string;
+    resume_as_of_date?: string;
+    merge_real_stats?: boolean;
+    resume_from_real_postseason?: boolean;
+    enable_trade_deadline?: boolean;
+    trade_deadline_respects_standings?: boolean;
+    regress_small_sample_stats?: boolean;
+    enable_platoon_effect?: boolean;
+};
+
+export async function createSimLobby(payload: CreateSimLobbyPayload, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) await parseError(res, 'Failed to create lobby');
+    return res.json();
+}
+
+/** Resolves a join code to lobby state. Works signed out — claiming a club is the actual join
+ *  action, so browsing a lobby before deciding needs no token. */
+export async function joinSimLobby(code: string): Promise<SimLobbyState | null> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${encodeURIComponent(code)}/join`, { method: 'POST' });
+    if (res.status === 404) return null;
+    if (!res.ok) await parseError(res, 'Failed to join lobby');
+    return res.json();
+}
+
+/** Current lobby state — poll this (~2s) while waiting in the room. */
+export async function fetchSimLobby(lobbyId: string): Promise<SimLobbyState | null> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}`);
+    if (res.status === 404) return null;
+    if (!res.ok) await parseError(res, 'Failed to load lobby');
+    return res.json();
+}
+
+export type ClaimSimLobbyPayload = {
+    club_abbr: string;
+    /** Omit to just follow the club rather than take it over. */
+    team_id?: string;
+};
+
+export async function claimSimLobbyClub(lobbyId: string, payload: ClaimSimLobbyPayload, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) await parseError(res, 'Failed to claim club');
+    return res.json();
+}
+
+export async function leaveSimLobby(lobbyId: string, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}/leave`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await parseError(res, 'Failed to leave lobby');
+    return res.json();
+}
+
+/** Host-only: builds takeovers from every member's claim and launches the sim. */
+export async function startSimLobby(lobbyId: string, token: string): Promise<SimLobbyState> {
+    const res = await fetch(`${API_BASE}/sim/lobby/${lobbyId}/start`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 429) {
+        const err = await res.json().catch(() => ({}));
+        if (err.job_id) throw new SimAlreadyRunningError(err.error ?? 'A simulation is already running.', err.job_id, err.team_id ?? null);
+    }
+    if (!res.ok) await parseError(res, 'Failed to start lobby');
+    return res.json();
+}

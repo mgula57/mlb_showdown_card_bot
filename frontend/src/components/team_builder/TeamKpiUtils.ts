@@ -70,11 +70,13 @@ export function buildPitcherKpis(
     const avgWhip = avgOf(cards.map(c => c.real_whip));
     const avgCtl  = avgOf(cards.map(c => c.command));
     const avgOuts = avgOf(cards.map(c => c.outs));
+    const avgIP = avgOf(cards.map(c => c.ip));
     return [
-        avgPts  != null ? { label: 'Avg PTS',  value: fmtAvg(avgPts) }        : null,
-        avgEra  != null ? { label: 'Exp ERA',  value: avgEra.toFixed(2) }      : null,
-        avgWhip != null ? { label: 'Exp WHIP', value: avgWhip.toFixed(2) }     : null,
-        avgCtl  != null ? { label: 'Avg CTL',  value: avgCtl.toFixed(1) }      : null,
-        avgOuts != null ? { label: 'Avg OUTS', value: avgOuts.toFixed(1) }     : null,
+        avgPts  != null ? { label: 'Avg PTS',  value: fmtAvg(avgPts) }     : null,
+        avgEra  != null ? { label: 'Exp ERA',  value: avgEra.toFixed(2) }  : null,
+        avgWhip != null ? { label: 'Exp WHIP', value: avgWhip.toFixed(2) } : null,
+        avgCtl  != null ? { label: 'Avg CTL',  value: avgCtl.toFixed(1) }  : null,
+        avgOuts != null ? { label: 'Avg OUTS', value: avgOuts.toFixed(1) } : null,
+        avgIP   != null ? { label: 'Avg IP',   value: avgIP.toFixed(1) }   : null,
     ].filter(Boolean) as KpiTile[];
 }

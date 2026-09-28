@@ -1,1 +1,1 @@
-web: gunicorn --workers 3 app:app
+web: gunicorn --config gunicorn.conf.py app:app

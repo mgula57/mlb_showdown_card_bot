@@ -60,3 +60,37 @@ def scale_counting_stats_to_pa_basis(stat_line: dict[str, Any], source_pa: float
             stat_line[stat] = num(stat_line[stat]) * scale_factor
 
     stat_line["PA"] = target_pa
+
+
+def recompute_derived_batting_stats(stat_line: dict[str, Any]) -> None:
+    """Recompute H/TB/BA/OBP/SLG/OPS in place from 1B/2B/3B/HR/AB/BB/HBP/SF.
+
+    Shared tail for any transform (run-value nerf, replacement-level shrinkage, ...) that
+    rescales the underlying hit-type counts and needs the derived rate stats to stay consistent
+    with them afterward.
+    """
+    one_b = num(stat_line.get("1B"))
+    two_b = num(stat_line.get("2B"))
+    three_b = num(stat_line.get("3B"))
+    hr = num(stat_line.get("HR"))
+    ab = num(stat_line.get("AB"))
+    bb = num(stat_line.get("BB"))
+    hbp = num(stat_line.get("HBP"))
+    sf = num(stat_line.get("SF"))
+
+    hits = one_b + two_b + three_b + hr
+    total_bases = one_b + (2 * two_b) + (3 * three_b) + (4 * hr)
+
+    stat_line["H"] = hits
+    stat_line["TB"] = total_bases
+
+    if ab > 0:
+        stat_line["batting_avg"] = hits / ab
+        stat_line["slugging_perc"] = total_bases / ab
+
+    obp_denom = ab + bb + hbp + sf
+    if obp_denom > 0:
+        stat_line["onbase_perc"] = (hits + bb + hbp) / obp_denom
+
+    if isinstance(stat_line.get("onbase_perc"), (int, float)) and isinstance(stat_line.get("slugging_perc"), (int, float)):
+        stat_line["onbase_plus_slugging"] = num(stat_line["onbase_perc"]) + num(stat_line["slugging_perc"])

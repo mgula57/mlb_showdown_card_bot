@@ -1,57 +1,182 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
-import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting } from '../../api/userTeams';
+import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
+import { useAuth } from '../auth/AuthContext';
+import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
+import { TeamLogo } from './TeamLogo';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { useCardMap } from '../../hooks/useCardMap';
-import { getContrastColor } from "../shared/Color";
-import { FieldView } from './FieldView';
+import { bannerTokens, getContrastTextColor } from "../../functions/colors";
+import { FieldView, FIELD_POSITIONS } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
+import { LineupPanel } from './LineupPanel';
 import { TeamSettingsForm } from './TeamSettingsForm';
-import { BottomSheet } from '../shared/BottomSheet';
-import ShowdownCardSearch from '../cards/ShowdownCardSearch';
-import { 
-    FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles, 
-    FaShuffle, FaPenToSquare
+import { SlideOver } from '../shared/SlideOver';
+import { SearchGradientBorder } from '../shared/SearchGradientBorder';
+import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
+import ShowdownCardSearch, { type FilterSelections } from '../cards/ShowdownCardSearch';
+import {
+    FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
+    FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
+    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
+    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh
 } from 'react-icons/fa6';
+import type { IconType } from 'react-icons';
+import { useNavigate } from 'react-router-dom';
+import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
+import { PlayModal } from './sim/PlayModal';
+import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
+import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
+import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
+import { Modal } from '../shared/Modal';
+
+/** Cheapest PTS a real showdown card can be — matches the floor of the lowest price band the
+ *  server-side autofill pool queries against (`_CANDIDATE_PRICE_BANDS` in autofill.py). Used to
+ *  reserve budget for a draft pick's still-empty roster slots. */
+const MIN_CARD_POINTS = 10;
+
+/** Visual treatment for how a roster slot was filled — hand-picked, autofilled, or carried
+ *  over from a forked/imported team. Kept together so the draft history badge stays consistent. */
+const PICK_SOURCE_META: Record<PickSource, { label: string; icon: IconType; className: string }> = {
+    MANUAL:   { label: 'Manual',   icon: FaHandPointer,       className: 'bg-sky-500/15 text-sky-600 dark:text-sky-300' },
+    AUTOFILL: { label: 'Autofill', icon: FaWandMagicSparkles, className: 'bg-violet-500/15 text-violet-600 dark:text-violet-300' },
+    IMPORTED: { label: 'Imported', icon: FaFileImport,        className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
+};
+
+function PickSourceBadge({ source }: { source: PickSource }) {
+    const meta = PICK_SOURCE_META[source] ?? PICK_SOURCE_META.MANUAL;
+    const Icon = meta.icon;
+    return (
+        <div className={`flex items-center gap-1 rounded-lg px-1.5 py-0.5 font-semibold ${meta.className}`}>
+            <Icon className="text-[9px] shrink-0" />
+            {meta.label}
+        </div>
+    );
+}
+
+/** Compact pill switch shown alongside the draft search tabs — caps results to cards that both
+ *  fit the remaining budget and still fill an open roster need. Small enough to sit in a tab
+ *  strip on mobile or desktop. */
+function FitsMyRosterToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={onToggle}
+            title="Only show cards you can afford, and that still fill an open roster need"
+            className={`flex items-center gap-1.5 shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                enabled
+                    ? 'border-(--showdown-red) bg-(--showdown-red)/10 text-(--showdown-red)'
+                    : 'border-(--divider) text-(--text-tertiary) hover:text-(--text-primary)'
+            }`}
+        >
+            <FaGaugeHigh className="text-[10px]" />
+            Fits my roster
+        </button>
+    );
+}
+
+/** Tone presets for the header toolbar. Every action shares one shape and one weight so the
+ *  strip reads as a single control group — tone only ever shifts the fill/ink pair, never the
+ *  geometry. Each tone rests on a soft tint of its color rather than sitting flat, so the row
+ *  doesn't read as one undifferentiated block of ghost buttons. */
+const HEADER_ACTION_TONES = {
+    neutral: 'bg-(--background-tertiary) text-(--text-secondary) hover:bg-(--background-quaternary) hover:text-(--text-primary)',
+    starred: 'bg-yellow-400/15 text-yellow-600 dark:text-yellow-300 hover:bg-yellow-400/25',
+    curate:  'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25',
+    danger:  'bg-red-400/15 text-red-500 dark:text-red-400 hover:bg-red-400/25',
+    liked:   'bg-rose-500/15 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25',
+} as const;
+
+type HeaderActionProps = {
+    icon: IconType;
+    label: string;
+    onClick: () => void;
+    tone?: keyof typeof HEADER_ACTION_TONES;
+    /** Swaps the icon for a spinner and blocks re-entry while an async action is in flight. */
+    busy?: boolean;
+    title?: string;
+    /** Trailing count badge, e.g. a like or fork count. Omitted (not zero) hides the badge. */
+    count?: number;
+};
+
+/** One secondary action in the team header. Sized for a comfortable thumb target on mobile —
+ *  the label always shows, it never shrinks down to an icon-only tap target. */
+function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = false, title, count }: HeaderActionProps) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={busy}
+            title={title ?? label}
+            aria-label={label}
+            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 px-4 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
+        >
+            {busy ? <FaSpinner className="h-4 w-4 shrink-0 animate-spin" /> : <Icon className="h-4 w-4 shrink-0" />}
+            {label}
+            {count != null && count > 0 && (
+                <span className="text-[11px] font-bold opacity-75">{count}</span>
+            )}
+        </button>
+    );
+}
 
 type PendingSlot =
     | { kind: 'field'; position: string; current: LineupSlot | null }
     | { kind: 'rotation'; role: string; current: PitcherAssignment | null }
-    | { kind: 'bench'; role: string; current: TeamRosterSlot | null }
+    | { kind: 'bench'; current: { card_id: string } | null }
+    | { kind: 'bullpen'; current: { card_id: string } | null }
     | { kind: 'roster' };
 
 type TeamDetailProps = {
     team: Team;
     onSave: (updates: TeamUpdatePayload) => Promise<void>;
-    onBack: () => void;
+    onBack?: () => void;
     onReload?: () => void;
     token?: string;
     readOnly?: boolean;
+    /** When true, don't cap the root to the viewport height — let the page scroll instead of an inner region. Used when embedding a read-only team view inside another screen. */
+    embedded?: boolean;
+    isStarred?: boolean;
+    onToggleStar?: () => void;
+    /** When provided, shows a "Make a copy" button that forks this team into the user's own. */
+    onFork?: () => void | Promise<void>;
+    /** Toggle the current user's like on this team. Only offered when signed in and the team
+     *  is reachable from Browse (is_public || source === 'official'). */
+    onToggleLike?: () => void | Promise<void>;
+    /** Set when this team page was reached from a Team Challenge card - offers "Play Challenge"
+     *  in place of the plain "Play" action. Not stored on the team itself: a refresh drops back
+     *  to the normal action, and the team can still be freely reused for other challenges/sims. */
+    challenge?: ChallengeInstance;
+    /** True when the user just created this team (no pre-creation modal anymore) — starts them
+     *  on the "Team Settings" setup step instead of straight into the draft. */
+    isNewTeam?: boolean;
+    /** True when this team page was just reached via the "Copy" fork action — shows a one-time
+     *  "Added to My Teams" toast on mount. Routed through router state (like `isNewTeam`) because
+     *  the fork navigates to a new team URL, which unmounts/remounts this component. */
+    justCopied?: boolean;
+    /** Archive (hide) or unarchive this team. When provided, the settings form shows the toggle;
+     *  archiving navigates back to the list, unarchiving stays put. */
+    onArchive?: (archived: boolean) => void | Promise<void>;
 };
 
-const ROTATION_ROLES = ['SP1', 'SP2', 'SP3', 'SP4', 'SP5'] as const;
-const BULLPEN_ROLES  = ['RP', 'CL'] as const;
 
-const CARD_SOURCES = [
-    { key: CardSource.BOT,  label: 'Bot' },
-    { key: CardSource.WOTC, label: 'WOTC' },
-    { key: CardSource.WBC,  label: 'WBC' },
-] as const;
-
-function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, string[]> {
+function getSearchFiltersForSlot(slot: PendingSlot | null): Partial<FilterSelections> {
     if (!slot) return {};
     if (slot.kind === 'field') {
-        if (slot.position === 'SP') return { positions: ['STARTER'], player_type: ['PITCHER'] };
+        if (slot.position === 'SP') return { positions: ['STARTER'] };
         const posMap: Record<string, string[]> = {
             C: ['C'], '1B': ['1B'], '2B': ['2B'], '3B': ['3B'],
             SS: ['SS'], LF: ['LF/RF'], RF: ['LF/RF'], CF: ['CF'], DH: ['DH'],
@@ -60,8 +185,11 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
         return { ...(positions ? { positions } : {}), player_type: ['HITTER'] };
     }
     if (slot.kind === 'rotation') {
-        if (slot.role.startsWith('SP')) return { positions: ['STARTER'], player_type: ['PITCHER'] };
-        return { positions: ['RELIEVER', 'STARTER'], player_type: ['PITCHER'] };
+        if (slot.role.startsWith('SP')) return { positions: ['STARTER'] };
+        return { positions: ['RELIEVER', 'CLOSER'] };
+    }
+    if (slot.kind === 'bullpen') {
+        return { positions: ['RELIEVER', 'CLOSER'] };
     }
     if (slot.kind === 'bench') {
         return { player_type: ['HITTER'] };
@@ -71,6 +199,16 @@ function getSearchFiltersForSlot(slot: PendingSlot | null): Record<string, strin
 
 function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[] {
     const lines: string[] = [];
+    if ('name' in pending && pending.name !== original.name)
+        lines.push(`Name: ${original.name || 'Untitled Team'} → ${pending.name || 'Untitled Team'}`);
+    if ('abbreviation' in pending && pending.abbreviation !== original.abbreviation)
+        lines.push(`Abbreviation: ${original.abbreviation || 'none'} → ${pending.abbreviation || 'none'}`);
+    if ('is_public' in pending && pending.is_public !== original.is_public)
+        lines.push(`Visibility: ${original.is_public ? 'Public' : 'Private'} → ${pending.is_public ? 'Public' : 'Private'}`);
+    if ('primary_color' in pending && pending.primary_color !== original.primary_color)
+        lines.push(`Primary color: ${original.primary_color} → ${pending.primary_color}`);
+    if ('secondary_color' in pending && pending.secondary_color !== original.secondary_color)
+        lines.push(`Secondary color: ${original.secondary_color} → ${pending.secondary_color}`);
     if ('pts_limit' in pending && pending.pts_limit !== original.pts_limit)
         lines.push(`PTS limit: ${original.pts_limit ?? 'none'} → ${pending.pts_limit ?? 'none'}`);
     if ('roster_size' in pending && pending.roster_size !== original.roster_size)
@@ -83,10 +221,14 @@ function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[
         lines.push(`Min bench: ${original.min_bench} → ${pending.min_bench}`);
     if ('bench_pts_multiplier' in pending && pending.bench_pts_multiplier !== original.bench_pts_multiplier)
         lines.push(`Bench PTS multiplier: ${original.bench_pts_multiplier}× → ${pending.bench_pts_multiplier}×`);
-    if ('allowed_sets' in pending) {
-        const orig = (original.allowed_sets ?? []).sort().join(', ') || 'all';
-        const next = (pending.allowed_sets ?? []).sort().join(', ') || 'all';
-        if (orig !== next) lines.push(`Allowed sets: ${orig} → ${next}`);
+    if ('allowed_sets' in pending || 'allowed_sets_by_source' in pending) {
+        // Sets are per source, so report each source's list separately.
+        const merged = { ...original, ...pending };
+        for (const { value, label } of TEAM_CARD_SOURCES) {
+            const orig = allowedSetsForSource(original, value).slice().sort().join(', ') || 'all';
+            const next = allowedSetsForSource(merged, value).slice().sort().join(', ') || 'all';
+            if (orig !== next) lines.push(`${label} sets: ${orig} → ${next}`);
+        }
     }
     if ('allowed_card_sources' in pending) {
         const orig = (original.allowed_card_sources ?? []).sort().join(', ') || 'all';
@@ -98,13 +240,15 @@ function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[
     return lines;
 }
 
-function getEligiblePositions(card: CardDatabaseRecord): string[] {
+function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): string[] {
     if (card.is_pitcher) {
-        if ('STARTER' in card.positions_and_defense) return [...ROTATION_ROLES];
-        return [...BULLPEN_ROLES];
+        if ('STARTER' in card.positions_and_defense) return ROTATION_ROLES.slice(0, Math.min(numStarters, MAX_STARTERS));
+        // The bullpen is free-form — every reliever is a generic 'RP', no closer slot.
+        return ['RP'];
     }
     const positions = Object.keys(card.positions_and_defense);
     const expanded = positions.flatMap(pos => {
+        if (pos === 'CA') return ['C'];  // showdown notation → roster/lineup slot key
         if (pos === 'LF/RF') return ['LF', 'RF'];
         if (pos === 'IF') return ['1B', '2B', '3B', 'SS'];
         if (pos === 'OF') return ['LF', 'CF', 'RF'];
@@ -113,27 +257,72 @@ function getEligiblePositions(card: CardDatabaseRecord): string[] {
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
-export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false }: TeamDetailProps) {
+export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, onToggleLike, challenge, isNewTeam = false, justCopied = false, onArchive }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
-
-    const rosterSlots = useMemo(
-        () => draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source })),
-        [draft.roster],
+    const [forking, setForking] = useState(false);
+    const [liking, setLiking] = useState(false);
+    const [archiving, setArchiving] = useState(false);
+    const { isAdmin, user } = useAuth();
+    const [showPublishModal, setShowPublishModal] = useState(false);
+    const [unpublishing, setUnpublishing] = useState(false);
+    // Setup flow: a freshly created (or still-empty) team opens on the "Team Settings" step;
+    // otherwise straight into "Drafting". Steps are freely navigable via the banner chips.
+    // Challenge-created teams skip Settings entirely — the challenge already supplied every
+    // team setting (budget, roster size, player filters), so there's nothing to configure.
+    const [setupStep, setSetupStep] = useState<'settings' | 'draft'>(
+        () => challenge ? 'draft' : (isNewTeam || team.roster.length === 0) ? 'settings' : 'draft',
     );
-    const { cardMap, addCard } = useCardMap(rosterSlots);
+
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
+    // Roster slot the user is about to drop from the draft history — drives the confirm modal.
+    const [dropCandidate, setDropCandidate] = useState<TeamRosterSlot | null>(null);
+    // Bumped after each successful draft pick to clear the mobile search's leftover text/filters.
+    const [draftSearchResetKey, setDraftSearchResetKey] = useState(0);
     const [dirty, setDirty] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [stale, setStale] = useState(false);
     const [draftSource, setDraftSource] = useState<CardSourceType>(CardSource.BOT);
-    const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(null);
+    const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(
+        () => justCopied ? { name: 'Team Copied', position: 'Added to My Teams' } : null
+    );
     const [draftToastExiting, setDraftToastExiting] = useState(false);
     const [showAutofill, setShowAutofill] = useState(false);
     const [lastAutofillStrategy, setLastAutofillStrategy] = useState<AutofillStrategy | null>(null);
     const [reshuffling, setReshuffling] = useState(false);
+    // Field positions / rotation roles the user just drafted into. The roster has the pick
+    // immediately, but the lineup/rotation are only re-derived server-side on the next save,
+    // so until that round-trips these slots still show their old occupant — a spinner overlay
+    // (via FieldView / DepthChartPanel) keeps the pick from looking like it did nothing.
+    const [pendingPickPositions, setPendingPickPositions] = useState<ReadonlySet<string>>(() => new Set());
+    // Staged autofill result, shown as a preview (with a reshuffle option) before it's
+    // committed to the draft and picked up by the auto-save effect.
+    const [autofillPreview, setAutofillPreview] = useState<{ strategy: AutofillStrategy; result: AutofillResult } | null>(null);
+
+    const rosterSlots = useMemo(() => {
+        const base = draft.roster.map(s => ({ card_id: s.card_id, card_source: s.card_source }));
+        if (!autofillPreview) return base;
+        const seen = new Set(base.map(s => s.card_id));
+        const previewOnly = autofillPreview.result.roster
+            .filter(s => !seen.has(s.card_id))
+            .map(s => ({ card_id: s.card_id, card_source: s.card_source }));
+        return [...base, ...previewOnly];
+    }, [draft.roster, autofillPreview]);
+    const { cardMap, loading: isLoadingCards, addCard } = useCardMap(rosterSlots, token);
     const [editMode, setEditMode] = useState(false);
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [showPlayModal, setShowPlayModal] = useState(false);
+    const [logoUploading, setLogoUploading] = useState(false);
+    const [logoError, setLogoError] = useState<string | null>(null);
+    // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
+    // team that's never been played shows no dead tab.
+    const [teamSeasons, setTeamSeasons] = useState<SimSeasonListItem[] | null>(null);
+    // The signed-in user's own in-flight job, if any - shown (and cancellable) in the Sims tab
+    // only when it belongs to *this* team, so a job started elsewhere doesn't show up here.
+    const [activeJob, setActiveJob] = useState<ActiveSimJob | null>(null);
+    const [cancellingJob, setCancellingJob] = useState(false);
+    const navigate = useNavigate();
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,7 +330,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     useEffect(() => {
         const mq = window.matchMedia('(min-width: 1024px)');
-        const handler = (e: MediaQueryListEvent) => setIsLg(e.matches);
+        const handler = (e: MediaQueryListEvent) => {
+            setIsLg(e.matches);
+            // Crossing down into the mobile SlideOver layout: clear any pending slot left over
+            // from the desktop panel so the slideover doesn't spring open immediately.
+            if (!e.matches) setPendingSlot(null);
+        };
         mq.addEventListener('change', handler);
         return () => mq.removeEventListener('change', handler);
     }, []);
@@ -154,7 +348,34 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }, [draft.allowed_card_sources]);
 
-    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setEditMode(false); setPendingSettings(null); }, [team]);
+    useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setPendingPickPositions(new Set()); }, [team]);
+
+    // Editing-session UI state (edit mode, the settings modal) is only torn down when the
+    // underlying team actually changes — never on the same-team prop churn from an auto-save
+    // round-trip, which would otherwise kick the user out of edit mode after every change.
+    useEffect(() => {
+        setEditMode(false);
+        setPendingSettings(null);
+        setShowSettingsModal(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [team.team_id]);
+
+    // Safety net: never leave a "saving" spinner stuck on a slot if a save fails or the team
+    // prop somehow doesn't refresh. The normal clear is the [team] effect above, on the
+    // server's re-derived roster coming back.
+    useEffect(() => {
+        if (pendingPickPositions.size === 0) return;
+        const t = setTimeout(() => setPendingPickPositions(new Set()), 10000);
+        return () => clearTimeout(t);
+    }, [pendingPickPositions]);
+
+    // Re-pick the setup step only when the underlying team actually changes (e.g. forking into a
+    // different team), never on the same-team prop churn from an auto-save round-trip — that
+    // would kick the user back to Settings mid-edit.
+    useEffect(() => {
+        setSetupStep(challenge ? 'draft' : (isNewTeam || team.roster.length === 0) ? 'settings' : 'draft');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [team.team_id]);
 
     useEffect(() => {
         if (!draftToast) return;
@@ -181,6 +402,43 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Record a view of this team, once per genuine open (this effect, like the stale check
+    // above, runs once per mount — TeamBuilder unmounts/remounts TeamDetail on every distinct
+    // team navigation via its intermediate loading state, so `[]` deps won't miss a team
+    // switch or double-count an in-place `team` prop update from autosave).
+    useEffect(() => {
+        if (!readOnly) return; // owner's own view never counts
+        if (team.source !== 'user' && team.source !== 'official') return; // no DB row to record against
+        if (!team.team_id) return;
+        recordTeamView(team.team_id, token).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Recent simulations played with this team, across every user — a public team can be
+    // simulated by anyone, not just its owner, so this isn't limited to the viewer's own runs.
+    // Synthetic (MLB/ASG) teams have no real team_id and simply never fetch, which is fine:
+    // `teamSeasons` staying null already means the Sims tab doesn't render.
+    useEffect(() => {
+        if (!team.team_id) return;
+        if (team.source !== 'user') return;
+        let stale = false;
+        fetchTeamSimSeasons(team.team_id, token)
+            .then(seasons => { if (!stale) setTeamSeasons(seasons); })
+            .catch(() => { if (!stale) setTeamSeasons([]); });
+        return () => { stale = true; };
+    }, [team.team_id, token]);
+
+    // The user's own in-flight job (at most one can exist) - lets the Sims tab surface it, so a
+    // stuck run can be found and cancelled without having to trigger the blocked-start 429 first.
+    useEffect(() => {
+        if (!team.team_id || !token) return;
+        let stale = false;
+        fetchActiveSimJob(token)
+            .then(job => { if (!stale) setActiveJob(job); })
+            .catch(() => { if (!stale) setActiveJob(null); });
+        return () => { stale = true; };
+    }, [team.team_id, token]);
+
     // Auto-save: debounce 1.5s after any dirty change
     useEffect(() => {
         if (!dirty || readOnly) return;
@@ -196,97 +454,284 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 setTimeout(() => setSaveStatus(s => s === 'saved' ? 'idle' : s), 2000);
             } catch {
                 setSaveStatus('error');
+                setPendingPickPositions(new Set());
             }
         }, 1500);
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
     }, [draft, dirty]);
 
+    // Flush any pending debounced save before navigating away, so a change made in the last
+    // 1.5s isn't lost — and, for a just-created team, so the abandon-cleanup on the parent sees
+    // the real roster rather than deleting a team that does have picks.
+    async function handleBack() {
+        if (dirty && !readOnly) {
+            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { team_id, user_id, created_at, updated_at, total_points, ...payload } = draft;
+                await onSave(payload);
+            } catch { /* leaving anyway */ }
+        }
+        onBack?.();
+    }
 
-    const searchFilters = useMemo(() => ({
-        ...(draft.player_filters ?? {}),
-        ...getSearchFiltersForSlot(pendingSlot),
-        ...(draft.allowed_sets?.length ? { showdown_set: draft.allowed_sets } : {}),
-    }), [pendingSlot, draft.allowed_sets, draft.player_filters]);
+
+    // Set restrictions are per card source, so the draft panel's filters follow the active tab.
+    const { allowed_sets, allowed_sets_by_source, player_filters } = draft;
+    // Team-settings player restrictions + allowed sets — locked, the drafter can't clear these.
+    // Player restrictions (team/bats/etc.) only make sense against Showdown Bot's generated
+    // pool — WOTC's card pool is fixed and historical, so those filters don't apply to it.
+    const teamRestrictionFilters = useMemo(() => {
+        const sets = allowedSetsForSource({ allowed_sets, allowed_sets_by_source }, draftSource);
+        return {
+            ...(draftSource === CardSource.BOT ? (player_filters ?? {}) : {}),
+            ...(sets.length ? { showdown_set: sets } : {}),
+        };
+    }, [draftSource, allowed_sets, allowed_sets_by_source, player_filters]);
+    // Position/type constraints for the slot being filled — seeded but still clearable.
+    const slotFilters = useMemo(() => getSearchFiltersForSlot(pendingSlot), [pendingSlot]);
+    // "Fits my roster" draft toggle — only meaningful once a points budget is in play, so it
+    // defaults off and there's nothing to reset it against a specific team (TeamDetail remounts
+    // on team switch, so this state can't leak across teams anyway).
+    const [fitsRosterEnabled, setFitsRosterEnabled] = useState(false);
 
     function update(updates: TeamUpdatePayload) {
         setDraft(prev => ({ ...prev, ...updates } as Team));
         setDirty(true);
     }
 
-    async function handleAutofill(strategy: AutofillStrategy) {
-        if (!token || !draft.team_id) return;
-        const activeFilters: Record<string, unknown> = {};
-        if (draft.allowed_sets?.length) activeFilters['showdown_set'] = draft.allowed_sets;
-        // Pass single allowed source so autofill fetches from the correct table
-        if (draft.allowed_card_sources?.length === 1) activeFilters['source'] = draft.allowed_card_sources[0];
-        const result = await autofillTeam(draft.team_id, strategy, token, activeFilters);
-        update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
-        const added = result.roster.length - draft.roster.length;
-        setLastAutofillStrategy(strategy);
-        setDraftToast({ name: 'Roster Autofilled', position: `${added} player${added !== 1 ? 's' : ''} added` });
-    }
-
-    async function handleReshuffle() {
-        if (!lastAutofillStrategy || reshuffling) return;
+    /** Runs autofill and stages the result as a preview rather than committing it straight to
+     *  the draft — the user reviews it (and can reshuffle for a different result) before it's
+     *  applied and picked up by the auto-save effect. */
+    async function generateAutofillPreview(strategy: AutofillStrategy) {
+        if (!token || !draft.team_id || reshuffling) return;
         setReshuffling(true);
         try {
-            await handleAutofill(lastAutofillStrategy);
+            // Sets are left to the server: it queries one source at a time and applies that
+            // source's own allowed sets, which a single flat filter here couldn't express.
+            const result = await autofillTeam(draft.team_id, strategy, token, {});
+            setAutofillPreview({ strategy, result });
         } finally {
             setReshuffling(false);
         }
     }
 
+    function acceptAutofillPreview() {
+        if (!autofillPreview) return;
+        const { strategy, result } = autofillPreview;
+        update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
+        setLastAutofillStrategy(strategy);
+        if (strategy.replace_existing) {
+            const n = result.roster.length;
+            setDraftToast({ name: 'Roster Replaced', position: `${n} player${n !== 1 ? 's' : ''} drafted` });
+        } else {
+            const added = result.roster.length - draft.roster.length;
+            setDraftToast({ name: 'Roster Autofilled', position: `${added} player${added !== 1 ? 's' : ''} added` });
+        }
+        setAutofillPreview(null);
+    }
+
+    function handleReshuffle() {
+        if (lastAutofillStrategy) generateAutofillPreview(lastAutofillStrategy);
+    }
+
+    async function handleLogoUpload(file: File) {
+        if (!token || !draft.team_id || logoUploading) return;
+        const validationError = validateTeamLogoFile(file);
+        if (validationError) {
+            setLogoError(validationError);
+            return;
+        }
+        setLogoError(null);
+        setLogoUploading(true);
+        try {
+            const updated = await uploadTeamLogo(draft.team_id, file, token);
+            setDraft(prev => ({ ...prev, logo_url: updated.logo_url }));
+        } catch (err) {
+            console.error('Failed to upload team logo', err);
+            setLogoError(err instanceof Error ? err.message : 'Failed to upload logo');
+        } finally {
+            setLogoUploading(false);
+        }
+    }
+
+    async function handleLogoRemove() {
+        if (!token || !draft.team_id || logoUploading) return;
+        setLogoError(null);
+        setLogoUploading(true);
+        try {
+            const updated = await deleteTeamLogo(draft.team_id, token);
+            setDraft(prev => ({ ...prev, logo_url: updated.logo_url }));
+        } catch (err) {
+            console.error('Failed to remove team logo', err);
+        } finally {
+            setLogoUploading(false);
+        }
+    }
+
     const handleCardPicked = useCallback((card: CardDatabaseRecord) => {
         if (pendingSlot?.kind === 'bench') {
-            handleConfirmPosition(pendingSlot.role, card);
+            addGenericSlot('BE', card, pendingSlot.current);
+            return;
+        }
+        if (pendingSlot?.kind === 'bullpen') {
+            addGenericSlot('RP', card, pendingSlot.current);
             return;
         }
         setConfirmCard(card);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pendingSlot]);
 
+    function nextDraftOrder(): number {
+        return Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
+    }
+
+    /** The (card_id, card_source) a drafted slot must key on. Both come from the picked record
+     *  itself, never from `draftSource`: the pick handlers are memoized on `pendingSlot` and can
+     *  fire with a `draftSource` that has since drifted to a different tab, which historically
+     *  saved WOTC cards under `card_source: 'BOT'` (and vice versa) — leaving them unresolvable
+     *  by `useCardMap` and silently dropped from sims. `card_id` prefers the showdown card's own
+     *  id but falls back to `id` for sources whose search rows don't carry a separate `card_id`. */
+    function slotRefForCard(card: CardDatabaseRecord): { card_id: string; card_source: CardSourceType } {
+        return { card_id: card.card_id || card.id, card_source: card.source ?? draftSource };
+    }
+
+    /** Bench and bullpen are drafted free-form: the pick is appended with a generic
+     *  roster_position ('BE' / 'RP'), and — when replacing an existing row — the old card is
+     *  pruned from the roster and any lineup/rotation slot first. The server re-derives the
+     *  rotation (points-ordered) on save; we mirror the bullpen change locally so it shows
+     *  immediately. */
+    function addGenericSlot(position: 'BE' | 'RP', card: CardDatabaseRecord, replacing: { card_id: string } | null) {
+        addCard(card);
+        const rosterSlot: TeamRosterSlot = {
+            ...slotRefForCard(card),
+            roster_position: position,
+            draft_order: nextDraftOrder(),
+            pick_source: 'MANUAL',
+        };
+        const roster = [
+            ...draft.roster.filter(s => !replacing || s.card_id !== replacing.card_id),
+            rosterSlot,
+        ];
+        const lineups = replacing
+            ? draft.lineups.map(ln => ({ ...ln, slots: ln.slots.filter(s => s.card_id !== replacing.card_id) }))
+            : draft.lineups;
+        let rotation = replacing ? draft.rotation.filter(r => r.card_id !== replacing.card_id) : draft.rotation;
+        if (position === 'RP') {
+            rotation = [...rotation, { ...slotRefForCard(card), role: 'RP' }];
+        }
+        update({ roster, lineups, rotation });
+        setDraftToast({ name: card.name, position: position === 'BE' ? 'Bench' : 'Bullpen' });
+        setConfirmCard(null);
+        setPendingSlot(null);
+        setDraftSearchResetKey(k => k + 1);
+    }
+
     function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
         if (!card) return;
 
+        if (position === 'BE' || position === 'RP') {
+            addGenericSlot(position, card, null);
+            return;
+        }
+
         addCard(card);
 
-        const nextDraftOrder = Math.max(0, ...draft.roster.map(s => s.draft_order ?? 0)) + 1;
         const rosterSlot: TeamRosterSlot = {
-            card_id: card.card_id,
-            card_source: draftSource,
+            ...slotRefForCard(card),
             roster_position: position,
-            draft_order: nextDraftOrder,
+            draft_order: nextDraftOrder(),
             pick_source: 'MANUAL',
         };
 
-        const pitcherSlots = [...ROTATION_ROLES, ...BULLPEN_ROLES] as string[];
-        if (pitcherSlots.includes(position)) {
-            const rotation = draft.rotation.filter(r => r.role !== position);
-            rotation.push({ card_id: card.card_id, card_source: draftSource, role: position });
-            const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ rotation, roster });
-        } else if (/^BE\d+$/.test(position)) {
-            const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ roster });
-        } else if (position === 'BE') {
-            update({ roster: [...draft.roster, rosterSlot] });
-        } else {
-            const lineups = draft.lineups.length > 0 ? [...draft.lineups] : [{ name: 'Default', slots: [] }];
-            const slots = lineups[0].slots.filter(s => s.field_position !== position);
-            slots.push({ card_id: card.card_id, card_source: draftSource, field_position: position, batting_order: null });
-            lineups[0] = { ...lineups[0], slots };
-            const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-            update({ lineups, roster });
-        }
+        // SP1..SPn and field positions each own a single slot — replace whoever holds it.
+        // Lineups/rotation are re-derived from the roster on save.
+        const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
+        update({ roster });
+        // The lineup/rotation slot for this position won't reflect the pick until the save
+        // round-trips — flag it so FieldView/DepthChartPanel can show a spinner there meanwhile.
+        setPendingPickPositions(prev => new Set(prev).add(position));
 
         setDraftToast({ name: card.name, position });
         setConfirmCard(null);
         setPendingSlot(null);
+        setDraftSearchResetKey(k => k + 1);
+    }
+
+    /** Remove a drafted player entirely — off the roster and out of any lineup/rotation slot
+     *  that references it. Lineups/rotation are re-derived from the roster on save, but we prune
+     *  them here too so the UI updates immediately. */
+    function handleDropCard(slot: TeamRosterSlot) {
+        const roster = draft.roster.filter(s => s.card_id !== slot.card_id);
+        const lineups = draft.lineups.map(ln => ({ ...ln, slots: ln.slots.filter(s => s.card_id !== slot.card_id) }));
+        const rotation = draft.rotation.filter(r => r.card_id !== slot.card_id);
+        update({ roster, lineups, rotation });
+        setDraftToast({ name: cardMap[slot.card_id]?.name ?? 'Player', position: 'Dropped' });
+        setDropCandidate(null);
     }
 
     const isDrafting = isTeamDrafting(draft);
-    const teamMode: 'drafting' | 'editing' | 'complete' = isDrafting ? 'drafting' : editMode ? 'editing' : 'complete';
+    // Blocks a second pick from firing while the last one is still local-only or mid-save —
+    // the roster the search excludes/filters against (`draftedCardIds`, budget/position needs)
+    // is only trustworthy once the in-flight save round-trips, so rapid-fire picks could
+    // otherwise race each other against a stale view of the roster.
+    const draftActionDisabled = dirty || saveStatus === 'saving';
+    const isMyOwnTeam = team.source === 'user' && team.user_id === user?.id;
+    // The Lineup tab is only meaningful once every roster spot is filled — hide it while the
+    // roster is still being built out.
+    const rosterFull = draft.roster.length >= draft.roster_size;
+    const teamMode: 'drafting' | 'editing' | 'complete' = readOnly ? 'complete' : isDrafting ? 'drafting' : editMode ? 'editing' : 'complete';
     const showEditControls = !readOnly && teamMode !== 'complete';
+    // Real MLB/WBC rosters are synthesized read-only from the card archive — there's no draft history or editable settings to show
+    const isMlbTeam = team.source === 'mlb';
+    // A season needs a complete roster and a signed-in owner (the sim endpoint is authenticated).
+    // Synthetic MLB/ASG teams aren't saved, so there is no team_id for the job to reference.
+    // Only the team's own owner can start a sim with it — someone browsing another user's team
+    // shouldn't see a Sim action they're not allowed to use.
+    const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id && isMyOwnTeam;
+    // Scoped to this team so a job started from a different team's page doesn't show up here.
+    const activeJobForTeam = activeJob && activeJob.team_id === team.team_id ? activeJob : null;
+    const hasSims = (!!teamSeasons && teamSeasons.length > 0) || !!activeJobForTeam;
+    // Admin curation: publish a working copy into a Featured collection, or unpublish an
+    // already-official team. `team_id` + a complete roster are required for both.
+    const isOfficialTeam = team.source === 'official';
+    const adminCanCurate = isAdmin && !!token && !!team.team_id && !isDrafting && !isMlbTeam;
+    // Publishing a draft into Featured is restricted to the admin's own team; unpublishing an
+    // already-official team isn't (an official team has no "owner" in the isMyOwnTeam sense —
+    // its source is 'official', not 'user' — so that curation action stays admin-gated only).
+    const canPublish = adminCanCurate && isMyOwnTeam;
+    // Views/likes are only meaningful for teams reachable from Browse.
+    const showSocialStats = (team.is_public || isOfficialTeam) && !isMyOwnTeam;
+
+    async function handleUnpublish() {
+        if (!token || !team.team_id || unpublishing) return;
+        if (!window.confirm('Remove this team from its Featured collection? This deletes the published copy.')) return;
+        setUnpublishing(true);
+        try {
+            await adminDeleteTeam(token, team.team_id);
+            (onBack ?? (() => navigate('/teams')))();
+        } catch (err) {
+            console.error('Failed to unpublish team', err);
+            setUnpublishing(false);
+        }
+    }
+
+    // Archive/unarchive runs through the immediate save path (not the debounced draft), then —
+    // when archiving — drops back to the team list, since the team is now hidden from it.
+    async function handleArchiveToggle() {
+        if (!onArchive || archiving) return;
+        const next = !draft.is_archived;
+        if (next && !window.confirm('Archive this team? It will be hidden from your team list and from Browse. You can unarchive it any time from “Show all”.')) return;
+        setArchiving(true);
+        try {
+            await onArchive(next);
+            if (next) (onBack ?? (() => navigate('/teams')))();
+        } catch (err) {
+            console.error('Failed to archive team', err);
+        } finally {
+            setArchiving(false);
+        }
+    }
 
     const settingsDraft = useMemo(
         () => pendingSettings ? { ...draft, ...pendingSettings } as Team : draft,
@@ -297,33 +742,58 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const primary = draft.primary_color || 'rgb(0,0,0)';
     const secondary = draft.secondary_color || 'rgb(100,100,100)';
 
-    // Banner color tokens derived from team colors (shared by drafting + editing banners)
-    const bannerContrastColor = getContrastColor(primary);
-    const bannerIsLight = bannerContrastColor === '#000' || bannerContrastColor === 'black';
-    const bannerFillColor  = bannerIsLight ? 'rgba(0,0,0,0.80)'  : 'rgba(255,255,255,0.92)';
-    const bannerTrackColor = bannerIsLight ? 'rgba(0,0,0,0.15)'  : 'rgba(255,255,255,0.25)';
-    const bannerDotColor   = bannerIsLight ? 'rgba(0,0,0,0.45)'  : 'rgba(255,255,255,0.55)';
-    const bannerStyle      = { background: `linear-gradient(to right, ${primary}, ${secondary})` };
-    const bannerBtnClass   = bannerIsLight
-        ? 'bg-black/10 hover:bg-black/20 border border-black/20 text-black/80'
-        : 'bg-white/15 hover:bg-white/25 border border-white/30 text-white';
+    // Banner color tokens derived from team colors. The banner is a left→right
+    // primary→secondary gradient, so the left side (dot + message) contrasts against
+    // primary while the right side (progress + controls) contrasts against secondary.
+    const bannerLeft  = bannerTokens(primary);
+    const bannerRight = bannerTokens(secondary);
+    const bannerStyle = { background: `linear-gradient(to right, ${primary}, ${secondary})` };
+
+    const effectiveBucketMins = useMemo(() => effectiveBenchBullpenMinimums(draft), [draft]);
 
     const rosterProgress = useMemo(() => {
-        const filledLineup = (draft.lineups[0]?.slots ?? []).length;
+        const { bench: benchTarget, bullpen: bullpenTarget } = effectiveBucketMins;
+        const filledLineup = (draft.lineups[0]?.slots ?? []).filter(s => s.field_position !== 'SP').length;
         const filledStarters = draft.rotation.filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).length;
         const filledBench = draft.roster.filter(s => s.roster_position === 'BE').length;
         const filledBullpen = draft.rotation.filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).length;
-        const filled = filledLineup + Math.min(filledStarters, draft.num_starters) + Math.min(filledBench, draft.min_bench) + Math.min(filledBullpen, draft.min_bullpen);
-        const total = 9 + draft.num_starters + draft.min_bench + draft.min_bullpen;
-        return { filled, total };
-    }, [draft]);
+        // Slack slots beyond the hard minimums can land in bench OR bullpen (drafter's call),
+        // so they count toward progress from whichever bucket ran over — not against each
+        // bucket's effective target individually.
+        const extra = Math.max(0, draft.roster_size - (9 + draft.num_starters + draft.min_bench + draft.min_bullpen));
+        const filledExtra = Math.min(extra,
+            Math.max(0, filledBench - draft.min_bench) + Math.max(0, filledBullpen - draft.min_bullpen));
+        const filled = filledLineup
+            + Math.min(filledStarters, draft.num_starters)
+            + Math.min(filledBench, draft.min_bench)
+            + Math.min(filledBullpen, draft.min_bullpen)
+            + filledExtra;
+        const total = 9 + draft.num_starters + draft.min_bench + draft.min_bullpen + extra;
+        // Per-bucket fill. Lineup is a hard 9; rotation/bench/bullpen have no fixed cap, so the
+        // target is the minimum plus this bucket's share of the leftover roster slots — exactly
+        // what `effectiveBenchBullpenMinimums` already worked out for bench/bullpen.
+        const buckets = {
+            lineup:   { filled: filledLineup,   target: 9 },
+            bench:    { filled: filledBench,     target: benchTarget },
+            rotation: { filled: filledStarters,  target: draft.num_starters },
+            bullpen:  { filled: filledBullpen,   target: bullpenTarget },
+        };
+        return { filled, total, buckets };
+    }, [draft, effectiveBucketMins]);
 
     const activeFieldPosition = pendingSlot?.kind === 'field' ? pendingSlot.position : null;
-    const activeRole = (pendingSlot?.kind === 'rotation' || pendingSlot?.kind === 'bench') ? pendingSlot.role : null;
+    const activeRole = pendingSlot?.kind === 'rotation' ? pendingSlot.role
+        : pendingSlot?.kind === 'bullpen' ? 'RP'
+        : pendingSlot?.kind === 'bench' ? 'BE'
+        : null;
 
     const pointsBreakdown = useMemo(() => {
         const pts = (id: string) => cardMap[id]?.points ?? 0;
-        const lineup = defaultLineup.slots.reduce((sum, s) => sum + pts(s.card_id), 0);
+        // Exclude the starting pitcher's synthetic "batting" slot (field_position: 'SP') —
+        // he's already counted under `rotation` below, so including him here double-counts him.
+        const lineup = defaultLineup.slots
+            .filter(s => s.field_position !== 'SP')
+            .reduce((sum, s) => sum + pts(s.card_id), 0);
         const bench  = draft.roster
             .filter(s => s.roster_position === 'BE')
             .reduce((sum, s) => sum + Math.round(pts(s.card_id) * draft.bench_pts_multiplier), 0);
@@ -336,6 +806,106 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return { lineup, bench, rotation, bullpen, total: lineup + bench + rotation + bullpen };
     }, [draft, cardMap, defaultLineup]);
 
+    // Pace indicator shown in the drafting banner: how many points are left under the
+    // budget and, spread across the remaining empty roster slots, roughly how much that
+    // leaves per pick — a quick read on whether the current draft pace is affordable.
+    // Only meaningful when the team has a points budget at all.
+    const runRate = useMemo(() => {
+        if (draft.pts_limit == null) return null;
+        const remaining = draft.pts_limit - pointsBreakdown.total;
+        const slotsRemaining = Math.max(0, draft.roster_size - draft.roster.length);
+        return { remaining, slotsRemaining, perSlot: slotsRemaining > 0 ? remaining / slotsRemaining : null };
+    }, [draft.pts_limit, draft.roster_size, draft.roster.length, pointsBreakdown.total]);
+
+    // Highest raw card PTS the "Fits my roster" toggle should let through for the pick in
+    // progress. Reserves MIN_CARD_POINTS for each *other* still-empty roster slot so this single
+    // pick can't spend the whole remaining budget and strand the rest of the draft with nothing
+    // left to spend — a reserve slot that lands on the bench costs `bench_pts_multiplier` times
+    // as much against the budget, so it's reserved at that scaled rate. Bench picks' own cap is
+    // likewise scaled down since their PTS count against the budget at `bench_pts_multiplier`.
+    const budgetMaxPoints = useMemo(() => {
+        if (!runRate || runRate.slotsRemaining <= 0) return null;
+
+        const isCurrentSlotBench = pendingSlot?.kind === 'bench';
+        const remainingInBucket = (bucket: { filled: number; target: number }) => Math.max(0, bucket.target - bucket.filled);
+        const benchRemaining = remainingInBucket(rosterProgress.buckets.bench);
+        const nonBenchRemaining = remainingInBucket(rosterProgress.buckets.lineup)
+            + remainingInBucket(rosterProgress.buckets.rotation)
+            + remainingInBucket(rosterProgress.buckets.bullpen);
+
+        // Exclude the slot this pick itself will fill — its cost is what we're solving for, not
+        // something to hold budget back for. A slot we can't attribute to a bucket (no pendingSlot,
+        // i.e. the desktop panel's free-form "add to roster") is assumed non-bench, matching the
+        // multiplier assumption below.
+        const otherBenchRemaining = Math.max(0, benchRemaining - (isCurrentSlotBench ? 1 : 0));
+        const otherNonBenchRemaining = Math.max(0, nonBenchRemaining - (isCurrentSlotBench ? 0 : 1));
+
+        const reserveForOtherSlots = otherNonBenchRemaining * MIN_CARD_POINTS
+            + otherBenchRemaining * MIN_CARD_POINTS * draft.bench_pts_multiplier;
+        const cap = runRate.remaining - reserveForOtherSlots;
+
+        const multiplier = isCurrentSlotBench ? draft.bench_pts_multiplier : 1;
+        if (multiplier <= 0) return null;
+        return Math.max(0, Math.floor(cap / multiplier));
+    }, [runRate, pendingSlot, draft.bench_pts_multiplier, rosterProgress.buckets]);
+    const budgetSubfilterActive = fitsRosterEnabled && budgetMaxPoints != null;
+
+    // Search-vocabulary position values the "Fits my roster" toggle should still let through —
+    // only the roster's genuinely open needs. Bench/bullpen take *any* hitter/pitcher, so while
+    // either bucket still has room that whole side (hitter or pitcher) stays unrestricted; the
+    // filter only narrows to specific missing positions once its flexible bucket is also spoken
+    // for. Mirrors the same bucket targets `budgetMaxPoints` reserves against.
+    const openRosterPositions = useMemo((): string[] => {
+        const remaining = (bucket: { filled: number; target: number }) => Math.max(0, bucket.target - bucket.filled);
+        const { lineup, bench, rotation, bullpen } = rosterProgress.buckets;
+
+        const filledFieldPositions = new Set(defaultLineup.slots.map(s => s.field_position));
+        const openFieldPositions = remaining(lineup) > 0
+            ? FIELD_POSITIONS.filter(pos => !filledFieldPositions.has(pos))
+            : [];
+        const hitterPositions: readonly string[] = remaining(bench) > 0 ? FIELD_POSITIONS : openFieldPositions;
+        // The search filter combines LF/RF into one value; other positions pass through as-is.
+        const hitterFilterValues = [...new Set(hitterPositions.map(pos => pos === 'LF' || pos === 'RF' ? 'LF/RF' : pos))];
+
+        const pitcherFilterValues: string[] = [];
+        if (remaining(bullpen) > 0) pitcherFilterValues.push('RELIEVER', 'CLOSER');
+        if (remaining(rotation) > 0) pitcherFilterValues.push('STARTER');
+
+        return [...hitterFilterValues, ...pitcherFilterValues];
+    }, [rosterProgress.buckets, defaultLineup.slots]);
+    // Bench/bullpen picks are deliberately position-agnostic, and a specific field/rotation slot
+    // already locks `positions` via `slotFilters` — only the free-form "add to roster" flow needs
+    // this extra narrowing.
+    const positionNeedFilterActive = fitsRosterEnabled
+        && pendingSlot?.kind !== 'bench' && pendingSlot?.kind !== 'bullpen'
+        && !('positions' in slotFilters);
+
+    const searchFilters = useMemo((): Partial<FilterSelections> => ({
+        ...teamRestrictionFilters,
+        ...slotFilters,
+        ...(budgetSubfilterActive ? { max_points: budgetMaxPoints! } : {}),
+        ...(positionNeedFilterActive ? { positions: openRosterPositions } : {}),
+    }), [teamRestrictionFilters, slotFilters, budgetSubfilterActive, budgetMaxPoints, positionNeedFilterActive, openRosterPositions]);
+    const lockedFilterKeys = useMemo(() => {
+        const keys = Object.keys(teamRestrictionFilters).filter(k => !(k in slotFilters));
+        return [
+            ...keys,
+            ...(budgetSubfilterActive ? ['max_points'] : []),
+            ...(positionNeedFilterActive ? ['positions'] : []),
+        ];
+    }, [teamRestrictionFilters, slotFilters, budgetSubfilterActive, positionNeedFilterActive]);
+
+    // Points effect of dropping `dropCandidate` — bench slots count at the bench multiplier,
+    // everything else at face value, mirroring `pointsBreakdown`.
+    const dropPointsEffect = useMemo(() => {
+        if (!dropCandidate) return null;
+        const cardPts = cardMap[dropCandidate.card_id]?.points ?? 0;
+        const removed = dropCandidate.roster_position === 'BE'
+            ? Math.round(cardPts * draft.bench_pts_multiplier)
+            : cardPts;
+        return { current: pointsBreakdown.total, projected: pointsBreakdown.total - removed, removed };
+    }, [dropCandidate, cardMap, draft.bench_pts_multiplier, pointsBreakdown.total]);
+
     const draftHistory = useMemo(() =>
         [...draft.roster]
             .filter(s => s.draft_order !== null)
@@ -343,14 +913,42 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         [draft.roster]
     );
 
+    // How many bench / bullpen rows the draft UI should render (filled + trailing empty
+    // "add" placeholders). Only meaningful while editing — a complete/read-only view just
+    // shows the filled cards.
+    const draftSlotCounts = useMemo(() => benchBullpenSlotCounts({
+        rosterSize: draft.roster_size,
+        rosterCount: draft.roster.length,
+        lineup: rosterProgress.buckets.lineup,
+        rotation: rosterProgress.buckets.rotation,
+        bench: rosterProgress.buckets.bench,
+        bullpen: rosterProgress.buckets.bullpen,
+        benchMin: draft.min_bench,
+        bullpenMin: draft.min_bullpen,
+    }), [draft.roster_size, draft.roster.length, draft.min_bench, draft.min_bullpen, rosterProgress.buckets]);
+
     const rosterData: FieldViewRosterData = useMemo(() => ({
         roster: draft.roster,
         rotation: draft.rotation,
         benchPtsMultiplier: draft.bench_pts_multiplier,
-        minBench: draft.min_bench,
-        minBullpen: draft.min_bullpen,
+        minBench: effectiveBucketMins.bench,
+        minBullpen: effectiveBucketMins.bullpen,
         maxRotation: draft.num_starters,
-    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, draft.min_bench, draft.min_bullpen, draft.num_starters]);
+        draftSlots: showEditControls ? draftSlotCounts : undefined,
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
+
+    const previewRosterData: FieldViewRosterData | null = useMemo(() => {
+        if (!autofillPreview) return null;
+        return {
+            roster: autofillPreview.result.roster,
+            rotation: autofillPreview.result.rotation,
+            benchPtsMultiplier: draft.bench_pts_multiplier,
+            minBench: effectiveBucketMins.bench,
+            minBullpen: effectiveBucketMins.bullpen,
+            maxRotation: draft.num_starters,
+        };
+    }, [autofillPreview, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters]);
+    const previewLineup = autofillPreview?.result.lineups[0] ?? { name: 'Default', index: 0, slots: [] };
 
     const draftedCardIds = useMemo(() => {
         const ids = new Set<string>();
@@ -363,16 +961,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const pendingLabel = pendingSlot
         ? pendingSlot.kind === 'field'    ? `Filling: ${pendingSlot.position}`
         : pendingSlot.kind === 'rotation' ? `Filling: ${pendingSlot.role}`
-        : pendingSlot.kind === 'bench'    ? `Filling: ${pendingSlot.role}`
+        : pendingSlot.kind === 'bullpen'  ? (pendingSlot.current ? 'Replacing bullpen arm' : 'Adding to Bullpen')
+        : pendingSlot.kind === 'bench'    ? (pendingSlot.current ? 'Replacing bench player' : 'Adding to Bench')
         : 'Adding to roster'
         : null;
 
-    const allowedSources = useMemo(() => {
-        const restricted = draft.allowed_card_sources ?? [];
-        return restricted.length > 0
-            ? CARD_SOURCES.filter(s => restricted.includes(s.key))
-            : [...CARD_SOURCES];
-    }, [draft.allowed_card_sources]);
+    const allowedSources = useMemo(
+        () => activeSources({ allowed_card_sources: draft.allowed_card_sources })
+            .map(value => ({ key: value, label: TEAM_CARD_SOURCES.find(s => s.value === value)!.label })),
+        [draft.allowed_card_sources],
+    );
 
     const draftPanel = (
         <DraftPanel
@@ -381,9 +979,54 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             allowedSources={allowedSources}
             pendingLabel={pendingLabel}
             searchFilters={searchFilters}
+            lockedFilterKeys={lockedFilterKeys}
             draftedCardIds={draftedCardIds}
             onCardPicked={handleCardPicked}
+            onDismissPending={() => setPendingSlot(null)}
+            fitsRosterToggle={runRate ? { enabled: fitsRosterEnabled, onToggle: () => setFitsRosterEnabled(v => !v) } : null}
+            actionDisabled={draftActionDisabled}
         />
+    );
+
+    // Bot/WOTC/WBC source selector rendered in the SlideOver's fixed header so it stays
+    // reachable alongside the search results. stopPropagation avoids interfering with
+    // taps elsewhere in the header.
+    const draftSourceTabs = (
+        <div
+            className="flex items-center w-full justify-start gap-x-1 px-3 overflow-x-auto scrollbar-hide"
+            onMouseDown={e => e.stopPropagation()}
+            onTouchStart={e => e.stopPropagation()}
+        >
+            {allowedSources.map(s => (
+                <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setDraftSource(s.key)}
+                    className={tabButtonClass(draftSource === s.key)}
+                >
+                    {s.label}
+                </button>
+            ))}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+                {runRate && (
+                    <FitsMyRosterToggle enabled={fitsRosterEnabled} onToggle={() => setFitsRosterEnabled(v => !v)} />
+                )}
+                {pendingLabel && (
+                    <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        {pendingLabel}
+                        <button
+                            type="button"
+                            onClick={() => setPendingSlot(null)}
+                            className="hover:opacity-70 cursor-pointer"
+                            aria-label="Cancel filling"
+                        >
+                            <FaXmark className="text-[10px]" />
+                        </button>
+                    </span>
+                )}
+            </div>
+        </div>
     );
 
     const fieldViewContent = (
@@ -394,9 +1037,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 if (!showEditControls) return;
                 setPendingSlot({ kind: 'field', position: pos, current: slot });
             }}
-            onBenchClick={(role, current) => {
+            onBenchClick={current => {
                 if (!showEditControls) return;
-                setPendingSlot({ kind: 'bench', role, current });
+                setPendingSlot({ kind: 'bench', current });
+            }}
+            onBullpenClick={current => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'bullpen', current });
             }}
             onRoleClick={(role, current) => {
                 if (!showEditControls) return;
@@ -407,6 +1054,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             rosterData={rosterData}
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
+            isLoadingCards={isLoadingCards}
+            pendingPositions={pendingPickPositions}
         />
     );
 
@@ -422,15 +1071,36 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 if (!showEditControls) return;
                 setPendingSlot({ kind: 'rotation', role, current });
             }}
-            onBenchClick={(role, current) => {
+            onBullpenClick={current => {
                 if (!showEditControls) return;
-                setPendingSlot({ kind: 'bench', role, current });
+                setPendingSlot({ kind: 'bullpen', current });
             }}
+            onBenchClick={current => {
+                if (!showEditControls) return;
+                setPendingSlot({ kind: 'bench', current });
+            }}
+            onReorder={showEditControls ? updates => update(updates) : undefined}
             readOnly={!showEditControls}
             activePosition={activeFieldPosition}
             activeRole={activeRole}
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
+            isLoadingCards={isLoadingCards}
+            pendingPositions={pendingPickPositions}
+        />
+    );
+
+    const lineupPanelContent = (
+        <LineupPanel
+            lineups={draft.lineups}
+            cardMap={cardMap}
+            onLineupsChange={userLineups => {
+                // Merge user-created lineups back with the computed Default (index 0)
+                const defaultLn = draft.lineups.find(ln => ln.name === 'Default');
+                const next = [...(defaultLn ? [defaultLn] : []), ...userLineups];
+                update({ lineups: next });
+            }}
+            readOnly={readOnly}
         />
     );
 
@@ -442,139 +1112,378 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 const card = cardMap[slot.card_id];
                 return (
                     <div key={i} className="flex items-center gap-3 min-h-9">
+                        {/* Sequential position in the draft, not the raw `draft_order` — replaced
+                            picks leave gaps in that counter, so a surviving row's stored value
+                            (e.g. 42) is meaningless once earlier picks were dropped. `draftHistory`
+                            is already sorted by `draft_order`, so the list index is the true order. */}
                         <span className="text-[11px] font-bold w-6 shrink-0 text-right text-(--text-tertiary)">
-                            {slot.draft_order ?? i + 1}
+                            {i + 1}
                         </span>
                         <div className="flex-1 min-w-0">
                             {card
-                                ? <CardItemCompactFromCardDatabaseRecord card={card} />
+                                ? <div className="relative">
+                                    <CardItemCompactFromCardDatabaseRecord card={card} />
+                                    <div className="absolute right-3 top-3 text-[11px] text-(--text-tertiary)">
+                                        <div className="flex flex-col items-end gap-1" >
+                                            <span className="text-[11px] text-(--text-tertiary)">{slot.roster_position ?? 'N/A'}</span>
+                                            <PickSourceBadge source={slot.pick_source} />
+                                        </div>
+                                    </div>
+                                </div>
                                 : <span className="text-[11px] text-(--text-tertiary)">{slot.card_id}</span>
                             }
                         </div>
+                        {showEditControls && (
+                            <button
+                                type="button"
+                                onClick={() => setDropCandidate(slot)}
+                                className="shrink-0 p-1.5 rounded-lg text-(--text-tertiary) hover:text-red-500 hover:bg-red-500/10 cursor-pointer transition-colors"
+                                aria-label={`Drop ${card?.name ?? 'player'}`}
+                                title="Drop from roster"
+                            >
+                                <FaTrash className="text-[11px]" />
+                            </button>
+                        )}
                     </div>
                 );
             })}
         </div>
     );
 
-    const settingsChanges = pendingSettings ? getSettingsChanges(draft, pendingSettings) : [];
+    async function handleCancelActiveJob() {
+        if (!token || !activeJobForTeam) return;
+        setCancellingJob(true);
+        try {
+            await cancelSimJob(activeJobForTeam.job_id, token);
+            setActiveJob(null);
+        } catch {
+            // Leave the banner in place - the user can retry, or open it to see what happened.
+        } finally {
+            setCancellingJob(false);
+        }
+    }
 
-    const settingsTabContent = (
-        <div className="relative flex flex-col">
-            <TeamSettingsForm
-                team={settingsDraft}
-                onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
-            />
-            {pendingSettings && (
-                <div className="sticky bottom-0 border-t border-(--divider) bg-(--background-primary) px-4 py-3 flex flex-col gap-2">
-                    {settingsChanges.length > 0 && (
-                        <ul className="flex flex-col gap-0.5">
-                            {settingsChanges.map(line => (
-                                <li key={line} className="text-[11px] text-(--text-secondary) flex items-start gap-1.5">
-                                    <span className="text-amber-500 mt-px shrink-0">→</span>
-                                    {line}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={() => { update(pendingSettings); setPendingSettings(null); }}
-                            className="flex-1 px-3 py-4 rounded-lg text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 cursor-pointer transition-opacity"
-                        >
-                            Apply Changes
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setPendingSettings(null)}
-                            className="px-3 py-4 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
-                        >
-                            Discard
-                        </button>
+    const simsContent = (
+        <div className="flex flex-col gap-1.5 p-4">
+            {activeJobForTeam && (
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-(--background-tertiary) ring-1 ring-(--showdown-blue)/40">
+                    <FaSpinner className="animate-spin text-(--text-tertiary) text-[13px] shrink-0" />
+                    <div className="min-w-0 flex-1">
+                        <div className="text-[12px] font-bold text-(--text-primary) truncate">
+                            {activeJobForTeam.phase ?? 'Starting simulation'}
+                        </div>
+                        {activeJobForTeam.games_total > 0 && (
+                            <div className="text-[11px] text-(--text-tertiary)">
+                                {activeJobForTeam.games_completed.toLocaleString()} / {activeJobForTeam.games_total.toLocaleString()} games
+                            </div>
+                        )}
                     </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/teams/${team.team_id}/sim/${activeJobForTeam.job_id}`)}
+                        className="shrink-0 text-[11px] font-bold px-2 py-1.5 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                    >
+                        View
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleCancelActiveJob}
+                        disabled={cancellingJob}
+                        className="shrink-0 text-[11px] font-bold px-2 py-1.5 rounded-lg text-red-400 hover:text-red-300 disabled:opacity-50 cursor-pointer transition-colors"
+                    >
+                        Cancel
+                    </button>
                 </div>
             )}
+            {(teamSeasons ?? []).map(entry => (
+                <SimSeasonRow
+                    key={entry.entry_id}
+                    entry={entry}
+                    showTime
+                    onOpen={() => entry.job_id && navigate(`/teams/${team.team_id}/sim/${entry.job_id}`)}
+                />
+            ))}
         </div>
     );
 
+    const settingsChanges = pendingSettings ? getSettingsChanges(draft, pendingSettings) : [];
+    const settingsValid = isTeamSetupValid(settingsDraft);
+
+    function closeSettingsModal() {
+        setPendingSettings(null);
+        setShowSettingsModal(false);
+    }
+
+    /** Team total PTS if `confirmCard` were dropped into `position` — mirrors the roster
+     *  mutation in handleConfirmPosition: 'BE' / 'RP' append (bench is multiplied); every
+     *  other slot replaces whatever currently holds that roster_position. */
+    const projectedTotalForPosition = (position: string): number => {
+        if (!confirmCard) return pointsBreakdown.total;
+        const appends = position === 'BE' || position === 'RP';
+        const addedPts = position === 'BE'
+            ? Math.round(confirmCard.points * draft.bench_pts_multiplier)
+            : confirmCard.points;
+        const removedPts = appends
+            ? 0
+            : draft.roster
+                .filter(s => s.roster_position === position)
+                .reduce((sum, s) => sum + (cardMap[s.card_id]?.points ?? 0), 0);
+        return pointsBreakdown.total + addedPts - removedPts;
+    };
+
     // Eligible positions split into groups for the confirmation modal
-    const confirmPositions = confirmCard ? getEligiblePositions(confirmCard) : [];
+    const confirmPositions = confirmCard ? getEligiblePositions(confirmCard, draft.num_starters) : [];
     const confirmFieldPositions   = confirmPositions.filter(p => !([...ROTATION_ROLES, ...BULLPEN_ROLES] as string[]).includes(p));
     const confirmRotationPositions = confirmPositions.filter(p => (ROTATION_ROLES as readonly string[]).includes(p));
     const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));
 
-    return (
-        <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden">
-            <div
-                className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider) shrink-0"
-            >
-                <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
-                    <FaArrowLeft />
-                </button>
+    /** Name of the player currently holding `position`, if the pick would replace someone.
+     *  Mirrors handleConfirmPosition: 'BE' appends (no replacement); every other slot
+     *  swaps out whatever roster entry currently holds that roster_position. */
+    const replacedPlayerName = (position: string): string | null => {
+        if (position === 'BE' || position === 'RP') return null;
+        const slot = draft.roster.find(s => s.roster_position === position);
+        return slot ? cardMap[slot.card_id]?.name ?? null : null;
+    };
 
-                {/* Team Header */}
-                <div className="flex-1 min-w-0 space-y-1">
-                    {/* Name + total pts */}
-                    <div className="flex items-center gap-2 min-w-0">
-                        <div className="text-xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
-                        {isTeamDrafting(draft) && (
-                            <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                                DRAFTING
-                            </span>
-                        )}
-                        
-                        {/* Showdown Sets */}
-                        <div className="flex items-center gap-0.5 flex-wrap">
-                            {(draft.allowed_sets ?? [])
-                            .sort((a, b) => a.localeCompare(b))
-                                .map(s => {
-                                    const img = imageForSet(s);
-                                    return (
-                                        <span key={s} className="flex items-center">
-                                            {img && <img src={img} alt={s} className="h-4.5 w-auto object-fill" />}
-                                        </span>
-                                    );
-                                })
-                            }
+    const renderPositionButton = (pos: string) => {
+        const projected = projectedTotalForPosition(pos);
+        return (
+            <PositionButton
+                key={pos}
+                label={pos}
+                onClick={() => handleConfirmPosition(pos)}
+                currentPts={pointsBreakdown.total}
+                projectedPts={projected}
+                overLimit={draft.pts_limit != null && projected > draft.pts_limit}
+                replacingName={replacedPlayerName(pos)}
+            />
+        );
+    };
+
+    return (
+        <div className={`flex flex-col ${embedded ? '' : 'lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden'}`}>
+            
+            {/* Header */}
+            <div
+                className="@container flex flex-col md:flex-row lg:items-center pb-2 gap-3 lg:gap-6 pl-4 py-1 border-b border-(--divider) shrink-0"
+            >
+                {/* Sized to its content, not stretched to fill the row — otherwise a short team
+                    name leaves a dead gap before the toolbar. Capped at row layout so a long
+                    name still truncates instead of shoving the toolbar off toward the edge. */}
+                <div className="flex items-center gap-3 min-w-0 ">
+                    {onBack && (
+                        <button type="button" onClick={handleBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
+                            <FaArrowLeft />
+                        </button>
+                    )}
+
+                    <TeamLogo
+                        logoUrl={draft.logo_url}
+                        abbreviation={draft.abbreviation}
+                        primaryColor={primary}
+                        editable={!readOnly && !isMlbTeam && !!token && !!draft.team_id}
+                        uploading={logoUploading}
+                        onUpload={handleLogoUpload}
+                        onRemove={handleLogoRemove}
+                        className="mt-0.5"
+                    />
+
+                    {/* Team Header */}
+                    <div className="flex-1 min-w-0">
+                        {/* Name + total pts */}
+                        <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
+                            <div className="text-xl md:text-3xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
+                            
+                            {draft.roster.length === draft.roster_size && (
+                                <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
+                                    <FaUsers /> {draft.roster.length}
+                                </span>
+                            )}
+
+                            {showSocialStats && team.view_count > 0 && (
+                                <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0" title={`${team.view_count} views`}>
+                                    <FaEye /> {team.view_count}
+                                </span>
+                            )}
+
+                            {/* Showdown Sets */}
+                            <div className="flex items-center gap-0.5 ">
+                                {(draft.allowed_sets ?? [])
+                                .sort((a, b) => a.localeCompare(b))
+                                    .map(s => {
+                                        const img = imageForSet(s);
+                                        return (
+                                            <span key={s} className="flex items-center">
+                                                {img && <img src={img} alt={s} className="h-5 md:h-6 w-auto object-fill" />}
+                                            </span>
+                                        );
+                                    })
+                                }
+                            </div>
                         </div>
-                    </div>
-                    {/* Subtitle row: PTS Breakdown */}
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-0.5">
-                        <span className={`text-[12px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastColor(primary) }}>
-                            {pointsBreakdown.total}{draft.pts_limit != null ? `/${draft.pts_limit}` : ''} pts
-                        </span>
-                        {([
-                            { label: 'LINEUP', value: pointsBreakdown.lineup },
-                            { label: 'BENCH', value: pointsBreakdown.bench },
-                            { label: 'ROTATION', value: pointsBreakdown.rotation },
-                            { label: 'BULLPEN', value: pointsBreakdown.bullpen },
-                        ] as const).map(({ label, value }) => (
-                            <span key={label} className="text-[10px] text-(--text-tertiary) px-2 py-0.5 rounded-lg font-bold" style={{ backgroundColor: team.secondary_color, color: getContrastColor(team.secondary_color) }}>
-                                {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
-                            </span>
-                        ))}
-                        
-                    </div>
-                </div>
-                {!readOnly && (
-                    <div className="flex items-center h-full gap-2 text-[11px] font-semibold shrink-0 mt-0.5">
-                        {saveStatus === 'saving' && (
-                            <span className="flex items-center gap-1 text-(--text-tertiary)">
-                                <FaSpinner className="animate-spin text-[10px]" /> Saving
-                            </span>
+                        {(draft.subtitle || draft.credit) && (
+                            <div className="flex items-center gap-x-2 text-[11px] text-(--text-tertiary) truncate">
+                                {draft.subtitle && <span className="font-semibold text-(--text-secondary)">{draft.subtitle}</span>}
+                                {draft.credit && <span>{draft.credit}</span>}
+                            </div>
                         )}
-                        {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
-                        {saveStatus === 'error' && <span className="text-red-500">Error</span>}
-                        {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
-                        {teamMode === 'complete' && (
+                        {logoError && (
                             <button
                                 type="button"
-                                onClick={() => setEditMode(true)}
-                                className="flex items-center gap-1 px-2 py-1 h-8 text-md rounded-lg border border-(--divider) text-(--text-secondary) font-bold hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                                onClick={() => setLogoError(null)}
+                                className="block text-left text-[11px] text-red-400 px-2 py-1 rounded-lg border border-red-400/30 bg-red-400/5 cursor-pointer"
                             >
-                                <FaPenToSquare /> Edit
+                                {logoError}
                             </button>
+                        )}
+                        {/* Subtitle row: PTS Breakdown */}
+                        <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
+                            <span className={`text-[12px] lg:text-[13px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
+                                {`${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS`}
+                            </span>
+                            <div className="hidden @[350px]:flex gap-1.5 items-center text-nowrap">
+                                {([
+                                    { label: 'LINEUP', value: pointsBreakdown.lineup, bucket: rosterProgress.buckets.lineup },
+                                    { label: 'BENCH', value: pointsBreakdown.bench, bucket: rosterProgress.buckets.bench },
+                                    { label: 'ROTATION', value: pointsBreakdown.rotation, bucket: rosterProgress.buckets.rotation },
+                                    { label: 'BULLPEN', value: pointsBreakdown.bullpen, bucket: rosterProgress.buckets.bullpen },
+                                ] as const).map(({ label, value, bucket }) => {
+                                    const bucketComplete = bucket.filled >= bucket.target;
+                                    return (
+                                        <span
+                                            key={label}
+                                            className="flex items-center gap-1 text-[10px] lg:text-[11px] font-bold rounded-xl px-1.5"
+                                            style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}
+                                            title={teamMode !== 'complete' ? `${label}: ${bucket.filled}/${bucket.target} slots filled` : undefined}
+                                        >
+                                            {teamMode !== 'complete' && (
+                                                bucketComplete
+                                                    ? <FaCircleCheck className="shrink-0 text-[11px] text-(--success)" />
+                                                    : <ProgressRing filled={bucket.filled} target={bucket.target} />
+                                            )}
+                                            {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {!readOnly && (
+                        <div className="absolute top-1 right-1 items-center justify-center @lg:h-full gap-2 text-sm font-semibold">
+                            {saveStatus === 'saving' && (
+                                <span className="flex items-center gap-1 text-(--text-tertiary)">
+                                    <FaSpinner className="animate-spin text-[10px]" /> Saving
+                                </span>
+                            )}
+                            {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
+                            {saveStatus === 'error' && <span className="text-red-500">Error</span>}
+                            {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
+                        </div>
+                    )}
+                </div>
+
+                {/* Action toolbar: one filled Play CTA plus a uniform strip of ghost actions.
+                    Buttons are sized for a thumb on mobile, wrapping onto a second line rather
+                    than shrinking. Right-aligned in both layouts — a full-width row under the
+                    team info on a narrow header, inline beside it once there's real room. */}
+                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || adminCanCurate) && teamMode === 'complete') && (
+                    <div className="flex flex-wrap items-center justify-start gap-2 shrink-0 pr-2 pb-2">
+
+                        {onToggleStar && (
+                            <HeaderAction
+                                icon={isStarred ? FaStar : FaRegStar}
+                                tone={isStarred ? 'starred' : 'neutral'}
+                                label={isStarred ? 'Starred' : 'Star'}
+                                onClick={onToggleStar}
+                                title={isStarred ? `Unstar ${draft.name}` : `Star ${draft.name}`}
+                            />
+                        )}
+                        {onToggleLike && token && showSocialStats && (
+                            <HeaderAction
+                                icon={team.liked_by_me ? FaHeart : FaRegHeart}
+                                tone={team.liked_by_me ? 'liked' : 'neutral'}
+                                label={team.liked_by_me ? 'Liked' : 'Like'}
+                                count={team.like_count}
+                                busy={liking}
+                                onClick={async () => {
+                                    setLiking(true);
+                                    try {
+                                        await onToggleLike();
+                                    } finally {
+                                        setLiking(false);
+                                    }
+                                }}
+                                title={team.liked_by_me ? `Unlike ${draft.name}` : `Like ${draft.name}`}
+                            />
+                        )}
+                        {!readOnly && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaPenToSquare}
+                                label="Edit"
+                                onClick={() => setEditMode(true)}
+                                title={`Edit ${draft.name}`}
+                            />
+                        )}
+                        {onFork && (
+                            <HeaderAction
+                                icon={FaCodeFork}
+                                label="Copy"
+                                count={showSocialStats ? team.fork_count : undefined}
+                                busy={forking}
+                                onClick={async () => {
+                                    setForking(true);
+                                    try {
+                                        // The toast itself is shown by the newly-mounted TeamDetail
+                                        // for the forked team, via the `justCopied` prop — this
+                                        // instance is about to unmount when onFork() navigates.
+                                        await onFork();
+                                    } finally {
+                                        setForking(false);
+                                    }
+                                }}
+                                title="Make an editable copy of this team"
+                            />
+                        )}
+                        {adminCanCurate && isOfficialTeam && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaTrash}
+                                tone="danger"
+                                label="Unpublish"
+                                busy={unpublishing}
+                                onClick={handleUnpublish}
+                                title="Remove this team from its Featured collection"
+                            />
+                        )}
+                        {canPublish && !isOfficialTeam && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaStar}
+                                tone="curate"
+                                label="Publish"
+                                onClick={() => setShowPublishModal(true)}
+                                title="Publish this roster into a Featured collection"
+                            />
+                        )}
+
+                        {canSimulate && teamMode === 'complete' && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPlayModal(true)}
+                                    className="animated-team-gradient flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 px-4 rounded-lg text-[13px] font-bold whitespace-nowrap hover:opacity-90 cursor-pointer transition-opacity"
+                                    style={{
+                                        '--team-gradient-from': draft.primary_color,
+                                        '--team-gradient-to': draft.secondary_color,
+                                        color: getContrastTextColor(draft.primary_color),
+                                    } as React.CSSProperties}
+                                    aria-label={`Play a season with ${draft.name}`}
+                                    title="Take over a real club for a full season, or take on a live Team Challenge"
+                                >
+                                    <FaPlay className="h-3.5 w-3.5 shrink-0" /> Sim
+                                </button>
+                            </>
                         )}
                     </div>
                 )}
@@ -592,36 +1501,94 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {teamMode !== 'complete' && (
-                <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={bannerStyle}>
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerDotColor }} />
-                    <span className="text-[11px] font-bold flex-1 drop-shadow-sm" style={{ color: bannerFillColor }}>
-                        {teamMode === 'drafting'
-                            ? 'DRAFTING — fill all required positions to complete your team'
-                            : 'EDITING — changes are saved automatically'}
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                        {teamMode === 'drafting' && (
-                            <>
-                                <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerTrackColor }}>
-                                    <div
-                                        className="h-full rounded-full transition-all"
-                                        style={{ width: `${Math.min(100, (rosterProgress.filled / rosterProgress.total) * 100)}%`, backgroundColor: bannerFillColor }}
-                                    />
-                                </div>
-                                <span className="text-[11px] font-black" style={{ color: bannerFillColor }}>
-                                    {rosterProgress.filled}/{rosterProgress.total}
-                                    {draft.pts_limit != null && ` • ${pointsBreakdown.total}/${draft.pts_limit} pts`}
+                <div className="flex items-center justify-between gap-3 px-2 py-2.5 shrink-0" style={bannerStyle}>
+                    <div className="flex items-center gap-1 min-w-0">
+                        <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
+                        <span className="text-[11px] font-bold drop-shadow-sm flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
+                            {teamMode === 'drafting'
+                                ? <SetupStepChips
+                                    step={setupStep}
+                                    onStep={setSetupStep}
+                                    settingsDone={draft.roster.length > 0}
+                                    color={bannerLeft.fill}
+                                  />
+                                : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
+                        </span>
+                    </div>
+                    {/* Fills the dead space between the step chips and the progress/controls on
+                        wide screens with a draft pace readout — points left under budget and
+                        roughly what that leaves per remaining pick. */}
+                    <div className="hidden sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold drop-shadow-sm" style={{ color: bannerLeft.fill }}>
+                        {teamMode === 'drafting' && setupStep === 'draft' && runRate && (
+                            runRate.remaining < 0 ? (
+                                <span className="flex items-center gap-1.5 text-red-200">
+                                    <FaGaugeHigh className="text-[12px]" />
+                                    {Math.abs(runRate.remaining)} PTS OVER BUDGET
                                 </span>
-                            </>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-x-1">
+                                        <FaGaugeHigh className="opacity-70" />
+                                        <span>{runRate.remaining} PTS LEFT</span>
+                                    </div>
+                                    {runRate.perSlot != null && (
+                                        <span className="opacity-70 text-[10px] sm:text-[11px] font-semibold">
+                                            ~{Math.round(runRate.perSlot).toLocaleString()} PTS/PICK
+                                        </span>
+                                    )}
+                                </>
+                            )
                         )}
-                        {draft.pts_limit != null && token && (
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {teamMode === 'drafting' && setupStep === 'draft' && (
+                            <div className="flex flex-col gap-0">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-14 xs:w-20 sm:w-20 md:w-28 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
+                                        <div
+                                            className="h-full rounded-full transition-all"
+                                            style={{ width: `${draft.roster_size > 0 ? Math.min(100, (draft.roster.length / draft.roster_size) * 100) : 0}%`, backgroundColor: bannerRight.fill }}
+                                        />
+                                    </div>
+                                    <span className="text-[11px] font-black" style={{ color: bannerRight.fill }}>
+                                        {draft.roster.length}/{draft.roster_size}
+                                    </span>
+                                </div>
+                                {runRate && (
+                                    <span
+                                        className="sm:hidden self-end text-[9px] font-bold whitespace-nowrap"
+                                        style={{ color: runRate.remaining < 0 ? '#fca5a5' : bannerLeft.fill }}
+                                    >
+                                        {runRate.remaining < 0
+                                            ? `${Math.abs(runRate.remaining)} PTS OVER BUDGET`
+                                            : `${runRate.remaining} PTS LEFT`}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        {token && (setupStep === 'draft' || teamMode === 'editing') && (
                             <>
+                                {teamMode === 'editing' && (
+                                    <>
+                                        {!isMlbTeam && editMode && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowSettingsModal(true)}
+                                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                                aria-label="Team settings"
+                                                title="Team settings"
+                                            >
+                                                <FaGear /> Settings
+                                            </button>
+                                        )}
+                                    </>
+                                )}
                                 {lastAutofillStrategy && (
                                     <button
                                         type="button"
                                         onClick={handleReshuffle}
                                         disabled={reshuffling}
-                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerBtnClass}`}
+                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                         title="Reshuffle with same strategy"
                                     >
                                         <FaShuffle className={reshuffling ? 'animate-spin' : ''} />
@@ -630,51 +1597,93 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <button
                                     type="button"
                                     onClick={() => setShowAutofill(true)}
-                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerBtnClass}`}
+                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                 >
                                     <FaWandMagicSparkles className="text-[9px]" /> Autofill
                                 </button>
                             </>
                         )}
                         {teamMode === 'editing' && (
-                            <button
-                                type="button"
-                                onClick={() => setEditMode(false)}
-                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerBtnClass}`}
-                            >
-                                <FaCircleCheck className="text-[9px]" /> Done
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditMode(false)}
+                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                >
+                                    <FaCircleCheck className="text-[9px]" /> Done
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
             )}
 
             {/* Team Roster Content */}
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-                {isLg && teamMode === 'complete' ? (
+            <div className={`flex flex-1 ${embedded ? '' : 'lg:min-h-0 lg:overflow-hidden'}`}>
+                {showEditControls && setupStep === 'settings' ? (
+                    /* Setup step 1: team settings, edited inline (auto-saved) before drafting */
+                    <div className="flex flex-col flex-1 min-w-0 lg:min-h-0 lg:overflow-y-auto scrollbar-hide">
+                        <div className="flex-1">
+                            <TeamSettingsForm
+                                team={draft}
+                                onChange={updates => update(updates)}
+                                onArchive={onArchive ? handleArchiveToggle : undefined}
+                                archiving={archiving}
+                            />
+                        </div>
+                        {/* Spacer so the last form fields clear the fixed action bar on mobile,
+                            where the page (not this panel) is the scroll container. */}
+                        <div className="h-20 shrink-0 lg:hidden" />
+                        <div className="fixed inset-x-0 bottom-0 z-40 lg:sticky lg:inset-x-auto lg:z-auto flex items-center justify-end gap-3 px-4 py-3 border-t border-(--divider) bg-(--background-primary)">
+                            {!isTeamSetupValid(draft) && (
+                                <span className="text-[11px] text-(--text-tertiary) mr-auto">Resolve the highlighted settings to continue.</span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setSetupStep('draft')}
+                                disabled={!isTeamSetupValid(draft)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                            >
+                                Continue to Draft <FaArrowRight className="text-[11px]" />
+                            </button>
+                        </div>
+                    </div>
+                ) : isLg && teamMode === 'complete' ? (
                     /* Filled + large screen: FieldView fixed on left, Depth/Draft/Settings tabs on right */
                     <>
-                        <div className="flex flex-col shrink-0 overflow-y-auto w-80 md:w-108 lg:w-124 xl:w-148 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
+                        <div className="flex flex-col shrink-0 overflow-y-auto scrollbar-hide w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-164 3xl:w-184 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
                             {fieldViewContent}
                         </div>
                         <Tabs.Root
                             defaultValue="depth"
-                            className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden"
+                            className={`flex flex-col flex-1 min-w-0 overflow-x-scroll ${embedded ? '' : 'min-h-0 overflow-hidden'}`}
                         >
-                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
-                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
-                                <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
-                                <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
-                            </Tabs.List>
-                            <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto" onClick={() => setPendingSlot(null)}>
+                            {!isMlbTeam && (
+                                <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
+                                    <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1" /><span>Depth <span className="hidden sm:inline"> Chart</span></span></Tabs.Trigger>
+                                    {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
+                                    <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" /> Draft</Tabs.Trigger>
+                                    {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" /> Sims</Tabs.Trigger>}
+                                </Tabs.List>
+                            )}
+                            <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
                             </Tabs.Content>
-                            <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto">
-                                {draftHistoryContent}
-                            </Tabs.Content>
-                            <Tabs.Content value="settings" className="focus:outline-none flex-1 overflow-y-auto">
-                                {settingsTabContent}
-                            </Tabs.Content>
+                            {rosterFull && (
+                                <Tabs.Content value="lineup" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
+                                    {lineupPanelContent}
+                                </Tabs.Content>
+                            )}
+                            {!isMlbTeam && (
+                                <Tabs.Content value="draft" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
+                                    {draftHistoryContent}
+                                </Tabs.Content>
+                            )}
+                            {hasSims && (
+                                <Tabs.Content value="sims" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
+                                    {simsContent}
+                                </Tabs.Content>
+                            )}
                         </Tabs.Root>
                     </>
                 ) : (
@@ -685,15 +1694,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             className="
                                 @container
                                 flex flex-col shrink-0
-                                overflow-y-auto
-                                w-full sm:w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-190 3xl:w-256
+                                overflow-y-auto scrollbar-hide
+                                w-full lg:w-124 2xl:w-148 3xl:w-190 4xl:w-256
                             "
                         >
-                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0">
-                                <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}>Field View</Tabs.Trigger>
-                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}>Depth Chart</Tabs.Trigger>
-                                <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}>Draft</Tabs.Trigger>
-                                <Tabs.Trigger value="settings" className={TAB_TRIGGER_CLASS}>Settings</Tabs.Trigger>
+                            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0 overflow-x-auto scrollbar-hide">
+                                <Tabs.Trigger value="field"    className={TAB_TRIGGER_CLASS}><FaRing className="inline mr-1" /> <span>Field<span className="hidden sm:inline ml-1">View</span></span></Tabs.Trigger>
+                                <Tabs.Trigger value="depth"    className={TAB_TRIGGER_CLASS}><FaClipboardList className="inline mr-1" /> <span>Depth<span className="hidden sm:inline ml-1">Chart</span></span></Tabs.Trigger>
+                                {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
+                                {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" />Draft</Tabs.Trigger>}
+                                {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" />Sims</Tabs.Trigger>}
                             </Tabs.List>
 
                             <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
@@ -702,15 +1712,29 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                             <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
+                                {showEditControls && !isLg && <div className="h-48" />}
                             </Tabs.Content>
 
-                            <Tabs.Content value="draft" className="focus:outline-none">
-                                {draftHistoryContent}
-                            </Tabs.Content>
+                            {rosterFull && (
+                                <Tabs.Content value="lineup" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
+                                    {lineupPanelContent}
+                                    {showEditControls && !isLg && <div className="h-48" />}
+                                </Tabs.Content>
+                            )}
 
-                            <Tabs.Content value="settings" className="focus:outline-none">
-                                {settingsTabContent}
-                            </Tabs.Content>
+                            {!isMlbTeam && (
+                                <Tabs.Content value="draft" className="focus:outline-none">
+                                    {draftHistoryContent}
+                                    {showEditControls && !isLg && <div className="h-48" />}
+                                </Tabs.Content>
+                            )}
+
+                            {hasSims && (
+                                <Tabs.Content value="sims" className="focus:outline-none">
+                                    {simsContent}
+                                    {showEditControls && !isLg && <div className="h-48" />}
+                                </Tabs.Content>
+                            )}
                         </Tabs.Root>
 
                         {showEditControls && isLg && (
@@ -722,15 +1746,60 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 )}
             </div>
 
-            {showEditControls && !isLg && (
-                <BottomSheet
-                    isOpen={true}
-                    onClose={() => setPendingSlot(null)}
-                    title={pendingLabel ?? undefined}
-                    dismissible={false}
-                >
-                    {draftPanel}
-                </BottomSheet>
+            {showEditControls && !isLg && setupStep === 'draft' && (
+                <>
+                    {/* Search FAB — hidden while the slideover is open, since the slideover's
+                        own dismiss button occupies the same corner. A larger halo sits behind
+                        it (same treatment as SlideOver's dismiss button) so it stays legible
+                        over busy content, fading out via a radial mask rather than a hard edge. */}
+                    {!pendingSlot && (
+                        <div
+                            className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none"
+                            style={{
+                                background: 'radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0) 72%)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                maskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
+                                WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
+                            }}
+                        >
+                            <SearchGradientBorder rounded="rounded-full" className="pointer-events-auto shadow-lg">
+                                <button
+                                    type="button"
+                                    onClick={() => setPendingSlot({ kind: 'roster' })}
+                                    aria-label="Search cards"
+                                    className="
+                                        w-12 h-12 rounded-full flex items-center justify-center
+                                        bg-primary text-primary
+                                        cursor-pointer hover:opacity-90 transition-opacity
+                                    "
+                                >
+                                    <FaMagnifyingGlass className="text-[16px]" />
+                                </button>
+                            </SearchGradientBorder>
+                        </div>
+                    )}
+
+                    <SlideOver
+                        isOpen={pendingSlot !== null}
+                        onClose={() => setPendingSlot(null)}
+                        handleContent={draftSourceTabs}
+                    >
+                        <DraftPanel
+                            draftSource={draftSource}
+                            onSourceChange={setDraftSource}
+                            allowedSources={allowedSources}
+                            pendingLabel={pendingLabel}
+                            searchFilters={searchFilters}
+                            lockedFilterKeys={lockedFilterKeys}
+                            draftedCardIds={draftedCardIds}
+                            onCardPicked={handleCardPicked}
+                            resetTrigger={draftSearchResetKey}
+                            hideSourceTabs
+                            actionDisabled={draftActionDisabled}
+                        />
+                    </SlideOver>
+                </>
             )}
 
             <ToastMessage
@@ -746,11 +1815,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {/* Confirmation modal: choose which position to assign the picked card */}
             {confirmCard && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                    // `pointer-events-auto` is required: this modal renders as a sibling of the
+                    // draft-search SlideOver, which pins `body { pointer-events: none }` while
+                    // open. Without it, touches on mobile fall through to the panel underneath.
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto"
                     onClick={() => setConfirmCard(null)}
                 >
                     <div
-                        className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden"
+                        className="bg-(--background-primary) rounded-2xl w-full max-w-md shadow-2xl border border-(--divider) overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header */}
@@ -776,19 +1848,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {/* Position buttons */}
                         <div className="px-4 py-3 flex flex-col gap-2">
                             {confirmFieldPositions.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
-                                    {confirmFieldPositions.map(pos => (
-                                        <PositionButton key={pos} label={pos} onClick={() => handleConfirmPosition(pos)} />
-                                    ))}
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                    {confirmFieldPositions.map(renderPositionButton)}
                                 </div>
                             )}
                             {confirmRotationPositions.length > 0 && (
                                 <>
                                     <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Rotation</div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {confirmRotationPositions.map(pos => (
-                                            <PositionButton key={pos} label={pos} onClick={() => handleConfirmPosition(pos)} />
-                                        ))}
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                        {confirmRotationPositions.map(renderPositionButton)}
                                     </div>
                                 </>
                             )}
@@ -796,9 +1864,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <>
                                     <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Bullpen</div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {confirmBullpenPositions.map(pos => (
-                                            <PositionButton key={pos} label={pos} onClick={() => handleConfirmPosition(pos)} />
-                                        ))}
+                                        {confirmBullpenPositions.map(renderPositionButton)}
                                     </div>
                                 </>
                             )}
@@ -807,60 +1873,279 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </div>
             )}
 
-            {showAutofill && draft.pts_limit != null && (
+            {showPublishModal && token && (
+                <PublishToFeaturedModal
+                    token={token}
+                    team={draft}
+                    onClose={() => setShowPublishModal(false)}
+                    onPublished={published => {
+                        setShowPublishModal(false);
+                        navigate(`/teams/${published.team_id}`);
+                    }}
+                />
+            )}
+
+            {/* One entry point for both ways to play — an open takeover or a live challenge. */}
+            {showPlayModal && token && (
+                <PlayModal
+                    teamId={team.team_id}
+                    teamName={draft.name || 'Untitled Team'}
+                    showdownSet={draft.allowed_sets?.[0] ?? '2000'}
+                    teamPoints={pointsBreakdown.total}
+                    rosterCount={draft.roster.length}
+                    token={token}
+                    presetChallenge={challenge}
+                    onCancel={() => setShowPlayModal(false)}
+                    onStarted={jobId => {
+                        setShowPlayModal(false);
+                        navigate(`/teams/${team.team_id}/sim/${jobId}`);
+                    }}
+                    onViewExisting={(jobId, jobTeamId) => {
+                        setShowPlayModal(false);
+                        navigate(`/teams/${jobTeamId ?? team.team_id}/sim/${jobId}`);
+                    }}
+                />
+            )}
+
+            {showSettingsModal && (
+                <Modal
+                    title="Team Settings"
+                    onClose={closeSettingsModal}
+                    size="sm"
+                    footer={
+                        <>
+                            {pendingSettings && settingsChanges.length > 0 && (
+                                <ul className="flex flex-col gap-0.5">
+                                    {settingsChanges.map(line => (
+                                        <li key={line} className="text-[11px] text-(--text-secondary) flex items-start gap-1.5">
+                                            <span className="text-amber-500 mt-px shrink-0">→</span>
+                                            {line}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            {!settingsValid && (
+                                <span className="text-[11px] text-red-400">Resolve the highlighted settings to apply changes.</span>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (pendingSettings) update(pendingSettings);
+                                        setPendingSettings(null);
+                                        setShowSettingsModal(false);
+                                    }}
+                                    disabled={!pendingSettings || settingsChanges.length === 0 || !settingsValid}
+                                    className="flex-1 px-3 py-4 rounded-lg text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                                >
+                                    Apply Changes
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={closeSettingsModal}
+                                    className="px-3 py-4 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                                >
+                                    {pendingSettings && settingsChanges.length > 0 ? 'Discard' : 'Close'}
+                                </button>
+                            </div>
+                        </>
+                    }
+                >
+                    <TeamSettingsForm
+                        team={settingsDraft}
+                        onChange={updates => setPendingSettings(prev => ({ ...(prev ?? {}), ...updates }))}
+                        onArchive={onArchive ? handleArchiveToggle : undefined}
+                        archiving={archiving}
+                    />
+                </Modal>
+            )}
+
+            {showAutofill && (
                 <AutofillPanel
                     ptsLimit={draft.pts_limit}
                     bucketSizes={{
                         offense: 9,
                         rotation: draft.num_starters,
-                        bench: draft.min_bench,
-                        bullpen: draft.min_bullpen,
+                        bench: effectiveBucketMins.bench,
+                        bullpen: effectiveBucketMins.bullpen,
                     }}
-                    onConfirm={handleAutofill}
+                    existingPts={{
+                        offense: pointsBreakdown.lineup,
+                        rotation: pointsBreakdown.rotation,
+                        bench: pointsBreakdown.bench,
+                        bullpen: pointsBreakdown.bullpen,
+                    }}
+                    existingPickCount={draft.roster.length}
+                    onConfirm={generateAutofillPreview}
                     onClose={() => setShowAutofill(false)}
                 />
+            )}
+
+            {/* Autofill result preview: reshuffle for a different result, or accept to commit
+                it to the draft (which then flows through the normal auto-save). */}
+            {autofillPreview && previewRosterData && (
+                <Modal
+                    title="Autofill Preview"
+                    subtitle="Reshuffle for a different result, or use this roster as-is."
+                    onClose={() => setAutofillPreview(null)}
+                    size="md"
+                    footer={
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setAutofillPreview(null)}
+                                className="px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                            >
+                                Discard
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => generateAutofillPreview(autofillPreview.strategy)}
+                                disabled={reshuffling}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-50 cursor-pointer transition-colors"
+                            >
+                                <FaShuffle className={reshuffling ? 'animate-spin' : ''} /> Reshuffle
+                            </button>
+                            <button
+                                type="button"
+                                onClick={acceptAutofillPreview}
+                                disabled={reshuffling}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                            >
+                                <FaCircleCheck className="text-[11px]" /> Use This Roster
+                            </button>
+                        </div>
+                    }
+                >
+                    {/* Field Value */}
+                    <FieldView
+                        lineup={previewLineup}
+                        cardMap={cardMap}
+                        onSlotClick={() => {}}
+                        readOnly
+                        rosterData={previewRosterData}
+                        isLoadingCards={isLoadingCards}
+                        showTotalPoints={true}
+                    />
+                </Modal>
+            )}
+
+            {/* Drop confirmation: remove a drafted player, with the PTS effect spelled out. */}
+            {dropCandidate && dropPointsEffect && (
+                <Modal
+                    title="Drop player"
+                    subtitle="This removes the player from your roster and any lineup or rotation slot."
+                    onClose={() => setDropCandidate(null)}
+                    size="sm"
+                    footer={
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setDropCandidate(null)}
+                                className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDropCard(dropCandidate)}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-red-500 hover:opacity-90 transition-opacity cursor-pointer"
+                            >
+                                <FaTrash className="text-[11px]" /> Drop
+                            </button>
+                        </div>
+                    }
+                >
+                    <div className="flex flex-col gap-3 p-3">
+                        <CardItemCompactFromCardDatabaseRecord
+                            card={cardMap[dropCandidate.card_id] ?? undefined}
+                            isLoading={!(dropCandidate.card_id in cardMap)}
+                            fieldPosition={dropCandidate.roster_position}
+                            ptsMultiplier={dropCandidate.roster_position === 'BE' ? draft.bench_pts_multiplier : undefined}
+                        />
+                        <div className="flex items-center justify-between text-[12px] px-3 py-2 ">
+                            <span className="font-semibold text-(--text-secondary)">Team PTS</span>
+                            <span className="tabular-nums font-bold text-(--text-primary)">
+                                {dropPointsEffect.current}
+                                <span className="mx-1.5 text-(--text-tertiary)">→</span>
+                                {dropPointsEffect.projected}
+                                <span className="ml-2 text-red-500">−{dropPointsEffect.removed}</span>
+                            </span>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </div>
     );
 }
 
-const TAB_TRIGGER_CLASS =
-    'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors ' +
-    'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
-    'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
+const TAB_TRIGGER_CLASS = radixTabTriggerClass();
 
 type DraftPanelProps = {
     draftSource: CardSourceType;
     onSourceChange: (source: CardSourceType) => void;
     allowedSources: readonly { key: CardSourceType; label: string }[];
     pendingLabel: string | null;
-    searchFilters: Record<string, string[]>;
+    searchFilters: Partial<FilterSelections>;
+    /** Keys within `searchFilters` the drafter can't clear (team-settings restrictions). */
+    lockedFilterKeys: string[];
     draftedCardIds: string[];
     onCardPicked: (card: CardDatabaseRecord) => void;
+    /** When true, hides the internal Bot/WOTC/WBC tab list — used when the tabs are
+     *  rendered elsewhere (e.g. the SlideOver header) while source is controlled externally. */
+    hideSourceTabs?: boolean;
+    /** Clears the pending slot — shown as an X on the "Filling" badge. */
+    onDismissPending?: () => void;
+    /** Forwarded to ShowdownCardSearch — bump to clear search text/filters after a pick completes. */
+    resetTrigger?: unknown;
+    /** "Fits my roster" switch state, or null to hide it (e.g. no points budget on this team).
+     *  Omitted entirely when `hideSourceTabs` is set — the caller renders it in its own header. */
+    fitsRosterToggle?: { enabled: boolean; onToggle: () => void } | null;
+    /** Greys out the draft/select action (grid button, sidebar and modal "Draft" button) — set
+     *  while the last pick is still being saved, to prevent rapid-fire drafting. */
+    actionDisabled?: boolean;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, draftedCardIds, onCardPicked }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, fitsRosterToggle, actionDisabled = false }: DraftPanelProps) {
     return (
         <Tabs.Root
             value={draftSource}
             onValueChange={v => onSourceChange(v as CardSourceType)}
-            className="flex flex-col h-full min-h-0"
+            className="flex flex-col gap-0 h-full min-h-0"
         >
-            <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
-                {allowedSources.map(s => (
-                    <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
-                        {s.label}
-                    </Tabs.Trigger>
-                ))}
-                {pendingLabel && (
-                    <span className="ml-auto flex items-center gap-1.5 px-2 shrink-0 border rounded-lg border-amber-500 dark:border-amber-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        <span className="text-md text-amber-500 dark:text-amber-400 font-semibold">
-                            {pendingLabel}
-                        </span>
-                    </span>
-                )}
-            </Tabs.List>
+            {!hideSourceTabs && (
+                <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto scrollbar-hide">
+                    {allowedSources.map(s => (
+                        <Tabs.Trigger key={s.key} value={s.key} className={TAB_TRIGGER_CLASS}>
+                            {s.key === 'BOT' && <FaRobot className="inline-block" />}
+                            {s.key === 'WOTC' && <FaHatWizard className="inline-block" />}
+                            {s.key === 'WBC' && <FaBaseball className="inline-block" />}
+                            {s.label}
+                        </Tabs.Trigger>
+                    ))}
+                    <div className="ml-auto flex items-center gap-2 shrink-0">
+                        {fitsRosterToggle && (
+                            <FitsMyRosterToggle enabled={fitsRosterToggle.enabled} onToggle={fitsRosterToggle.onToggle} />
+                        )}
+                        {pendingLabel && (
+                            <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                {pendingLabel}
+                                {onDismissPending && (
+                                    <button
+                                        type="button"
+                                        onClick={onDismissPending}
+                                        className="hover:opacity-70 cursor-pointer"
+                                        aria-label="Cancel filling"
+                                    >
+                                        <FaXmark className="text-[10px]" />
+                                    </button>
+                                )}
+                            </span>
+                        )}
+                    </div>
+                </Tabs.List>
+            )}
             {allowedSources.map(s => (
                 <Tabs.Content key={s.key} value={s.key} className="flex-1 min-h-0 flex flex-col focus:outline-none">
                     <ShowdownCardSearch
@@ -869,12 +2154,15 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                         disableLocalStorage={true}
                         verticalOffset="36"
                         defaultFilters={searchFilters}
+                        lockedFilters={lockedFilterKeys}
                         excludeIds={draftedCardIds}
+                        resetTrigger={resetTrigger}
                         actionButton={{
                             icon: <FaPlus />,
                             label: 'Select',
-                            bgColorClass: 'bg-(--showdown-red) opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
+                            bgColorClass: 'animated-showdown-gradient opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
                             onClick: onCardPicked,
+                            disabled: actionDisabled,
                         }}
                     />
                 </Tabs.Content>
@@ -883,17 +2171,90 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
     );
 });
 
-function PositionButton({ label, onClick }: { label: string; onClick: () => void }) {
+/** Tiny donut showing how full a roster bucket is. Inherits the chip's text color via
+ *  `currentColor`, and shows a full ring once the bucket meets (or exceeds) its target. */
+function ProgressRing({ filled, target, size = 12, stroke = 2 }: {
+    filled: number;
+    target: number;
+    size?: number;
+    stroke?: number;
+}) {
+    const pct = target > 0 ? Math.min(1, filled / target) : (filled > 0 ? 1 : 0);
+    const r = (size - stroke) / 2;
+    const circumference = 2 * Math.PI * r;
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 -rotate-90" aria-hidden>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity={0.3} strokeWidth={stroke} />
+            <circle
+                cx={size / 2} cy={size / 2} r={r}
+                fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference * (1 - pct)}
+            />
+        </svg>
+    );
+}
+
+/** The two-step "Team Settings → Drafting" indicator shown in the drafting banner. Both steps
+ *  are always clickable — the marks (check / number) are just progress hints. */
+function SetupStepChips({ step, onStep, settingsDone, color }: {
+    step: 'settings' | 'draft';
+    onStep: (s: 'settings' | 'draft') => void;
+    settingsDone: boolean;
+    color: string;
+}) {
+    const chip = (id: 'settings' | 'draft', label: string, trailing: string | null, done: boolean) => (
+        <button
+            type="button"
+            onClick={() => onStep(id)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
+            style={{ color }}
+        >
+            <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[8px] shrink-0" style={{ borderColor: color }}>
+                {done ? <FaCircleCheck /> : id === 'settings' ? '1' : '2'}
+            </span>
+            <span className="inline">{label}</span>
+            {trailing && <span className="font-black tabular-nums">{trailing}</span>}
+        </button>
+    );
+    return (
+        <span className="flex items-center gap-0.5">
+            {chip('settings', 'Settings', null, settingsDone)}
+            <FaArrowRight className="text-[8px] opacity-40 shrink-0" style={{ color }} />
+            {chip('draft', 'Drafting', null, false)}
+        </span>
+    );
+}
+
+function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, replacingName }: {
+    label: string;
+    onClick: () => void;
+    currentPts?: number;
+    projectedPts?: number;
+    overLimit?: boolean;
+    /** When set, this pick replaces an existing player — shown under the label. */
+    replacingName?: string | null;
+}) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className="px-3 py-2 rounded-lg text-[12px] font-bold
+            className="flex flex-col items-center justify-between gap-0.5 px-3 py-2 rounded-lg text-[12px] font-bold
                 bg-(--background-secondary) border border-(--divider)
                 text-(--text-primary) hover:border-(--secondary) hover:text-(--secondary)
                 transition-colors"
         >
             {label}
+            {replacingName && (
+                <span className="text-[9px] font-semibold text-(--text-tertiary) normal-case">
+                    Replaces {replacingName}
+                </span>
+            )}
+            {currentPts != null && projectedPts != null && (
+                <span className={`text-[10px] font-semibold tabular-nums ${overLimit ? 'text-red-500' : 'text-(--text-tertiary)'}`}>
+                    {currentPts} → {projectedPts}
+                </span>
+            )}
         </button>
     );
 }

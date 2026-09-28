@@ -456,15 +456,18 @@ def snapshot_rosters(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
     seasons: str = typer.Option(None, "--seasons", "-s", help="Which season(s) to include when fetching roster data, comma-separated (e.g. '2023,2024')."),
     generate_cards: bool = typer.Option(False, "--generate-cards", "-cards", help="Whether to generate and save cards for the fetched rosters."),
-    showdown_sets: str = typer.Option(None, "--showdown-sets", "-sets", help="Comma-separated list of showdown sets to generate cards for.")
+    showdown_sets: str = typer.Option(None, "--showdown-sets", "-sets", help="Comma-separated list of showdown sets to generate cards for."),
+    player_ids: str = typer.Option(None, "--player_ids", "-p", help="Comma-separated list of MLB player IDs to limit card generation to, for testing (e.g. '660271,592450'). Roster snapshot still stores all players.")
 ):
     showdown_sets = [s.strip() for s in showdown_sets.split(",")] if showdown_sets else None
+    parsed_player_ids = [int(pid.strip()) for pid in player_ids.split(",") if pid.strip()] if player_ids else None
     _snapshot_rosters(
         seasons=seasons,
         publish_to_database=publish_to_database, 
         env=env, 
         generate_cards=generate_cards, 
-        showdown_sets=showdown_sets
+        showdown_sets=showdown_sets,
+        player_ids=parsed_player_ids
     )
 
 # -------------------------------
@@ -505,7 +508,7 @@ def build_logging_tables(
     """Build logging tables in the archive database"""
     from ...core.database.postgres_db import PostgresDB
 
-    print("Building logging tables in the archive database...")
+    print("Building logging tables in the database...")
     is_production = env.lower() == "prod"
     db = PostgresDB(is_archive=is_production)
     db.build_logging_tables()
@@ -561,8 +564,75 @@ def build_user_teams_tables(
     print("Building user teams tables...")
     db = PostgresDB(is_archive=env.lower() == "prod")
     db.build_user_teams_table()
+    db.build_asg_roster_table()
+    db.build_team_collection_table()
     db.close_connection()
-    typer.echo("Done. internal.user_teams table is ready.")
+    typer.echo("Done. internal.user_teams, internal.asg_roster and internal.team_collection tables are ready.")
+
+@app.command("build_sim_job_table")
+def build_sim_job_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the season simulation job + season history tables"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building sim tables...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_sim_job_table()
+    db.close_connection()
+    typer.echo("Done. internal.sim_job and internal.sim_season tables are ready.")
+
+@app.command("build_sim_lobby_tables")
+def build_sim_lobby_tables(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the multiplayer sim lobby tables. Run after build_sim_job_table and
+    build_user_teams_tables - it references both internal.sim_job and internal.user_teams."""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building sim lobby tables...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_sim_lobby_tables()
+    db.close_connection()
+    typer.echo("Done. internal.sim_lobby and internal.sim_lobby_member tables are ready.")
+
+@app.command("build_challenge_tables")
+def build_challenge_tables(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the challenge_template/challenge_instance tables. Run after build_user_teams_tables
+    and build_sim_job_table - it ALTERs both of those tables."""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building challenge tables...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_challenge_tables()
+    db.close_connection()
+    typer.echo("Done. internal.challenge_template and internal.challenge_instance tables are ready.")
+
+@app.command("build_sim_game_table")
+def build_sim_game_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the simulated-MLB-game history table"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building sim game table...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_sim_game_table()
+    db.close_connection()
+    typer.echo("Done. internal.sim_game table is ready.")
+
+@app.command("build_app_schema")
+def build_app_schema(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Create/upgrade every app table and index in dependency order (idempotent, schema only)"""
+    from ...core.database.postgres_db import PostgresDB
+
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_app_schema()
+    db.close_connection()
 
 # Make database the default command
 @app.callback(invoke_without_command=True)

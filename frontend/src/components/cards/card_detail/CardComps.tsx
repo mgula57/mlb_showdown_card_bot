@@ -63,6 +63,7 @@ function CompCardItem({ comp }: { comp: WotcCompCard }) {
                 cardAwardList={comp.awards_list ?? []}
                 cardStatHighlightsList={comp.stat_highlights_list ?? []}
                 cardChartRanges={comp.chart_ranges ?? {}}
+                cardSource='WOTC'
             />
         </div>
     );

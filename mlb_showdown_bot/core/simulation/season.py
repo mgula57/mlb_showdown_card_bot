@@ -1,0 +1,590 @@
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from random import Random
+from typing import Callable, Optional
+
+from ..card.sets import Set
+from ..card.showdown_player_card import ShowdownPlayerCard
+from ..card.stats.stats_period import StatsPeriod, StatsPeriodType
+from ..database.postgres_db import PlayerArchive, PostgresDB
+from ..mlb_stats_api import MLBStatsAPI
+from ..shared.player_position import PlayerType
+from .models import DeadlineTrade, PostseasonFormat, SeasonSimulationConfig, SeasonSimulationResult
+from .postseason import Postseason
+from .real_postseason import RealPostseasonBracket
+from .roster import RESERVE_MIN_IP_PITCHER, RESERVE_MIN_PA_POSITION
+from .schedule import Schedule
+from .standings import Standings
+from .stats import PlayerStatsGroup, load_real_league_avgs, load_woba_weights
+from .takeover import TakeoverOptions
+from .team import SimTeam
+from .trade_deadline import TradeDeadline
+
+
+@dataclass
+class SeasonCardPool:
+    """Every card for a season/set, plus each card's real archive id.
+
+    `ShowdownPlayerCard.id` (computed from year/bref_id/set/expansion) and `card_bot.card_id`
+    (archived separately - prefers mlb_id, drops expansion, lowercases everything, see
+    `PostgresDB.fetch_season_card_pool`) are built by unrelated formulas and essentially never
+    match. Anything that needs to fetch a card back by its archived id - like linking a sim
+    statline to its real card - needs `archive_card_ids` rather than the card's own computed id.
+    Cards built from raw archive stats (the no-pre-built-card fallback) have no archive id at all.
+    """
+
+    cards: list[ShowdownPlayerCard]
+    archive_card_ids: dict[str, str]  # ShowdownPlayerCard.id -> card_bot.card_id
+    # ARCHIVE PLAYER ID ('{year}-{bref_id}') -> CARD. SAME CARD OBJECTS AS `cards`, KEYED SO THE
+    # TRADE DEADLINE CAN LINE A CARD UP WITH ITS `team_history` ENTRY.
+    cards_by_player_id: dict[str, ShowdownPlayerCard]
+    # ARCHIVE PLAYER ID -> (team_id_list, team_games_played_dict) FOR MULTI-TEAM PLAYERS ONLY.
+    # THE CHRONOLOGICAL CLUB HISTORY THE TRADE DEADLINE READS; EMPTY WHEN NO ONE CHANGED CLUBS.
+    team_history: dict[str, tuple[list[str], dict[str, int]]]
+
+
+class PlayerLoader:
+    """Loads season card pools, preferring pre-built cards from dim_card over rebuilding from archive stats."""
+
+    def __init__(self, db: Optional[PostgresDB] = None) -> None:
+        self._owns_db = db is None
+        self.db = db or PostgresDB(is_archive=True)
+
+    def close(self) -> None:
+        """Release the archive connection this loader opened itself.
+
+        No-op when `db` was supplied by the caller - that connection's lifecycle belongs to
+        whoever passed it in.
+        """
+        if self._owns_db:
+            self.db.close_connection()
+
+    def __enter__(self) -> 'PlayerLoader':
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+    def load_season_cards(self, year: int, set: Set, min_pa: int = 0, min_ip: int = 0, status_callback: Optional[Callable[[str], None]] = None) -> SeasonCardPool:
+        """All cards for a season. dim_card pre-built cards first, archive stat rebuilds for anything missing.
+
+        Args:
+          min_pa / min_ip: Playing-time floors. Applied to archive records *before* building cards,
+            since building a card is ~10x the cost of loading a pre-built one and rosters discard
+            these players anyway.
+          status_callback: Optional callable invoked with human-readable progress messages.
+        """
+
+        def status(message: str) -> None:
+            if status_callback:
+                status_callback(message)
+
+        # FAST PATH: PRE-BUILT CARDS FROM THE card_bot / dim_card TABLES
+        status(f"Loading pre-built {year} {set.value} cards from the archive DB...")
+        cards_by_player_id, archive_card_ids, team_history = self.db.fetch_season_card_pool(year=year, set=set)
+        if cards_by_player_id:
+            status(f"Loaded {len(cards_by_player_id)} pre-built card(s)")
+        else:
+            status("WARNING: no pre-built cards returned, falling back to archive stats")
+
+        # FALLBACK: BUILD CARDS FROM RAW ARCHIVE STATS FOR PLAYERS NOT PRE-BUILT.
+        # PROBE PLAYING TIME FIRST - EVERY FULL ARCHIVE ROW DRAGS A `stats` BLOB ALONG, AND IN
+        # PRACTICE A SEASON IS ~100% PRE-BUILT, SO THE FULL FETCH USUALLY NEVER RUNS AT ALL.
+        status(f"Checking {year} archive for players missing a pre-built card...")
+        missing_ids = [
+            playing_time.id
+            for playing_time in self.db.fetch_archive_playing_time(year_list=[int(year)])
+            if playing_time.id not in cards_by_player_id and playing_time.meets_playing_time(min_pa=min_pa, min_ip=min_ip)
+        ]
+
+        # MOST ROWS WITH NO PRE-BUILT CARD HAVE NO SCRAPED STATS EITHER AND SO CAN'T BE BUILT. THAT
+        # ONLY SHOWS UP ONCE THE `stats` BLOB IS IN HAND, WHICH IS WHY THE COUNT REPORTED BELOW IS
+        # TAKEN AFTER THE FETCH RATHER THAN FROM `missing_ids`.
+        missing_archives: list[PlayerArchive] = []
+        if missing_ids:
+            status(f"Fetching archive stats for {len(missing_ids)} player(s) with no pre-built card...")
+            missing_archives = [
+                archive for archive in self.db.fetch_all_stats_from_archive(
+                    year_list=[int(year)],
+                    filters=[('id', missing_ids)],
+                    exclude_records_with_stats=False,
+                )
+                if archive.stats
+            ]
+
+        if missing_archives:
+            status(f"Building {len(missing_archives)} card(s) from raw archive stats (min {min_pa} PA / {min_ip} IP)...")
+            built_count = 0
+            failed_count = 0
+            for archive in missing_archives:
+                try:
+                    cards_by_player_id[archive.id] = ShowdownPlayerCard(
+                        year=str(archive.year),
+                        set=set,
+                        stats=archive.stats,
+                        name=archive.name,
+                        stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(archive.year)),
+                    )
+                    built_count += 1
+                except Exception:
+                    failed_count += 1
+                    continue
+
+            failed_str = f", {failed_count} failed to build" if failed_count else ""
+            status(f"Built {built_count} card(s) from archive stats{failed_str}")
+
+        status(f"Player pool ready: {len(cards_by_player_id)} total card(s)")
+
+        return SeasonCardPool(
+            cards=list(cards_by_player_id.values()),
+            archive_card_ids=archive_card_ids,
+            cards_by_player_id=cards_by_player_id,
+            team_history=team_history,
+        )
+
+    def load_real_season_stats(self, year: int) -> tuple[dict[tuple[str, str], dict], Optional[datetime]]:
+        """Every player's raw real-stats archive row for the season, keyed by `(bref_id, player_type)`.
+
+        Backs a rest-of-season projection's stat merge (`PlayerStatsGroup.merge_real_season_stats`).
+        Keyed by `bref_id` rather than the archive row's own `id` (a bare `{year}-{mlb_id}` key,
+        per the mismatch `SeasonCardPool` already documents for `archive_card_ids`) since that's
+        the only identity `ShowdownPlayerCard` and the archive share. `player_type` is folded into
+        the key too - a two-way player (e.g. Ohtani) has separate HITTER/PITCHER archive rows for
+        the same `bref_id`, and merging the wrong one in would clobber the right one.
+
+        The archive holds one current snapshot per player-year, not a history, so this can only
+        ever reflect stats as of the archive's last scrape - which may lag whatever date the
+        caller intends to resume from. The second return value is the most recent
+        `stats_modified_date` seen across every row (i.e. the last scrape batch's timestamp) -
+        the vast majority of rows share it, with a handful of slow-to-update players (largely
+        inactive/off-roster) lagging behind. Taking the *oldest* row instead would let a single
+        such straggler make the whole merge look far staler than it actually is.
+        """
+        archives = self.db.fetch_all_stats_from_archive(year_list=[int(year)], exclude_records_with_stats=False)
+        raw_by_bref_id: dict[tuple[str, str], dict] = {}
+        as_of: Optional[datetime] = None
+        for archive in archives:
+            if not archive.stats or not archive.bref_id:
+                continue
+            raw_by_bref_id[(archive.bref_id, archive.player_type.upper())] = archive.stats
+            if archive.stats_modified_date and (as_of is None or archive.stats_modified_date > as_of):
+                as_of = archive.stats_modified_date
+        return raw_by_bref_id, as_of
+
+
+class Season:
+    """Simulates a full season (real MLB year or custom-team tournament) and returns structured results."""
+
+    def __init__(self, config: SeasonSimulationConfig, db: Optional[PostgresDB] = None, mlb_stats_api: Optional[MLBStatsAPI] = None) -> None:
+        self.config = config
+        self.rng = Random(config.seed)
+        self.db = db
+        self.mlb_stats_api = mlb_stats_api or MLBStatsAPI()
+        self.schedule: Optional[Schedule] = None
+        self.standings: Optional[Standings] = None
+        self.league_stats: Optional[PlayerStatsGroup] = None
+        self.postseason: Optional[Postseason] = None
+        # SCHEDULE ABBREVIATION -> (WINS, LOSSES) EACH CLUB STARTED WITH - POPULATED BY
+        # `_build_season_teams` ONLY WHEN `config.resume_from_real_season`.
+        self.seeded_records: dict[str, tuple[int, int]] = {}
+        # LEAST-STALE stats_modified_date ACROSS EVERY MERGED PLAYER - POPULATED IN `simulate()`
+        # ONLY WHEN `config.merge_real_stats`.
+        self.real_stats_as_of: Optional[datetime] = None
+        # IN-SIM TRADE DEADLINE - SET IN `simulate()` ONLY WHEN `config.enable_trade_deadline`
+        # (AND NOT A TOURNAMENT). `deadline_trades` HOLDS THE MOVES IT ACTUALLY APPLIED.
+        self._trade_deadline: Optional[TradeDeadline] = None
+        self.deadline_trades: list[DeadlineTrade] = []
+
+    def simulate(
+        self,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+        log_callback: Optional[Callable[[str], None]] = None,
+        status_callback: Optional[Callable[[str], None]] = None,
+        focus_team_abbr: Optional[str] = None,
+        timeline_callback: Optional[Callable[[list[dict]], None]] = None,
+    ) -> SeasonSimulationResult:
+        """Run the full simulation.
+
+        Args:
+          progress_callback: Called with (games_completed, total_games) after each game.
+          log_callback: Called with each play-by-play line (CLI game log).
+          status_callback: Called with human-readable progress messages during setup (player loading, roster building, scheduling).
+          focus_team_abbr: Schedule key of one club to emit a running game-by-game record for as
+            the season plays (the replaced-club abbr for a takeover). Enables `timeline_callback`.
+          timeline_callback: Called after each `focus_team_abbr` game with `(running_list, total)` -
+            the full running list of `{date, is_win, wins, losses}` dicts so far, plus that club's
+            total scheduled game count so a live chart can fix its x-axis. Lets a caller stream a
+            live win% chart without waiting for the finished result. No-op unless `focus_team_abbr`
+            is also set.
+        """
+
+        def status(message: str) -> None:
+            if status_callback:
+                status_callback(message)
+
+        config = self.config
+        if config.resume_from_real_postseason and config.is_takeover:
+            raise ValueError(
+                "Resuming from the real postseason isn't available for a takeover run - the "
+                "replaced club's real postseason results aren't its own."
+            )
+        started_at = datetime.now()
+        # POPULATED BELOW ONLY FOR A REAL-SEASON RUN WITH `config.merge_real_stats` - DEFINED
+        # HERE (NOT INSIDE THE `else` BRANCH BELOW) SO IT'S ALWAYS IN SCOPE WHEN `PlayerStatsGroup`
+        # IS BUILT FURTHER DOWN, REGARDLESS OF TOURNAMENT VS. REAL-SEASON MODE.
+        real_stats_by_bref_id: dict[tuple[str, str], dict] = {}
+
+        # SETUP TEAMS + SCHEDULE
+        if config.is_tournament:
+            status(f"Loading {len(config.custom_teams)} custom team(s) for tournament '{config.league_name}'...")
+            teams = self._build_tournament_teams()
+            status(f"Loaded {len(teams)} team(s): {', '.join(sorted(teams.keys()))}")
+            num_teams = len(teams)
+            default_games = num_teams * (num_teams - 1)  # EACH MATCHUP TWICE
+            self.schedule = Schedule(
+                year=config.year,
+                tournament=config.league_name,
+                game_limit=config.tournament_games or default_games,
+                team_names=list(teams.keys()),
+            )
+        else:
+            with PlayerLoader(db=self.db) as loader:
+                # LOWER THAN THE ACTIVE-ROSTER THRESHOLDS SO A FULL 40-MAN CAN BE FILLED FROM RESERVE
+                # DEPTH - BUT NO LOWER THAN THE RESERVE SAMPLE-SIZE FLOORS, SINCE `Roster.select`
+                # REJECTS ANYTHING BELOW THOSE ANYWAY AND BUILDING THE CARD WOULD BE WASTED WORK.
+                card_pool = loader.load_season_cards(
+                    year=config.year, set=config.set,
+                    min_pa=min(config.min_pa, RESERVE_MIN_PA_POSITION),
+                    min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
+                    status_callback=status_callback,
+                )
+                # FETCHED HERE, WHILE THE LOADER'S ARCHIVE CONNECTION IS STILL OPEN - THE MERGE
+                # ITSELF HAPPENS LATER, ONCE `PlayerStatsGroup` EXISTS TO MERGE INTO, BY WHICH
+                # POINT THIS CONNECTION HAS CLOSED. NO DB ACCESS IS NEEDED FOR THAT LATER STEP.
+                if config.resume_from_real_season and config.merge_real_stats:
+                    status(f"Loading real {config.year} stats to merge...")
+                    real_stats_by_bref_id, self.real_stats_as_of = loader.load_real_season_stats(year=config.year)
+            status(f"Building {config.year} MLB schedule...")
+            self.schedule = Schedule(
+                year=config.year,
+                pct_limit=config.pct_of_games,
+                game_limit=config.games_limit,
+                mlb_stats_api=self.mlb_stats_api,
+                # `resume_as_of_date` DEFAULTS TO TODAY WHEN UNSET - RESOLVED HERE RATHER THAN ON
+                # THE CONFIG SO A STORED/REPLAYED CONFIG NEVER SILENTLY PICKS A DIFFERENT "TODAY".
+                start_date=(config.resume_as_of_date or date.today()) if config.resume_from_real_season else None,
+                # A POSTSEASON-ONLY RESUME WANTS ZERO REGULAR-SEASON GAMES LEFT - THAT'S THE WHOLE
+                # POINT, NOT AN ERROR.
+                allow_empty=config.resume_from_real_postseason,
+            )
+            if config.enable_trade_deadline:
+                self._trade_deadline = TradeDeadline(config=config, schedule=self.schedule, card_pool=card_pool)
+                moves = len(self._trade_deadline.plan.pending_moves)
+                status(f"Trade deadline {self._trade_deadline.deadline_date.isoformat()}: {moves} mid-season move(s) queued")
+            status(f"Building rosters for {len(self.schedule.unique_team_names)} team(s)...")
+            teams = self._build_season_teams(
+                cards=card_pool.cards, card_ids=card_pool.archive_card_ids, status_callback=status_callback,
+            )
+            status(f"Rosters built for {len(teams)} team(s)")
+
+        self.standings = Standings(
+            year=config.year,
+            tournament=config.league_name if config.is_tournament else None,
+            team_leagues=self.schedule.team_leagues,
+            teams=teams,
+            mlb_stats_api=self.mlb_stats_api,
+        )
+        self.league_stats = PlayerStatsGroup(players=self.standings.all_players, year=config.year, name="LEAGUE")
+        if real_stats_by_bref_id:
+            merged_count = self.league_stats.merge_real_season_stats(real_stats_by_bref_id)
+            status(f"Merged real season stats for {merged_count} player(s)")
+
+        # SIMULATE GAMES
+        total_games = len(self.schedule.games)
+        status(f"Simulating {total_games} game(s)...")
+        # RUNNING GAME-BY-GAME RECORD FOR `focus_team_abbr`, EMITTED THROUGH `timeline_callback`
+        # AS THE SEASON PLAYS SO A LIVE WIN% CHART CAN ANIMATE. MIRRORS
+        # `SeasonSummaryBuilder._build_games`: 0-0, OR THE SEEDED REAL RECORD FOR A REST-OF-SEASON
+        # PROJECTION.
+        stream_timeline = bool(timeline_callback and focus_team_abbr)
+        focus_timeline: list[dict] = []
+        focus_wins, focus_losses = self.seeded_records.get(focus_team_abbr, (0, 0)) if focus_team_abbr else (0, 0)
+        focus_total_games = (
+            sum(1 for g in self.schedule.games if focus_team_abbr in (g.home_team_name, g.away_team_name))
+            if stream_timeline else 0
+        )
+        for index, game in enumerate(self.schedule.games):
+            if self._trade_deadline is not None and not self._trade_deadline.applied and game.date >= self._trade_deadline.deadline_date:
+                self.deadline_trades = self._trade_deadline.apply(self.standings, self.standings.teams, game.date)
+                if self.deadline_trades:
+                    status(f"Trade deadline: {len(self.deadline_trades)} player(s) moved")
+
+            home_team = self.standings.teams[game.home_team_name]
+            away_team = self.standings.teams[game.away_team_name]
+            home_team.update_roster_for_date(game_date=game.date, rng=self.rng)
+            away_team.update_roster_for_date(game_date=game.date, rng=self.rng)
+            game.setup(home_team=home_team, away_team=away_team)
+            game.simulate(rng=self.rng, collect_log=config.include_game_logs, log_callback=log_callback, collect_box_score=config.should_collect_box_scores, platoon_roll_adjustment=config.platoon_roll_adjustment, keep_innings=config.keep_game_innings)
+
+            self.league_stats.merge(game.home_team.stats)
+            self.league_stats.merge(game.away_team.stats)
+
+            if stream_timeline and game.is_game_over and focus_team_abbr in (game.home_team_name, game.away_team_name):
+                is_home = game.home_team_name == focus_team_abbr
+                scored = game.home_team_final_score if is_home else game.away_team_final_score
+                allowed = game.away_team_final_score if is_home else game.home_team_final_score
+                is_win = scored > allowed
+                if is_win:
+                    focus_wins += 1
+                else:
+                    focus_losses += 1
+                focus_timeline.append({'date': str(game.date), 'is_win': is_win, 'wins': focus_wins, 'losses': focus_losses})
+                timeline_callback(focus_timeline, focus_total_games)
+
+            if progress_callback:
+                progress_callback(index + 1, total_games)
+
+        # SNAPSHOT REGULAR SEASON STANDINGS BEFORE PLAYOFF GAMES ADD TO TEAM W/L
+        standings_result = self.standings.as_result(apply_bench_multiplier=config.apply_bench_pts_multiplier_to_points)
+
+        # POSTSEASON
+        if config.simulate_postseason and (total_games > 0 or config.resume_from_real_postseason):
+            postseason_format = config.postseason_format
+            if config.is_tournament and postseason_format == PostseasonFormat.DYNAMIC:
+                postseason_format = PostseasonFormat.WORLD_SERIES
+
+            real_bracket = None
+            if config.resume_from_real_postseason:
+                status(f"Loading real {config.year} postseason results...")
+                real_bracket = RealPostseasonBracket(year=config.year, mlb_stats_api=self.mlb_stats_api)
+
+            # A POSTSEASON-ONLY RESUME HAS NO REGULAR-SEASON GAME TO ANCHOR OFF OF - FALL BACK TO
+            # THE SAME RESUME DATE THE SCHEDULE ITSELF WAS BUILT FROM.
+            postseason_start_date = (
+                self.schedule.games[-1].date + timedelta(days=5) if self.schedule.games
+                else (config.resume_as_of_date or date.today())
+            )
+            status(f"Simulating postseason ({postseason_format.value})...")
+            self.postseason = Postseason(
+                year=config.year,
+                standings=self.standings,
+                format=postseason_format,
+                start_date=postseason_start_date,
+                collect_box_score=config.should_collect_box_scores,
+                platoon_roll_adjustment=config.platoon_roll_adjustment,
+                keep_innings=config.keep_game_innings,
+                real_bracket=real_bracket,
+            )
+            self.postseason.simulate(rng=self.rng)
+
+        return self._build_result(started_at=started_at, standings_result=standings_result)
+
+    # ------------------------------------------------------------------
+    # TEAM CONSTRUCTION
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _load_builder_team_cards(builder_team) -> dict[str, ShowdownPlayerCard]:
+        """Hydrate a builder team's roster slots.
+
+        Deliberately reads the logs DB rather than the archive: builder teams are drafted from
+        the card database `card_db`/`user_teams` serve, which is the logs connection, and the
+        archive's `card_wotc` is a stale copy with no `card_id` column to join WOTC slots on.
+        """
+        with PostgresDB() as db:
+            cards = db.fetch_cards_for_roster_slots(slots=builder_team.roster, strip_diagnostics=True)
+        if len(cards) == 0:
+            raise ValueError(f"No cards could be loaded for team '{builder_team.name}'")
+        return cards
+
+    def _build_tournament_teams(self) -> dict[str, SimTeam]:
+        config = self.config
+        teams: dict[str, SimTeam] = {}
+        for builder_team in config.custom_teams:
+            cards = self._load_builder_team_cards(builder_team)
+            teams[builder_team.abbreviation] = SimTeam.from_builder_team(
+                team=builder_team,
+                cards=cards,
+                year=config.year,
+                league=config.league_name,
+            )
+        if len(teams) < 2:
+            raise ValueError("Tournament mode requires at least 2 custom teams")
+        return teams
+
+    def _build_season_teams(self, cards: list[ShowdownPlayerCard], card_ids: dict[str, str], status_callback: Optional[Callable[[str], None]] = None) -> dict[str, SimTeam]:
+        config = self.config
+
+        def status(message: str) -> None:
+            if status_callback:
+                status_callback(message)
+
+        # TRADE DEADLINE: A MULTI-TEAM PLAYER IS ROSTERED UNDER HIS REAL *FIRST* CLUB (OR HIS
+        # PRIMARY CLUB, FOR A MOVE TOO SMALL TO MODEL) INSTEAD OF WHATEVER `card.team` RESOLVED TO.
+        # EMPTY WHEN THE FEATURE IS OFF, SO GROUPING - AND THE SEEDED RNG SEQUENCE IT FEEDS - IS
+        # BYTE-IDENTICAL TO BEFORE.
+        initial_team_by_card_id = self._trade_deadline.plan.initial_team_by_card_id if self._trade_deadline is not None else {}
+
+        cards_by_team: dict[str, list[ShowdownPlayerCard]] = {}
+        for card in cards:
+            team_abbr = initial_team_by_card_id.get(card.id) or (card.team.value if card.team else None)
+            if team_abbr:
+                cards_by_team.setdefault(team_abbr, []).append(card)
+
+        real_games_per_team = self.schedule.original_games_per_team or 162
+
+        # REST-OF-SEASON PROJECTION: EVERY CLUB'S REAL RECORD AS OF THE SCHEDULE'S start_date,
+        # FETCHED ONCE. APPLIED TO EACH SimTeam BELOW, RIGHT AFTER IT'S BUILT - INCLUDING A
+        # TAKEOVER TEAM, WHICH `from_builder_team` CONSTRUCTS AS A FRESH 0-0 OBJECT THAT WOULD
+        # OTHERWISE DISCARD THE REAL-SEASON TEAM'S SEED IT REPLACES.
+        seed_records: dict[str, tuple[int, int]] = {}
+        if config.resume_from_real_season:
+            status(f"Loading real {config.year} standings to resume from...")
+            seed_records = {
+                club.abbreviation: (club.wins, club.losses)
+                for club in TakeoverOptions(year=config.year, mlb_stats_api=self.mlb_stats_api).clubs
+            }
+
+        def seed(team: SimTeam) -> None:
+            record = seed_records.get(team.name)
+            if record is not None:
+                team.wins, team.losses = record
+
+        teams: dict[str, SimTeam] = {}
+        missing_teams: list[str] = []
+        for team_name in self.schedule.unique_team_names:
+            team_cards = cards_by_team.get(team_name, [])
+            if len(team_cards) == 0:
+                missing_teams.append(team_name)
+                continue
+            team = SimTeam.from_player_pool(
+                year=config.year,
+                name=team_name,
+                cards=team_cards,
+                card_ids=card_ids,
+                league=self.schedule.team_leagues.get(team_name),
+                min_pa=config.min_pa,
+                min_ip_sp=config.min_ip_sp,
+                min_ip_rp=config.min_ip_rp,
+                active_roster_size=config.active_roster_size,
+                full_roster_size=config.full_roster_size,
+                enable_injuries=config.enable_injuries,
+                games_per_season=real_games_per_team,
+                regress_small_sample_stats=config.regress_small_sample_stats,
+            )
+            seed(team)
+            teams[team_name] = team
+            for warning in team.roster.warnings:
+                status(f"{team_name}: {warning}")
+
+        if missing_teams:
+            raise ValueError(f"No player cards found for scheduled team(s): {missing_teams}. Check team abbreviation mappings.")
+
+        # TAKEOVER: SWAP EACH BUILDER TEAM INTO ITS REPLACED CLUB'S SLOT. THE SCHEDULE BINDS
+        # GAMES TO TEAMS BY ABBREVIATION AND `Standings` KEYS OFF THE SAME DICT, SO KEEPING THE
+        # CLUB'S KEY IS ALL IT TAKES TO INHERIT ITS SCHEDULE, DIVISION AND OPPONENTS. ONLY THE
+        # DISPLAY IDENTITY (NAME/COLORS) DIFFERS, AND `from_builder_team` ALREADY SETS THAT.
+        # `all_takeovers` MERGES THE LEGACY SINGLE-TAKEOVER FIELDS (A TEAM CHALLENGE RUN) WITH
+        # `takeovers` (AN OPEN SIM), SO A SINGLE LOOP HANDLES ANY NUMBER OF SWAPS.
+        for replaced_abbr, builder_team in config.all_takeovers.items():
+            if replaced_abbr not in teams:
+                raise ValueError(
+                    f"Cannot take over '{replaced_abbr}' in {config.year} - not a team that season. "
+                    f"Options: {sorted(teams.keys())}"
+                )
+            cards = self._load_builder_team_cards(builder_team)
+            status(f"Replacing {replaced_abbr} with '{builder_team.name}' ({len(cards)} cards)")
+            teams[replaced_abbr] = SimTeam.from_builder_team(
+                team=builder_team,
+                cards=cards,
+                year=config.year,
+                league=self.schedule.team_leagues.get(replaced_abbr),
+                name_override=replaced_abbr,
+                manager=config.all_manager_preferences.get(replaced_abbr),
+            )
+            seed(teams[replaced_abbr])
+
+        self.seeded_records = seed_records
+
+        if config.enable_injuries:
+            for team in teams.values():
+                # A TAKEOVER TEAM HAS NO `Roster` (NO 40-MAN, NO RESERVES), WHICH IS THE SAME SCOPE
+                # GUARD EVERY OTHER ROSTER/INJURY HOOK USES. IT SIMPLY PLAYS THE SEASON INJURY-FREE.
+                if team.roster is None:
+                    continue
+                team.roster.build_profiles(
+                    team=team,
+                    games_per_team=self.schedule.games_per_team,
+                    real_games_per_team=real_games_per_team,
+                    games_per_day=self.schedule.games_per_day,
+                    severity=config.injury_severity_multiplier,
+                    rotation_size=team.roster.ACTIVE_ROTATION,
+                )
+
+        return teams
+
+    # ------------------------------------------------------------------
+    # RESULTS
+    # ------------------------------------------------------------------
+
+    def _build_result(self, started_at: datetime, standings_result) -> SeasonSimulationResult:
+        config = self.config
+        ended_at = datetime.now()
+
+        schedule_length = self.schedule.schedule_length or len(self.schedule.games)
+        original_schedule_length = self.schedule.original_schedule_length or schedule_length
+        if config.resume_from_real_season and config.merge_real_stats:
+            # A MERGED STAT LINE COVERS THE WHOLE SEASON (REAL PORTION + SIMULATED REMAINDER), NOT
+            # JUST THE GAMES ACTUALLY SIMULATED HERE - SO UNLIKE A PLAIN RESUME (SEEDED STANDINGS,
+            # NO STAT MERGE), QUALIFYING THRESHOLDS STAY AT THEIR FULL-SEASON VALUES RATHER THAN
+            # SCALING DOWN BY schedule_length / original_schedule_length.
+            stats_min_ip, stats_min_ip_rp, stats_min_pa = 60, 30, 250
+        else:
+            stats_min_ip = int(60 * schedule_length / max(original_schedule_length, 1))
+            stats_min_ip_rp = int(30 * schedule_length / max(original_schedule_length, 1))
+            stats_min_pa = int(250 * schedule_length / max(original_schedule_length, 1))
+
+        league_totals = {
+            player_type.value: self.league_stats.aggregated_stats(type=player_type)
+            for player_type in [PlayerType.HITTER, PlayerType.PITCHER]
+        }
+
+        real_league_averages = {}
+        woba_weights = {}
+        if not config.is_tournament:
+            for player_type in [PlayerType.HITTER, PlayerType.PITCHER]:
+                try:
+                    real_league_averages[player_type.value] = load_real_league_avgs(year=config.year, type=player_type)
+                except (ValueError, FileNotFoundError):
+                    continue
+        try:
+            woba_weights = load_woba_weights(year=config.year)
+        except FileNotFoundError:
+            pass
+
+        transactions = sorted(
+            (t for team in self.standings.teams.values() if team.roster for t in team.roster.transactions),
+            key=lambda t: (t.date, t.team),
+        )
+
+        return SeasonSimulationResult(
+            config=config,
+            started_at=started_at,
+            ended_at=ended_at,
+            schedule_length=schedule_length,
+            original_schedule_length=original_schedule_length,
+            stats_min_pa=stats_min_pa,
+            stats_min_ip=stats_min_ip,
+            stats_min_ip_rp=stats_min_ip_rp,
+            standings=standings_result,
+            player_stats=list(self.league_stats.stats.values()),
+            league_totals=league_totals,
+            real_league_averages=real_league_averages,
+            woba_weights=woba_weights,
+            games=[game.as_result() for game in self.schedule.games if game.is_game_over],
+            postseason=self.postseason.as_result() if self.postseason else None,
+            transactions=transactions,
+            deadline_trades=self.deadline_trades,
+            seeded_records=self.seeded_records,
+            real_stats_as_of=self.real_stats_as_of,
+        )

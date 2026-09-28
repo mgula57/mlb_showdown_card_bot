@@ -4,11 +4,66 @@ from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
+from .lineup import LineupBuilder, LineupCandidate
+
 
 class CardSource(str, Enum):
     BOT    = "BOT"     # card_bot archive (official Showdown Bot cards)
-    WOTC   = "WOTC"    # card_wotc table (WOTC + WBC cards)
+    WOTC   = "WOTC"    # card_wotc table (WOTC cards)
+    WBC    = "WBC"     # card_wbc table (World Baseball Classic cards)
     CUSTOM = "CUSTOM"  # internal.log_custom_card (user's own generated cards)
+
+
+# Sets a team can allow, per card source. WOTC only ever printed 2000-2005 —
+# CLASSIC and EXPANDED are Showdown Bot sets.
+WOTC_SETS = ['2000', '2001', '2002', '2003', '2004', '2005']
+BOT_SETS  = WOTC_SETS + ['CLASSIC', 'EXPANDED']
+
+# Card sources the team builder lets you draft from. WBC cards exist in the archive but are
+# not draftable, so a synthesized roster made of them carries no source restriction.
+DRAFTABLE_CARD_SOURCES = (CardSource.BOT.value, CardSource.WOTC.value, CardSource.CUSTOM.value)
+# Bot and Custom cards are each generated against exactly one baseline set, so those sources
+# pin to a single set; WOTC sets were printed alongside each other and combine freely.
+_SINGLE_SET_SOURCES = (CardSource.BOT.value, CardSource.CUSTOM.value)
+
+
+def infer_allowed_sets_from_cards(cards) -> dict:
+    """Derive the set / source restrictions for a synthesized read-only team (a real MLB or
+    All-Star roster) from the cards it is built from.
+
+    Those teams are composed straight from the card archive and would otherwise carry no
+    restrictions at all, so forking one produced an "all sources / all sets" copy. Scoping the
+    copy to what the roster actually uses is almost always what the user wants.
+
+    Only draftable sources are emitted; a single-set source is only pinned when the roster is
+    uniform for it. Returns a dict ready to splat into ``Team(...)`` — empty lists/maps when
+    nothing can be inferred.
+    """
+    by_source: dict[str, list[str]] = {}
+    for card in cards:
+        source = (getattr(card, 'source', None) or CardSource.BOT.value).upper()
+        if source not in DRAFTABLE_CARD_SOURCES:
+            continue
+        card_set = getattr(card, 'showdown_set', None)
+        if not card_set:
+            continue
+        sets = by_source.setdefault(source, [])
+        if card_set not in sets:
+            sets.append(card_set)
+
+    sets_by_source = {
+        source: sets
+        for source, sets in by_source.items()
+        if sets and not (source in _SINGLE_SET_SOURCES and len(sets) != 1)
+    }
+    if not sets_by_source:
+        return {'allowed_card_sources': [], 'allowed_sets_by_source': {}, 'allowed_sets': []}
+
+    return {
+        'allowed_card_sources': sorted(sets_by_source),
+        'allowed_sets_by_source': sets_by_source,
+        'allowed_sets': sorted({s for sets in sets_by_source.values() for s in sets}),
+    }
 
 
 class PickSource(str, Enum):
@@ -21,6 +76,7 @@ class TeamSource(str, Enum):
     USER     = "user"
     OFFICIAL = "official"
     ASG      = "asg"
+    MLB      = "mlb"  # synthesized on-the-fly from a real MLB/WBC roster + card archive, never persisted
 
 
 class TeamRosterSlot(BaseModel):
@@ -34,19 +90,108 @@ class TeamRosterSlot(BaseModel):
 class LineupSlot(BaseModel):
     card_id: str
     card_source: CardSource
-    field_position: str       # "C","1B","2B","3B","SS","LF","CF","RF","SP","DH"
-    batting_order: Optional[int] = None  # 1–9, None for pitchers/DH
+    field_position: str  # "C","1B","2B","3B","SS","LF","CF","RF","SP","DH" — derived from
+                         # the roster on read, never stored on the lineup itself
+    batting_order: int   # 1–9
 
 
 class Lineup(BaseModel):
     name: str = "Default"
+    index: int = 0
     slots: list[LineupSlot] = []
 
 
 class PitcherAssignment(BaseModel):
     card_id: str
     card_source: CardSource
-    role: str  # "SP1"–"SP5", "CP", "SU", "MR", "LONG"
+    role: str  # "SP1"–"SP5", "RP", "CL"
+
+
+# Roster positions map 1:1 onto lineup field positions and rotation roles, so a team's
+# defensive alignment and rotation are derived from the roster rather than stored.
+# Lineups (batting order only) are the one piece that is stored, and only when the user
+# creates one — the "Default" lineup below is always recomputed.
+FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
+# The builder supports up to MAX_STARTERS rotation slots (SP1..SP10). A team's active
+# rotation is ROTATION_ROLES[:num_starters]; num_starters defaults to 5 but larger
+# rosters allow more. Keep in sync with ROTATION_ROLES in frontend/src/api/userTeams.ts.
+MAX_STARTERS    = 10
+ROTATION_ROLES  = [f'SP{i}' for i in range(1, MAX_STARTERS + 1)]
+BULLPEN_ROLES   = ['RP', 'CL']
+PITCHER_ROLES   = ROTATION_ROLES + BULLPEN_ROLES
+DEFAULT_LINEUP_NAME = 'Default'
+
+
+def _lineup_candidates(roster: list[dict]) -> tuple[list[LineupCandidate], Optional[LineupCandidate]]:
+    """Split the roster into batting-order candidates plus the pitcher who bats when
+    there is no DH. Stats come from the widened card LATERALs in _TEAM_BASE_SELECT and
+    are absent for WBC/CUSTOM cards."""
+    def candidate(slot: dict, field_position: str) -> LineupCandidate:
+        return LineupCandidate(
+            card_id=slot['card_id'],
+            card_source=slot['card_source'],
+            field_position=field_position,
+            command=slot.get('command'),
+            outs=slot.get('outs'),
+            speed=slot.get('speed'),
+            points=slot.get('points'),
+            onbase_perc=slot.get('onbase_perc'),
+            slugging_perc=slot.get('slugging_perc'),
+        )
+
+    hitters = [candidate(s, s['roster_position']) for s in roster if s.get('roster_position') in FIELD_POSITIONS]
+
+    # A pitcher only takes an at-bat when the DH slot is empty.
+    pitcher = None
+    if not any(h.field_position == 'DH' for h in hitters):
+        ace = next((s for s in roster if s.get('roster_position') == 'SP1'), None)
+        if ace:
+            pitcher = candidate(ace, 'SP')
+
+    return hitters, pitcher
+
+
+def derive_lineups_rotation(roster: list[dict], stored_lineups: Optional[list[dict]] = None) -> tuple[list[dict], list[dict]]:
+    """Rebuild the lineups and rotation for a team.
+
+    Lineups: the computed 'Default' batting order always sits at index 0, followed by any
+    user-created lineups. Stored lineups carry only (card_id, batting_order), so each slot's
+    `field_position` is resolved here from the roster.
+
+    Rotation: starters ordered by role (SP1..SP5), then the bullpen in roster order — which
+    is `sort_order`, since the roster arrives ORDER BY sort_order.
+    """
+    default_slots = LineupBuilder(*_lineup_candidates(roster)).build()
+    lineups: list[dict] = [{'name': DEFAULT_LINEUP_NAME, 'index': 0, 'slots': default_slots}]
+
+    position_by_card = {s['card_id']: s.get('roster_position') for s in roster}
+    for i, lineup in enumerate(stored_lineups or [], start=1):
+        slots = [
+            {
+                'card_id': slot['card_id'],
+                'card_source': slot['card_source'],
+                'field_position': position_by_card.get(slot['card_id']) or 'DH',
+                'batting_order': slot['batting_order'],
+            }
+            for slot in sorted(lineup.get('slots') or [], key=lambda s: s['batting_order'])
+            # A player dropped from the roster since this lineup was saved is skipped.
+            if slot['card_id'] in position_by_card
+        ]
+        lineups.append({'name': lineup['name'], 'index': i, 'slots': slots})
+
+    starters = [s for s in roster if s.get('roster_position') in ROTATION_ROLES]
+    starters.sort(key=lambda s: ROTATION_ROLES.index(s['roster_position']))
+    # The bullpen has no meaningful per-slot role or order — it's drafted free-form and any
+    # legacy 'CL' collapses to a plain 'RP'. Ordered by card points descending so every read
+    # path (builder, sim, MLB-derived teams) sees the same alignment.
+    bullpen = [s for s in roster if s.get('roster_position') in BULLPEN_ROLES]
+    bullpen.sort(key=lambda s: s.get('points') or 0, reverse=True)
+    rotation = (
+        [{'card_id': s['card_id'], 'card_source': s['card_source'], 'role': s['roster_position']} for s in starters]
+        + [{'card_id': s['card_id'], 'card_source': s['card_source'], 'role': 'RP'} for s in bullpen]
+    )
+
+    return lineups, rotation
 
 
 class Team(BaseModel):
@@ -57,6 +202,9 @@ class Team(BaseModel):
     primary_color: str = "rgb(0,0,0)"
     secondary_color: str = "rgb(255,255,255)"
     is_public: bool = False
+    # Owner-toggled "hide this team". Archived teams drop out of the owner's list and every
+    # public listing; unarchiving restores their prior visibility.
+    is_archived: bool = False
     source: TeamSource = TeamSource.USER
     # Roster constraint settings (flat columns in DB)
     pts_limit: Optional[int] = None
@@ -65,11 +213,34 @@ class Team(BaseModel):
     min_bullpen: int = 5
     num_starters: int = 5
     bench_pts_multiplier: float = 1.0
-    # Set / source restrictions
+    # Set / source restrictions. `allowed_sets_by_source` is the source of truth — Bot cards exist
+    # in every set so a team pins one, while WOTC sets are combinable. `allowed_sets` is kept as
+    # the flattened union for list views and for teams saved before the per-source split.
     allowed_sets: list[str] = []
+    allowed_sets_by_source: dict[str, list[str]] = {}
     allowed_card_sources: list[str] = []
+    # Which challenge_template this team was built for, if any (the challenge "New Team" route
+    # sets this; a team picked via the "use an existing team" route leaves it as-is).
+    origin_template_id: Optional[str] = None
+    # How the team was first created, for later filtering: 'new_team', 'challenge', 'fork'.
+    # None for teams predating this field / admin inserts.
+    creation_source: Optional[str] = None
+    # Curation metadata — only set on admin-published (`source == 'official'`) teams. A team
+    # belongs to at most one collection (see internal.team_collection); `subtitle` / `credit`
+    # are the display blurb and attribution shown on the tile and detail header. Audit fields
+    # record which admin published it and from which working copy.
+    collection_slug: Optional[str] = None
+    subtitle: Optional[str] = None
+    credit: Optional[str] = None
+    collection_sort_index: Optional[int] = None
+    published_by: Optional[str] = None
+    published_at: Optional[datetime] = None
+    origin_published_from: Optional[str] = None
     # JSONB columns
     player_filters: dict = {}
+    # Strategy-deck card counts for a curated team ({"Great Throw": 3, ...}). Stored as-is;
+    # not modelled further. Empty for teams built in the drafting flow.
+    strategy_deck: dict = {}
     roster: list[TeamRosterSlot] = []
     lineups: list[Lineup] = []
     rotation: list[PitcherAssignment] = []
@@ -94,6 +265,23 @@ class Team(BaseModel):
     def bullpen(self) -> list[TeamRosterSlot]:
         return [s for s in self.roster if s.roster_position.upper() == "RP"]
 
+    def sets_for_source(self, source: str) -> list[str]:
+        """Sets allowed when drafting from one card source.
+
+        Teams saved before the per-source split have no map entry and fall back to their flat
+        `allowed_sets`, narrowed to what that source could have produced. An empty result means
+        no set restriction for that source.
+        """
+        source = source.upper()
+        stored = self.allowed_sets_by_source.get(source)
+        if stored is not None:
+            return stored
+        valid = WOTC_SETS if source == 'WOTC' else BOT_SETS
+        legacy = [s for s in self.allowed_sets if s in valid]
+        # Bot and Custom cards are each generated against exactly one baseline set, so those
+        # sources pin to a single set; WOTC sets were printed alongside each other and combine freely.
+        return legacy[:1] if source in ('BOT', 'CUSTOM') else legacy
+
     def to_db_dict(self) -> dict:
         """Serialize to a flat dict suitable for DB insertion/update."""
         return {
@@ -102,6 +290,7 @@ class Team(BaseModel):
             'primary_color': self.primary_color,
             'secondary_color': self.secondary_color,
             'is_public': self.is_public,
+            'is_archived': self.is_archived,
             'source': self.source.value,
             'pts_limit': self.pts_limit,
             'roster_size': self.roster_size,
@@ -110,19 +299,37 @@ class Team(BaseModel):
             'num_starters': self.num_starters,
             'bench_pts_multiplier': self.bench_pts_multiplier,
             'allowed_sets': self.allowed_sets,
+            'allowed_sets_by_source': self.allowed_sets_by_source,
             'allowed_card_sources': self.allowed_card_sources,
+            'origin_template_id': self.origin_template_id,
+            'creation_source': self.creation_source,
+            'collection_slug': self.collection_slug,
+            'subtitle': self.subtitle,
+            'credit': self.credit,
+            'collection_sort_index': self.collection_sort_index,
+            'published_by': self.published_by,
+            'published_at': self.published_at,
+            'origin_published_from': self.origin_published_from,
+            'strategy_deck': self.strategy_deck,
             'player_filters': self.player_filters,
             'roster': [s.model_dump() for s in self.roster],
-            'lineups': [
-                {'name': ln.name, 'slots': [sl.model_dump() for sl in ln.slots]}
-                for ln in self.lineups
-            ],
-            'rotation': [p.model_dump() for p in self.rotation],
+            'lineups': [ln.model_dump() for ln in self.stored_lineups],
         }
+
+    @property
+    def stored_lineups(self) -> list['Lineup']:
+        """User-created lineups only — the computed 'Default' is never persisted."""
+        return [ln for ln in self.lineups if ln.name != DEFAULT_LINEUP_NAME]
 
     @classmethod
     def from_db_row(cls, row: dict) -> 'Team':
-        """Deserialize from a DB row dict (as returned by RealDictCursor)."""
+        """Deserialize from a DB row dict (as returned by RealDictCursor).
+
+        The rotation and the 'Default' lineup are derived from the roster; only
+        user-created lineups come off the row.
+        """
+        roster_rows = row.get('roster') or []
+        derived_lineups, derived_rotation = derive_lineups_rotation(roster_rows, row.get('lineups'))
         return cls(
             team_id=str(row['team_id']),
             user_id=row.get('user_id'),
@@ -131,6 +338,7 @@ class Team(BaseModel):
             primary_color=row.get('primary_color', 'rgb(0,0,0)'),
             secondary_color=row.get('secondary_color', 'rgb(255,255,255)'),
             is_public=row.get('is_public', False),
+            is_archived=row.get('is_archived', False),
             source=row.get('source', TeamSource.USER),
             pts_limit=row.get('pts_limit'),
             roster_size=row.get('roster_size', 25),
@@ -139,14 +347,29 @@ class Team(BaseModel):
             num_starters=row.get('num_starters', 5),
             bench_pts_multiplier=row.get('bench_pts_multiplier', 1.0),
             allowed_sets=row.get('allowed_sets') or [],
+            allowed_sets_by_source=row.get('allowed_sets_by_source') or {},
             allowed_card_sources=row.get('allowed_card_sources') or [],
+            origin_template_id=row.get('origin_template_id'),
+            creation_source=row.get('creation_source'),
+            collection_slug=row.get('collection_slug'),
+            subtitle=row.get('subtitle'),
+            credit=row.get('credit'),
+            collection_sort_index=row.get('collection_sort_index'),
+            published_by=row.get('published_by'),
+            published_at=row.get('published_at'),
+            origin_published_from=row.get('origin_published_from'),
+            strategy_deck=row.get('strategy_deck') or {},
             player_filters=row.get('player_filters') or {},
-            roster=[TeamRosterSlot(**s) for s in (row.get('roster') or [])],
+            roster=[TeamRosterSlot(**s) for s in roster_rows],
             lineups=[
-                Lineup(name=ln['name'], slots=[LineupSlot(**sl) for sl in ln.get('slots', [])])
-                for ln in (row.get('lineups') or [])
+                Lineup(
+                    name=ln['name'],
+                    index=ln['index'],
+                    slots=[LineupSlot(**sl) for sl in ln.get('slots', [])],
+                )
+                for ln in derived_lineups
             ],
-            rotation=[PitcherAssignment(**p) for p in (row.get('rotation') or [])],
+            rotation=[PitcherAssignment(**p) for p in derived_rotation],
             created_at=row.get('created_at'),
             updated_at=row.get('updated_at'),
         )

@@ -31,10 +31,16 @@ class GamesClient(BaseMLBClient):
         decisions_raw = live_data.get("decisions", {})
         plays_raw = live_data.get("plays", {})
 
+        official_date = game_data.get("datetime", {}).get("officialDate")
+        try:
+            game_year = int(official_date[:4]) if official_date else None
+        except ValueError:
+            game_year = None
+
         def _extract_team_info(side: str) -> dict:
             team_raw = game_data.get("teams", {}).get(side, {})
             abbreviation = team_raw.get("abbreviation", "")
-            team_match = ShowdownTeam.map_from_mlb_api_team(abbreviation)
+            team_match = ShowdownTeam.map_from_mlb_api_team(abbreviation, year=game_year)
             return {
                 "id": team_raw.get("id"),
                 "name": team_raw.get("name"),
@@ -73,11 +79,16 @@ class GamesClient(BaseMLBClient):
                         "at_bats": b_stats.get("atBats", 0),
                         "runs": b_stats.get("runs", 0),
                         "hits": b_stats.get("hits", 0),
+                        "doubles": b_stats.get("doubles", 0),
+                        "triples": b_stats.get("triples", 0),
                         "rbi": b_stats.get("rbi", 0),
                         "base_on_balls": b_stats.get("baseOnBalls", 0),
                         "strike_outs": b_stats.get("strikeOuts", 0),
                         "home_runs": b_stats.get("homeRuns", 0),
                         "stolen_bases": b_stats.get("stolenBases", 0),
+                        "caught_stealing": b_stats.get("caughtStealing", 0),
+                        "ground_into_double_play": b_stats.get("groundIntoDoublePlay", 0),
+                        "plate_appearances": b_stats.get("plateAppearances", 0),
                         "left_on_base": b_stats.get("leftOnBase", 0),
                     },
                     "season_stats": {
@@ -185,21 +196,37 @@ class GamesClient(BaseMLBClient):
                 "link": d.get("link", ""),
             }
         
+        def _extract_play(play: dict) -> dict:
+            """Trim a single raw play down to the fields the frontend needs: result, matchup,
+            about, and count (for the post-play out count)."""
+            return {
+                "result": play.get("result", {}),
+                "matchup": play.get("matchup", {}),
+                "about": play.get("about", {}),
+                "count": play.get("count", {}),
+            }
+
         def _extract_most_recent_play(plays: dict) -> dict | None:
-            """Extract details of the most recent play from the plays data. Only include result and matchup details, not the full play-by-play info."""
+            """Extract details of the most recent play from the plays data."""
             all_plays = plays.get("allPlays", [])
             if not all_plays:
                 return None
-            if len(all_plays) == 0:
+            return _extract_play(all_plays[-1])
+
+        def _extract_all_plays(plays: dict) -> list[dict]:
+            """Full play-by-play list (one entry per plate appearance), oldest first."""
+            return [_extract_play(p) for p in plays.get("allPlays", [])]
+
+        def _person(node: dict | None) -> dict | None:
+            """Trim a linescore offense/defense slot to id + name. None when the slot is empty
+            (base unoccupied, no on-deck hitter between innings, defense not yet set)."""
+            if not node or not node.get("id"):
                 return None
-            most_recent = all_plays[-1]
-            return {
-                "result": most_recent.get("result", {}),
-                "matchup": most_recent.get("matchup", {}),
-                "about": most_recent.get("about", {}),
-            }
+            return {"id": node.get("id"), "full_name": node.get("fullName", "")}
 
         # Linescore
+        ls_offense = linescore_raw.get("offense") or {}
+        ls_defense = linescore_raw.get("defense") or {}
         innings = []
         for inn in linescore_raw.get("innings", []):
             innings.append({
@@ -213,6 +240,7 @@ class GamesClient(BaseMLBClient):
 
         return {
             "game_pk": game_pk,
+            "game_type": game_data.get("game", {}).get("type"),
             "status": {
                 "abstract_game_state": game_data.get("status", {}).get("abstractGameState"),
                 "coded_game_state": game_data.get("status", {}).get("codedGameState"),
@@ -239,16 +267,19 @@ class GamesClient(BaseMLBClient):
                 "balls": linescore_raw.get("balls"),
                 "strikes": linescore_raw.get("strikes"),
                 "offense": {
-                    "batter": (linescore_raw.get("offense") or {}).get("batter", {}).get("fullName"),
-                    "batter_id": (linescore_raw.get("offense") or {}).get("batter", {}).get("id"),
-                    "on_deck": (linescore_raw.get("offense") or {}).get("onDeck", {}).get("fullName"),
-                    "first": (linescore_raw.get("offense") or {}).get("first", {}).get("fullName"),
-                    "second": (linescore_raw.get("offense") or {}).get("second", {}).get("fullName"),
-                    "third": (linescore_raw.get("offense") or {}).get("third", {}).get("fullName"),
+                    slot: _person(ls_offense.get(raw_key))
+                    for slot, raw_key in (
+                        ("batter", "batter"), ("on_deck", "onDeck"), ("in_hole", "inHole"),
+                        ("first", "first"), ("second", "second"), ("third", "third"),
+                    )
                 },
                 "defense": {
-                    "pitcher": (linescore_raw.get("defense") or {}).get("pitcher", {}).get("fullName"),
-                    "pitcher_id": (linescore_raw.get("defense") or {}).get("pitcher", {}).get("id"),
+                    slot: _person(ls_defense.get(raw_key))
+                    for slot, raw_key in (
+                        ("pitcher", "pitcher"), ("catcher", "catcher"), ("first", "first"),
+                        ("second", "second"), ("third", "third"), ("shortstop", "shortstop"),
+                        ("left", "left"), ("center", "center"), ("right", "right"),
+                    )
                 },
                 "innings": innings,
                 "teams": {
@@ -278,7 +309,72 @@ class GamesClient(BaseMLBClient):
                 if pitcher
             },
             "most_recent_play": _extract_most_recent_play(plays_raw),
+            "plays": _extract_all_plays(plays_raw),
         }
+
+    def get_all_star_rosters(self, season: int, sport_id: int = 1) -> list[dict]:
+        """Return All-Star Game participants for a season, split by league (AL/NL).
+
+        Locates the season's All-Star Game via ``gameType=A`` on the schedule, then reads the
+        game's live feed to extract each team's participants with their real starting lineup
+        position, batting order, and starting pitcher. Each returned row:
+        ``{league, mlb_id, player_name, position, batting_order, is_starter, is_starting_pitcher}``.
+
+        Returns an empty list if no All-Star Game is found for the season.
+        """
+        schedule = self.get_schedule(sport_id=sport_id, season=season, game_type="A", use_date=False)
+
+        game_pk: Optional[int] = None
+        for date_block in (schedule.dates or []):
+            for game in (date_block.games or []):
+                game_pk = game.game_pk
+                break
+            if game_pk is not None:
+                break
+        if game_pk is None:
+            return []
+
+        raw = self._make_request(f"../v1.1/game/{game_pk}/feed/live")
+        game_data = raw.get("gameData", {})
+        boxscore = raw.get("liveData", {}).get("boxscore", {})
+
+        # MLB league ids: 103 = American League, 104 = National League.
+        def _league_for_side(side: str) -> str:
+            league = game_data.get("teams", {}).get(side, {}).get("league", {}) or {}
+            if league.get("id") == 103:
+                return "AL"
+            if league.get("id") == 104:
+                return "NL"
+            name = (league.get("name") or "").lower()
+            return "AL" if "american" in name else "NL"
+
+        rows: list[dict] = []
+        for side in ("away", "home"):
+            league = _league_for_side(side)
+            team_box = boxscore.get("teams", {}).get(side, {})
+            players = team_box.get("players", {}) or {}
+            batting_order_ids: list[int] = team_box.get("battingOrder", []) or []
+            pitcher_ids: list[int] = team_box.get("pitchers", []) or []
+            starting_pitcher_id = pitcher_ids[0] if pitcher_ids else None
+            starter_batting_order = {pid: i + 1 for i, pid in enumerate(batting_order_ids)}
+
+            for key, player in players.items():
+                person = player.get("person") or {}
+                mlb_id = person.get("id")
+                if mlb_id is None:
+                    continue
+                position = (player.get("position") or {}).get("abbreviation")
+                is_starter = mlb_id in starter_batting_order
+                rows.append({
+                    "league": league,
+                    "mlb_id": mlb_id,
+                    "player_name": person.get("fullName"),
+                    "position": position,
+                    "batting_order": starter_batting_order.get(mlb_id),
+                    "is_starter": is_starter,
+                    "is_starting_pitcher": mlb_id == starting_pitcher_id,
+                })
+        return rows
 
     def _resolve_target_date(self, date_str: Optional[str], tz_name: str) -> dt_date:
         if date_str:
@@ -343,18 +439,29 @@ class GamesClient(BaseMLBClient):
         use_date_window: bool = True,
         include_linescore: bool = False,
         include_decisions: bool = False,
+        game_type: Optional[str] = None,
+        use_date: bool = True,
     ) -> Schedule:
-        """Get schedule for a local day (US-safe by default), with optional probable pitchers."""
+        """Get schedule for a local day (US-safe by default), with optional probable pitchers.
+
+        ``game_type`` filters to a single MLB game type (e.g. ``"A"`` for the All-Star Game).
+        Pass ``use_date=False`` to query the whole season (no date/date-window params) — needed
+        when locating a season-unique game like the ASG whose date isn't known in advance.
+        """
         params = {"sportId": sport_id}
 
         if season:
             params["season"] = season
         if league_ids:
             params["leagueIds"] = league_ids
+        if game_type:
+            params["gameType"] = game_type
 
         target_date = self._resolve_target_date(date, tz_name)
 
-        if use_date_window:
+        if not use_date:
+            use_date_window = False
+        elif use_date_window:
             start_date, end_date = self._build_window(target_date)
             params["startDate"] = start_date
             params["endDate"] = end_date
@@ -379,3 +486,30 @@ class GamesClient(BaseMLBClient):
             )
 
         return Schedule(**response)
+
+    def get_season_schedule(self, season: int, sport_id: int = 1, game_types: list[str] = ["R"]) -> Schedule:
+        """Get every game for a season (regular season only by default).
+
+        Returns a Schedule with `games` flattened across all dates, ordered by date.
+        Postponed/cancelled games are excluded so per-team game counts stay accurate.
+        """
+        params = {
+            "sportId": sport_id,
+            "season": season,
+            "startDate": f"{season}-01-01",
+            "endDate": f"{season}-12-31",
+            "gameTypes": ",".join(game_types),
+            "hydrate": "team",
+        }
+        response = self._make_request("/schedule", params=params)
+        schedule = Schedule(**response)
+
+        excluded_states = {"Postponed", "Cancelled", "Suspended"}
+        games: list[GameScheduled] = []
+        for schedule_date in (schedule.dates or []):
+            for game in (schedule_date.games or []):
+                if game.status and game.status.detailed_state in excluded_states:
+                    continue
+                games.append(game)
+        schedule.games = games
+        return schedule

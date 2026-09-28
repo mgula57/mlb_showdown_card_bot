@@ -28,14 +28,20 @@ class Team(BaseModel):
         return v
     
     @property
-    def bref_team(self) -> Optional[str]:
+    def _season_int(self) -> Optional[int]:
+        try:
+            return int(self.season) if self.season is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def bref_team(self, year: Optional[int] = None) -> Optional[str]:
         """Helper property to get the Baseball Reference team code for this team, which is used in various places in the frontend."""
         if self.abbreviation:
-            showdown_team_match = ShowdownTeam.map_from_mlb_api_team(self.abbreviation)
+            showdown_team_match = ShowdownTeam.map_from_mlb_api_team(self.abbreviation, year=year or self._season_int)
             if showdown_team_match and showdown_team_match != ShowdownTeam.MLB:
                 return showdown_team_match.value
         return None
-    
+
 class TeamWithColors(Team):
     """Extension of Team model that includes primary and secondary colors for the team. These colors are used for styling purposes in the frontend."""
     
@@ -46,8 +52,8 @@ class TeamWithColors(Team):
     def load_colors_from_showdown_team(self):
         """Helper method to load primary and secondary colors from a ShowdownTeam object"""
         # Match the team ID to the corresponding ShowdownTeam and load colors
-        showdown_team_match = ShowdownTeam.map_from_mlb_api_team(self.abbreviation)
-    
+        showdown_team_match = ShowdownTeam.map_from_mlb_api_team(self.abbreviation, year=self._season_int)
+
         if showdown_team_match and showdown_team_match != ShowdownTeam.MLB:
             self.primary_color = f"rgb({showdown_team_match.primary_color[0]}, {showdown_team_match.primary_color[1]}, {showdown_team_match.primary_color[2]})"
             self.secondary_color = f"rgb({showdown_team_match.secondary_color[0]}, {showdown_team_match.secondary_color[1]}, {showdown_team_match.secondary_color[2]})"

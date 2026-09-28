@@ -24,9 +24,10 @@ import { useSiteSettings, useTheme, showdownSets } from '../shared/SiteSettingsC
 import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import CustomSelect from '../shared/CustomSelect';
-import { uploadAvatar, removeAvatar, validateAvatarFile } from '../../api/userAvatar';
+import { uploadAvatar, removeAvatar, validateAvatarFile, AVATAR_ACCEPT } from '../../api/userAvatar';
 import AvatarCropModal from './AvatarCropModal';
 import { AccountAvatar } from '../auth/AccountIcon';
+import ColorPicker from '../shared/ColorPicker';
 
 /**
  * Account Page Component
@@ -100,19 +101,6 @@ const AccountPage: React.FC = () => {
             month: 'long',
             day: 'numeric'
         });
-    };
-
-    /**
-     * Get user initials for avatar
-     */
-    const getUserInitials = () => {
-        if (!user?.email) return '?';
-        const email = user.email;
-        const parts = email.split('@')[0].split('.');
-        if (parts.length > 1) {
-            return (parts[0][0] + parts[1][0]).toUpperCase();
-        }
-        return email.substring(0, 2).toUpperCase();
     };
 
     const validateUsername = (value: string) => {
@@ -285,7 +273,7 @@ const AccountPage: React.FC = () => {
                                 ref={avatarInputRef}
                                 id="avatar-upload"
                                 type="file"
-                                accept="image/*"
+                                accept={AVATAR_ACCEPT}
                                 disabled={isUploadingAvatar}
                                 className="hidden"
                                 onChange={handleAvatarFileChange}
@@ -464,6 +452,26 @@ const AccountPage: React.FC = () => {
                             
                             <p className="text-xs text-gray-500 mt-2">
                                 Your preferred Showdown set for card generation
+                            </p>
+                        </div>
+
+                        {/* Default Team Colors */}
+                        <div>
+                            <label className="text-sm font-medium text-secondary block mb-2">Default Team Colors</label>
+                            <div className="flex items-center gap-6">
+                                <ColorPicker
+                                    label="Primary Color"
+                                    value={userSettings?.default_primary_color ?? '#1a3b5f'}
+                                    onChange={v => syncSetting({ default_primary_color: v })}
+                                />
+                                <ColorPicker
+                                    label="Secondary Color"
+                                    value={userSettings?.default_secondary_color ?? '#9a362f'}
+                                    onChange={v => syncSetting({ default_secondary_color: v })}
+                                />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                Used as the starting colors when creating a new team
                             </p>
                         </div>
                     </div>

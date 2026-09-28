@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-type SnapPoint = 'closed' | 'peek' | 'expanded';
+export type SnapPoint = 'closed' | 'peek' | 'expanded';
 
 type BottomSheetProps = {
     isOpen: boolean;
@@ -13,6 +13,19 @@ type BottomSheetProps = {
      * instead of closing. Defaults to true.
      */
     dismissible?: boolean;
+    /**
+     * Change this value (e.g. pass a new object/id) to force the sheet to snap
+     * to 'expanded' — used to spring the sheet open when a new slot is picked.
+     */
+    expandTrigger?: unknown;
+    /**
+     * Optional element rendered inside the drag handle, below the grabber bar
+     * (and title, if any). Shares the handle's drag behavior.
+     */
+    handleContent?: React.ReactNode;
+    /** Called whenever the sheet settles on a snap point — e.g. to swap in a bigger
+     * `handleContent` only once the sheet is actually expanded. */
+    onSnapChange?: (snap: SnapPoint) => void;
 };
 
 /**
@@ -22,8 +35,10 @@ type BottomSheetProps = {
  * Drag the handle up/down to switch; flick to dismiss.
  * Hidden on lg+ (use the desktop panel instead).
  */
-export function BottomSheet({ isOpen, onClose, title, children, dismissible = true }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, title, children, dismissible = true, expandTrigger, handleContent, onSnapChange }: BottomSheetProps) {
     const sheetRef  = useRef<HTMLDivElement>(null);
+    const handleRef = useRef<HTMLDivElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
     const snapRef   = useRef<SnapPoint>('closed');
     const [snapState, setSnapState] = useState<SnapPoint>('closed');
 
@@ -35,6 +50,11 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     const lastY             = useRef(0);
     const lastTime          = useRef(0);
     const velocity          = useRef(0); // px/ms, positive = downward
+    // Timestamp of the last real touch interaction. Browsers replay a synthetic
+    // mousedown/mouseup ~300ms after a touchend for mouse-only-code compatibility;
+    // without this guard that replay re-triggers handleMouseDown and immediately
+    // undoes the tap's snap change.
+    const lastTouchTime     = useRef(0);
 
     // ----------------------------------------------------------------
     // Snap helpers
@@ -67,6 +87,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
         if (!sheet) return;
         snapRef.current = point;
         setSnapState(point);
+        onSnapChange?.(point);
         const px = snapPx(point);
         if (animate) {
             sheet.style.transition = 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)';
@@ -90,10 +111,44 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
-    // Lock body scroll only when fully expanded
+    // Spring the sheet open whenever a new slot is picked
     useEffect(() => {
-        document.body.style.overflow = snapState === 'expanded' ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
+        if (expandTrigger === undefined || expandTrigger === null) return;
+        snapTo('expanded');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expandTrigger]);
+
+    // Lock the background only when fully expanded — a peeking sheet only
+    // covers part of the screen, and the underlying view should stay
+    // scrollable/tappable wherever the touch isn't actually on the sheet
+    // (that part is handled by the sheet's own non-passive touch listeners
+    // below). Once expanded the sheet is meant to be fully modal, so on top
+    // of pinning body scroll (`overflow: hidden` alone isn't reliable on
+    // mobile Safari), also cut pointer-events to everything except the sheet
+    // and backdrop themselves — this is the one guarantee that no tap can
+    // ever reach whatever's behind it, regardless of z-index/layout quirks
+    // in whatever page happens to be rendered underneath.
+    useEffect(() => {
+        if (snapState !== 'expanded') return;
+        const sheet = sheetRef.current;
+        const scrollY = window.scrollY;
+        const body = document.body;
+        const prev = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow, pointerEvents: body.style.pointerEvents };
+        body.style.position = 'fixed';
+        body.style.top = `-${scrollY}px`;
+        body.style.width = '100%';
+        body.style.overflow = 'hidden';
+        body.style.pointerEvents = 'none';
+        if (sheet) sheet.style.pointerEvents = 'auto';
+        return () => {
+            body.style.position = prev.position;
+            body.style.top = prev.top;
+            body.style.width = prev.width;
+            body.style.overflow = prev.overflow;
+            body.style.pointerEvents = prev.pointerEvents;
+            if (sheet) sheet.style.pointerEvents = '';
+            window.scrollTo(0, scrollY);
+        };
     }, [snapState]);
 
     // ----------------------------------------------------------------
@@ -160,18 +215,52 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     }
 
     // ----------------------------------------------------------------
-    // Touch handlers (wired to the drag handle)
+    // Touch handlers — attached as real (non-passive) DOM listeners rather
+    // than JSX props. React registers its synthetic touchmove listener as
+    // passive, so calling preventDefault() from a JSX onTouchMove is a no-op;
+    // without it, iOS Safari can scroll-chain the drag into whatever's behind
+    // the sheet even though `touch-none` is set. A raw listener with
+    // `{ passive: false }` lets preventDefault actually block that.
     // ----------------------------------------------------------------
 
-    const handleTouchStart = (e: React.TouchEvent) => startDrag(e.touches[0].clientY);
-    const handleTouchMove  = (e: React.TouchEvent) => moveDrag(e.touches[0].clientY);
-    const handleTouchEnd   = () => endDrag();
+    function attachDragTouchListeners(el: HTMLElement | null) {
+        if (!el) return () => {};
+        const onTouchStart = (e: TouchEvent) => { lastTouchTime.current = Date.now(); startDrag(e.touches[0].clientY); };
+        const onTouchMove  = (e: TouchEvent) => { e.preventDefault(); moveDrag(e.touches[0].clientY); };
+        const onTouchEnd   = () => endDrag();
+        el.addEventListener('touchstart', onTouchStart, { passive: true });
+        el.addEventListener('touchmove', onTouchMove, { passive: false });
+        el.addEventListener('touchend', onTouchEnd);
+        el.addEventListener('touchcancel', onTouchEnd);
+        return () => {
+            el.removeEventListener('touchstart', onTouchStart);
+            el.removeEventListener('touchmove', onTouchMove);
+            el.removeEventListener('touchend', onTouchEnd);
+            el.removeEventListener('touchcancel', onTouchEnd);
+        };
+    }
+
+    // The handle always drags, regardless of snap state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => attachDragTouchListeners(handleRef.current), []);
+
+    // The content area only drags while collapsed (peek); once expanded it's
+    // a normal scroll surface, so we detach the drag listeners entirely.
+    useEffect(() => {
+        if (snapState === 'expanded') return;
+        return attachDragTouchListeners(contentRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [snapState]);
 
     // ----------------------------------------------------------------
     // Mouse handlers — mousedown on handle, move/up on document
     // ----------------------------------------------------------------
 
     const handleMouseDown = (e: React.MouseEvent) => {
+        // Ignore synthetic mousedown replayed by the browser shortly after a real
+        // touch tap — otherwise it re-triggers the drag/toggle a second time and
+        // immediately reverses whatever the touch just did.
+        if (Date.now() - lastTouchTime.current < 500) return;
         e.preventDefault();
         startDrag(e.clientY);
 
@@ -195,10 +284,12 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
 
     return (
         <>
-            {/* Backdrop */}
+            {/* Backdrop — height uses the large viewport (lvh) rather than inset-0's
+                visual-viewport sizing so it overshoots the visible area and bleeds
+                under Safari mobile's translucent URL bar instead of leaving a gap. */}
             <div
                 className={`
-                    lg:hidden fixed inset-0 bg-black/50 z-40
+                    lg:hidden fixed top-0 left-0 right-0 h-lvh bg-black/50 z-40
                     transition-opacity duration-300
                     ${backdropVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
                 `}
@@ -212,28 +303,43 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                 }}
             />
 
-            {/* Sheet — starts off-screen; JS drives all position changes */}
+            {/* Sheet — starts off-screen; JS drives all position changes. Height uses
+                lvh (large viewport, same reasoning as the backdrop above) rather than
+                dvh — dvh shrinks/grows live as Safari's URL bar animates, and a
+                bottom-anchored element sized off it can lag a frame behind, exposing
+                a gap (rendered as a black bar) at the bottom edge. lvh never changes,
+                so the sheet always overshoots downward and bleeds under the URL bar
+                instead of leaving a gap. */}
             <div
                 ref={sheetRef}
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
-                style={{ height: '90vh', transform: 'translateY(100%)', willChange: 'transform' }}
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-49 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
+                style={{ height: '90lvh', transform: 'translateY(100%)', willChange: 'transform' }}
             >
                 {/* Drag handle */}
                 <div
+                    ref={handleRef}
                     className="flex flex-col items-center pt-3 pb-1 shrink-0 touch-none select-none cursor-grab active:cursor-grabbing"
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
                     onMouseDown={handleMouseDown}
                 >
                     <div className="w-10 h-1 rounded-full bg-(--divider)" />
                     {title && (
                         <div className="text-[13px] font-bold text-(--text-primary) mt-2">{title}</div>
                     )}
+                    {handleContent && (
+                        <div className="w-full mt-2">{handleContent}</div>
+                    )}
                 </div>
 
-                {/* Content — scrollable only when expanded so drag doesn't fight scroll */}
-                <div className={`flex-1 min-h-0 ${snapState === 'expanded' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+                {/* Content — scrollable only when expanded so drag doesn't fight scroll.
+                    While collapsed (peek/closed) it also acts as a drag handle so a
+                    swipe anywhere on the sheet — not just the tiny handle — opens it. */}
+                <div
+                    ref={contentRef}
+                    className={`flex-1 min-h-0 ${
+                        snapState === 'expanded' ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden touch-none select-none'
+                    }`}
+                    {...(snapState !== 'expanded' ? { onMouseDown: handleMouseDown } : {})}
+                >
                     {children}
                 </div>
             </div>

@@ -1,14 +1,16 @@
+import { Fragment } from "react";
 import ReactCountryFlag from "react-country-flag";
 
 import { type Standings, type Team } from '../../api/mlbAPI';
 import { countryCodeForTeam } from "../../functions/flags";
-import { getContrastColor } from "../shared/Color";
+import { getContrastTextColor } from "../../functions/colors";
 
 type StandingsProps = {
 	standingsEntries: [string, Standings[]][];
 	selectedSportId?: number;
 	selectedTeamId?: number | null;
 	onTeamSelect?: (team: Team) => void;
+	isLoading?: boolean;
 };
 
 const formatGamesBack = (gamesBack?: string): string => {
@@ -18,12 +20,33 @@ const formatGamesBack = (gamesBack?: string): string => {
 	return gamesBack;
 };
 
-export default function Standings({ standingsEntries, selectedSportId, selectedTeamId, onTeamSelect }: StandingsProps) {
+export function StandingsSkeleton() {
+	return (
+		<div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 sm:mt-0 animate-pulse">
+			{Array.from({ length: 4 }).map((_, cardIndex) => (
+				<div key={cardIndex} className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
+					<div className="h-3.5 w-28 rounded bg-(--background-quaternary) mb-3" />
+					<div className="space-y-1.5">
+						{Array.from({ length: 5 }).map((_, rowIndex) => (
+							<div key={rowIndex} className="h-9 rounded-lg bg-(--background-quaternary)" />
+						))}
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
+export default function Standings({ standingsEntries, selectedSportId, selectedTeamId, onTeamSelect, isLoading }: StandingsProps) {
 
 	// Flatten leagues into a single list of divisions, each rendered as its own card
 	const divisionStandings = standingsEntries.flatMap(([leagueAbbreviation, leagueStandings]) =>
 		leagueStandings.map((standing) => ({ leagueAbbreviation, standing }))
 	);
+
+	if (isLoading && divisionStandings.length === 0) {
+		return <StandingsSkeleton />;
+	}
 
 	return (
 		<div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 sm:mt-0">
@@ -49,24 +72,32 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 
 						{/* Team bars */}
 						<div className="space-y-1.5">
-							{standing.team_records?.map((record) => {
+							{standing.team_records?.map((record, index) => {
 								const isoCountryCode = countryCodeForTeam(selectedSportId || 0, record.team.abbreviation || record.team.name);
 								const backgroundColor = record.team.primary_color || "var(--background-quaternary)";
 								const isSelected = selectedTeamId != null && record.team.id === selectedTeamId;
+								const showCutline = standing.wildCardCutLine != null && index === standing.wildCardCutLine;
 								return (
+									<Fragment key={record.team.id}>
+									{showCutline && (
+										<div className="flex items-center gap-2 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wider text-(--text-secondary)">
+											<span className="h-px flex-1 bg-(--divider)" />
+											Wild Card cutoff
+											<span className="h-px flex-1 bg-(--divider)" />
+										</div>
+									)}
 									<div
-										key={record.team.id}
 										onClick={() => onTeamSelect?.(record.team)}
 										title="View team roster below"
 										className={`
 											grid ${rowTemplate} gap-x-2 items-center
 											rounded-lg border border-black/70 px-3 py-2
-											cursor-pointer transition-[filter] hover:brightness-60
+											${onTeamSelect ? 'cursor-pointer transition-[filter] hover:brightness-60' : ''}
 											${isSelected ? 'ring-2 ring-(--text-primary)' : ''}
 										`}
 										style={{
 											backgroundColor,
-											color: getContrastColor(backgroundColor),
+											color: getContrastTextColor(backgroundColor),
 										}}
 									>
 										<span className="flex items-center gap-1.5 font-black tracking-wide truncate">
@@ -94,6 +125,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 											</span>
 										)}
 									</div>
+									</Fragment>
 								);
 							})}
 						</div>

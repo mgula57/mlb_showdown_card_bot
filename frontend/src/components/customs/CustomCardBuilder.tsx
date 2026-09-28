@@ -25,7 +25,6 @@
 // ----------------------------------
 
 import { useAuth } from '../auth/AuthContext';
-import { LoginModal } from '../auth/LoginModal';
 import { useEffect, useState, useRef } from 'react';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
@@ -35,12 +34,13 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
+import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
 import { ToastMessage } from '../shared/ToastMessage';
 import { CardDetail } from '../cards/CardDetail';
 import { GalleryTabContent } from '../gallery/GalleryTabContent';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 
 // API
 import { buildCustomCard, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -52,9 +52,9 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaAddressCard, FaStar,
-    FaClockRotateLeft, FaGear
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced
 } from 'react-icons/fa6';
+import CardBuildIcon from './CardBuildIcon';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -80,6 +80,7 @@ export interface CustomCardFormState {
     edition: string; // e.g. "Cooperstown"
     add_one_to_set_year: boolean; // Whether to show the year + 1 in the set section
     show_year_text: boolean; // Whether to show the year text as a label on the card
+    disable_display_text_on_card?: boolean; // Whether to hide the stats period display text (e.g. split/date range) banner on the card. Only applicable for non-Base Set expansions or All-Star Game/Postseason editions
 
     // Image
     image_source: string; // e.g. "Auto"
@@ -100,6 +101,7 @@ export interface CustomCardFormState {
     chart_version?: string; // e.g. "1"
     era?: string; // e.g. "Dynamic"
     is_variable_speed_00_01?: boolean; // Whether to use variable speed for 00-01
+    regress_small_sample_to_replacement?: boolean; // Whether to regress small sample stats toward replacement level
 
     // Added in post-processing, not user inputs
     randomize?: boolean; // Tags if user randomly generated the card
@@ -122,8 +124,9 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     expansion: "BS", 
     set_number: null, 
     edition: "NONE",
-    add_one_to_set_year: false, 
+    add_one_to_set_year: false,
     show_year_text: false,
+    disable_display_text_on_card: false,
 
     image_source: "AUTO", 
     image_parallel: "NONE", 
@@ -138,9 +141,10 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     stat_highlights_type: "NONE", 
     nickname_index: "NONE", 
     
-    chart_version: "1", 
-    era: "DYNAMIC", 
-    is_variable_speed_00_01: false
+    chart_version: "1",
+    era: "DYNAMIC",
+    is_variable_speed_00_01: false,
+    regress_small_sample_to_replacement: false
 };
 
 /** Whether a year string spans multiple seasons (CAREER, ranges like "2000-2004", or combos like "2006+2014") */
@@ -224,14 +228,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
+    const [is2026NoticeDismissed, setIs2026NoticeDismissed] = useState(
+        () => localStorage.getItem('customCardBuilder2026StatsNotice') === 'true'
+    );
     const previewSectionRef = useRef<HTMLDivElement>(null);
     const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
 
     // User Context
     const { user, session } = useAuth();
-
-    // Dismissable feature banner
-    const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
@@ -250,6 +254,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         || isProcessingCard
     )
     const isMultiYear = isMultiYearInput(form.year);
+    // Hiding the split/date text banner only applies to non-Base Set expansions (Trading Deadline, Pennant Run)
+    // or the All-Star Game / Postseason editions.
+    const canHideSplitDateText = form.expansion !== 'BS' || form.edition === 'ASG' || form.edition === 'POST';
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
     const getImagePreview = (): string | null => {
@@ -304,7 +311,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { 'value': 'NONE', 'label': 'None', 'symbol': '―' },
         { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': publicImagePath('edition-cc'), 'borderColor': 'border-amber-800' },
         { 'value': 'SS', 'label': 'Super Season', 'image': publicImagePath('edition-ss'), 'borderColor': 'border-red-500' },
-        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400', 'trailing': <NewBadge /> },
+        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400' },
         { 'value': 'RS', 'label': 'Rookie Season', 'image': publicImagePath('edition-rs'), 'borderColor': 'border-red-800' },
         { 'value': 'HOL', 'label': 'Holiday', 'symbol': '🎄', 'borderColor': 'border-green-600' },
         { 'value': 'NAT', 'label': 'Nationality', 'symbol': '🌍', 'borderColor': 'border-blue-500' },
@@ -473,6 +480,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
                 if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
+                if (form.disable_display_text_on_card) summaries.push({ value: "Hide Date Text", borderColor: 'border-green-500' });
                 break;
                 
             case 'image':
@@ -516,6 +524,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 }
                 if (form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-green-500' });
+                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE', borderColor: 'border-green-500' });
                 break;
         }
         
@@ -1065,25 +1074,19 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
-            {/* Feature announcement banner — floating top-right */}
             <WhatsNewBanner
-                storageKey="customCardWhatsNew_v4.3"
+                storageKey="customCardBuilderWhatsNew_v4.4"
+                version="4.4"
                 features={[
-                    { icon: <FaStar />, text: '2026 All-Star Game designs are live!' },
-                    { icon: <FaImage />, text: 'ASG 2026 works with auto images or your own custom cutouts' },
-                    { icon: <FaClockRotateLeft />, text: 'All historical ASG logos are available in high resolution' },
-                    { icon: <FaGear />, text: 'Select Set → All-Star Game in Card Settings to get started' },
+                    { icon: <FaCalendarXmark />, text: 'Hide the split/date text banner on TD/PR expansions and ASG/POST editions' },
+                    { icon: <FaScaleBalanced />, text: 'Regress small sample sizes toward replacement level for more realistic stats' },
                 ]}
-                onLoginClick={() => setShowBannerLoginModal(true)}
             />
-            {showBannerLoginModal && (
-                <LoginModal onClose={() => setShowBannerLoginModal(false)} />
-            )}
 
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
-                    { tab: 'preview' as PreviewTab, icon: <FaAddressCard />, label: 'Card' },
+                    { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Card' },
                     { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
                 ]).map(({ tab, icon, label }) => (
                     <button
@@ -1221,6 +1224,22 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                 {!isFormCollapsed && (
                                     <>
+                                        {!is2026NoticeDismissed && (
+                                            <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug text-blue-100 bg-linear-to-br from-blue-500 via-blue-700 to-red-700 shadow-lg shadow-blue-900/40">
+                                                <button
+                                                    onClick={() => {
+                                                        localStorage.setItem('customCardBuilder2026StatsNotice', 'true');
+                                                        setIs2026NoticeDismissed(true);
+                                                    }}
+                                                    aria-label="Dismiss"
+                                                    className="absolute top-2 right-2 text-blue-300 hover:text-white transition-colors cursor-pointer"
+                                                >
+                                                    <FaXmark size={12} />
+                                                </button>
+                                                Please note: 2026 cards may shift slightly over the next month as defensive metrics, weighting adjustments, and other finalizations are completed.
+                                            </div>
+                                        )}
+
                                         <PlayerSearchInput
                                             label=""
                                             value={query}
@@ -1352,14 +1371,26 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 label="Expansion"
                                                 options={expansionOptions}
                                                 selectedOption={form.expansion}
-                                                onChange={(value) => setForm({ ...form, expansion: value })}
+                                                onChange={(value) => setForm({
+                                                    ...form,
+                                                    expansion: value,
+                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
+                                                    // Don't carry a TRUE value forward if it's no longer applicable.
+                                                    ...(!(value !== 'BS' || form.edition === 'ASG' || form.edition === 'POST') && { disable_display_text_on_card: false }),
+                                                })}
                                             />
 
                                             <FormDropdown
-                                                label={<span className="inline-flex items-center gap-1.5">Edition <NewBadge /></span>}
+                                                label="Edition"
                                                 options={editionOptions}
                                                 selectedOption={form.edition}
-                                                onChange={(value) => setForm({ ...form, edition: value })}
+                                                onChange={(value) => setForm({
+                                                    ...form,
+                                                    edition: value,
+                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
+                                                    // Don't carry a TRUE value forward if it's no longer applicable.
+                                                    ...(!(form.expansion !== 'BS' || value === 'ASG' || value === 'POST') && { disable_display_text_on_card: false }),
+                                                })}
                                             />
 
                                             <FormInput
@@ -1372,6 +1403,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                             <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
                                             <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
+
+                                            <FormEnabler
+                                                label={
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        Hide Date Text <NewBadge />
+                                                        <InfoTooltip text="Removes the banner that normally shows the split or date range used for this card's stats (e.g. 'First Half' or '2023-05-01 to 2023-10-01'). Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition, since those already communicate the card's context without it." />
+                                                    </span>
+                                                }
+                                                className='col-span-full'
+                                                isEnabled={form.disable_display_text_on_card || false}
+                                                onChange={(isEnabled) => setForm({ ...form, disable_display_text_on_card: !isEnabled })}
+                                                isDisabled={!canHideSplitDateText}
+                                                disabledReason='Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition'
+                                            />
 
                                         </FormSection>
 
@@ -1508,6 +1553,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
                                             />
 
+                                            <div className="col-span-2 flex items-center gap-1.5">
+                                                <FormEnabler
+                                                    label={<span className="inline-flex items-center gap-1.5">Regress to Replacement Level <NewBadge /></span>}
+                                                    className="flex-1"
+                                                    isEnabled={form.regress_small_sample_to_replacement || false}
+                                                    onChange={(isEnabled) => setForm({ ...form, regress_small_sample_to_replacement: !isEnabled })}
+                                                />
+                                                <InfoTooltip iconSize="text-[16px]" text="Blends a player's real stats toward that year's replacement level, weighted by how few plate appearances/innings they actually have. A callup's hot 40-PA stretch gets pulled toward replacement level instead of standing in as his true talent; players with a full season are unaffected." />
+                                            </div>
+
                                         </FormSection>
                                     </>
                                 )}
@@ -1516,39 +1571,45 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             
                         </div>
 
-                        {/* Form Buttons */}
-                        {/* Make sticky at bottom */}
+                        {/* Mobile: floating circular CTA pinned bottom-right. Desktop (@2xl): full-width sticky bar. */}
                         <footer className={`
-                            fixed bottom-0 left-0 right-0 z-20
-                            -mx-4 px-10 py-3 @2xl:p-6
-                            @2xl:sticky @2xl:bottom-0 @2xl:left-auto @2xl:right-auto @2xl:z-auto
-                            bg-background-secondary/95 backdrop-blur
-                            border-t border-form-element
-                            shadow-md
+                            fixed bottom-0 right-0 z-30
+                            p-4 pb-[calc(0.5rem+var(--safe-bottom))]
+                            pointer-events-none
+                            @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
+                            @2xl:-mx-4 @2xl:px-10 @2xl:py-3 @2xl:pb-3
+                            @2xl:pointer-events-auto
+                            @2xl:bg-background-secondary/95 @2xl:backdrop-blur
+                            @2xl:border-t @2xl:border-form-element
+                            @2xl:shadow-md
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex gap-2 items-center">
+                            <div className="flex justify-end @2xl:block">
 
                                 {/* Build Card */}
                                 <button
                                     type="button"
-                                    title={disableBuildButton ? "Please enter player name and year" : ""}
+                                    aria-label="Build Card"
+                                    title={disableBuildButton ? "Please enter player name and year" : "Build Card"}
                                     className={`
-                                        flex flex-1 items-center justify-center
-                                        rounded-xl py-4
-                                        text-white
-                                        bg-(--showdown-blue)
+                                        pointer-events-auto
+                                        ${disableBuildButton ? 'bg-(--showdown-blue)' : 'animated-showdown-gradient'}
+                                        flex items-center justify-center gap-x-2
+                                        text-white font-black
+                                        h-16 w-16 rounded-full shadow-xl shadow-black/25
+                                        @2xl:h-auto @2xl:w-full @2xl:flex-1 @2xl:gap-x-1
+                                        @2xl:rounded-xl @2xl:py-4 @2xl:shadow-none
+                                        transition-transform
                                         ${disableBuildButton
                                             ? 'cursor-not-allowed opacity-25'
-                                            : 'hover:bg-(--showdown-blue)/50 cursor-pointer'
+                                            : 'cursor-pointer hover:brightness-110 active:scale-95'
                                         }
-                                        font-black
                                     `}
                                     onClick={handleBuild}
                                 >
-                                    <FaBaseballBall className="mr-1" />
-                                    Build Card
+                                    <CardBuildIcon size="2rem" className='mr-0.5' />
+                                    <span className="hidden @2xl:inline">Build Card</span>
                                 </button>
 
                             </div>
@@ -1576,7 +1637,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {/* Tab bar — desktop only */}
                         <div className="hidden @2xl:flex shrink-0 border-b border-form-element bg-background-secondary/80 backdrop-blur sticky top-0 z-10">
                             {([
-                                { tab: 'preview' as PreviewTab, icon: <FaAddressCard />, label: 'Preview' },
+                                { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Preview' },
                                 { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
                             ]).map(({ tab, icon, label }) => (
                                 <button

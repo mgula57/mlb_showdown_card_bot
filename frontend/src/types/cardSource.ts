@@ -33,7 +33,7 @@ export const CardSourceLabels = {
     [CardSource.BOT]: 'Showdown Bot Cards',
     [CardSource.WOTC]: 'WOTC Cards',
     [CardSource.WBC]: 'WBC Cards',
-    [CardSource.CUSTOM]: 'My Cards',
+    [CardSource.CUSTOM]: 'Customs',
 } as const;
 
 /**

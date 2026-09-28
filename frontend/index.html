@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#18191c" id="theme-color-meta">
+    <meta name="theme-color" content="#1c1a18" id="theme-color-meta">
     <title>Showdown Bot</title>
     <script>
       (function() {
@@ -14,7 +14,7 @@
         var isDark = saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.classList.add(isDark ? 'dark' : 'light');
         var meta = document.getElementById('theme-color-meta');
-        if (meta) meta.content = isDark ? '#18191c' : '#f3f7fa';
+        if (meta) meta.content = isDark ? '#1c1a18' : '#f5f3f0';
       })();
     </script>
 

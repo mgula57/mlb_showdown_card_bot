@@ -31,7 +31,11 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaIdBadge, FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
+import { FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
+import CardBuildIcon from "../customs/CardBuildIcon";
+import { FaPeopleGroup } from "react-icons/fa6";
+import { markNavItemSeen, useNavItemIsNew } from "../../hooks/useSeenNavItems";
+// import { FaDice } from "react-icons/fa6"; // re-add with the Simulate nav item below
 
 /**
  * Props for the SideMenuItem component
@@ -64,17 +68,6 @@ type SideMenuItemProps = {
  * @param props - Component props
  * @returns A clickable navigation item with adaptive layout
  */
-const SEEN_NAV_ITEMS_KEY = 'seenNavItems';
-
-const getSeenNavItems = (): Set<string> => {
-    try {
-        const stored = localStorage.getItem(SEEN_NAV_ITEMS_KEY);
-        return new Set(stored ? JSON.parse(stored) : []);
-    } catch {
-        return new Set();
-    }
-};
-
 export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen, selectedItem, onClick }) => {
 
     // Determine active state based on current selection
@@ -82,15 +75,11 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
     // Special case: highlight home when on root path as fallback behavior
     const isSelected = selectedPath === item.path || (selectedPath === '/' && item.path === '/home');
 
-    const [isNew, setIsNew] = React.useState(() => item.isNew && !getSeenNavItems().has(item.path));
+    // Shared with the Home page's nav tiles — visiting from either surface clears the badge on both.
+    const isNew = useNavItemIsNew(item.path, item.isNew);
 
     const handleClick = () => {
-        if (isNew) {
-            const seen = getSeenNavItems();
-            seen.add(item.path);
-            localStorage.setItem(SEEN_NAV_ITEMS_KEY, JSON.stringify([...seen]));
-            setIsNew(false);
-        }
+        markNavItemSeen(item.path);
         onClick(item);
     };
 
@@ -108,7 +97,10 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
         
             {/* Icon - Always visible, serves as the collapsed state identifier */}
             <div className="relative flex flex-col items-center justify-center text-primary">
-                {item.icon && <item.icon />}
+                <div className="flex items-center justify-center text-[20px]">
+                    {item.icon && <item.icon />}
+                </div>
+                
                 <span className={`${isSideMenuOpen ? 'hidden' : 'block'} mt-1 text-[7px] font-semibold text-primary text-center leading-tight max-w-10`}>
                     {item.text}
                 </span>
@@ -146,9 +138,8 @@ export const sideMenuItems: SideMenuItemType[] = [
     },
     {
         text: "Card Builder",
-        icon: FaIdBadge,  // Card/profile icon representing custom card creation
+        icon: CardBuildIcon,  // Card/profile icon representing custom card creation
         path: "/customs",
-        isNew: true
     },
     {
         text: "Card Explorer",
@@ -156,10 +147,24 @@ export const sideMenuItems: SideMenuItemType[] = [
         path: "/cards"
     },
     {
-        text: "Live Seasons",
-        icon: FaCalendar,      // Calendar icon representing seasons/schedules
-        path: "/seasons"
+        text: "Team Builder",
+        icon: FaPeopleGroup,      // Group icon representing teams/rosters
+        path: "/teams",
+        isNew: true
     },
+    {
+        text: "Seasons",
+        icon: FaCalendar,      // Calendar icon representing seasons/schedules
+        path: "/seasons",
+        isNew: true
+    },
+    // Hidden for this release — the Simulate flow is reached from the Seasons page instead.
+    // {
+    //     text: "Simulate",
+    //     icon: FaDice,      // Dice icon representing a simulated season
+    //     path: "/simulate",
+    //     isNew: true
+    // },
     {
         text: "Account",
         icon: FaUserCircle,

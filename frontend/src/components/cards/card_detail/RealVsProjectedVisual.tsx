@@ -9,6 +9,10 @@ type RealVsProjectedVisualProps = {
     statRanges?: StatRanges | null;
     isLoading?: boolean;
     playerType?: 'HITTER' | 'PITCHER';
+    /** A simulated season's statline (`SimStatLine.stats`, keyed by StatCategory value e.g.
+     * 'ba'/'hr'/'era') — when passed, an extra SIM column shows what the player did in that
+     * simulated season alongside the card's projection and real-life stat for the same row. */
+    simStats?: Record<string, number>;
 };
 
 // Maps display stat names to stat_ranges keys
@@ -26,6 +30,18 @@ const STAT_TO_RANGE_KEY: Record<string, string> = {
 
 function rangeKey(stat: string): string {
     return STAT_TO_RANGE_KEY[stat] ?? stat;
+}
+
+// Maps display stat names to `SimStatLine.stats` keys (StatCategory values) - most are just the
+// lowercased display name ('BA' -> 'ba'), these are the exceptions.
+const STAT_TO_SIM_KEY: Record<string, string> = {
+    'OPS+': 'ops+',
+    'wRC+': 'wRC+',
+};
+
+function simStatValue(stat: string, simStats?: Record<string, number>): number | undefined {
+    if (!simStats) return undefined;
+    return simStats[STAT_TO_SIM_KEY[stat] ?? stat.toLowerCase()];
 }
 
 function percentileColor(p: number): string {
@@ -146,9 +162,10 @@ const PLACEHOLDER_STATS = [
     { stat: 'WAR', real: 5.2, projected: 5.0, diff: -0.2, diff_str: '-0.2', precision: 1 },
 ] as RealVsProjectedStat[];
 
-export default function RealVsProjectedVisual({ realVsProjectedData, statRanges, isLoading, playerType }: RealVsProjectedVisualProps) {
+export default function RealVsProjectedVisual({ realVsProjectedData, statRanges, isLoading, playerType, simStats }: RealVsProjectedVisualProps) {
     const isEmpty = !realVsProjectedData?.length;
     const data = isEmpty ? PLACEHOLDER_STATS : realVsProjectedData!.filter(stat => !['GB', 'FB', 'PU', 'SF'].includes(stat.stat)); // these adjusted metrics are less intuitive to interpret without context, so exclude from visual
+    const showSim = !isEmpty && !!simStats;
 
     return (
         <div className={`space-y-2 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
@@ -157,6 +174,7 @@ export default function RealVsProjectedVisual({ realVsProjectedData, statRanges,
                 <span className="w-14 shrink-0">Stat</span>
                 <span className="w-12 shrink-0 text-right">Card</span>
                 <span className="w-12 shrink-0 text-right">Real</span>
+                {showSim && <span className="w-12 shrink-0 text-right">Sim</span>}
                 <span className="flex-1 text-center">Percentile</span>
                 <span className="w-12 shrink-0 text-right">Diff</span>
             </div>
@@ -176,6 +194,11 @@ export default function RealVsProjectedVisual({ realVsProjectedData, statRanges,
                         <span className={`text-[12px] font-semibold w-12 shrink-0 text-right tabular-nums opacity-60 ${isEmpty ? 'blur-xs' : ''}`}>
                             {formatStatValue(stat.real, cleanStat)}
                         </span>
+                        {showSim && (
+                            <span className="text-[12px] font-bold w-12 shrink-0 text-right tabular-nums text-(--red)">
+                                {formatStatValue(simStatValue(cleanStat, simStats), cleanStat)}
+                            </span>
+                        )}
 
                         <PercentileBar className="py-2" stat={cleanStat} real={stat.real} statRanges={statRanges || {}} hasRanges={!!statRanges} isLoading={isLoading} playerType={playerType} />
 

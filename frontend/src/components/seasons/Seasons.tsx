@@ -5,20 +5,22 @@
  * player cards, team points, and performance analytics.
  */
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import * as Tabs from '@radix-ui/react-tabs';
+import { Tabs as TabButtons } from '../shared/Tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
-    fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
+    fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchShowdownTeam,
     fetchSchedule, fetchSeasonTeams,
-    type Season, type Sport, type League, type Standings, type Team, type Roster,
+    type Season, type Sport, type League, type Standings, type Team,
     type Schedule
 } from '../../api/mlbAPI';
+import type { Team as TeamBuilderTeam } from "../../api/userTeams";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
-import TeamRoster from "../teams/TeamRoster";
+import { ShowdownTeamPanel } from "../team_builder/ShowdownTeamPanel";
 import SidebarPanel, { type SidebarSection } from "../shared/SidebarPanel";
 import ReactCountryFlag from "react-country-flag";
 import { countryCodeForTeam } from "../../functions/flags";
@@ -27,14 +29,24 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark
+    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
 } from "react-icons/fa6";
 
-import ShowdownCardSearch from "../cards/ShowdownCardSearch";
+// import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
 import GameDetail from "../games/GameDetail";
 import SeasonLeaders from "./SeasonLeaders";
+import AwardWinners from "./AwardWinners";
 import { getReadableTextColor } from "../../functions/colors";
+import { Modal } from "../shared/Modal";
+import { SignInPrompt } from "../shared/SignInPrompt";
+import { SeasonSimSetupForm } from "../simulate/SeasonSimSetupForm";
+import { SimulationGuideModal } from "../simulate/SimulationGuideModal";
+import { RecentSims } from "../simulate/RecentSims";
+import { WhatsNewBanner } from "../shared/WhatsNewBanner";
+import { NewBadge } from "../shared/NewBadge";
+import { BetaBadge } from "../shared/BetaBadge";
+import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
@@ -60,8 +72,25 @@ const formatDateForApi = (date: Date): string => {
     return `${year}-${month}-${day}`;
 };
 
+/** A season is over once its end date has passed — schedule browsing only applies to ongoing seasons. */
+const isSeasonOver = (season: Season | null): boolean => {
+    if (!season?.season_end_date) {
+        return false;
+    }
+    const endDate = new Date(`${season.season_end_date}T23:59:59`);
+    return !Number.isNaN(endDate.getTime()) && endDate < new Date();
+};
+
 const isSameCalendarDay = (a: Date, b: Date): boolean => {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+};
+
+/** Parses a `gamePk` out of a `/seasons/game/<gamePk>` path, e.g. from a shared/pasted link. */
+const parseGamePkFromPath = (pathname: string): number | null => {
+    const match = pathname.match(/^\/seasons\/game\/(\d+)/);
+    if (!match) return null;
+    const pk = parseInt(match[1], 10);
+    return isNaN(pk) ? null : pk;
 };
 
 const formatGamesHeaderDate = (date: Date): string => {
@@ -107,7 +136,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const getTeamsCacheKey = (seasonId: string) => `${type}.seasons.teams.${seasonId}`;
 
     const { userShowdownSet } = useSiteSettings();
-    const { userSettings, settingsLoaded, syncSetting } = useAuth();
+    const { userSettings, settingsLoaded, syncSetting, session } = useAuth();
+    const simToken = session?.access_token;
     const hasStaticSeasons = staticSeasons !== undefined;
     const hasStaticSports = staticSports !== undefined;
 
@@ -122,11 +152,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [teams, setTeams] = useState<Team[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
-    const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
+    const [selectedRoster, setSelectedRoster] = useState<TeamBuilderTeam | null>(null);
 
     // Team selected from the standings table — shows an inline roster below the standings
     const [standingsTeam, setStandingsTeam] = useState<Team | null>(null);
-    const [standingsRoster, setStandingsRoster] = useState<Roster | null>(null);
+    const [standingsRoster, setStandingsRoster] = useState<TeamBuilderTeam | null>(null);
     const standingsRosterRef = useRef<HTMLDivElement>(null);
 
     const [gamesSchedule, setGamesSchedule] = useState<Schedule | null>(null);
@@ -134,11 +164,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         const now = new Date();
         return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     });
-    const [selectedGamePk, setSelectedGamePk] = useState<number | null>(null);
     const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
     const datePickerRef = useRef<HTMLDivElement>(null);
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isLoadingStandings, setIsLoadingStandings] = useState<boolean>(false);
+    const [isLoadingSchedule, setIsLoadingSchedule] = useState<boolean>(false);
 
     const [leagueGroups, setLeagueGroups] = useState<string[]>([]);
     const [selectedLeagueGroup, setSelectedLeagueGroup] = useState<string | null>(() => getStoredValue(STORAGE_KEYS.leagueGroup));
@@ -159,19 +190,94 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "schedule");
 
-    // Open a specific game if ?gamePk=XXX is in the URL (e.g. linked from Home ticker)
+    // A game gets its own distinct, shareable URL — /seasons/game/<gamePk> — parsed straight from the path
+    // rather than kept in separate state, so the URL is always the single source of truth (e.g. pasted links work).
     const location = useLocation();
+    const navigate = useNavigate();
+    const selectedGamePk = parseGamePkFromPath(location.pathname);
+
+    useEffect(() => {
+        if (selectedGamePk !== null) {
+            setActiveTab('schedule');
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedGamePk]);
+
+    // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab with the setup form
+    // up, then clears the param.
+    useEffect(() => {
+        if (new URLSearchParams(location.search).get('sim') === '1') {
+            setActiveTab('simulate');
+            setIsSimModalOpen(true);
+            navigate('/seasons', { replace: true });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search]);
+
+    // A game opened from another view (e.g. Home's "Today's Games") can pin the season it
+    // belongs to via `?season=<id>`, so a previously selected season doesn't leak stale
+    // cards into the game view. Apply it, then strip the param (keeping the game path).
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        const gamePkParam = params.get('gamePk');
-        if (gamePkParam) {
-            const pk = parseInt(gamePkParam, 10);
-            if (!isNaN(pk)) {
-                setSelectedGamePk(pk);
-                setActiveTab('schedule');
-            }
+        const seasonParam = params.get('season');
+        if (!seasonParam || seasons.length === 0) return;
+        const match = seasons.find((season) => season.season_id.toString() === seasonParam);
+        if (match && match.season_id !== selectedSeason?.season_id) {
+            setSelectedSeason(match);
         }
-    }, [location.search]);
+        params.delete('season');
+        navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search, seasons]);
+
+    const handleGameSelect = (gamePk: number) => {
+        navigate(`/seasons/game/${gamePk}`);
+    };
+
+    // "Sim this" badge on a schedule item — opens straight into the game's sim/takeover setup.
+    const handleGameSimSelect = (gamePk: number) => {
+        navigate(`/seasons/game/${gamePk}?sim_setup=1`);
+    };
+
+    const openSimSetupOnGameLoad = selectedGamePk !== null && new URLSearchParams(location.search).get('sim_setup') === '1';
+
+    // Strip `?sim_setup=1` once consumed so it doesn't re-trigger on refresh/back-nav; GameDetail
+    // reads the flag on mount (via the prop above) before this clears it.
+    useEffect(() => {
+        if (!openSimSetupOnGameLoad || selectedGamePk === null) return;
+        navigate(`/seasons/game/${selectedGamePk}`, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openSimSetupOnGameLoad, selectedGamePk]);
+
+    const handleGameBack = () => {
+        navigate('/seasons', { replace: true });
+    };
+
+    // Season simulation: the setup form opens in a modal here (the standalone /simulate nav entry
+    // is hidden for this release), and a running/finished sim still gets its own /simulate/:jobId page.
+    const [isSimModalOpen, setIsSimModalOpen] = useState(false);
+    const [isSimGuideOpen, setIsSimGuideOpen] = useState(false);
+
+    // Schedule tab beta callout — dismissed permanently once the user closes it
+    const GAMEDAY_BETA_NOTICE_KEY = "seasons.gamedaySimBetaNoticeDismissed";
+    const [isGamedayBetaNoticeDismissed, setIsGamedayBetaNoticeDismissed] = useState<boolean>(
+        () => getStoredValue(GAMEDAY_BETA_NOTICE_KEY) === "true"
+    );
+    const dismissGamedayBetaNotice = () => {
+        setStoredValue(GAMEDAY_BETA_NOTICE_KEY, "true");
+        setIsGamedayBetaNoticeDismissed(true);
+    };
+
+    const handleOpenSim = (jobId: string) => {
+        navigate(`/simulate/${jobId}`);
+    };
+
+    const handleSimStart = async (payload: OpenSimPayload) => {
+        if (!simToken) throw new Error('Sign in to simulate a season.');
+        const { job_id, focus_abbr } = await startOpenSim(payload, simToken);
+        setIsSimModalOpen(false);
+        navigate(`/simulate/${job_id}${focus_abbr ? `?focus=${focus_abbr}` : ''}`);
+    };
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
     const [starredTeamKeys, setStarredTeamKeys] = useState<string[]>(() => {
@@ -273,10 +379,29 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         return (a.abbreviation || a.name || "").localeCompare(b.abbreviation || b.name || "");
     });
 
+    // Franchise-level (id only, any season) starred abbreviations — feeds the sim form's club sort.
+    const starredTeamIds = new Set(starredTeamKeys.map((key) => key.split('-')[0]));
+    const starredTeamAbbrs = teams
+        .filter((team) => starredTeamIds.has(String(team.id)))
+        .map((team) => team.abbreviation)
+        .filter((abbr): abbr is string => !!abbr);
+
+    // Schedule browsing only applies while the selected season is ongoing
+    const isSelectedSeasonOver = isSeasonOver(selectedSeason);
+
+    // Awards aren't announced until after the season ends — hide the tab for the
+    // current year until Nov 1, when award coverage becomes meaningful.
+    const nowForAwards = new Date();
+    const selectedSeasonYear = selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : null;
+    const hideAwardWinners = selectedSeasonYear === nowForAwards.getFullYear()
+        && nowForAwards < new Date(nowForAwards.getFullYear(), 10, 1);
+
     const tabs = [
-        { id: "schedule", label: "Schedule", icon: <FaCalendarDays /> },
+        ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
+        ...(hideAwardWinners ? [] : [{ id: "awards", label: "Awards", icon: <FaMedal /> }]),
+        ...(type === "mlb" ? [{ id: "simulate", label: "Simulations", icon: <FaDice /> }] : []),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
     ];
@@ -363,6 +488,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
         let standingsFailed = false;
         beginLoading();
+        setIsLoadingStandings(true);
         try {
             standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet);
             console.log(`Fetched standings for season ${selectedSeason.season_id}:`, standingsData);
@@ -372,6 +498,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             standingsFailed = true;
         } finally {
             endLoading();
+            setIsLoadingStandings(false);
         }
 
         // Populate Teams for Teams Tab
@@ -494,7 +621,20 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
             const selectedDate = formatDateForApi(gamesDate);
 
-            // 4. Parallel: standings + todaysSchedule + gamesSchedule
+            // 4. Parallel: standings + gamesSchedule (schedule only applies to ongoing seasons)
+            setIsLoadingStandings(true);
+            setIsLoadingSchedule(true);
+            const schedulePromise = isSeasonOver(selectedSeason)
+                ? Promise.resolve().then(() => { setGamesSchedule(null); setIsLoadingSchedule(false); })
+                : fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
+                    .then(data => {
+                        setGamesSchedule(data);
+                        console.log(`Fetched games schedule for season ${selectedSeason.season_id} on date ${selectedDate}:`, data);
+                        return data;
+                    })
+                    .catch(() => setGamesSchedule(null))
+                    .finally(() => setIsLoadingSchedule(false));
+
             const [standingsData] = await Promise.all([
                 fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet)
                     .then(data => {
@@ -505,14 +645,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     .catch(error => {
                         console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
                         return {} as { [leagueAbbreviation: string]: Standings[] };
-                    }),
-                fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
-                    .then(data => {
-                        setGamesSchedule(data);
-                        console.log(`Fetched games schedule for season ${selectedSeason.season_id} on date ${selectedDate}:`, data);
-                        return data;
                     })
-                    .catch(() => setGamesSchedule(null)),
+                    .finally(() => setIsLoadingStandings(false)),
+                schedulePromise,
             ]);
 
             // 5. Populate teams from standings, or fetch separately if standings failed
@@ -556,19 +691,24 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     };
 
-    const loadTeamRoster = async (team: Team): Promise<Roster | null> => {
+    const loadShowdownTeam = async (team: Team): Promise<TeamBuilderTeam | null> => {
         if (!selectedSeason || !selectedSport || !team) {
             return null;
         }
 
         beginLoading();
         try {
-            const rosterType = "active";
-            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, selectedSport.id, team.abbreviation || team.name);
-            console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
-            return rosterData;
+            const showdownTeam = await fetchShowdownTeam(selectedSeason, team.id, selectedSport.id, team.abbreviation || team.name, team.name, userShowdownSet);
+            console.log(`Fetched showdown team for ${team.name} in season ${selectedSeason.season_id}:`, showdownTeam);
+            // Overlay MLB team identity — the backend constructs the team from card data only
+            return {
+                ...showdownTeam,
+                name: team.name || showdownTeam.name,
+                primary_color: team.primary_color || showdownTeam.primary_color,
+                secondary_color: team.secondary_color || showdownTeam.secondary_color,
+            };
         } catch (error) {
-            console.error(`Error fetching roster for team ${team.name} in season ${selectedSeason.season_id}:`, error);
+            console.error(`Error fetching showdown team for ${team.name} in season ${selectedSeason.season_id}:`, error);
             return null;
         } finally {
             endLoading();
@@ -576,7 +716,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     };
 
     const loadGamesSchedule = async () => {
-        if (!selectedSeason || leagues.length === 0) {
+        if (!selectedSeason || leagues.length === 0 || isSeasonOver(selectedSeason)) {
             setGamesSchedule(null);
             return;
         }
@@ -597,6 +737,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         scheduleAbortControllerRef.current = controller;
 
         beginLoading();
+        setIsLoadingSchedule(true);
         try {
             const selectedDate = formatDateForApi(gamesDate);
             const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet, controller.signal);
@@ -609,6 +750,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             setGamesSchedule(null);
         } finally {
             endLoading();
+            setIsLoadingSchedule(false);
         }
     };
 
@@ -680,14 +822,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         if (activeTab !== "teams") return;
         if (selectedTeam === null || selectedTeam.id === undefined) return;
-        loadTeamRoster(selectedTeam).then(setSelectedRoster);
+        setSelectedRoster(null);
+        loadShowdownTeam(selectedTeam).then(setSelectedRoster);
     }, [selectedTeam, userShowdownSet, activeTab]);
 
     // Load the inline roster shown below the standings table
     useEffect(() => {
         if (activeTab !== "standings" || standingsTeam === null) return;
         setStandingsRoster(null);
-        loadTeamRoster(standingsTeam).then(setStandingsRoster);
+        loadShowdownTeam(standingsTeam).then(setStandingsRoster);
     }, [standingsTeam, userShowdownSet, activeTab]);
 
     // Scroll the inline roster into view so it's clear the selection did something
@@ -747,7 +890,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const sidebarSections: SidebarSection[] = [
         {
             id: "context",
-            title: "Season/League",
+            title: "Season",
             collapsible: false,
             isHidden: hasStaticSeasons && seasonOptions.length <= 1 && hasStaticSports && sportOptions.length <= 1 && leagueGroups.length <= 1,
             content: (
@@ -773,6 +916,21 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                             options={leagueGroups.map(group => ({ value: group, label: group }))}
                         />
                     )}
+                    {type === "mlb" && selectedSeason && (
+                        <button
+                            type="button"
+                            onClick={() => setIsSimModalOpen(true)}
+                            className="
+                                w-full flex items-center justify-center gap-1.5 px-3 py-2
+                                rounded-lg animated-showdown-gradient
+                                text-[12px] font-semibold text-white
+                                hover:opacity-90 transition-opacity cursor-pointer
+                            "
+                        >
+                            <FaDice className="text-[11px]" />
+                            Simulate this season
+                        </button>
+                    )}
                 </div>
             ),
         },
@@ -789,16 +947,17 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 <div className="flex items-center gap-1">
                                     <Tabs.Trigger
                                         value={tab.id}
-                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg
+                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg transition-colors
                                                    data-[state=active]:bg-(--background-quaternary)
                                                    data-[state=active]:font-bold
-                                                   data-[state=active]:text-(--showdown-blue)
-                                                   data-[state=inactive]:text-tertiary
+                                                   data-[state=active]:text-(--text-primary)
+                                                   data-[state=inactive]:text-(--text-tertiary)
                                                    data-[state=inactive]:font-medium
                                                    data-[state=inactive]:hover:bg-(--divider)"
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
+                                        {(tab.id === "awards" || tab.id === "simulate" || tab.id === "schedule") && <NewBadge />}
                                     </Tabs.Trigger>
 
                                     {isTeamsTab && (
@@ -905,9 +1064,38 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         },
     ];
 
+    // Full-screen game detail takeover: hides the sidebar/tabs entirely, mirroring TeamDetail's editor view
+    if (selectedSeason && selectedGamePk !== null) {
+        return (
+            <div className="w-full bg-(--background-primary)">
+                <GameDetail
+                    gamePk={selectedGamePk}
+                    openSimSetupOnMount={openSimSetupOnGameLoad}
+                    sportId={selectedSport?.id}
+                    season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : undefined}
+                    showdownSet={userShowdownSet}
+                    isActive={true}
+                    onBack={handleGameBack}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="w-full bg-(--background-primary)">
-            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
+            {type === 'mlb' && (
+                <WhatsNewBanner
+                    storageKey="seasonsWhatsNew_v4.4"
+                    version='4.4'
+                    features={[
+                        { icon: <FaDice />,          text: 'Simulate MLB seasons. Brand new engine rolls the full 162 game schedule' },
+                        { icon: <FaBaseball />,      text: 'Revamped live games - take over a game mid-way through and simulate the rest' },
+                        { icon: <FaMedal />,         text: 'New Awards page: MVP, Cy Young, Gold Glove, Silver Slugger and more' },
+                        { icon: <FaClipboardList />, text: 'New Team UI - revamped interface for viewing historical rosters' },
+                    ]}
+                />
+            )}
+            <div className="max-w-full lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
@@ -937,19 +1125,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             title={title}
                                             subtitle={subtitle}
                                             sections={sidebarSections}
-                                            className="p-2 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
+                                            className="p-2 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto scrollbar-hide"
                                             headerAction={(
                                                 <div className="flex items-center gap-1">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => loadAll()}
-                                                        disabled={isLoading}
-                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        aria-label="Refresh data"
-                                                        title="Refresh data"
-                                                    >
-                                                        <FaArrowsRotate className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                                                    </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsSidebarCollapsed(true)}
@@ -967,32 +1145,46 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
                                 <div className="min-w-0 order-2 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
                                     <div className="lg:hidden mb-4 rounded-2xl space-y-4">
-                                        <div className="space-y-2">
+                                        <div className="space-y-2 px-4">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center font-bold text-2xl">
-                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2" /> : <FaCalendarDays className="inline-block mr-2" />}
-                                                        {title}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center font-bold text-2xl min-w-0">
+                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0" /> : <FaCalendarDays className="inline-block mr-2 shrink-0" />}
+                                                        <span className="truncate">{title}</span>
+                                                        {!(hasStaticSeasons && seasonOptions.length <= 1) && (
+                                                            <CustomSelect
+                                                                buttonClassName="
+                                                                    ml-4 text-sm p-2 items-center
+                                                                    rounded-lg bg-secondary text-primary text-nowrap text-left
+                                                                    overflow-clip
+                                                                    cursor-pointer
+                                                                "
+                                                                value={selectedSeason?.season_id.toString() || "2026"}
+                                                                onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
+                                                                options={seasonOptions}
+                                                            />
+                                                        )}
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => loadAll()}
-                                                        disabled={isLoading}
-                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        aria-label="Refresh data"
-                                                        title="Refresh data"
-                                                    >
-                                                        <FaArrowsRotate className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
-                                                    </button>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        {type === "mlb" && selectedSeason && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsSimModalOpen(true)}
+                                                                className="
+                                                                    flex items-center gap-1.5 px-2.5 py-1.5
+                                                                    rounded-lg animated-showdown-gradient
+                                                                    text-[12px] font-semibold text-(--text-primary)
+                                                                    hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
+                                                                "
+                                                            >
+                                                                <FaDice className="text-[11px]" />
+                                                                Simulate
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
-                                            {!(hasStaticSeasons && seasonOptions.length <= 1) && (
-                                                <CustomSelect
-                                                    value={selectedSeason?.season_id.toString() || "2026"}
-                                                    onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
-                                                    options={seasonOptions}
-                                                />
-                                            )}
+                                            
                                             {!(hasStaticSports && sportOptions.length <= 1) && (
                                                 <CustomSelect
                                                     value={selectedSport?.id?.toString() || ""}
@@ -1009,22 +1201,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             )}
                                         </div>
 
-                                        <Tabs.List
-                                            className="flex gap-1 rounded-lg bg-(--background-tertiary) p-1 overflow-x-auto scrollbar-hide"
-                                        >
-                                            {tabs.map((tab) => (
-                                                <Tabs.Trigger
-                                                    key={tab.id}
-                                                    value={tab.id}
-                                                    className="flex flex-1 min-w-fit items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-md whitespace-nowrap transition-colors duration-150
-                                                               data-[state=active]:bg-(--showdown-blue) data-[state=active]:text-white data-[state=active]:font-semibold data-[state=active]:shadow-sm
-                                                               data-[state=inactive]:text-tertiary data-[state=inactive]:hover:text-secondary"
-                                                >
-                                                    <span>{tab.icon}</span>
-                                                    <span>{tab.label}</span>
-                                                </Tabs.Trigger>
-                                            ))}
-                                        </Tabs.List>
+                                        {/* Radix's Tabs.Content below reads its active state from Tabs.Root's
+                                            controlled value, not from Tabs.Trigger — so the shared button
+                                            group can drive it directly via onChange/setActiveTab. */}
+                                        <TabButtons tabs={tabs} value={activeTab} onChange={setActiveTab} className='px-4' fullWidth />
 
                                         {activeTab === "teams" && (
                                             <CustomSelect
@@ -1034,6 +1214,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     setSelectedTeam(team);
                                                 }}
                                                 options={teamOptions}
+                                                className="px-4"
                                             />
                                         )}
                                     </div>
@@ -1044,11 +1225,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        <div className="space-y-2 pb-24 lg:pt-6 lg:pr-6">
-                                            <div className="space-y-2 flex justify-between items-center">
-                                                <span className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                        <div className="px-3 lg:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
+                                            <div className="space-y-2 flex justify-between items-top">
+                                                <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
                                                     Standings
-                                                </span>
+                                                </p>
                                                 <p className="px-1 text-xs text-(--text-secondary)">
                                                     Select a team to view its Showdown roster below.
                                                 </p>
@@ -1058,10 +1239,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 selectedSportId={selectedSport?.id}
                                                 selectedTeamId={standingsTeam?.id ?? null}
                                                 onTeamSelect={handleStandingsTeamSelect}
+                                                isLoading={isLoadingStandings}
                                             />
                                             
                                             {standingsTeam && (
                                                 <div ref={standingsRosterRef} className="pt-4 scroll-mt-4 space-y-3">
+                                                    <hr className="border-(--divider)" />
                                                     <div className="flex items-center justify-between">
                                                         <h2 className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
                                                             {standingsTeam.name || standingsTeam.abbreviation} Roster
@@ -1076,13 +1259,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             Close
                                                         </button>
                                                     </div>
-                                                    <TeamRoster
-                                                        team={standingsTeam}
-                                                        sportId={selectedSport?.id || null}
-                                                        roster={standingsRoster}
+                                                    <ShowdownTeamPanel
+                                                        showdownTeam={standingsRoster}
                                                         isStarred={starredTeamKeys.includes(`${standingsTeam.id}-${standingsTeam.season}`)}
-                                                        season={Number(selectedSeason.season_id)}
-                                                        loadShowdownCards={true}
                                                         onToggleStar={() => toggleStarTeam(standingsTeam)}
                                                     />
                                                 </div>
@@ -1096,19 +1275,24 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
                                     >
-                                        {selectedGamePk !== null ? (
-                                            <GameDetail
-                                                gamePk={selectedGamePk}
-                                                sportId={selectedSport?.id}
-                                                season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
-                                                showdownSet={userShowdownSet}
-                                                isActive={activeTab === 'schedule'}
-                                                className="lg:py-6 lg:pr-6"
-                                                onBack={() => setSelectedGamePk(null)}
-                                            />
-                                        ) : (
-                                        <div className="space-y-5 lg:pt-6 lg:pr-6">
-                                                <div className="rounded-xl border border-(--divider) bg-(--background-secondary) px-4 py-3">
+                                        <div className="px-3 lg:px-0 space-y-5 lg:pt-6 lg:pr-6">
+                                                {!isGamedayBetaNoticeDismissed && (
+                                                    <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug border border-violet-500/30 bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                                                        <button
+                                                            type="button"
+                                                            onClick={dismissGamedayBetaNotice}
+                                                            aria-label="Dismiss"
+                                                            className="absolute top-2 right-2 text-violet-500/70 hover:text-violet-700 dark:hover:text-violet-200 transition-colors cursor-pointer"
+                                                        >
+                                                            <FaXmark size={12} />
+                                                        </button>
+                                                        <span className="inline-flex items-center gap-1.5 flex-wrap">
+                                                            <BetaBadge />
+                                                            Try the new Gameday and Sim Takeover experiences — jump into a live game or take over a season mid-way through and simulate the rest.
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <div className="rounded-xl bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
                                                             type="button"
@@ -1180,14 +1364,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
                                                     showdownSet={userShowdownSet}
                                                     starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
-                                                    onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
+                                                    isLoading={isLoadingSchedule}
+                                                    onGameSelect={handleGameSelect}
+                                                    onGameSimSelect={handleGameSimSelect}
                                                     onRefresh={() => {
                                                         // Force re-fetch games schedule for the current date
                                                         setGamesDate((previous) => new Date(previous));
                                                     }}
                                                 />
                                             </div>
-                                        )}
                                     </Tabs.Content>
 
                                     {/* Teams Tab */}
@@ -1195,16 +1380,68 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="teams"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="lg:pt-6 lg:pr-6">
+                                        <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6">
                                             {selectedTeam && (
-                                                <TeamRoster
-                                                    team={selectedTeam}
-                                                    sportId={selectedSport?.id || null}
-                                                    roster={selectedRoster}
+                                                <ShowdownTeamPanel
+                                                    showdownTeam={selectedRoster}
                                                     isStarred={isSelectedTeamStarred}
-                                                    season={Number(selectedSeason.season_id)}
-                                                    loadShowdownCards={true}
                                                     onToggleStar={() => toggleStarTeam(selectedTeam)}
+                                                />
+                                            )}
+                                        </div>
+                                    </Tabs.Content>
+
+                                    {/* Simulate Tab */}
+                                    <Tabs.Content
+                                        value="simulate"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6 space-y-4 pb-24">
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                        Simulations
+                                                    </p>
+                                                    <p className="text-xs text-(--text-secondary) mt-1">
+                                                        Play out any MLB season, then jump back to your past runs here.
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsSimGuideOpen(true)}
+                                                        className="
+                                                            flex items-center gap-1.5 px-3 py-2
+                                                            rounded-lg border border-(--showdown-red)/40
+                                                            text-[12px] font-semibold text-(--showdown-red)
+                                                            hover:bg-(--showdown-red)/10 transition-colors cursor-pointer whitespace-nowrap
+                                                        "
+                                                    >
+                                                        <FaCircleQuestion className="text-[11px]" />
+                                                        How do sims work?
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsSimModalOpen(true)}
+                                                        className="
+                                                            flex items-center gap-1.5 px-3 py-2
+                                                            rounded-lg animated-showdown-gradient
+                                                            text-[12px] font-semibold text-white
+                                                            hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
+                                                        "
+                                                    >
+                                                        <FaDice className="text-[11px]" />
+                                                        New simulation
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {simToken ? (
+                                                <RecentSims token={simToken} onOpen={handleOpenSim} seasonYear={selectedSeasonYear ?? undefined} />
+                                            ) : (
+                                                <SignInPrompt
+                                                    className="py-12"
+                                                    icon={<FaDice size={32} />}
+                                                    message="Sign in to run a season simulation and see your past runs."
                                                 />
                                             )}
                                         </div>
@@ -1215,13 +1452,29 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="leaders"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="lg:pt-6">
+                                        <div className="px-3 lg:px-0 lg:pt-6">
                                             <SeasonLeaders
                                                 seasonId={selectedSeason.season_id}
                                                 season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
                                                 showdownSet={userShowdownSet}
                                                 sportId={selectedSport?.id}
                                                 isActive={activeTab === 'leaders'}
+                                            />
+                                        </div>
+                                    </Tabs.Content>
+
+                                    {/* Award Winners Tab */}
+                                    <Tabs.Content
+                                        value="awards"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        <div className="px-3 lg:px-0 lg:pt-6">
+                                            <AwardWinners
+                                                seasonId={selectedSeason.season_id}
+                                                season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : 2026}
+                                                showdownSet={userShowdownSet}
+                                                sportId={selectedSport?.id}
+                                                isActive={activeTab === 'awards'}
                                             />
                                         </div>
                                     </Tabs.Content>
@@ -1255,25 +1508,28 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                 )}
             </div>
 
-            {isLoading && activeTab !== "players" && (
-                <div className="
-                    fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-(--primary)/10 backdrop-blur 
-                    p-4 rounded-2xl
-                    flex items-center space-x-2
-                ">
-                    <FaBaseball
-                        className="
-                            text-3xl
-                            animate-bounce
-                        "
-                        style={{
-                            animationDuration: '0.7s',
-                            animationIterationCount: 'infinite'
-                        }}
-                    />
-                </div>
+            {isSimModalOpen && (
+                <Modal onClose={() => setIsSimModalOpen(false)} size="md">
+                    {simToken ? (
+                        <SeasonSimSetupForm
+                            mode="solo"
+                            token={simToken}
+                            onStart={handleSimStart}
+                            onViewExisting={handleOpenSim}
+                            initialYear={selectedSeasonYear ?? undefined}
+                            starredAbbrs={starredTeamAbbrs}
+                        />
+                    ) : (
+                        <SignInPrompt
+                            className="py-16"
+                            icon={<FaDice size={32} />}
+                            message="Sign in to run a season simulation."
+                        />
+                    )}
+                </Modal>
             )}
+
+            {isSimGuideOpen && <SimulationGuideModal onClose={() => setIsSimGuideOpen(false)} />}
         </div>
     );
 }

@@ -58,7 +58,7 @@ def search_players():
                 'is_hof': None,
                 'award_summary': None,
                 'war': None,
-                'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
+                'team': player.current_team.bref_team(year=current_year) if player.current_team and player.current_team.abbreviation else None,
                 'war_type': 'fWAR',
             } for player in active_players])
 
@@ -312,10 +312,9 @@ def search_players():
                         'is_hof': None,
                         'award_summary': None,
                         'war': None,
-                        'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
+                        'team': player.current_team.bref_team(year=current_year) if player.current_team and player.current_team.abbreviation else None,
                     } for player in active_players]
 
-                    _db.close_connection()
                     return jsonify(displays)
 
 
@@ -522,7 +521,7 @@ def search_players():
                     'award_summary': None,
                     'war': None,
                     'war_type': 'fWAR',
-                    'team': player.current_team.bref_team if player.current_team and player.current_team.abbreviation else None,
+                    'team': player.current_team.bref_team(year=current_year) if player.current_team and player.current_team.abbreviation else None,
                 } for player in active_players])
 
                 # RE-SORT
@@ -534,8 +533,6 @@ def search_players():
                 ), reverse=True)
 
 
-        _db.close_connection()
-
         return jsonify(displays)
 
     except Exception as e:
@@ -543,6 +540,7 @@ def search_players():
         print(f"Error searching players: {e}")
         print("Full traceback:")
         traceback.print_exc()
+        return jsonify([]), 500
+    finally:
         if _db is not None:
             _db.close_connection()
-        return jsonify([]), 500

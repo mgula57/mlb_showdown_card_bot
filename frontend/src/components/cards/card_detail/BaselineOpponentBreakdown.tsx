@@ -1,5 +1,5 @@
 import { type ShowdownBotCardChart } from '../../../api/showdownBotCard';
-import { getContrastColor } from '../../shared/Color';
+import { getContrastTextColor } from '../../../functions/colors';
 import { CardChart, buildChartRangesFromValues } from '../card_elements/CardChart';
 
 const OUTS = new Set(['PU', 'SO', 'GB', 'FB']);
@@ -73,8 +73,8 @@ export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor,
         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
 
-    const primaryTextColor = getContrastColor(primaryColor || 'rgb(156,163,175)');
-    const secondaryTextColor = getContrastColor(secondaryColor || 'rgb(239,68,68)');
+    const primaryTextColor = getContrastTextColor(primaryColor || 'rgb(156,163,175)');
+    const secondaryTextColor = getContrastTextColor(secondaryColor || 'rgb(239,68,68)');
 
     const chartDataToRender = Object.keys(data.results ?? {}).length > 0 ? data.ranges : buildChartRangesFromValues(data.values ?? {}, data.set, data.is_pitcher);
 

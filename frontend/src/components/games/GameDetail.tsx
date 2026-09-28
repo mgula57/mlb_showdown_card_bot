@@ -1,40 +1,50 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import ReactCountryFlag from "react-country-flag";
-import { FaChevronLeft } from "react-icons/fa6";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
-import { countryCodeForTeam } from "../../functions/flags";
-import { getReadableTextColor } from "../../functions/colors";
+import { bannerTokens, getReadableTextColor } from "../../functions/colors";
+import { ordinal } from "../../functions/formatters";
 import { Modal } from "../shared/Modal";
-import {
-    fetchGameBoxscore,
-    type GameBoxscoreDetail,
-    type BoxscoreTeamData,
-    type BoxscoreBatter,
-    type BoxscorePitcher,
-    type BoxscoreLinescoreInning,
-    type MostRecentPlay,
-    type BoxscoreDecisionPerson,
-} from "../../api/mlbAPI";
-import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { defenseAtPosition } from "../shared/DefenseUtils";
-import CardCommand from "../cards/card_elements/CardCommand";
-import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
+import { ModeBanner } from "../shared/ModeBanner";
+import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardDetail } from "../cards/CardDetail";
-import { getContrastColor } from "../shared/Color";
-import {
-    useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
-} from "@floating-ui/react";
+import * as Tabs from '@radix-ui/react-tabs';
+import { Tabs as TabButtons, type TabItem } from '../shared/Tabs';
+import { fromBoxscoreDetail, fromGamePlays } from "../../domain/adapters/fromMlbApi";
+import { fromSimGame } from "../../domain/adapters/fromSim";
+import { startGameSim, type SimGameRecord, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
+import { useAuth } from "../auth/AuthContext";
+import GameSimSetupModal from "./GameSimSetupModal";
+import GameSimHistoryModal from "./GameSimHistoryModal";
+import SimBoxScoreTable from "./SimBoxScoreTable";
+import PlayByPlayLog from "./PlayByPlayLog";
+import GameField from "./GameField";
+import GameMatchup from "./GameMatchup";
+import GameLinescore from "./GameLinescore";
+import { useGameDetailData } from "./useGameDetailData";
+import GameDetailPlayback from "./GameDetailPlayback";
+import GameDetailSkeleton from "./GameDetailSkeleton";
+import BackButton from "../shared/BackButton";
+import { BetaBadge } from "../shared/BetaBadge";
+import ScoreHeader from "./detail/ScoreHeader";
+import Decisions from "./detail/Decisions";
+import ProbableStartingPitchers from "./detail/ProbableStartingPitchers";
+import BattingTable from "./detail/BattingTable";
+import PitchingTable from "./detail/PitchingTable";
+import GameInfo from "./detail/GameInfo";
+import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
+import { FaClockRotateLeft, FaListUl } from "react-icons/fa6";
 
-type CardMap = Record<string, ShowdownBotCardAPIResponse>;
+type MobileTab = 'field' | 'playbyplay' | 'boxscore';
+// The `md`–`lg` two-column view keeps the field pinned on the left and tabs only between the two
+// panels that share the right column.
+type MidTab = Exclude<MobileTab, 'field'>;
 
-// TODO: replace hard-coded IDs with a general two-way player detection strategy
-const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
+const MOBILE_TABS: TabItem<MobileTab>[] = [
+    { id: 'field', label: 'Field View', icon: <FaRing />},
+    { id: 'boxscore', label: 'Boxscore', icon: <FaTable /> },
+    { id: 'playbyplay', label: 'Play By Play', icon: <FaList /> },
+];
 
-/** Returns the CardMap key for a player in a given table context. */
-const cardKey = (id: number, table: 'batting' | 'pitching'): string => {
-    if (TWO_WAY_PLAYER_IDS.has(id)) return `${id}-${table === 'batting' ? 'H' : 'P'}`;
-    return String(id);
-};
+const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
 
 type GameDetailProps = {
     gamePk: number;
@@ -43,198 +53,82 @@ type GameDetailProps = {
     showdownSet?: string;
     /** When false, stops auto-refresh polling (e.g. user switched to another tab) */
     isActive?: boolean;
+    /** Opens the sim/takeover setup modal as soon as the game is eligible (e.g. from a "Sim this" badge) */
+    openSimSetupOnMount?: boolean;
     className?: string;
     onBack: () => void;
 };
 
-const cardDefenseForPosition = (card: ShowdownBotCard | undefined, position: string | null) =>
-    defenseAtPosition(card?.positions_and_defense, position);
-
-export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, className, onBack }: GameDetailProps) {
-    const [boxscore, setBoxscore] = useState<GameBoxscoreDetail | null>(null);
-    const [cardMap, setCardMap] = useState<CardMap>({});
-    const [isLoading, setIsLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const [isLoadingCards, setIsLoadingCards] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
+export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, openSimSetupOnMount, className, onBack }: GameDetailProps) {
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
+    const [isFieldExpanded, setIsFieldExpanded] = useState(false);
+    const [mobileTab, setMobileTab] = useState<MobileTab>('field');
+    const [midTab, setMidTab] = useState<MidTab>('playbyplay');
+    // The transport strip (play/pause/scrub) is opt-in — collapsed by default so a plain live or
+    // finished-game view isn't cluttered with controls most visits never touch.
+    const [showPlaybackControls, setShowPlaybackControls] = useState(false);
     const handleModalCardClose = () => {
         setSelectedCard(null);
     };
 
-    const refreshBoxscore = useCallback((silent = false) => {
-        if (!silent) setIsRefreshing(true);
-        return fetchGameBoxscore(gamePk).then((data) => {
-            setBoxscore(data);
-            return data;
-        }).finally(() => {
-            if (!silent) setIsRefreshing(false);
-        });
-    }, [gamePk]);
+    // Showdown simulation of this game. Non-null once one has been run; the panels then render it
+    // instead of the real game until the user switches back.
+    const { session } = useAuth();
+    const [showSimSetup, setShowSimSetup] = useState(false);
+    const [showSimHistory, setShowSimHistory] = useState(false);
+    const [simResult, setSimResult] = useState<SimGameResult | null>(null);
+    const [simError, setSimError] = useState<string | null>(null);
+    // Bumped on every sim run. Keys `GameDetailPlayback` so a re-sim of the same game remounts the
+    // playback cursor — otherwise it would keep the previous run's position (the end) and the new
+    // result would show straight away instead of parking on the first pitch.
+    const [simRunId, setSimRunId] = useState(0);
+    // Tracks whether the field's big Play button has been pressed for the CURRENT sim result.
+    // `playbackState.cursor === 0` alone isn't enough to hide it on click — the cursor doesn't
+    // advance to frame 1 until the first animation beat lands, which would leave the button
+    // visible (and clickable again) for a beat after it's already been pressed. Reset to false
+    // whenever a new sim is loaded so the button reappears for it.
+    const [simPlayStarted, setSimPlayStarted] = useState(false);
 
-    // Initial fetch
+    const {
+        boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
+        setLivePaused, applyBuffer,
+    } = useGameDetailData({ gamePk, sportId, season, showdownSet, isActive, simResult });
+
+    // Deep-linked from a "Sim this" badge — open the setup modal as soon as we know the game is
+    // still simulatable. Guarded by a ref (not just the prop) since the caller clears the
+    // triggering query param right after navigating, which would otherwise re-run this on every
+    // boxscore refresh.
+    const hasAutoOpenedSimSetupRef = useRef(false);
     useEffect(() => {
-        let cancelled = false;
-        setIsLoading(true);
-        setError(null);
-
-        refreshBoxscore(true /* silent – initial load uses isLoading */)
-            .catch((err) => {
-                if (!cancelled) setError(err.message ?? "Failed to load boxscore");
-            })
-            .finally(() => {
-                if (!cancelled) setIsLoading(false);
-            });
-
-        return () => { cancelled = true; };
-    }, [refreshBoxscore]);
-
-    // Auto-refresh every 30s while the game is in progress and tab is visible
-    const isInProgressRef = useRef(false);
-    useEffect(() => {
-        const codedState = boxscore?.status?.coded_game_state;
-        const isFinal = codedState === "F";
-        const isNotStarted = codedState === "P" || codedState === "S";
-        isInProgressRef.current = !!boxscore && !isFinal && !isNotStarted;
-    }, [boxscore]);
-
-    useEffect(() => {
-        if (!boxscore) return;
-        if (!isInProgressRef.current) return;
-        if (!isActive) return;
-
-        let timer: ReturnType<typeof setInterval> | null = null;
-
-        const startPolling = () => {
-            if (timer) return;
-            timer = setInterval(() => {
-                if (isInProgressRef.current) {
-                    refreshBoxscore().catch(() => {});
-                }
-            }, 30_000);
-        };
-
-        const stopPolling = () => {
-            if (timer) { clearInterval(timer); timer = null; }
-        };
-
-        const onVisibility = () => {
-            if (document.hidden) {
-                stopPolling();
-            } else if (isInProgressRef.current) {
-                // Refresh immediately when tab becomes visible again, then resume polling
-                refreshBoxscore().catch(() => {});
-                startPolling();
-            }
-        };
-
-        document.addEventListener("visibilitychange", onVisibility);
-        if (!document.hidden) startPolling();
-
-        return () => {
-            document.removeEventListener("visibilitychange", onVisibility);
-            stopPolling();
-        };
-    }, [boxscore, refreshBoxscore, isActive]);
-
-    // Fetch Showdown cards for all players in the boxscore
-    useEffect(() => {
-        if (!boxscore || !season || !showdownSet) return;
-        let cancelled = false;
-
-        const allIds = new Set<string>();
-        for (const side of ["away", "home"] as const) {
-            for (const b of boxscore.teams[side].batting) allIds.add(String(b.id));
-            for (const p of boxscore.teams[side].pitching) allIds.add(String(p.id));
+        if (!openSimSetupOnMount || hasAutoOpenedSimSetupRef.current || !boxscore) return;
+        hasAutoOpenedSimSetupRef.current = true;
+        const state = fromBoxscoreDetail(boxscore, sportId).state;
+        if (state === "PREVIEW" || state === "LIVE") {
+            setShowSimSetup(true);
         }
-        // Include probable starters for pre-game state
-        if (boxscore.probable_pitchers) {
-            for (const side of ["away", "home"] as const) {
-                const id = boxscore.probable_pitchers[side]?.id;
-                if (id != null) allIds.add(String(id));
-            }
-        }
+    }, [openSimSetupOnMount, boxscore, sportId]);
 
-        // Override the team for each ID based on the boxscore data, to ensure we get the correct card even if the player is now on a new team
-        const overrides: Record<number, Record<string, unknown>> = {};
-        for (const side of ["away", "home"] as const) {
-            const teamAbbreviation = boxscore.teams[side].team.abbreviation;
-            for (const b of boxscore.teams[side].batting) {
-                overrides[b.id] = { team: teamAbbreviation };
-            }
-            for (const p of boxscore.teams[side].pitching) {
-                overrides[p.id] = { team: teamAbbreviation };
-            }
-            // Also override probable pitchers
-            const probableId = boxscore.probable_pitchers?.[side]?.id;
-            if (probableId != null) {
-                overrides[probableId] = { team: teamAbbreviation };
-            }
-        }
+    // The new panels all render from the canonical GameView; the raw boxscore stays the source
+    // for the batting/pitching tables and game info, which carry MLB-only detail. The actual
+    // play-by-play log rendered on screen is playback-aware (`activePlays`, from
+    // `GameDetailPlayback` below) — `realPlays` here is only used to size the live-pause buffer badge.
+    const realView = boxscore ? fromBoxscoreDetail(boxscore, sportId) : null;
+    const realPlays = fromGamePlays(boxscore?.plays ?? []);
 
-        // Check if sport is not WBC and date is before May 1st of that season, if so subtract 1 from the season to use last year's cards
-        const isCurrentSeason = new Date().getFullYear() === season;
-        const useLastYear = new Date().getMonth() < 3; // Months are 0-indexed
-        const adjustedSeason = (sportId === 1 && isCurrentSeason && useLastYear) ? season - 1 : season;
-        const gameDate = new Date(boxscore.datetime.official_date ?? "") || new Date();
-        const yesterday = new Date(gameDate);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        const cardSettings = {
-            year: adjustedSeason,
-            set: showdownSet,
-            stat_highlights_type: "ALL",
-            stats_period_type: "DATES",
-            start_date: `${gameDate.getFullYear()}-03-01`, // Pull stats from the start of the season to ensure we have data for early-season games
-            end_date: boxscore.datetime.official_date,
-            in_season_trends_range_start_date: yesterday.toISOString().split("T")[0], // Notes the end date to start with to speed up processing
-            in_season_trends_end_date: boxscore.datetime.official_date,
-        }
-        // No need to reload if all IDs are already in the map
-        if ([...allIds].every(id => cardMap[id])) {
-            return;
-        }
-        setIsLoadingCards(true);
-        buildCardsFromIds([...allIds], adjustedSeason, cardSettings)
-            .then((response) => {
-                if (cancelled) return;
-                const map: CardMap = {};
-                for (const entry of response.cards ?? []) {
-                    if (entry.card?.mlb_id != null) {
-                        const id = entry.card.mlb_id;
-                        if (TWO_WAY_PLAYER_IDS.has(id)) {
-                            const suffix = entry.card.player_type === "Pitcher" ? "P" : "H";
-                            map[`${id}-${suffix}`] = entry;
-                        } else {
-                            map[String(id)] = entry;
-                        }
-                    }
-                }
-                setCardMap(map);
-            })
-            .catch(() => { /* cards are supplementary – fail silently */ })
-            .finally(() => { if (!cancelled) setIsLoadingCards(false); });
-
-        return () => { cancelled = true; };
-    }, [boxscore, season, showdownSet, sportId]);
+    const simView = simResult ? fromSimGame(simResult.game) : null;
+    const view = simView ?? realView;
 
     if (isLoading) {
-        return (
-            <div className="space-y-4">
-                <BackButton onBack={onBack} />
-                <div className="flex items-center justify-center py-20 text-(--secondary) text-sm">
-                    Loading boxscore…
-                </div>
-            </div>
-        );
+        return <GameDetailSkeleton className={className} onBack={onBack} />;
     }
 
-    if (error || !boxscore) {
+    if (error || !boxscore || !view) {
         return (
-            <div className="space-y-4">
-                <BackButton onBack={onBack} />
-                <div className="flex items-center justify-center py-20 text-red-400 text-sm">
+            <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+                <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
+                    <BackButton onBack={onBack} />
+                </div>
+                <div className="flex-1 flex items-center justify-center text-red-400 text-sm">
                     {error ?? "Boxscore data unavailable."}
                 </div>
             </div>
@@ -243,921 +137,472 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     const away = boxscore.teams.away;
     const home = boxscore.teams.home;
-    const ls = boxscore.linescore;
-    const isFinal = boxscore.status?.coded_game_state === "F";
-    const isNotStarted = boxscore.status?.coded_game_state === "P" || boxscore.status?.coded_game_state === "S";
-    const isInProgress = !isFinal && !isNotStarted;
-    const detailedState = boxscore.status?.detailed_state ?? (isFinal ? "Final" : "In Progress");
+    const isFinal = view.state === "FINAL";
+    const isNotStarted = view.state === "PREVIEW" || view.state === "POSTPONED";
+    const detailedState = simResult
+        ? `Simulated Final${simResult.is_takeover ? " · Taken Over" : ""}`
+        : view.detailedState || (isFinal ? "Final" : "In Progress");
 
-    return (
-        <div className={`space-y-4 pb-24 ${className}`}>
-            <BackButton onBack={onBack} />
+    // Whether the real game still has innings left to play. A finished game can only be re-watched.
+    const realState = realView?.state;
+    const canSimulate = realState === "PREVIEW" || realState === "LIVE";
+    // const canSimulate = false; // TODO: Enable simulation when appropriate
 
-            {/* Header: Teams + Score */}
-            <ScoreHeader
-                away={away}
-                home={home}
-                linescore={ls}
-                sportId={sportId}
-                detailedState={detailedState}
-                isInProgress={isInProgress}
-            />
-
-            {/* Matchup Strip */}
-            {isInProgress && <MatchupStrip linescore={ls} mostRecentPlay={boxscore.most_recent_play} teams={boxscore.teams} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
-
-            {/* Linescore Table */}
-            <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} currentInning={ls.current_inning} isInProgress={isInProgress} />
-
-            {/* Decisions */}
-            {isFinal && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
-
-            {/* Probable Starting Pitchers */}
-            {isNotStarted && boxscore.probable_pitchers && <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
-
-            <div className="grid sm:grid-cols-2 gap-4">
-                {/* Away Batting */}
-                <BattingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                {/* Home Batting */}
-                <BattingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-
-                {/* Away Pitching */}
-                <PitchingTable team={away} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-
-                {/* Home Pitching */}
-                <PitchingTable team={home} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-
-            </div>
-
-            {/* Game Info */}
-            <GameInfo away={away} home={home} />
-
-
-            <div className={selectedCard ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={handleModalCardClose} isVisible={!!selectedCard}>
-                    <CardDetail
-                        showdownBotCardData={selectedCard}
-                        hideTrendGraphs={true}
-                        context="game_detail"
-                        parent='game_detail'
-                    />
-                </Modal>
-            </div>
-        </div>
-    );
-}
-
-
-// ─── Sub-components ──────────────────────────────────────────────
-
-function BackButton({ onBack }: { onBack: () => void }) {
-    return (
-        <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-sm font-semibold text-(--secondary) hover:text-(--primary) bg-(--background-secondary) p-2 rounded-lg cursor-pointer transition-colors"
-        >
-            <FaChevronLeft className="h-3 w-3" />
-            Back to Games
-        </button>
-    );
-}
-
-
-function ScoreHeader({
-    away,
-    home,
-    linescore,
-    sportId,
-    detailedState,
-    isInProgress,
-}: {
-    away: BoxscoreTeamData;
-    home: BoxscoreTeamData;
-    linescore: GameBoxscoreDetail["linescore"];
-    sportId?: number;
-    detailedState: string;
-    isInProgress?: boolean;
-}) {
-    const awayCode = countryCodeForTeam(sportId ?? 0, away.team.abbreviation);
-    const homeCode = countryCodeForTeam(sportId ?? 0, home.team.abbreviation);
-    const awayRecord = away.team.record;
-    const homeRecord = home.team.record;
-
-    const awayBadgeBg = away.team.primary_color ?? '#374151';
-    const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
-    const homeBadgeBg = home.team.primary_color ?? '#374151';
-    const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
-
-    const awayRuns = linescore.teams.away.runs ?? 0;
-    const homeRuns = linescore.teams.home.runs ?? 0;
-
-    const rawHalf = (linescore.inning_half || linescore.inning_state || '');
-    const inningHalf = rawHalf.charAt(0).toUpperCase() + rawHalf.slice(1).toLowerCase();
-    const inningOrdinal = linescore.current_inning_ordinal || linescore.current_inning || '';
-    const inningStr = inningHalf && inningOrdinal ? `${inningHalf} ${inningOrdinal}` : String(inningOrdinal);
-
-    return (
-        <>
-        <style>{`@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }`}</style>
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                {/* Away team - left aligned */}
-                <div className="flex flex-col gap-1">
-                    {sportId === 51 && awayCode && (
-                        <ReactCountryFlag countryCode={awayCode} svg style={{ width: '1.5em', height: '1.5em' }} />
-                    )}
-                    <div
-                        className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none"
-                        style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
-                    >{away.team.abbreviation}</div>
-                    <div className="text-[14px] hidden sm:block font-semibold text-(--primary) leading-snug">{away.team.name}</div>
-                    {awayRecord && (
-                        <div className="text-[12px] text-(--secondary)">{awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}</div>
-                    )}
-                </div>
-
-                {/* Center: Score + status */}
-                <div className="flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-3">
-                        <span className={`text-[40px] font-bold leading-none text-(--primary)`}>
-                            {awayRuns}
-                        </span>
-                        <span className="text-2xl font-bold text-(--secondary)">–</span>
-                        <span className={`text-[40px] font-bold leading-none text-(--primary)`}>
-                            {homeRuns}
-                        </span>
-                    </div>
-                    {isInProgress && inningStr ? (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-(--background-primary) border border-(--divider) text-[11px]">
-                            <span className="w-1.75 h-1.75 rounded-full bg-red-500 shrink-0" style={{ animation: 'live-pulse 1.4s ease-in-out infinite' }} />
-                            <span className="font-semibold tracking-[0.5px] text-red-500">LIVE</span>
-                            <span className="text-(--secondary) mx-0.5">·</span>
-                            <span className="text-(--secondary)">{inningStr}</span>
-                        </div>
-                    ) : (
-                        <div className="text-xs font-semibold text-(--secondary) uppercase tracking-wide">{detailedState}</div>
-                    )}
-                </div>
-
-                {/* Home team - right aligned */}
-                <div className="flex flex-col items-end gap-1">
-                    {sportId === 51 && homeCode && (
-                        <div className="self-end">
-                            <ReactCountryFlag countryCode={homeCode} svg style={{ width: '1.5em', height: '1.5em' }} />
-                        </div>
-                    )}
-                    <div
-                        className="flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm leading-none"
-                        style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
-                    >{home.team.abbreviation}</div>
-                    <div className="text-[14px] hidden sm:block  font-semibold text-(--primary) leading-snug text-right">{home.team.name}</div>
-                    {homeRecord && (
-                        <div className="text-[12px] text-(--secondary)">{homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}</div>
-                    )}
-                </div>
-            </div>
-        </div>
-        </>
-    );
-}
-
-
-function LinescoreTable({
-    away,
-    home,
-    innings,
-    teams,
-    currentInning,
-    isInProgress,
-}: {
-    away: BoxscoreTeamData;
-    home: BoxscoreTeamData;
-    innings: BoxscoreLinescoreInning[];
-    teams: GameBoxscoreDetail["linescore"]["teams"];
-    currentInning?: number;
-    isInProgress?: boolean;
-}) {
-    const filledInnings = [...innings];
-    for (let i = innings.length + 1; i <= 9; i++) {
-        filledInnings.push({ num: i, away: { runs: undefined }, home: { runs: undefined } });
-    }
-
-    const awayBadgeBg = away.team.primary_color ?? '#374151';
-    const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
-    const homeBadgeBg = home.team.primary_color ?? '#374151';
-    const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
-
-    const isCurrent = (n: number) => isInProgress && currentInning != null && n === currentInning;
-    const isFuture = (n: number) => isInProgress && currentInning != null && n > currentInning;
-
-    const rows = [
-        { key: 'away', data: away, side: 'away' as const, badgeBg: awayBadgeBg, badgeText: awayBadgeText },
-        { key: 'home', data: home, side: 'home' as const, badgeBg: homeBadgeBg, badgeText: homeBadgeText },
-    ];
-
-    return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-x-auto">
-            <table className="w-full text-xs text-center">
-                <thead>
-                    <tr className="border-b border-(--divider) text-(--secondary)">
-                        <th className="pl-3 pr-2 py-2 text-left w-16" />
-                        {filledInnings.map((inn) => (
-                            <th key={inn.num} className={`px-1.5 py-2 min-w-7 text-[10px] tracking-[0.5px] font-semibold ${isCurrent(inn.num) ? 'text-(--primary)' : ''}`}>
-                                {inn.num}
-                            </th>
-                        ))}
-                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary) border-l border-(--divider)">R</th>
-                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary)">H</th>
-                        <th className="px-2 py-2 text-[10px] tracking-[0.5px] font-semibold text-(--primary)">E</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map(({ key, data, side, badgeBg, badgeText }, rowIdx) => (
-                        <tr key={key} className={rowIdx < rows.length - 1 ? 'border-b border-(--divider)' : ''}>
-                            <td className="pl-3 pr-2 py-2 text-left">
-                                <span
-                                    className="inline-flex items-center justify-center rounded font-bold text-[10px] px-1 py-0.5 leading-none"
-                                    style={{ backgroundColor: badgeBg, color: badgeText, minWidth: '22px' }}
-                                >{data.team.abbreviation}</span>
-                            </td>
-                            {filledInnings.map((inn) => {
-                                const val = inn[side].runs;
-                                return (
-                                    <td
-                                        key={inn.num}
-                                        className={`px-1.5 py-2 text-[13px] ${
-                                            isCurrent(inn.num) ? 'bg-(--background-quaternary) text-(--primary)' :
-                                            isFuture(inn.num) ? 'text-(--secondary) opacity-30' :
-                                            'text-(--secondary)'
-                                        }`}
-                                    >
-                                        {isFuture(inn.num) ? '' : (val ?? '-')}
-                                    </td>
-                                );
-                            })}
-                            <td className="px-2 py-2 font-semibold text-(--primary) border-l border-(--divider)">{teams[side].runs}</td>
-                            <td className="px-2 py-2 font-semibold text-(--primary)">{teams[side].hits}</td>
-                            <td className={`px-2 py-2 font-semibold text-(--primary)'}`}>{teams[side].errors}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
-
-function LastResultBanner({ play }: { play?: MostRecentPlay }) {
-    if (!play?.result?.description) return null;
-
-    const isScoringPlay = play.about?.isScoringPlay;
-    const event = play.result.event;
-    const description = play.result.description;
-    const rbi = play.result.rbi;
-    const awayScore = play.result.awayScore;
-    const homeScore = play.result.homeScore;
-
-    return (
-        <div className={`rounded-lg px-3 py-2 text-xs border ${isScoringPlay ? 'bg-green-950/40 border-green-700/40' : 'bg-(--background-primary)/60 border-(--divider)'}`}>
-            <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className={`font-bold text-[11px] uppercase tracking-wide ${isScoringPlay ? 'text-green-400' : 'text-(--secondary)'}`}>
-                    {event ?? 'Last Play'}
-                </span>
-                {isScoringPlay && rbi != null && rbi > 0 && (
-                    <span className="text-[10px] font-semibold text-(--green)">{rbi} RBI · {awayScore}–{homeScore}</span>
-                )}
-            </div>
-            <p className="text-(--secondary) leading-snug line-clamp-2">{description}</p>
-        </div>
-    );
-}
-
-function MatchupStrip({ linescore, mostRecentPlay, teams, isRefreshing, cardMap, onCardSelect, isLoadingCards }: { linescore: GameBoxscoreDetail["linescore"]; mostRecentPlay?: MostRecentPlay; teams?: GameBoxscoreDetail["teams"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
-    const inningHalf = (linescore.inning_half || linescore.inning_state || "").toUpperCase();
-    const inningLabel = linescore.current_inning_ordinal || linescore.current_inning || "";
-    const outs = linescore.outs ?? 0;
-    const hasFirst = !!linescore.offense?.first;
-    const hasSecond = !!linescore.offense?.second;
-    const hasThird = !!linescore.offense?.third;
-    const batterName = linescore.offense?.batter;
-    const batterId = linescore.offense?.batter_id;
-    const pitcherName = linescore.defense?.pitcher;
-    const pitcherId = linescore.defense?.pitcher_id;
-
-    const batterCard = batterId ? cardMap[cardKey(batterId, 'batting')] : undefined;
-    console.log("Batter Card", batterCard);
-    const pitcherCard = pitcherId ? cardMap[cardKey(pitcherId, 'pitching')] : undefined;
-
-    const allBatters = [...(teams?.away.batting ?? []), ...(teams?.home.batting ?? [])];
-    const allPitchers = [...(teams?.away.pitching ?? []), ...(teams?.home.pitching ?? [])];
-    const batterSummary = batterId ? allBatters.find(b => b.id === batterId)?.stats.summary : undefined;
-    const pitcherSummary = pitcherId ? allPitchers.find(p => p.id === pitcherId)?.stats.summary : undefined;
-
-    return (
-        <>
-        <style>{`
-            @keyframes live-border-glow {
-                0%, 100% { box-shadow: 0 0 6px rgba(234,179,8,0.12); border-color: rgba(234,179,8,0.25); }
-                50%       { box-shadow: 0 0 18px rgba(234,179,8,0.35); border-color: rgba(234,179,8,0.6); }
-            }
-        `}</style>
-        <div
-            className="rounded-xl border bg-(--background-secondary) p-4 space-y-3"
-            style={{ animation: 'live-border-glow 2s ease-in-out infinite' }}
-        >
-            
-
-            <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold uppercase tracking-wide text-yellow-600">
-                    {inningHalf} {inningLabel}
-                </span>
-
-                <div className="flex items-center gap-2">
-                    {isRefreshing && (
-                        <svg className="animate-spin h-3 w-3 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                    )}
-                    {!isRefreshing && (
-                        <span className="text-xs text-yellow-600/60 italic">Updates every 30s</span>
-                    )}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center sm:items-start gap-x-8 max-w-280">
-                {/* Pitcher side */}
-                <div className="space-y-1.5 min-w-0">
-                    <div className="flex items-baseline gap-1.5 justify-between w-full">
-                        
-                        <div className="flex items-center gap-1.5">
-                            <div className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary)">Pitching</div>
-                            {pitcherSummary && <div className="text-[10px] text-(--secondary) truncate">{pitcherSummary}</div>}
-                        </div>
-                        {pitcherCard?.in_season_trends?.pts_change.day != null && pitcherCard?.in_season_trends?.pts_change.day !== 0 && (
-                            <div className={`text-[10px] font-semibold ${pitcherCard.in_season_trends.pts_change.day >= 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                                {pitcherCard.in_season_trends.pts_change.day >= 0 ? '+' : ''}{pitcherCard.in_season_trends.pts_change.day} PTS today
-                            </div>
-                        )}
-                    </div>
-                    {pitcherCard ? (
-                        <CardItemFromCard card={pitcherCard.card} onClick={() => onCardSelect?.(cardMap[cardKey(pitcherId!, 'pitching')])} />
-                    ) : isLoadingCards ? (
-                        <CardItemSkeleton/>
-                    ) : pitcherName ? (
-                        <div className="text-sm font-semibold text-(--primary) truncate">{pitcherName}</div>
-                    ) : <CardItemFromCard card={undefined} className="opacity-50" />}
-                </div>
-
-                {/* Center: Count + Diamond + Outs */}
-                <div className="flex flex-row sm:flex-col items-center justify-center gap-1.5 px-2 shrink-0 py-2 space-x-4 sm:space-x-0">
-                    {linescore.balls != null && linescore.strikes != null ? (
-                        <div className="space-y-1 items-center">
-                            <div className="text-[10px] uppercase text-(--secondary) tracking-wide">Count</div>
-                            <div className="text-[22px] font-bold text-(--primary) leading-none">{linescore.balls}–{linescore.strikes}</div>
-                        </div>
-                    ) : null}
-                    <div className="relative w-12 h-12 mt-1">
-                        <div className={`absolute top-0 left-1/2 -translate-x-1/2 translate-y-1/4 w-4 h-4 rotate-45 border ${hasSecond ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
-                        <div className={`absolute bottom-1/4 left-0.5 w-4 h-4 rotate-45 border ${hasThird ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
-                        <div className={`absolute bottom-1/4 right-0.5 w-4 h-4 rotate-45 border ${hasFirst ? 'bg-amber-400 border-amber-500' : 'border-(--secondary)/40'}`} />
-                    </div>
-                    <div className="text-[14px] md:text-[12px] text-(--secondary)">{outs} out{outs !== 1 ? 's' : ''}</div>
-                </div>
-
-                {/* Batter side - right aligned */}
-                <div className="space-y-1.5 min-w-0 flex flex-col items-start">
-                    <div className="flex items-baseline w-full justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5">
-                            <div className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary) shrink-0">At Bat</div>
-                            {batterSummary && <div className="text-[10px] text-(--secondary) truncate">{batterSummary}</div>}
-                        </div>
-                        
-                        {batterCard?.in_season_trends?.pts_change.day != null && (
-                            <div className={`text-[10px] font-semibold ${batterCard.in_season_trends.pts_change.day >= 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                                {batterCard.in_season_trends.pts_change.day >= 0 ? '+' : ''}{batterCard.in_season_trends.pts_change.day} PTS today
-                            </div>
-                        )}
-                    </div>
-                    {batterCard ? (
-                        <CardItemFromCard card={batterCard.card} className="w-full" onClick={() => onCardSelect?.(cardMap[cardKey(batterId!, 'batting')])} />
-                    ) : isLoadingCards ? (
-                        <CardItemSkeleton className="w-full" />
-                    ) : batterName ? (
-                        <div className="text-sm font-semibold text-(--primary) truncate">{batterName}</div>
-                    ) : <CardItemFromCard card={undefined} className="opacity-50" />}
-                </div>
-            </div>
-
-            <LastResultBanner play={mostRecentPlay} />
-
-        </div>
-        </>
-    );
-}
-
-
-function Decisions({ boxscore, cardMap, onCardSelect, isLoadingCards }: { boxscore: GameBoxscoreDetail; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isLoadingCards?: boolean }) {
-    const { winner, loser, save: saveDecision } = boxscore.decisions;
-
-    // Find the pitcher note (e.g. "(W, 1-0)") for each decision pitcher
-    const findPitcherNote = (pitcherId?: number): string => {
-        if (!pitcherId) return "";
-        for (const side of ["away", "home"] as const) {
-            const pitcher = boxscore.teams[side].pitching.find((p) => p.id === pitcherId);
-            if (pitcher?.stats.note) return pitcher.stats.note;
+    // "Replay mode" = the transport bar is open. Entering it freezes a live game's
+    // cursor so you can scrub back; the colored REPLAY banner then shows and its
+    // "Exit Replay" is the only way out (the toolbar button hides while it's on),
+    // so users always know where they are. Exiting resumes live and flushes the
+    // plays that buffered while paused.
+    const isLiveReal = !simResult && realView?.state === "LIVE";
+    const enterReplay = () => {
+        setShowPlaybackControls(true);
+        if (isLiveReal) setLivePaused(true);
+    };
+    const exitReplay = () => {
+        setShowPlaybackControls(false);
+        if (isLiveReal) {
+            if (bufferedBoxscore) applyBuffer();
+            setLivePaused(false);
         }
-        return "";
     };
 
-    // Standarize the rendering of each decision item (W/L/S) since they all follow the same pattern
-    const decisionItem = (color: string, label: string, pitcher: BoxscoreDecisionPerson, card?: ShowdownBotCardAPIResponse) => (
-        
-        <div className="space-y-1">
-            <div className="flex items-center gap-1.5">
-                <span className={`font-bold ${color}`}>{label}:</span>
-                <span className="font-semibold text-(--primary)">{pitcher?.full_name}</span>
-                <span className="text-(--secondary) text-xs">{findPitcherNote(pitcher?.id)}</span>
-
-                {card && card.in_season_trends?.pts_change.day != null && card.in_season_trends.pts_change.day !== 0 && (
-                    <span className={`text-[9px] font-bold leading-none ${card.in_season_trends.pts_change.day > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                        {card.in_season_trends.pts_change.day > 0 ? '▲' : '▼'}{Math.abs(card.in_season_trends.pts_change.day)} PTS
-                    </span>
-                )}
-            </div>
-            {isLoadingCards && !card ? (
-                <CardItemSkeleton className="w-full" />
-            ) : (
-                <CardItemFromCard card={card?.card} className="w-full" onClick={card ? () => onCardSelect?.(card) : undefined} />
-            )}
-        </div>
-    );
-
-    if (!winner && !loser) return null;
-
-    const winnerCardData = winner?.id ? cardMap[cardKey(winner.id, 'pitching')] : undefined;
-    const loserCardData = loser?.id ? cardMap[cardKey(loser.id, 'pitching')] : undefined;
-    const saveCardData = saveDecision?.id ? cardMap[cardKey(saveDecision.id, 'pitching')] : undefined;
-
-    return (
-        <div 
-            className="
-                flex flex-col
-                md:grid md:grid-cols-2 xl:grid-cols-3
-                p-3 gap-x-6 gap-y-2
-                rounded-xl border border-(--divider) bg-(--background-secondary) 
-                text-sm
-            ">
-                {winner && decisionItem('text-(--green)', 'W', winner, winnerCardData)}
-                {loser && decisionItem('text-(--red)', 'L', loser, loserCardData)}
-                {saveDecision && decisionItem('text-blue-400', 'SV', saveDecision, saveCardData)}
-        </div>
-    );
-}
-
-function ProbableStartingPitchers({
-    away, home, probablePitchers, cardMap, onCardSelect, isLoadingCards
-}: {
-    away: BoxscoreTeamData;
-    home: BoxscoreTeamData;
-    probablePitchers: NonNullable<GameBoxscoreDetail["probable_pitchers"]>;
-    cardMap: CardMap;
-    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
-    isLoadingCards?: boolean;
-}) {
-    const pitcherItem = (team: BoxscoreTeamData, pitcher?: { id?: number; full_name?: string }) => {
-        const card = pitcher?.id ? cardMap[cardKey(pitcher.id, 'pitching')] : undefined;
-        const badgeBg = team.team.primary_color ?? '#374151';
-        const badgeText = getReadableTextColor(badgeBg, '#ffffff');
-        return (
-            <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                    <span
-                        className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
-                        style={{ backgroundColor: badgeBg, color: badgeText }}
-                    >{team.team.abbreviation}</span>
-                    <span className="font-semibold text-(--primary) text-sm">{pitcher?.full_name ?? 'TBD'}</span>
-                    {card && card.in_season_trends?.pts_change.day != null && card.in_season_trends.pts_change.day !== 0 && (
-                        <span className={`text-[9px] font-bold leading-none ${card.in_season_trends.pts_change.day > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                            {card.in_season_trends.pts_change.day > 0 ? '▲' : '▼'}{Math.abs(card.in_season_trends.pts_change.day)} PTS
-                        </span>
-                    )}
-                </div>
-                {isLoadingCards && !card ? (
-                    <CardItemSkeleton className="w-full" />
-                ) : (
-                    <CardItemFromCard card={card?.card} className="w-full" onClick={card ? () => onCardSelect?.(card) : undefined} />
-                )}
-            </div>
-        );
-    };
-
-    return (
-        <div className="flex flex-col md:grid md:grid-cols-2 p-3 gap-x-6 gap-y-2 rounded-xl border border-(--divider) bg-(--background-secondary) text-sm">
-            <div className="col-span-full mb-1">
-                <span className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Probable Starting Pitchers</span>
-            </div>
-            {pitcherItem(away, probablePitchers.away)}
-            {pitcherItem(home, probablePitchers.home)}
-        </div>
-    );
-}
-
-function PlayerNameCell({ name, position, card, ptsChange, isLoadingCard }: { name: string; position?: string; card?: ShowdownBotCard; ptsChange?: number | null; isLoadingCard?: boolean; onClick?: () => void }) {
-        
-    return (
-        <div className="flex items-center space-x-1.5">
-            {isLoadingCard ? (
-                <div className="w-6 h-6 rounded-full bg-(--background-quaternary) animate-pulse shrink-0" />
-            ) : (
-                <CardCommand
-                    isPitcher={card?.chart.is_pitcher ?? true}
-                    primaryColor={card?.image.color_primary ?? '#333'}
-                    secondaryColor={card?.image.color_secondary ?? '#666'}
-                    command={card?.chart.command}
-                    team={card?.team ?? undefined}
-                    className={`w-6 h-6 ${card === undefined && 'opacity-40'}`}
-                />
-            )}
-            <div className="space-y-0.5">
-                
-                <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
-                <div className="flex items-center gap-1">
-                    {isLoadingCard && <div className="h-4 w-10 rounded-full bg-(--background-quaternary) animate-pulse" />}
-                    {card && <PointsBadge points={card.points} bg_color={card.image.color_secondary} />}
-                    {card && ptsChange != null && ptsChange !== 0 && (
-                        <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                            {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}
-                        </span>
-                    )}
-                    {position && <div className="text-[10px] text-(--text-tertiary)">
-                        {position}{cardDefenseForPosition(card, position) != null && (cardDefenseForPosition(card, position) || 0) >= 0 ? "+" : ""}{cardDefenseForPosition(card, position)}
-                    </div>}
-                </div>
-                
-            </div>
-        </div>
-    );
-
-}
-
-function TablePointsSummary({ totalPoints, pointsChange, backgroundColor }: { totalPoints: number; pointsChange: number; backgroundColor?: string }) {
-    if (totalPoints === 0) return null;
-    
-    return (
-        <>
-            <div className="ml-auto text-[10px] font-bold text-(--quaternary) flex gap-x-2">
-                <span className={`${pointsChange < 0 ? 'text-(--red)' : pointsChange > 0 ? 'text-(--green)' : ''}`}>{pointsChange > 0 ? '▲' : pointsChange < 0 ? '▼' : ''}{pointsChange !== 0 ? Math.abs(pointsChange) : ''}</span>
-                <PointsBadge points={totalPoints} bg_color={backgroundColor} className="text-[10px]"/>
-            </div>
-        </>
-    );
-}
-
-function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
-    const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
-    const badgeBg = team.team.primary_color ?? '#374151';
-    const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
-    const badgeText = getReadableTextColor(badgeBg, '#ffffff');
-    const hasCards = Object.keys(cardMap).length > 0;
-
-    const sortedBatters = [...team.batting]
-        .filter((b) => b.batting_order != null && b.batting_order !== "")
-        .sort((a, b) => {
-            const orderA = a.batting_order ? parseInt(a.batting_order, 10) : 9999;
-            const orderB = b.batting_order ? parseInt(b.batting_order, 10) : 9999;
-            return orderA - orderB;
-        });
-
-    // PTS
-    const totalPoints = hasCards
-        ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'batting')]?.card?.points ?? 0), 0)
-        : 0;
-    const totalPointsChange = hasCards && hasGameStarted
-        ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'batting')]?.in_season_trends?.pts_change.day ?? 0), 0)
-        : 0;
-    
-    // CURRENT DEFENSE
-    const INFIELD = new Set(['1B', '2B', '3B', 'SS']);
-    const OUTFIELD = new Set(['LF', 'CF', 'RF']);
-    const defTotals = hasCards
-        ? sortedBatters.filter((b) => b.is_in_lineup).reduce(
-            (acc, b) => {
-                const card = cardMap[cardKey(b.id, 'batting')]?.card ?? undefined;
-                const pos = b.position.replaceAll('PH-', '');
-                const val = cardDefenseForPosition(card, pos ?? null);
-                if (val == null) return acc;
-                if (pos === 'C')                  acc.catcher += val;
-                else if (INFIELD.has(pos ?? ''))  acc.infield += val;
-                else if (OUTFIELD.has(pos ?? '')) acc.outfield += val;
-                return acc;
-            },
-            { infield: 0, outfield: 0, catcher: 0 }
-        )
-        : null;
-
-    return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
-            <div className="px-3 py-2 border-b border-(--divider) flex items-center gap-2">
-                {sportId === 51 && countryCode && (
-                    <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
-                )}
-                <span
-                    className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
-                    style={{ backgroundColor: badgeBg, color: badgeText }}
-                >{team.team.abbreviation}</span>
-                <span className="text-xs text-(--secondary) font-semibold">Batting</span>
-                {defTotals && (
-                    <div className="ml-auto flex items-center gap-x-3">
-                        <span className="text-[10px] text-(--secondary)">C {defTotals.catcher >= 0 ? '+' : ''}{defTotals.catcher}</span>
-                        <span className="text-[10px] text-(--secondary)">IF {defTotals.infield >= 0 ? '+' : ''}{defTotals.infield}</span>
-                        <span className="text-[10px] text-(--secondary)">OF {defTotals.outfield >= 0 ? '+' : ''}{defTotals.outfield}</span>
-                    </div>
-                )}
-                {hasCards && totalPoints > 0 && (
-                    <TablePointsSummary totalPoints={totalPoints} pointsChange={totalPointsChange} backgroundColor={badgeBgSecondary} />
-                )}
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                    <thead>
-                        <tr className="border-b border-(--divider) text-(--secondary) font-semibold text-[10px] tracking-[0.5px] uppercase">
-                            <th className="pl-3 pr-2 py-2 text-left min-w-36">Batters</th>
-                            <th className="px-2 py-2 text-right">AB</th>
-                            <th className="px-2 py-2 text-right">R</th>
-                            <th className="px-2 py-2 text-right">H</th>
-                            <th className="px-2 py-2 text-right">RBI</th>
-                            <th className="px-2 py-2 text-right">BB</th>
-                            <th className="px-2 py-2 text-right">HR</th>
-                            <th className="px-2 py-2 text-right">AVG</th>
-                            <th className="px-2 py-2 text-right pr-3">OPS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sortedBatters.map((batter) => (
-                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[cardKey(batter.id, 'batting')]} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
-                        ))}
-                        {sortedBatters.length === 0 && (
-                            <tr>
-                                <td colSpan={9} className="px-3 py-4 text-center text-(--secondary)">
-                                    No batting data available.
-                                </td>
-                            </tr>
-                        )}
-                        <tr className="border-t border-(--divider) font-bold">
-                            <td className="pl-3 pr-2 py-2 text-left text-(--primary)">Totals</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.at_bats}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.hits}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.rbi}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.home_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)" />
-                            <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-}
-
-function useIsSmallScreen() {
-    const [isSmall, setIsSmall] = useState(() => window.matchMedia("(max-width: 639px)").matches);
-    useEffect(() => {
-        const mq = window.matchMedia("(max-width: 639px)");
-        const handler = (e: MediaQueryListEvent) => setIsSmall(e.matches);
-        mq.addEventListener("change", handler);
-        return () => mq.removeEventListener("change", handler);
-    }, []);
-    return isSmall;
-}
-
-function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const isSmallScreen = useIsSmallScreen();
-    const { refs, floatingStyles, context } = useFloating({
-        open: isOpen,
-        onOpenChange: setIsOpen,
-        placement: "right",           // start right, auto-flips if near edge
-        middleware: [offset(8), flip(), shift({ padding: 8 })],
-        whileElementsMounted: autoUpdate,
-    });
-    const hover = useHover(context, { delay: { open: 300, close: 100 } }); // 300ms open delay prevents flicker
-    const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
-
-    const card = cardResponse?.card ?? undefined;
-    const indent = batter.is_substitute;
-    const hasHit = (batter.stats.hits ?? 0) > 0;
-
-    if (batter.name == 'Brett Baty') {
-        console.log("Baty Card Response", indent);
+    async function handleStartSim(payload: StartGameSimPayload) {
+        const token = session?.access_token;
+        if (!token) throw new Error("Sign in to simulate a game.");
+        const { result } = await startGameSim(gamePk, payload, token);
+        setSimResult(result);
+        setSimError(null);
+        setShowSimSetup(false);
+        setSimRunId((n) => n + 1);
+        setSimPlayStarted(false);
+        // The sim opens parked on the first pitch (see GameDetailPlayback) with its result hidden,
+        // so the transport strip needs to be visible for the user to play through it.
+        setShowPlaybackControls(true);
     }
 
-    return (
-        <tr
-            className={`
-                border-b border-(--divider)/50 hover:bg-(--background-primary)/50 
-                ${cardResponse ? 'cursor-pointer' : ''}
-            `}
-            onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
-        >
-            <td 
-                ref={refs.setReference} {...getReferenceProps()} 
-                className={`
-                    pl-3 pr-2 py-1.5 text-left
-                    ${indent ? 'pl-8' : ''}
-                    ${!batter.is_in_lineup ? 'opacity-60' : ''}
-                `} >
-                    <PlayerNameCell name={batter.name} position={batter.position} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
-            </td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.at_bats}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.runs}</td>
-            <td className={`px-2 py-1.5 text-right font-semibold ${hasHit ? 'text-(--primary)' : 'text-(--secondary)'}`}>{batter.stats.hits}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.rbi}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.home_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
-            <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
-            {isOpen && card && !isShowingModal && !isSmallScreen && (
-                <FloatingPortal>
-                    <div
-                        ref={refs.setFloating}
-                        style={floatingStyles}
-                        className="z-50 w-48"
-                        {...getFloatingProps()}
-                    >
-                        <CardItemFromCard card={card} className="min-w-xs max-w-md" />
-                    </div>
-                </FloatingPortal>
+    /** Reopens a previously stored sim of this same game, exactly as if it had just been run. */
+    function handleSelectSim(record: SimGameRecord) {
+        if (!record.result) {
+            setSimError("That simulation could not be loaded.");
+            return;
+        }
+        setSimResult(record.result);
+        setSimError(null);
+        setShowSimHistory(false);
+        setSimRunId((n) => n + 1);
+        setSimPlayStarted(false);
+        setShowPlaybackControls(true);
+    }
+
+    /* Mode strip in the team builder's idiom, coloured by the two clubs so it reads as this
+       game's own. Full-bleed at the top of the page rather than inside a panel — it is a
+       statement about the whole view, not about the box score. */
+    const simBannerTokens = bannerTokens(home.team.secondary_color ?? '#374151');
+
+    // The field is the mobile backdrop, so it only leads the layout once there's a live
+    // situation to put on it. Before first pitch and after the final out, the panels are the page.
+    const hasLiveField = true;
+
+    /* Linescore, box score and game info. On desktop this is the scrolling right column; on
+       mobile it rides in the bottom sheet over the field, below the play-by-play panel. Box score
+       tables stay reading the raw, CURRENT boxscore regardless of playback position — the
+       timeline freezes them (see `GameTimeline.frozen`) rather than reconstructing per-play
+       cumulative stats, so there's nothing playback-aware to swap in here. */
+    const boxScorePanels = (activeView: typeof view, hideResult: boolean, isReplaying: boolean) => (
+        <div className="@container space-y-4">
+            <GameLinescore game={activeView} />
+
+            {/* Decisions and probables come off the real feed, so they only make sense for it. The
+                W/L/SV pitchers are a spoiler while the replay cursor sits before the final out. */}
+            {!simResult && isFinal && !isReplaying && <Decisions boxscore={boxscore} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />}
+
+            {!simResult && isNotStarted && boxscore.probable_pitchers && (
+                <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
             )}
-        </tr>
-    );
-}
 
-function PitchingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
-    const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
-    const badgeBg = team.team.primary_color ?? '#374151';
-    const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
-    const badgeText = getReadableTextColor(badgeBg, '#ffffff');
-
-    const hasCards = Object.keys(cardMap).length > 0;
-
-    const totalPoints = hasCards
-        ? team.pitching.reduce((sum, p) => sum + (cardMap[cardKey(p.id, 'pitching')]?.card?.points ?? 0), 0)
-        : 0;
-    const totalPointsChange = hasCards && hasGameStarted
-        ? team.pitching.reduce((sum, p) => sum + (cardMap[cardKey(p.id, 'pitching')]?.in_season_trends?.pts_change.day ?? 0), 0)
-        : 0;
-
-    return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
-            <div className="px-3 py-2 border-b border-(--divider) flex items-center gap-2">
-                {sportId === 51 && countryCode && (
-                    <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
-                )}
-                <span
-                    className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
-                    style={{ backgroundColor: badgeBg, color: badgeText }}
-                >{team.team.abbreviation}</span>
-                <span className="text-xs text-(--secondary) font-semibold">Pitching</span>
-                {hasCards && totalPoints > 0 && (
-                    <TablePointsSummary totalPoints={totalPoints} pointsChange={totalPointsChange} backgroundColor={badgeBgSecondary} />
-                )}
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                    <thead>
-                        <tr className="border-b border-(--divider) text-(--secondary) font-semibold text-[10px] tracking-[0.5px] uppercase">
-                            <th className="pl-3 pr-2 py-2 text-left min-w-36">Pitchers</th>
-                            <th className="px-2 py-2 text-right">IP</th>
-                            <th className="px-2 py-2 text-right">H</th>
-                            <th className="px-2 py-2 text-right">R</th>
-                            <th className="px-2 py-2 text-right">ER</th>
-                            <th className="px-2 py-2 text-right">BB</th>
-                            <th className="px-2 py-2 text-right">K</th>
-                            <th className="px-2 py-2 text-right">HR</th>
-                            <th className="px-2 py-2 text-right">P-S</th>
-                            <th className="px-2 py-2 text-right pr-3">ERA</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {team.pitching.map((pitcher) => (
-                            <PitcherRow key={pitcher.id} pitcher={pitcher} cardResponse={cardMap[cardKey(pitcher.id, 'pitching')]} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
-                        ))}
-                        {team.pitching.length === 0 && (
-                            <tr>
-                                <td colSpan={10} className="px-3 py-4 text-center text-(--secondary)">
-                                    No pitching data available.
-                                </td>
-                            </tr>
-                        )}
-                        <tr className="border-t border-(--divider) font-bold">
-                            <td className="pl-3 pr-2 py-2 text-left text-(--primary)">Totals</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.innings_pitched}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.hits}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.earned_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.strike_outs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.home_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">
-                                {team.pitching_totals.pitches_thrown}-{team.pitching_totals.strikes}
-                            </td>
-                            <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-}
-
-function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { pitcher: BoxscorePitcher; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
-
-    const [isOpen, setIsOpen] = useState(false);
-    const isSmallScreen = useIsSmallScreen();
-    const { refs, floatingStyles, context } = useFloating({
-        open: isOpen,
-        onOpenChange: setIsOpen,
-        placement: "right",           // start right, auto-flips if near edge
-        middleware: [offset(8), flip(), shift({ padding: 8 })],
-        whileElementsMounted: autoUpdate,
-    });
-    const hover = useHover(context, { delay: { open: 300, close: 100 } }); // 300ms open delay prevents flicker
-    const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
-
-    const card = cardResponse?.card ?? undefined;
-    return (
-        <tr
-            className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${cardResponse ? 'cursor-pointer' : ''}`}
-            onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
-        >
-            <td ref={refs.setReference} {...getReferenceProps()} className="pl-3 pr-2 py-1.5 text-left" >
-                <PlayerNameCell name={pitcher.name} position={'P'} card={card} ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse} />
-            </td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.innings_pitched}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.hits}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.earned_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.strike_outs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.home_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">
-                {pitcher.stats.pitches_thrown}-{pitcher.stats.strikes}
-            </td>
-            <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{pitcher.season_stats.era}</td>
-            {isOpen && card && !isShowingModal && !isSmallScreen && (
-                <FloatingPortal>
-                    <div
-                        ref={refs.setFloating}
-                        style={floatingStyles}
-                        className="z-50 w-48"
-                        {...getFloatingProps()}
-                    >
-                        <CardItemFromCard card={card} className="min-w-xs max-w-md" />
+            {/* A sim's box score can't be rebuilt play-by-play (it's frozen at the final line), so
+                while the user is watching the replay we hide it outright rather than spoil the
+                result — it comes back once the cursor reaches the end. */}
+            {hideResult ? (
+                <div className="rounded-xl border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
+                    <div className="text-xs font-semibold text-(--primary)">Box score hidden during replay</div>
+                    <div className="mt-1 text-[11px] text-(--secondary)">
+                        The full line reveals when the replay reaches the end — or use “Skip to result” to jump ahead.
                     </div>
-                </FloatingPortal>
-            )}
-        </tr>
-    );
-}
-
-function PointsBadge({ points, bg_color, className }: { points: number, bg_color?: string | null, className?: string }) {
-    return (
-        <span 
-            className={`inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full text-[9px] font-bold leading-none text-nowrap ${className ?? ''}`}
-            style={
-                { backgroundColor: bg_color ?? 'var(--secondary)/15', color: getContrastColor(bg_color ?? 'var(--secondary)/15') }}    
-        >
-            {points} PT
-        </span>
-    );
-}
-
-
-function GameInfo({ away, home }: { away: BoxscoreTeamData; home: BoxscoreTeamData }) {
-    const allInfo = [...away.info, ...home.info];
-
-    if (allInfo.length === 0) return null;
-
-    return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3 space-y-3">
-            <div className="font-black text-sm text-(--primary)">Game Info</div>
-            {allInfo.map((section, idx) => (
-                <div key={idx} className="space-y-1">
-                    <div className="text-xs font-bold text-(--secondary) uppercase tracking-wide">{section.title}</div>
-                    {section.fieldList.map((field, fidx) => (
-                        <div key={fidx} className="flex gap-2 text-xs">
-                            <span className="font-bold text-(--primary) shrink-0">{field.label}:</span>
-                            <span className="text-(--secondary)">{field.value}</span>
-                        </div>
-                    ))}
                 </div>
-            ))}
+            ) : (
+            /* Below @820px the container is too narrow for both teams' tables side by side, so
+                they collapse into tabs; at/above it, both Tabs.Content panels are forced visible
+                (via forceMount + the @[820px] override below) and sit in a 2-column grid instead. */
+            <Tabs.Root defaultValue="away">
+                <Tabs.List className="@[820px]:hidden flex gap-1 rounded-lg bg-(--background-tertiary) p-1 mb-3">
+                    <Tabs.Trigger
+                        value="away"
+                        style={{ '--tab-bg': away.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(away.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
+                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
+                    >
+                        {away.team.abbreviation}
+                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                        value="home"
+                        style={{ '--tab-bg': home.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(home.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
+                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
+                    >
+                        {home.team.abbreviation}
+                    </Tabs.Trigger>
+                </Tabs.List>
+                <div className="grid gap-4 @[820px]:grid-cols-2 min-w-0">
+                    {(['away', 'home'] as const).map((side) => {
+                        const team = side === 'away' ? away : home;
+                        const simSide = view[side].boxscore;
+                        return (
+                            <Tabs.Content key={side} value={side} forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
+                                {simResult && simSide ? (
+                                    <SimBoxScoreTable boxscore={simSide} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                                ) : (
+                                    <>
+                                        <BattingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                                        <PitchingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                                    </>
+                                )}
+                            </Tabs.Content>
+                        );
+                    })}
+                </div>
+            </Tabs.Root>
+            )}
+
+            {/* Hidden alongside the box score during a sim replay - same reasoning as above: it
+                reads off the frozen final boxscore, not the playback cursor, so it comes back
+                once the replay reaches the end. */}
+            {!hideResult && <GameInfo away={away} home={home} />}
         </div>
+    );
+
+    return (
+        <GameDetailPlayback
+            key={`${gamePk}:${simRunId}`}
+            boxscore={boxscore}
+            sportId={sportId}
+            realState={realView?.state ?? "PREVIEW"}
+            simResult={simResult}
+            bufferedCount={bufferedBoxscore ? fromGamePlays(bufferedBoxscore.plays ?? []).length - realPlays.length : 0}
+            onApplyBuffer={bufferedBoxscore ? applyBuffer : undefined}
+        >
+            {({ activeView, activePlays, playbackBar, playbackControls, playbackState, isReplaying }) => {
+                /* `ScoreHeader` reads `detailedState` off the `GameView` it's given, so the sim/
+                   finished-game label computed above rides along on a shallow-copied view rather
+                   than as a prop. It's a no-op on every non-terminal playback frame — those report
+                   `state: "LIVE"`, and `ScoreHeader` only reads `detailedState` once state is FINAL. */
+                const headerView = { ...activeView, detailedState };
+                const scoreHeader = <ScoreHeader game={headerView} />;
+
+                /* The in-progress plate appearance, pinned atop the log. Only while the game is
+                   genuinely live at the cursor's position — a finished game has no "current"
+                   matchup, and scrubbing back to an earlier point (`isReplaying`) would otherwise
+                   pin that frame's on-deck batter as if it were happening now. */
+                const currentMatchup = !isReplaying && activeView.state === "LIVE" && activeView.situation?.batter
+                    ? activeView.situation
+                    : undefined;
+                const playByPlayPanelDesktop = (
+                    <PlayByPlayLog
+                        key={gamePk}
+                        plays={activePlays}
+                        cardMap={cardMap}
+                        onCardSelect={setSelectedCard}
+                        isLoadingCards={isLoadingCards}
+                        currentMatchup={currentMatchup}
+                        maxHeightClassName="max-h-none"
+                    />
+                );
+                const playByPlayPanelMobile = (
+                    <PlayByPlayLog
+                        key={gamePk}
+                        plays={activePlays}
+                        cardMap={cardMap}
+                        onCardSelect={setSelectedCard}
+                        isLoadingCards={isLoadingCards}
+                        currentMatchup={currentMatchup}
+                        maxHeightClassName="max-h-[26rem]"
+                    />
+                );
+
+                /* A sim whose cursor hasn't reached the end yet — the user is still playing through
+                   it and shouldn't see the final score or box score. `isReplaying` goes false only
+                   once the cursor sits on the last frame (played to the end, or "Skip to result"). */
+                const simMidReplay = !!simResult && isReplaying;
+                const panels = boxScorePanels(activeView, simMidReplay, isReplaying);
+
+                /* Mode strip: sim banner gets a "Watch" button that jumps to the first pitch and
+                   starts playback; a finished real game under active review gets its own REPLAY strip
+                   with an "Exit Replay" action that jumps back to the live/final edge. Only one of
+                   the two is ever relevant at once — a sim result is never mid-live-review. */
+                const modeBanner = simResult ? (
+                    <ModeBanner
+                        primaryColor={away.team.primary_color ?? '#374151'}
+                        secondaryColor={home.team.secondary_color ?? '#374151'}
+                        label={simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM'}
+                        detail={
+                            simResult.is_takeover && simResult.setup.start_state
+                                ? `— took over in the ${simResult.setup.start_state.is_top ? 'top' : 'bottom'} of the ${ordinal(simResult.setup.start_state.inning)}`
+                                : '— played from the first pitch'
+                        }
+                    >
+                        <div className="flex items-center gap-2">
+                            {/* The sim already opens parked on the first pitch, so this is a
+                                one-click "start playing": from frame 0 it reads "Watch"; once the
+                                cursor has moved it becomes "Restart" and jumps back to the top. */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    playbackControls.seekToStart();
+                                    playbackControls.play();
+                                }}
+                                className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
+                            >
+                                {playbackState.cursor === 0 ? 'Watch' : 'Restart'}
+                            </button>
+                            {/* Only while mid-replay — jumps the cursor to the end so the final
+                                score, box score and last play all resolve at once. */}
+                            {simMidReplay && (
+                                <button
+                                    type="button"
+                                    onClick={() => playbackControls.seekToLive()}
+                                    className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
+                                >
+                                    Skip to result
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => { setSimResult(null); setShowPlaybackControls(false); }}
+                                className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
+                            >
+                                Exit Sim
+                            </button>
+                        </div>
+                    </ModeBanner>
+                ) : (isReplaying || showPlaybackControls) ? (
+                    <ModeBanner
+                        primaryColor={away.team.primary_color ?? '#374151'}
+                        secondaryColor={home.team.secondary_color ?? '#374151'}
+                        label="REPLAY"
+                        detail={
+                            isReplaying
+                                ? "— reviewing an earlier point in the game"
+                                : isLiveReal
+                                    ? "— live updates paused while you scrub"
+                                    : "— playback controls open"
+                        }
+                    >
+                        <button
+                            type="button"
+                            onClick={() => { playbackControls.seekToLive(); exitReplay(); }}
+                            className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
+                        >
+                            Exit Replay
+                        </button>
+                    </ModeBanner>
+                ) : null;
+
+                return (
+                    <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+                        <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
+                            <BackButton onBack={onBack} />
+                            <div className="flex items-center gap-2">
+                                <h1 className="hidden sm:inline text-[20px] font-black text-(--text-primary)">Showdown Live</h1>
+                                <BetaBadge />
+                            </div>
+
+                            {simError && <span className="text-[11px] text-(--red)">{simError}</span>}
+                            {isRefreshing && (
+                                <svg className="animate-spin h-3.5 w-3.5 text-(--secondary)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                            )}
+                            <div className="ml-auto flex items-center gap-2">
+                                
+                                {/* Enters replay: reveals the transport bar and, on a live game,
+                                    freezes the live cursor so you can scrub back. Once active the
+                                    colored REPLAY banner takes over — its "Exit Replay" is the way
+                                    out — so this button hides to keep a single, obvious control. */}
+                                {!isReplaying && !showPlaybackControls && !isNotStarted && (
+                                    <button
+                                        type="button"
+                                        onClick={enterReplay}
+                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg border border-(--divider) px-2.5 py-1.5 text-[11px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
+                                    >
+                                        <FaClockRotateLeft size={12} />
+                                        Replay
+                                    </button>
+                                )}
+                                {/* Independent of `canSimulate` - a finished game can still have
+                                    sims run against it while it was live/upcoming, worth revisiting. */}
+                                {!simResult && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSimError(null); setShowSimHistory(true); }}
+                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg border border-(--divider) px-2.5 py-1.5 text-[11px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
+                                    >
+                                        <FaListUl size={12} />
+                                        Past Sims
+                                    </button>
+                                )}
+                                {canSimulate && !simResult && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSimError(null); setShowSimSetup(true); }}
+                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg animated-showdown-gradient px-3 py-1.5 text-[11px] font-bold text-white transition-opacity hover:opacity-90"
+                                    >
+                                        <FaTerminal />
+                                        Simulate
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {modeBanner}
+
+                        {hasLiveField ? (
+                            <>
+                                {/* Below `md`: one strip swaps between all three columns. `md`–`lg`:
+                                    a 50/50 split — the field pinned left, `MID_TABS` (box score /
+                                    play-by-play) swapping on the right. `lg`+: the strip is gone and
+                                    all three columns show at once. */}
+                                <div className="md:hidden shrink-0">
+                                    <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} className="px-2" fullWidth />
+                                </div>
+
+                                <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden lg:grid-cols-[3fr_4fr_3fr]">
+
+                                    {/* Spotlight column — field, playback bar and matchup. Pinned left
+                                        from `md` up; `lg:order-2` slides it back to the centre once the
+                                        box score gets its own column again. */}
+                                    <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:block md:order-1 md:py-4 md:px-0 md:min-w-0 lg:order-2`}>
+                                        {/* Grass backdrop behind the scoreboard, field and matchup as one group —
+                                            faded top/bottom so it blends into the page instead of a hard edge.
+                                            The image is the first child with no z-index of its own, and the
+                                            content wrapper below it is `relative` (so it's a positioned sibling
+                                            too) — later DOM order among same-stacking-level positioned elements
+                                            paints on top, with no negative z-index needed (which can end up
+                                            behind an ancestor's own background instead of just this image). */}
+                                        <div className="relative">
+                                            <img
+                                                src="/images/games/Grass.png"
+                                                alt=""
+                                                className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
+                                                style={{
+                                                    maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)',
+                                                    WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)',
+                                                }}
+                                            />
+
+                                            <div className="relative space-y-4 p-1">
+                                                {/* Scoreboard bleeds over the grass on both breakpoints — compact
+                                                    (no records, smaller type) on mobile, full-size on desktop. */}
+                                                <ScoreHeader game={headerView} compact className="lg:hidden" />
+                                                <div className="hidden lg:block">{scoreHeader}</div>
+
+                                                <GameField
+                                                    game={activeView}
+                                                    cardMap={cardMap}
+                                                    onCardSelect={setSelectedCard}
+                                                    expanded={isFieldExpanded}
+                                                    onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
+                                                    isLoadingCards={isLoadingCards}
+                                                    transition={playbackState.transition}
+                                                    pendingPlay={playbackState.pendingPlay}
+                                                    phase={playbackState.phase}
+                                                    lastPlay={activePlays[0]}
+                                                    onPlayClick={simResult && playbackState.cursor === 0 && !simPlayStarted ? () => {
+                                                        setSimPlayStarted(true);
+                                                        playbackControls.seekToStart();
+                                                        playbackControls.play();
+                                                    } : undefined}
+                                                />
+
+                                                {/* A takeover sim is a finished game the user will want to scrub
+                                                    through play by play, so its transport strip is shown up front
+                                                    rather than hidden behind the Replay toggle. */}
+                                                {(showPlaybackControls || simResult) && playbackBar}
+
+                                                {!simResult && isNotStarted && boxscore.probable_pitchers && (
+                                                    <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
+                                                )}
+
+                                                <GameMatchup
+                                                    game={activeView}
+                                                    plays={activePlays}
+                                                    cardMap={cardMap}
+                                                    isLoadingCards={isLoadingCards}
+                                                    onCardSelect={setSelectedCard}
+                                                    hideStatlines={isReplaying}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right column — box score + play-by-play. `contents` below `md`
+                                        (each panel just obeys the mobile strip); a real flex column
+                                        with its own `MID_TABS` strip between `md` and `lg`; `contents`
+                                        again at `lg` so both panels rejoin the outer grid as their own
+                                        columns. */}
+                                    <div className="contents md:flex md:flex-col md:order-2 md:min-h-0 md:min-w-0 md:overflow-hidden lg:contents">
+                                        <div className="hidden md:block lg:hidden shrink-0 pt-4">
+                                            <TabButtons tabs={MID_TABS} value={midTab} onChange={setMidTab} fullWidth />
+                                        </div>
+
+                                        <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} ${midTab === 'boxscore' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-4 lg:block lg:h-full lg:order-1`}>
+                                            {panels}
+                                        </div>
+
+                                        <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} ${midTab === 'playbyplay' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-0 lg:block lg:h-full lg:order-3`}>
+                                            {playByPlayPanelDesktop}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex-1 overflow-y-auto">
+                                <div className="space-y-4 p-4 pb-[calc(6rem+var(--safe-bottom))] lg:mx-auto lg:max-w-5xl">
+                                    {scoreHeader}
+                                    {playByPlayPanelMobile}
+                                    {panels}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className={selectedCard ? '' : 'hidden pointer-events-none'}>
+                            <Modal onClose={handleModalCardClose} isVisible={!!selectedCard}>
+                                <CardDetail
+                                    showdownBotCardData={selectedCard}
+                                    hideTrendGraphs={true}
+                                    context="game_detail"
+                                    parent='game_detail'
+                                />
+                            </Modal>
+                        </div>
+
+                        {showSimSetup && (
+                            <GameSimSetupModal
+                                gamePk={gamePk}
+                                showdownSet={showdownSet ?? '2000'}
+                                onCancel={() => setShowSimSetup(false)}
+                                onStart={handleStartSim}
+                            />
+                        )}
+
+                        {showSimHistory && (
+                            <GameSimHistoryModal
+                                gamePk={gamePk}
+                                onClose={() => setShowSimHistory(false)}
+                                onSelect={handleSelectSim}
+                            />
+                        )}
+                    </div>
+                );
+            }}
+        </GameDetailPlayback>
     );
 }

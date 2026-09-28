@@ -1,0 +1,67 @@
+import { useEffect, useState } from 'react';
+import { fetchChallenges, type ChallengeInstance } from '../../../api/sim';
+import { ChallengeCard, ChallengeCardSkeleton } from './ChallengeCard';
+import { byChallengeCategory } from './challengeCategory';
+
+/** As many placeholder cards as the "usually 3-6 live at once" set `ChallengeCard` is sized for. */
+const SKELETON_COUNT = 4;
+
+type Props = {
+    token?: string;
+    onNewTeam: (challenge: ChallengeInstance) => void;
+    onUseExistingTeam: (challenge: ChallengeInstance, teamId: string) => void;
+    onSelectChallenge: (challenge: ChallengeInstance) => void;
+};
+
+/** The live, auto-generated list of Team Challenges — the default view of the Team Challenges tab. */
+export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectChallenge }: Props) {
+    const [challenges, setChallenges] = useState<ChallengeInstance[] | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let stale = false;
+        fetchChallenges(token)
+            .then(data => { if (!stale) setChallenges([...data].sort(byChallengeCategory)); })
+            .catch(err => { if (!stale) setError(err instanceof Error ? err.message : 'Failed to load challenges.'); });
+        return () => { stale = true; };
+    }, [token]);
+
+    if (error) {
+        return (
+            <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                {error}
+            </div>
+        );
+    }
+
+    if (challenges === null) {
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {Array.from({ length: SKELETON_COUNT }, (_, i) => <ChallengeCardSkeleton key={i} />)}
+            </div>
+        );
+    }
+
+    if (challenges.length === 0) {
+        return (
+            <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
+                No challenges are live right now — check back soon.
+            </p>
+        );
+    }
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {challenges.map(challenge => (
+                <ChallengeCard
+                    key={challenge.instance_id}
+                    challenge={challenge}
+                    token={token}
+                    onNewTeam={onNewTeam}
+                    onUseExistingTeam={onUseExistingTeam}
+                    onViewLeaderboard={onSelectChallenge}
+                />
+            ))}
+        </div>
+    );
+}
