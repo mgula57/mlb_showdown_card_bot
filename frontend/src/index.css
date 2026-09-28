@@ -339,8 +339,35 @@
     50%      { transform: scale(1.04); opacity: 1; }
 }
 
+/* The wordmark is transparent blue/red, so it disappears over team-colored cards. Keep it
+   legible on any background with (1) a soft theme-colored scrim behind it and (2) a tight
+   "sticker" contour built from stacked zero-blur drop-shadows in the same color. */
 .card-processing-logo {
+    --logo-halo: var(--background-secondary);
+    isolation: isolate;
     animation: card-processing-logo-breathe 2.4s ease-in-out infinite;
+}
+
+.card-processing-logo::before {
+    content: "";
+    position: absolute;
+    inset: -60% -12%;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+        closest-side,
+        color-mix(in srgb, var(--logo-halo) 85%, transparent) 40%,
+        transparent 100%
+    );
+}
+
+.card-processing-logo img {
+    filter:
+        drop-shadow(1.5px 0 0 var(--logo-halo))
+        drop-shadow(-1.5px 0 0 var(--logo-halo))
+        drop-shadow(0 1.5px 0 var(--logo-halo))
+        drop-shadow(0 -1.5px 0 var(--logo-halo))
+        drop-shadow(0 4px 8px rgb(0 0 0 / 0.35));
 }
 
 @media (prefers-reduced-motion: reduce) {

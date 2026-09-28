@@ -592,7 +592,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                                 <div className="card-processing-ring card-processing-ring--glow" />
                                 <div className="card-processing-ring" />
                                 <div className="fade-in flex flex-col items-center gap-4 w-1/2 max-w-56">
-                                    <ShowdownBotLogo className="card-processing-logo w-full drop-shadow-lg" />
+                                    <ShowdownBotLogo className="card-processing-logo w-full" />
                                     <div className="
                                         flex items-center gap-2
                                         px-4 py-2

@@ -20,7 +20,7 @@ import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDa
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
-import { useSiteSettings } from "../shared/SiteSettingsContext";
+import { useSiteSettings, showdownSets } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
@@ -36,7 +36,7 @@ import FormInput from "../customs/FormInput";
 import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
-import type { SelectOption } from '../shared/CustomSelect';
+import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { CardItemFromCardDatabaseRecord, CardItemFromCard, CardItemSkeleton } from "./CardItem";
 import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
@@ -106,6 +106,12 @@ type ShowdownCardSearchProps = {
      * want this (currently just the Cards explorer) should pass it.
      */
     enableSetSwitcher?: boolean;
+    /**
+     * Shows a Showdown set dropdown in the filters bar that overrides the header's set for this
+     * search only (not persisted). Only applies to sources without their own `showdown_set`
+     * filter. Off by default — currently just the Cards explorer.
+     */
+    enableSetOverride?: boolean;
 };
 
 // =============================================================================
@@ -643,7 +649,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -678,6 +684,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Global application state
     /** Current user's selected Showdown set */
     const { userShowdownSet } = useSiteSettings();
+    /** Optional per-search set override (see `enableSetOverride`); null falls back to the header's set */
+    const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
+    const showSetOverride = enableSetOverride && !isFilterAvailable('showdown_set', source);
+    const effectiveShowdownSet = (showSetOverride ? showdownSetOverride : null) ?? userShowdownSet;
+    const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
     const { session } = useAuth();
     // Only My Customs needs auth — derived so other sources see a stable `undefined` and don't
     // treat an unrelated session change (e.g. resolving on mount) as a reason to refetch.
@@ -894,7 +905,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         // Note: intentionally not guarding on `isLoading` — a filter/search change while a
         // previous load is still running should start a fresh fetch now (which aborts the
         // stale one in `getCardsData`), not wait for the old one to finish.
-        if (!userShowdownSet) return;
+        if (!effectiveShowdownSet) return;
 
         const timeoutId = setTimeout(() => {
             getCardsData();
@@ -904,7 +915,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Only My Customs' request depends on the session (sent as a bearer token, required to scope
     // the search) — `authToken` stays a stable `undefined` for other sources so a session
     // resolving/changing (e.g. restoring one from storage on refresh) doesn't refetch every tab.
-    }, [userShowdownSet, filters, debouncedSearchText, authToken]);
+    }, [effectiveShowdownSet, filters, debouncedSearchText, authToken]);
 
     // Abort any in-flight card fetch on unmount
     useEffect(() => () => cardsAbortControllerRef.current?.abort(), []);
@@ -970,10 +981,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const pageLimit = 50;
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
 
-            // Only include userShowdownSet if filters.showdown_set is not already populated
+            // Only include the effective set if filters.showdown_set is not already populated
             const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
                 ? {} 
-                : { showdown_set: userShowdownSet };
+                : { showdown_set: effectiveShowdownSet };
 
             const combinedFilters = {
                 ...filters,
@@ -1319,6 +1330,28 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             <FaFilter className="text-primary" />
                             <span className="hidden @2xl:inline">Filter</span>
                         </button>
+
+                        {/* Showdown Set Override */}
+                        {showSetOverride && (
+                            <CustomSelect
+                                className="shrink-0"
+                                buttonClassName="
+                                    h-11 px-3
+                                    rounded-xl bg-(--background-secondary) border-2 border-form-element
+                                    flex items-center cursor-pointer
+                                    hover:bg-(--background-secondary-hover)
+                                "
+                                imageClassName="object-contain object-center h-6 w-16 mr-1"
+                                labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
+                                value={showdownSetOverride ?? ''}
+                                onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
+                                options={[
+                                    { value: '', label: ' (Default)', image: userDefaultSetImage },
+                                    ...showdownSets,
+                                ]}
+                                showDropdownArrow={true}
+                            />
+                        )}
                     </div>
                     
 

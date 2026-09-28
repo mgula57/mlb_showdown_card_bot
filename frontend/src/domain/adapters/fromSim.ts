@@ -556,7 +556,8 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             /** Batter identity fed to `buildRunnerMoves` — only the swing beat resolves a batter. */
             moveBatter?: PlayerRef;
             /** Who stands in the box on this frame. The steal beat keeps the current hitter there;
-             *  the swing/advance beats use the offset next hitter, as every frame does today. */
+             *  the final beat of the PA (swing, or the advance beat when one follows) seats the
+             *  offset next hitter. A swing beat followed by an advance beat leaves the box empty. */
             standingBatter?: PlayerRef;
             pitcher?: PlayerRef;
             outs: number;
@@ -593,8 +594,10 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             retired: swingIsEmpty ? (entry.retired ?? []).map(toRetiredRunner) : retiredWhere(["forced", ""]),
             play: playEntry,
             moveBatter: entryBatter,
-            standingBatter: nextBatter,
-            pitcher: nextPitcher,
+            // An extra-base send still to come plays out before the next hitter steps in — leave
+            // the box empty (and the current pitcher on the mound) until that beat resolves.
+            standingBatter: hasAdvanceLeg ? undefined : nextBatter,
+            pitcher: hasAdvanceLeg ? entryPitcher : nextPitcher,
             outs: hasAdvanceLeg ? entry.outs - advanceOuts : entry.outs,
             away: hasAdvanceLeg ? awayAfterSwing : entry.away_score,
             home: hasAdvanceLeg ? homeAfterSwing : entry.home_score,

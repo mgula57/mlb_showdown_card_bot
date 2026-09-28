@@ -134,6 +134,11 @@ export const CardItemCompact = ({
     const hasPtsMultiplier = !!ptsMultiplier && ptsMultiplier !== 1 && card?.points != null;
     const effectivePoints = hasPtsMultiplier ? Math.round(card!.points * ptsMultiplier!) : card?.points;
 
+    // Name
+    const firstInitial = getFirstInitial(card?.name);
+    const firstName = getFirstName(card?.name);
+    const lastName = getLastName(card?.name);
+
     return (
         <div
             role={onClick ? 'button' : undefined}
@@ -170,13 +175,15 @@ export const CardItemCompact = ({
                         : 
                             <>
                                 {/* First Initial */}
-                                <span className={`hidden @[95px]:flex @[110px]:hidden`}>{getFirstInitial(card?.name)}. </span>
+                                <span className={`hidden @[95px]:flex @[110px]:hidden`}>{firstInitial}. </span>
 
                                 {/* Full First Name */}
-                                <span className={`hidden @[110px]:flex`}>{getFirstName(card?.name)} </span>
+                                {firstName !== 'TBD' && (
+                                    <span className={`hidden @[110px]:flex`}>{firstName} </span>
+                                )}
                             
                                 {/* Last Name */}
-                                <span className={`max-w-15 truncate @[95px]:max-w-full`}>{getLastName(card?.name)} </span>
+                                <span className={`max-w-15 truncate @[95px]:max-w-full`}>{lastName} </span>
                             </>
                     }
                     <CardItemCompactIcons

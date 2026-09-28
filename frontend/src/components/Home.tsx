@@ -399,10 +399,12 @@ export default function Home() {
                 </div>
 
                 {/* Sim hint */}
-                <div className={`flex items-center gap-1.5 px-4 md:px-6 py-1.5 text-[11px] font-medium border-b border-(--divider) ${isDark ? 'bg-neutral-800/40 text-neutral-400' : 'bg-neutral-50 text-neutral-500'}`}>
-                    <FaDiceD20 className="text-primary shrink-0" />
-                    <span>Click a game to watch it play out pitch by pitch, or take over and sim the rest yourself</span>
-                </div>
+                {todaysGames.length > 0 && (
+                    <div className={`flex items-center gap-1.5 px-4 md:px-6 py-1.5 text-[11px] font-medium border-b border-(--divider) ${isDark ? 'bg-neutral-800/40 text-neutral-400' : 'bg-neutral-50 text-neutral-500'}`}>
+                        <FaDiceD20 className="text-primary shrink-0" />
+                        <span>Click a game to watch it play out pitch by pitch, or take over and sim the rest yourself</span>
+                    </div>
+                )}
 
                 {/* Scrollable game cards row */}
                 <div className="overflow-x-auto scrollbar-hide">
@@ -416,7 +418,7 @@ export default function Home() {
                                 </div>
                             ))
                         )}
-                        {!isLoadingGames && todaysGames.length === 0 && !tickerSeason && (
+                        {!isLoadingGames && todaysGames.length === 0 &&  (
                             <div className={`px-6 py-4 text-sm ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                                 No games scheduled today.
                             </div>

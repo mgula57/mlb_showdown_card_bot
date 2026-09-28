@@ -65,7 +65,7 @@ export default function Cards() {
                     className="focus:outline-none data-[state=inactive]:hidden"
                     forceMount
                 >
-                    <ShowdownBotSearch source={CardSource.BOT} enableSetSwitcher />
+                    <ShowdownBotSearch source={CardSource.BOT} enableSetSwitcher enableSetOverride />
                 </Tabs.Content>
             )}
             {visitedTabs.has(CardSource.WOTC) && (
