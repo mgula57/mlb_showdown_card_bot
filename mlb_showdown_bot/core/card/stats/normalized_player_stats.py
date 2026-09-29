@@ -366,6 +366,7 @@ class PlayerStatsNormalizer:
 
             'name': player.full_name,
             'year_ID': stats_period.year,
+            'years_played': stats_period.year_list_as_strs,
             'team_ID': PlayerStatsNormalizer._select_team_id(team_gpd, stats_period),
             'team_games_played_dict': team_gpd,
             'team_id_list': list(team_gpd) if team_gpd else [],
@@ -503,6 +504,22 @@ class PlayerStatsNormalizer:
     # Helper methods for normalization
 
     @staticmethod
+    def _split_group_key(split: StatSplit) -> tuple:
+        """Key identifying which splits describe the same season/situation/position, differing only by team."""
+        position = (split.stat or {}).get('position', None) or {}
+        return (split.season, split.split.code if split.split else None, position.get('abbreviation', None))
+
+    @staticmethod
+    def _is_team_split_with_overall_row(split: StatSplit, splits: List[StatSplit]) -> bool:
+        """True if this is a per-team split and an overall (team-less) split exists for the same season.
+        Mid-season trades produce one row per team plus a total row; the per-team rows should be skipped.
+        Must be checked per season so a trade in one year doesn't drop every other year of a multi-year period."""
+        if not split.team:
+            return False
+        split_key = PlayerStatsNormalizer._split_group_key(split)
+        return any(s.team is None and PlayerStatsNormalizer._split_group_key(s) == split_key for s in splits)
+
+    @staticmethod
     def _extract_year_id_from_seasons(seasons: list[int | str]) -> str | int:
         """Extracts the year ID from the seasons list"""
         if not seasons or len(seasons) == 0:
@@ -542,7 +559,7 @@ class PlayerStatsNormalizer:
             Dict[str, Dict[str, Any]]: Mapping of position abbr to their defensive stats
         """
 
-        stats_type = StatTypeEnum.CAREER if stats_period.is_full_career else StatTypeEnum.STATS_SINGLE_SEASON
+        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
 
         # Get fielding data for season(s)
         fielding_stat_splits = mlb_player.get_stat_splits(
@@ -602,8 +619,8 @@ class PlayerStatsNormalizer:
             # Check for position data
             stats = split.stat
 
-            # IF THERE ARE MULTIPLE SPLITS AND SOME HAVE TEAM AND ANOTHER IS OVERALL, TAKE THE OVERALL SPLIT
-            if len(fielding_stat_splits) > 1 and split.team and any(s.team is None for s in fielding_stat_splits):
+            # IF A SEASON HAS PER-TEAM SPLITS AND AN OVERALL SPLIT (TRADE), TAKE THE OVERALL SPLIT
+            if PlayerStatsNormalizer._is_team_split_with_overall_row(split, fielding_stat_splits):
                 continue
 
             # SKIP NON-TOTAL SPLITS WHEN A MINOR LEAGUE TOTAL ROW EXISTS
@@ -720,6 +737,11 @@ class PlayerStatsNormalizer:
             # ACCUMULATE RAW BATTED BALL COUNTS FOR IF/FB (keys not in NormalizedPlayerStats)
             popup_total = flyball_total = linedrive_total = 0
 
+            # ACCUMULATE GO/AO COMPONENTS. RATIO CAN'T BE SUMMED ACROSS SPLITS, SO IT'S RECALCULATED
+            # FROM RAW COUNTS, FALLING BACK TO A BATTERS FACED WEIGHTED AVERAGE IF COUNTS ARE MISSING
+            ground_outs_total = air_outs_total = 0
+            go_ao_weighted_sum = go_ao_weight_total = 0.0
+
             for split in splits:
                 stats = split.stat
                 if not stats:
@@ -732,8 +754,8 @@ class PlayerStatsNormalizer:
                     if not (split.split and split.split.code == splits_filter):
                         continue
 
-                # IF THERE ARE MULTIPLE SPLITS AND SOME HAVE TEAM AND ANOTHER IS OVERALL, TAKE THE OVERALL SPLIT
-                if len(splits) > 1 and split.team and any(s.team is None for s in splits):
+                # IF A SEASON HAS PER-TEAM SPLITS AND AN OVERALL SPLIT (TRADE), TAKE THE OVERALL SPLIT
+                if PlayerStatsNormalizer._is_team_split_with_overall_row(split, splits):
                     continue
 
                 # SKIP NON-TOTAL SPLITS WHEN A MINOR LEAGUE TOTAL ROW EXISTS
@@ -753,6 +775,16 @@ class PlayerStatsNormalizer:
                     flyball_total += stats.get('flyOuts', 0) + stats.get('flyHits', 0)
                     linedrive_total += stats.get('lineOuts', 0) + stats.get('lineHits', 0)
 
+                ground_outs_total += stats.get('groundOuts', 0) or 0
+                air_outs_total += stats.get('airOuts', 0) or 0
+                try:
+                    go_ao_split = float(stats['groundOutsToAirouts'])
+                    go_ao_weight = float(stats.get('battersFaced', None) or stats.get('plateAppearances', None) or 1)
+                    go_ao_weighted_sum += go_ao_split * go_ao_weight
+                    go_ao_weight_total += go_ao_weight
+                except (KeyError, TypeError, ValueError):
+                    pass
+
                 for key, value in stats.items():
 
                     # PITCHING SPLITS CAN INCLUDE BOTH 'hitByPitch' AND 'hitBatsmen', WHICH BOTH MAP TO 'HBP'
@@ -764,7 +796,7 @@ class PlayerStatsNormalizer:
                     stat_key_normalized = stat_name_mapping.get(key, key)
                     is_non_counting_metric = stat_key_normalized in [
                         'batting_avg', 'onbase_perc', 'slugging_perc',
-                        'onbase_plus_slugging', 'earned_run_avg', 'whip',
+                        'onbase_plus_slugging', 'earned_run_avg', 'whip', 'GO/AO',
                     ]
 
                     # SKIP STATS NOT IN NORMALIZEDPLAYERSTATS
@@ -801,6 +833,13 @@ class PlayerStatsNormalizer:
             # COMBINE FRACTIONAL INNINGS PITCHED ACROSS SPLITS
             if ip_splits:
                 type_stats['IP'] = total_innings_pitched(ip_splits)
+
+            # RECALCULATE GO/AO ACROSS MULTIPLE SPLITS
+            if len(splits) > 1 and 'GO/AO' not in type_stats:
+                if air_outs_total > 0:
+                    type_stats['GO/AO'] = round(ground_outs_total / air_outs_total, 4)
+                elif go_ao_weight_total > 0:
+                    type_stats['GO/AO'] = round(go_ao_weighted_sum / go_ao_weight_total, 4)
 
             # COMPUTE IF/FB FROM ACCUMULATED BATTED BALL COUNTS
             if is_pitcher and 'IF/FB' not in combined_stats:
@@ -1097,9 +1136,8 @@ class PlayerStatsNormalizer:
         match stats_period_type:
             case StatsPeriodYearType.SINGLE_YEAR:
                 return StatTypeEnum.STATS_SINGLE_SEASON
-            case StatsPeriodYearType.FULL_CAREER:
-                return StatTypeEnum.CAREER
-            case StatsPeriodYearType.MULTI_YEAR:
+            case StatsPeriodYearType.MULTI_YEAR | StatsPeriodYearType.FULL_CAREER:
+                # FULL CAREER IS FETCHED SEASON BY SEASON, THEN SUMMED LIKE MULTI-YEAR
                 return StatTypeEnum.STATS_SINGLE_SEASON
             case _:
                 return StatTypeEnum.STATS_SINGLE_SEASON

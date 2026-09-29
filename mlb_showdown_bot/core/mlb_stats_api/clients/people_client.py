@@ -5,7 +5,7 @@ from time import sleep
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from ..base_client import BaseMLBClient
-from ..models.person import Players, Player, FreeAgent, StatTypeEnum
+from ..models.person import Players, Player, FreeAgent, StatTypeEnum, StatGroupEnum
 from ..models.leagues.league import LeagueListEnum
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType, StatsPeriodType, PlayerType
 import json
@@ -36,6 +36,8 @@ _STAT_KEYS = [
     # Pitching counting stats
     'battersFaced', 'earnedRuns', 'era', 'groundOutsToAirouts', 'hitBatsmen',
     'inningsPitched', 'losses', 'saves', 'wins', 'whip', 'gamesPitched',
+    # GO/AO components (ratio is recalculated when summing across splits)
+    'groundOuts', 'airOuts',
     # IF/FB batted ball components (pitcher advanced)
     'popOuts', 'popHits', 'flyOuts', 'flyHits', 'lineOuts', 'lineHits',
     # Fielding
@@ -117,9 +119,9 @@ class PeopleClient(BaseMLBClient):
                             types.extend([StatTypeEnum.STATS_SINGLE_SEASON])
                         else:
                             types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED, StatTypeEnum.GAME_LOG])
-                    case StatsPeriodYearType.FULL_CAREER:
-                        types.extend([StatTypeEnum.CAREER, StatTypeEnum.CAREER_ADVANCED])
-                    case StatsPeriodYearType.MULTI_YEAR:
+                    case StatsPeriodYearType.MULTI_YEAR | StatsPeriodYearType.FULL_CAREER:
+                        # FULL CAREER IS FETCHED SEASON BY SEASON (year_list IS RESOLVED VIA get_player_seasons FIRST)
+                        # SO SEASON-SCOPED DATA (RANKINGS, AWARDS, DEFENSE) WORKS THE SAME AS MULTI-YEAR
                         seasons = stats_period.year_list
                         types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED])
                         if stats_period.type == StatsPeriodType.DATE_RANGE:
@@ -153,6 +155,21 @@ class PeopleClient(BaseMLBClient):
         except Exception as e:
             print(f"Error fetching player with ID {player_id}: {e}")
             raise e
+
+    def get_player_seasons(self, player_id: int, player_type: PlayerType, league_list: Optional[LeagueListEnum] = None) -> List[int]:
+        """Get every season (ascending) the player recorded stats in for their player type. Used to resolve a full career into a list of years."""
+        players = self.get_players(
+            player_ids=[player_id],
+            include_stats=True,
+            type=player_type,
+            league_list=league_list,
+            stat_types=[StatTypeEnum.YEAR_BY_YEAR],
+            limit_hydrated_fields=True,
+        )
+        if len(players.players) == 0:
+            return []
+        group_type = StatGroupEnum.PITCHING if player_type.is_pitcher else StatGroupEnum.HITTING
+        return players.players[0].seasons_played(group_type=group_type)
 
     def get_players(self, player_ids: List[int], include_stats: bool = False, type: Optional[PlayerType] = None, seasons: Optional[List[int]] = None, league_list: Optional[LeagueListEnum] = None, stat_types: Optional[List[StatTypeEnum]] = None, limit_hydrated_fields: Optional[bool] = False, additional_sit_codes: Optional[List[str]] = None) -> Players:
         """Get multiple players by their IDs. Results in a Players object which contains a list of Player objects.
@@ -190,6 +207,7 @@ class PeopleClient(BaseMLBClient):
                 hydrations.append('team(league)')
 
                 # Add seasons
+                seasons_hydration = ""
                 if seasons:
                     seasons_list_str = ",".join([str(season) for season in seasons])
                     seasons_hydration = f",seasons=[{seasons_list_str}]" if len(seasons) > 0 else ""
@@ -218,6 +236,10 @@ class PeopleClient(BaseMLBClient):
 
             params['hydrate'] = ','.join(hydrations)
             data = self._make_request('people', params)
+
+            # import json
+            # with open(f'data/stats_{",".join([str(pid) for pid in player_ids])}.json', 'w') as f:
+            #     json.dump(data, f, indent=4)
             
             all_players.extend(data.get('people', []))
 

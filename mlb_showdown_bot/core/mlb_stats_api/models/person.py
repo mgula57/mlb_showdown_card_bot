@@ -74,12 +74,14 @@ class Player(Person):
             return None
         
         # Find the correct stats group
+        # CAREER SPLITS HAVE NO SEASON, SO THEY ARE INCLUDED REGARDLESS OF THE SEASONS FILTER
         final_list: List[StatSplit] = []
         for stats_group in self.stats:
             if stats_group.group.display_name == group_type.value and stats_group.type.display_name in [t.value for t in types]:
 
+                is_career_type = stats_group.type.display_name in [StatTypeEnum.CAREER.value, StatTypeEnum.CAREER_ADVANCED.value]
                 for split in stats_group.splits:
-                    is_included = group_type == StatTypeEnum.CAREER or int(split.season) in seasons
+                    is_included = is_career_type or (split.season and split.season.isdigit() and int(split.season) in seasons)
                     if is_included:
                         final_list.append(split)
 
@@ -87,6 +89,17 @@ class Player(Person):
             return None
         
         return final_list
+
+    def seasons_played(self, group_type: StatGroupEnum) -> List[int]:
+        """Unique seasons (ascending) the player recorded stats in for the given group. Requires the yearByYear stat type to be hydrated."""
+        seasons: set[int] = set()
+        for stats_group in (self.stats or []):
+            if not stats_group.group or stats_group.group.display_name != group_type.value or stats_group.type.display_name != StatTypeEnum.YEAR_BY_YEAR.value:
+                continue
+            for split in (stats_group.splits or []):
+                if split.season and split.season.isdigit():
+                    seasons.add(int(split.season))
+        return sorted(seasons)
     
     @property
     def fangraphs_id(self) -> Optional[int]:
