@@ -21,6 +21,7 @@ from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
 from ..fangraphs.client import FangraphsAPIClient, FieldingStats
 from ..statcast.client import StatcastAPIClient
 from .stats.normalized_player_stats import PlayerStatsNormalizer, NormalizedPlayerStats, Datasource, PositionStats
+from .stats.datasource import MLB_API_FIRST_SEASON
 
 def clean_kwargs(kwargs: dict) -> dict:
     """Clean the kwargs dictionary by removing 'image_' and 'image_source_' prefixes from keys."""
@@ -45,6 +46,40 @@ def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
             return db.wbc_card_search(name, showdown_set, wbc_season=2026, exclude_mlb_players=True) # HARD CODE 2026 FOR NOW SINCE 2025 WBC NON-MLB CARDS ARE NOT AVAILABLE
 
     return None
+
+def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, name_original: str = None, **kwargs) -> int | None:
+    """For a full career request, return the player's MLB ID if their career reaches MLB API seasons (MLB_API_FIRST_SEASON+). Otherwise None.
+    
+    Name can be a BREF ID (from the player search), an MLB ID, or a plain name.
+    """
+    try:
+        mlb_api = MLBStatsAPI_V2()
+        name = str(name or '').strip()
+        mlb_id: int | None = int(name) if name.isdigit() else None
+
+        # BREF ID (EX: 'judgeaa01')
+        if mlb_id is None and name and ' ' not in name and name[-2:].isdigit():
+            with PostgresDB(is_archive=True) as db:
+                mlb_id = (db.fetch_mlb_ids_from_bref_ids([name]) or {}).get(name)
+
+        # PLAIN NAME
+        if mlb_id is None:
+            search_name = str(name_original or name).split('(')[0].strip()
+            search_results = mlb_api.people.search_players(name=search_name, active_status='both') if search_name else []
+            mlb_id = search_results[0].id if search_results else None
+
+        if mlb_id is None:
+            return None
+
+        player = mlb_api.people.get_player(player_id=mlb_id, include_stats=False)
+        seasons = mlb_api.people.get_player_seasons(
+            player_id=mlb_id,
+            player_type=stats_period.player_type_for_mlb_api(player.primary_position.abbreviation if player.primary_position else None),
+        )
+        return mlb_id if seasons and max(seasons) >= MLB_API_FIRST_SEASON else None
+    except Exception as e:
+        print(f"Failed to check MLB API seasons for career: {e}")
+        return None
 
 def generate_card(**kwargs) -> dict[str, Any]:
     """
@@ -152,6 +187,13 @@ def generate_card(**kwargs) -> dict[str, Any]:
         if stats_period.has_game_logs and stats_period.is_multi_year:
             expected_source = Datasource.MLB_API
 
+        # FULL CAREERS THAT REACH MLB API SEASONS CAN'T BE BUILT FROM BREF
+        career_mlb_id = None
+        if stats_period.is_full_career and expected_source == Datasource.BREF:
+            career_mlb_id = find_mlb_id_for_mlb_api_career(stats_period=stats_period, **kwargs)
+            if career_mlb_id:
+                expected_source = Datasource.MLB_API
+
         # CHECK FOR YEAR IN THE FUTURE AND WBC
         edition_raw = kwargs.get('edition', None)
         edition = Edition(edition_raw) if edition_raw else None
@@ -192,7 +234,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 mlb_stats_api = MLBStatsAPI_V2()
                 league = kwargs.get('league', 'MLB')
                 # Strip all extra overrides from the search name (ex: "Shohei Ohtani (Pitching)" -> "Shohei Ohtani") to improve MLB API search results. MLB API is very bad at handling extra characters in the search query.
-                search_name = kwargs.get('name_original', '') if stats_period.is_multi_year else kwargs.get('name', '')
+                search_name = str(career_mlb_id) if career_mlb_id else (kwargs.get('name_original', '') if stats_period.is_multi_year else kwargs.get('name', ''))
                 if search_name:
                     search_name = search_name.split('(')[0].strip()
                 player_data = mlb_stats_api.build_full_player_from_search(search_name=search_name, stats_period=stats_period, league=league)
