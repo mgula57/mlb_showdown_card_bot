@@ -1,7 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from datetime import date, datetime, timedelta
-from typing import Optional, Any
+from typing import Optional, Any, ClassVar
 from statistics import mode
 import calendar
 
@@ -152,6 +152,17 @@ class TeamSelection(str, Enum):
     FIRST_TEAM = "FIRST_TEAM"
 
 class StatsPeriod(BaseModel):
+
+    # COUNTING STATS THAT GAME LOGS CAN PRODUCE. GAME LOGS DROP ZERO VALUES TO SAVE SPACE,
+    # SO ANY OF THESE MISSING AFTER AGGREGATION MEANT 0 FOR THE PERIOD. THEY MUST BE ZERO-FILLED,
+    # OTHERWISE THE FULL SEASON VALUE IS USED DOWNSTREAM WHEN MERGED OVER FULL SEASON STATS.
+    # EXCLUDES KEYS DERIVED IN fill_empty_stat_categories (PA, AB, 1B, SH, AND 2B/3B ESTIMATES FOR PITCHERS)
+    GAME_LOG_COUNTING_STATS_HITTER: ClassVar[list[str]] = [
+        'G', 'R', 'H', '2B', '3B', 'HR', 'RBI', 'SB', 'CS', 'BB', 'SO', 'HBP', 'SF', 'IBB', 'GIDP',
+    ]
+    GAME_LOG_COUNTING_STATS_PITCHER: ClassVar[list[str]] = [
+        'G', 'GS', 'W', 'SV', 'IP', 'IP_GS', 'ER', 'R', 'H', 'HR', 'BB', 'SO', 'HBP', 'SF', 'IBB', 'GIDP', 'SB', 'CS',
+    ]
 
     # ATTRIBUTES
     year: str
@@ -588,11 +599,12 @@ class StatsPeriod(BaseModel):
             game_log_data['G'] = 1
             innings_text = game_log_data.get('player_game_span', None)
             if is_pitcher:
-                is_start = False
+                # MLB API LOGS HAVE NO GAME SPAN TEXT, ONLY A GS VALUE
+                is_start = convert_to_numeric(str(game_log_data.get('GS', 0) or 0)) > 0
                 if innings_text:
-                    is_start = 'GS' in str(innings_text) or 'SHO' in str(innings_text) or 'CG' in str(innings_text)
-                
-                game_log_data['GS'] = int(is_start) or game_log_data.get('GS', 0)
+                    is_start = is_start or 'GS' in str(innings_text) or 'SHO' in str(innings_text) or 'CG' in str(innings_text)
+
+                game_log_data['GS'] = int(is_start)
                 if is_start:
                     game_log_data['IP_GS'] = game_log_data.get('IP', 0)
 
@@ -647,6 +659,16 @@ class StatsPeriod(BaseModel):
 
             aggregated_data['first_game_date'] = first_game_date_str
             aggregated_data['last_game_date'] = last_game_date_str
+
+        # ZERO-FILL COUNTING STATS THAT WERE 0 IN EVERY GAME (DROPPED FROM LOGS)
+        counting_stats = self.GAME_LOG_COUNTING_STATS_PITCHER if is_pitcher else self.GAME_LOG_COUNTING_STATS_HITTER
+        for key in counting_stats:
+            if aggregated_data.get(key, None) in [None, '']:
+                aggregated_data[key] = 0
+
+        # NO STARTS IN PERIOD, IP/GS CAN'T BE DERIVED. SET EXPLICITLY SO FULL SEASON VALUE ISN'T USED
+        if is_pitcher and aggregated_data['GS'] == 0:
+            aggregated_data['IP/GS'] = 0.0
 
         # FILL IN EMPTY CATEGORIES
         aggregated_data = fill_empty_stat_categories(stats_data=aggregated_data, is_pitcher=is_pitcher, is_game_logs=True)

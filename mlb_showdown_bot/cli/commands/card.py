@@ -57,7 +57,7 @@ def card_main(
     is_wotc: bool = typer.Option(False, "--is_wotc", "-wotc", help="Try loading from WOTC cards."),
     
     # DATABASE/CACHE
-    datasource: str = typer.Option("MLB_API", "--datasource", "-ds", help="Datasource to use for stats and info. Options are MLB_API or BREF."),
+    datasource: str = typer.Option(None, "--datasource", "-ds", help="Datasource to use for stats and info. Options are MLB_API or BREF."),
     store_in_logs: bool = typer.Option(False, "--store_in_logs", "-store", help="Optionally store card in logs."),
     db_connection: bool = typer.Option(None, "--db_connection", "-dbc", help="Optionally pass a database connection for logs."),
     ignore_showdown_library: bool = typer.Option(False, "--ignore_showdown_library", "-isl", help="Optionally force ignore Showdown Library, will create card live."),
@@ -89,6 +89,14 @@ def card_main(
         params['player_ids'] = [int(pid.strip()) for pid in params['player_ids'].split(",")]
         params['years'] = [params['year']] if params['year'] else None
         return generate_cards(**params)
+
+    # Auto choose datasource if not provided to match frontend defaults
+    if not params.get("datasource", None):
+        try:
+            year_end = int(str(params['year'])[-4:]) if params.get('year', None) else None
+            params['datasource'] = "MLB_API" if year_end and year_end >= 2026 else "BREF"
+        except Exception as e:
+            params['datasource'] = "MLB_API"
 
     # Generate card
     payload = generate_card(**params)

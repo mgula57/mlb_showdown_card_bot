@@ -651,6 +651,8 @@ class PostseasonResult(BaseModel):
     format: PostseasonFormat
     rounds: dict[str, list[SeriesResult]] = {}  # KEY: PostseasonRound VALUE
     world_series_winner: Optional[str] = None
+    # EVERY PLAYER WHO APPEARED (ANY PA OR IP) - THEIR LINE ACROSS THE WHOLE POSTSEASON, ALL ROUNDS.
+    player_stats: list[Stats] = []
 
 
 class TransactionType(Enum):
