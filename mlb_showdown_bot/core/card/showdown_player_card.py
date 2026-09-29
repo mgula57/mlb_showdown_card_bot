@@ -32,7 +32,7 @@ from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
 from .utils import showdown_constants as sc, colors
-from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, convert_year_string_to_list, total_ip_for_calculations
+from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, convert_year_string_to_list, total_ip_for_calculations, traditional_round
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
@@ -1312,21 +1312,32 @@ class ShowdownPlayerCard(BaseModel):
                 # IF SMALL SAMPLE (EX: < 45 IP) CAP AT 2 IP
                 # OTHERWISE USE 3 IP AS CAP
                 cap = 2 if innings_pitched < 45 else 3
-                ip = min(round(innings_pitched / games), cap)
+                if self.stats_period.last_year >= 2026:
+                    ip = min(traditional_round(innings_pitched / games), cap)
+                else:
+                    ip = min(round(innings_pitched / games), cap)
 
             case PlayerSubType.STARTING_PITCHER:
                 if (ip_per_start or 0) > 0:
                     # USE IP/GS
-                    print(f"ip_per_start: {ip_per_start}, games_started: {games_started}, innings_pitched: {innings_pitched}, rounded: {round(ip_per_start)}")
-                    ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
+                    if self.stats_period.last_year >= 2026:
+                        ip = traditional_round(ip_per_start) # START USING TRADITIONAL ROUNDING FOR 2026 AND BEYOND
+                    else:
+                        ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
                 elif games_started > 0:
                     # HAVE GAMES STARTED DATA, ESTIMATE RP INNINGS AND NORMALIZE
                     games_as_rp = games - games_started
                     rp_multiplier = 2.0 if self.median_year < 1950 else 1.0
                     est_ip_as_rp = rp_multiplier * games_as_rp
-                    ip = round((innings_pitched - est_ip_as_rp) / games_started)
+                    if self.stats_period.last_year >= 2026:
+                        ip = traditional_round(ip_per_start) # START USING TRADITIONAL ROUNDING FOR 2026 AND BEYOND
+                    else:
+                        ip = round((innings_pitched - est_ip_as_rp) / games_started)
                 else:
-                    ip = round(innings_pitched / games)
+                    if self.stats_period.last_year >= 2026:
+                        ip = traditional_round(ip_per_start) # START USING TRADITIONAL ROUNDING FOR 2026 AND BEYOND
+                    else:
+                        ip = round(innings_pitched / games)
 
                 # MIN OF 4 IP FOR STARTERS
                 ip = max(ip, 4)

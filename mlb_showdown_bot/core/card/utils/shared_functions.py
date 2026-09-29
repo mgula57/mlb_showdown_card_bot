@@ -2,6 +2,7 @@ import math
 from statistics import mode
 from typing import Any
 from datetime import datetime, date
+from decimal import Decimal, ROUND_HALF_UP
 
 def total_ip_for_calculations(ip: float) -> float:
     """
@@ -280,3 +281,7 @@ def convert_number_to_ordinal(number: int) -> str:
         String with ordinal number
     """
     return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])
+
+def traditional_round(value):
+    # Quantize to '1' ensures rounding to the nearest whole integer
+    return int(Decimal(str(value)).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
