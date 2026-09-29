@@ -70,3 +70,6 @@ firebase_creds.json
 # AI
 .claude/*
 !.claude/skills/
+
+# POSTSEASON BATCH SIM OUTPUT (showdown_bot sim postseason-batch)
+sim_output/

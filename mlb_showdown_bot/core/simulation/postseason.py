@@ -176,6 +176,10 @@ class Postseason:
         self.real_bracket = real_bracket
         # SCHEDULE PLACEHOLDERS
         self.rounds: dict[PostseasonRound, dict[str, PostseasonSeries]] = {round: {} for round in self.format.rounds}
+        # EVERY PLAYER'S LINE ACROSS THE WHOLE POSTSEASON (ALL ROUNDS, BOTH CLUBS) - UNLIKE A
+        # SERIES' `series_stats`, WHICH ONLY COVERS THE MVP ROUNDS. SEEDED WITH EVERY CLUB'S
+        # IDENTITY STATLINES SO MERGES NEVER ALIAS A GAME'S OWN `Stats` OBJECTS.
+        self.player_stats = PlayerStatsGroup(players=standings.all_players, year=year, name="POSTSEASON")
         self.generate_initial_schedule()
 
     @property
@@ -414,6 +418,8 @@ class Postseason:
                         if series.series_stats is not None:
                             series.series_stats.merge(game.home_team.stats)
                             series.series_stats.merge(game.away_team.stats)
+                        self.player_stats.merge(game.home_team.stats)
+                        self.player_stats.merge(game.away_team.stats)
                         end_date = game.date
 
                 series.end_date = end_date
@@ -431,4 +437,8 @@ class Postseason:
             format=self.format,
             rounds=rounds,
             world_series_winner=self.world_series_winner_team_name,
+            player_stats=[
+                s for s in self.player_stats.stats.values()
+                if s.stat(StatCategory.PA) > 0 or s.stat(StatCategory.IP) > 0
+            ],
         )

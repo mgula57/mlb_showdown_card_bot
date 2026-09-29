@@ -122,7 +122,9 @@ class Standings:
     @property
     def leagues(self) -> list[str]:
         """ Unique leagues for season. Uses unique prefixes of divisions"""
-        return list(set(list(self.team_leagues.values())))
+        # SORTED, NOT RAW `set` ORDER - STRING HASHING IS RANDOMIZED PER PROCESS, AND THE POSTSEASON
+        # PLAYS SERIES IN THIS ORDER, SO AN UNSORTED LIST BREAKS SEEDED REPRODUCIBILITY.
+        return sorted(set(self.team_leagues.values()))
 
     def division_leaders_list(self, league: str) -> list[SimTeam]:
         """ Returns leader of each division sorted by winning pct. """
