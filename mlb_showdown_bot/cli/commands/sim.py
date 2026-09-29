@@ -1,6 +1,7 @@
 import csv
 import json
 from datetime import datetime
+from pathlib import Path
 
 import typer
 
@@ -11,6 +12,7 @@ except ImportError:
 
 from ...core.card.team_builder.team import Team as BuilderTeam
 from ...core.database.postgres_db import PostgresDB
+from ...core.simulation.postseason_batch import PostseasonBatch
 from ...core.simulation.models import ManagerPreference, PostseasonFormat, SeasonSimulationConfig
 from ...core.simulation.reporting import SeasonReport
 from ...core.simulation.season import Season
@@ -22,7 +24,7 @@ app = typer.Typer()
 @app.callback(invoke_without_command=True)
 def sim_main(
     ctx: typer.Context,
-    year: int = typer.Option(..., "--year", "-y", help="The year to use."),
+    year: int = typer.Option(None, "--year", "-y", help="The year to use. Required unless running a subcommand."),
     set: str = typer.Option("2000", "--set", "-s", help="The showdown set to use."),
     show_game_log: bool = typer.Option(False, "--show_game_log", "-gl", help="Print Game Log Details to CLI"),
     show_standings: bool = typer.Option(False, "--show_standings", "-std", help="Show team standings"),
@@ -55,6 +57,8 @@ def sim_main(
     """Run an MLB Showdown season simulation."""
     if ctx.invoked_subcommand is not None:
         return
+    if year is None:
+        raise typer.BadParameter("Missing option '--year' / '-y'.", param_hint="'--year'")
 
     custom_teams = []
     if teams_file:
@@ -169,3 +173,57 @@ def sim_main(
         typer.echo(f"WROTE PLAYER STATS TO {file_name}")
 
     report.print_runtime()
+
+
+@app.command("postseason-batch")
+def postseason_batch(
+    year: int = typer.Option(2026, "--year", "-y", help="The season whose real postseason bracket to simulate."),
+    set: str = typer.Option(..., "--set", "-s", help="The showdown set to use."),
+    runs: int = typer.Option(100, "--runs", "-n", min=1, help="Number of postseasons to simulate."),
+    seed: int = typer.Option(1, "--seed", "-sd", help="Base seed. Run i uses seed + i - 1, so a batch is reproducible."),
+    out: str = typer.Option(None, "--out", "-o", help="Output directory. Defaults to sim_output/postseason_{year}_{set}/"),
+    resume: bool = typer.Option(False, "--resume", "-r", help="Keep runs already in runs.jsonl and only simulate the missing ones."),
+    render_only: bool = typer.Option(False, "--render-only", help="Skip simulating; rebuild summary.json/runs.csv/summary.html from runs.jsonl."),
+    image_format: str = typer.Option("png", "--image-format", "-img", help="Image format for the per-page social exports (summary_1.<ext>, summary_2.<ext>), or 'none' to skip them.", case_sensitive=False),
+):
+    """Simulate the real postseason bracket many times and write a shareable summary."""
+    batch = PostseasonBatch(year=year, set=set, runs=runs, base_seed=seed, out_dir=Path(out) if out else None)
+    image_format_normalized = None if image_format.lower() == "none" else image_format.lower()
+
+    if render_only:
+        records = batch.load_records()
+        if not records:
+            typer.echo(f"ERROR: no runs found in {batch.runs_path}")
+            raise typer.Exit(code=1)
+    else:
+        typer.echo(f"\n---- POSTSEASON BATCH: {year} {batch.set.value} x{runs} -> {batch.out_dir} -----")
+        progress_bar_holder = {}
+
+        def on_run(record, total: int) -> None:
+            if tqdm:
+                if 'bar' not in progress_bar_holder:
+                    progress_bar_holder['bar'] = tqdm(total=total, desc="SIMULATING POSTSEASONS", unit="run")
+                progress_bar_holder['bar'].update(1)
+                progress_bar_holder['bar'].set_postfix_str(f"#{record.run}: {record.champion} ({record.ws_score})")
+            else:
+                typer.echo(f"  RUN {record.run}: {record.champion} over {record.runner_up} ({record.ws_score})")
+
+        records = batch.run(resume=resume, status_callback=typer.echo, run_callback=on_run)
+        if 'bar' in progress_bar_holder:
+            progress_bar_holder['bar'].close()
+
+    summary = batch.write_outputs(records, status_callback=typer.echo, image_format=image_format_normalized)
+
+    typer.echo(f"\nTITLE ODDS ({summary.runs} RUNS)")
+    for team in summary.teams[:8]:
+        typer.echo(f"  {team.team:<4} {team.title_pct:>5.1f}%   PENNANT {team.pennant_pct:>5.1f}%")
+    typer.echo("\nTOP WORLD SERIES MVPS")
+    for mvp in summary.ws_mvps[:5]:
+        typer.echo(f"  {mvp.count:>3}x  {mvp.name} ({mvp.team})")
+    typer.echo(f"\nWROTE {batch.out_dir / batch.HTML_FILE}")
+    if (batch.out_dir / batch.PDF_FILE).exists():
+        typer.echo(f"WROTE {batch.out_dir / batch.PDF_FILE}")
+    if image_format_normalized:
+        for image_path in batch.image_paths(image_format_normalized):
+            if image_path.exists():
+                typer.echo(f"WROTE {image_path}")

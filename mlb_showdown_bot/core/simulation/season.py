@@ -172,13 +172,51 @@ class PlayerLoader:
         return raw_by_bref_id, as_of
 
 
+@dataclass
+class SeasonPreload:
+    """The DB-backed inputs a real-season `Season.simulate` loads up front - the card pool plus
+    (for a `merge_real_stats` resume) the real stats to merge.
+
+    Loading these dominates setup time and is identical across runs of the same year/set, so a
+    caller simulating the same season many times (see `PostseasonBatch`) loads them once and
+    hands the result to every `Season`. The sim never mutates a card, so sharing is safe.
+    """
+
+    card_pool: SeasonCardPool
+    real_stats_by_bref_id: dict[tuple[str, str], dict]
+    real_stats_as_of: Optional[datetime] = None
+
+    @classmethod
+    def load(cls, config: SeasonSimulationConfig, db: Optional[PostgresDB] = None, status_callback: Optional[Callable[[str], None]] = None) -> 'SeasonPreload':
+        real_stats_by_bref_id: dict[tuple[str, str], dict] = {}
+        real_stats_as_of: Optional[datetime] = None
+        with PlayerLoader(db=db) as loader:
+            # LOWER THAN THE ACTIVE-ROSTER THRESHOLDS SO A FULL 40-MAN CAN BE FILLED FROM RESERVE
+            # DEPTH - BUT NO LOWER THAN THE RESERVE SAMPLE-SIZE FLOORS, SINCE `Roster.select`
+            # REJECTS ANYTHING BELOW THOSE ANYWAY AND BUILDING THE CARD WOULD BE WASTED WORK.
+            card_pool = loader.load_season_cards(
+                year=config.year, set=config.set,
+                min_pa=min(config.min_pa, RESERVE_MIN_PA_POSITION),
+                min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
+                status_callback=status_callback,
+            )
+            if config.resume_from_real_season and config.merge_real_stats:
+                if status_callback:
+                    status_callback(f"Loading real {config.year} stats to merge...")
+                real_stats_by_bref_id, real_stats_as_of = loader.load_real_season_stats(year=config.year)
+        return cls(card_pool=card_pool, real_stats_by_bref_id=real_stats_by_bref_id, real_stats_as_of=real_stats_as_of)
+
+
 class Season:
     """Simulates a full season (real MLB year or custom-team tournament) and returns structured results."""
 
-    def __init__(self, config: SeasonSimulationConfig, db: Optional[PostgresDB] = None, mlb_stats_api: Optional[MLBStatsAPI] = None) -> None:
+    def __init__(self, config: SeasonSimulationConfig, db: Optional[PostgresDB] = None, mlb_stats_api: Optional[MLBStatsAPI] = None, preload: Optional[SeasonPreload] = None) -> None:
         self.config = config
         self.rng = Random(config.seed)
         self.db = db
+        # SHARED DB INPUTS FROM A PRIOR `SeasonPreload.load` - SKIPS THE CARD POOL / REAL STATS
+        # LOAD IN `simulate()`. NONE (THE DEFAULT) LOADS THEM FRESH.
+        self.preload = preload
         self.mlb_stats_api = mlb_stats_api or MLBStatsAPI()
         self.schedule: Optional[Schedule] = None
         self.standings: Optional[Standings] = None
@@ -248,22 +286,11 @@ class Season:
                 team_names=list(teams.keys()),
             )
         else:
-            with PlayerLoader(db=self.db) as loader:
-                # LOWER THAN THE ACTIVE-ROSTER THRESHOLDS SO A FULL 40-MAN CAN BE FILLED FROM RESERVE
-                # DEPTH - BUT NO LOWER THAN THE RESERVE SAMPLE-SIZE FLOORS, SINCE `Roster.select`
-                # REJECTS ANYTHING BELOW THOSE ANYWAY AND BUILDING THE CARD WOULD BE WASTED WORK.
-                card_pool = loader.load_season_cards(
-                    year=config.year, set=config.set,
-                    min_pa=min(config.min_pa, RESERVE_MIN_PA_POSITION),
-                    min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
-                    status_callback=status_callback,
-                )
-                # FETCHED HERE, WHILE THE LOADER'S ARCHIVE CONNECTION IS STILL OPEN - THE MERGE
-                # ITSELF HAPPENS LATER, ONCE `PlayerStatsGroup` EXISTS TO MERGE INTO, BY WHICH
-                # POINT THIS CONNECTION HAS CLOSED. NO DB ACCESS IS NEEDED FOR THAT LATER STEP.
-                if config.resume_from_real_season and config.merge_real_stats:
-                    status(f"Loading real {config.year} stats to merge...")
-                    real_stats_by_bref_id, self.real_stats_as_of = loader.load_real_season_stats(year=config.year)
+            # THE MERGE ITSELF HAPPENS LATER, ONCE `PlayerStatsGroup` EXISTS TO MERGE INTO - NO DB
+            # ACCESS IS NEEDED FOR THAT LATER STEP.
+            preload = self.preload or SeasonPreload.load(config=config, db=self.db, status_callback=status_callback)
+            card_pool = preload.card_pool
+            real_stats_by_bref_id, self.real_stats_as_of = preload.real_stats_by_bref_id, preload.real_stats_as_of
             status(f"Building {config.year} MLB schedule...")
             self.schedule = Schedule(
                 year=config.year,

@@ -296,31 +296,43 @@ class AwardsBuilder:
     # POSTSEASON SERIES MVP
     # ------------------------------------------------------------------
 
+    # HITTER COUNTING-STAT NUDGES, IN RUNS. MVP VOTERS REWARD THE BIG MOMENTS (HR, RBI) BEYOND
+    # WHAT wRAA CREDITS. TUNED OVER 80 SIMULATED 2026 POSTSEASONS (240 LCS/WS SERIES): PURE
+    # wRAA VS RUNS SAVED (PLUS THE OLD HALF-RUN W/SV BONUS) HANDED PITCHERS ~63% OF MVPS; THESE
+    # WEIGHTS WITH NO W/SV BONUS LAND AT ~1/3 - STILL MORE ARMS THAN RECENT REAL VOTING (~20-25%).
+    _SERIES_MVP_RUNS_PER_HR = 0.25
+    _SERIES_MVP_RUNS_PER_RBI = 0.1
+
     def _series_value(self, stats: Stats) -> float:
         """A series performance in runs above average, comparable across bats and arms.
 
-        Hitters: `wRAA` - weighted runs created above a league-average bat over the same PAs.
+        Hitters: `wRAA` - weighted runs created above a league-average bat over the same PAs -
+        plus a small nudge per HR and RBI (see `_SERIES_MVP_RUNS_PER_HR`).
         Pitchers: earned runs prevented versus a league-average arm over the same innings,
-        `(league ERA - ERA) * IP / 9`, plus a half-run nod to each win/save recorded.
+        `(league ERA - ERA) * IP / 9`. No extra credit for wins/saves - those runs are already
+        counted in runs saved, and the double count skewed MVPs heavily toward pitchers.
         """
         if stats.player_type == PlayerType.PITCHER:
             league = self.result.league_totals.get(PlayerType.PITCHER.value)
             league_era = league.era if league and league.era > 0 else 4.50
             ip = stats.stat(StatCategory.IP)
-            runs_saved = (league_era - stats.era) * (ip / 9) if ip > 0 else 0.0
-            return runs_saved + 0.5 * (stats.stat(StatCategory.WINS) + stats.stat(StatCategory.SAVES))
-        return stats.wRAA(
+            return (league_era - stats.era) * (ip / 9) if ip > 0 else 0.0
+        wraa = stats.wRAA(
             league_stats=self.result.league_totals.get(PlayerType.HITTER.value),
             weights=self.result.woba_weights,
+        )
+        return (
+            wraa
+            + self._SERIES_MVP_RUNS_PER_HR * stats.stat(StatCategory.HOMERUNS)
+            + self._SERIES_MVP_RUNS_PER_RBI * stats.stat(StatCategory.RBI)
         )
 
     @staticmethod
     def _series_value_label(stats: Stats) -> str:
         if stats.player_type == PlayerType.PITCHER:
             wins, losses, saves = (int(stats.stat(c)) for c in (StatCategory.WINS, StatCategory.LOSSES, StatCategory.SAVES))
-            ip = stats.stat(StatCategory.IP)
             record = f"{wins}-{losses}" + (f", {saves} SV" if saves else "")
-            return f"{record}, {stats.era:.2f} ERA, {ip:.1f} IP"
+            return f"{record}, {stats.era:.2f} ERA, {stats.ip_display} IP"
         hr, rbi = int(stats.stat(StatCategory.HOMERUNS)), int(stats.stat(StatCategory.RBI))
         slash = f"{stats.ba:.3f}/{stats.obp:.3f}/{stats.slg:.3f}".replace("0.", ".")
         return f"{slash}, {hr} HR, {rbi} RBI"

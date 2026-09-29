@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1080">
+<title>{{ s.year }} Postseason x{{ s.runs }}</title>
+<style>
+  @font-face {
+    font-family: 'ShowdownSetItalic';
+    src: url('{{ font_src }}') format('opentype');
+    font-weight: 400;
+    font-style: italic;
+  }
+  @font-face {
+    font-family: 'ShowdownTitle';
+    src: url('{{ title_font_src }}') format('opentype');
+    font-weight: 900;
+    font-style: normal;
+  }
+  /* MIRRORS THE FRONTEND'S LIGHT-THEME TOKENS (frontend/src/index.css :root). */
+  :root {
+    --primary: #000000;
+    --secondary: #292929;
+    --showdown-blue: #1a3b5f;
+    --showdown-red: #9a362f;
+    --showdown-gray: #6e6e73;
+    --background-primary: #f5f3f0;
+    --background-secondary: #fdfcfa;
+    --background-tertiary: #ebe8e3;
+    --divider: #e2ded8;
+    --background-gradient: linear-gradient(to bottom right, rgb(235, 232, 227), rgb(253, 252, 250), rgb(228, 222, 214));
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--background-primary); color: var(--primary);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .page { width: 1080px; margin: 0 auto; background: var(--background-gradient); }
+  .stripe { height: 10px; background: linear-gradient(115deg, #3b82f6, var(--showdown-blue), var(--showdown-red), #ef4444); }
+  .inner { padding: 44px 56px 36px; }
+  .display { font-family: 'ShowdownSetItalic', "Helvetica Neue", sans-serif; font-style: italic; text-transform: uppercase; }
+
+  .hero { display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: end; padding-bottom: 28px; border-bottom: 1px solid var(--divider); }
+  .logo { display: block; height: 46px; width: auto; margin-bottom: 22px; }
+  .eyebrow { color: var(--showdown-red); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  h1 { margin: 18px 0 0; font-family: 'ShowdownTitle', "Helvetica Neue", sans-serif; font-weight: 900; font-size: 60px; line-height: 1; letter-spacing: -.01em; text-transform: uppercase; color: var(--showdown-blue); }
+  .sub { color: var(--showdown-gray); font-size: 17px; margin-top: 10px; }
+  .champ { text-align: right; background: var(--background-secondary); border: 1px solid var(--divider); border-radius: 16px; padding: 16px 22px; }
+  .champ .num { font-size: 84px; line-height: 1; color: var(--showdown-red); }
+  .champ .who { font-size: 18px; font-weight: 900; text-transform: uppercase; color: var(--showdown-blue); margin-top: 2px; }
+
+  section { margin-top: 30px; }
+  h2 { margin: 0 0 12px; font-size: 20px; font-weight: 900; text-transform: uppercase; color: var(--secondary); }
+  h2 small { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--showdown-gray); margin-left: 8px; }
+  .panel { background: var(--background-secondary); border: 1px solid var(--divider); border-radius: 12px; padding: 16px 20px; }
+
+  .team { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; white-space: nowrap; }
+  .chip { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+  .seed { color: var(--showdown-gray); font-weight: 600; font-size: 12px; }
+  .bar-row { display: grid; grid-template-columns: 180px 1fr 72px; align-items: center; gap: 14px; padding: 6px 0; }
+  .track { height: 24px; background: var(--background-tertiary); border-radius: 6px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 6px; }
+  .pct { text-align: right; font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; color: var(--showdown-blue); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .mini-row { display: grid; grid-template-columns: 1fr 70px; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--divider); font-size: 16px; }
+  .mini-row:last-child { border-bottom: 0; }
+  .mini-row .v { text-align: right; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--showdown-blue); }
+
+  table { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 14px; }
+  th { color: var(--showdown-gray); font-weight: 700; text-align: center; padding: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  th:first-child { text-align: left; }
+  td { padding: 4px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+  td.cell { border-radius: 6px; }
+  td.bye { color: var(--showdown-gray); font-size: 11px; letter-spacing: .06em; }
+
+  .mvp { display: grid; grid-template-columns: 58px 1fr; gap: 16px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--divider); }
+  .mvp:last-child { border-bottom: 0; }
+  .mvp .n { font-size: 30px; color: var(--showdown-red); text-align: right; font-variant-numeric: tabular-nums; }
+  .mvp .name { font-weight: 900; font-size: 16px; }
+  .mvp .team-tag { color: var(--showdown-gray); font-weight: 700; font-size: 12px; margin-left: 6px; }
+  .mvp .line { color: var(--showdown-gray); font-size: 13px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .tile { background: var(--background-secondary); border: 1px solid var(--divider); border-radius: 12px; padding: 16px 18px; }
+  .tile .label { color: var(--showdown-gray); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .tile .big { font-size: 34px; margin-top: 6px; line-height: 1.05; color: var(--showdown-blue); }
+  .tile .detail { color: var(--showdown-gray); font-size: 13px; margin-top: 6px; }
+  .tile.accent .big { color: var(--showdown-red); }
+
+  footer { margin-top: 32px; display: flex; justify-content: space-between; align-items: center; color: var(--showdown-gray); font-size: 13px; border-top: 1px solid var(--divider); padding-top: 16px; }
+  footer strong { color: var(--showdown-blue); font-weight: 900; }
+
+  /* SHEETS. IN THE NORMAL VIEW THEY READ AS ONE CONTINUOUS PAGE. OPENED AS `summary.html#pdf`
+     (WHICH IS WHAT THE PDF EXPORT PRINTS) EACH SHEET BECOMES A FIXED 1080x1350 (4:5 PORTRAIT,
+     INSTAGRAM'S TALLEST FEED SIZE) SLIDE - ONE PDF PAGE / CAROUSEL SLIDE APIECE. */
+  .pdf-only { display: none; }
+  .sheet + .sheet > .inner { padding-top: 0; }
+  .sheet-content > :first-child { margin-top: 0; }
+  .sheet-header { justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--divider); }
+  .sheet-header .logo { height: 34px; margin: 0; }
+
+  html.pdf body { background: var(--background-tertiary); }
+  html.pdf .page { width: auto; background: none; }
+  html.pdf .sheet {
+    width: 1080px; height: 1350px; margin: 0 auto 24px; overflow: hidden; background: var(--background-gradient);
+    display: flex; flex-direction: column; break-after: page;
+  }
+  html.pdf .sheet:last-child { break-after: auto; }
+  html.pdf .sheet > .inner { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 40px; }
+  html.pdf .sheet-content { flex: none; }
+  html.pdf .pdf-only { display: block; }
+  html.pdf .sheet-header { display: flex; }
+  html.pdf footer { margin-top: auto; }
+  html.pdf .bar-row { padding: 4px 0; }
+  html.pdf .tile .big.list { font-size: 26px; }
+
+  /* SINGLE-SHEET EXPORT (`#pdf-1` / `#pdf-2`): SAME SLIDE LAYOUT AS `#pdf`, BUT ONLY ONE SHEET
+     IS SHOWN, SO A HEADLESS SCREENSHOT AT 1080x1350 CAPTURES EXACTLY ONE PDF PAGE AS A STANDALONE
+     IMAGE (SEE `PostseasonBatchReport.write_images`). HIGHER SPECIFICITY THAN `html.pdf .sheet`
+     ABOVE, SO IT WINS REGARDLESS OF SOURCE ORDER.
+  */
+  html.pdf-page-1 .sheet:nth-of-type(2),
+  html.pdf-page-2 .sheet:nth-of-type(1) { display: none; }
+
+  @page { size: 1080px 1350px; margin: 0; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html.pdf body { background: none; }
+    html.pdf .sheet { margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+<div class="sheet">
+<div class="stripe"></div>
+<div class="inner">
+<div class="sheet-content">
+
+  <div class="hero">
+    <div>
+      <img class="logo" src="{{ logo_src }}" alt="Showdown Bot">
+      <div class="eyebrow">{{ s.set }} set · {{ s.runs }} simulations</div>
+      <h1>We simmed the {{ s.year }}<br>postseason {{ s.runs }} times</h1>
+      <div class="sub">Real {{ s.year }} bracket and seeds. Every game played with Showdown cards.</div>
+    </div>
+    {% set leader = s.title_leader %}
+    {% if leader %}
+    <div class="champ">
+      <div class="eyebrow">Title favorite</div>
+      <div class="num display">{{ leader.title_pct|round|int }}%</div>
+      <div class="who">{{ leader.display_name }} · {{ leader.titles }} titles</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <section>
+    <h2>World Series titles <small>share of {{ s.runs }} runs</small></h2>
+    <div class="panel">
+      {% for t in contenders %}
+      <div class="bar-row">
+        <div class="team"><span class="chip" style="background: {{ t.display_color }}"></span>{{ t.display_name }} {% if t.seed %}<span class="seed">#{{ t.seed }} {{ t.league }}</span>{% endif %}</div>
+        <div class="track"><div class="fill" style="width: {{ (100 * t.title_pct / max_title_pct)|round(1) }}%; background: {{ t.display_color }}"></div></div>
+        <div class="pct">{{ t.title_pct }}%</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2>Road to the title <small>% of runs reaching each round</small></h2>
+    <div class="panel">
+      <table>
+        <tr>
+          <th>Team</th>
+          {% for key in s.rounds %}<th>{{ round_labels[key] }}</th>{% endfor %}
+        </tr>
+        {% for t in s.teams %}
+        <tr>
+          <td><div class="team"><span class="chip" style="background: {{ t.display_color }}"></span>{{ t.display_name }}</div></td>
+          {% for key in s.rounds %}
+          {% set v = t.reached_pct.get(key, 0) %}
+          {% if key == 'WC' and v == 0 and t.reached_pct.get('DIV', 0) > 0 %}
+          <td class="cell bye">BYE</td>
+          {% else %}
+          <td class="cell" style="background: rgba(26, 59, 95, {{ (v / 100 * 0.9)|round(3) }}); color: {{ '#ffffff' if v >= 50 else 'var(--secondary)' }}">{{ v|round|int }}%</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </section>
+
+</div>
+</div>
+</div>
+
+<div class="sheet">
+<div class="stripe pdf-only"></div>
+<div class="inner">
+<div class="sheet-content">
+
+  <div class="sheet-header pdf-only">
+    <img class="logo" src="{{ logo_src }}" alt="Showdown Bot">
+    <div class="eyebrow">{{ s.year }} postseason · {{ s.set }} set · {{ s.runs }} simulations</div>
+  </div>
+
+  <section class="two">
+    {% for league, teams in pennant_races.items() %}
+    <div>
+      <h2>{{ league }} pennant</h2>
+      <div class="panel">
+        {% for t in teams if t.pennants > 0 %}
+        <div class="mini-row"><div class="team"><span class="chip" style="background: {{ t.display_color }}"></span>{{ t.display_name }}</div><div class="v">{{ t.pennant_pct }}%</div></div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="two">
+    <div>
+      <h2>World Series MVPs</h2>
+      <div class="panel">
+        {% for m in s.ws_mvps[:5] %}
+        <div class="mvp"><div class="n display">{{ m.count }}</div><div><div class="name">{{ m.name }}<span class="team-tag">{{ m.team }}</span></div><div class="line">Best: {{ m.best_line }}</div></div></div>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h2>LCS MVPs</h2>
+      <div class="panel">
+        {% for m in s.lcs_mvps[:5] %}
+        <div class="mvp"><div class="n display">{{ m.count }}</div><div><div class="name">{{ m.name }}<span class="team-tag">{{ m.team }}</span></div><div class="line">Best: {{ m.best_line }}</div></div></div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>By the numbers</h2>
+    <div class="tiles">
+      {% if s.ws_matchups %}
+      <div class="tile accent"><div class="label">Most common World Series</div><div class="big display">{{ s.ws_matchups[0].label }}</div><div class="detail">{{ s.ws_matchups[0].count }} of {{ s.runs }} runs · {{ s.ws_matchups|length }} different matchups</div></div>
+      {% endif %}
+      {% if s.ws_lengths %}
+      <div class="tile"><div class="label">World Series length</div><div class="big list display">{% for c in s.ws_lengths %}{{ c.label }}: {{ c.count }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div></div>
+      {% endif %}
+      {% if s.titles_by_seed %}
+      <div class="tile"><div class="label">Titles by seed</div><div class="big list display">{% for c in s.titles_by_seed %}{{ c.label }}: {{ c.count }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div></div>
+      {% endif %}
+      {% for r in s.single_postseason_records[:3] %}
+      <div class="tile accent"><div class="label">Single-postseason record · {{ r.category }}</div><div class="big display">{{ r.value_label }} {{ r.category }}</div><div class="detail">{{ r.name }} ({{ r.team }}) · run #{{ r.run }}</div></div>
+      {% endfor %}
+      {% for key, label in notable_labels.items() %}
+      <div class="tile"><div class="label">{{ label }}</div><div class="big display">{{ s.notable_counts.get(key, 0) }}</div><div class="detail">across all {{ s.runs }} postseasons</div></div>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+
+  <footer>
+    <div><strong>showdownbot.com</strong> · {{ s.runs }} full postseason simulations · {{ s.set }} set</div>
+    <div>Generated {{ s.generated_at.strftime('%b %-d, %Y') }}</div>
+  </footer>
+
+</div>
+</div>
+</div>
+
+<script>
+  // SLIDE MODE (`#pdf`, OR `#pdf-1`/`#pdf-2` FOR A SINGLE-SHEET IMAGE EXPORT): ANY SHEET WHOSE
+  // CONTENT RUNS PAST ITS 1350px PAGE (E.G. A BATCH WITH MANY TITLE CONTENDERS) IS ZOOMED DOWN
+  // JUST ENOUGH TO FIT, SO NOTHING GETS CLIPPED.
+  (function () {
+    var match = /^#pdf(-[12])?$/.exec(location.hash);
+    if (!match) return;
+    document.documentElement.classList.add('pdf');
+    if (match[1]) document.documentElement.classList.add('pdf-page' + match[1]);
+    function fit() {
+      document.querySelectorAll('.sheet > .inner').forEach(function (inner) {
+        if (getComputedStyle(inner.closest('.sheet')).display === 'none') return;
+        var content = inner.querySelector('.sheet-content');
+        var footer = inner.querySelector('footer');
+        var style = getComputedStyle(inner);
+        var available = inner.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+          - (footer ? footer.offsetHeight + 24 : 0);
+        content.style.zoom = '';
+        var needed = content.scrollHeight;
+        if (needed > available) content.style.zoom = (available / needed).toFixed(4);
+      });
+    }
+    document.fonts.ready.then(fit);
+  })();
+</script>
+</body>
+</html>

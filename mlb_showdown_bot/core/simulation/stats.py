@@ -262,6 +262,14 @@ class Stats(BaseModel):
         return round(walks_and_hits / ip, 2) if ip > 0 else 0.00
 
     @property
+    def ip_display(self) -> str:
+        """Innings pitched in baseball notation - whole innings plus outs, so 12 2/3 is "12.2"
+        and never a decimal like "12.7". Rounded to the nearest out first, since IP accumulates
+        as float thirds."""
+        outs = round(self.stat(StatCategory.IP) * 3)
+        return f"{outs // 3}.{outs % 3}"
+
+    @property
     def era(self) -> float:
         ip = float(self.stat(StatCategory.IP))
         er = float(self.stat(StatCategory.EARNED_RUNS))
