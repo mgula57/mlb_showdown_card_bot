@@ -1,5 +1,8 @@
 from enum import Enum
 
+# FIRST SEASON SOURCED FROM THE MLB STATS API INSTEAD OF BASEBALL REFERENCE
+MLB_API_FIRST_SEASON = 2026
+
 class Datasource(str, Enum):
     MLB_API = "mlb_api"
     BREF = "bref"

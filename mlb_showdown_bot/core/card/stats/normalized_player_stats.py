@@ -366,6 +366,7 @@ class PlayerStatsNormalizer:
 
             'name': player.full_name,
             'year_ID': stats_period.year,
+            'years_played': stats_period.year_list_as_strs,
             'team_ID': PlayerStatsNormalizer._select_team_id(team_gpd, stats_period),
             'team_games_played_dict': team_gpd,
             'team_id_list': list(team_gpd) if team_gpd else [],
@@ -558,7 +559,7 @@ class PlayerStatsNormalizer:
             Dict[str, Dict[str, Any]]: Mapping of position abbr to their defensive stats
         """
 
-        stats_type = StatTypeEnum.CAREER if stats_period.is_full_career else StatTypeEnum.STATS_SINGLE_SEASON
+        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
 
         # Get fielding data for season(s)
         fielding_stat_splits = mlb_player.get_stat_splits(
@@ -1135,9 +1136,8 @@ class PlayerStatsNormalizer:
         match stats_period_type:
             case StatsPeriodYearType.SINGLE_YEAR:
                 return StatTypeEnum.STATS_SINGLE_SEASON
-            case StatsPeriodYearType.FULL_CAREER:
-                return StatTypeEnum.CAREER
-            case StatsPeriodYearType.MULTI_YEAR:
+            case StatsPeriodYearType.MULTI_YEAR | StatsPeriodYearType.FULL_CAREER:
+                # FULL CAREER IS FETCHED SEASON BY SEASON, THEN SUMMED LIKE MULTI-YEAR
                 return StatTypeEnum.STATS_SINGLE_SEASON
             case _:
                 return StatTypeEnum.STATS_SINGLE_SEASON

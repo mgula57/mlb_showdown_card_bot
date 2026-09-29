@@ -92,8 +92,20 @@ class MLBStatsAPI:
             
             player_search_result = player_search_results[0]
 
+        # RESOLVE FULL CAREER INTO THE SEASONS PLAYED
+        primary_position = player_search_result.primary_position.abbreviation
+        if stats_period.is_full_career and not stats_period.year_list:
+            stats_period.year_list = self.people.get_player_seasons(
+                player_id=player_search_result.id,
+                player_type=stats_period.player_type_for_mlb_api(primary_position),
+                league_list=league_list,
+            )
+            if not stats_period.year_list:
+                logger.warning(f"No seasons found for player ID: {player_search_result.id}")
+                return None
+
         # GET FULL STATS FOR THE PLAYER
-        player = self.people.get_player(player_id=player_search_result.id, primary_position=player_search_result.primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
+        player = self.people.get_player(player_id=player_search_result.id, primary_position=primary_position, stats_period=stats_period, league_list=league_list)
 
         return player
     
