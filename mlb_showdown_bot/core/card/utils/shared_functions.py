@@ -67,7 +67,7 @@ def aggregate_stats(category:str, stats:list, aggregation_method: str) -> Any:
         match aggregation_method:
             case 'mode': return mode(stats)
             case 'last': return stats[-1]
-    elif category == 'IP':
+    elif category in ['IP', 'IP_GS']:
         return total_innings_pitched(stats)
     else:
         stats = [s for s in stats if len(str(s)) != 0]
@@ -190,7 +190,7 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
         if key not in current_categories:
             stats_data[key] = 0
 
-    if 'ER' in current_categories and 'IP' in current_categories and 'earned_run_avg' not in current_categories and is_pitcher:
+    if 'ER' in current_categories and stats_data.get('IP', 0) > 0 and 'earned_run_avg' not in current_categories and is_pitcher:
         stats_data['earned_run_avg'] = round(9 * stats_data.get('ER', 0) / stats_data.get('IP', 1), 3)
 
     if '2B' not in current_categories:
@@ -238,13 +238,13 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
         stats_data["onbase_plus_slugging"] = round(stats_data["onbase_perc"] + stats_data["slugging_perc"],4)
 
     # PITCHER CATEGORIES
-    if 'IP_GS' in current_categories and 'GS' in current_categories and 'IP/GS' not in current_categories:
+    if 'IP_GS' in current_categories and stats_data.get('GS', 0) > 0 and 'IP/GS' not in current_categories:
         stats_data['IP/GS'] = round(stats_data['IP_GS'] / stats_data['GS'], 4)
 
-    if 'ER' in current_categories and 'IP' in current_categories and 'earned_run_avg' not in current_categories:
+    if 'ER' in current_categories and stats_data.get('IP', 0) > 0 and 'earned_run_avg' not in current_categories:
         stats_data['earned_run_avg'] = round(9 * stats_data['ER'] / stats_data['IP'], 3)
 
-    if 'BB' in current_categories and 'H' in current_categories and 'IP' in current_categories and 'whip' not in current_categories:
+    if 'BB' in current_categories and 'H' in current_categories and stats_data.get('IP', 0) > 0 and 'whip' not in current_categories:
         stats_data['whip'] = round(( stats_data.get('BB', 0) + stats_data.get('H', 0) ) / stats_data.get('IP', 0), 3)
 
     return stats_data
