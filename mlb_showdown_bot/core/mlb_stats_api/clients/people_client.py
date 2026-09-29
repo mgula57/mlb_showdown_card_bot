@@ -36,6 +36,8 @@ _STAT_KEYS = [
     # Pitching counting stats
     'battersFaced', 'earnedRuns', 'era', 'groundOutsToAirouts', 'hitBatsmen',
     'inningsPitched', 'losses', 'saves', 'wins', 'whip', 'gamesPitched',
+    # GO/AO components (ratio is recalculated when summing across splits)
+    'groundOuts', 'airOuts',
     # IF/FB batted ball components (pitcher advanced)
     'popOuts', 'popHits', 'flyOuts', 'flyHits', 'lineOuts', 'lineHits',
     # Fielding
@@ -218,6 +220,10 @@ class PeopleClient(BaseMLBClient):
 
             params['hydrate'] = ','.join(hydrations)
             data = self._make_request('people', params)
+
+            # import json
+            # with open(f'data/stats_{",".join([str(pid) for pid in player_ids])}.json', 'w') as f:
+            #     json.dump(data, f, indent=4)
             
             all_players.extend(data.get('people', []))
 
