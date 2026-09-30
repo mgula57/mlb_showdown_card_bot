@@ -36,6 +36,17 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronDown, FaCheck, FaTimes } from 'react-icons/fa';
 
+type MultiSelectOption = { value: string; label: string; image?: string; imageAbbr?: string };
+
+/** Renders an option's logo when it has one, otherwise its label (falling back to the raw value). */
+const OptionContent = ({ option, value, isTag }: { option?: MultiSelectOption; value: string; isTag: boolean }) => {
+    const image = isTag ? (option?.imageAbbr ?? option?.image) : option?.image;
+    if (image) {
+        return <img src={image} alt={value} className={isTag ? 'h-5 w-auto object-contain' : 'w-18 h-6 object-contain object-left'} />;
+    }
+    return <>{option?.label || value}</>;
+};
+
 /**
  * Props for the MultiSelect component
  */
@@ -44,8 +55,9 @@ interface MultiSelectProps {
     label: string;
     /** Optional secondary description text for additional context */
     labelDescription?: string;
-    /** Array of selectable options with value and display label */
-    options: { value: string; label: string }[];
+    /** Array of selectable options with value and display label. When `image` is set it's shown
+     * in place of the label (e.g. set logos); `imageAbbr` is a compact version used in the tags. */
+    options: MultiSelectOption[];
     /** Current selected values array */
     selections?: string[];
     /** Callback function called when selections change */
@@ -254,7 +266,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                         key={value}
                                         className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-md"
                                     >
-                                        {option?.label || value}
+                                        <OptionContent option={option} value={value} isTag={true} />
                                         <span
                                             role="button"
                                             tabIndex={0}
@@ -338,7 +350,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                     `}>
                                         {isSelected && <FaCheck className="h-2 w-2" />}
                                     </div>
-                                    <span className="text-sm">{option.label}</span>
+                                    <span className="text-sm"><OptionContent option={option} value={option.value} isTag={false} /></span>
                                 </div>
                             );
                         })}

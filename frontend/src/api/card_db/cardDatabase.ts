@@ -123,6 +123,9 @@ export type CardDatabaseRecord = {
     // Updated
     updated_at: string;
 
+    // Status
+    status?: 'live' | 'final' | null;
+
     // Error Message
     error?: string | null;
 

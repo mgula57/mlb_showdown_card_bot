@@ -2,6 +2,8 @@ import json
 import os
 import threading
 import uuid
+import re
+import secrets
 from pprint import pprint
 import psycopg2
 import traceback
@@ -198,7 +200,7 @@ class ExploreDataRecord(BaseModel):
     real_ip: Optional[float] = Field(None, description="Innings pitched")
     
     # League and team information
-    lg_id: str = Field(description="League ID")
+    lg_id: Optional[str] = Field(None, description="League ID")
     team_id: str = Field(description="Team ID")
     team_id_list: List[str] = Field(description="List of teams if multi-team player")
     team_games_played_dict: Dict[str, Any] = Field(description="Games played by team")
@@ -255,6 +257,9 @@ class ExploreDataRecord(BaseModel):
 
     # SOURCE
     source: Optional[str] = Field(None, description="Source of the data (e.g., 'BOT', 'WOTC', 'WBC')")
+
+    # STATUS
+    status: Optional[str] = Field(None, description="'live' if the season is in progress, 'final' otherwise")
 
     # Metadata
     updated_at: datetime = Field(description="When record was last updated")
@@ -3830,14 +3835,84 @@ class PostgresDB:
             drop_existing=drop_existing
         )
 
+    def build_dim_season_status_table(self) -> bool:
+        """Create internal.dim_season_status if missing and ensure the current year has a row.
+
+        This table is the source of truth for whether a season's cards are 'live' (in progress,
+        expect ongoing incremental updates) or 'final' (season over, stats are locked). Status is
+        set manually per year via set_season_status() rather than derived from a date rule, since
+        things like postponed/extended seasons don't follow a fixed calendar cutoff.
+        """
+        if not self.connection:
+            return False
+
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_season_status (
+                    year integer PRIMARY KEY,
+                    status text NOT NULL DEFAULT 'live',
+                    created_at timestamp DEFAULT NOW(),
+                    modified_at timestamp DEFAULT NOW(),
+                    finalized_date timestamp
+                );
+            """)
+            cursor.execute("""
+                INSERT INTO internal.dim_season_status (year, status)
+                VALUES (extract(year from now())::int, 'live')
+                ON CONFLICT (year) DO NOTHING;
+            """)
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Error building internal.dim_season_status table: {e}")
+            traceback.print_exc()
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+
+    def set_season_status(self, year: int, status: str) -> bool:
+        """Manually set the status ('live' or 'final') for a given year.
+
+        Setting status to 'final' stamps finalized_date; moving a year back to 'live' clears it.
+        """
+        if not self.connection:
+            return False
+        if status not in ('live', 'final'):
+            raise ValueError("status must be 'live' or 'final'")
+
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO internal.dim_season_status (year, status, finalized_date)
+                VALUES (%s, %s, CASE WHEN %s = 'final' THEN NOW() ELSE NULL END)
+                ON CONFLICT (year) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    modified_at = NOW(),
+                    finalized_date = CASE WHEN EXCLUDED.status = 'final' THEN NOW() ELSE NULL END;
+            """, (year, status, status))
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Error setting season status for {year}: {e}")
+            traceback.print_exc()
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+
     def build_card_bot_view(self, drop_existing:bool = False, full_refresh:bool = False) -> None:
         """Build or refresh the card_bot incremental table.
-        
+
         Args:
             drop_existing: If True, drop the existing table before creating a new one.
             full_refresh: If True, reprocess all records regardless of modification dates.
-        
+
         """
+
+        # ENSURE THE SEASON STATUS LOOKUP TABLE EXISTS (AND HAS A ROW FOR THE CURRENT YEAR)
+        self.build_dim_season_status_table()
 
         sql_logic = '''
             select 
@@ -4004,7 +4079,10 @@ class PostgresDB:
                 end as image_match_type,
                 
                 exact_img_match.image_ids as image_ids,
-                
+
+                -- STATUS (looked up per-year from internal.dim_season_status; defaults to 'final' for untracked years)
+                coalesce(season_status.status, 'final') as status,
+
                 NOW() as updated_at
                 
             from player_season_stats
@@ -4034,6 +4112,8 @@ class PostgresDB:
                 order by prior_year_bot.showdown_bot_version desc, prior_year_bot.updated_at desc
                 limit 1
             ) as prior_year_card on true
+            left join internal.dim_season_status as season_status
+                on season_status.year = player_season_stats.year
             cross join lateral (
                 select
                     case
@@ -4147,6 +4227,7 @@ class PostgresDB:
                     image_match_type text,
                     image_ids jsonb,
                     updated_at timestamp,
+                    status text DEFAULT 'live',
                     PRIMARY KEY (id, showdown_set, showdown_bot_version)
                 );
             """)
@@ -4244,6 +4325,7 @@ class PostgresDB:
                         image_match_type text,
                         image_ids jsonb,
                         updated_at timestamp,
+                        status text DEFAULT 'live',
                         PRIMARY KEY (id, showdown_set, showdown_bot_version)
                     );
                 """)
@@ -4267,11 +4349,16 @@ class PostgresDB:
                     OR dim_card.modified_date > '{last_update}'
                     OR EXISTS (
                         SELECT 1 FROM internal.dim_auto_image dai
-                        WHERE 
+                        WHERE
                         (dai.player_id = player_season_stats.bref_id
                             OR dai.player_id = player_season_stats.mlb_id::text)
                         AND dai.year = player_season_stats.year::text
                         AND dai.image_modified_date > '{last_update}'
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM internal.dim_season_status dss
+                        WHERE dss.year = player_season_stats.year
+                        AND dss.modified_at > '{last_update}'
                     )
                 )
                 """
@@ -4296,7 +4383,7 @@ class PostgresDB:
                     real_slugging_perc, real_onbase_plus_slugging, real_onbase_plus_slugging_plus,
                     real_earned_run_avg, real_whip, real_h, real_1b, real_2b, real_3b, real_hr, real_sb,
                     real_so, real_bb, real_w, real_sv, command, outs, is_pitcher, is_chart_outlier,
-                    chart_ranges, chart_values, is_errata, notes, image_match_type, image_ids, updated_at
+                    chart_ranges, chart_values, is_errata, notes, image_match_type, image_ids, status, updated_at
                 )
                 SELECT * FROM ({full_query}) as source_data
                 ON CONFLICT (id, showdown_set, showdown_bot_version)
@@ -4385,6 +4472,7 @@ class PostgresDB:
                     notes = EXCLUDED.notes,
                     image_match_type = EXCLUDED.image_match_type,
                     image_ids = EXCLUDED.image_ids,
+                    status = EXCLUDED.status,
                     updated_at = EXCLUDED.updated_at;
             """
             
@@ -6253,6 +6341,392 @@ class PostgresDB:
         if (row.get('roster_count') or 0) < (row.get('roster_size') or 0):
             return True
         return False
+
+# ------------------------------------------------------------------------
+# RELEASES
+# ------------------------------------------------------------------------
+
+    def build_releases_table(self) -> None:
+        """Create the releases, release_editions, and release_cards tables. Adds card_bot.status if missing."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.releases (
+                    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    name            TEXT NOT NULL,
+                    description     TEXT,
+                    created_by      TEXT NOT NULL,
+                    is_official     BOOLEAN NOT NULL DEFAULT FALSE,
+                    fork_parent_id  UUID REFERENCES internal.releases(id) ON DELETE SET NULL,
+                    slug            TEXT UNIQUE NOT NULL,
+                    default_showdown_set TEXT,
+                    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_releases_created_by
+                    ON internal.releases (created_by);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_releases_is_official
+                    ON internal.releases (is_official);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_releases_fork_parent_id
+                    ON internal.releases (fork_parent_id);
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_editions (
+                    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    release_id      UUID NOT NULL REFERENCES internal.releases(id) ON DELETE CASCADE,
+                    name            TEXT NOT NULL,
+                    attributes      JSONB NOT NULL DEFAULT '{}',
+                    slug            TEXT UNIQUE NOT NULL,
+                    is_published    BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    CONSTRAINT unique_release_edition_name UNIQUE (release_id, name)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_release_editions_release_id
+                    ON internal.release_editions (release_id);
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_cards (
+                    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    edition_id        UUID NOT NULL REFERENCES internal.release_editions(id) ON DELETE CASCADE,
+                    source_card_id    TEXT,
+                    source_card_type  TEXT,
+                    card_snapshot     JSONB NOT NULL,
+                    card_number       INTEGER,
+                    card_overrides    JSONB,
+                    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    CONSTRAINT unique_card_number UNIQUE (edition_id, card_number)
+                );
+            """)
+            cur.execute("""
+                ALTER TABLE internal.release_cards
+                    ALTER COLUMN card_number DROP NOT NULL;
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_release_cards_edition_id
+                    ON internal.release_cards (edition_id);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_release_cards_source
+                    ON internal.release_cards (source_card_id, source_card_type);
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_release_cards_snapshot_team
+                    ON internal.release_cards USING GIN ((card_snapshot -> 'team'));
+            """)
+
+    _RELEASE_BASE_SELECT = """
+        SELECT
+            r.id, r.name, r.description, r.created_by, r.is_official,
+            r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id',            e.id,
+                        'name',          e.name,
+                        'attributes',    e.attributes,
+                        'slug',          e.slug,
+                        'is_published',  e.is_published,
+                        'card_count',    (SELECT COUNT(*) FROM internal.release_cards rc WHERE rc.edition_id = e.id)
+                    ) ORDER BY e.name
+                ) FILTER (WHERE e.id IS NOT NULL),
+                '[]'::json
+            ) AS editions
+        FROM internal.releases r
+        LEFT JOIN internal.release_editions e ON e.release_id = r.id
+    """
+
+    def get_releases(self, user_id: str) -> list[dict]:
+        """Return all releases created by user_id, newest first. Editions are metadata-only (no cards)."""
+        if not self.connection:
+            return []
+        query = self._RELEASE_BASE_SELECT + """
+            WHERE r.created_by = %s
+            GROUP BY r.id
+            ORDER BY r.updated_at DESC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id,))
+            return [self._serialize_release_row(dict(r)) for r in cur.fetchall()]
+
+    def get_public_releases(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Return releases with at least one published edition, newest first."""
+        if not self.connection:
+            return []
+        query = self._RELEASE_BASE_SELECT + """
+            WHERE EXISTS (
+                SELECT 1 FROM internal.release_editions pe
+                WHERE pe.release_id = r.id AND pe.is_published = TRUE
+            )
+            GROUP BY r.id
+            ORDER BY r.updated_at DESC
+            LIMIT %s OFFSET %s
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (limit, offset))
+            return [self._serialize_release_row(dict(r)) for r in cur.fetchall()]
+
+    def get_release(self, release_id: str, user_id: str | None = None) -> dict | None:
+        """Return a single release (with metadata-only editions). Enforces ownership unless
+        it has at least one published edition."""
+        if not self.connection:
+            return None
+        query = self._RELEASE_BASE_SELECT + """
+            WHERE r.id = %s
+              AND (
+                  r.created_by = %s
+                  OR EXISTS (
+                      SELECT 1 FROM internal.release_editions pe
+                      WHERE pe.release_id = r.id AND pe.is_published = TRUE
+                  )
+              )
+            GROUP BY r.id
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (release_id, user_id))
+            row = cur.fetchone()
+            if not row:
+                print(f"Release {release_id} not found or access denied for user {user_id}.")
+                return None
+            return self._serialize_release_row(dict(row))
+
+    def create_release(self, user_id: str, payload: dict) -> str:
+        """Insert a new release row and return the generated release id (UUID string)."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        fields = self._release_payload_fields(payload)
+        with self.connection.cursor() as cur:
+            slug = self._generate_unique_slug(cur, 'internal.releases', payload.get('name', ''))
+            cols = ', '.join(['created_by', 'slug'] + list(fields.keys()))
+            placeholders = ', '.join(['%s'] * (2 + len(fields)))
+            values = [user_id, slug] + list(fields.values())
+            cur.execute(
+                f"INSERT INTO internal.releases ({cols}) VALUES ({placeholders}) RETURNING id",
+                values,
+            )
+            release_id = str(cur.fetchone()[0])
+        return release_id
+
+    def update_release(self, release_id: str, user_id: str, payload: dict) -> bool:
+        """Update an existing release's metadata. Only the owner may update. Returns True if updated."""
+        if not self.connection:
+            return False
+        fields = self._release_payload_fields(payload)
+        if not fields:
+            return False
+        with self.connection.cursor() as cur:
+            set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+            cur.execute(
+                f"UPDATE internal.releases SET {set_clause}, updated_at = NOW() WHERE id = %s AND created_by = %s",
+                list(fields.values()) + [release_id, user_id],
+            )
+            return cur.rowcount > 0
+
+    def delete_release(self, release_id: str, user_id: str) -> bool:
+        """Delete a release (and its editions/cards) owned by user_id. Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.releases WHERE id = %s AND created_by = %s",
+                (release_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    _EDITION_BASE_SELECT = """
+        SELECT
+            e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published,
+            e.created_at, e.updated_at,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id',               rc.id,
+                        'card_number',      rc.card_number,
+                        'source_card_id',   rc.source_card_id,
+                        'source_card_type', rc.source_card_type,
+                        'card_snapshot',    rc.card_snapshot
+                    ) ORDER BY rc.card_number
+                ) FILTER (WHERE rc.id IS NOT NULL),
+                '[]'::json
+            ) AS cards
+        FROM internal.release_editions e
+        JOIN internal.releases r ON r.id = e.release_id
+        LEFT JOIN internal.release_cards rc ON rc.edition_id = e.id
+    """
+
+    def get_edition(self, edition_id: str, user_id: str | None = None) -> dict | None:
+        """Return a single edition with its full card list. Enforces ownership unless published."""
+        if not self.connection:
+            return None
+        query = self._EDITION_BASE_SELECT + """
+            WHERE e.id = %s
+              AND (e.is_published = TRUE OR r.created_by = %s)
+            GROUP BY e.id
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (edition_id, user_id))
+            row = cur.fetchone()
+            if not row:
+                print(f"Edition {edition_id} not found or access denied for user {user_id}.")
+                return None
+            return self._serialize_edition_row(dict(row))
+
+    def create_edition(self, release_id: str, user_id: str, payload: dict) -> str | None:
+        """Insert a new edition (with initial cards) under a release owned by user_id.
+        Returns the generated edition id, or None if the release isn't owned by user_id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        cards = payload.get('cards', [])
+        fields = self._edition_payload_fields(payload)
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM internal.releases WHERE id = %s AND created_by = %s",
+                (release_id, user_id),
+            )
+            if not cur.fetchone():
+                return None
+            slug = self._generate_unique_slug(cur, 'internal.release_editions', payload.get('name', ''))
+            cols = ', '.join(['release_id', 'slug'] + list(fields.keys()))
+            placeholders = ', '.join(['%s'] * (2 + len(fields)))
+            values = [release_id, slug] + [
+                PostgresDB._serialize_edition_field(k, v) for k, v in fields.items()
+            ]
+            cur.execute(
+                f"INSERT INTO internal.release_editions ({cols}) VALUES ({placeholders}) RETURNING id",
+                values,
+            )
+            edition_id = str(cur.fetchone()[0])
+            self._upsert_release_cards(cur, edition_id, cards)
+        return edition_id
+
+    def update_edition(self, edition_id: str, user_id: str, payload: dict) -> bool:
+        """Update an edition's metadata and/or replace its card list. Only the parent
+        release's owner may update. Returns True if updated."""
+        if not self.connection:
+            return False
+        cards = payload.get('cards')
+        fields = self._edition_payload_fields(payload)
+        if not fields and cards is None:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT 1 FROM internal.release_editions e
+                JOIN internal.releases r ON r.id = e.release_id
+                WHERE e.id = %s AND r.created_by = %s
+            """, (edition_id, user_id))
+            if not cur.fetchone():
+                return False
+            if fields:
+                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                values = [PostgresDB._serialize_edition_field(k, v) for k, v in fields.items()]
+                cur.execute(
+                    f"UPDATE internal.release_editions SET {set_clause}, updated_at = NOW() WHERE id = %s",
+                    values + [edition_id],
+                )
+            if cards is not None:
+                self._upsert_release_cards(cur, edition_id, cards)
+        return True
+
+    def delete_edition(self, edition_id: str, user_id: str) -> bool:
+        """Delete an edition owned (via its parent release) by user_id. Returns True if deleted."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                DELETE FROM internal.release_editions e
+                USING internal.releases r
+                WHERE e.id = %s AND r.id = e.release_id AND r.created_by = %s
+            """, (edition_id, user_id))
+            return cur.rowcount > 0
+
+    @staticmethod
+    def _upsert_release_cards(cur, edition_id: str, cards: list) -> None:
+        """Replace all cards for an edition in release_cards."""
+        cur.execute("DELETE FROM internal.release_cards WHERE edition_id = %s", (edition_id,))
+        if not cards:
+            return
+        batch = [
+            (
+                edition_id,
+                card.get('source_card_id'),
+                card.get('source_card_type'),
+                extras.Json(card['card_snapshot']),
+                card.get('card_number'),
+            )
+            for card in cards
+        ]
+        execute_values(cur, """
+            INSERT INTO internal.release_cards
+                (edition_id, source_card_id, source_card_type, card_snapshot, card_number)
+            VALUES %s
+        """, batch)
+
+    @staticmethod
+    def _generate_unique_slug(cur, table: str, name: str) -> str:
+        """Slugify name, appending a short random suffix on collision. `table` must be a
+        trusted internal identifier (never user input) — it's interpolated into the query."""
+        base_slug = re.sub(r'[^a-z0-9]+', '-', (name or '').lower()).strip('-') or 'release'
+        slug = base_slug
+        while True:
+            cur.execute(f"SELECT 1 FROM {table} WHERE slug = %s", (slug,))
+            if not cur.fetchone():
+                return slug
+            slug = f"{base_slug}-{secrets.token_hex(3)}"
+
+    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set'})
+
+    @staticmethod
+    def _release_payload_fields(payload: dict) -> dict:
+        return {k: v for k, v in payload.items() if k in PostgresDB._RELEASE_ALLOWED_FIELDS}
+
+    _EDITION_ALLOWED_FIELDS = frozenset({'name', 'attributes', 'is_published'})
+    _EDITION_JSONB_FIELDS = frozenset({'attributes'})
+
+    @staticmethod
+    def _edition_payload_fields(payload: dict) -> dict:
+        return {k: v for k, v in payload.items() if k in PostgresDB._EDITION_ALLOWED_FIELDS}
+
+    @staticmethod
+    def _serialize_edition_field(key: str, value) -> object:
+        if key in PostgresDB._EDITION_JSONB_FIELDS and isinstance(value, dict):
+            return extras.Json(value)
+        return value
+
+    @staticmethod
+    def _serialize_release_row(row: dict) -> dict:
+        row['id'] = str(row['id'])
+        if row.get('fork_parent_id'):
+            row['fork_parent_id'] = str(row['fork_parent_id'])
+        if row.get('created_at'):
+            row['created_at'] = row['created_at'].isoformat()
+        if row.get('updated_at'):
+            row['updated_at'] = row['updated_at'].isoformat()
+        return row
+
+    @staticmethod
+    def _serialize_edition_row(row: dict) -> dict:
+        row['id'] = str(row['id'])
+        row['release_id'] = str(row['release_id'])
+        if row.get('created_at'):
+            row['created_at'] = row['created_at'].isoformat()
+        if row.get('updated_at'):
+            row['updated_at'] = row['updated_at'].isoformat()
+        return row
+
+# -----------------------------------------------------------------------
+# LOGGING TABLES
+# -----------------------------------------------------------------------
 
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""

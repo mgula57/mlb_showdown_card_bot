@@ -19,6 +19,7 @@ from ..shared.player_position import Position
 from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel, StatHighlightsType, SpecialEdition
 from ..card.card_generation import generate_card
 from ..card.stats.stats_period import TeamSelection
+from ..card.utils.shared_functions import convert_year_string_to_list
 
 # ANSI color codes
 class Colors:
@@ -89,12 +90,11 @@ class ShowdownBotSet(BaseModel):
     # Special inclusions
     include_all_stars: bool = Field(True, description="Include All-Star players")
     include_award_winners: bool = Field(True, description="Include Award-winning players")
-
-    # All-Star Game mode
-    is_all_star_game: bool = Field(False, description="Build the set as the full All-Star roster (ignores set_size, allocations, and quality selection)")
+    all_stars_only: bool = Field(False, description="Restrict the qualified player pool to players who received an All-Star selection that year")
 
     # Construction results
     final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings surfaced during set construction (e.g. undersized player pool)")
     
     # 10-50 point card allocation
     ideal_low_point_percentage: Optional[float] = Field(
@@ -263,33 +263,25 @@ class ShowdownBotSet(BaseModel):
         # 1. Get player pool
         player_pool = self._get_qualified_player_pool(source_env=source_env)
         print(f"Found {len(player_pool)} qualified players")
+        
+        if len(player_pool) < self.set_size:
+            warning = f"Only {len(player_pool)} qualified players available for {self.set_size} card set"
+            print(f"Warning: {warning}")
+            self.warnings.append(warning)
+        
+        # 2. Calculate quality thresholds
+        self._calculate_quality_thresholds(player_pool)
+        
+        # # 3. Get team allocations
+        team_allocations = self._calculate_team_allocations(player_pool)
+        
+        # 4. Select players by team and type
+        selected_players = self._select_players(player_pool, team_allocations)
 
-        if self.is_all_star_game:
-            # All-Star Game mode: the entire roster makes the set, no allocations or quality selection
-            if len(player_pool) == 0:
-                print(f"No All-Star players found for {', '.join(map(str, self.years))}")
-                return
+        # 5. Redistribute unused slots
+        final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
 
-            final_players = [ShowdownBotSetPlayer(**p.model_dump()) for p in player_pool]
-            self.set_size = len(final_players)
-            self._print_set_summary(final_players, {}, show_team_breakdown, player_pool)
-        else:
-            if len(player_pool) < self.set_size:
-                print(f"Warning: Only {len(player_pool)} qualified players available for {self.set_size} card set")
-
-            # 2. Calculate quality thresholds
-            self._calculate_quality_thresholds(player_pool)
-
-            # # 3. Get team allocations
-            team_allocations = self._calculate_team_allocations(player_pool)
-
-            # 4. Select players by team and type
-            selected_players = self._select_players(player_pool, team_allocations)
-
-            # 5. Redistribute unused slots
-            final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
-
-            self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
+        self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
 
         final_players = self._sort_and_number_players(final_players)
         
@@ -411,7 +403,7 @@ class ShowdownBotSet(BaseModel):
 
         all_cards: list[ShowdownPlayerCard] = []
         total_cards = len(self.final_players)
-        digits = max(3 if self.is_all_star_game else 1, len(str(total_cards)))
+        digits = max(3 if self.all_stars_only else 1, len(str(total_cards)))
 
         for player in self.final_players:
             player_id = player.id
@@ -434,7 +426,7 @@ class ShowdownBotSet(BaseModel):
             card.apply_variable_speed_00_01(variable_speed)
             card.stats_period.disable_display_text_on_card = True
             card.stats_period.team_selection = self.team_selection
-            if self.is_all_star_game:
+            if self.all_stars_only:
                 card.image.edition = Edition.ALL_STAR_GAME
                 if year_override:
                     # Multi-year year strings don't match the exact-year checks in update_special_edition
@@ -491,14 +483,14 @@ class ShowdownBotSet(BaseModel):
 
         # Get all players from the season
         filters = {'year': [str(y) for y in self.years], 'showdown_set': self.showdown_sets, 'limit': 2000}
-        if self.is_all_star_game:
+        if self.all_stars_only:
             filters['awards'] = ['AS']
         all_players = db.fetch_cards_bot(filters)
 
         print(f"Total players found in DB for years {self.years}: {len(all_players)}")
 
         # All-Star Game mode includes the entire roster, regardless of games/IP thresholds
-        if self.is_all_star_game:
+        if self.all_stars_only:
             return [p for p in all_players if p.bref_id_w_type_override not in (self.manually_excluded_ids or [])]
 
         qualified_players = []
@@ -513,7 +505,10 @@ class ShowdownBotSet(BaseModel):
             
             if player.bref_id_w_type_override in (self.manually_excluded_ids or []):
                 continue
-            
+
+            if self.all_stars_only and not player.has_award('AS'):
+                continue
+
             # Apply minimum thresholds based on player type
             if player_type == 'POSITION_PLAYER':
                 min_games_adjustment_ca = 0.80 if 'C' in player.primary_positions else 1.0
@@ -1003,7 +998,7 @@ class ShowdownBotSet(BaseModel):
                 return ""
             return parts[-1].lower()
 
-        if self.is_all_star_game:
+        if self.all_stars_only:
             # AL players first, then NL, each sorted by last name
             league_order = {'AL': 0, 'NL': 1}
             for player in players:
@@ -1032,3 +1027,50 @@ class ShowdownBotSet(BaseModel):
             player.set_number = index
 
         return sorted_players
+
+
+class AlgorithmPreviewRequest(BaseModel):
+    """Validated web-request payload for the Edition Builder's Algorithm tab.
+
+    A strict subset of `ShowdownBotSet`'s constructor fields — this is the API contract exposed
+    to the browser, so fields like `final_players`, `expansion_cards`, and `csv_file_path` are
+    intentionally excluded (they must never be attacker-settable from the web).
+    """
+
+    set_size: int = Field(..., ge=1, le=500)
+    years: str = Field(..., description="Flexible year string, e.g. '2023', '2000-2004', '2006+2014'")
+    showdown_sets: List[str] = Field(..., min_length=1)
+
+    min_games_hitters: int = 60
+    min_ip_starters: int = 75
+    min_ip_relievers: int = 30
+
+    player_type_distribution: PlayerTypeDistribution = Field(default_factory=PlayerTypeDistribution)
+
+    include_all_stars: bool = True
+    include_award_winners: bool = True
+    all_stars_only: bool = False
+
+    ideal_low_point_percentage: Optional[float] = Field(None, ge=0, le=1)
+
+    manually_included_ids: Optional[List[str]] = None
+    manually_excluded_ids: Optional[List[str]] = None
+
+    def to_showdown_bot_set(self) -> ShowdownBotSet:
+        """Validate and construct the `ShowdownBotSet` this request describes."""
+        self.player_type_distribution.validate_total()
+        return ShowdownBotSet(
+            set_size=self.set_size,
+            years=convert_year_string_to_list(self.years),
+            showdown_sets=self.showdown_sets,
+            min_games_hitters=self.min_games_hitters,
+            min_ip_starters=self.min_ip_starters,
+            min_ip_relievers=self.min_ip_relievers,
+            player_type_distribution=self.player_type_distribution,
+            include_all_stars=self.include_all_stars,
+            include_award_winners=self.include_award_winners,
+            all_stars_only=self.all_stars_only,
+            ideal_low_point_percentage=self.ideal_low_point_percentage,
+            manually_included_ids=self.manually_included_ids,
+            manually_excluded_ids=self.manually_excluded_ids,
+        )

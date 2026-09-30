@@ -634,6 +634,48 @@ def build_app_schema(
     db.build_app_schema()
     db.close_connection()
 
+@app.command("build_releases_tables")
+def build_releases_tables(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the releases tables in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building releases tables...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_releases_table()
+    db.close_connection()
+    typer.echo("Done. internal.releases table is ready.")
+
+@app.command("build_season_status_table")
+def build_season_status_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the season status table in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building season status table...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_dim_season_status_table()
+    db.close_connection()
+    typer.echo("Done. internal.dim_season_status table is ready.")
+
+@app.command("set_season_status")
+def set_season_status(
+    year: int = typer.Argument(..., help="Year to update, e.g. 2026"),
+    status: str = typer.Argument(..., help="New status: 'live' or 'final'"),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Mark a season as 'live' or 'final' in internal.dim_season_status"""
+    from ...core.database.postgres_db import PostgresDB
+
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    if db.set_season_status(year=year, status=status):
+        typer.echo(f"✅ Season {year} marked as '{status}'.")
+    else:
+        typer.echo(f"❌ Failed to update season {year}.")
+    db.close_connection()
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

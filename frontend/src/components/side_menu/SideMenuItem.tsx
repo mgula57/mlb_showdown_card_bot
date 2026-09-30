@@ -33,7 +33,7 @@ import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import { FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
 import CardBuildIcon from "../customs/CardBuildIcon";
-import { FaPeopleGroup } from "react-icons/fa6";
+import { FaPeopleGroup, FaLayerGroup } from "react-icons/fa6";
 import { markNavItemSeen, useNavItemIsNew } from "../../hooks/useSeenNavItems";
 // import { FaDice } from "react-icons/fa6"; // re-add with the Simulate nav item below
 
@@ -165,6 +165,12 @@ export const sideMenuItems: SideMenuItemType[] = [
     //     path: "/simulate",
     //     isNew: true
     // },
+    {
+        text: "Release Builder",
+        icon: FaLayerGroup,      // Box icon representing a packaged card release/set
+        path: "/release-builder",
+        isNew: true
+    },
     {
         text: "Account",
         icon: FaUserCircle,

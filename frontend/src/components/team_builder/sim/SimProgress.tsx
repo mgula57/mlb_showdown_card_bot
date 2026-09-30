@@ -144,7 +144,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
 
                         {/* Fixed height: the game count only exists once games start, and letting
                             it appear would otherwise shunt the whole panel up mid-run. */}
-                        <p className="h-[15px] text-right text-[11px] tabular-nums text-tertiary">
+                        <p className="h-3.75 text-right text-[11px] tabular-nums text-tertiary">
                             {total > 0 ? `${completed.toLocaleString()} / ${total.toLocaleString()} games` : ''}
                         </p>
                     </div>

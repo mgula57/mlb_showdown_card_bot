@@ -58,6 +58,7 @@ const mlbSeasons = [
         };
     }),
 ];
+import Releases from "./components/releases/Releases";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -96,6 +97,7 @@ const AppContent = () => {
         if (path.startsWith('/teams/')) return '/teams';
         if (path.startsWith('/seasons/')) return '/seasons';
         if (path.startsWith('/simulate/')) return '/simulate';
+        if (path.startsWith('/release-builder/')) return '/release-builder';
         return path;
     };
     
@@ -175,6 +177,13 @@ const AppContent = () => {
             {mountedRoutes.has('/teams') && (
                 <div className={isActive('/teams') ? 'block' : 'hidden'}>
                     <TeamBuilder />
+                </div>
+            )}
+
+            {/* Releases - Mount when first visited */}
+            {mountedRoutes.has('/release-builder') && (
+                <div className={isActive('/release-builder') ? 'block' : 'hidden'}>
+                    <Releases />
                 </div>
             )}
 

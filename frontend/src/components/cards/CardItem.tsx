@@ -5,7 +5,8 @@ import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
 import { useTheme } from "../shared/SiteSettingsContext";
 import { CardSource } from "../../types/cardSource";
-import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles } from 'react-icons/fa6';
+import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles, FaCircleDot } from 'react-icons/fa6';
+import LiveIcon from "../shared/icons/LiveIcon";
 import type { CardItemActionButton } from './CardItemCompact';
 import { formatYear } from "../../functions/formatters";
 import CardIcon from "./card_elements/CardIcon";
@@ -72,6 +73,9 @@ type CardItemProps = {
     // Source
     cardSource: CardSource | undefined;
 
+    // Status
+    cardStatus?: 'live' | 'final' | null;
+
     /** Click handler for card selection */
     onClick?: () => void | undefined;
     /** Optional CSS classes for styling */
@@ -119,7 +123,7 @@ export const CardItem = ({
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
-    cardChartRanges, cardLeague, cardSource,
+    cardChartRanges, cardLeague, cardSource, cardStatus,
     onClick, className, isSelected, actionButton
 }: CardItemProps) => {
 
@@ -410,6 +414,10 @@ export const CardItem = ({
                             minWidth: setExpansionWidth
                         }}
                     >
+                        {cardStatus === 'live' && (
+                            // <span className="text-red-500 text-[8px] mr-0.5">LIVE</span>
+                            <LiveIcon size={7} color="red" title="This card live updates daily" />
+                        )}
                         {cardSource === 'WOTC' && (
                             <FaHatWizard className="inline-block w-3 h-3" title="Wizards of the Coast" />
                         )}
@@ -586,6 +594,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
             cardPtsMultiplier={cardPtsMultiplier}
+            cardStatus={card?.status || undefined}
             onClick={onClick}
             className={className}
             isSelected={isSelected}

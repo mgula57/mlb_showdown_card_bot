@@ -59,11 +59,11 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, c
                 flex items-center gap-2
                 rounded-lg p-2
                 font-semibold
-                text-base md:text-sm xl:text-base
+                ${className}
+                text-sm
                 ${isDisabled
                     ? 'cursor-not-allowed opacity-50 text-gray-400 border border-form-element'
                     : `cursor-pointer ${isEnabled ? 'text-green-500 border-green-500 border' : 'text-gray-400 border-gray-200 border border-form-element'}`}
-                ${className}
             `}
             onClick={() => { if (!isDisabled) onChange(isEnabled); }}
         >

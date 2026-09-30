@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
 import { FaXmark, FaPeopleGroup } from 'react-icons/fa6';
+import LiveIcon from './shared/icons/LiveIcon';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
@@ -382,10 +383,7 @@ export default function Home() {
                     style={{ backgroundImage: 'linear-gradient(95deg, #1a2f6e, color-mix(in srgb, #1a2f6e 60%, #8b1a1a 40%), #8b1a1a)' }}
                 >
                     <p className="text-xs font-bold uppercase tracking-widest text-white/90 flex items-center gap-2">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400"></span>
-                        </span>
+                        <LiveIcon size={7} className="" title="Live" color='yellow' />
                         Today's Games
                         {tickerSeason && (
                             <span className="text-white/60 font-normal normal-case tracking-normal">

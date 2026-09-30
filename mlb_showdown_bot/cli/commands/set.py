@@ -58,7 +58,7 @@ def set_builder(
             years=year_list,
             showdown_sets=showdown_set_list,
             set_size=set_size,
-            is_all_star_game=all_star_game,
+            all_stars_only=all_star_game,
             ideal_low_point_percentage=ideal_low_point_percentage,
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
             manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None,
