@@ -5186,6 +5186,7 @@ class ShowdownPlayerCard(BaseModel):
                 y_text_offset = 0
             case Set._2004 | Set._2005:
                 x_size = 680 if self.stats_period.show_text_on_card_image else 1000
+                print(f"x_size before adjustment: {x_size}")
                 if not self.image.expansion.has_image:
                     x_size += 100
                 bg_image = Image.new('RGBA', (x_size, 46))
@@ -5228,8 +5229,14 @@ class ShowdownPlayerCard(BaseModel):
         bg_image.paste(text_color, (padding, y_text_offset), stat_text)
 
         # DEFINE PASTE COORDINATES
-        paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career, is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON)
-        
+        paste_coordinates = self.set.template_component_paste_coordinates(
+            component=TemplateImageComponent.STAT_HIGHLIGHTS, 
+            is_multi_year=self.stats_period.is_multi_year, 
+            is_full_career=self.stats_period.is_full_career, 
+            is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON,
+            disable_display_text_on_card = self.stats_period.disable_display_text_on_card,
+        )
+
         # IF CLASSIC/EXPANDED, MOVE X DEPENDING ON SET AND EXPANSION IMAGES
         if self.set.is_showdown_bot:
             x_adjustment = 0
