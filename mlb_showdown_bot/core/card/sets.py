@@ -1434,11 +1434,12 @@ class Set(str, Enum):
                         if is_multi_year: return (800,1990)
                         return (925,1990)
             case TemplateImageComponent.STAT_HIGHLIGHTS:
+                does_not_have_display_text_on_card = is_regular_season or disable_display_text_on_card
                 match self.value:
-                    case '2000' | '2001': return (330 if is_regular_season else 612, 1862)
-                    case '2002': return (290 if is_regular_season else 546, 1850)
+                    case '2000' | '2001': return (330 if does_not_have_display_text_on_card else 612, 1862)
+                    case '2002': return (290 if does_not_have_display_text_on_card else 546, 1850)
                     case '2003': return (78, 1823)
-                    case '2004' | '2005': return (55, 1900) if is_regular_season or disable_display_text_on_card else (360, 1900)
+                    case '2004' | '2005': return (55, 1900) if does_not_have_display_text_on_card else (360, 1900)
                     case 'CLASSIC' | 'EXPANDED': return (349, 1990)
 
     def template_component_size(self, component:TemplateImageComponent) -> tuple[int,int]:
