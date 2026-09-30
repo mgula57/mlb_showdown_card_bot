@@ -113,15 +113,13 @@ function buildBreakdown(snapshots: CardDatabaseRecord[], spec: BreakdownSpec, co
     });
 }
 
-const PARENT_POSITION_ORDER = ['Position Player', 'Starting Pitcher', 'Relief Pitcher', 'Pitcher'] as const;
+const PARENT_POSITION_ORDER = ['Position Player', 'Starting Pitcher', 'Relief Pitcher'] as const;
 type ParentPositionGroup = typeof PARENT_POSITION_ORDER[number];
 
+/** Closers (and any other non-starter pitcher) roll up into Relief Pitcher. */
 function parentPositionGroup(snapshot: CardDatabaseRecord): ParentPositionGroup {
     if (!snapshot.is_pitcher) return 'Position Player';
-    const positions = snapshot.positions_list ?? [];
-    if (positions.includes('STARTER')) return 'Starting Pitcher';
-    if (positions.includes('RELIEVER')) return 'Relief Pitcher';
-    return 'Pitcher';
+    return (snapshot.positions_list ?? []).includes('STARTER') ? 'Starting Pitcher' : 'Relief Pitcher';
 }
 
 // Command keys pack [hitter flag][command][outs] into one sortable number so pitchers (Control)

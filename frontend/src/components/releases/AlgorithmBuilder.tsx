@@ -8,6 +8,7 @@ import FormEnabler from '../customs/FormEnabler';
 import FormDropdown from '../customs/FormDropdown';
 import MultiSelect from '../shared/MultiSelect';
 import PercentageSlider from '../shared/PercentageSlider';
+import { useAuth } from '../auth/AuthContext';
 
 type AlgorithmBuilderProps = {
     releaseId: string;
@@ -150,6 +151,9 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const [activeBlueprintId, setActiveBlueprintId] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
+    const { isAdmin } = useAuth();
+    // Admin-only, per-run option - deliberately kept out of `config` so it isn't persisted to the edition
+    const [rerunCards, setRerunCards] = useState(false);
 
     const activeBlueprint = BLUEPRINTS.find(b => b.id === activeBlueprintId) ?? null;
     const isFieldLocked = (field: LockableField) => !!activeBlueprint?.lockedFields?.includes(field);
@@ -188,7 +192,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         setStatus('running');
         setError(null);
         try {
-            const result = await previewAlgorithm(releaseId, edition.id, config, token);
+            const result = await previewAlgorithm(releaseId, edition.id, config, token, { rerun_cards: isAdmin && rerunCards });
             onPreviewResult(result);
             setStatus('idle');
             updateEdition(releaseId, edition.id, { attributes: { ...edition.attributes, algorithm: config } }, token).catch(() => {});
@@ -342,6 +346,19 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     onChange={() => updateConfig(prev => ({ ...prev, all_stars_only: !(prev.all_stars_only ?? false) }))}
                 />
             </div>
+
+            {isAdmin && (
+                <SettingsGroup title="Admin" defaultOpen={false}>
+                    <FormEnabler
+                        label="Re-run Cards"
+                        isEnabled={rerunCards}
+                        onChange={() => setRerunCards(prev => !prev)}
+                    />
+                    <p className="text-[11px] text-(--text-tertiary)">
+                        Rebuilds each selected card with the current card algorithm instead of using the archived version. Slower for large sets.
+                    </p>
+                </SettingsGroup>
+            )}
 
             {error && (
                 <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 flex items-center gap-2 shrink-0">

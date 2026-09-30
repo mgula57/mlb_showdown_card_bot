@@ -2,6 +2,7 @@ import traceback
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from ..core.database.postgres_db import PostgresDB
+from ..core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from .user_settings import require_auth, optional_user_id
 
@@ -181,11 +182,18 @@ def delete_edition(release_id: str, edition_id: str):
 def preview_algorithm(release_id: str, edition_id: str):
     """Run ShowdownBotSet against the request config and return a preview player pool.
     Does not persist anything to the edition — the frontend commits the result via the
-    existing PUT /editions/<edition_id> `cards` mechanism."""
+    existing PUT /editions/<edition_id> `cards` mechanism.
+
+    Admins can pass `rerun_cards: true` to rebuild each selected card through the current
+    `ShowdownPlayerCard` algorithm instead of returning the archived version."""
     try:
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
+
+        rerun_cards = bool(payload.pop('rerun_cards', False))
+        if rerun_cards and not getattr(g, 'is_admin', False):
+            return jsonify({'error': 'Admin access required to re-run cards'}), 403
 
         db = PostgresDB()
         edition = db.get_edition(edition_id, g.user_id)
@@ -214,6 +222,9 @@ def preview_algorithm(release_id: str, edition_id: str):
                 players.append(row)
             players.sort(key=lambda r: r.get('algorithm_set_number') or 0)
 
+        if rerun_cards and players:
+            showdown_set.warnings.extend(_rerun_preview_cards(db, players))
+
         db.close_connection()
 
         return jsonify({
@@ -227,3 +238,36 @@ def preview_algorithm(release_id: str, edition_id: str):
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
+
+
+def _rerun_preview_cards(db: PostgresDB, players: list[dict]) -> list[str]:
+    """Rebuild each preview row's archived card through the current algorithm, overwriting the
+    row's card-derived columns in place. Rows that fail keep their archived card. Returns warnings."""
+    archived_cards = db.fetch_cards_for_roster_slots(
+        [{'card_id': row['card_id'], 'card_source': 'BOT'} for row in players if row.get('card_id')]
+    )
+    failed_names: list[str] = []
+    changed_count = 0
+    for row in players:
+        archived = archived_cards.get(str(row.get('card_id')))
+        if archived is None:
+            failed_names.append(row.get('name') or row.get('id'))
+            continue
+        try:
+            rebuilt = ShowdownPlayerCard.rebuilt_from_card_data(archived.as_json())
+        except Exception:
+            traceback.print_exc()
+            failed_names.append(row.get('name') or row.get('id'))
+            continue
+
+        points_diff = (rebuilt.points or 0) - (row.get('points') or 0)
+        if points_diff:
+            changed_count += 1
+        if row.get('points_change_yoy') is not None:
+            row['points_change_yoy'] += points_diff
+        row.update(rebuilt.card_bot_columns())
+
+    warnings = [f"Re-ran {len(players) - len(failed_names)} cards through the current algorithm ({changed_count} changed points)."]
+    if failed_names:
+        warnings.append(f"Could not re-run {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")
+    return warnings

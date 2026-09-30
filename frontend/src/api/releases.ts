@@ -230,14 +230,20 @@ export async function deleteEdition(releaseId: string, editionId: string, token:
     }
 }
 
-export async function previewAlgorithm(releaseId: string, editionId: string, config: AlgorithmConfig, token: string): Promise<AlgorithmPreviewResult> {
+export type AlgorithmPreviewOptions = {
+    /** Admin-only: rebuild each selected card through the current card algorithm instead of
+     * returning the archived version. Rejected with a 403 for non-admins. */
+    rerun_cards?: boolean;
+};
+
+export async function previewAlgorithm(releaseId: string, editionId: string, config: AlgorithmConfig, token: string, options: AlgorithmPreviewOptions = {}): Promise<AlgorithmPreviewResult> {
     const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/algorithm/preview`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ ...config, ...options }),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
