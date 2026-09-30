@@ -41,6 +41,7 @@ import { CardItemFromCardDatabaseRecord, CardItemFromCard, CardItemSkeleton } fr
 import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
+import SetMultiSelect from "./SetMultiSelect";
 
 import { TeamHierarchy } from "./TeamHierarchy";
 import SortButton from "./SortButton";
@@ -297,6 +298,9 @@ type FilterAvailability = {
  * Defines which filters are available for which card sources
  * If a filter is not listed here, it's available for all sources
  */
+/** WOTC printed sets (the Classic/Expanded sets are Bot-only) */
+const WOTC_SET_VALUES = ['2000', '2001', '2002', '2003', '2004', '2005'];
+
 const FILTER_AVAILABILITY: FilterAvailability = {
     // BOT-specific filters (not available for WOTC)
     is_multi_team: [CardSource.BOT],
@@ -717,6 +721,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     );
     const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
+    // Nothing picked → the search uses the header's set, so show that set as the selection
+    // (when it's one WOTC printed; Classic/Expanded fall back to the "(Default)" display).
+    const wotcSetSelections = filters.showdown_set?.length
+        ? filters.showdown_set
+        : (userShowdownSet && WOTC_SET_VALUES.includes(userShowdownSet) ? [userShowdownSet] : []);
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
     const filtersWithoutSortingForEditing = { ...filtersForEditing, sort_by: null, sort_direction: null };
     const defaultsWithoutSorting = { ...defaultFiltersForSource, sort_by: null, sort_direction: null };
@@ -1331,6 +1340,20 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             <span className="hidden @2xl:inline">Filter</span>
                         </button>
 
+                        {/* WOTC Set Multi-Select (replaces the set filter in the modal) */}
+                        {isFilterAvailable('showdown_set', source) && !isFilterLocked('showdown_set') && (
+                            <SetMultiSelect
+                                className="shrink-0"
+                                options={showdownSets.filter(set => WOTC_SET_VALUES.includes(set.value)).map(set => ({ value: set.value, image: set.image }))}
+                                selections={wotcSetSelections}
+                                onChange={(values) => {
+                                    setFilters(prev => ({ ...prev, showdown_set: values }));
+                                    setFiltersForEditing(prev => ({ ...prev, showdown_set: values }));
+                                }}
+                                defaultImage={userDefaultSetImage}
+                            />
+                        )}
+
                         {/* Showdown Set Override */}
                         {showSetOverride && (
                             <CustomSelect
@@ -1710,28 +1733,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                             </FormSection>
 
-                            {/* Set */}
+                            {/* Expansion and Edition */}
                             {isFilterAvailable('showdown_set', source) && (
 
-                                <FormSection title="Showdown Set" icon={<FaLayerGroup />} isOpenByDefault={true}>
-
-                                    {/* Set */}
-                                    <MultiSelect
-                                        label="Set"
-                                        labelDescription={`Overrides your selected Showdown set above (${userShowdownSet?.toUpperCase()}).`}
-                                        className="col-span-full" // FULL WIDTH
-                                        options={[
-                                            { value: '2000', label: '2000' },
-                                            { value: '2001', label: '2001' },
-                                            { value: '2002', label: '2002' },
-                                            { value: '2003', label: '2003' },
-                                            { value: '2004', label: '2004' },
-                                            { value: '2005', label: '2005' },
-                                        ]}
-                                        selections={filtersForEditing.showdown_set || []}
-                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, showdown_set: values })}
-                                        disabled={isFilterLocked('showdown_set')}
-                                    />
+                                <FormSection title="Expansion and Edition" icon={<FaLayerGroup />} isOpenByDefault={true}>
 
                                     {/* Expansion */}
                                     <MultiSelect

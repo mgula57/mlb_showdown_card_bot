@@ -228,6 +228,11 @@ class StatsPeriod(BaseModel):
             if data.get('team_override') is not None and type(data.get('team_override')) == Team and data['team_override'] == Team.MLB:
                 data['team_override'] = None
 
+        # CHANGE TEAM SELECTION METHOD IF EMPTY
+        # DEFAULT TO `GAMES_PLAYED` FOR MULTI-YEAR, `LAST_TEAM` FOR SINGLE-YEAR
+        if not data.get('team_selection', None):
+            data['team_selection'] = TeamSelection.GAMES_PLAYED if len(str(data.get('year', ''))) > 4 else TeamSelection.LAST_TEAM
+
         super().__init__(**data)
 
     def model_post_init(self, __context):

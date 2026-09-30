@@ -884,7 +884,6 @@ class PlayerStatsNormalizer:
         return standard_stats
 
     @staticmethod
-    @staticmethod
     def _extract_team_games_played_dict(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Dict[str, int]:
         """Returns {bref_team_id: games_played} across all stat splits for the given period."""
         stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
@@ -898,20 +897,45 @@ class PlayerStatsNormalizer:
             types=[stats_type],
             seasons=stats_period.year_list
         )
+        # FALLBACK ORDER WHEN GAME LOGS AREN'T AVAILABLE: API ORDER WITHIN A SEASON ISN'T GUARANTEED,
+        # SO THIS IS BEST EFFORT. SORT BY SEASON, THEN DEFAULT API ORDER WITHIN A SEASON
+        chronological_splits = sorted(
+            standard_stat_splits or [],
+            key=lambda s: PlayerStatsNormalizer._season_sort_key(s.season)
+        )
+
         team_games_played: Dict[str, int] = {}
-        for split in standard_stat_splits or []:
+        for split in chronological_splits:
             team = split.team
             if team and team.abbreviation:
                 games_played = split.stat.get('gamesPlayed', 0)
                 bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(team.abbreviation, year=split.season)
                 team_games_played[bref_id] = team_games_played.get(bref_id, 0) + games_played
 
-        # REVERSE ORDER OF THE DICT
-        # MLB API DOES DESC ORDER, BREF DID ASC ORDER
-        # HELPS PROPERLY SELECT THE FIRST/MOST RECENT TEAM BASED ON CHRONOLOGICAL ORDER
-        team_games_played = dict(reversed(list(team_games_played.items())))
+        # GAME LOG DATES ARE THE SOURCE OF TRUTH FOR ORDER WHEN AVAILABLE
+        if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR or stats_period.has_game_logs:
+            game_log_splits = mlb_player.get_stat_splits(
+                group_type=group_type,
+                types=[StatTypeEnum.GAME_LOG],
+                seasons=stats_period.year_list
+            )
+            first_game_date_by_team: Dict[str, str] = {}
+            for split in game_log_splits or []:
+                if not (split.team and split.team.abbreviation and split.date):
+                    continue
+                bref_id = PlayerStatsNormalizer._convert_to_bref_team_id(split.team.abbreviation, year=split.season)
+                first_game_date_by_team[bref_id] = min(split.date, first_game_date_by_team.get(bref_id, split.date))
+
+            # ONLY REORDER IF LOGS COVER EVERY TEAM, OTHERWISE KEEP THE SEASON-BASED ORDER
+            if first_game_date_by_team and all(t in first_game_date_by_team for t in team_games_played):
+                team_games_played = dict(sorted(team_games_played.items(), key=lambda item: first_game_date_by_team[item[0]]))
 
         return team_games_played
+
+    @staticmethod
+    def _season_sort_key(season: Optional[int | str]) -> int:
+        """Sort key for a season/year id. Non-numeric values (e.g. 'CAREER') sort first."""
+        return int(season) if str(season).isdigit() else 0
 
     @staticmethod
     def _select_team_id(team_games_played: Dict[str, int], stats_period: Optional[StatsPeriod]) -> Optional[str]:
@@ -1366,6 +1390,9 @@ class PlayerStatsNormalizer:
             primary_type = max(type_game_counts, key=type_game_counts.get)
             stats_list = [s for s in stats_list if (s.player_type_override if s.player_type_override else s.type) == primary_type]
         
+        # ENSURE CHRONOLOGICAL ORDER (STABLE, SO SAME-YEAR ENTRIES KEEP THEIR ORDER)
+        stats_list = sorted(stats_list, key=lambda s: PlayerStatsNormalizer._season_sort_key(s.year_id))
+
         # Use the first entry as base template - USE ALIASES IN OUTPUT
         base_stats = stats_list[-1]  # Use the most recent year as base
         combined_data = base_stats.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
@@ -1374,12 +1401,22 @@ class PlayerStatsNormalizer:
         combined_data['year_ID'] = "CAREER" if stats_period.is_full_career else "-".join(str(s.year_id) for s in stats_list)
         combined_data['primary_datasource'] = base_stats.primary_datasource.value  # Serialize enum
 
+        # MERGE TEAM HISTORY ACROSS YEARS IN CHRONOLOGICAL ORDER
+        merged_team_gpd: Dict[str, int] = {}
+        for stats in stats_list:
+            year_team_gpd = stats.team_games_played_dict or ({stats.team_id: stats.G} if stats.team_id else {})
+            for team_id, games in year_team_gpd.items():
+                merged_team_gpd[team_id] = merged_team_gpd.get(team_id, 0) + games
+        if merged_team_gpd:
+            combined_data['team_games_played_dict'] = merged_team_gpd
+            combined_data['team_id_list'] = list(merged_team_gpd)
+
         # SELECT TEAM ACROSS YEARS BASED ON team_selection
         team_selection = stats_period.team_selection
         if team_selection in (TeamSelection.LAST_TEAM, TeamSelection.FIRST_TEAM):
             stats_with_team = [s for s in stats_list if s.team_id]
             year_stats = (max if team_selection == TeamSelection.LAST_TEAM else min)(
-                stats_with_team, key=lambda s: int(s.year_id) if str(s.year_id).isdigit() else 0, default=None
+                stats_with_team, key=lambda s: PlayerStatsNormalizer._season_sort_key(s.year_id), default=None
             )
             combined_data['team_ID'] = year_stats.team_id if year_stats else None
         else:

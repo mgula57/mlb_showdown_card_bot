@@ -45,8 +45,9 @@ def card_main(
     start_date: Optional[str] = typer.Option(None, "--start_date", "-start", help="Optional Start Date for stats. Only available post-1900."),
     end_date: Optional[str] = typer.Option(None, "--end_date", "-end", help="Optional End Date for stats. Only available post-1900."),
     split: Optional[str] = typer.Option(None, "--split", "-spl", help="Create a card using the splits page on baseball reference/MLB API. Examples of splits include 'Home' or 'Away' or 'vs LHP'"),
-    team_selection: str = typer.Option("GAMES_PLAYED", "--team_selection", "-tsel", help="For multi-year stats periods, how to choose the card's team. Options: GAMES_PLAYED, LAST_TEAM, FIRST_TEAM."),
+    team_selection: str = typer.Option(None, "--team_selection", "-tsel", help="For multi-year stats periods, how to choose the card's team. Options: GAMES_PLAYED, LAST_TEAM, FIRST_TEAM."),
     league: str = typer.Option("MLB", "--league", "-lg", help="League to pull stats from, either MLB or MILB"),
+    disable_display_text_on_card: bool = typer.Option(False, "--hide_dates", "-hd", help="Hide the split/date range text banner on the card. Only applies to Trading Deadline/Pennant Run expansions or All-Star Game/Postseason editions."),
 
     # CHART
     co_override: Optional[str] = typer.Option(None, "--co_override", "-co", help="Manually select a command/out combination"),
@@ -55,6 +56,7 @@ def card_main(
     show_year_text: bool = typer.Option(False, "--show_year_text", "-yrt", help="Optionally add separate year text to the image. Applies to 2000-2005 only."),
     nickname_index: Optional[int] = typer.Option(None, "--nickname_index", "-nick", help="Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3"),
     is_wotc: bool = typer.Option(False, "--is_wotc", "-wotc", help="Try loading from WOTC cards."),
+    regress_small_sample_to_replacement: bool = typer.Option(False, "--regress_to_replacement", "-rtr", help="Regress small sample stats toward replacement level for more realistic stats."),
     
     # DATABASE/CACHE
     datasource: str = typer.Option(None, "--datasource", "-ds", help="Datasource to use for stats and info. Options are MLB_API or BREF."),
