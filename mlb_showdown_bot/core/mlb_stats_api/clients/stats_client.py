@@ -87,3 +87,36 @@ class StatsClient(BaseMLBClient):
             if "404" in str(e):
                 raise Exception(f"Leaders not found for sportId {sport_id} and season {season}")
             raise
+
+    def get_player_ids_with_stats(
+        self,
+        season: int,
+        sport_id: int = 1,
+        stat_groups: Optional[List[StatGroupEnum]] = None,
+    ) -> set[int]:
+        """Get the ids of every player with recorded season stats (any team) for a season.
+
+        Uses the bulk `stats` endpoint (one call per stat group) so callers can cheaply skip
+        players who have no stats, e.g. 40-man roster players who never appeared in the majors.
+
+        Args:
+            season: Season year
+            sport_id: MLB sport ID. Default is 1 (Major League Baseball)
+            stat_groups: Stat groups to check. Defaults to hitting + pitching.
+        """
+        player_ids: set[int] = set()
+        for stat_group in (stat_groups or [StatGroupEnum.HITTING, StatGroupEnum.PITCHING]):
+            data = self._make_request('stats', params={
+                'stats': 'season',
+                'group': stat_group.value,
+                'playerPool': PlayerPoolEnum.ALL.value,
+                'season': season,
+                'sportId': sport_id,
+                'limit': 10000,
+            })
+            for stat_block in data.get('stats', []):
+                for split in stat_block.get('splits', []):
+                    player_id = (split.get('player') or {}).get('id')
+                    if player_id:
+                        player_ids.add(player_id)
+        return player_ids
