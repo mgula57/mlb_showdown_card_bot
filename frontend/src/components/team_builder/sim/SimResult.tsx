@@ -151,7 +151,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
             : '--error';
 
     const isTakeover = !isOpenSim && !!team.replaced_abbr;
-    const myTeamLabel = isTakeover ? `My Team (${team.replaced_abbr})` : 'My Team';
+    const myTeamLabel = isTakeover ? `My Team (${team.identity?.abbreviation || team.replaced_abbr})` : 'My Team';
 
     return (
         <div className="flex flex-col gap-2 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4">
