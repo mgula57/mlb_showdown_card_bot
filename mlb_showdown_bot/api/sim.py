@@ -1046,8 +1046,15 @@ def _find_team_record(standings, abbr: str | None, own_abbr: str | None = None):
 
 def _challenge_passed(
     goal_type: str, goal_value: dict | None, team_season, won_pennant: bool, standings=None, own_abbr: str | None = None,
+    beat_team_record: dict | None = None,
 ) -> bool:
-    """Evaluate a challenge's goal against the played season's result."""
+    """Evaluate a challenge's goal against the played season's result.
+
+    A `beat_team_record` goal is graded against the record the challenge card displays
+    (`beat_team_record`, resolved at generation time) so the number the user is shown is the
+    number they have to beat. Only instances created before that snapshot existed fall back to
+    resolving the target from the simulated standings.
+    """
     if goal_type == 'made_playoffs':
         return team_season.made_playoffs
     if goal_type == 'win_division':
@@ -1059,6 +1066,8 @@ def _challenge_passed(
     if goal_type == 'min_wins':
         return team_season.wins >= (goal_value or {}).get('min_wins', 0)
     if goal_type == 'beat_team_record':
+        if beat_team_record and beat_team_record.get('wins') is not None:
+            return team_season.wins > beat_team_record['wins']
         target = _find_team_record(standings, (goal_value or {}).get('target_abbr'), own_abbr=own_abbr) if standings else None
         return target is not None and team_season.wins > target.wins
     return False
@@ -1244,6 +1253,7 @@ def _run_sim_job(
             passed = _challenge_passed(
                 challenge['goal_type'], challenge['goal_value'], summary.team, won_pennant,
                 standings=summary.standings, own_abbr=team_abbr,
+                beat_team_record=challenge.get('beat_team_record'),
             )
             challenge_result = 'passed' if passed else 'failed'
 
