@@ -5228,8 +5228,14 @@ class ShowdownPlayerCard(BaseModel):
         bg_image.paste(text_color, (padding, y_text_offset), stat_text)
 
         # DEFINE PASTE COORDINATES
-        paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career, is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON)
-        
+        paste_coordinates = self.set.template_component_paste_coordinates(
+            component=TemplateImageComponent.STAT_HIGHLIGHTS, 
+            is_multi_year=self.stats_period.is_multi_year, 
+            is_full_career=self.stats_period.is_full_career, 
+            is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON,
+            disable_display_text_on_card = self.stats_period.disable_display_text_on_card,
+        )
+
         # IF CLASSIC/EXPANDED, MOVE X DEPENDING ON SET AND EXPANSION IMAGES
         if self.set.is_showdown_bot:
             x_adjustment = 0

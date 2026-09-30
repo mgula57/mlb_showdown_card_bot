@@ -63,6 +63,15 @@ def snapshot_rosters(
             missing_ids = set(player_ids) - set(rostered_player_ids)
             if missing_ids:
                 print(f"Warning: player IDs not found on any fetched roster: {sorted(missing_ids)}")
+
+        # SKIP PLAYERS WITH NO STATS (ex: 40-man players who haven't appeared in the majors this season).
+        # A single bulk call per stat group avoids hydrating and processing them in card generation.
+        if len(season_list) == 1:
+            ids_with_stats = _mlb_api.stats.get_player_ids_with_stats(season=season_list[0])
+            statless_ids = [pid for pid in rostered_player_ids if pid not in ids_with_stats]
+            if statless_ids:
+                print(f"Skipping {len(statless_ids)} rostered players with no {season_list[0]} stats.")
+            rostered_player_ids = [pid for pid in rostered_player_ids if pid in ids_with_stats]
         player_id_chunks = [rostered_player_ids[i:i + 10] for i in range(0, len(rostered_player_ids), 10)]
         two_way_ids = [roster['player_id'] for roster in rosters if roster.get('position', 'N/A') == 'TWP']
 
