@@ -5186,7 +5186,6 @@ class ShowdownPlayerCard(BaseModel):
                 y_text_offset = 0
             case Set._2004 | Set._2005:
                 x_size = 680 if self.stats_period.show_text_on_card_image else 1000
-                print(f"x_size before adjustment: {x_size}")
                 if not self.image.expansion.has_image:
                     x_size += 100
                 bg_image = Image.new('RGBA', (x_size, 46))
