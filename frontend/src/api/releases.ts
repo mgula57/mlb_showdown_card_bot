@@ -86,6 +86,27 @@ export type AlgorithmPointBucket = {
     percentage: number;
 };
 
+/** Relative importance (0-1) of each factor when the algorithm picks the next card. */
+export type AlgorithmSelectionWeights = {
+    /** WAR plus All-Star/award bonuses. */
+    quality: number;
+    /** Playing time: PA for hitters, IP for pitchers. */
+    volume: number;
+    /** Keep each team near an even share of the set. */
+    team_balance: number;
+    /** Steer each position toward its target average points (only applies with position targets). */
+    points_fit: number;
+};
+
+/** Share of the set at a position, e.g. 7% shortstops averaging 220 pts. */
+export type AlgorithmPositionTarget = {
+    /** Slot position: C, 1B, 2B, 3B, SS, CF, LF/RF, DH, STARTER, RELIEVER, CLOSER. */
+    position: string;
+    /** 0-1 share of the whole set. */
+    percentage: number;
+    avg_points: number | null;
+};
+
 export type AlgorithmConfig = {
     set_size: number;
     years: string;
@@ -100,6 +121,9 @@ export type AlgorithmConfig = {
     all_stars_only?: boolean;
     /** Point ranges (inclusive) with an ideal share of each player type's cards, e.g. 15% at 10-50 pts. */
     point_buckets?: AlgorithmPointBucket[];
+    selection_weights?: AlgorithmSelectionWeights;
+    /** Per-position composition (e.g. from a WOTC base set). Replaces `player_type_distribution` when non-empty. */
+    position_targets?: AlgorithmPositionTarget[];
 };
 
 export type AlgorithmPreviewPlayer = CardDatabaseRecord & { algorithm_set_number: number | null };
@@ -271,6 +295,31 @@ export type WotcBaseSet = typeof WOTC_BASE_SETS[number];
 // WOTC sets never change, so a browser-session cache is safe. Stores the in-flight promise so
 // rapid toggling between sets doesn't fire duplicate requests.
 const _wotcBaseSetCache = new Map<WotcBaseSet, Promise<CardDatabaseRecord[]>>();
+
+/** Position composition of an original WOTC base set, used as an Algorithm blueprint. */
+export type WotcSetProfile = {
+    showdown_set: WotcBaseSet;
+    set_size: number;
+    team_count: number;
+    position_targets: AlgorithmPositionTarget[];
+};
+
+let _wotcSetProfilesRequest: Promise<WotcSetProfile[]> | null = null;
+
+/** Profiles for every WOTC base set. Cached for the browser session since WOTC sets never change. */
+export function fetchWotcSetProfiles(): Promise<WotcSetProfile[]> {
+    if (!_wotcSetProfilesRequest) {
+        _wotcSetProfilesRequest = fetch(`${API_BASE}/releases/algorithm/wotc_profiles`).then(async res => {
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Failed to load WOTC set profiles: ${res.status}`);
+            }
+            return res.json();
+        });
+        _wotcSetProfilesRequest.catch(() => { _wotcSetProfilesRequest = null; });
+    }
+    return _wotcSetProfilesRequest;
+}
 
 /** Every card in a WOTC base set (expansion `BS` — excludes promos, Pennant Run, Trading Deadline, etc.). */
 export function fetchWotcBaseSet(showdownSet: WotcBaseSet): Promise<CardDatabaseRecord[]> {

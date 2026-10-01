@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from ..core.database.postgres_db import PostgresDB
 from ..core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
+from ..core.set_builder.wotc_set_profile import WotcSetProfile
 from .user_settings import require_auth, optional_user_id
 
 releases_bp = Blueprint('releases', __name__)
@@ -172,6 +173,17 @@ def delete_edition(release_id: str, edition_id: str):
         if not deleted:
             return jsonify({'error': 'Edition not found or not owned by user'}), 404
         return jsonify({'success': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/algorithm/wotc_profiles', methods=['GET'])
+def get_wotc_set_profiles():
+    """Position counts and average points of each WOTC base set, used as Algorithm blueprints"""
+    try:
+        profiles = WotcSetProfile.load_all()
+        return jsonify([profile.model_dump() for profile in profiles.values()]), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

@@ -553,7 +553,7 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                     </Section>
 
                     <Section title="Teams">
-                        <HorizontalBarChart data={breakdowns.team} emptyMessage="No team data yet." {...chartProps} />
+                        <VerticalBarChart data={breakdowns.team} emptyMessage="No team data yet." scrollable {...chartProps} />
                     </Section>
 
                     <Section title="Speed">

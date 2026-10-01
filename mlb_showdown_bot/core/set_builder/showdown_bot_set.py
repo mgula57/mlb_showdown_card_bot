@@ -20,6 +20,9 @@ from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, 
 from ..card.card_generation import generate_card
 from ..card.stats.stats_period import TeamSelection
 from ..card.utils.shared_functions import convert_year_string_to_list
+from .selection import (
+    PLAYER_SUBTYPES, PositionTarget, SelectionWeights, ShowdownBotSetPlayer, SlotGroup, SlotPosition, WeightedPlayerSelector
+)
 
 # ANSI color codes
 class Colors:
@@ -36,15 +39,6 @@ def color_image_match(image_match_type: ImageMatchType) -> str:
         return f"{Colors.YELLOW}{image_match_type.value}{Colors.END}"
     else:  # NO_MATCH or YEAR_MATCH
         return f"{Colors.RED}{image_match_type.value}{Colors.END}"
-
-class TeamAllocation(BaseModel):
-    """How many players each team should get"""
-    team_id: str
-    team_name: str
-    target_count: int
-    min_count: int = Field(ge=1)
-    max_count: int
-    actual_count: int = 0
 
 class PlayerTypeDistribution(BaseModel):
     """Distribution of player types in the set"""
@@ -102,14 +96,6 @@ class PointBucket(BaseModel):
         return buckets
 
 
-class ShowdownBotSetPlayer(ExploreDataRecord):
-    """Extended player record for set building"""
-    
-    priority_score: float = 0.0  # Calculated priority score for selection
-
-    set_number: Optional[int] = None  # Assigned set number for the player
-
-
 class ShowdownBotSet(BaseModel):
     """Builds optimal MLB Showdown card sets based on real player stats"""
     
@@ -138,6 +124,13 @@ class ShowdownBotSet(BaseModel):
     final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings surfaced during set construction (e.g. undersized player pool)")
     
+    # Selection weights and position composition
+    selection_weights: SelectionWeights = Field(default_factory=SelectionWeights)
+    position_targets: List[PositionTarget] = Field(
+        default_factory=list,
+        description="Share of the set (and average points) per position, e.g. from a WOTC base set. Replaces player_type_distribution when set."
+    )
+
     # Point bucket allocation (e.g. 15% of 10-50 pt cards, 10% of 60-100 pt cards)
     point_buckets: List[PointBucket] = Field(
         default_factory=list,
@@ -300,6 +293,11 @@ class ShowdownBotSet(BaseModel):
     def validate_point_buckets(cls, buckets: List[PointBucket]) -> List[PointBucket]:
         return PointBucket.validate_list(buckets)
 
+    @field_validator('position_targets')
+    @classmethod
+    def validate_position_targets(cls, targets: List[PositionTarget]) -> List[PositionTarget]:
+        return PositionTarget.validate_list(targets)
+
     def build_set_player_list(self, show_team_breakdown: Optional[str] = None, source_env: str = "dev") -> None:
         """Build a complete set (base + expansions) based on configuration"""
         
@@ -310,30 +308,24 @@ class ShowdownBotSet(BaseModel):
         print(f"Found {len(player_pool)} qualified players")
         
         if len(player_pool) < self.set_size:
-            warning = f"Only {len(player_pool)} qualified players available for {self.set_size} card set"
-            print(f"Warning: {warning}")
-            self.warnings.append(warning)
+            self._warn(f"Only {len(player_pool)} qualified players available for {self.set_size} card set")
         
         # 2. Calculate quality thresholds
         self._calculate_quality_thresholds(player_pool)
         
-        # # 3. Get team allocations
-        team_allocations = self._calculate_team_allocations(player_pool)
+        # 3. Score players and fill the set by weighted selection
+        player_pool = WeightedPlayerSelector.score_player_pool(player_pool, self.selection_weights, self._calculate_quality_score)
+        selector = WeightedPlayerSelector(player_pool, self.set_size, self.selection_weights)
+        final_players = self._select_players(selector)
         
-        # 4. Select players by team and type
-        selected_players = self._select_players(player_pool, team_allocations)
-
-        # 5. Redistribute unused slots
-        final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
-        
-        # 6. Swap cards to hit point bucket targets across the whole set
+        # 4. Swap cards to hit point bucket targets across the whole set
         final_players = self._enforce_point_buckets(final_players, player_pool)
 
-        self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
+        self._print_set_summary(final_players, selector.team_target, show_team_breakdown, player_pool)
 
         final_players = self._sort_and_number_players(final_players)
         
-        # 7. Load and add expansion players from CSV (if provided)
+        # 5. Load and add expansion players from CSV (if provided)
         expansion_player_tuples = self._load_expansion_players_from_csv()
         if expansion_player_tuples:
             expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples, source_env=source_env)
@@ -590,136 +582,66 @@ class ShowdownBotSet(BaseModel):
         
         print(f"Quality thresholds - Elite: {self.elite_war_threshold:.1f} WAR, Good: {self.good_war_threshold:.1f} WAR")
     
-    def _calculate_team_allocations(self, player_pool: List[ExploreDataRecord]) -> Dict[str, TeamAllocation]:
-        """Calculate how many players each team should get"""
+    def _select_players(self, selector: WeightedPlayerSelector) -> List[ShowdownBotSetPlayer]:
+        """Fill the set in passes, each relaxing what a slot accepts:
         
-        # Get all teams with qualified players
-        teams = list(set(p.team_id for p in player_pool if p.team_id))
-        teams.sort()
-
-        target_count = max(1, self.set_size // len(teams))
-                
-        # Convert to TeamAllocation objects
-        team_allocations = {}
-        for team_id in teams:
-            team_allocations[team_id] = TeamAllocation(
-                team_id=team_id,
-                team_name=team_id,
-                target_count=target_count,
-                min_count=max(1, target_count - 2),  # Allow some flexibility
-                max_count=target_count + 2
-            )
+        1. Position targets (card's primary position) or player type distribution
+        2. Position targets only: any position on the card, so thin positions borrow multi-position players
+        3. Leftover slots by player type
+        4. Anything still open, from any player type
+        """
+        manually_included_ids = set(self.manually_included_ids or [])
         
-        return team_allocations
+        if self.position_targets:
+            counts = PositionTarget.allocate_counts({t.position: t.percentage for t in self.position_targets}, self.set_size)
+            groups = [
+                SlotGroup(t.position, counts[t.position], accepts=lambda p, slot=t.position: SlotPosition.primary_slot(p) == slot, avg_points=t.avg_points)
+                for t in self.position_targets
+            ]
+        else:
+            distribution = self.player_type_distribution
+            counts = PositionTarget.allocate_counts({
+                'POSITION_PLAYER': distribution.hitters_percentage,
+                'STARTING_PITCHER': distribution.starters_percentage,
+                'RELIEF_PITCHER': distribution.relievers_percentage,
+            }, self.set_size)
+            groups = [self._player_type_group(subtype, counts[subtype]) for subtype in PLAYER_SUBTYPES]
+        
+        for player in selector.player_pool:
+            if player.bref_id_w_type_override in manually_included_ids:
+                selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None))
+        
+        selector.fill(groups)
+        
+        if self.position_targets:
+            for group in groups:
+                group.accepts = lambda p, slot=group.key: slot in SlotPosition.eligible_slots(p)
+            selector.fill(groups)
+            for group in groups:
+                if group.remaining:
+                    self._warn(f"Only found {len(group.members)} of {group.target} {group.key} cards, filled the rest with other {SlotPosition.player_subtype(group.key).replace('_', ' ').lower()}s")
+                print(f"{group.key}: {len(group.members)}/{group.target} cards, avg {group.actual_avg_points or 0:.0f} pts (target {group.avg_points or 0:.0f})")
+            leftover = {subtype: sum(g.remaining for g in groups if SlotPosition.player_subtype(g.key) == subtype) for subtype in PLAYER_SUBTYPES}
+            selector.fill([self._player_type_group(subtype, count) for subtype, count in leftover.items()])
+        
+        selector.fill([SlotGroup('ANY', self.set_size - len(selector.selected), accepts=lambda p: True)])
+        return selector.selected
     
-    def _select_players(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation]) -> List[ShowdownBotSetPlayer]:
-        """Select players for the set based on allocations"""
-        
-        selected_players: List[ShowdownBotSetPlayer] = []
-        
-        # Group players by team
-        players_by_team: Dict[str, List[ShowdownBotSetPlayer]] = {}
-        for player in player_pool:
-            team = player.team_id
-            if team not in players_by_team:
-                players_by_team[team] = []
-            players_by_team[team].append(player)
-
-        # Select players for each team
-        for team_id, allocation in team_allocations.items():
-            if team_id not in players_by_team:
-                continue
-                
-            team_players = players_by_team[team_id]
-            selected_team_players = self._select_team_players(team_players, allocation.target_count)
-            selected_players.extend(selected_team_players)
-            allocation.actual_count = len(selected_team_players)
-        
-        return selected_players
+    @staticmethod
+    def _player_type_group(player_subtype: str, target: int) -> SlotGroup:
+        return SlotGroup(player_subtype, target, accepts=lambda p: p.player_subtype == player_subtype)
     
-    def _select_team_players(self, team_players: List[ExploreDataRecord], target_count: int) -> List[ShowdownBotSetPlayer]:
-        """Select players for a specific team"""
-        
-        # Separate by player type
-        hitters = [p for p in team_players if p.player_subtype == 'POSITION_PLAYER']
-        starters = [p for p in team_players if p.player_subtype == 'STARTING_PITCHER']  
-        relievers = [p for p in team_players if p.player_subtype == 'RELIEF_PITCHER']
-        
-        # Calculate target counts for each type
-        target_hitters = max(1, round(target_count * self.player_type_distribution.hitters_percentage))
-        target_starters = max(0, round(target_count * self.player_type_distribution.starters_percentage))
-        target_relievers = target_count - target_hitters - target_starters
-        
-        selected = []
-        
-        # Select hitters
-        selected_hitters = self._select_by_quality(hitters, target_hitters)
-        selected.extend(selected_hitters)
-        
-        # Select starters
-        selected_starters = self._select_by_quality(starters, target_starters)
-        selected.extend(selected_starters)
-        
-        # Select relievers
-        selected_relievers = self._select_by_quality(relievers, target_relievers)
-        selected.extend(selected_relievers)
-        
-        return selected
+    def _warn(self, warning: str) -> None:
+        print(f"Warning: {warning}")
+        self.warnings.append(warning)
     
-    def _select_by_quality(self, players: List[ExploreDataRecord], target_count: int) -> List[ShowdownBotSetPlayer]:
-        """Select players based on quality distribution"""
+    def _calculate_quality_score(self, player: ExploreDataRecord) -> float:
+        """Raw quality: WAR plus All-Star/award bonuses. Playing time is weighted separately (see `WeightedPlayerSelector.volume`)."""
         
-        if not players or target_count <= 0:
-            return []
+        score = max(player.war or 0.0, 0.0)
         
-        # Sort players by quality (WAR, with special considerations)
-        players_with_priority: List[Tuple[ShowdownBotSetPlayer, float]] = []
-        for player in players:
-            priority_score = self._calculate_priority_score(player)
-            updated_player = ShowdownBotSetPlayer(
-                **player.model_dump(),
-                priority_score=priority_score
-            )
-            players_with_priority.append((updated_player, priority_score))
-        
-        num_players_manually_included = len([p for p in players if p.bref_id_w_type_override in (self.manually_included_ids or [])])
-        cap = max(target_count, num_players_manually_included)
-
-        players_with_priority.sort(key=lambda x: (x[0].bref_id_w_type_override in (self.manually_included_ids or []), x[1]), reverse=True)
-
-        # Select top players up to target count
-        selected = [p[0] for p in players_with_priority[:cap]]
-        
-        return selected
-    
-    def _calculate_priority_score(self, player: ExploreDataRecord) -> float:
-        """Calculate priority score for player selection"""
-        
-        score = 0.0
-        war = player.war or 0.0
-        
-        # Base score from WAR
-        score += max(war, 0.0)
-
-        # Incorporate games played / innings pitched
-        match player.player_subtype:
-            case 'POSITION_PLAYER':
-                score += (player.g / 162) * 5.0  # Up to 5 point bonus for full season
-            case 'STARTING_PITCHER' | 'RELIEF_PITCHER':
-                is_sp = player.player_subtype == 'STARTING_PITCHER'
-                ip = player.real_ip or 0
-                max_ip = 180 if is_sp else 70
-
-                # REMOVE GS IP FOR RELIEVERS
-                ip_gs = player.gs * 5
-                gs = player.gs or 0
-                if not is_sp and ip_gs and gs > 0:
-                    ip -= (ip_gs * gs)
-
-                score += (ip / max_ip) * 5.0  # Up to 5 point bonus for full season
-
-                if player.primary_position == Position.CL:
-                    score += 1.0  # Small bonus for closers
+        if player.player_subtype == 'RELIEF_PITCHER' and player.primary_position == Position.CL:
+            score += 1.0  # Small bonus for closers
         
         # Bonuses for special achievements
         if player.awards_list:
@@ -744,106 +666,10 @@ class ShowdownBotSet(BaseModel):
         
         return score
     
-    def _redistribute_unused_slots(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation], selected_players: List[ExploreDataRecord]) -> List[ShowdownBotSetPlayer]:
-        """Redistribute unused slots when teams don't have enough qualified players
-        
-        Prioritizes maintaining player type distribution (hitters/starters/relievers percentages).
-        
-        - Splits the unused slots across player types to move toward the target type distribution
-        - Fills each type's share with its highest priority unselected cards
-        - Finally tops up (or trims) to exactly the unused slot count with the highest priority players of any type
-        
-        Point bucket targets are applied afterwards across the whole set by `_enforce_point_buckets`.
-        """
-        
-        # Calculate how many slots are unused
-        total_selected = len(selected_players)
-        unused_slots = self.set_size - total_selected
-        
-        if unused_slots <= 0:
-            return [ShowdownBotSetPlayer(**p.model_dump()) for p in selected_players]
-        
-        print(f"Redistributing {unused_slots} unused slots...")
-        
-        # Get all unselected players
-        ids = set(p.id for p in selected_players)
-        unselected_players = [p for p in player_pool if p.id not in ids]
-        print(f"Found {len(unselected_players)} unselected players for redistribution. There are {len(player_pool)} total qualified players.")
-        
-        # Calculate current player type counts
-        current_hitters = len([p for p in selected_players if p.player_subtype == 'POSITION_PLAYER'])
-        current_starters = len([p for p in selected_players if p.player_subtype == 'STARTING_PITCHER'])
-        current_relievers = len([p for p in selected_players if p.player_subtype == 'RELIEF_PITCHER'])
-        
-        # Calculate target percentages for final set
-        target_hitters_pct = self.player_type_distribution.hitters_percentage
-        target_starters_pct = self.player_type_distribution.starters_percentage
-        target_relievers_pct = self.player_type_distribution.relievers_percentage
-        
-        # Calculate current percentages
-        current_hitters_pct = current_hitters / total_selected if total_selected > 0 else 0
-        current_starters_pct = current_starters / total_selected if total_selected > 0 else 0
-        current_relievers_pct = current_relievers / total_selected if total_selected > 0 else 0
-        
-        # Calculate deficits (how far below target each type is)
-        hitters_deficit = target_hitters_pct - current_hitters_pct
-        starters_deficit = target_starters_pct - current_starters_pct
-        relievers_deficit = target_relievers_pct - current_relievers_pct
-        
-        print(f"Current percentages - Hitters: {current_hitters_pct:.1%} (target {target_hitters_pct:.1%}), Starters: {current_starters_pct:.1%} (target {target_starters_pct:.1%}), Relievers: {current_relievers_pct:.1%} (target {target_relievers_pct:.1%})")
-        print(f"Deficits - Hitters: {hitters_deficit:+.1%}, Starters: {starters_deficit:+.1%}, Relievers: {relievers_deficit:+.1%}")
-        
-        # Distribute unused slots proportionally based on deficits
-        # Only allocate to types that are below target
-        total_deficit = max(0, hitters_deficit) + max(0, starters_deficit) + max(0, relievers_deficit)
-        
-        if total_deficit > 0:
-            # Allocate proportionally to deficits
-            hitters_allocation = round(unused_slots * (max(0, hitters_deficit) / total_deficit))
-            starters_allocation = round(unused_slots * (max(0, starters_deficit) / total_deficit))
-            relievers_allocation = unused_slots - hitters_allocation - starters_allocation
-        else:
-            # All types at or above target, distribute evenly by target percentages
-            hitters_allocation = round(unused_slots * target_hitters_pct)
-            starters_allocation = round(unused_slots * target_starters_pct)
-            relievers_allocation = unused_slots - hitters_allocation - starters_allocation
-        
-        print(f"Allocating unused slots - Hitters: {hitters_allocation}, Starters: {starters_allocation}, Relievers: {relievers_allocation}")
-        
-        # Separate unselected players by type and calculate priority scores
-        unselected_hitters = []
-        unselected_starters = []
-        unselected_relievers = []
-        
-        for player in unselected_players:
-            priority_score = self._calculate_priority_score(player)
-            player_with_score = ShowdownBotSetPlayer(**player.model_dump(), priority_score=priority_score)
-            
-            if player.player_subtype == 'POSITION_PLAYER':
-                unselected_hitters.append(player_with_score)
-            elif player.player_subtype == 'STARTING_PITCHER':
-                unselected_starters.append(player_with_score)
-            elif player.player_subtype == 'RELIEF_PITCHER':
-                unselected_relievers.append(player_with_score)
-        
-        # Sort each type by priority
-        unselected_hitters.sort(key=lambda x: x.priority_score, reverse=True)
-        unselected_starters.sort(key=lambda x: x.priority_score, reverse=True)
-        unselected_relievers.sort(key=lambda x: x.priority_score, reverse=True)
-        
-        additional_players = []
-        additional_players.extend(unselected_hitters[:hitters_allocation])
-        additional_players.extend(unselected_starters[:starters_allocation])
-        additional_players.extend(unselected_relievers[:relievers_allocation])
-        
-        self._fill_remaining_slots(additional_players, unused_slots, unselected_hitters + unselected_starters + unselected_relievers)
-        selected_players.extend(additional_players)
-        return selected_players
-    
-    def _enforce_point_buckets(self, selected_players: List[ShowdownBotSetPlayer], player_pool: List[ExploreDataRecord]) -> List[ShowdownBotSetPlayer]:
+    def _enforce_point_buckets(self, selected_players: List[ShowdownBotSetPlayer], player_pool: List[ShowdownBotSetPlayer]) -> List[ShowdownBotSetPlayer]:
         """Swap cards so each player type hits every point bucket's target share of that type.
         
-        Team allocation and redistribution pick purely by priority, so buckets are enforced here against the
+        Weighted selection doesn't look at point ranges, so buckets are enforced here against the
         whole set. For each type and each bucket below target, the highest priority unselected card in the
         bucket replaces the lowest priority card of the same type that is either outside every bucket or in a
         bucket already above its target. Swaps prefer removing a card from the incoming player's team to keep
@@ -875,8 +701,7 @@ class ShowdownBotSet(BaseModel):
                 return index is None or bucket_count(index) > targets[index]
             
             candidates = sorted(
-                (ShowdownBotSetPlayer(**p.model_dump(), priority_score=self._calculate_priority_score(p))
-                 for p in unselected_players if p.player_subtype == player_subtype),
+                (p for p in unselected_players if p.player_subtype == player_subtype),
                 key=lambda x: x.priority_score, reverse=True
             )
             
@@ -895,30 +720,16 @@ class ShowdownBotSet(BaseModel):
                 final_count = bucket_count(index)
                 print(f"{player_subtype} {bucket.label}: {starting_count} -> {final_count} (target {targets[index]}, {bucket.percentage:.0%})")
                 if final_count < targets[index]:
-                    warning = f"Only reached {final_count} of {targets[index]} {player_subtype.replace('_', ' ').lower()} cards in the {bucket.label} bucket"
-                    print(f"Warning: {warning}")
-                    self.warnings.append(warning)
+                    self._warn(f"Only reached {final_count} of {targets[index]} {player_subtype.replace('_', ' ').lower()} cards in the {bucket.label} bucket")
             
             selected_players = [p for p in selected_players if p.player_subtype != player_subtype] + type_players
         
         return selected_players
     
-    def _fill_remaining_slots(self, additional_players: List[ShowdownBotSetPlayer], unused_slots: int, candidates: List[ShowdownBotSetPlayer]) -> None:
-        """Top up `additional_players` in place to exactly `unused_slots` (due to rounding or a type running out of
-        players), using the highest-priority candidates of any type that haven't been picked yet"""
-        del additional_players[unused_slots:]
-        remaining_slots = unused_slots - len(additional_players)
-        if remaining_slots <= 0:
-            return
-        print(f"Filling {remaining_slots} remaining slots with highest priority players (any type)")
-        used_ids = set(p.id for p in additional_players)
-        remaining = sorted((p for p in candidates if p.id not in used_ids), key=lambda x: x.priority_score, reverse=True)
-        additional_players.extend(remaining[:remaining_slots])
-    
     def _print_set_summary(
         self,
         selected_players: List[ShowdownBotSetPlayer],
-        team_allocations: Dict[str, TeamAllocation],
+        team_target: float,
         show_team_breakdown: Optional[str] = None,
         player_pool: Optional[List[ShowdownBotSetPlayer]] = None
     ):
@@ -948,10 +759,7 @@ class ShowdownBotSet(BaseModel):
         
         team_dist_table = PrettyTable(field_names=["Team", "Count", "Target"])
         for team in sorted(team_counts.keys()):
-            team_allocation = team_allocations.get(team, None)
-            target_count = team_allocation.target_count if team_allocation else 0
-            actual = team_counts[team]
-            team_dist_table.add_row([team, actual, target_count])
+            team_dist_table.add_row([team, team_counts[team], f"{team_target:.1f}"])
         print(f"\nTeam Distribution:")
         print(team_dist_table)
 
@@ -1124,12 +932,16 @@ class AlgorithmPreviewRequest(BaseModel):
 
     point_buckets: List[PointBucket] = Field(default_factory=list)
 
+    selection_weights: SelectionWeights = Field(default_factory=SelectionWeights)
+    position_targets: List[PositionTarget] = Field(default_factory=list)
+
     manually_included_ids: Optional[List[str]] = None
     manually_excluded_ids: Optional[List[str]] = None
 
     def to_showdown_bot_set(self) -> ShowdownBotSet:
         """Validate and construct the `ShowdownBotSet` this request describes."""
-        self.player_type_distribution.validate_total()
+        if not self.position_targets:
+            self.player_type_distribution.validate_total()
         return ShowdownBotSet(
             set_size=self.set_size,
             years=convert_year_string_to_list(self.years),
@@ -1142,6 +954,8 @@ class AlgorithmPreviewRequest(BaseModel):
             include_award_winners=self.include_award_winners,
             all_stars_only=self.all_stars_only,
             point_buckets=self.point_buckets,
+            selection_weights=self.selection_weights,
+            position_targets=self.position_targets,
             manually_included_ids=self.manually_included_ids,
             manually_excluded_ids=self.manually_excluded_ids,
         )

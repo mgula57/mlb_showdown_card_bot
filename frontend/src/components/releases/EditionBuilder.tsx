@@ -198,6 +198,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
 
     // Left/right split resize
     const [buildMethod, setBuildMethod] = useState<'algorithm' | 'manual'>('algorithm');
+    const [blueprintSlot, setBlueprintSlot] = useState<HTMLDivElement | null>(null);
     const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
     // Summary mounts lazily on first open, then stays mounted so its filters/WOTC comparison survive tab switches.
     const [summaryMounted, setSummaryMounted] = useState(false);
@@ -461,8 +462,9 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                 {/* Build panel: Algorithm / Manual — larger */}
                 {!readOnly && (
                     <div className="flex-1 min-w-0 border-r border-(--divider) flex flex-col min-h-0">
-                        <div className="px-3 pt-2 shrink-0">
+                        <div className="px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2">
                             <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Build Method</span>
+                            <div ref={setBlueprintSlot} />
                         </div>
                         <Tabs.Root
                             value={buildMethod}
@@ -484,6 +486,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                     token={token}
                                     defaultShowdownSet={defaultShowdownSet}
                                     onPreviewResult={setPreviewResult}
+                                    blueprintSlot={blueprintSlot}
                                 />
                             </Tabs.Content>
                             <Tabs.Content value="manual" className="flex-1 min-h-0 flex flex-col focus:outline-none">
