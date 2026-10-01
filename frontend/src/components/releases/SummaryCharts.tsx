@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, type TooltipContentProps } from 'recharts';
 import { fetchWotcBaseSet, WOTC_BASE_SETS, type ReleaseCard, type WotcBaseSet } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { defenseAtPosition } from '../shared/DefenseUtils';
@@ -209,13 +209,15 @@ function average(
     return Math.round((sum / snapshots.length) * factor) / factor;
 }
 
-type SummaryAverages = { points: number; onBase: number; control: number };
+type SummaryAverages = { points: number; onBase: number; control: number; speed: number; ip: number };
 
 function buildAverages(snapshots: CardDatabaseRecord[]): SummaryAverages {
     return {
         points: average(snapshots, c => c.points, 0),
         onBase: average(snapshots.filter(c => !c.is_pitcher), c => c.command, 1),
         control: average(snapshots.filter(c => c.is_pitcher), c => c.command, 1),
+        speed: average(snapshots.filter(c => !c.is_pitcher), c => c.speed, 1),
+        ip: average(snapshots.filter(c => c.is_pitcher), c => c.ip, 1),
     };
 }
 
@@ -263,9 +265,9 @@ function pluralizeCards(count: number): string {
 
 /** Tooltip for both single-series and comparison charts; `compareLabel` names the WOTC series. */
 function makeChartTooltip(compareLabel: string | null) {
-    return ({ active, payload, label }: { active?: boolean; payload?: { payload: BreakdownRow }[]; label?: string }) => {
+    return ({ active, payload, label }: TooltipContentProps) => {
         if (!active || !payload?.length) return null;
-        const row: BreakdownRow = payload[0].payload;
+        const row: BreakdownRow = payload[0].payload as BreakdownRow;
         if (row.isDivider) return null;
         return (
             <div className="bg-(--background-primary) border border-(--divider) px-2 py-1.5 rounded-lg text-[11px]">
@@ -320,14 +322,14 @@ function hideDividerTick(label: string): string {
 }
 
 /** `scrollable` gives each column a minimum width and scrolls horizontally instead of squeezing labels together. */
-function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false }: ChartProps & { scrollable?: boolean }) {
+function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false, height = 200 }: ChartProps & { scrollable?: boolean; height?: number }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     const rows = withSectionDividers(data);
     const columnWidth = compareLabel === null ? 36 : 48;
     return (
         <div className={scrollable ? 'overflow-x-auto' : undefined}>
             <div style={scrollable ? { minWidth: rows.length * columnWidth } : undefined}>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={height}>
                     <BarChart data={rows} margin={{ top: 4, right: 8, left: 0, bottom: 4 }} barGap={BAR_GAP}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--table-header)" vertical={false} />
                         <XAxis dataKey="label" fontSize={11} tickLine={false} interval={0} tickFormatter={hideDividerTick} />
@@ -341,6 +343,52 @@ function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false
                     </BarChart>
                 </ResponsiveContainer>
             </div>
+        </div>
+    );
+}
+
+/** Count-weighted average defense rating of "POS +N" rows; `useCompare` weights by the unscaled WOTC counts. */
+function averageDefenseRating(rows: BreakdownRow[], useCompare: boolean): number | null {
+    let total = 0;
+    let weight = 0;
+    for (const row of rows) {
+        const rowWeight = useCompare ? (row.compareRaw ?? 0) : row.count;
+        total += Number(row.label.split(' ')[1]) * rowWeight;
+        weight += rowWeight;
+    }
+    return weight > 0 ? Math.round((total / weight) * 10) / 10 : null;
+}
+
+const formatRating = (rating: number) => `${rating >= 0 ? '+' : ''}${rating}`;
+
+/** One small column chart per defensive position, with the release's average rating vs WOTC's. */
+function DefensePositionCharts({ data, emptyMessage, compareLabel }: ChartProps) {
+    if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
+    const positions = [...new Set(data.map(row => row.group ?? ''))];
+    return (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            {positions.map(position => {
+                const rows = data.filter(row => row.group === position);
+                const average = averageDefenseRating(rows, false);
+                const compareAverage = compareLabel === null ? null : averageDefenseRating(rows, true);
+                return (
+                    <div key={position} className="rounded-lg border border-(--divider) p-2">
+                        <div className="flex items-baseline justify-between gap-2 px-1">
+                            <span className="text-[13px] font-black text-(--text-primary)">{position}</span>
+                            <span className="text-[10px] text-(--text-tertiary)">
+                                {average !== null ? `Avg ${formatRating(average)}` : 'Avg –'}
+                                {compareAverage !== null && ` · WOTC ${formatRating(compareAverage)}`}
+                            </span>
+                        </div>
+                        <VerticalBarChart
+                            data={rows.map(row => ({ ...row, label: formatRating(Number(row.label.split(' ')[1])) }))}
+                            emptyMessage={emptyMessage}
+                            compareLabel={compareLabel}
+                            height={140}
+                        />
+                    </div>
+                );
+            })}
         </div>
     );
 }
@@ -522,6 +570,8 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                 <StatTile label="Avg PTS" value={averages.points} compareValue={compareAverages?.points} />
                 <StatTile label="Avg OnBase" value={averages.onBase} compareValue={compareAverages?.onBase} />
                 <StatTile label="Avg Control" value={averages.control} compareValue={compareAverages?.control} />
+                <StatTile label="Avg Speed" value={averages.speed} compareValue={compareAverages?.speed} />
+                <StatTile label="Avg IP" value={averages.ip} compareValue={compareAverages?.ip} />
             </div>
 
             {filteredSnapshots.length === 0 ? (
@@ -565,7 +615,7 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                     </Section>
 
                     <Section title="Defense">
-                        <HorizontalBarChart data={breakdowns.defense} emptyMessage="No defensive ratings yet." {...chartProps} />
+                        <DefensePositionCharts data={breakdowns.defense} emptyMessage="No defensive ratings yet." {...chartProps} />
                     </Section>
                 </>
             )}
