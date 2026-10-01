@@ -1210,7 +1210,7 @@ class ShowdownPlayerCard(BaseModel):
         #  EX: 60 GAMES PLAYED WOULD REDUCE EXCESS AMOUNT BY 50%. 
         #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
         
-        metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
+        metric_max = metric.range_max(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)
         if rating > metric_max and not metric.is_rate_stat:
             amount_over_max = rating - metric_max
             over_max_small_sample_reduction = min((games / 120), 1.0)
@@ -1219,8 +1219,8 @@ class ShowdownPlayerCard(BaseModel):
 
         min_defense_for_position = self.set.position_defense_min(position=position)
         max_defense_for_position = self.set.position_defense_max(position=position)
-        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value)) \
-                        / metric.range_total_values(position_str=position.value, set_str=self.set.value)
+        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)) \
+                        / metric.range_total_values(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)
                    
         defense_raw = min_defense_for_position + ( percentile * (max_defense_for_position - min_defense_for_position) )
         defense = round(defense_raw) if defense_raw > 0 or self.set.is_showdown_bot else 0
@@ -1412,7 +1412,7 @@ class ShowdownPlayerCard(BaseModel):
         in_game_speed_for_metric: dict[SpeedMetric, float] = {}
         for metric, value in speed_elements.items():
             use_variable_speed_multiplier = self.set.is_00_01 and self.is_variable_speed_00_01
-            metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier)
+            metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier, max_year=self.stats_period.last_year)
             era_multiplier = self.era.speed_multiplier
 
             metric_min = metric.minimum_range_value(set=self.set.value)
@@ -7086,7 +7086,7 @@ class ShowdownPlayerCard(BaseModel):
             'positions_and_defense_string': data.get('positions_and_defense_string'),
             'positions_list': data.get('positions_list') or [],
             'ip': data.get('ip'),
-            'speed': 12,
+            'speed': speed_value,
             'hand': data.get('hand'),
             'speed_letter': speed_letter,
             'speed_full': f"{speed_letter}({speed_value})" if speed_letter is not None and speed_value is not None else None,

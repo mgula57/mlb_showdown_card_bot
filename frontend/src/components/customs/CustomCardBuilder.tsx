@@ -219,6 +219,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const { userShowdownSet } = useSiteSettings();
     const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
     const effectiveShowdownSet = showdownSetOverride ?? userShowdownSet;
+    const isSet00_01 = ['2000', '2001'].includes(effectiveShowdownSet);
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -523,7 +524,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     summaries.push({ ...(eraOption || { value: form.era || "DYNAMIC" }), label: 'Era' });
 
                 }
-                if (form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-green-500' });
+                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-green-500' });
                 if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE', borderColor: 'border-green-500' });
                 break;
         }
@@ -1546,12 +1547,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 onChange={(value) => setForm({ ...form, era: value })}
                                             />
 
-                                            <FormEnabler
-                                                label="Variable Speed (00-01 Sets)"
-                                                className="col-span-2"
-                                                isEnabled={form.is_variable_speed_00_01 || false}
-                                                onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
-                                            />
+                                            {isSet00_01 && (
+                                                <FormEnabler
+                                                    label="Variable Speed"
+                                                    className="col-span-2"
+                                                    isEnabled={form.is_variable_speed_00_01 || false}
+                                                    onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
+                                                />
+                                            )}
 
                                             <div className="col-span-2 flex items-center gap-1.5">
                                                 <FormEnabler
