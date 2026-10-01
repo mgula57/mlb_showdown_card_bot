@@ -1229,12 +1229,13 @@ class ShowdownPlayerCard(BaseModel):
 
         # ADD IN STATIC METRICS FOR 1B
         if is_1b:
+            first_base_minus_1_cutoff = metric.first_base_plus_1_cutoff(set_str=self.set.value, max_year=self.stats_period.last_year)
             games_required_for_plus_2 = 30 if not self.stats_period.is_multi_year and self.set.year == '2020' else 90
             if rating > metric.first_base_plus_2_cutoff and games >= games_required_for_plus_2:
                 defense = 2
-            elif rating > metric.first_base_plus_1_cutoff:
+            elif rating > first_base_minus_1_cutoff:
                 defense = 1
-            elif rating < metric.first_base_minus_1_cutoff and self.set.is_showdown_bot:
+            elif rating < first_base_minus_1_cutoff and self.set.is_showdown_bot:
                 defense = -1
             else:
                 defense = 0

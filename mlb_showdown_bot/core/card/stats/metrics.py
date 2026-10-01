@@ -153,11 +153,12 @@ class DefenseMetric(Enum):
             case 'dWAR': return 1.5
             case 'fld_pct': return 1.001 # MAKE IMPOSSIBLE TO GET +2 FOR FLD_PCT SINCE IT'S A RATE STAT
 
-    @property
-    def first_base_plus_1_cutoff(self) -> int:
+    def first_base_plus_1_cutoff(self, set_str:str, max_year: int) -> int:
         """ For 1B, use a static cutoff instead of range """
         match self.value:
-            case 'oaa': return 2
+            case 'oaa': 
+                if max_year >= 2026 and set_str == '2001': return 4
+                return 2
             case 'drs': return 4
             case 'tzr': return 4
             case 'dWAR': return -0.25
