@@ -176,25 +176,30 @@ class Set(str, Enum):
             case Set._2004 | Set._2005 | Set.EXPANDED: return 21
             case _: return 20
 
-    def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool) -> float:
+    def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool, max_year: int) -> float:
         if use_variable_speed_multiplier:
             return self.variable_speed_multiplier
+
+        year_multiplier = 1.0
+        match max_year:
+            case year if year >= 2026: year_multiplier = 1.05 # ACCOUNT FOR INCREASE IN SB
+            case _: year_multiplier = 1.0
         
         if metric == SpeedMetric.STOLEN_BASES:
             match self.value:
-                case '2000': return 1.21
-                case '2001': return 1.22
-                case '2002': return 1.12
-                case '2003': return 0.962
-                case '2004': return 1.00
-                case '2005': return 1.00
-                case _: return 1.0
+                case '2000': return 1.21 * year_multiplier
+                case '2001': return 1.22 * year_multiplier
+                case '2002': return 1.12 * year_multiplier
+                case '2003': return 0.962 * year_multiplier
+                case '2004': return 1.00 * year_multiplier
+                case '2005': return 1.00 * year_multiplier
+                case _: return 1.0 * year_multiplier
         
-        return 1.0
+        return year_multiplier
     
     @property
     def variable_speed_multiplier(self) -> float:
-        return 1.05 if self.is_00_01 else 1.00
+        return 1.10 if self.is_00_01 else 1.00
 
     # ---------------------------------------
     # POSITIONS/DEFENSE

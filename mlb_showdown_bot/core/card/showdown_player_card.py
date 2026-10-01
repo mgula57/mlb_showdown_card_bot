@@ -1210,7 +1210,7 @@ class ShowdownPlayerCard(BaseModel):
         #  EX: 60 GAMES PLAYED WOULD REDUCE EXCESS AMOUNT BY 50%. 
         #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
         
-        metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
+        metric_max = metric.range_max(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)
         if rating > metric_max and not metric.is_rate_stat:
             amount_over_max = rating - metric_max
             over_max_small_sample_reduction = min((games / 120), 1.0)
@@ -1219,8 +1219,8 @@ class ShowdownPlayerCard(BaseModel):
 
         min_defense_for_position = self.set.position_defense_min(position=position)
         max_defense_for_position = self.set.position_defense_max(position=position)
-        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value)) \
-                        / metric.range_total_values(position_str=position.value, set_str=self.set.value)
+        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)) \
+                        / metric.range_total_values(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)
                    
         defense_raw = min_defense_for_position + ( percentile * (max_defense_for_position - min_defense_for_position) )
         defense = round(defense_raw) if defense_raw > 0 or self.set.is_showdown_bot else 0
@@ -1412,7 +1412,7 @@ class ShowdownPlayerCard(BaseModel):
         in_game_speed_for_metric: dict[SpeedMetric, float] = {}
         for metric, value in speed_elements.items():
             use_variable_speed_multiplier = self.set.is_00_01 and self.is_variable_speed_00_01
-            metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier)
+            metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier, max_year=self.stats_period.last_year)
             era_multiplier = self.era.speed_multiplier
 
             metric_min = metric.minimum_range_value(set=self.set.value)
@@ -7041,3 +7041,65 @@ class ShowdownPlayerCard(BaseModel):
         """Convert current class to a json"""
         
         return self.model_dump(mode="json", exclude=exclude, exclude_none=True)
+
+    # FIELDS PRODUCED BY `build_card()` (OR STAMPED AT BUILD TIME) - DROPPED WHEN RE-RUNNING A STORED CARD
+    REBUILT_FIELDS: ClassVar[frozenset[str]] = frozenset([
+        'version', 'load_time', 'warnings', 'chart', 'points', 'points_breakdown', 'projected',
+        'command_out_accuracies', 'command_out_accuracy_breakdowns', 'real_vs_projected_stats',
+        'positions_list', 'positions_and_defense', 'positions_and_defense_for_visuals',
+        'positions_and_defense_string', 'positions_and_real_life_ratings', 'positions_and_games_played',
+        'player_sub_type', 'ip', 'hand', 'speed', 'accolades', 'icons',
+    ])
+
+    @classmethod
+    def rebuilt_from_card_data(cls, card_data: dict) -> 'ShowdownPlayerCard':
+        """Re-run a stored card payload through the current card algorithm.
+
+        Keeps the card's inputs (stats, stats period, set, overrides, image settings) and drops
+        everything `build_card` derives, so the chart, points, speed, defense etc. reflect the
+        current code rather than the bot version the card was archived with.
+        """
+        inputs = {k: v for k, v in card_data.items() if k not in cls.REBUILT_FIELDS}
+        return cls(**inputs)
+
+    def card_bot_columns(self) -> dict:
+        """Card-derived columns of a `card_bot` row, computed from this card.
+
+        Mirrors the `dim_card.card_data` parsing in `PostgresDB.build_card_bot_view` so a rebuilt
+        card can be swapped into an archived row without a view refresh.
+        """
+        data = self.as_json()
+        chart = data.get('chart') or {}
+        speed = data.get('speed') or {}
+        image = data.get('image') or {}
+        speed_value, speed_letter = speed.get('speed'), speed.get('letter')
+        return {
+            'card_year': (data.get('stats_period') or {}).get('year'),
+            'showdown_bot_version': data.get('version'),
+            'points': data.get('points'),
+            'points_estimated': data.get('points_estimated'),
+            'points_diff_estimated_vs_actual': data.get('points_diff_estimated_vs_actual'),
+            'nationality': data.get('nationality'),
+            'color_primary': image.get('color_primary'),
+            'color_secondary': image.get('color_secondary'),
+            'positions_and_defense': data.get('positions_and_defense'),
+            'positions_and_defense_string': data.get('positions_and_defense_string'),
+            'positions_list': data.get('positions_list') or [],
+            'ip': data.get('ip'),
+            'speed': speed_value,
+            'hand': data.get('hand'),
+            'speed_letter': speed_letter,
+            'speed_full': f"{speed_letter}({speed_value})" if speed_letter is not None and speed_value is not None else None,
+            'speed_or_ip': speed_value if self.player_type == PlayerType.HITTER else data.get('ip'),
+            'icons_list': data.get('icons') or [],
+            'stat_highlights_list': image.get('stat_highlights_list'),
+            'command': chart.get('command'),
+            'outs': chart.get('outs_full'),
+            'is_pitcher': chart.get('is_pitcher'),
+            'is_chart_outlier': chart.get('is_command_out_anomaly'),
+            'chart_ranges': chart.get('ranges'),
+            'chart_values': chart.get('values'),
+            'is_errata': bool(data.get('is_errata')),
+            'notes': data.get('notes'),
+            'card_data': data,
+        }

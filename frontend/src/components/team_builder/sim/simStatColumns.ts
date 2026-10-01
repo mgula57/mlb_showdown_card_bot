@@ -9,7 +9,7 @@ export const PITCHER_COLUMNS = ['g', 'wins', 'losses', 'sv', 'bs', 'era', 'whip'
 // drops for having no real-life league-average counterpart (W/L/SV/BS, own-chart HR, and G itself),
 // plus ADV%/OCHO% - the CLI keeps those, but they're dropped here too since they're engine-roll
 // concepts with no real-life meaning to compare against, not just a missing baseline number.
-const COMPARISON_IGNORE = ['advantage_pct', 'own_chart_out_pct', 'gidp', 'wOBA', 'wRC+', 'ops+'];
+const COMPARISON_IGNORE = ['advantage_pct', 'own_chart_out_pct', 'wOBA', 'wRC+', 'ops+'];
 export const HITTER_COMPARISON_COLUMNS = HITTER_COLUMNS.filter(key => key !== 'g' && !COMPARISON_IGNORE.includes(key));
 export const PITCHER_COMPARISON_COLUMNS = PITCHER_COLUMNS.filter(key => !['g', 'wins', 'losses', 'sv', 'bs', 'hr_own_chart', ...COMPARISON_IGNORE].includes(key));
 const RATE_KEYS = new Set(['ba', 'obp', 'slg', 'ops', 'wOBA', 'real_ops', 'ops_diff']);

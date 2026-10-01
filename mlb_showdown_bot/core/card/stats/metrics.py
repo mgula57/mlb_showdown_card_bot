@@ -8,7 +8,7 @@ class DefenseMetric(Enum):
     DWAR = 'dWAR'
     FLD_PCT = 'fld_pct'
     
-    def range_min(self, position_str:str, set_str:str) -> float:
+    def range_min(self, position_str:str, set_str:str, max_year:int) -> float:
         """ Returns the minimum range value for the given position """
         multiplier = 1.0
         match position_str:
@@ -17,29 +17,39 @@ class DefenseMetric(Enum):
                     case '2000' | 'CLASSIC': multiplier = 1.1
             case '2B': 
                 match set_str:
-                    case '2000' | '2001'| 'CLASSIC': multiplier = 1.3
+                    case '2000' | '2001'| 'CLASSIC': 
+                        if max_year >= 2026: multiplier = 1.15 # TIGHTER RANGE -> WIDER SPREAD
+                        else: multiplier = 1.3
                     case '2004' | '2005' | 'EXPANDED': multiplier = 1.3
             case 'SS': 
                 match set_str:
-                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.3
+                    case '2000' | '2001' | 'CLASSIC':
+                        if max_year >= 2026: multiplier = 0.9 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                        else: multiplier = 1.3
                     case '2004' | '2005' | 'EXPANDED': multiplier = 1.2
-            case '3B': 
+            case '3B':
                 match set_str:
-                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.2
-            case 'LF' | 'RF': 
+                    case '2000' | '2001' | '2002' | 'CLASSIC':
+                        if max_year >= 2026: multiplier = 0.6 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                        else: multiplier = 1.2
+            case 'LF' | 'RF':
                 match set_str:
-                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.3
+                    case '2000' | '2001' | 'CLASSIC':
+                        if max_year >= 2026: multiplier = 1.0 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                        else: multiplier = 1.3
                     case '2002': multiplier = 1.1
             case 'OF': 
                 match set_str:
                     case '2000' | '2001' | 'CLASSIC': multiplier = 1.3
             case 'CF':
                 match set_str:
-                    case '2000': multiplier = 1.3
+                    case '2000':
+                        if max_year >= 2026: multiplier = 0.8 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                        else: multiplier = 1.3
                     case '2001' | 'CLASSIC': multiplier = 1.3
                     case '2002': multiplier = 1.5
 
-        min_basis = -1 * self.range_max(position_str, set_str)
+        min_basis = -1 * self.range_max(position_str, set_str, max_year)
         match self:
             case DefenseMetric.DWAR:
                 match position_str:
@@ -62,7 +72,7 @@ class DefenseMetric(Enum):
                 
         return (min_basis * multiplier)
 
-    def range_max(self, position_str:str, set_str:str) -> float:
+    def range_max(self, position_str:str, set_str:str, max_year: int) -> float:
         """ Returns the maximum range value for the given position """
         multiplier = 1.0
         match position_str:
@@ -72,7 +82,9 @@ class DefenseMetric(Enum):
                     case _: multiplier = 1.3
             case '2B': 
                 match set_str:
-                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.4
+                    case '2000' | '2001' | 'CLASSIC': 
+                        if max_year >= 2026: multiplier = 1.15 # TIGHTER RANGE -> WIDER SPREAD
+                        else: multiplier = 1.4
                     case '2004' | '2005' | 'EXPANDED': multiplier = 1.3
             case 'SS':
                 match set_str:
@@ -81,16 +93,22 @@ class DefenseMetric(Enum):
                     case '2004' | '2005' | 'EXPANDED': multiplier = 1.3
             case '3B': 
                 match set_str:
-                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.2
+                    case '2000' | '2001' | '2002' | 'CLASSIC':
+                        if max_year >= 2026: multiplier = 1.0
+                        else: multiplier = 1.2
             case 'LF' | 'RF': 
                 match set_str:
-                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.3
+                    case '2000' | '2001' | '2002' | 'CLASSIC':
+                        if max_year >= 2026: multiplier = 1.1 # SHALLOWER MIN -> PUSH TOP HALF DOWN
+                        else: multiplier = 1.3
             case 'OF': 
                 match set_str:
                     case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.3
             case 'CF':
                 match set_str:
-                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.3
+                    case '2000' | '2001' | '2002' | 'CLASSIC':
+                        if max_year >= 2026: multiplier = 1.0
+                        else: multiplier = 1.3
         match self:
             case DefenseMetric.OAA:
                 match position_str:
@@ -117,8 +135,8 @@ class DefenseMetric(Enum):
                     case 'OF':         return 0.998
                     case _:            return 0.994
 
-    def range_total_values(self, position_str:str, set_str:str) -> float:
-        return self.range_max(position_str, set_str) - self.range_min(position_str, set_str)
+    def range_total_values(self, position_str:str, set_str:str, max_year:int) -> float:
+        return self.range_max(position_str, set_str, max_year) - self.range_min(position_str, set_str, max_year)
 
     @property
     def is_rate_stat(self) -> bool:
