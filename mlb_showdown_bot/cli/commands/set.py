@@ -2,7 +2,7 @@ import typer
 import time
 
 # Import business logic
-from ...core.set_builder.showdown_bot_set import ShowdownBotSet
+from ...core.set_builder.showdown_bot_set import ShowdownBotSet, PointBucket
 
 app = typer.Typer()
 
@@ -14,7 +14,7 @@ def set_builder(
     set_size: int = typer.Option(100, "--set_size", "-ss", help="Number of cards to include in the set."),
     all_star_game: bool = typer.Option(False, "--all_star_game", "-asg", help="Build the full All-Star Game roster set for the given year(s)."),
     team_breakdown: str = typer.Option(None, "--team_breakdown", "-tb", help="Show team breakdown for a specific team."),
-    ideal_low_point_percentage: float = typer.Option(None, "--ideal_low_point_percentage", "-ilpp", help="Ideal percentage of low-point cards in the set."),
+    point_buckets: str = typer.Option(None, "--point_buckets", "-pb", help="Point ranges with an ideal share of each player type, as 'min-max:pct' pairs, comma-separated. Ex: '10-50:0.15,60-100:0.10'."),
     manually_included_ids: str = typer.Option(None, "--manually_included_ids", "-inc", help="Specific player IDs to include in the set, comma-separated."),
     manually_excluded_ids: str = typer.Option(None, "--manually_excluded_ids", "-exc", help="Specific player IDs to exclude from the set, comma-separated."),
     year_overrides: str = typer.Option(None, "--year_overrides", "-yo", help="Per-player year overrides as 'bref_id:years' pairs, comma-separated. Ex: 'verlaju01:2025-2026'. Cards are generated live instead of pulled from the DB."),
@@ -59,7 +59,7 @@ def set_builder(
             showdown_sets=showdown_set_list,
             set_size=set_size,
             all_stars_only=all_star_game,
-            ideal_low_point_percentage=ideal_low_point_percentage,
+            point_buckets=PointBucket.parse_cli(point_buckets) if point_buckets else [],
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
             manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None,
             year_overrides=year_overrides_dict,

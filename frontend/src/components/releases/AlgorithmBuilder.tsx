@@ -8,7 +8,10 @@ import FormEnabler from '../customs/FormEnabler';
 import FormDropdown from '../customs/FormDropdown';
 import MultiSelect from '../shared/MultiSelect';
 import PercentageSlider from '../shared/PercentageSlider';
+import InlineWarning from '../shared/InlineWarning';
 import { useAuth } from '../auth/AuthContext';
+import PointBucketsEditor from './PointBucketsEditor';
+import { validatePointBuckets } from './pointBuckets';
 
 type AlgorithmBuilderProps = {
     releaseId: string;
@@ -66,7 +69,7 @@ function defaultAlgorithmConfig(defaultShowdownSet?: string | null): AlgorithmCo
         include_all_stars: true,
         include_award_winners: true,
         all_stars_only: false,
-        ideal_low_point_percentage: null,
+        point_buckets: [],
     };
 }
 
@@ -106,7 +109,7 @@ const BLUEPRINTS: AlgorithmBlueprint[] = [
             include_all_stars: true,
             include_award_winners: true,
             all_stars_only: false,
-            ideal_low_point_percentage: null,
+            point_buckets: [],
         }),
     },
     {
@@ -124,25 +127,37 @@ const BLUEPRINTS: AlgorithmBlueprint[] = [
             include_all_stars: true,
             include_award_winners: true,
             all_stars_only: true,
-            ideal_low_point_percentage: null,
+            point_buckets: [],
         }),
         lockedFields: ['player_type_distribution'],
     },
 ];
 
+/** Single low-point bucket fields that older editions saved before `point_buckets` existed. */
+type LegacyLowPointSettings = {
+    ideal_low_point_percentage?: number | null;
+    low_point_max_points?: number;
+};
+
 /** Mirrors `parseNumberingSettings` in EditionBuilder.tsx — reads the last-used algorithm config
  * back out of the edition's free-form `attributes` blob. */
 function parseAlgorithmSettings(attributes: Record<string, unknown>, defaultShowdownSet?: string | null): AlgorithmConfig {
     const defaults = defaultAlgorithmConfig(defaultShowdownSet);
-    const raw = attributes.algorithm as Partial<AlgorithmConfig> | undefined;
+    const raw = attributes.algorithm as (Partial<AlgorithmConfig> & LegacyLowPointSettings) | undefined;
     if (!raw || typeof raw !== 'object') return defaults;
+    const { ideal_low_point_percentage, low_point_max_points, ...rest } = raw;
     return {
         ...defaults,
-        ...raw,
+        ...rest,
         player_type_distribution: {
             ...defaults.player_type_distribution!,
             ...(raw.player_type_distribution || {}),
         },
+        // Editions saved before multi-bucket support stored a single 10-max bucket
+        point_buckets: raw.point_buckets
+            ?? (ideal_low_point_percentage != null
+                ? [{ min_points: 10, max_points: low_point_max_points ?? 50, percentage: ideal_low_point_percentage }]
+                : []),
     };
 }
 
@@ -163,11 +178,15 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const distributionTotalPercent = Math.round(distributionTotal * 100);
     const isDistributionValid = distributionTotalPercent === 100;
 
+    const pointBuckets = config.point_buckets ?? [];
+    const arePointBucketsValid = validatePointBuckets(pointBuckets) === null;
+
     const canRun = !!token
         && config.set_size > 0
         && config.years.trim() !== ''
         && config.showdown_sets.length > 0
         && isDistributionValid
+        && arePointBucketsValid
         && status !== 'running';
 
     /** Any manual field edit invalidates whichever blueprint was active, since the config no
@@ -282,11 +301,17 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         Fixed by the {activeBlueprint?.name} blueprint. Edit another field to unlock.
                     </p>
                 ) : !isDistributionValid && (
-                    <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-md border border-red-400/30 bg-red-400/5 flex items-center gap-1.5">
-                        <FaTriangleExclamation className="shrink-0" />
+                    <InlineWarning>
                         Percentages add up to {distributionTotalPercent}% — they must total 100%.
-                    </div>
+                    </InlineWarning>
                 )}
+            </SettingsGroup>
+
+            <SettingsGroup title="Point Buckets">
+                <PointBucketsEditor
+                    buckets={pointBuckets}
+                    onChange={buckets => updateConfig(prev => ({ ...prev, point_buckets: buckets }))}
+                />
             </SettingsGroup>
 
             <SettingsGroup title="Advanced Thresholds" defaultOpen={false}>
@@ -309,23 +334,6 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         value={config.min_ip_relievers ?? 30}
                         onChange={value => updateConfig(prev => ({ ...prev, min_ip_relievers: parseInt(value || '0', 10) || 0 }))}
                     />
-                    <FormEnabler
-                        label="Ideal Low-Point %"
-                        isEnabled={config.ideal_low_point_percentage != null}
-                        onChange={() => updateConfig(prev => ({
-                            ...prev,
-                            ideal_low_point_percentage: prev.ideal_low_point_percentage != null ? null : 0.2,
-                        }))}
-                    />
-                    {config.ideal_low_point_percentage != null && (
-                        <FormInput
-                            label="Low-Point % Value"
-                            type="number"
-                            step="0.01"
-                            value={config.ideal_low_point_percentage}
-                            onChange={value => updateConfig(prev => ({ ...prev, ideal_low_point_percentage: parseFloat(value || '0') || 0 }))}
-                        />
-                    )}
                 </div>
             </SettingsGroup>
 

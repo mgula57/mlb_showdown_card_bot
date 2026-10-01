@@ -5,7 +5,7 @@ import os
 import csv
 import json
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 from math import ceil
 from psycopg2 import sql
@@ -59,6 +59,48 @@ class PlayerTypeDistribution(BaseModel):
             raise ValueError(f"Player type percentages must sum to 1.0, got {total}")
         return self
     
+class PointBucket(BaseModel):
+    """A point range (inclusive) and the share of each player type's cards that should fall in it"""
+    min_points: int = Field(10, ge=0, description="Lowest point value in the bucket (inclusive)")
+    max_points: int = Field(..., ge=0, description="Highest point value in the bucket (inclusive)")
+    percentage: float = Field(..., ge=0, le=1, description="Ideal share of each player type's cards in this bucket")
+
+    @model_validator(mode='after')
+    def validate_range(self) -> 'PointBucket':
+        if self.min_points > self.max_points:
+            raise ValueError(f"Point bucket min ({self.min_points}) must be <= max ({self.max_points})")
+        return self
+
+    @property
+    def label(self) -> str:
+        return f"{self.min_points}-{self.max_points} pts"
+
+    def contains(self, player: ExploreDataRecord) -> bool:
+        """Whether a player's card points fall within this bucket"""
+        return player.points is not None and self.min_points <= player.points <= self.max_points
+
+    @classmethod
+    def validate_list(cls, buckets: List['PointBucket']) -> List['PointBucket']:
+        """Buckets can't overlap (a card could satisfy two targets) and can't ask for more than 100% of a type"""
+        ordered = sorted(buckets, key=lambda b: b.min_points)
+        for previous, current in zip(ordered, ordered[1:]):
+            if current.min_points <= previous.max_points:
+                raise ValueError(f"Point buckets {previous.label} and {current.label} overlap")
+        total = sum(b.percentage for b in buckets)
+        if total > 1.0 + 1e-9:
+            raise ValueError(f"Point bucket percentages must total 100% or less, got {total:.0%}")
+        return buckets
+
+    @classmethod
+    def parse_cli(cls, value: str) -> List['PointBucket']:
+        """Parse a CLI string like '10-50:0.15,60-100:0.10' into buckets"""
+        buckets = []
+        for chunk in value.split(','):
+            point_range, percentage = chunk.strip().split(':')
+            min_points, max_points = point_range.split('-')
+            buckets.append(cls(min_points=int(min_points), max_points=int(max_points), percentage=float(percentage)))
+        return buckets
+
 
 class ShowdownBotSetPlayer(ExploreDataRecord):
     """Extended player record for set building"""
@@ -96,12 +138,10 @@ class ShowdownBotSet(BaseModel):
     final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings surfaced during set construction (e.g. undersized player pool)")
     
-    # 10-50 point card allocation
-    ideal_low_point_percentage: Optional[float] = Field(
-        None,
-        ge=0,
-        le=1,
-        description="Ideal percentage of 10-50 point cards in the set (None to skip)"
+    # Point bucket allocation (e.g. 15% of 10-50 pt cards, 10% of 60-100 pt cards)
+    point_buckets: List[PointBucket] = Field(
+        default_factory=list,
+        description="Point ranges with an ideal share of each player type's cards (empty to skip)"
     )
 
     # Specific player IDs to include
@@ -255,6 +295,11 @@ class ShowdownBotSet(BaseModel):
 
         return expansion_cards
 
+    @field_validator('point_buckets')
+    @classmethod
+    def validate_point_buckets(cls, buckets: List[PointBucket]) -> List[PointBucket]:
+        return PointBucket.validate_list(buckets)
+
     def build_set_player_list(self, show_team_breakdown: Optional[str] = None, source_env: str = "dev") -> None:
         """Build a complete set (base + expansions) based on configuration"""
         
@@ -280,12 +325,15 @@ class ShowdownBotSet(BaseModel):
 
         # 5. Redistribute unused slots
         final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
+        
+        # 6. Swap cards to hit point bucket targets across the whole set
+        final_players = self._enforce_point_buckets(final_players, player_pool)
 
         self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
 
         final_players = self._sort_and_number_players(final_players)
         
-        # 6. Load and add expansion players from CSV (if provided)
+        # 7. Load and add expansion players from CSV (if provided)
         expansion_player_tuples = self._load_expansion_players_from_csv()
         if expansion_player_tuples:
             expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples, source_env=source_env)
@@ -701,13 +749,11 @@ class ShowdownBotSet(BaseModel):
         
         Prioritizes maintaining player type distribution (hitters/starters/relievers percentages).
         
-        If ideal_low_point_percentage is set:
-        - First fills slots to reach target player type distribution
-        - Then balances low-point card percentages within each type
-        - Finally fills any remaining slots with highest priority players
+        - Splits the unused slots across player types to move toward the target type distribution
+        - Fills each type's share with its highest priority unselected cards
+        - Finally tops up (or trims) to exactly the unused slot count with the highest priority players of any type
         
-        If ideal_low_point_percentage is None:
-        - Fills slots to reach target player type distribution with highest priority players
+        Point bucket targets are applied afterwards across the whole set by `_enforce_point_buckets`.
         """
         
         # Calculate how many slots are unused
@@ -785,64 +831,89 @@ class ShowdownBotSet(BaseModel):
         unselected_starters.sort(key=lambda x: x.priority_score, reverse=True)
         unselected_relievers.sort(key=lambda x: x.priority_score, reverse=True)
         
-        # If no ideal low point percentage, just fill with highest priority maintaining type distribution
-        if self.ideal_low_point_percentage is None:
-            print("No ideal low-point percentage set, filling proportionally by deficit.")
-            additional_players = []
-            additional_players.extend(unselected_hitters[:hitters_allocation])
-            additional_players.extend(unselected_starters[:starters_allocation])
-            additional_players.extend(unselected_relievers[:relievers_allocation])
-            
-            # If we still have slots (due to rounding or lack of players), fill with highest priority overall
-            slots_after_type_balance = unused_slots - len(additional_players)
-            if slots_after_type_balance > 0:
-                print(f"Filling {slots_after_type_balance} remaining slots with highest priority players (any type)")
-                # Get remaining unselected players
-                used_ids = set(p.id for p in additional_players)
-                remaining_hitters = [p for p in unselected_hitters[hitters_allocation:] if p.id not in used_ids]
-                remaining_starters = [p for p in unselected_starters[starters_allocation:] if p.id not in used_ids]
-                remaining_relievers = [p for p in unselected_relievers[relievers_allocation:] if p.id not in used_ids]
-                
-                all_remaining = remaining_hitters + remaining_starters + remaining_relievers
-                all_remaining.sort(key=lambda x: x.priority_score, reverse=True)
-                additional_players.extend(all_remaining[:slots_after_type_balance])
-            
-            selected_players.extend(additional_players)
-            return selected_players
-        
-        # If ideal low point percentage is set, balance low-point cards within each type
-        print(f"Ideal low-point percentage set to {self.ideal_low_point_percentage:.1%}, balancing within each player type.")
         additional_players = []
-        for unselected_list, allocation in [
-            (unselected_hitters, hitters_allocation),
-            (unselected_starters, starters_allocation),
-            (unselected_relievers, relievers_allocation)
-        ]:
-            if allocation <= 0:
-                continue
-            
-            # Calculate current low-point percentage in this type
-            current_type_players = [p for p in selected_players if p.player_subtype == unselected_list[0].player_subtype]
-            current_low_point_count = len([p for p in current_type_players if p.points is not None and p.points <= 50])
-            current_type_count = len(current_type_players)
-            current_low_point_pct = (current_low_point_count / current_type_count) if current_type_count > 0 else 0.0
-            
-            # Determine how many low-point cards to add
-            desired_low_point_count = ceil((current_type_count + allocation) * self.ideal_low_point_percentage)
-            low_point_needed = max(0, desired_low_point_count - current_low_point_count)
-            high_point_needed = allocation - low_point_needed
-            
-            print(f"For {unselected_list[0].player_subtype}, current low-point pct: {current_low_point_pct:.1%}, need {low_point_needed} low-point and {high_point_needed} high-point cards.")
-            
-            # Select low-point cards
-            low_point_candidates = [p for p in unselected_list if p.points is not None and p.points <= 50]
-            high_point_candidates = [p for p in unselected_list if p.points is None or p.points > 50]
-            
-            additional_players.extend(low_point_candidates[:low_point_needed])
-            additional_players.extend(high_point_candidates[:high_point_needed])
+        additional_players.extend(unselected_hitters[:hitters_allocation])
+        additional_players.extend(unselected_starters[:starters_allocation])
+        additional_players.extend(unselected_relievers[:relievers_allocation])
         
+        self._fill_remaining_slots(additional_players, unused_slots, unselected_hitters + unselected_starters + unselected_relievers)
         selected_players.extend(additional_players)
         return selected_players
+    
+    def _enforce_point_buckets(self, selected_players: List[ShowdownBotSetPlayer], player_pool: List[ExploreDataRecord]) -> List[ShowdownBotSetPlayer]:
+        """Swap cards so each player type hits every point bucket's target share of that type.
+        
+        Team allocation and redistribution pick purely by priority, so buckets are enforced here against the
+        whole set. For each type and each bucket below target, the highest priority unselected card in the
+        bucket replaces the lowest priority card of the same type that is either outside every bucket or in a
+        bucket already above its target. Swaps prefer removing a card from the incoming player's team to keep
+        team balance, and never remove manually included players. Set size and type counts are unchanged.
+        """
+        if not self.point_buckets:
+            return selected_players
+        
+        manually_included_ids = set(self.manually_included_ids or [])
+        selected_ids = set(p.id for p in selected_players)
+        unselected_players = [p for p in player_pool if p.id not in selected_ids]
+        
+        for player_subtype in ('POSITION_PLAYER', 'STARTING_PITCHER', 'RELIEF_PITCHER'):
+            type_players = [p for p in selected_players if p.player_subtype == player_subtype]
+            if not type_players:
+                continue
+            targets = [ceil(len(type_players) * bucket.percentage) for bucket in self.point_buckets]
+            
+            def bucket_index(player: ExploreDataRecord) -> Optional[int]:
+                return next((i for i, bucket in enumerate(self.point_buckets) if bucket.contains(player)), None)
+            
+            def bucket_count(index: int) -> int:
+                return len([p for p in type_players if bucket_index(p) == index])
+            
+            def is_removable(player: ShowdownBotSetPlayer) -> bool:
+                if player.bref_id_w_type_override in manually_included_ids:
+                    return False
+                index = bucket_index(player)
+                return index is None or bucket_count(index) > targets[index]
+            
+            candidates = sorted(
+                (ShowdownBotSetPlayer(**p.model_dump(), priority_score=self._calculate_priority_score(p))
+                 for p in unselected_players if p.player_subtype == player_subtype),
+                key=lambda x: x.priority_score, reverse=True
+            )
+            
+            for index, bucket in enumerate(self.point_buckets):
+                starting_count = bucket_count(index)
+                for incoming in (c for c in candidates if bucket.contains(c)):
+                    if bucket_count(index) >= targets[index]:
+                        break
+                    removable = [p for p in type_players if is_removable(p)]
+                    if not removable:
+                        break
+                    outgoing = min(removable, key=lambda p: (p.team_id != incoming.team_id, p.priority_score))
+                    type_players.remove(outgoing)
+                    type_players.append(incoming)
+                
+                final_count = bucket_count(index)
+                print(f"{player_subtype} {bucket.label}: {starting_count} -> {final_count} (target {targets[index]}, {bucket.percentage:.0%})")
+                if final_count < targets[index]:
+                    warning = f"Only reached {final_count} of {targets[index]} {player_subtype.replace('_', ' ').lower()} cards in the {bucket.label} bucket"
+                    print(f"Warning: {warning}")
+                    self.warnings.append(warning)
+            
+            selected_players = [p for p in selected_players if p.player_subtype != player_subtype] + type_players
+        
+        return selected_players
+    
+    def _fill_remaining_slots(self, additional_players: List[ShowdownBotSetPlayer], unused_slots: int, candidates: List[ShowdownBotSetPlayer]) -> None:
+        """Top up `additional_players` in place to exactly `unused_slots` (due to rounding or a type running out of
+        players), using the highest-priority candidates of any type that haven't been picked yet"""
+        del additional_players[unused_slots:]
+        remaining_slots = unused_slots - len(additional_players)
+        if remaining_slots <= 0:
+            return
+        print(f"Filling {remaining_slots} remaining slots with highest priority players (any type)")
+        used_ids = set(p.id for p in additional_players)
+        remaining = sorted((p for p in candidates if p.id not in used_ids), key=lambda x: x.priority_score, reverse=True)
+        additional_players.extend(remaining[:remaining_slots])
     
     def _print_set_summary(
         self,
@@ -1051,7 +1122,7 @@ class AlgorithmPreviewRequest(BaseModel):
     include_award_winners: bool = True
     all_stars_only: bool = False
 
-    ideal_low_point_percentage: Optional[float] = Field(None, ge=0, le=1)
+    point_buckets: List[PointBucket] = Field(default_factory=list)
 
     manually_included_ids: Optional[List[str]] = None
     manually_excluded_ids: Optional[List[str]] = None
@@ -1070,7 +1141,7 @@ class AlgorithmPreviewRequest(BaseModel):
             include_all_stars=self.include_all_stars,
             include_award_winners=self.include_award_winners,
             all_stars_only=self.all_stars_only,
-            ideal_low_point_percentage=self.ideal_low_point_percentage,
+            point_buckets=self.point_buckets,
             manually_included_ids=self.manually_included_ids,
             manually_excluded_ids=self.manually_excluded_ids,
         )

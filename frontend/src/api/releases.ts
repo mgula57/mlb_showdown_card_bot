@@ -79,6 +79,13 @@ export type AlgorithmPlayerTypeDistribution = {
     relievers_percentage: number;
 };
 
+export type AlgorithmPointBucket = {
+    min_points: number;
+    max_points: number;
+    /** 0-1 share of each player type's cards targeted in this range. */
+    percentage: number;
+};
+
 export type AlgorithmConfig = {
     set_size: number;
     years: string;
@@ -91,7 +98,8 @@ export type AlgorithmConfig = {
     include_award_winners?: boolean;
     /** Restrict the qualified player pool to players who received an All-Star selection that year. */
     all_stars_only?: boolean;
-    ideal_low_point_percentage?: number | null;
+    /** Point ranges (inclusive) with an ideal share of each player type's cards, e.g. 15% at 10-50 pts. */
+    point_buckets?: AlgorithmPointBucket[];
 };
 
 export type AlgorithmPreviewPlayer = CardDatabaseRecord & { algorithm_set_number: number | null };
