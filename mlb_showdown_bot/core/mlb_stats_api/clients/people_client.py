@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from ..base_client import BaseMLBClient
 from ..models.person import Players, Player, FreeAgent, StatTypeEnum, StatGroupEnum
+from ..models.stats.enums import GameTypeEnum
 from ..models.leagues.league import LeagueListEnum
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType, StatsPeriodType, PlayerType
 import json
@@ -99,14 +100,17 @@ class PeopleClient(BaseMLBClient):
         player_type = stats_period.player_type_for_mlb_api(primary_position) if stats_period else (PlayerType.PITCHER if primary_position and primary_position.upper() == 'P' else PlayerType.HITTER)
         types: Optional[List[StatTypeEnum]] = None
         additional_sit_codes: Optional[List[str]] = None
+        # POSTSEASON STATS PERIODS NEED GAME LOGS SCOPED TO PLAYOFF GAMES INSTEAD OF THE DEFAULT (REGULAR SEASON) GAME TYPE.
+        # GAME_LOG IS THEREFORE EXCLUDED FROM THE MAIN (REGULAR SEASON) TYPES BELOW AND FETCHED SEPARATELY FURTHER DOWN.
+        is_postseason = bool(stats_period and stats_period.type == StatsPeriodType.POSTSEASON)
         if include_stats:
             hydrations.extend([
                 'team(league)',
             ])
-            
+
             is_non_mlb = league_list and 'milb' in league_list.value.lower()
             types: list[StatTypeEnum] = [
-            
+
             ] if is_non_mlb else [
                 StatTypeEnum.SABERMETRICS,
                 StatTypeEnum.RANKINGS_BY_YEAR,
@@ -118,7 +122,9 @@ class PeopleClient(BaseMLBClient):
                         if is_non_mlb:
                             types.extend([StatTypeEnum.STATS_SINGLE_SEASON])
                         else:
-                            types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED, StatTypeEnum.GAME_LOG])
+                            types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED])
+                            if not is_postseason:
+                                types.append(StatTypeEnum.GAME_LOG)
                     case StatsPeriodYearType.MULTI_YEAR | StatsPeriodYearType.FULL_CAREER:
                         # FULL CAREER IS FETCHED SEASON BY SEASON (year_list IS RESOLVED VIA get_player_seasons FIRST)
                         # SO SEASON-SCOPED DATA (RANKINGS, AWARDS, DEFENSE) WORKS THE SAME AS MULTI-YEAR
@@ -141,17 +147,36 @@ class PeopleClient(BaseMLBClient):
             players = self.get_players(
                 player_ids=[player_id],
                 include_stats=include_stats,
-                type=player_type, 
-                seasons=seasons, 
+                type=player_type,
+                seasons=seasons,
                 league_list=league_list,
                 stat_types=types if types else None,
                 limit_hydrated_fields=True,
-                additional_sit_codes=additional_sit_codes
+                additional_sit_codes=additional_sit_codes,
             )
-            if len(players.players) > 0:
-                return players.players[0]
-            else:
+            if len(players.players) == 0:
                 raise ValueError(f"No player found with ID {player_id}")
+
+            player = players.players[0]
+
+            # FETCH POSTSEASON GAME LOGS IN A SEPARATE REQUEST (gameType SCOPES THE WHOLE `stats(...)` HYDRATION
+            # BLOCK, SO IT CAN'T BE MIXED INTO THE REGULAR-SEASON REQUEST ABOVE) AND MERGE THEM IN.
+            if include_stats and is_postseason:
+                postseason_players = self.get_players(
+                    player_ids=[player_id],
+                    include_stats=True,
+                    type=player_type,
+                    seasons=seasons,
+                    league_list=league_list,
+                    stat_types=[StatTypeEnum.GAME_LOG],
+                    limit_hydrated_fields=True,
+                    game_type=GameTypeEnum.PLAYOFFS,
+                )
+                if postseason_players.players:
+                    postseason_stat_groups = postseason_players.players[0].stats or []
+                    player.stats = (player.stats or []) + postseason_stat_groups
+
+            return player
         except Exception as e:
             print(f"Error fetching player with ID {player_id}: {e}")
             raise e
@@ -171,9 +196,9 @@ class PeopleClient(BaseMLBClient):
         group_type = StatGroupEnum.PITCHING if player_type.is_pitcher else StatGroupEnum.HITTING
         return players.players[0].seasons_played(group_type=group_type)
 
-    def get_players(self, player_ids: List[int], include_stats: bool = False, type: Optional[PlayerType] = None, seasons: Optional[List[int]] = None, league_list: Optional[LeagueListEnum] = None, stat_types: Optional[List[StatTypeEnum]] = None, limit_hydrated_fields: Optional[bool] = False, additional_sit_codes: Optional[List[str]] = None) -> Players:
+    def get_players(self, player_ids: List[int], include_stats: bool = False, type: Optional[PlayerType] = None, seasons: Optional[List[int]] = None, league_list: Optional[LeagueListEnum] = None, stat_types: Optional[List[StatTypeEnum]] = None, limit_hydrated_fields: Optional[bool] = False, additional_sit_codes: Optional[List[str]] = None, game_type: Optional[GameTypeEnum] = None) -> Players:
         """Get multiple players by their IDs. Results in a Players object which contains a list of Player objects.
-        
+
         Args:
             player_ids: List of MLB player IDs
             include_stats: Whether to include stats in the response (defaults to False for performance when fetching multiple players)
@@ -183,6 +208,7 @@ class PeopleClient(BaseMLBClient):
             stat_types: Optional list of StatTypeEnum to specify which stat types to include if include_stats is True
             limit_hydrated_fields: If True, limits the fields returned in the stats hydration to only those necessary for card generation (basic stats and sabermetrics), which can improve performance when fetching large numbers of players with stats.
             additional_sit_codes: Optional list of additional situation codes to include in the stats hydration (beyond the default of SP/RP for pitchers), which can be useful for certain card types that require specific splits. Only applicable if include_stats is True.
+            game_type: Optional GameTypeEnum (e.g. PLAYOFFS) applied to every stat type in this call's `stats(...)` hydration. The MLB API rejects multiple `stats(...)` hydrations with different sub-params in one request, so callers that need a non-default game type for only some types (e.g. GAME_LOG) must request those types in a separate call with this set, and merge the results in.
 
         Returns:
             Players object containing a list of Player objects
@@ -221,15 +247,26 @@ class PeopleClient(BaseMLBClient):
                 if additional_sit_codes:
                     sit_codes.extend(additional_sit_codes)
                 sit_code_str = f",sitCodes=[{','.join(sit_codes)}]" if sit_codes and len(sit_codes) > 0 and not is_milb else ''
+
+                # `gameType` SCOPES EVERY TYPE WITHIN THE SAME `stats(...)` HYDRATION BLOCK, AND THE MLB API
+                # REJECTS A REQUEST THAT HYDRATES 'stats' MORE THAN ONCE WITH DIFFERENT SUB-HYDRATIONS.
+                # CALLERS THAT NEED A NON-DEFAULT `game_type` (E.G. POSTSEASON) MUST THEREFORE REQUEST IT
+                # IN ITS OWN DEDICATED `get_players()` CALL RATHER THAN MIXING IT INTO A MULTI-TYPE REQUEST.
+                game_type_str = f",gameType={game_type.value}" if game_type else ""
+
+                def build_stats_hydration(groups: set | list) -> str:
+                    groups_str = ",".join(groups)
+                    return f'stats(team(league),group=[{groups_str}],type=[{",".join([st.value for st in stat_types])}]{seasons_hydration}{league_list_hydration}{sit_code_str}{game_type_str})'
+
                 if type:
                     match type:
                         case PlayerType.PITCHER:
-                            hydrations.append(f'stats(team(league),group=[{",".join(pitcher_stat_groups)}],type=[{",".join([st.value for st in stat_types])}]{seasons_hydration}{league_list_hydration}{sit_code_str})')
+                            hydrations.append(build_stats_hydration(pitcher_stat_groups))
                         case PlayerType.HITTER:
-                            hydrations.append(f'stats(team(league),group=[{",".join(hitter_stat_groups)}],type=[{",".join([st.value for st in stat_types])}]{seasons_hydration}{league_list_hydration}{sit_code_str})')
+                            hydrations.append(build_stats_hydration(hitter_stat_groups))
                 else:
                     unique_groups = set(pitcher_stat_groups + hitter_stat_groups)
-                    hydrations.append(f'stats(team(league),group=[{",".join(unique_groups)}],type=[{",".join([st.value for st in stat_types])}]{seasons_hydration}{league_list_hydration}{sit_code_str})')
+                    hydrations.append(build_stats_hydration(unique_groups))
 
                 if limit_hydrated_fields:
                     params['fields'] = ','.join(_PLAYER_FIELDS + _STAT_KEYS)

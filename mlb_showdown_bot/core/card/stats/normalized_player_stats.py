@@ -404,11 +404,13 @@ class PlayerStatsNormalizer:
 
         # ADD GAME LOGS
         if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR or stats_period.has_game_logs:
-            game_logs = PlayerStatsNormalizer._extract_game_logs(player, stats_period)
-            normalized_data['game_logs'] = game_logs
+            is_postseason = stats_period.type == StatsPeriodType.POSTSEASON
+            game_logs_key = stats_period.type.stats_dict_key or 'game_logs'
+            game_logs = PlayerStatsNormalizer._extract_game_logs(player, stats_period, log_model=PostseasonGameLog if is_postseason else GameLog)
+            normalized_data[game_logs_key] = game_logs
             # IF SINGLE SEASON + LAST_TEAM SELECTION AND HAS GAME LOGS, OVERRIDE TEAM_ID WITH THE TEAM FROM THE LAST GAME LOG
             if stats_period.team_selection == TeamSelection.LAST_TEAM and game_logs and len(game_logs) > 0:
-                last_game_log = normalized_data['game_logs'][-1]
+                last_game_log = game_logs[-1]
                 if last_game_log and last_game_log.team_ID:
                     normalized_data['team_ID'] = last_game_log.team_ID
                     normalized_data['lg_ID'] = last_game_log.lg_ID or normalized_data.get('lg_ID')
@@ -1008,8 +1010,9 @@ class PlayerStatsNormalizer:
         return None
 
     @staticmethod
-    def _extract_game_logs(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> List['GameLog']:
-        """Extracts game logs for the player. Stats are in a gameLogs split. Returns a list of GameLog objects."""
+    def _extract_game_logs(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod, log_model: type = None) -> List['GameLog']:
+        """Extracts game logs for the player. Stats are in a gameLogs split. Returns a list of GameLog (or PostseasonGameLog) objects."""
+        log_model = log_model or GameLog
         stats_type = StatTypeEnum.GAME_LOG
         is_hitter = stats_period.player_type_for_mlb_api(mlb_player.primary_position.abbreviation) == PlayerType.HITTER if stats_period else not mlb_player.is_pitcher
         group_type = StatGroupEnum.HITTING if is_hitter else StatGroupEnum.PITCHING
@@ -1066,7 +1069,7 @@ class PlayerStatsNormalizer:
                 'game_pk': game_pk,
                 **stats_normalized
             }
-            game_logs.append(GameLog(**game_log_entry))
+            game_logs.append(log_model(**game_log_entry))
 
         return game_logs
 
