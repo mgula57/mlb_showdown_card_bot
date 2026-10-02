@@ -42,7 +42,7 @@ type SelectOption = {
     label?: string;
     /** URL to an image to display alongside the option */
     image?: string;
-    /** Smaller variant of `image` shown on the selected-value button below the `@2xl` container width */
+    /** Smaller variant of `image` shown on the selected-value button below a 9rem width of the nearest `@container` ancestor */
     imageCompact?: string;
     /** Single character or emoji symbol to display */
     symbol?: string;
@@ -258,8 +258,8 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         if (!option?.imageCompact) return renderImage(option?.image);
         return (
             <>
-                {renderImage(option.imageCompact, '@2xl:hidden', compactImageClassName)}
-                {renderImage(option.image, 'hidden @2xl:block')}
+                {renderImage(option.imageCompact, '@min-[100px]:hidden', compactImageClassName)}
+                {renderImage(option.image, 'hidden @min-[100px]:block')}
             </>
         );
     };

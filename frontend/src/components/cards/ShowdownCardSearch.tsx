@@ -1358,27 +1358,29 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                         {/* Showdown Set Override */}
                         {showSetOverride && (
-                            <CustomSelect
-                                className="shrink-0"
-                                buttonClassName="
-                                    h-11 px-3
-                                    rounded-xl bg-(--background-secondary) border border-form-element
-                                    flex items-center cursor-pointer
-                                    hover:bg-(--background-secondary-hover)
-                                "
-                                dropdownClassName="text-xs sm:text-sm"
-                                imageClassName="object-contain object-center h-6 w-16 mr-1"
-                                compactImageClassName="object-contain object-center h-5 w-auto mr-1"
-                                align="auto"
-                                labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
-                                value={showdownSetOverride ?? ''}
-                                onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
-                                options={[
-                                    { value: '', label: ' (Default)', image: userDefaultSetImage, imageCompact: imageForSet(userShowdownSet, true) },
-                                    ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
-                                ]}
-                                showDropdownArrow={true}
-                            />
+                            <div className="@container shrink-0 w-24 md:w-40">
+                                <CustomSelect
+                                    className="shrink-0"
+                                    buttonClassName="
+                                        h-11 px-3
+                                        rounded-xl bg-(--background-secondary) border border-form-element
+                                        flex items-center cursor-pointer
+                                        hover:bg-(--background-secondary-hover)
+                                    "
+                                    dropdownClassName="text-xs sm:text-sm"
+                                    imageClassName="object-contain object-center h-6 w-16 mr-1"
+                                    compactImageClassName="object-contain object-center h-5 w-auto mr-1"
+                                    align="auto"
+                                    labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
+                                    value={showdownSetOverride ?? ''}
+                                    onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
+                                    options={[
+                                        { value: '', label: ' (Default)', image: userDefaultSetImage, imageCompact: imageForSet(userShowdownSet, true) },
+                                        ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
+                                    ]}
+                                    showDropdownArrow={true}
+                                />
+                            </div>
                         )}
                     </div>
                     
