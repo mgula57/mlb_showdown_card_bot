@@ -1,13 +1,17 @@
-import { useState } from 'react';
-
 type ColorPickerProps = {
     label: string;
-    value: string;       // "rgb(r, g, b)"
+    value: string;       // "rgb(r, g, b)" or "#rrggbb"
     onChange: (value: string) => void;
 };
 
-function rgbToHex(rgb: string): string {
-    const match = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+/** Converts "rgb(r, g, b)" or hex ("#rgb" / "#rrggbb") to the "#rrggbb" form <input type="color"> requires. */
+function toInputHex(color: string): string {
+    const hexMatch = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hexMatch) {
+        const digits = hexMatch[1];
+        return `#${(digits.length === 3 ? digits.replace(/./g, c => c + c) : digits).toLowerCase()}`;
+    }
+    const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
     if (!match) return '#000000';
     const r = parseInt(match[1]).toString(16).padStart(2, '0');
     const g = parseInt(match[2]).toString(16).padStart(2, '0');
@@ -23,12 +27,8 @@ function hexToRgb(hex: string): string {
 }
 
 export default function ColorPicker({ label, value, onChange }: ColorPickerProps) {
-    const [hex, setHex] = useState(rgbToHex(value));
-
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newHex = e.target.value;
-        setHex(newHex);
-        onChange(hexToRgb(newHex));
+        onChange(hexToRgb(e.target.value));
     };
 
     return (
@@ -39,7 +39,7 @@ export default function ColorPicker({ label, value, onChange }: ColorPickerProps
             <div className="flex items-center gap-2">
                 <input
                     type="color"
-                    value={hex}
+                    value={toInputHex(value)}
                     onChange={handleChange}
                     className="w-8 h-8 rounded border border-(--divider) cursor-pointer p-0"
                 />

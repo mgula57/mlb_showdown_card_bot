@@ -81,7 +81,7 @@ type CardDetailProps = {
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
-    <div className={`bg-secondary rounded-xl p-4 border-2 border-form-element space-y-3 overflow-y-scroll ${isLoading ? 'blur-xs' : ''}`}>
+    <div className={`bg-secondary rounded-xl p-4 border border-form-element space-y-3 overflow-y-scroll ${isLoading ? 'blur-xs' : ''}`}>
         <div className="flex flex-col gap-0.5">
             <div className="text-[12px] font-semibold opacity-40 uppercase tracking-widest">{title}</div>
             {subtitle && <div className="text-[10px] font-semibold opacity-30 uppercase tracking-widest">{subtitle}</div>}
@@ -432,7 +432,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
             {/* Warnings */}
             {activeCardData?.card?.warnings && activeCardData.card.warnings.length > 0 && (
-                <div className="bg-(--warning)/5 border-2 border-(--warning) text-(--warning) p-2 rounded-md">
+                <div className="bg-(--warning)/5 border border-(--warning) text-(--warning) p-2 rounded-md">
                     <h4 className="font-semibold">Warnings</h4>
                     <ul className="list-disc list-inside">
                         {activeCardData.card.warnings.map((warning, index) => (
@@ -510,7 +510,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
             {/* Tooltip */}
             {tooltip && (
-                <div className="bg-(--showdown-red)/5 border-2 border-(--showdown-red) text-(--showdown-red) p-2 rounded-md text-xs">
+                <div className="bg-(--showdown-red)/5 border border-(--showdown-red) text-(--showdown-red) p-2 rounded-md text-xs">
                     {tooltip}
                 </div>
             )}
@@ -519,7 +519,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             {activeCardData?.card?.notes && (
                 <div className="
                     bg-(--secondary)/50
-                    border-2 border-(--form-element)
+                    border border-(--form-element)
                     rounded-lg
                     p-3
                     text-xs
