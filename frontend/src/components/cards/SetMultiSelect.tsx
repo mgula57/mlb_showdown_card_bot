@@ -66,7 +66,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                 onClick={() => setIsOpen(open => !open)}
                 className="
                     h-11 px-3
-                    rounded-xl bg-(--background-secondary) border-2 border-form-element
+                    rounded-xl bg-(--background-secondary) border border-form-element
                     flex items-center cursor-pointer
                     hover:bg-(--background-secondary-hover)
                     disabled:opacity-40 disabled:cursor-not-allowed

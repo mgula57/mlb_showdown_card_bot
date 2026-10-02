@@ -233,6 +233,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     );
     const previewSectionRef = useRef<HTMLDivElement>(null);
     const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
+    const userDefaultSetImageAbbr = showdownSets.find(set => set.value === userShowdownSet)?.imageAbbr;
 
     // User Context
     const { user, session } = useAuth();
@@ -539,9 +540,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return undefined;
         }
         return (
-            <div className="text-sm font-bold flex flex-wrap items-center gap-x-2 gap-y-1 text-(--tertiary)">
+            <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
                 {summaryItems.map(item => (
-                    <div key={item.label} className={`flex rounded-lg px-1 border-2 ${item.borderColor || 'border(--tertiary)/65'}`}>
+                    <div key={item.label} className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
                         <span className="font-semibold">{item.icon}</span>
                         {(() => {
                             const label = item.label?.toLowerCase()
@@ -1131,18 +1132,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     <div className={`flex items-center justify-between p-2 ${isFormCollapsed ? 'px-2' : 'px-4'}`}>
                         
                         {/* Reset and collapse buttons */}
-                        <div className='flex gap-1 items-center'>
+                        <div className='flex gap-1 text-lg items-center'>
 
-                            <h2 className={`mr-2 font-bold text-(--primary) ${isFormCollapsed ? 'hidden' : 'block'}`}>
+                            <h4 className={`mr-2 font-bold text-(--primary) ${isFormCollapsed ? 'hidden' : 'block'}`}>
                                 Card Settings
-                            </h2>
+                            </h4>
 
                             {/* Reset and shuffle buttons */}
                             <div className={`flex items-center gap-1 text-xl ${isFormCollapsed ? 'hidden' : 'flex'}`}>
                                 <button
                                     type="button"
                                     className={`
-                                        text-xl p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title="Reset Form"
                                     onClick={handleReset}
@@ -1153,7 +1154,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 <button
                                     type="button"
                                     className={`
-                                        text-xl p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title='Shuffle'
                                     onClick={handleShuffle}
@@ -1240,18 +1241,38 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             </div>
                                         )}
 
-                                        <PlayerSearchInput
-                                            label=""
-                                            value={query}
-                                            className={`flex-1 ${animationTw}`}
-                                            onChange={(selection) => setForm({ 
-                                                ...form, 
-                                                name: selection.name, 
-                                                year: selection.year,
-                                                player_id: selection.player_id,
-                                                player_type_override: selection.player_type_override,
-                                            })}
-                                        />
+                                        <div className="@container flex flex-row items-end gap-1">
+                                            <PlayerSearchInput
+                                                label=""
+                                                value={query}
+                                                className={`flex-1 min-w-0 ${animationTw}`}
+                                                onChange={(selection) => setForm({ 
+                                                    ...form, 
+                                                    name: selection.name, 
+                                                    year: selection.year,
+                                                    player_id: selection.player_id,
+                                                    player_type_override: selection.player_type_override,
+                                                })}
+                                            />
+
+                                            {/* Showdown Set (default managed via top right corner) */}
+                                            <div className="@container shrink-0 w-20 xs:w-28 md:w-20">
+                                                <CustomSelect
+                                                    className="text-sm"
+                                                    buttonClassName="w-full px-3 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
+                                                    imageClassName="object-contain object-center w-16 mr-2 h-7"
+                                                    compactImageClassName="object-contain object-center w-10 h-7"
+                                                    value={showdownSetOverride ?? ''}
+                                                    align="right"
+                                                    onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
+                                                    options={[
+                                                        { value: '', label: ``, image: userDefaultSetImage, imageCompact: userDefaultSetImageAbbr },
+                                                        ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
+                                                    ]}
+                                                    showDropdownArrow={true}
+                                                />
+                                            </div>
+                                        </div>
 
                                         {/* Display Error (If Applicable) */}
                                         {errorMessage && (
@@ -1270,27 +1291,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 </div>
                                             </div>
                                         )}
-
-                                        {/* Showdown Set */}
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                                                <label className="text-xs font-semibold text-secondary">Showdown Style</label>
-                                                <div className="text-[10px] text-(--tertiary) opacity-75 text-right">
-                                                    Manage default via top right corner
-                                                </div>
-                                            </div>
-                                            <CustomSelect
-                                                className="text-sm"
-                                                imageClassName="object-contain object-center w-18 mr-2"
-                                                value={showdownSetOverride ?? ''}
-                                                onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
-                                                options={[
-                                                    { value: '', label: ` (Your Default)`, image: userDefaultSetImage },
-                                                    ...showdownSets,
-                                                ]}
-                                                showDropdownArrow={true}
-                                            />
-                                        </div>
 
                                         {/* Player */}
                                         <FormSection
