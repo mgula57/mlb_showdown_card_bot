@@ -189,10 +189,10 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
             <button
                 onClick={() => setIsOpen(prev => !prev)}
                 className={`
-                    px-3 h-11 rounded-xl border-2 flex items-center gap-2
+                    px-3 h-11 rounded-xl border flex items-center gap-2
                     ${isOpen
-                        ? 'bg-(--background-secondary-hover) border-form-element'
-                        : 'bg-(--background-secondary) border-form-element hover:bg-(--background-secondary-hover)'}
+                        ? 'bg-(--background-secondary-hover) border border-form-element'
+                        : 'bg-(--background-secondary) border border-form-element hover:bg-(--background-secondary-hover)'}
                 `}
             >
                 <FaBolt className={selectedPresetFiltersMatch ? 'text-(--success)' : 'text-primary'} />
@@ -208,7 +208,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                     absolute top-full mt-1 z-50
                     ${alignRight ? 'right-0' : 'left-0'}
                     min-w-64 w-max max-w-80
-                    bg-(--background-secondary)/95 backdrop-blur-2xl border-2 border-form-element
+                    bg-(--background-secondary)/95 backdrop-blur-2xl border border-form-element
                     rounded-xl shadow-xl
                 `}>
                     {/* Defaults */}

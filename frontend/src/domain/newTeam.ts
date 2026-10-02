@@ -7,6 +7,7 @@
  */
 import type { TeamCreatePayload } from '../api/userTeams';
 import { CardSource } from '../types/cardSource';
+import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../api/userSettings';
 
 type BuildDefaultTeamPayloadArgs = {
     /** A single display handle, e.g. the profile username or the email local-part. */
@@ -36,8 +37,8 @@ export function buildDefaultTeamPayload({ displayName, showdownSet, defaultPrima
     return {
         name,
         abbreviation,
-        primary_color: defaultPrimaryColor ?? '#1a3b5f',
-        secondary_color: defaultSecondaryColor ?? '#9a362f',
+        primary_color: defaultPrimaryColor ?? DEFAULT_PRIMARY_COLOR,
+        secondary_color: defaultSecondaryColor ?? DEFAULT_SECONDARY_COLOR,
         is_public: true,
         pts_limit: 5000,
         roster_size: 20,

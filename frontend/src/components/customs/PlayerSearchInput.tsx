@@ -369,7 +369,7 @@ export function PlayerSearchInput({
             <SearchGradientBorder className="relative">
 
                 <div className="bg-primary rounded-md relative">
-                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary">
+                    <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-primary">
                         <FaSearch className="w-4 h-4" />
                     </div>
                     
@@ -391,7 +391,7 @@ export function PlayerSearchInput({
                         autoComplete="off"
                         spellCheck="false"
                         className={`
-                            w-full pl-10 pr-6 py-2
+                            w-full pl-8 py-2
                             text-primary
                             focus:outline-none
                             placeholder-gray-500
@@ -445,7 +445,7 @@ export function PlayerSearchInput({
                                 key={`${option.year.toString()}-${option.player_id}`}
                                 onClick={() => handleSelect(option)}
                                 className={`
-                                    px-3 py-3 cursor-pointer border-b border-form-element last:border-b-0
+                                    pl-3 py-3 cursor-pointer border-b border-form-element last:border-b-0
                                     hover:bg-(--background-tertiary)
                                     ${index === 0 ? 'rounded-t-lg' : ''}
                                     ${index === options.length - 1 ? 'rounded-b-lg' : ''}

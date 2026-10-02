@@ -28,6 +28,7 @@ import { uploadAvatar, removeAvatar, validateAvatarFile, AVATAR_ACCEPT } from '.
 import AvatarCropModal from './AvatarCropModal';
 import { AccountAvatar } from '../auth/AccountIcon';
 import ColorPicker from '../shared/ColorPicker';
+import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
 
 /**
  * Account Page Component
@@ -461,12 +462,12 @@ const AccountPage: React.FC = () => {
                             <div className="flex items-center gap-6">
                                 <ColorPicker
                                     label="Primary Color"
-                                    value={userSettings?.default_primary_color ?? '#1a3b5f'}
+                                    value={userSettings?.default_primary_color ?? DEFAULT_PRIMARY_COLOR}
                                     onChange={v => syncSetting({ default_primary_color: v })}
                                 />
                                 <ColorPicker
                                     label="Secondary Color"
-                                    value={userSettings?.default_secondary_color ?? '#9a362f'}
+                                    value={userSettings?.default_secondary_color ?? DEFAULT_SECONDARY_COLOR}
                                     onChange={v => syncSetting({ default_secondary_color: v })}
                                 />
                             </div>

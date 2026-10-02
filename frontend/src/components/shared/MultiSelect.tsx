@@ -248,7 +248,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     disabled={disabled}
                     className={`
                         w-full flex items-center justify-between px-3 py-2 min-h-10
-                        border-2 border-form-element rounded-lg 
+                        border border-form-element rounded-lg 
                         bg-(--background-primary) text-(--text-primary)
                         hover:border-(--tertiary) focus:outline-none focus:ring-2 focus:ring-primary/20
                         ${isOpen ? 'border-primary' : ''}

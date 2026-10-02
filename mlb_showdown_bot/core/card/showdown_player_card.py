@@ -5993,6 +5993,8 @@ class ShowdownPlayerCard(BaseModel):
 
         if self.image.special_edition == SpecialEdition.ASG_LINES:
             components_dict = default_components_for_context
+            # SHADOW REPLACES GLOW (BOTH SOURCE FROM THE SAME CUT IMAGE, HAVING BOTH LEAVES ONE UNMATCHED AND DROPS THE PLAYER IMAGE)
+            components_dict.pop(PlayerImageComponent.GLOW, None)
             components_dict[PlayerImageComponent.SHADOW] = None
             components_dict[PlayerImageComponent.TEAM_LOGO] = self._team_logo_path(f'ASG-{self.stats_period.last_year}')
             components_dict[PlayerImageComponent.TEAM_COLOR] = None

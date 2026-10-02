@@ -4,6 +4,7 @@ import { FaCircleCheck } from 'react-icons/fa6';
 import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { LoadingStatusToast } from '../shared/LoadingStatusToast';
+import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
 
 // ---------------------------------------------------------------------------
 // AccountAvatar — reusable avatar image / initials / fallback icon
@@ -39,7 +40,9 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
         <div className={`relative inline-flex ${className}`}>
             <button
                 onClick={onClick}
-                style={user && !userSettings?.avatar_url ? { background: 'linear-gradient(to right, #3b82f6 15%, #ef4444 85%)' } : undefined}
+                style={user && !userSettings?.avatar_url ? {
+                    background: `linear-gradient(to right, ${userSettings?.default_primary_color ?? DEFAULT_PRIMARY_COLOR} 15%, ${userSettings?.default_secondary_color ?? DEFAULT_SECONDARY_COLOR} 85%)`,
+                } : undefined}
                 className={`
                     flex items-center justify-center
                     w-${size} h-${size} rounded-full

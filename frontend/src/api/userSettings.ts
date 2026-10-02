@@ -1,5 +1,9 @@
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://127.0.0.1:5000/api';
 
+/** Stock Showdown blue/red, used wherever the user hasn't saved their own default team colors. */
+export const DEFAULT_PRIMARY_COLOR = '#1a3b5f';
+export const DEFAULT_SECONDARY_COLOR = '#9a362f';
+
 export interface UserSettingsDB {
     theme?: 'light' | 'dark' | 'system';
     showdown_set?: string;

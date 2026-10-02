@@ -13,13 +13,20 @@ def snapshot_rosters(
     env: str = 'dev', 
     league_ids: Optional[List[int]] = None,
     showdown_sets: Optional[List[str]] = None,
-    player_ids: Optional[List[int]] = None
+    player_ids: Optional[List[int]] = None,
+    all_players: bool = False,
+    skip_rosters: bool = False,
 ) -> None:
     """Fetch active roster data and snapshot in Postgres DB
 
     Args:
         player_ids: Optional list of MLB player IDs to limit card generation to (for testing). 
                     The full roster snapshot is still stored so the latest snapshot stays complete.
+        all_players: Generate cards for every player who recorded stats in the season(s),
+                     regardless of whether they're currently on a 40-man roster.
+                     The roster snapshot itself is unchanged.
+        skip_rosters: Skip fetching and storing the roster snapshot. Requires all_players
+                      when generating cards, since the roster is otherwise the card pool.
     """
     from ...core.database.postgres_db import PostgresDB
     is_production = env.lower() == "prod"
@@ -32,6 +39,10 @@ def snapshot_rosters(
         print("Required: Please specify at least one season using the --seasons option (e.g. --seasons 2023,2024)")
         return
     
+    if skip_rosters and generate_cards and not all_players:
+        print("Required: --skip-rosters with --generate-cards needs --all-players, since the roster is otherwise the card pool.")
+        return
+
     if generate_cards and not showdown_sets:
         print("Warning: --generate-cards flag is set but no --showdown-sets specified. Defaulting to all sets.")
         showdown_sets = [s.value for s in ShowdownSet]
@@ -39,16 +50,20 @@ def snapshot_rosters(
     # -----------------
     # 1. STORE ROSTER DATA
     # -----------------
-    print("Fetching active roster data from MLB API...")
     _mlb_api = MLBStatsAPI(use_persistent_cache=True)
-    leagues = league_ids or [LeagueEnum.AL.value, LeagueEnum.NL.value]
-    rosters = _mlb_api.fetch_rosters_by_season(seasons=season_list, league_ids=leagues, roster_type=RosterTypeEnum.MAN_40.value)
-    print(f"Fetched roster data for {len(rosters)} players.")
+    rosters: list[dict] = []
+    if skip_rosters:
+        print("Skipping roster fetch and snapshot.")
+    else:
+        print("Fetching active roster data from MLB API...")
+        leagues = league_ids or [LeagueEnum.AL.value, LeagueEnum.NL.value]
+        rosters = _mlb_api.fetch_rosters_by_season(seasons=season_list, league_ids=leagues, roster_type=RosterTypeEnum.MAN_40.value)
+        print(f"Fetched roster data for {len(rosters)} players.")
 
-    print("Snapshotting roster data in Postgres DB...")
-    if publish_to_database:
-        db.store_rosters(rosters)
-        print("✅ Roster snapshot completed.")
+        if publish_to_database:
+            print("Snapshotting roster data in Postgres DB...")
+            db.store_rosters(rosters)
+            print("✅ Roster snapshot completed.")
 
     # -----------------
     # 2. OPTIONAL: PROCESS CARDS 
@@ -57,21 +72,34 @@ def snapshot_rosters(
     if generate_cards:
 
         # CHUNK PLAYERS INTO BATCHES OF 10 FOR CARD GENERATION
-        print("Generating cards for rostered players...")
-        rostered_player_ids = [roster['player_id'] for roster in rosters if not player_ids or roster['player_id'] in player_ids]
+        if all_players:
+            # EVERY PLAYER WITH STATS IN ANY OF THE SEASONS, ROSTERED OR NOT
+            print("Generating cards for all players with stats...")
+            ids_with_stats: set[int] = set()
+            for season in season_list:
+                ids_with_stats |= _mlb_api.stats.get_player_ids_with_stats(season=season)
+            candidate_ids = sorted(ids_with_stats)
+        else:
+            print("Generating cards for rostered players...")
+            candidate_ids = [roster['player_id'] for roster in rosters]
+
+        rostered_player_ids = [pid for pid in candidate_ids if not player_ids or pid in player_ids]
         if player_ids:
             missing_ids = set(player_ids) - set(rostered_player_ids)
             if missing_ids:
-                print(f"Warning: player IDs not found on any fetched roster: {sorted(missing_ids)}")
+                source = "with stats in the given season(s)" if all_players else "on any fetched roster"
+                print(f"Warning: player IDs not found {source}: {sorted(missing_ids)}")
 
         # SKIP PLAYERS WITH NO STATS (ex: 40-man players who haven't appeared in the majors this season).
         # A single bulk call per stat group avoids hydrating and processing them in card generation.
-        if len(season_list) == 1:
+        # Not needed in all_players mode since the candidate pool is already players with stats.
+        if len(season_list) == 1 and not all_players:
             ids_with_stats = _mlb_api.stats.get_player_ids_with_stats(season=season_list[0])
             statless_ids = [pid for pid in rostered_player_ids if pid not in ids_with_stats]
             if statless_ids:
                 print(f"Skipping {len(statless_ids)} rostered players with no {season_list[0]} stats.")
             rostered_player_ids = [pid for pid in rostered_player_ids if pid in ids_with_stats]
+        print(f"Generating cards for {len(rostered_player_ids)} players.")
         player_id_chunks = [rostered_player_ids[i:i + 10] for i in range(0, len(rostered_player_ids), 10)]
         two_way_ids = [roster['player_id'] for roster in rosters if roster.get('position', 'N/A') == 'TWP']
 
