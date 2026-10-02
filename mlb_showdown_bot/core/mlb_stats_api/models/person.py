@@ -121,6 +121,11 @@ class Player(Person):
         """Determine if the player is a pitcher based on primary position"""
         return self.primary_position and self.primary_position.abbreviation == 'P'
 
+    @property
+    def is_two_way(self) -> bool:
+        """Determine if the player is a two-way player (e.g. Ohtani) based on primary position"""
+        return self.primary_position and self.primary_position.abbreviation == 'TWP'
+
 class PlayerWithShowdownCard(Player):
     """Extended Player model that includes showdown card data"""
     

@@ -539,9 +539,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return undefined;
         }
         return (
-            <div className="text-sm font-bold flex flex-wrap items-center gap-x-2 gap-y-1 text-(--tertiary)">
+            <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
                 {summaryItems.map(item => (
-                    <div key={item.label} className={`flex rounded-lg px-1 border-2 ${item.borderColor || 'border(--tertiary)/65'}`}>
+                    <div key={item.label} className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
                         <span className="font-semibold">{item.icon}</span>
                         {(() => {
                             const label = item.label?.toLowerCase()
@@ -1281,7 +1281,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             </div>
                                             <CustomSelect
                                                 className="text-sm"
-                                                imageClassName="object-contain object-center w-18 mr-2"
+                                                imageClassName="object-contain object-center w-16 mr-2"
                                                 value={showdownSetOverride ?? ''}
                                                 onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                                 options={[

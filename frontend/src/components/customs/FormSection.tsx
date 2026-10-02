@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import FormElementGrid from './FormElementGrid';
-import { FaCaretDown, FaCaretUp } from 'react-icons/fa';
+import { FaChevronDown } from 'react-icons/fa6';
 
 /**
  * Props for the FormSection component
@@ -65,6 +65,8 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
 
     /** Internal state for section expand/collapse */
     const [isOpen, setIsOpen] = useState(collapsible ? isOpenByDefault : true);
+    /** True while the expand/collapse transition runs - content must clip until it settles */
+    const [isAnimating, setIsAnimating] = useState(false);
 
     /**
      * Toggle section visibility and notify parent component
@@ -72,6 +74,7 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
      */
     const toggleCollapse = () => {
         if (!collapsible) return;
+        setIsAnimating(true);
         setIsOpen(!isOpen);
         if (onToggle) {
             onToggle();
@@ -79,47 +82,52 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
     };
 
     return (
-        <div className="w-full px-4 py-3 border-2 border-form-element rounded-2xl overflow-hidden bg-secondary">
+        <div className="w-full px-3 py-2.5 border border-form-element rounded-xl bg-secondary">
 
-            {/* Section header with title and icon — clickable toggle only when collapsible */}
+            {/* Section header with title, icon, and (when collapsed) inline summary — clickable toggle only when collapsible */}
             <button
                 type='button'
-                className={`flex justify-between items-center w-full ${collapsible ? 'cursor-pointer' : 'cursor-default'}`}
+                className={`
+                    flex items-start gap-3 w-full min-w-0 -mx-1.5 px-1.5 py-1 rounded-lg box-content
+                    transition-colors ${collapsible ? 'cursor-pointer hover:bg-(--background-tertiary)/60' : 'cursor-default'}
+                `}
                 onClick={toggleCollapse}
                 aria-expanded={collapsible ? isOpen : undefined}
             >
-                <div className="flex justify-between items-center w-full text-secondary text-lg font-black">
-                    <span className='flex items-center gap-2'>
-                        {icon} {title}
+                <span className='flex items-center gap-2 shrink-0 text-sm font-bold text-secondary'>
+                    {icon && <span className='text-xs text-(--tertiary)'>{icon}</span>}
+                    {title}
+                </span>
+
+                {/* Summary content - shown inline when collapsed, wrapping onto extra rows if needed */}
+                <span className='flex-1 min-w-0 pt-px'>
+                    {!isOpen && childrenWhenClosed}
+                </span>
+
+                {/* Toggle chevron indicating section state */}
+                {/* Wrapped in a title-height box so it stays level with the title when chips wrap */}
+                {collapsible && (
+                    <span className='flex items-center h-5 shrink-0'>
+                        <FaChevronDown className={`text-xs text-(--tertiary) transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                     </span>
-                    {/* Toggle caret indicating section state */}
-                    {collapsible && <span>{isOpen ? <FaCaretUp /> : <FaCaretDown />}</span>}
-                </div>
+                )}
             </button>
 
-            {/* Content area with smooth expand/collapse animation */}
-            <div className='transition-all duration-300 ease-in-out'>
-                {/* Main form content - shown when expanded */}
-                {isOpen && (
-                    // A FIXED CAP WELL ABOVE ANY REALISTIC SECTION HEIGHT - NOT VIEWPORT-RELATIVE
-                    // LIKE `max-h-screen`, WHICH CLIPPED A SECTION'S BOTTOM CONTENT (WITH NO SCROLL
-                    // FALLBACK, SINCE THE OUTER WRAPPER IS `overflow-hidden`) ONCE IT GREW TALLER
-                    // THAN 100VH ON A NORMAL-HEIGHT SCREEN.
-                    <div className="max-h-1250">
-                        <div className="mt-4">
-                            <FormElementGrid>
-                                {children}
-                            </FormElementGrid>
-                        </div>
+            {/* Content area - animates height via grid rows so no fixed max-height cap is needed */}
+            <div
+                className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                onTransitionEnd={(e) => { if (e.target === e.currentTarget) setIsAnimating(false); }}
+                inert={!isOpen}
+            >
+                {/* CLIP ONLY WHILE CLOSED OR MID-TRANSITION - ONCE FULLY OPEN, OVERFLOW STAYS VISIBLE
+                    SO DROPDOWN MENUS INSIDE THE SECTION AREN'T CUT OFF */}
+                <div className={`min-h-0 ${isOpen && !isAnimating ? 'overflow-visible' : 'overflow-hidden'}`}>
+                    <div className="pt-3">
+                        <FormElementGrid>
+                            {children}
+                        </FormElementGrid>
                     </div>
-                )}
-
-                {/* Summary content - shown when collapsed */}
-                {!isOpen && childrenWhenClosed && (
-                    <button type="button" className="mt-2 cursor-pointer" onClick={toggleCollapse}>
-                        {childrenWhenClosed}
-                    </button>
-                )}
+                </div>
             </div>
         </div>
     );

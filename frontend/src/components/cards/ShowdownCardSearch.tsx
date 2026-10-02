@@ -20,7 +20,7 @@ import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDa
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
-import { useSiteSettings, showdownSets } from "../shared/SiteSettingsContext";
+import { useSiteSettings, showdownSets, imageForSet } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
@@ -49,6 +49,7 @@ import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/
 import { CardSource } from '../../types/cardSource';
 import { QuickFiltersDropdown } from './QuickFiltersDropdown';
 import { useAuth } from '../auth/AuthContext';
+import { useIsSmallScreen } from '../../hooks/useIsSmallScreen';
 
 /**
  * Props for the ShowdownCardSearch component
@@ -787,6 +788,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
     const sidebarContainerRef = useRef<HTMLDivElement>(null);
+    const isSmallScreen = useIsSmallScreen();
 
     // Tracks the in-flight card fetch so a new search/filter change cancels the prior run
     // instead of waiting for it to finish. `cardsRequestIdRef` additionally guards against a
@@ -1304,13 +1306,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                 <div className="flex items-center space-x-2 px-3">
 
-                    <div className="flex flex-1 items-center gap-2">
+                    <div className="flex flex-1 items-center gap-2 mx-auto">
                         {/* Search Input */}
                         <FormInput
                             label=""
                             type="text"
                             value={searchText || ''}
-                            placeholder="Search for a Player..."
+                            placeholder={isSmallScreen ? "Search" : "Search for a Player..."}
                             onChange={(value) => setSearchText(value || '')}
                             className="w-full @2xl:w-1/3 font-bold"
                             isClearable={true}
@@ -1332,7 +1334,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             onClick={handleOpenFilters}
                             className="
                                 px-3 h-11
-                                rounded-xl bg-(--background-secondary) border-2 border-form-element
+                                rounded-xl bg-(--background-secondary) border border-form-element
                                 flex items-center gap-2
                                 hover:bg-(--background-secondary-hover)
                             ">
@@ -1360,17 +1362,20 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 className="shrink-0"
                                 buttonClassName="
                                     h-11 px-3
-                                    rounded-xl bg-(--background-secondary) border-2 border-form-element
+                                    rounded-xl bg-(--background-secondary) border border-form-element
                                     flex items-center cursor-pointer
                                     hover:bg-(--background-secondary-hover)
                                 "
+                                dropdownClassName="text-xs sm:text-sm"
                                 imageClassName="object-contain object-center h-6 w-16 mr-1"
+                                compactImageClassName="object-contain object-center h-5 w-auto mr-1"
+                                align="auto"
                                 labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
                                 value={showdownSetOverride ?? ''}
                                 onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                 options={[
-                                    { value: '', label: ' (Default)', image: userDefaultSetImage },
-                                    ...showdownSets,
+                                    { value: '', label: ' (Default)', image: userDefaultSetImage, imageCompact: imageForSet(userShowdownSet, true) },
+                                    ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
                                 ]}
                                 showDropdownArrow={true}
                             />

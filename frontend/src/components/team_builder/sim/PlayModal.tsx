@@ -19,8 +19,8 @@ function errorMessage(err: unknown): string {
 /** The two ways a finished team can be put into play. */
 type PlayMode = 'season' | 'challenge';
 
-/** Result of the challenge's player_filters check for this team — only ever set for challenges
- *  that actually have restrictions, and only once the user has selected one. */
+/** Result of the challenge's roster eligibility check for this team (WOTC ban + any
+ *  player_filters) — set once the user has selected a challenge. */
 type FilterCheck = 'checking' | 'ok' | 'blocked';
 
 type Props = {
@@ -31,6 +31,9 @@ type Props = {
     /** Team's current cost and roster count, checked against each challenge's limits up front. */
     teamPoints: number;
     rosterCount: number;
+    /** Whether any roster slot holds a WOTC card — challenges are Bot-only, so this blocks
+     *  every challenge up front rather than waiting on the per-challenge server check. */
+    hasWotcCards: boolean;
     token: string;
     /** The challenge this team was created for, if any. Opens the modal on the Challenge tab with
      *  that instance selected, and is merged into the list even if it has since rotated out. */
@@ -110,7 +113,7 @@ function ChallengeOption({ challenge, selected, blocked, onSelect }: {
  * a challenge team is a normal team, and nothing stops it from playing an open season too.
  */
 export function PlayModal({
-    teamId, teamName, showdownSet, teamPoints, rosterCount, token,
+    teamId, teamName, showdownSet, teamPoints, rosterCount, hasWotcCards, token,
     presetChallenge, onCancel, onStarted, onViewExisting,
 }: Props) {
     const [mode, setMode] = useState<PlayMode>(presetChallenge ? 'challenge' : 'season');
@@ -189,7 +192,9 @@ export function PlayModal({
         if (rosterCount < challenge.roster_size) {
             blockers.push(`This team has ${rosterCount} players, under the challenge's ${challenge.roster_size}-player minimum.`);
         }
-        if (filterChecks[challenge.instance_id] === 'blocked') {
+        if (hasWotcCards) {
+            blockers.push(`WOTC cards aren't allowed in challenges. Remove them from this team to play.`);
+        } else if (filterChecks[challenge.instance_id] === 'blocked') {
             const restrictions = challengeRestrictionsLabel(challenge);
             blockers.push(`This team has players the challenge doesn't allow${restrictions ? ` (${restrictions})` : ''}.`);
         }
@@ -200,7 +205,7 @@ export function PlayModal({
         setSelectedInstanceId(challenge.instance_id);
         setError(null);
         setRunningJob(null);
-        if (!challenge.player_filters || filterChecks[challenge.instance_id]) return;
+        if (filterChecks[challenge.instance_id]) return;
         setFilterChecks(prev => ({ ...prev, [challenge.instance_id]: 'checking' }));
         fetchEligibleTeamIds(challenge.instance_id, token)
             .then(ids => setFilterChecks(prev => ({ ...prev, [challenge.instance_id]: ids.includes(teamId) ? 'ok' : 'blocked' })))

@@ -42,6 +42,8 @@ type SelectOption = {
     label?: string;
     /** URL to an image to display alongside the option */
     image?: string;
+    /** Smaller variant of `image` shown on the selected-value button below the `@2xl` container width */
+    imageCompact?: string;
     /** Single character or emoji symbol to display */
     symbol?: string;
     /** React component or element to display as an icon */
@@ -73,6 +75,8 @@ export type CustomSelectProps = {
     buttonClassName?: string;
     /** Optional CSS class for option images */
     imageClassName?: string;
+    /** Optional CSS class for `imageCompact` images (falls back to `imageClassName`) */
+    compactImageClassName?: string;
     /** Optional CSS class for option labels */
     labelClassName?: string;
     /** Optional CSS class for the dropdown menu */
@@ -87,6 +91,9 @@ export type CustomSelectProps = {
     showDropdownArrow?: boolean;
     /** Dropdown Arrow size number */
     dropdownArrowSize?: number;
+    /** Which button edge the dropdown anchors to. 'right' grows the menu leftward (for buttons near the
+     *  right edge of the screen); 'auto' picks whichever side has more room. Defaults to 'left'. */
+    align?: 'left' | 'right' | 'auto';
 };
 
 /**
@@ -103,7 +110,7 @@ export type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 16 }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 16, align = 'left' }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -111,7 +118,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
     /** Determines if dropdown should open above the button (when space below is limited) */
     const [openAbove, setOpenAbove] = useState(false);
     /** Absolute positioning coordinates and sizing for the portal dropdown */
-    const [menuPos, setMenuPos] = useState<{ left: number; top: number; minWidth: number; maxWidth: number; maxHeight: number }>({ left: 0, top: 0, minWidth: 0, maxWidth: 9999, maxHeight: 400 });
+    const [menuPos, setMenuPos] = useState<{ left?: number; right?: number; top: number; minWidth: number; maxWidth: number; maxHeight: number }>({ left: 0, top: 0, minWidth: 0, maxWidth: 9999, maxHeight: 400 });
 
     // Refs for DOM element access and click-outside detection
     const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -176,19 +183,24 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         // Height: constrained to whichever direction we open into
         const maxHeight = (shouldOpenAbove ? spaceAbove : spaceBelow) - MARGIN;
 
-        // Width: at least as wide as the button, capped so it doesn't overflow the right edge
+        // Anchor side: 'auto' anchors right when there's more room to the left of the button
+        const anchorRight = align === 'right' || (align === 'auto' && btnRect.right > window.innerWidth - btnRect.left);
+        const top = shouldOpenAbove ? btnRect.top : btnRect.bottom;
+
+        // Width: at least as wide as the button, capped so it doesn't overflow the far edge
         const minWidth = btnRect.width;
+
+        if (anchorRight) {
+            // Right edge pinned to the button's right edge; menu grows leftward
+            const maxWidth = Math.min(400, btnRect.right - MARGIN);
+            setMenuPos({ right: Math.max(0, window.innerWidth - btnRect.right), top, minWidth, maxWidth, maxHeight });
+            return;
+        }
+
         const maxWidth = Math.min(400, window.innerWidth - btnRect.left - MARGIN);
         // Clamp left so the dropdown never overflows the right edge
         const left = Math.min(btnRect.left, window.innerWidth - maxWidth - MARGIN);
-
-        setMenuPos({
-            left: Math.max(0, left),
-            top: shouldOpenAbove ? btnRect.top : btnRect.bottom,
-            minWidth,
-            maxWidth,
-            maxHeight,
-        });
+        setMenuPos({ left: Math.max(0, left), top, minWidth, maxWidth, maxHeight });
     };
 
     /**
@@ -230,11 +242,26 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
      * @param image - Optional image URL string
      * @returns Image element or null if no image provided
      */
-    const renderImage = (image: string | undefined) => {
+    const renderImage = (image: string | undefined, extraClassName = "", className = imageClassName) => {
         if (image) {
-            return <img src={image} alt="option image" className={imageClassName ? imageClassName : `mr-2 w-5 h-5 object-contain object-center`} />;
+            return <img src={image} alt="option image" className={`${className || imageClassName || 'mr-2 w-5 h-5 object-contain object-center'} ${extraClassName}`} />;
         }
         return null;
+    };
+
+    /**
+     * Renders the selected option's image on the button, swapping to its compact variant
+     * (when provided) at narrow container widths
+     * @param option - The currently selected option
+     */
+    const renderSelectedImage = (option: SelectOption | undefined) => {
+        if (!option?.imageCompact) return renderImage(option?.image);
+        return (
+            <>
+                {renderImage(option.imageCompact, '@2xl:hidden', compactImageClassName)}
+                {renderImage(option.image, 'hidden @2xl:block')}
+            </>
+        );
     };
 
     /** 
@@ -273,7 +300,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 ref={buttonRef}
                 className={buttonClassName ? buttonClassName : `
                     w-full px-3 py-2
-                    border-2 ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
+                    border ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
                     bg-secondary text-primary text-nowrap text-left
                     overflow-clip
                     cursor-pointer
@@ -283,7 +310,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 disabled={disabled}
             >
                 <div className="flex items-center overflow-clip">
-                    { renderImage(options.find(option => option.value === value)?.image) }
+                    { renderSelectedImage(options.find(option => option.value === value)) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
                     { renderIcon(options.find(option => option.value === value)?.icon) }
                     {options.find(option => option.value === value)?.label
@@ -303,13 +330,13 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         className={`
                             ${dropdownClassName}
                             fixed z-1000
-                            left-0 transform
+                            transform
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
                             bg-(--background-primary) rounded-xl shadow-lg
                             border border-(--background-tertiary)
                             overflow-auto scrollbar-hide
                         `}
-                        style={{ left: menuPos.left, top: menuPos.top, minWidth: menuPos.minWidth, maxWidth: menuPos.maxWidth, maxHeight: menuPos.maxHeight }}
+                        style={{ left: menuPos.left, right: menuPos.right, top: menuPos.top, minWidth: menuPos.minWidth, maxWidth: menuPos.maxWidth, maxHeight: menuPos.maxHeight }}
                     >
                         {options.reduce<React.ReactNode[]>((acc, option, idx) => {
                             const prevGroup = idx > 0 ? options[idx - 1].group : undefined;

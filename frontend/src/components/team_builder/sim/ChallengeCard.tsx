@@ -48,8 +48,8 @@ function StatTile({ icon, label, value, fullWidth }: { icon: ReactNode; label: s
 export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, onViewLeaderboard }: Props) {
     const [showExisting, setShowExisting] = useState(false);
     const [existingTeams, setExistingTeams] = useState<TeamSummary[] | null>(null);
-    // Only populated when the challenge restricts players — null means "no restriction to
-    // apply", not "not loaded yet" (both cases skip the extra filter below).
+    // Roster-level eligibility (WOTC ban + any player restrictions) from the server — null until
+    // loaded.
     const [eligibleTeamIds, setEligibleTeamIds] = useState<Set<string> | null>(null);
     const [existingError, setExistingError] = useState<string | null>(null);
 
@@ -70,10 +70,10 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
             try {
                 const [teams, eligibleIds] = await Promise.all([
                     fetchUserTeams(token),
-                    challenge.player_filters ? fetchEligibleTeamIds(challenge.instance_id, token) : Promise.resolve(null),
+                    fetchEligibleTeamIds(challenge.instance_id, token),
                 ]);
                 setExistingTeams(teams);
-                setEligibleTeamIds(eligibleIds ? new Set(eligibleIds) : null);
+                setEligibleTeamIds(new Set(eligibleIds));
             } catch (err) {
                 setExistingError(err instanceof Error ? err.message : 'Failed to load your teams.');
             }

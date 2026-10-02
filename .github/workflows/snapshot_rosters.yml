@@ -42,6 +42,7 @@ jobs:
           showdown_bot database snapshot_rosters \
             --seasons 2026 \
             --publish_to_database \
+            --all-players \
             --generate-cards \
 
       - name: Refresh Season Stat Range Table
