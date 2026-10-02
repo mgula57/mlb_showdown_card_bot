@@ -1131,18 +1131,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     <div className={`flex items-center justify-between p-2 ${isFormCollapsed ? 'px-2' : 'px-4'}`}>
                         
                         {/* Reset and collapse buttons */}
-                        <div className='flex gap-1 items-center'>
+                        <div className='flex gap-1 text-lg items-center'>
 
-                            <h2 className={`mr-2 font-bold text-(--primary) ${isFormCollapsed ? 'hidden' : 'block'}`}>
+                            <h4 className={`mr-2 font-bold text-(--primary) ${isFormCollapsed ? 'hidden' : 'block'}`}>
                                 Card Settings
-                            </h2>
+                            </h4>
 
                             {/* Reset and shuffle buttons */}
                             <div className={`flex items-center gap-1 text-xl ${isFormCollapsed ? 'hidden' : 'flex'}`}>
                                 <button
                                     type="button"
                                     className={`
-                                        text-xl p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title="Reset Form"
                                     onClick={handleReset}
@@ -1153,7 +1153,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 <button
                                     type="button"
                                     className={`
-                                        text-xl p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title='Shuffle'
                                     onClick={handleShuffle}
