@@ -1893,6 +1893,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     showdownSet={draft.allowed_sets?.[0] ?? '2000'}
                     teamPoints={pointsBreakdown.total}
                     rosterCount={draft.roster.length}
+                    hasWotcCards={draft.roster.some(s => s.card_source === CardSource.WOTC)}
                     token={token}
                     presetChallenge={challenge}
                     onCancel={() => setShowPlayModal(false)}

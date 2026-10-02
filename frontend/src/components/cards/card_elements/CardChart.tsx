@@ -111,7 +111,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
     };
 
     return (
-        <div className={`inline-flex rounded-lg overflow-hidden text-xs font-semibold border-2 border-form-element ${className || ''}`}>
+        <div className={`inline-flex rounded-lg overflow-hidden text-xs font-semibold border border-form-element ${className || ''}`}>
             {Object.entries(chartDataToRender).map(([key, value], index) => {
                 const colorInfo = getColorClass(key, index);
                 

@@ -114,7 +114,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                 className={
                     useSearchGradient
                         ? "flex items-stretch focus:outline-none rounded-xl mt-1 bg-linear-to-r from-blue-500 to-red-500 p-0.5"
-                        : "flex items-stretch focus:outline-none border-2 border-form-element rounded-xl mt-1"
+                        : "flex items-stretch focus:outline-none border border-form-element rounded-xl mt-1"
                 }
             >
               <div className={useSearchGradient ? "flex items-stretch w-full bg-primary rounded-[10px]" : "contents"}>

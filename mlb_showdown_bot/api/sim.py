@@ -257,6 +257,11 @@ def start_season_sim():
                     'error': f"This team has {len(row.get('roster') or [])} players, under the challenge's {challenge_roster_min}-player minimum.",
                 }), 422
 
+            if challenge is not None and _has_wotc_cards(row):
+                return jsonify({
+                    'error': "WOTC cards aren't allowed in challenges. Remove them from this team to play.",
+                }), 422
+
             # CHECKED AGAINST THE ROSTER'S ACTUAL CARDS, NEVER AGAINST team.player_filters - THAT
             # FIELD IS ONLY A PICKER/AUTOFILL DEFAULT AND IS FREELY USER-EDITABLE AFTER CREATION,
             # SO IT CANNOT BE TRUSTED AS PROOF THE ROSTER STILL COMPLIES.
@@ -1007,6 +1012,12 @@ def _fielded_roster(row: dict) -> list[dict]:
     return [slot for slot in row.get('roster', []) if slot.get('roster_position') != 'BE']
 
 
+def _has_wotc_cards(row: dict) -> bool:
+    """Whether any roster slot - bench included - holds an original WOTC card. Challenges are
+    Bot-cards only, so unlike `player_filters` this ban isn't limited to the fielded roster."""
+    return any((slot.get('card_source') or '').upper() == 'WOTC' for slot in row.get('roster', []))
+
+
 def _record_abbr(record) -> str:
     """A `TeamRecord`'s identity abbreviation, upper-cased. A takeover club keeps the replaced
     club's schedule key as `name`, so `identity.abbreviation` is the reliable one, then `name`."""
@@ -1378,9 +1389,8 @@ def get_eligible_teams(instance_id):
     budget/drafting/player_filters checks `start_season_sim` enforces at launch, run ahead of time
     so the "use an existing team" picker doesn't offer a team that would just fail at launch.
 
-    The full roster check (via `PlayerFilterSet`) only runs when the challenge actually restricts
-    players, and only against teams that already clear the cheap budget/drafting filter - keeps
-    this a handful of extra queries at most, not one per team the caller owns.
+    The roster checks (the WOTC ban, plus `PlayerFilterSet` when the challenge restricts players)
+    only run against teams that already clear the cheap budget/drafting filter.
     """
     try:
         with PostgresDB() as db:
@@ -1396,15 +1406,16 @@ def get_eligible_teams(instance_id):
                 and t['roster_count'] >= roster_min
             ]
 
+            # ROSTERS ARE NEEDED FOR THE WOTC BAN REGARDLESS OF player_filters, BUT ONLY FOR TEAMS
+            # THAT ALREADY CLEARED THE CHEAP SUMMARY CHECKS ABOVE.
             player_filters = challenge.get('player_filters')
-            if not player_filters:
-                return jsonify({'team_ids': [t['team_id'] for t in candidates]}), 200
-
-            filter_set = PlayerFilterSet(filters=player_filters)
+            filter_set = PlayerFilterSet(filters=player_filters) if player_filters else None
             eligible_ids = []
             for candidate in candidates:
                 row = db.get_team(candidate['team_id'], g.user_id)
-                if row and all(filter_set.matches(slot) for slot in _fielded_roster(row)):
+                if row is None or _has_wotc_cards(row):
+                    continue
+                if filter_set is None or all(filter_set.matches(slot) for slot in _fielded_roster(row)):
                     eligible_ids.append(candidate['team_id'])
         return jsonify({'team_ids': eligible_ids}), 200
     except Exception as exc:

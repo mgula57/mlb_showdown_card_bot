@@ -649,7 +649,6 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
             )
             in_season_trends_data[end_date_str] = weekly_card.trend_line_data()
         except Exception as e:
-            print(e)
             continue
 
     # RETURN NONE IF NO TRENDS FOUND
@@ -820,7 +819,7 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
     errors: list[tuple[str, str]] = []
     for player_data in player_stats.players:
         # Two-way players (e.g. Ohtani) get one card per type; all others get a single card.
-        is_two_way = two_way_ids and player_data.id in two_way_ids
+        is_two_way = player_data.is_two_way or (two_way_ids and player_data.id in two_way_ids)
         player_type_overrides: list[PlayerType | None] = (
             [PlayerType.HITTER, PlayerType.PITCHER]
             if is_two_way

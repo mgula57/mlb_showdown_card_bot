@@ -13,10 +13,12 @@ import {
     TEAM_CARD_SOURCES, activeSources, allowedSetsForSource, isSingleSetSource,
     normalizeSetSettings, setOptionsForSource, toggleSetForSource,
 } from '../../domain/teamSets';
-import { FaUser, FaLayerGroup, FaGears, FaFilter, FaBoxArchive, FaSpinner } from 'react-icons/fa6';
+import { FaUser, FaLayerGroup, FaGears, FaFilter, FaBoxArchive, FaSpinner, FaCheck, FaFloppyDisk } from 'react-icons/fa6';
 import { CardSource } from '../../types/cardSource';
 import ColorPicker from '../shared/ColorPicker';
 import { containsProfanity } from '../../domain/profanity';
+import { useAuth } from '../auth/AuthContext';
+import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
 
 const TEAM_NAME_MAX_LENGTH = 25;
 
@@ -45,9 +47,9 @@ type SummaryItem = {
 function SectionSummary({ items }: { items: SummaryItem[] }) {
     if (items.length === 0) return null;
     return (
-        <div className="text-sm font-bold flex flex-wrap items-center gap-x-2 gap-y-1 text-(--text-tertiary)">
+        <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
             {items.map((item, i) => (
-                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex items-center rounded-lg px-1.5 py-0.5 border-2 border-(--divider)">
+                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 border border-(--divider)">
                     {item.image
                         ? <img src={item.image} alt={item.value} className="h-5 w-auto object-contain" />
                         : <span>{item.label ? `${item.label}: ` : ''}{item.value}</span>
@@ -67,11 +69,24 @@ type TeamSettingsFormProps = {
 };
 
 export function TeamSettingsForm({ team, onChange, onArchive, archiving = false }: TeamSettingsFormProps) {
+    const { syncSetting } = useAuth();
     const [hierarchyData, setHierarchyData] = useState<TeamHierarchyRecord[]>([]);
+    const [savedColorsAsDefault, setSavedColorsAsDefault] = useState(false);
     useEffect(() => {
         fetchTeamHierarchy().then(setHierarchyData).catch(() => {});
     }, []);
 
+    // Confirmation is transient, and any further color edit makes it stale.
+    useEffect(() => {
+        if (!savedColorsAsDefault) return;
+        const timer = setTimeout(() => setSavedColorsAsDefault(false), 2500);
+        return () => clearTimeout(timer);
+    }, [savedColorsAsDefault]);
+    useEffect(() => {
+        setSavedColorsAsDefault(false);
+    }, [team.primary_color, team.secondary_color]);
+
+    const isChallengeTeam = team.creation_source === 'challenge';
     const pf = (team.player_filters ?? {}) as PlayerFilters;
     const updatePlayerFilters = (patch: Partial<PlayerFilters>) => {
         const next = { ...pf, ...patch };
@@ -112,6 +127,14 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
     const ptsError     = ptsLimit < minPtsLimit
         ? `PTS limit (${ptsLimit}) must be at least roster size × 10 (${minPtsLimit}).`
         : null;
+
+    const handleSaveColorsAsDefault = () => {
+        syncSetting({
+            default_primary_color: team.primary_color ?? DEFAULT_PRIMARY_COLOR,
+            default_secondary_color: team.secondary_color ?? DEFAULT_SECONDARY_COLOR,
+        });
+        setSavedColorsAsDefault(true);
+    };
 
     const handleRosterSizeChange = (size: number) => {
         const newStarterCount = getDefaultStartersForRosterSize(size);
@@ -197,14 +220,22 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                 
                 <ColorPicker
                     label="Primary Color"
-                    value={team.primary_color ?? 'rgb(0,0,0)'}
+                    value={team.primary_color ?? DEFAULT_PRIMARY_COLOR}
                     onChange={v => onChange({ primary_color: v })}
                 />
                 <ColorPicker
                     label="Secondary Color"
-                    value={team.secondary_color ?? 'rgb(255,255,255)'}
+                    value={team.secondary_color ?? DEFAULT_SECONDARY_COLOR}
                     onChange={v => onChange({ secondary_color: v })}
                 />
+                <button
+                    type="button"
+                    onClick={handleSaveColorsAsDefault}
+                    disabled={savedColorsAsDefault}
+                    className="col-span-full self-start flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-70 cursor-pointer disabled:cursor-default transition-colors"
+                >
+                    {savedColorsAsDefault ? <><FaCheck /> Saved as default</> : <><FaFloppyDisk /> Save colors as default</>}
+                </button>
             </FormSection>
 
             <FormSection
@@ -278,11 +309,15 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                         const active = (team.allowed_card_sources ?? []).includes(s.value);
                         // Customs drafting isn't wired up yet — show it but don't let teams pick it.
                         const comingSoon = s.value === CardSource.CUSTOM;
+                        // Challenges are Bot-only (WOTC is rejected at launch), so a challenge team
+                        // can drop a stray non-Bot source but never add one or drop Bot — an empty
+                        // list would mean "all sources".
+                        const challengeLocked = isChallengeTeam && !comingSoon && (s.value === CardSource.BOT || !active);
                         return (
                             <button
                                 key={s.value}
                                 type="button"
-                                disabled={comingSoon}
+                                disabled={comingSoon || challengeLocked}
                                 onClick={() => {
                                     const current = team.allowed_card_sources ?? [];
                                     const next = active
@@ -291,8 +326,10 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                                     onChange({ allowed_card_sources: next, ...normalizeSetSettings({ ...team, allowed_card_sources: next }) });
                                 }}
                                 className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors
-                                    ${comingSoon
+                                    ${comingSoon || (challengeLocked && !active)
                                         ? 'border-(--divider) opacity-40 text-(--text-secondary) cursor-not-allowed'
+                                        : challengeLocked
+                                        ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary) cursor-not-allowed'
                                         : active
                                         ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary) cursor-pointer'
                                         : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary) cursor-pointer'
@@ -302,6 +339,11 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                             </button>
                         );
                     })}
+                    {isChallengeTeam && (
+                        <div className="w-full text-[11px] text-(--text-tertiary)">
+                            Challenge teams can only use Bot cards.
+                        </div>
+                    )}
                     {(team.allowed_card_sources ?? []).length === 0 && (
                         <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
                             No restriction — all sources allowed.

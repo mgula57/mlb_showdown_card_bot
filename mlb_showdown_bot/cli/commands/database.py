@@ -457,7 +457,9 @@ def snapshot_rosters(
     seasons: str = typer.Option(None, "--seasons", "-s", help="Which season(s) to include when fetching roster data, comma-separated (e.g. '2023,2024')."),
     generate_cards: bool = typer.Option(False, "--generate-cards", "-cards", help="Whether to generate and save cards for the fetched rosters."),
     showdown_sets: str = typer.Option(None, "--showdown-sets", "-sets", help="Comma-separated list of showdown sets to generate cards for."),
-    player_ids: str = typer.Option(None, "--player_ids", "-p", help="Comma-separated list of MLB player IDs to limit card generation to, for testing (e.g. '660271,592450'). Roster snapshot still stores all players.")
+    player_ids: str = typer.Option(None, "--player_ids", "-p", help="Comma-separated list of MLB player IDs to limit card generation to, for testing (e.g. '660271,592450'). Roster snapshot still stores all players."),
+    all_players: bool = typer.Option(False, "--all-players", "-all", help="Generate cards for every player with stats in the season(s), not just those on a current 40-man roster. Roster snapshot is unchanged."),
+    skip_rosters: bool = typer.Option(False, "--skip-rosters", "-skip_rosters", help="Skip fetching and storing the roster snapshot. Requires --all-players when generating cards.")
 ):
     showdown_sets = [s.strip() for s in showdown_sets.split(",")] if showdown_sets else None
     parsed_player_ids = [int(pid.strip()) for pid in player_ids.split(",") if pid.strip()] if player_ids else None
@@ -467,7 +469,9 @@ def snapshot_rosters(
         env=env, 
         generate_cards=generate_cards, 
         showdown_sets=showdown_sets,
-        player_ids=parsed_player_ids
+        player_ids=parsed_player_ids,
+        all_players=all_players,
+        skip_rosters=skip_rosters,
     )
 
 # -------------------------------
