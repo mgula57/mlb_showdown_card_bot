@@ -229,12 +229,11 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                         const cardResponse = data as ShowdownBotCardAPIResponse;
                         setSetSwitchError(null);
 
-                        // Load image if necessary
+                        // Show chart data immediately; the image (if missing) fills in afterwards
+                        setInternalCardData(cardResponse);
                         const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
                         if (isDataWithoutImage && !isGeneratingImage) {
                             handleGenerateImage(cardResponse);
-                        } else {
-                            setInternalCardData(cardResponse);
                         }
 
                         if (cardResponse.card) {
@@ -265,6 +264,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
     // Mark if isLoading or isGeneratingImage
     const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId || isSwitchingSet;
+    // Panels only blur while chart data itself is loading — not when just the image is generating
+    const isLoadingPanels = isLoading || isLoadingFromId || isSwitchingSet || (isGeneratingImage && !activeCardData?.card?.chart);
 
     // Game
     const showGameBoxscore = (): boolean => {
@@ -625,7 +626,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     )}
 
                     {/* Card vs Real Stats */}
-                    <SectionPanel isLoading={isLoadingOverall} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
+                    <SectionPanel isLoading={isLoadingPanels} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
                             
                         <RealVsProjectedVisual
                             realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
@@ -649,7 +650,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                 {/* Points Breakdown */}
                 {!activeCardData?.card?.is_wotc && (
-                    <SectionPanel isLoading={isLoadingOverall} title="Points Breakdown">
+                    <SectionPanel isLoading={isLoadingPanels} title="Points Breakdown">
                         <PointsContributionBars
                             pointsBreakdownData={activeCardData?.card?.points_breakdown}
                             ip={activeCardData?.card?.ip}
@@ -661,7 +662,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 {/* Chart Accuracy */}
                 {!activeCardData?.card?.is_wotc && (
                     <SectionPanel
-                        isLoading={isLoadingOverall}
+                        isLoading={isLoadingPanels}
                         title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}
                         subtitle={activeCardData?.card?.command_out_selection ? "Version 1 is hand-curated. Scores shown are each chart's true accuracy" : undefined}
                     >
@@ -677,7 +678,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                 {/* Opponent Breakdown */}
                 <SectionPanel 
-                    isLoading={isLoadingOverall} 
+                    isLoading={isLoadingPanels} 
                     title="Baseline Opponent"
                     subtitle={`The avg opposing pitcher/hitter used to create the card. Adjusted to reflect run scoring environment of the ${activeCardData?.card?.era}`}
                 >
@@ -689,7 +690,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 </SectionPanel>
 
                 {/* Outcome Distribution */}
-                <SectionPanel isLoading={isLoadingOverall} title="Outcome Probabilities" subtitle="Use baseline or search for a specific opponent">
+                <SectionPanel isLoading={isLoadingPanels} title="Outcome Probabilities" subtitle="Use baseline or search for a specific opponent">
                     <OutcomeProbability
                         chart={activeCardData?.card?.chart}
                         primaryColor={mechPrimaryColor}
@@ -701,13 +702,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 {/* Trend Graphs */}
                 {!hideTrendGraphs && (
                     <>
-                        <SectionPanel isLoading={isLoadingOverall} title="Career Trends">
+                        <SectionPanel isLoading={isLoadingPanels} title="Career Trends">
                             <ChartPlayerPointsTrend
                                 title="Career Trends"
                                 trendData={activeCardData?.historical_season_trends?.yearly_trends || null}
                             />
                         </SectionPanel>
-                        <SectionPanel isLoading={isLoadingOverall} title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}>
+                        <SectionPanel isLoading={isLoadingPanels} title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}>
                             <ChartPlayerPointsTrend
                                 title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}
                                 trendData={activeCardData?.in_season_trends?.cumulative_trends || null}
@@ -718,13 +719,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                 {/* Most Similar WOTC Cards */}
                 <SectionPanel
-                    isLoading={isLoadingOverall}
+                    isLoading={isLoadingPanels}
                     title="Most Similar WOTC Cards"
                     subtitle={`Top matches by chart similarity`}
                 >
                     <CardComps
                         card={activeCardData?.card ?? null}
-                        isLoading={isLoadingOverall}
+                        isLoading={isLoadingPanels}
                     />
                 </SectionPanel>
 
