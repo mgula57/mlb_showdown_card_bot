@@ -13,12 +13,13 @@ import {
     TEAM_CARD_SOURCES, activeSources, allowedSetsForSource, isSingleSetSource,
     normalizeSetSettings, setOptionsForSource, toggleSetForSource,
 } from '../../domain/teamSets';
-import { FaUser, FaLayerGroup, FaGears, FaFilter, FaBoxArchive, FaSpinner, FaCheck, FaFloppyDisk } from 'react-icons/fa6';
+import { FaUser, FaLayerGroup, FaGears, FaFilter, FaBoxArchive, FaSpinner, FaCheck, FaFloppyDisk, FaTrashCan } from 'react-icons/fa6';
 import { CardSource } from '../../types/cardSource';
 import ColorPicker from '../shared/ColorPicker';
 import { containsProfanity } from '../../domain/profanity';
 import { useAuth } from '../auth/AuthContext';
 import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const TEAM_NAME_MAX_LENGTH = 25;
 
@@ -72,6 +73,10 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
     const { syncSetting } = useAuth();
     const [hierarchyData, setHierarchyData] = useState<TeamHierarchyRecord[]>([]);
     const [savedColorsAsDefault, setSavedColorsAsDefault] = useState(false);
+    // Matches the `xl:grid` breakpoint below. In the two-column grid every section starts open so
+    // paired sections in a row don't sit half-collapsed next to each other.
+    const isGridLayout = useMediaQuery('(min-width: 1024px)');
+    const sectionLayoutKey = isGridLayout ? 'grid' : 'stack';
     useEffect(() => {
         fetchTeamHierarchy().then(setHierarchyData).catch(() => {});
     }, []);
@@ -183,7 +188,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
     })();
 
     return (
-        <div className="flex flex-col gap-6 p-4">
+        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 p-4">
             <FormSection title="Identity" icon={<FaUser />} isOpenByDefault={true}>
                 <FormInput
                     label="Team Name"
@@ -239,9 +244,10 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
             </FormSection>
 
             <FormSection
+                key={`rules-${sectionLayoutKey}`}
                 title="Rules"
                 icon={<FaGears />}
-                isOpenByDefault={false}
+                isOpenByDefault={isGridLayout}
                 childrenWhenClosed={<SectionSummary items={rulesSummary} />}
             >
                 <NumberInput
@@ -296,9 +302,10 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
             </FormSection>
 
             <FormSection
+                key={`allowed-sets-${sectionLayoutKey}`}
                 title="Allowed Sets"
                 icon={<FaLayerGroup />}
-                isOpenByDefault={false}
+                isOpenByDefault={isGridLayout}
                 childrenWhenClosed={<SectionSummary items={cardsSummary} />}
             >
                 <div className="flex flex-wrap gap-2 col-span-full">
@@ -366,9 +373,10 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
             </FormSection>
 
             <FormSection
+                key={`player-restrictions-${sectionLayoutKey}`}
                 title="Player Restrictions"
                 icon={<FaFilter />}
-                isOpenByDefault={false}
+                isOpenByDefault={isGridLayout}
                 childrenWhenClosed={playerRestrictionsSummary.length > 0 ? <SectionSummary items={playerRestrictionsSummary} /> : undefined}
             >
                 <RangeFilter
@@ -414,22 +422,29 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
             </FormSection>
 
             {onArchive && (
-                <div className="flex flex-col gap-2 rounded-lg border border-(--divider) p-3">
-                    <div className="flex items-center gap-2 text-sm font-bold text-(--text-secondary)">
-                        <FaBoxArchive /> {team.is_archived ? 'Archived' : 'Archive'}
+                <div className={`col-span-full flex flex-col gap-2 rounded-xl border-2 p-3 ${team.is_archived
+                    ? 'border-amber-500/50 bg-amber-500/10'
+                    : 'border-red-500/50 bg-red-500/10'
+                }`}>
+                    <div className={`flex items-center gap-2 text-sm font-bold ${team.is_archived ? 'text-amber-500' : 'text-red-500'}`}>
+                        {team.is_archived ? <FaBoxArchive /> : <FaTrashCan />}
+                        {team.is_archived ? 'Team Archived' : 'Delete Team'}
                     </div>
-                    <p className="text-[12px] text-(--text-tertiary)">
+                    <p className="text-[12px] text-(--text-secondary)">
                         {team.is_archived
-                            ? 'This team is hidden from your team list and from Browse. Unarchive it to restore its previous visibility.'
-                            : 'Hide this team from your team list and from Browse without deleting it. You can unarchive it any time.'}
+                            ? 'This team is marked for deletion and hidden from your team list and from Browse. Unarchive it to restore its previous visibility.'
+                            : 'Done with this team? Archiving marks it for deletion and hides it from your team list and from Browse. You can unarchive it any time if you change your mind.'}
                     </p>
                     <button
                         type="button"
                         onClick={onArchive}
                         disabled={archiving}
-                        className="self-start flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-50 cursor-pointer transition-colors"
+                        className={`self-start flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-bold transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-default ${team.is_archived
+                            ? 'border border-amber-500/60 text-amber-500 hover:bg-amber-500/15'
+                            : 'bg-red-600 text-white hover:bg-red-700'
+                        }`}
                     >
-                        {archiving ? <FaSpinner className="animate-spin" /> : <FaBoxArchive />}
+                        {archiving ? <FaSpinner className="animate-spin" /> : team.is_archived ? <FaBoxArchive /> : <FaTrashCan />}
                         {team.is_archived ? 'Unarchive team' : 'Archive team'}
                     </button>
                 </div>
