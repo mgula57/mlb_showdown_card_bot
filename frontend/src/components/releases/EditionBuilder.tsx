@@ -19,10 +19,11 @@ import {
     type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
 } from './poolGrouping';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList } from 'react-icons/fa6';
+import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight } from 'react-icons/fa6';
 
 const MIN_PANEL_WIDTH = 280;
-const MAX_PANEL_WIDTH = 960;
+/** Narrowest the Build Method panel can be dragged to; the Player Pool panel can take everything else. */
+const MIN_BUILD_PANEL_WIDTH = 320;
 const DEFAULT_PANEL_WIDTH = 400;
 /** The Algorithm tab has little content of its own (currently a placeholder), so give the
  * Player Pool panel more room to review the pool while it's active. */
@@ -186,6 +187,8 @@ function buildReleaseCardsFromPreview(players: AlgorithmPreviewPlayer[]): Releas
 const POOL_PAGE_SIZE = 40;
 /** Per-viewer preference for full vs. compact card items in the pool grid. */
 const POOL_FULL_CARDS_STORAGE_KEY = 'releaseBuilder.poolFullCards';
+/** Per-viewer preference for hiding the Build Method panel. */
+const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
 
 export function EditionBuilder({ releaseId, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
@@ -216,6 +219,16 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
     const isResizing = useRef(false);
     const hasManuallyResized = useRef(false);
+    const splitContainerRef = useRef<HTMLDivElement>(null);
+    const [buildPanelHidden, setBuildPanelHidden] = useState<boolean>(() => {
+        try { return localStorage.getItem(BUILD_PANEL_HIDDEN_STORAGE_KEY) === 'true'; } catch { return false; }
+    });
+    function toggleBuildPanelHidden() {
+        setBuildPanelHidden(prev => {
+            try { localStorage.setItem(BUILD_PANEL_HIDDEN_STORAGE_KEY, String(!prev)); } catch { /* storage unavailable */ }
+            return !prev;
+        });
+    }
 
     useEffect(() => {
         if (hasManuallyResized.current) return;
@@ -228,10 +241,12 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
         hasManuallyResized.current = true;
         const startX = e.clientX;
         const startWidth = rightPanelWidth;
+        // Scales with the screen so wide displays can shrink the Build Method panel down to its minimum.
+        const maxWidth = Math.max((splitContainerRef.current?.clientWidth ?? 0) - MIN_BUILD_PANEL_WIDTH, MIN_PANEL_WIDTH);
 
         const onMouseMove = (ev: MouseEvent) => {
             if (!isResizing.current) return;
-            const newWidth = Math.min(Math.max(startWidth + (startX - ev.clientX), MIN_PANEL_WIDTH), MAX_PANEL_WIDTH);
+            const newWidth = Math.min(Math.max(startWidth + (startX - ev.clientX), MIN_PANEL_WIDTH), maxWidth);
             setRightPanelWidth(newWidth);
         };
         const onMouseUp = () => {
@@ -499,12 +514,35 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                 </div>
             )}
 
-            <div className="flex flex-1 min-h-0">
-                {/* Build panel: Algorithm / Manual — larger */}
+            <div ref={splitContainerRef} className="flex flex-1 min-h-0">
+                {/* Collapsed rail for the hidden Build panel */}
+                {!readOnly && buildPanelHidden && (
+                    <button
+                        type="button"
+                        onClick={toggleBuildPanelHidden}
+                        title="Show build method"
+                        className="flex flex-col items-center gap-3 w-9 shrink-0 py-3 border-r border-(--divider) text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-secondary) transition-colors cursor-pointer"
+                    >
+                        <FaAnglesRight className="text-[12px]" />
+                        <span className="text-[10px] font-bold uppercase tracking-wide [writing-mode:vertical-rl]">Build Method</span>
+                    </button>
+                )}
+
+                {/* Build panel: Algorithm / Manual — larger. Hidden (not unmounted) when collapsed so its state survives. */}
                 {!readOnly && (
-                    <div className="flex-1 min-w-0 border-r border-(--divider) flex flex-col min-h-0">
+                    <div className={`flex-1 min-w-0 border-r border-(--divider) flex-col min-h-0 ${buildPanelHidden ? 'hidden' : 'flex'}`}>
                         <div className="px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Build Method</span>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={toggleBuildPanelHidden}
+                                    title="Hide build method"
+                                    className="flex items-center justify-center w-5 h-5 rounded text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--divider) transition-colors cursor-pointer"
+                                >
+                                    <FaAnglesLeft className="text-[11px]" />
+                                </button>
+                                <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Build Method</span>
+                            </div>
                             <div ref={setBlueprintSlot} />
                         </div>
                         <Tabs.Root
@@ -549,7 +587,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                 )}
 
                 {/* Drag-to-resize handle */}
-                {!readOnly && (
+                {!readOnly && !buildPanelHidden && (
                     <div
                         onMouseDown={handleResizeStart}
                         className="relative w-1.5 shrink-0 -translate-x-0.5 cursor-ew-resize flex items-center justify-center group hover:bg-(--divider) transition-colors"
@@ -560,8 +598,8 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
 
                 {/* Selected Cards / Summary — smaller */}
                 <div
-                    style={!readOnly ? { width: rightPanelWidth } : undefined}
-                    className={`${readOnly ? 'flex-1' : 'shrink-0'} min-w-0 flex flex-col min-h-0`}
+                    style={!readOnly && !buildPanelHidden ? { width: rightPanelWidth, maxWidth: `calc(100% - ${MIN_BUILD_PANEL_WIDTH}px)` } : undefined}
+                    className={`${readOnly || buildPanelHidden ? 'flex-1' : 'shrink-0'} min-w-0 flex flex-col min-h-0`}
                 >
                     <div className="px-3 pt-2 shrink-0">
                         <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Player Pool</span>
@@ -828,39 +866,43 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                             onClick: () => setDetailCard(card.card_snapshot),
                                                         };
                                                         return (
-                                                        <div key={card.id} className="flex items-center gap-1.5">
-                                                            {!previewResult && numbering.mode === 'manual' && !readOnly ? (
-                                                                <div className="flex items-center gap-1 shrink-0">
-                                                                    {numbering.prefix && (
-                                                                        <span className="text-[13px] font-mono text-(--text-tertiary)">{numbering.prefix}</span>
-                                                                    )}
-                                                                    <input
-                                                                        type="number"
-                                                                        value={editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')}
-                                                                        onChange={e => handleNumberInputChange(card.id, e.target.value)}
-                                                                        onBlur={() => handleNumberInputBlur(card.id)}
-                                                                        placeholder="—"
-                                                                        className="w-14 min-h-9 text-[13px] font-mono text-right bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
-                                                                    />
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-[13px] font-mono text-(--text-tertiary) w-7 text-right shrink-0">
-                                                                    {formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
-                                                                </span>
-                                                            )}
-                                                            {!readOnly && !previewResult && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleRemoveCard(card.id)}
-                                                                    title="Remove"
-                                                                    aria-label="Remove"
-                                                                    className="peer flex items-center justify-center w-6 h-6 rounded-full text-(--text-tertiary) hover:bg-red-500/90 hover:text-white transition-colors shrink-0 cursor-pointer"
-                                                                >
-                                                                    <FaXmark className="text-[12px]" />
-                                                                </button>
-                                                            )}
-                                                            {/* Hovering the remove button outlines the card it removes (peer = the button above). */}
-                                                            <div className={`flex-1 min-w-0 transition-shadow peer-hover:ring-2 peer-hover:ring-red-500/80 ${showFullCards ? 'rounded-xl' : 'rounded-lg'}`}>
+                                                        <div key={card.id} className="group/row flex items-center gap-1.5">
+                                                            {/* Set number with the remove button stacked beneath it, to save horizontal space. */}
+                                                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                                                {!previewResult && numbering.mode === 'manual' && !readOnly ? (
+                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                        {numbering.prefix && (
+                                                                            <span className="text-[13px] font-mono text-(--text-tertiary)">{numbering.prefix}</span>
+                                                                        )}
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')}
+                                                                            onChange={e => handleNumberInputChange(card.id, e.target.value)}
+                                                                            onBlur={() => handleNumberInputBlur(card.id)}
+                                                                            placeholder="—"
+                                                                            className="w-14 min-h-9 text-[13px] font-mono text-right bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-[13px] font-mono text-(--text-tertiary) w-7 text-right shrink-0">
+                                                                        {formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
+                                                                    </span>
+                                                                )}
+                                                                {!readOnly && !previewResult && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRemoveCard(card.id)}
+                                                                        title="Remove"
+                                                                        aria-label="Remove"
+                                                                        data-remove-button
+                                                                        className="flex items-center justify-center w-5 h-5 rounded-full text-(--text-tertiary) hover:bg-red-500/90 hover:text-white transition-colors shrink-0 cursor-pointer"
+                                                                    >
+                                                                        <FaXmark className="text-[11px]" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            {/* Hovering the remove button outlines the card it removes. */}
+                                                            <div className={`flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-red-500/80 ${showFullCards ? 'rounded-xl' : 'rounded-lg'}`}>
                                                                 {showFullCards
                                                                     ? <CardItemFromCardDatabaseRecord {...cardProps} />
                                                                     : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}
