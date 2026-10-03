@@ -8,6 +8,7 @@ import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { CardSource } from '../../types/cardSource';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
+import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -18,7 +19,7 @@ import {
     type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
 } from './poolGrouping';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation } from 'react-icons/fa6';
+import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList } from 'react-icons/fa6';
 
 const MIN_PANEL_WIDTH = 280;
 const MAX_PANEL_WIDTH = 960;
@@ -183,6 +184,8 @@ function buildReleaseCardsFromPreview(players: AlgorithmPreviewPlayer[]): Releas
 
 /** Cards rendered per page in the Selected pool grid. */
 const POOL_PAGE_SIZE = 40;
+/** Per-viewer preference for full vs. compact card items in the pool grid. */
+const POOL_FULL_CARDS_STORAGE_KEY = 'releaseBuilder.poolFullCards';
 
 export function EditionBuilder({ releaseId, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
@@ -297,6 +300,15 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     const [groupBy, setGroupBy] = useState<PoolGroupBy>('none');
     const [sortBy, setSortBy] = useState<PoolSortBy>('set_number');
     const [sortDirection, setSortDirection] = useState<PoolSortDirection>('asc');
+    const [showFullCards, setShowFullCards] = useState<boolean>(() => {
+        try { return localStorage.getItem(POOL_FULL_CARDS_STORAGE_KEY) === 'true'; } catch { return false; }
+    });
+    function toggleShowFullCards() {
+        setShowFullCards(prev => {
+            try { localStorage.setItem(POOL_FULL_CARDS_STORAGE_KEY, String(!prev)); } catch { /* storage unavailable */ }
+            return !prev;
+        });
+    }
     const poolGroups = useMemo(
         () => groupAndSortCards(displayCards, groupBy, sortBy, sortDirection),
         [displayCards, groupBy, sortBy, sortDirection]
@@ -778,6 +790,14 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                     >
                                         {sortDirection === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={toggleShowFullCards}
+                                        title={showFullCards ? 'Show compact cards' : 'Show full cards'}
+                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
+                                    >
+                                        {showFullCards ? <FaList className="text-[13px]" /> : <FaTableCellsLarge className="text-[13px]" />}
+                                    </button>
                                 </div>
                             )}
 
@@ -801,9 +821,14 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                         </span>
                                                     </div>
                                                 )}
-                                                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5">
-                                                    {group.cards.map(card => (
-                                                        <div key={card.id} className="flex items-center gap-2">
+                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3' : 'grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5'}>
+                                                    {group.cards.map(card => {
+                                                        const cardProps = {
+                                                            card: card.card_snapshot,
+                                                            onClick: () => setDetailCard(card.card_snapshot),
+                                                        };
+                                                        return (
+                                                        <div key={card.id} className="flex items-center gap-1.5">
                                                             {!previewResult && numbering.mode === 'manual' && !readOnly ? (
                                                                 <div className="flex items-center gap-1 shrink-0">
                                                                     {numbering.prefix && (
@@ -823,20 +848,26 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                                     {formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
                                                                 </span>
                                                             )}
-                                                            <div className="flex-1 min-w-0">
-                                                                <CardItemCompactFromCardDatabaseRecord
-                                                                    card={card.card_snapshot}
-                                                                    onClick={() => setDetailCard(card.card_snapshot)}
-                                                                    actionButton={(!readOnly && !previewResult) ? {
-                                                                        icon: <FaXmark />,
-                                                                        label: 'Remove',
-                                                                        bgColorClass: 'bg-red-500/90 text-white rounded-full p-2',
-                                                                        onClick: () => handleRemoveCard(card.id),
-                                                                    } : undefined}
-                                                                />
+                                                            {!readOnly && !previewResult && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveCard(card.id)}
+                                                                    title="Remove"
+                                                                    aria-label="Remove"
+                                                                    className="peer flex items-center justify-center w-6 h-6 rounded-full text-(--text-tertiary) hover:bg-red-500/90 hover:text-white transition-colors shrink-0 cursor-pointer"
+                                                                >
+                                                                    <FaXmark className="text-[12px]" />
+                                                                </button>
+                                                            )}
+                                                            {/* Hovering the remove button outlines the card it removes (peer = the button above). */}
+                                                            <div className={`flex-1 min-w-0 transition-shadow peer-hover:ring-2 peer-hover:ring-red-500/80 ${showFullCards ? 'rounded-xl' : 'rounded-lg'}`}>
+                                                                {showFullCards
+                                                                    ? <CardItemFromCardDatabaseRecord {...cardProps} />
+                                                                    : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}
                                                             </div>
                                                         </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         ))}
