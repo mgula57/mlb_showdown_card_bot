@@ -87,6 +87,7 @@ from .classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord, Showdown
 # INTERNAL
 from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Expansion, SpecialEdition, Set, StatsPeriod, StatsPeriodType, __version__, Position, WBCTeam, StatHighlightsType
 from ..card.stats.normalized_player_stats import Datasource
+from ..card.command_out_selections import StoredCardSelectionRecord
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
@@ -1624,6 +1625,42 @@ class PostgresDB:
         if not strip_diagnostics:
             return expression, []
         return sql.SQL("{column} - %s::text[]").format(column=expression), [CARD_DATA_DIAGNOSTIC_KEYS]
+
+    def fetch_command_out_selection_records(self, years: list[int], player_ids: list[str]) -> list[StoredCardSelectionRecord]:
+        """Selection-related fields of stored cards that are, or could be, affected by curated command/out selections.
+
+        Returns cards for the given players (by bref id or 'mlb{mlb_id}'), plus any card stamped with a selection.
+        Limited to `years` so the jsonb check doesn't scan every archived card.
+
+        Args:
+            years: Card years to check.
+            player_ids: Player ids referenced by the selections.
+        """
+        if self.connection is None or len(years) == 0:
+            return []
+
+        query = sql.SQL("""
+            SELECT
+                cards.card_id,
+                cards.bref_id,
+                cards.mlb_id,
+                cards.year,
+                cards.showdown_set,
+                cards.player_type,
+                dim.card_data -> 'command_out_selection' ->> 'key' AS selection_key,
+                dim.card_data ->> 'command_out_selection_fingerprint' AS selection_fingerprint,
+                dim.card_data ->> 'selected_command_outs' AS selected_command_outs
+            FROM card_bot AS cards
+            JOIN internal.dim_card AS dim ON dim.id = cards.card_id
+            WHERE cards.year = ANY(%s)
+              AND (
+                cards.bref_id = ANY(%s)
+                OR ('mlb' || cards.mlb_id::text) = ANY(%s)
+                OR dim.card_data ? 'command_out_selection'
+              )
+        """)
+        rows = self.execute_query(query=query, filter_values=(years, player_ids, player_ids))
+        return [StoredCardSelectionRecord(**row) for row in rows]
 
     def fetch_season_card_pool(self, year: int, set: Set, strip_diagnostics: bool = True) -> tuple[dict[str, ShowdownPlayerCard], dict[str, str], dict[str, tuple[list[str], dict[str, int]]]]:
         """Every pre-built bot card for a season/set, keyed by archive player id ('{year}-{bref_id}'),

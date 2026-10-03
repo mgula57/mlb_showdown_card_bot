@@ -44,6 +44,7 @@ from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, Pl
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
 from .images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
+from .command_out_selections import CommandOutSelection, CommandOutSelections
 
 from .trends.trends import TrendDatapoint
 
@@ -118,6 +119,9 @@ class ShowdownPlayerCard(BaseModel):
     positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
     positions_and_games_played: dict[Position, int] = {}
     command_out_accuracies: dict[str, float] = {}
+    command_out_selection: Optional[CommandOutSelection] = None # CURATED COMBO APPLIED TO THIS CARD (SEE `data/command_out_selections.yaml`)
+    command_out_selection_fingerprint: Optional[str] = None # FINGERPRINT OF THE SELECTION WHEN THE CARD WAS BUILT, USED TO DETECT STALE CARDS
+    selected_command_outs: Optional[str] = None # COMMAND/OUTS OF THE CHART ON THE CARD (EX: '13-8')
     ip: int = None
     hand: Hand = None
     speed: Speed = None
@@ -220,6 +224,9 @@ class ShowdownPlayerCard(BaseModel):
             game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
             self.stats_period.add_stats_from_game_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
 
+        # CHECK IF PERIOD COVERS THE FULL SEASON BEFORE MERGING WITH FULL SEASON STATS
+        is_full_season_period = self.stats_period.covers_full_season(full_season_stats=self.stats) and not self.team_override
+
         if self.stats_period.stats:
             full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
             # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS
@@ -286,7 +293,12 @@ class ShowdownPlayerCard(BaseModel):
         # MAKES MATH EASIER (20 SIDED DICE)
         stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats_for_card)
 
+        # CURATED COMMAND/OUT SELECTION
+        self.command_out_selection = self._curated_command_out_selection(is_full_season_period=is_full_season_period)
+        self.command_out_selection_fingerprint = self.command_out_selection.fingerprint if self.command_out_selection else None
+
         self.chart: Chart = self._most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
+        self.selected_command_outs = self.chart.command_outs_concat
         self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
 
         self.recalculate_points()
@@ -1883,6 +1895,23 @@ class ShowdownPlayerCard(BaseModel):
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
         pa = self.stats_for_card.get('pa', 400)
         
+        def build_chart(command:int, outs:float, command_accuracy_weight:float) -> Chart:
+            return Chart(
+                command=command,
+                outs=outs,
+                opponent=opponent,
+                set=self.set.value,
+                era_year_list=year_list,
+                year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
+                era=self.era.value,
+                is_expanded=self.set.has_expanded_chart,
+                pa=pa,
+                stats_per_400_pa=stats_per_400_pa,
+                is_pitcher=self.is_pitcher,
+                player_subtype=self.player_sub_type.value,
+                command_accuracy_weight=command_accuracy_weight,
+            )
+
         command_options = list(set([ c for c in self.set.command_options(player_type=self.player_type) if c not in self.commands_excluded]))
         for command in command_options:
             
@@ -1900,21 +1929,7 @@ class ShowdownPlayerCard(BaseModel):
                     if outs == chart.outs or outs > 20:
                         continue
 
-                chart = Chart(
-                    command=command,
-                    outs=outs,
-                    opponent=opponent,
-                    set=self.set.value,
-                    era_year_list=year_list,
-                    year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
-                    era=self.era.value,
-                    is_expanded=self.set.has_expanded_chart,
-                    pa=pa,
-                    stats_per_400_pa=stats_per_400_pa,
-                    is_pitcher=self.is_pitcher,
-                    player_subtype=self.player_sub_type.value,
-                    command_accuracy_weight=command_accuracy_weight,
-                )
+                chart = build_chart(command=command, outs=outs, command_accuracy_weight=command_accuracy_weight)
 
                 # IF COMMAND OUT COMBO HAS ALREADY BEEN CALC'D PREVIOUSLY, SKIP
                 if chart.command_outs_concat in [c.command_outs_concat for c in charts]:
@@ -1922,32 +1937,63 @@ class ShowdownPlayerCard(BaseModel):
 
                 charts.append(chart)
 
-        # IF MANUAL COMMAND OUT OVERRIDE, ASSIGN THAT BY SETTING ACCURACY TO 100%
-        if self.command_out_override:
-            chart = Chart(
-                command=self.command_out_override[0],
-                outs=self.command_out_override[1] * chart.sub_21_per_slot_worth,
-                opponent=opponent,
-                set=self.set.value,
-                year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
-                era_year_list=year_list,
-                era=self.era.value,
-                is_expanded=self.set.has_expanded_chart,
-                pa=pa,
-                stats_per_400_pa=stats_per_400_pa,
-                is_pitcher=self.is_pitcher,
-                player_subtype=self.player_sub_type.value,
-            )
-            chart.accuracy = 1.0
-            charts.append(chart)
-
-        # FIND MOST ACCURATE CHART
+        # SORT BY ACCURACY
         charts.sort(key=lambda x: x.accuracy, reverse=True)
+
+        # IF A COMBO IS FORCED (MANUAL OVERRIDE OR CURATED SELECTION), PROMOTE IT TO VERSION 1
+        # KEEPS ITS TRUE ACCURACY SO THE BREAKDOWN REFLECTS THE COST OF THE CHOICE
+        forced_command_outs = self.forced_command_outs
+        if forced_command_outs:
+            forced_command, forced_outs = forced_command_outs
+            forced_concat = f"{forced_command}-{forced_outs}"
+            forced_chart = next((c for c in charts if c.command_outs_concat == forced_concat), None)
+            if forced_chart is None:
+                slot_worth = next((c.sub_21_per_slot_worth for c in charts if c.command == forced_command), charts[0].sub_21_per_slot_worth)
+                forced_chart = build_chart(
+                    command=forced_command,
+                    outs=forced_outs * slot_worth,
+                    command_accuracy_weight=self.set.command_accuracy_weighting(command=forced_command, player_sub_type=self.player_sub_type, year=self.stats_period.last_year, whip=self.stats_for_card.get('whip', None)),
+                )
+            else:
+                charts.remove(forced_chart)
+            charts.insert(0, forced_chart)
+
         best_chart = charts[offset]
         self.command_out_accuracies = { f"{ca.command_outs_concat}": round(ca.accuracy,4) for ca in charts }
         self.command_out_accuracy_breakdowns = { f"{ca.command_outs_concat}": ca.accuracy_breakdown for ca in charts }
 
         return best_chart
+
+    @property
+    def forced_command_outs(self) -> Optional[tuple[int, int]]:
+        """Command/outs combo promoted to chart version 1. A manual override takes priority over a curated selection."""
+        if self.command_out_override:
+            return tuple(self.command_out_override)
+        if self.command_out_selection:
+            return (self.command_out_selection.command, self.command_out_selection.outs)
+        return None
+
+    def _curated_command_out_selection(self, is_full_season_period: bool) -> Optional[CommandOutSelection]:
+        """Look up a curated command/out selection for this card.
+
+        Only applies to cards built from the player's full season, so partial periods
+        (ex: in-season trend datapoints) keep the most accurate chart.
+
+        Args:
+          is_full_season_period: True if the card's stats cover the player's entire season.
+
+        Returns:
+          The matching selection, or None.
+        """
+        # MANUAL OVERRIDE TAKES PRIORITY
+        if not is_full_season_period or self.is_wotc or self.command_out_override:
+            return None
+        return CommandOutSelections.load().lookup(
+            player_ids=[self.bref_id, f"mlb{self.mlb_id}" if self.mlb_id else None],
+            year=self.year,
+            set=self.set,
+            player_type=self.player_type,
+        )
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
@@ -2619,7 +2665,9 @@ class ShowdownPlayerCard(BaseModel):
 
         # COMMAND AND OUTS
         accuracy_suffix = f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.command_out_accuracy_weight != 1.0 else ''
-        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS {accuracy_suffix} ")
+        is_curated_chart = self.command_out_selection and self.selected_command_outs == self.command_out_selection.command_outs_concat
+        selection_suffix = f'(CURATED: {self.command_out_selection.key})' if is_curated_chart else ''
+        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS {accuracy_suffix} {selection_suffix}")
 
         chart_tbl = PrettyTable(field_names=[col.value + ('*' if col in self.chart.chart_categories_adjusted else '') for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)
@@ -7049,6 +7097,7 @@ class ShowdownPlayerCard(BaseModel):
     REBUILT_FIELDS: ClassVar[frozenset[str]] = frozenset([
         'version', 'load_time', 'warnings', 'chart', 'points', 'points_breakdown', 'projected',
         'command_out_accuracies', 'command_out_accuracy_breakdowns', 'real_vs_projected_stats',
+        'command_out_selection', 'command_out_selection_fingerprint', 'selected_command_outs',
         'positions_list', 'positions_and_defense', 'positions_and_defense_for_visuals',
         'positions_and_defense_string', 'positions_and_real_life_ratings', 'positions_and_games_played',
         'player_sub_type', 'ip', 'hand', 'speed', 'accolades', 'icons',

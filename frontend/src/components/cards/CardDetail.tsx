@@ -660,11 +660,17 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                 {/* Chart Accuracy */}
                 {!activeCardData?.card?.is_wotc && (
-                    <SectionPanel isLoading={isLoadingOverall} title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}>
+                    <SectionPanel
+                        isLoading={isLoadingOverall}
+                        title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}
+                        subtitle={activeCardData?.card?.command_out_selection ? "Version 1 is hand-curated. Scores shown are each chart's true accuracy" : undefined}
+                    >
                         <ChartSelectionBreakdown
                             chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns}
                             commandOutAccuraciesData={activeCardData?.card?.command_out_accuracies}
                             selectedChartVersion={activeCardData?.card?.chart_version || 1}
+                            selectedChart={activeCardData?.card?.selected_command_outs}
+                            selection={activeCardData?.card?.command_out_selection}
                         />
                     </SectionPanel>
                 )}

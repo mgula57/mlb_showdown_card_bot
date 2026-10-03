@@ -443,7 +443,14 @@ export type ShowdownBotCard = {
     /** Detailed accuracy analysis by command/outs combination */
     command_out_accuracies?: Record<string, number>;
     command_out_accuracy_breakdowns: Record<string, Record<string, ChartAccuracyCategoryBreakdown>>;
-    
+
+    /** Curated command/outs combo applied to the card instead of the most accurate chart */
+    command_out_selection?: CommandOutSelection | null;
+    command_out_selection_fingerprint?: string | null;
+
+    /** Command/outs of the chart on the card (ex: '13-8'). Missing on cards built before it was added */
+    selected_command_outs?: string | null;
+
     /** Point value calculation breakdown */
     points_breakdown: PointsBreakdown;
     points_estimated?: number | null;
@@ -705,6 +712,21 @@ export type RealVsProjectedStat = {
  * Used to evaluate how well different chart configurations match real performance
  * across various statistical measures (overall accuracy, OPS, SLG, OBP, etc.).
  */
+export type CommandOutSelection = {
+    /** Stable id of the selection (ex: 'crowape01-2026-04-05') */
+    key: string;
+    player_id: string;
+    year: string;
+    sets: string[];
+    command: number;
+    outs: number;
+    player_type?: string | null;
+    /** Bot version the selection was added/changed in */
+    added_in: string;
+    /** Why the combo was chosen */
+    note?: string | null;
+}
+
 export type ChartAccuracyCategoryBreakdown = {
     /** Statistical category being analyzed */
     stat: string;

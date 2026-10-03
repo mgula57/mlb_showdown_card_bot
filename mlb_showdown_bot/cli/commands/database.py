@@ -16,6 +16,7 @@ from ...scripts.season.rosters import snapshot_rosters as _snapshot_rosters
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
 from ...core.database.classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord
 from ...core.card.utils.shared_functions import convert_year_string_to_list
+from ...core.card.command_out_selections import CommandOutSelections
 from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType, Hand, StatHighlightsType
 from ...core.data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ...core.card.stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer
@@ -155,6 +156,38 @@ def database_feature_status(
     db = PostgresDB(is_archive=is_production)
     db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
     print("✅ Feature status updated.")
+
+# -------------------------------
+# MARK: - Command/Out Selections
+# -------------------------------
+@app.command("check_selections")
+def check_command_out_selections(
+    years: str = typer.Option(None, "--years", "-y", help="Card years to check (ex: 2026 or 2024-2026). Defaults to the years in the selections file."),
+    show_ok: bool = typer.Option(False, "--show_ok", "-ok", help="Also list stored cards that are up to date."),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """List stored cards that need rebuilding because of curated command/out selection changes"""
+    selections = CommandOutSelections.load()
+    year_list = convert_year_string_to_list(years) if years else sorted(set(int(e.year) for e in selections.entries if e.year.isdigit()))
+    player_ids = sorted(set(e.player_id for e in selections.entries))
+
+    is_production = env.lower() == "prod"
+    with PostgresDB(is_archive=is_production) as db:
+        records = db.fetch_command_out_selection_records(years=year_list, player_ids=player_ids)
+
+    table = PrettyTable(field_names=['Status', 'Card ID', 'Set', 'Chart', 'Selection'])
+    needs_rebuild_count = 0
+    for record in sorted(records, key=lambda r: (r.year, r.card_id, r.showdown_set.value)):
+        status = selections.audit_status(record)
+        if status is None or (not status.needs_rebuild and not show_ok):
+            continue
+        needs_rebuild_count += int(status.needs_rebuild)
+        table.add_row([status.value, record.card_id, record.showdown_set.value, record.selected_command_outs or '-', record.selection_key or '-'])
+
+    print(f"Checked {len(records)} stored card(s) for {len(selections.entries)} selection(s) in {year_list}")
+    if len(table.rows) > 0:
+        print(table)
+    print(f"{'✅ All stored cards are up to date.' if needs_rebuild_count == 0 else f'⚠️  {needs_rebuild_count} card(s) need rebuilding.'}")
 
 # -------------------------------
 # MARK: - Fangraphs

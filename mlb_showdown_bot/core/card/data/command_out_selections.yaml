@@ -1,0 +1,28 @@
+# CURATED COMMAND/OUT SELECTIONS
+#
+# Forces a specific OnBase/Control + Outs combination for a player's card in the given sets,
+# instead of the bot's most accurate chart. Only applied when the card covers the player's
+# full season (no partial date ranges, splits, postseason, etc.), so in-season trends only
+# pick it up on the final full-range datapoint.
+#
+# FIELDS
+#   key:          Stable unique id for the entry. Keep it when editing the combo.
+#   player_id:    Baseball Reference id, or "mlb{mlb_id}" for players without one.
+#   year:         Exact year string of the card (quote it, e.g. "2026").
+#   sets:         Sets the selection applies to (quote them, e.g. ["2004", "2005"]).
+#   command:      OnBase (hitters) or Control (pitchers).
+#   outs:         Outs as shown on the card.
+#   player_type:  Optional. HITTER or PITCHER, for two-way players.
+#   added_in:     Bot version the entry was added/last changed in.
+#   note:         Why the combo was chosen.
+#
+# Editing an entry changes its fingerprint, which flags stored cards built with the old values as stale.
+
+- key: crowape01-2026-04-05
+  player_id: crowape01
+  year: "2026"
+  sets: ["2004", "2005"]
+  command: 13
+  outs: 8
+  added_in: "4.5"
+  note: 13 Onbase / 8 Out chart matches his OPS closely and is more representative of his overall performance.
