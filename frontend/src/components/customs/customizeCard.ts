@@ -25,12 +25,13 @@ const FORM_STATS_PERIOD_TYPES = ['REGULAR', 'POST', 'DATES', 'SPLIT'];
 export const formInputsFromCard = (card: ShowdownBotCard): Partial<CustomCardFormState> => {
     const period = card.stats_period;
     const year = String(period?.year ?? card.year);
-    const isMlbApiYear = parseInt(year, 10) >= 2026; // 2026+ splits are keyed by MLB API situation code
+    // 2026+ cards come from the MLB Stats API: the player is keyed by MLB ID and splits by situation code
+    const isMlbApiYear = parseInt(year, 10) >= 2026;
     const statsPeriodType = period && FORM_STATS_PERIOD_TYPES.includes(period.type) ? period.type : 'REGULAR';
 
     const inputs: Partial<CustomCardFormState> = {
         name: card.name,
-        player_id: card.bref_id || null,
+        player_id: (isMlbApiYear && card.mlb_id ? String(card.mlb_id) : card.bref_id) || null,
         player_type_override: card.player_type_override?.toUpperCase(),
         year,
         stats_period_type: statsPeriodType,
