@@ -337,11 +337,12 @@ class Set(str, Enum):
             case PlayerType.PITCHER:
                 return list(range(1, 7)) if self.has_expanded_chart else list(range(0, 7))
 
-    def command_accuracy_weighting(self, command:int, player_sub_type:PlayerSubType, year:int | None = None, whip:float | None = None) -> float:
+    def command_accuracy_weighting(self, command:int, outs:int, player_sub_type:PlayerSubType, year:int | None = None, whip:float | None = None) -> float:
         """List of commands are corresponding accuracy weighting
 
         Args:
           command: Control/Onbase rating for player.
+          outs: Number of outs for the current play.
           player_sub_type: Player subtype attribute (POSITION_PLAYER, STARTING_PITCHER, RELIEF_PITCHER)
           year: Last year of the card's stats period. Used for 2026+ adjustments.
           whip: Pitcher's real WHIP. Used for 2026+ adjustments.
@@ -355,6 +356,33 @@ class Set(str, Enum):
                 match command:
                     case 1: return 0.925
                     case 2: return 0.925
+
+                # Dont adjust anything pre-2026
+                if year is None or year < 2026:
+                    return 1.0
+
+                is_hitter = player_sub_type == PlayerSubType.POSITION_PLAYER
+                if not is_hitter:
+                    return 1.0
+
+                # Bump down 8 onbase 5 out players slightly to better match WOTC
+                if command == 8 and outs == 5 and year >= 2026:
+                    return 0.985 # 2026+ HITTERS: SLIGHTLY PENALIZE 8 ONBASE WITH 5 OUTS
+
+                # Bump down 7 onbase 3 out players slightly to better match WOTC
+                if command == 7 and outs == 3 and year >= 2026:
+                    return 0.985 # 2026+ HITTERS: SLIGHTLY PENALIZE 7 ONBASE WITH 3 OUTS
+
+                # Bump up higher OB and 5 out players to better match WOTC
+                if command >= 9 and outs == 5 and year >= 2026:
+                    return 1.02 # 2026+ HITTERS: SLIGHTLY FAVOR 9+ ONBASE WITH 5 OUTS
+
+                if command >= 10 and year >= 2026:
+                    return 1.02 # 2026+ HITTERS: SLIGHTLY FAVOR 10+ ONBASE IN GENERAL
+
+                if command >= 9 and outs == 4 and year >= 2026:
+                    return 1.002 # 2026+ HITTERS: SLIGHTLY FAVOR 9+ ONBASE IN GENERAL
+                
             case Set._2001:
                 match command:
                     case 0: return 0.995
