@@ -310,7 +310,10 @@ class GuidedDraftPlanner:
 
     def _open_count(self, bucket: str) -> int:
         """Open slots left in `bucket` — at least 1, since a round is being priced from it."""
-        return max(1, {
+        return max(1, self._raw_open_count(bucket))
+
+    def _raw_open_count(self, bucket: str) -> int:
+        return max(0, {
             'offense': len(OFFENSE_POSITIONS) - len(self.field_filled),
             'rotation': self._open_rotation_count(),
             'bullpen': self.bullpen_target - self.bullpen_count,
@@ -318,7 +321,26 @@ class GuidedDraftPlanner:
         }[bucket])
 
     def _bucket_remaining(self, bucket: str) -> float:
-        return max(0.0, self.pts_limit * GUIDED_PTS_DISTRIBUTION[bucket] - self.spent_by_bucket[bucket])
+        """Budget `bucket` still has to spend, rebalanced so the open buckets together always
+        account for exactly the team's remaining budget.
+
+        Each bucket's nominal remaining is its share of the budget minus what it has spent. A
+        bucket that finished under (or over) its share would otherwise strand that difference —
+        e.g. a lineup that came in 300 PTS cheap leaves 300 PTS unspent forever. Scaling the
+        still-open buckets' nominal remaining to the global remaining hands that slack to the
+        rest of the draft, and on the last open slot targets exactly what's left."""
+        def nominal(b: str) -> float:
+            return max(0.0, self.pts_limit * GUIDED_PTS_DISTRIBUTION[b] - self.spent_by_bucket[b])
+
+        # The bucket being priced always counts, even past its target (overflow 'RP' slack).
+        open_buckets = [b for b in GUIDED_PTS_DISTRIBUTION if b == bucket or self._raw_open_count(b) > 0]
+        global_remaining = max(0.0, self.pts_limit - sum(self.spent_by_bucket.values()))
+        total_nominal = sum(nominal(b) for b in open_buckets)
+        if total_nominal <= 0:
+            # Every open bucket has already spent its share: split what's left by share instead.
+            total_share = sum(GUIDED_PTS_DISTRIBUTION[b] for b in open_buckets)
+            return global_remaining * GUIDED_PTS_DISTRIBUTION[bucket] / total_share
+        return global_remaining * nominal(bucket) / total_nominal
 
     def _clamp(self, target: float, bucket: str) -> int:
         return int(max(MIN_CARD_POINTS, min(target, self._max_points(bucket))))

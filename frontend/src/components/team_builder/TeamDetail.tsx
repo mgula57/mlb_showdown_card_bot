@@ -828,6 +828,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // manually-selected slot. The star round has no single slot (it varies per option).
     const guidedPosition = guidedActive ? guided.round?.round.position ?? null : null;
 
+    /** Drop every pick so the guided draft re-plans from the first Cornerstone round. */
+    function handleGuidedRestart() {
+        if (!window.confirm(`Start the guided draft over? This removes all ${draft.roster.length} drafted players.`)) return;
+        update({ roster: [], lineups: draft.lineups.map(ln => ({ ...ln, slots: [] })), rotation: [] }, { immediate: true });
+        setDraftToast({ name: 'Guided Draft', position: 'Restarted' });
+    }
+
     function handleGuidedPick(option: GuidedOption) {
         handleConfirmPosition(option.roster_position, option.card, 'GUIDED');
     }
@@ -1042,7 +1049,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             onPick={handleGuidedPick}
             pickDisabled={draftActionDisabled}
             saveFailed={saveStatus === 'error'}
-            onExit={variant === 'docked' ? () => setDraftMode('search') : undefined}
+            onExit={() => setDraftMode('search')}
+            onRestart={handleGuidedRestart}
         />
     );
 
