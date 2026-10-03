@@ -1,7 +1,7 @@
 import type { ReleaseCard } from '../../api/releases';
 import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './SummaryCharts';
 
-export type PoolGroupBy = 'none' | 'team' | 'position' | 'type';
+export type PoolGroupBy = 'none' | 'team' | 'position' | 'type' | 'command';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'command';
 export type PoolSortDirection = 'asc' | 'desc';
 
@@ -12,6 +12,7 @@ export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy }[] = [
     { label: 'Team', value: 'team' },
     { label: 'Position', value: 'position' },
     { label: 'Player Type', value: 'type' },
+    { label: 'Command', value: 'command' },
 ];
 
 export const POOL_SORT_OPTIONS: { label: string; value: PoolSortBy }[] = [
@@ -43,6 +44,29 @@ function primaryPosition(card: ReleaseCard): string {
 function franchiseTeam(card: ReleaseCard): string {
     const team = card.card_snapshot.team;
     return team ? (FRANCHISE_CODE[team] ?? team) : 'No Team';
+}
+
+/** Hitters (On-Base) always rank ahead of pitchers (Control) — the two scales aren't comparable. */
+function commandSide(card: ReleaseCard): number {
+    return card.card_snapshot.is_pitcher ? 1 : 0;
+}
+
+const ONBASE_LABEL = 'Onbase';
+const CONTROL_LABEL = 'Control';
+
+function commandGroupLabel(card: ReleaseCard): string {
+    return `${card.card_snapshot.is_pitcher ? CONTROL_LABEL : ONBASE_LABEL} ${card.card_snapshot.command ?? 0}`;
+}
+
+/** Orders "Onbase N" / "Control N" keys: Onbase before Control, then command descending. */
+function compareCommandGroupKeys(a: string, b: string): number {
+    const parse = (key: string) => {
+        const [side, command] = key.split(' ');
+        return { side: side === CONTROL_LABEL ? 1 : 0, command: Number(command) };
+    };
+    const left = parse(a);
+    const right = parse(b);
+    return left.side - right.side || right.command - left.command;
 }
 
 function lastName(name: string | undefined): string {
@@ -78,6 +102,7 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
         keyFn: card => parentPositionGroup(card.card_snapshot),
         compareKeys: (a, b) => PARENT_POSITION_ORDER.indexOf(a as typeof PARENT_POSITION_ORDER[number]) - PARENT_POSITION_ORDER.indexOf(b as typeof PARENT_POSITION_ORDER[number]),
     },
+    command: { keyFn: commandGroupLabel, compareKeys: compareCommandGroupKeys },
 };
 
 /** Sorts `cards` and splits them into labelled groups (a single unlabelled group when not grouping).
@@ -87,6 +112,8 @@ export function groupAndSortCards(cards: ReleaseCard[], groupBy: PoolGroupBy, so
     const sorted = [...cards].sort((a, b) => {
         // Cards without a set number always trail, whichever way the numbers run.
         if (sortBy === 'set_number' && (a.card_number === null || b.card_number === null)) return compareBySort(a, b, sortBy);
+        // On-Base and Control live on different scales, so hitters stay ahead of pitchers in either direction.
+        if (sortBy === 'command') return commandSide(a) - commandSide(b) || factor * compareBySort(a, b, sortBy);
         return factor * compareBySort(a, b, sortBy);
     });
     if (groupBy === 'none') return [{ key: 'all', label: '', cards: sorted }];
