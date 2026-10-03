@@ -324,7 +324,7 @@ const FILTER_AVAILABILITY: FilterAvailability = {
     // Expansion and edition filters - only for WOTC
     expansion: [CardSource.WOTC],
     edition: [CardSource.WOTC],
-    showdown_set: [CardSource.WOTC, CardSource.BOT],
+    showdown_set: [CardSource.WOTC],
 
     // Errata filtering - only for WOTC
     is_errata: [CardSource.WOTC],
