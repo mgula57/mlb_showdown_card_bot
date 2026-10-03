@@ -12,13 +12,14 @@
 import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaPlus } from 'react-icons/fa6';
+import { FaPlus, FaWandMagicSparkles } from 'react-icons/fa6';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import CustomSelect from '../shared/CustomSelect';
 import ShowdownBotLogo from '../shared/ShowdownBotLogo';
+import { useCustomizeCard } from '../customs/customizeCard';
 
 import { imageForSet, showdownSets } from "../shared/SiteSettingsContext";
 
@@ -122,6 +123,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
 export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false }: CardDetailProps) {
 
     const { session } = useAuth();
+    const customizeCard = useCustomizeCard();
 
     // =============================================================================
     // MARK: STATES
@@ -507,6 +509,26 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                     </div>
                 ))}
+
+                {/* Customize — opens the Custom Card Builder prefilled with this card */}
+                {context !== 'custom' && activeCardData?.card && (
+                    <button
+                        type="button"
+                        onClick={() => activeCardData.card && customizeCard(activeCardData.card)}
+                        title="Open in the Custom Card Builder"
+                        className="
+                            flex items-center gap-2
+                            py-1 px-4 rounded-2xl
+                            border border-(--divider)
+                            text-sm font-semibold
+                            hover:bg-(--background-secondary) active:scale-95 transition
+                            cursor-pointer
+                        "
+                    >
+                        <FaWandMagicSparkles className="w-3.5 h-3.5" />
+                        Customize
+                    </button>
+                )}
             </div>
 
             {/* Tooltip */}
