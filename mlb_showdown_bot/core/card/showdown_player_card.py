@@ -1888,7 +1888,7 @@ class ShowdownPlayerCard(BaseModel):
             
             # CREATE CHART WITH COMMAND/OUT COMBO
             # SEE ACCURACY WHEN OVERESTIMATING OBP VS UNDERESTIMATING OBP WHEN ROUNDING # OF OUTS
-            command_accuracy_weight = self.set.command_accuracy_weighting(command=command, player_sub_type=self.player_sub_type)
+            command_accuracy_weight = self.set.command_accuracy_weighting(command=command, player_sub_type=self.player_sub_type, year=self.stats_period.last_year, whip=self.stats_for_card.get('whip', None))
             for use_alternate_outs in [False, True]:
                 
                 outs = 0

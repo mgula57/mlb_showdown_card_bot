@@ -1174,6 +1174,7 @@ class Chart(BaseModel):
         )
 
         if self.does_set_ignore_outlier_adjustments:
+            self.accuracy *= self.command_accuracy_weight
             self.is_command_out_anomaly = self.is_chart_an_outlier
             self.__finalize_accuracy_and_breakdowns()
             return

@@ -333,12 +333,14 @@ class Set(str, Enum):
             case PlayerType.PITCHER:
                 return list(range(1, 7)) if self.has_expanded_chart else list(range(0, 7))
 
-    def command_accuracy_weighting(self, command:int, player_sub_type:PlayerSubType) -> float:
+    def command_accuracy_weighting(self, command:int, player_sub_type:PlayerSubType, year:int | None = None, whip:float | None = None) -> float:
         """List of commands are corresponding accuracy weighting
-        
+
         Args:
           command: Control/Onbase rating for player.
           player_sub_type: Player subtype attribute (POSITION_PLAYER, STARTING_PITCHER, RELIEF_PITCHER)
+          year: Last year of the card's stats period. Used for 2026+ adjustments.
+          whip: Pitcher's real WHIP. Used for 2026+ adjustments.
 
         Returns:
           Multiplier for the accuracy of the chart for the given command + set.
@@ -354,6 +356,17 @@ class Set(str, Enum):
                     case 0: return 0.995
                     case 1: return 0.990
                     case 2: return 0.990
+            case Set._2004 | Set._2005:
+                # 2026+ PITCHERS SKEWED TOWARDS 1-2 CONTROL, NUDGE PITCHERS WITH A BETTER WHIP THAN WOTC'S TYPICAL PITCHER AT THAT CONTROL UPWARDS
+                is_pitcher = player_sub_type != PlayerSubType.POSITION_PLAYER
+                if not is_pitcher or year is None or year < 2026 or whip is None:
+                    return 1.0
+                weight, whip_cutoff = {
+                    1: (0.970, 1.50),
+                    2: (0.970, 1.40),
+                    3: (0.990, 1.30)
+                }.get(command, (1.0, 0))
+                return weight if whip < whip_cutoff else 1.0
 
         return 1.0
 
