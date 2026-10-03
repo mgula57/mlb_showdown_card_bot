@@ -1895,7 +1895,7 @@ class ShowdownPlayerCard(BaseModel):
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
         pa = self.stats_for_card.get('pa', 400)
         
-        def build_chart(command:int, outs:float, command_accuracy_weight:float) -> Chart:
+        def build_chart(command:int, outs:float) -> Chart:
             return Chart(
                 command=command,
                 outs=outs,
@@ -1909,7 +1909,7 @@ class ShowdownPlayerCard(BaseModel):
                 stats_per_400_pa=stats_per_400_pa,
                 is_pitcher=self.is_pitcher,
                 player_subtype=self.player_sub_type.value,
-                command_accuracy_weight=command_accuracy_weight,
+                command_accuracy_weight_fn=lambda outs_full: self.set.command_accuracy_weighting(command=command, outs=outs_full, player_sub_type=self.player_sub_type, year=self.stats_period.last_year, whip=self.stats_for_card.get('whip', None)),
             )
 
         command_options = list(set([ c for c in self.set.command_options(player_type=self.player_type) if c not in self.commands_excluded]))
@@ -1917,7 +1917,6 @@ class ShowdownPlayerCard(BaseModel):
             
             # CREATE CHART WITH COMMAND/OUT COMBO
             # SEE ACCURACY WHEN OVERESTIMATING OBP VS UNDERESTIMATING OBP WHEN ROUNDING # OF OUTS
-            command_accuracy_weight = self.set.command_accuracy_weighting(command=command, player_sub_type=self.player_sub_type, year=self.stats_period.last_year, whip=self.stats_for_card.get('whip', None))
             for use_alternate_outs in [False, True]:
                 
                 outs = 0
@@ -1929,7 +1928,7 @@ class ShowdownPlayerCard(BaseModel):
                     if outs == chart.outs or outs > 20:
                         continue
 
-                chart = build_chart(command=command, outs=outs, command_accuracy_weight=command_accuracy_weight)
+                chart = build_chart(command=command, outs=outs)
 
                 # IF COMMAND OUT COMBO HAS ALREADY BEEN CALC'D PREVIOUSLY, SKIP
                 if chart.command_outs_concat in [c.command_outs_concat for c in charts]:
@@ -1949,11 +1948,7 @@ class ShowdownPlayerCard(BaseModel):
             forced_chart = next((c for c in charts if c.command_outs_concat == forced_concat), None)
             if forced_chart is None:
                 slot_worth = next((c.sub_21_per_slot_worth for c in charts if c.command == forced_command), charts[0].sub_21_per_slot_worth)
-                forced_chart = build_chart(
-                    command=forced_command,
-                    outs=forced_outs * slot_worth,
-                    command_accuracy_weight=self.set.command_accuracy_weighting(command=forced_command, player_sub_type=self.player_sub_type, year=self.stats_period.last_year, whip=self.stats_for_card.get('whip', None)),
-                )
+                forced_chart = build_chart(command=forced_command, outs=forced_outs * slot_worth)
             else:
                 charts.remove(forced_chart)
             charts.insert(0, forced_chart)
