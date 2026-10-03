@@ -53,7 +53,7 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
@@ -860,11 +860,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
     }, [loadingStatus]);
 
-    // Add this helper function
-    const scrollToPreviewOnMobile = () => {
-        // Only scroll on mobile/tablet screens
-        if (window.innerWidth >= 1024) return; // @2xl breakpoint
-    
+    const scrollToPreview = () => {
         // First try to find the preview section by ID
         const previewElement = document.getElementById('preview-section');
         if (previewElement) {
@@ -876,6 +872,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         if (previewSectionRef.current) {
             previewSectionRef.current.scrollIntoView({ behavior: 'smooth' });
         }
+    };
+
+    const scrollToPreviewOnMobile = () => {
+        // Only scroll on mobile/tablet screens
+        if (window.innerWidth >= 1024) return; // @2xl breakpoint
+        scrollToPreview();
     };
 
     // ---------------------------------
@@ -1610,9 +1612,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                         </div>
 
-                        {/* Mobile: floating circular CTA pinned bottom-right. Desktop (@2xl): full-width sticky bar. */}
+                        {/* Mobile: floating circular CTAs pinned to the bottom corners. Desktop (@2xl): full-width sticky bar. */}
                         <footer className={`
-                            fixed bottom-0 right-0 z-30
+                            fixed bottom-0 inset-x-0 z-30
                             p-4 pb-[calc(0.5rem+var(--safe-bottom))]
                             pointer-events-none
                             @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
@@ -1624,7 +1626,24 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex justify-end @2xl:block">
+                            <div className="flex items-center justify-between @2xl:block">
+
+                                {/* Jump to Card Detail (mobile only) */}
+                                <button
+                                    type="button"
+                                    aria-label="Jump to Card"
+                                    title="Jump to Card"
+                                    className="
+                                        pointer-events-auto @2xl:hidden
+                                        flex items-center justify-center
+                                        h-12 w-12 rounded-full shadow-xl shadow-black/25
+                                        bg-background-secondary border border-form-element text-(--primary) text-lg
+                                        cursor-pointer hover:brightness-110 active:scale-95 transition-transform
+                                    "
+                                    onClick={scrollToPreview}
+                                >
+                                    <FaArrowDown />
+                                </button>
 
                                 {/* Build Card */}
                                 <button
@@ -1666,7 +1685,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     className={`
                         w-full @2xl:grow
                         ${activePreviewTab === 'gallery' ? 'pb-0 min-h-[calc(100dvh-2.75rem)]' : 'pb-64'} @2xl:pb-0 @2xl:min-h-0
-                        scroll-mt-12
+                        scroll-mt-21
                         @2xl:scroll-mt-0
                         gradient-page
                     `}
