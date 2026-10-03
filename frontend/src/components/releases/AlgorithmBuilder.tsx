@@ -427,7 +427,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             </div>
 
             {isAdmin && (
-                <SettingsGroup title="Admin" defaultOpen={false}>
+                <SettingsGroup title="Admin" defaultOpen={true}>
                     <FormEnabler
                         label="Re-run Cards"
                         isEnabled={rerunCards}
