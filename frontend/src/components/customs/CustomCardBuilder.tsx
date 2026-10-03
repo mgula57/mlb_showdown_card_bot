@@ -53,7 +53,7 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
@@ -227,6 +227,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
     const [isFormCollapsed, setIsFormCollapsed] = useState(false);
+    // True once the expand transition finishes; panel content is clipped until then
+    const [isFormSettled, setIsFormSettled] = useState(true);
+    const toggleFormCollapsed = () => {
+        setIsFormSettled(false);
+        setIsFormCollapsed(!isFormCollapsed);
+    };
     type PreviewTab = 'preview' | 'gallery';
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
@@ -252,6 +258,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // Animation
     const animationTw = 'transition-all duration-200 ease-in-out';
+    const formPanelTransitionTw = 'duration-300 ease-in-out';
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>(loadFormSettings());
@@ -853,11 +860,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
     }, [loadingStatus]);
 
-    // Add this helper function
-    const scrollToPreviewOnMobile = () => {
-        // Only scroll on mobile/tablet screens
-        if (window.innerWidth >= 1024) return; // @2xl breakpoint
-    
+    const scrollToPreview = () => {
         // First try to find the preview section by ID
         const previewElement = document.getElementById('preview-section');
         if (previewElement) {
@@ -869,6 +872,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         if (previewSectionRef.current) {
             previewSectionRef.current.scrollIntoView({ behavior: 'smooth' });
         }
+    };
+
+    const scrollToPreviewOnMobile = () => {
+        // Only scroll on mobile/tablet screens
+        if (window.innerWidth >= 1024) return; // @2xl breakpoint
+        scrollToPreview();
     };
 
     // ---------------------------------
@@ -1141,16 +1150,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 {/* Form Inputs */}
                 <section className={`
-                    ${isFormCollapsed ? 'w-auto' : 'w-full @2xl:w-84 @2xl:shrink-0'}
+                    w-full @2xl:shrink-0
+                    ${isFormCollapsed ? '@2xl:w-16' : '@2xl:w-84'}
+                    ${isFormSettled ? '' : '@2xl:overflow-hidden'}
                     border-b-2 @2xl:border-r border-form-element
                     bg-background-secondary
                     ${activePreviewTab === 'gallery' ? 'hidden @2xl:flex @2xl:flex-col' : 'flex flex-col'}
                     h-full
-                    ${animationTw}
+                    ${formPanelTransitionTw} transition-[width]
                 `}>
 
                     {/* Header */}
-                    <div className={`flex items-center justify-between p-2 ${isFormCollapsed ? 'px-2' : 'px-4'}`}>
+                    <div className={`flex items-center justify-between @2xl:justify-start p-2 ${isFormCollapsed ? 'px-2' : 'px-4'}`}>
                         
                         {/* Reset and collapse buttons */}
                         <div className='flex gap-1 text-lg items-center'>
@@ -1189,10 +1200,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         <button
                             className={`
                                 text-lg p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
-                                ${isFormCollapsed ? 'flex flex-row-reverse @2xl:flex-col items-center gap-2 @2xl:gap-3 px-4 w-full justify-center ' : ''}
+                                @2xl:order-first @2xl:mr-1
+                                ${isFormCollapsed ? 'flex flex-row-reverse @2xl:flex-col items-center gap-2 @2xl:gap-3 px-4 @2xl:px-2 @2xl:mr-0 w-full justify-center ' : ''}
                             `}
                             title='Collapse/Expand Form'
-                            onClick={() => setIsFormCollapsed(!isFormCollapsed)}
+                            onClick={toggleFormCollapsed}
                         >
                             {isFormCollapsed ? (
                                 <>
@@ -1228,23 +1240,29 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     </div>
 
                     {/* Scrollable area */}
-                    <div className={`flex-1 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}
-                        overflow-visible @2xl:overflow-y-auto scrollbar-hide
+                    <div className={`flex-1 px-4 scrollbar-hide
+                        ${isFormCollapsed ? 'overflow-hidden' : 'overflow-visible @2xl:overflow-y-auto'}
                     `}>
 
-                        {/* Search and Form Inputs */}
-                        <div className={`flex-col flex gap-4 ${animationTw} ${isFormCollapsed ? 'pb-0' : 'pb-6'} @2xl:pb-96 justify-center`}>
-
-                            {/* Content with slide animation */}
-                            <div className={`
-                                transition-all duration-300 ease-in-out space-y-4
-                                ${isFormCollapsed 
-                                    ? 'max-h-0 opacity-0 overflow-hidden transform -translate-x-full' 
-                                    : 'max-h-2499.75 opacity-100 transform translate-x-0'
+                        {/* Search and Form Inputs. Collapses height (0fr <-> 1fr) on mobile; on desktop the section width animates instead, so only fade here. */}
+                        <div
+                            className={`
+                                grid ${formPanelTransitionTw} transition-[grid-template-rows,opacity]
+                                ${isFormCollapsed
+                                    ? 'grid-rows-[0fr] @2xl:grid-rows-[1fr] opacity-0'
+                                    : 'grid-rows-[1fr] opacity-100'
                                 }
-                            `}>
+                            `}
+                            inert={isFormCollapsed}
+                            onTransitionEnd={(e) => {
+                                if (e.target === e.currentTarget && !isFormCollapsed) setIsFormSettled(true);
+                            }}
+                        >
 
-                                {!isFormCollapsed && (
+                            {/* Clip only while collapsed/animating so focus rings and popovers aren't cut off when open */}
+                            <div className={`min-h-0 ${isFormSettled ? '' : 'overflow-hidden'}`}>
+
+                                <div className="space-y-4 pb-6 @2xl:pb-96 @2xl:w-76">
                                     <>
                                         {!is2026NoticeDismissed && (
                                             <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug text-blue-100 bg-linear-to-br from-blue-500 via-blue-700 to-red-700 shadow-lg shadow-blue-900/40">
@@ -1588,15 +1606,15 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                         </FormSection>
                                     </>
-                                )}
+                                </div>
 
                             </div>
-                            
+
                         </div>
 
-                        {/* Mobile: floating circular CTA pinned bottom-right. Desktop (@2xl): full-width sticky bar. */}
+                        {/* Mobile: floating circular CTAs pinned to the bottom corners. Desktop (@2xl): full-width sticky bar. */}
                         <footer className={`
-                            fixed bottom-0 right-0 z-30
+                            fixed bottom-0 inset-x-0 z-30
                             p-4 pb-[calc(0.5rem+var(--safe-bottom))]
                             pointer-events-none
                             @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
@@ -1608,7 +1626,24 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex justify-end @2xl:block">
+                            <div className="flex items-center justify-between @2xl:block">
+
+                                {/* Jump to Card Detail (mobile only) */}
+                                <button
+                                    type="button"
+                                    aria-label="Jump to Card"
+                                    title="Jump to Card"
+                                    className="
+                                        pointer-events-auto @2xl:hidden
+                                        flex items-center justify-center
+                                        h-12 w-12 rounded-full shadow-xl shadow-black/25
+                                        bg-background-secondary border border-form-element text-(--primary) text-lg
+                                        cursor-pointer hover:brightness-110 active:scale-95 transition-transform
+                                    "
+                                    onClick={scrollToPreview}
+                                >
+                                    <FaArrowDown />
+                                </button>
 
                                 {/* Build Card */}
                                 <button
@@ -1650,7 +1685,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     className={`
                         w-full @2xl:grow
                         ${activePreviewTab === 'gallery' ? 'pb-0 min-h-[calc(100dvh-2.75rem)]' : 'pb-64'} @2xl:pb-0 @2xl:min-h-0
-                        scroll-mt-12
+                        scroll-mt-21
                         @2xl:scroll-mt-0
                         gradient-page
                     `}
