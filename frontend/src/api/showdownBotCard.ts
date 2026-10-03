@@ -423,6 +423,9 @@ export type ShowdownBotCard = {
 
     /** Pitcher role: 'starting_pitcher' | 'relief_pitcher', or 'position_player' for hitters */
     player_sub_type?: 'starting_pitcher' | 'relief_pitcher' | 'position_player';
+
+    /** Forced player type for two-way players (ex: Ohtani as a Pitcher) */
+    player_type_override?: "Hitter" | "Pitcher" | null;
     
     /** Formatted positions with defensive ratings */
     positions_and_defense_string: string;
@@ -556,8 +559,23 @@ export type StatsPeriod = {
     year: string;
     year_list?: number[] | null;
 
+    /** Date range bounds (DATES type), formatted YYYY-MM-DD */
+    start_date?: string | null;
+    end_date?: string | null;
+
+    /** Split name (BREF) and MLB API situation code (2026+ SPLIT type) */
+    split?: string | null;
+    situation_code?: string | null;
+
+    /** League the stats came from (ex: "MLB", "MILB") */
+    league?: string | null;
+
+    /** How the card's team is chosen when stats span multiple teams */
+    team_selection?: string | null;
+
     /** Summary of the stats period */
     display_text?: string | null;
+    disable_display_text_on_card?: boolean | null;
 }
 
 // =============================================================================

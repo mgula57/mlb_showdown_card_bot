@@ -26,6 +26,10 @@ type DepthChartPanelProps = {
     /** Called when a rotation reorder changes the roster. Partial update merged into the team. */
     onReorder?: (updates: Pick<TeamUpdatePayload, 'roster' | 'rotation'>) => void;
     readOnly?: boolean;
+    /** Keeps the editable layout (empty rows, reorder) but turns off picking a slot to fill or
+     *  replace — no "+", no pencil, no Draft in the card modal. Used while Guided Draft picks
+     *  the slot for each round. */
+    slotPickingDisabled?: boolean;
     activePosition?: string | null;
     activeRole?: string | null;
     hoveredCardId?: string | null;
@@ -45,6 +49,7 @@ function PositionRow({
     onClick,
     onDetailClick,
     readOnly,
+    pickDisabled,
     isActive,
     isPeerHovered,
     onMouseEnter,
@@ -61,6 +66,8 @@ function PositionRow({
     onClick: () => void;
     onDetailClick?: () => void;
     readOnly: boolean;
+    /** No filling/replacing this slot — `readOnly`, or slot picking turned off. */
+    pickDisabled: boolean;
     isActive?: boolean;
     isPeerHovered?: boolean;
     onMouseEnter?: () => void;
@@ -96,7 +103,7 @@ function PositionRow({
                         isSelected={isActive}
                         onClick={onDetailClick}
                         cardPtsMultiplier={ptsMultiplier}
-                        actionButton={!readOnly ? {
+                        actionButton={!pickDisabled ? {
                             icon: <FaPencil className="w-2.5 h-2.5" />,
                             onClick,
                             label: 'Replace card',
@@ -107,7 +114,7 @@ function PositionRow({
                 <button
                     type="button"
                     onClick={onClick}
-                    disabled={readOnly}
+                    disabled={pickDisabled}
                     className={`flex-1 flex items-center gap-1.5 px-3 h-18 rounded-lg border border-dashed
                         text-[11px] disabled:pointer-events-none disabled:opacity-40 transition-colors
                         ${isActive
@@ -115,7 +122,7 @@ function PositionRow({
                             : 'border-(--divider) text-(--text-tertiary) hover:border-(--secondary)/50 hover:text-(--secondary)'
                         }`}
                 >
-                    {!readOnly && <FaPlus className="text-[9px]" />}
+                    {!pickDisabled && <FaPlus className="text-[9px]" />}
                     <span>Empty</span>
                 </button>
             )}
@@ -146,6 +153,7 @@ export function DepthChartPanel({
     onBenchClick,
     onReorder,
     readOnly = false,
+    slotPickingDisabled = false,
     activePosition,
     activeRole,
     hoveredCardId,
@@ -156,8 +164,9 @@ export function DepthChartPanel({
     // `onDraft` runs the same handler as the row's inline action button (opens the slot-fill
     // flow) — surfaced as a "Draft" button inside the CardDetail modal while editing.
     const [detailCard, setDetailCard] = useState<{ card: CardDatabaseRecord; onDraft?: () => void } | null>(null);
+    const pickDisabled = readOnly || slotPickingDisabled;
     const openDetail = (card: CardDatabaseRecord, draft: () => void) =>
-        setDetailCard({ card, onDraft: readOnly ? undefined : draft });
+        setDetailCard({ card, onDraft: pickDisabled ? undefined : draft });
 
     const lineup = team.lineups[0] ?? { name: 'Default', index: 0, slots: [] };
     const slotByPos = Object.fromEntries(lineup.slots.map(s => [s.field_position, s]));
@@ -262,6 +271,7 @@ export function DepthChartPanel({
                                 onClick={() => onSlotClick(pos, slot)}
                                 onDetailClick={card ? () => openDetail(card, () => onSlotClick(pos, slot)) : undefined}
                                 readOnly={readOnly}
+                                pickDisabled={pickDisabled}
                                 isActive={activePosition === pos}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
@@ -283,7 +293,9 @@ export function DepthChartPanel({
                                 onClick={() => onBenchClick(slot)}
                                 onDetailClick={card ? () => openDetail(card, () => onBenchClick(slot)) : undefined}
                                 readOnly={readOnly}
-                                isActive={!card && activeRole === 'BE'}
+                                pickDisabled={pickDisabled}
+                                // Bench rows are interchangeable — highlight just the next open one.
+                                isActive={activeRole === 'BE' && i === benchSlots.length}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
@@ -311,6 +323,7 @@ export function DepthChartPanel({
                                 onClick={() => onRoleClick(role, assignment)}
                                 onDetailClick={card ? () => openDetail(card, () => onRoleClick(role, assignment)) : undefined}
                                 readOnly={readOnly}
+                                pickDisabled={pickDisabled}
                                 isActive={activeRole === role}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
@@ -334,7 +347,8 @@ export function DepthChartPanel({
                                 onClick={() => onBullpenClick(assignment)}
                                 onDetailClick={card ? () => openDetail(card, () => onBullpenClick(assignment)) : undefined}
                                 readOnly={readOnly}
-                                isActive={!card && activeRole === 'RP'}
+                                pickDisabled={pickDisabled}
+                                isActive={activeRole === 'RP' && i === bullpenSlots.length}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}

@@ -26,6 +26,7 @@
 
 import { useAuth } from '../auth/AuthContext';
 import { useEffect, useState, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
@@ -55,6 +56,7 @@ import {
     FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
+import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -238,6 +240,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // User Context
     const { user, session } = useAuth();
+
+    // Routing (used to receive cards handed over via "Customize")
+    const location = useLocation();
+    const navigate = useNavigate();
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
@@ -946,8 +952,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         return () => clearTimeout(timeoutId);
     }, [form]);
 
-    const handleSelectHistoryCard = (userInputs: CustomCardFormState, cardResult: ShowdownBotCard) => {
-        
+    const handleSelectHistoryCard = (userInputs: CustomCardFormState, cardResult: ShowdownBotCard | null, statusMessage: string = 'Card inputs updated') => {
 
         // If name_original is present, replace "name" with "name_original" to preserve original name in form
         if (userInputs.name_original) {
@@ -967,11 +972,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         ) as CustomCardFormState;
 
         setForm(userInputs);
-        setShowdownBotCardData({ card: cardResult } as ShowdownBotCardAPIResponse);
+        setShowdownBotCardData(cardResult ? { card: cardResult } as ShowdownBotCardAPIResponse : null);
         setActivePreviewTab('preview');
 
         setLoadingStatus({
-            message: `Card inputs updated`,
+            message: statusMessage,
             subMessage: `${userInputs.name} | ${userInputs.year}`,
             icon: <FaRotateLeft className="text-sm" />,
             backgroundColor: "var(--success)",
@@ -982,6 +987,21 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const handleGalleryReload = (userInputs: Record<string, unknown>, cardResult: ShowdownBotCard) => {
         handleSelectHistoryCard(userInputs as unknown as CustomCardFormState, cardResult);
     };
+
+    // Prefill from a card handed over via the "Customize" button on CardDetail. The builder stays
+    // mounted (hidden) between visits, so this watches location state rather than reading it on mount.
+    useEffect(() => {
+        const customizeCard = (location.state as CustomizeCardRouteState | null)?.customizeCard;
+        if (!customizeCard) return;
+
+        // WOTC cards prefill the form only — the bot's own version needs to be built
+        const previewCard = customizeCard.is_wotc ? null : customizeCard;
+        handleSelectHistoryCard(formInputsFromCard(customizeCard) as CustomCardFormState, previewCard, 'Card ready for editing');
+        setShowdownSetOverride(customizeCard.set === userShowdownSet ? null : customizeCard.set);
+
+        // Clear the state so a refresh or back/forward doesn't re-apply it over later edits
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.state]);
 
     // Fetch MLB situation codes when the user is in SPLIT mode for 2026+ seasons
     useEffect(() => {
@@ -1257,10 +1277,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             />
 
                                             {/* Showdown Set (default managed via top right corner) */}
-                                            <div className="@container shrink-0 w-20 xs:w-28 md:w-20">
+                                            <div className="@container shrink-0 w-18">
                                                 <CustomSelect
                                                     className="text-sm"
-                                                    buttonClassName="w-full px-3 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
+                                                    buttonClassName="w-full pl-1 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
                                                     imageClassName="object-contain object-center w-16 mr-2 h-7"
                                                     compactImageClassName="object-contain object-center w-10 h-7"
                                                     value={showdownSetOverride ?? ''}

@@ -919,7 +919,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # RE-SORT POSITIONS
         final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: item[0].extract_games_played_used_for_sort(final_position_games_played), reverse=True))
-        
+
         return final_positions_in_game, positions_and_real_life_ratings, final_position_games_played
 
     def calc_positions_and_defense_for_visuals(self) -> dict[str, int]:
@@ -5335,6 +5335,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # ---- IMAGE FROM GOOGLE DRIVE -----
         file_service = None
+        gdrive_file_versions: dict[str, str] = {}
         if player_img_user_uploaded is None:
             is_search_for_universal_img = self.image.parallel != ImageParallel.MYSTERY
             img_components_dict = self._player_image_components_dict()
@@ -5349,14 +5350,14 @@ class ShowdownPlayerCard(BaseModel):
                 else:
                     # USE FIREBASE AS DIRECTORY
                     folder_id = self.set.player_image_gdrive_folder_id
-                    file_service, img_components_dict = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
+                    file_service, img_components_dict, gdrive_file_versions = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
             if len(non_empty_components) == 0:
                 img_components_dict[PlayerImageComponent.SILHOUETTE] = self._template_img_path(f'SIL-{self.player_classification}')
             
-            player_imgs = self._automated_player_image_layers(component_img_urls_dict=img_components_dict, file_service=file_service)
+            player_imgs = self._automated_player_image_layers(component_img_urls_dict=img_components_dict, file_service=file_service, gdrive_file_versions=gdrive_file_versions)
             if len(player_imgs) > 0:
                 images_to_paste += player_imgs
 
@@ -5370,11 +5371,13 @@ class ShowdownPlayerCard(BaseModel):
 
         return images_to_paste
 
-    def _automated_player_image_layers(self, file_service, component_img_urls_dict:dict) -> list[tuple[Image.Image, tuple[int,int]]]:
+    def _automated_player_image_layers(self, file_service, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str] = None) -> list[tuple[Image.Image, tuple[int,int]]]:
         """ Download and manipulate player image asset(s) to fit the current set's style.
 
         Args:
+          file_service: Google Drive file service used for downloads.
           component_img_urls_dict: Dict of image urls per component.
+          gdrive_file_versions: Dict of Google Drive file id -> version (md5 checksum or modified time). Used as the local cache key.
 
         Returns:
           List of tuples that contain a PIL image objects and coordinates to paste them
@@ -5425,13 +5428,10 @@ class ShowdownPlayerCard(BaseModel):
             image = None
             match img_component.load_source:
                 case "DOWNLOAD":
-                    # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
+                    # 1. CHECK FOR IMAGE IN LOCAL CACHE. KEYED ON DRIVE FILE ID + VERSION SO REPLACED/UPDATED FILES ARE NEVER STALE.
                     image = None
-                    type_override = self.player_type_override.override_string if self.player_type_override else ''
-                    stats_period = self.stats_period.type.player_image_search_term if self.stats_period.type.player_image_search_term else ''
-                    cached_image_filename = f"{img_component.source_name}-{self.year}-({self.mlb_id or self.bref_id})-({self.team.value}){type_override}{stats_period}.png"
-                    cached_image_path = os.path.join(os.path.dirname(__file__), 'image_uploads', cached_image_filename)
-                    if not self.ignore_cache:
+                    cached_image_path = self._cached_gdrive_image_path(component=img_component, file_id=img_url, gdrive_file_versions=gdrive_file_versions)
+                    if cached_image_path and not self.ignore_cache:
                         try:
                             image = Image.open(cached_image_path)
                             self.image.source.type = ImageSourceType.LOCAL_CACHE
@@ -5449,7 +5449,8 @@ class ShowdownPlayerCard(BaseModel):
                     if image is None:
                         image = self._download_google_drive_image(file_service=file_service,file_id=img_url)
                         if image:
-                            self._cache_downloaded_image(image=image, path=cached_image_path)
+                            if cached_image_path:
+                                self._cache_downloaded_image(image=image, path=cached_image_path)
                             self.image.source.type = ImageSourceType.GOOGLE_DRIVE
                 case "COLOR":
                     if self.image.special_edition == SpecialEdition.ASG_LINES:
@@ -5710,22 +5711,24 @@ class ShowdownPlayerCard(BaseModel):
           Tuple with the following:
             Google Drive file service object
             Dict of image urls per component.
+            Dict of file id -> version (md5 checksum, falling back to modified time).
         """
         
         # GAIN ACCESS TO GOOGLE DRIVE
         file_service = None
+        file_versions: dict[str, str] = {}
         SCOPES = ['https://www.googleapis.com/auth/drive']
         GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
         if not GOOGLE_CREDENTIALS_STR:
             # IF NO CREDS, RETURN NONE
-            return (file_service, components_dict)
+            return (file_service, components_dict, file_versions)
         
         # CREDS FILE FOUND, PROCEED
         GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
         try:
             GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
         except:
-            return (file_service, components_dict)
+            return (file_service, components_dict, file_versions)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
 
         # BUILD THE SERVICE OBJECT.
@@ -5743,7 +5746,7 @@ class ShowdownPlayerCard(BaseModel):
                     query += f" or name contains '({mlb_id})'"
                 query += ")"
                 file_service = service.files()
-                response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
+                response = file_service.list(q=query,pageSize=1000,pageToken=page_token,fields="nextPageToken, files(id, name, md5Checksum, modifiedTime)").execute()
                 new_files_list = response.get('files')
                 page_token = response.get('nextPageToken', None)
                 files_metadata = files_metadata + new_files_list
@@ -5758,8 +5761,9 @@ class ShowdownPlayerCard(BaseModel):
         
         # LOOK FOR SUBSTRING IN FILE NAMES
         file_matches_metadata_dict = self._img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
+        file_versions = {f['id']: f.get('md5Checksum') or f.get('modifiedTime') for f in files_metadata if f.get('id') and (f.get('md5Checksum') or f.get('modifiedTime'))}
         
-        return (file_service, file_matches_metadata_dict)
+        return (file_service, file_matches_metadata_dict, file_versions)
     
     def _img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int) -> dict[PlayerImageComponent, str]:
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
@@ -6057,6 +6061,25 @@ class ShowdownPlayerCard(BaseModel):
             return components_dict
         
         return default_components_for_context
+
+    def _cached_gdrive_image_path(self, component:PlayerImageComponent, file_id:str, gdrive_file_versions:dict[str, str] = None) -> Optional[str]:
+        """Local cache path for a downloaded Google Drive image, keyed on the file id and its version.
+        A new upload (new id) or an in-place replacement (new md5/modified time) produces a new path,
+        so a stale image is never served.
+
+        Args:
+          component: Image component being loaded.
+          file_id: Google Drive file id.
+          gdrive_file_versions: Dict of Google Drive file id -> version.
+
+        Returns:
+          Path to the cached image, or None if the file is not a versioned Drive file (ex: local drive or template image).
+        """
+        version = (gdrive_file_versions or {}).get(file_id, None)
+        if not version:
+            return None
+        version_cleaned = re.sub(r'[^\w.-]', '', version)
+        return os.path.join(os.path.dirname(__file__), 'image_uploads', f"{component.source_name}-{file_id}-{version_cleaned}.png")
 
     def _cache_downloaded_image(self, image:Image.Image, path:str) -> None:
         """Store downloaded image to the uploads folder in order to cache it

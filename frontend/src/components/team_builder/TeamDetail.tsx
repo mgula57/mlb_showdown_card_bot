@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
-import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource } from '../../api/userTeams';
+import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource, GuidedOption, GuidedFillOrder } from '../../api/userTeams';
 import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
+import { GuidedDraftPanel, GUIDED_DOCK_HEIGHT_CLASS } from './GuidedDraftPanel';
+import { NewBadge } from '../shared/NewBadge';
+import { DraftModeChooser, DraftModeBannerToggle } from './DraftModeChooser';
+import type { DraftMode, DraftStartChoice } from './DraftModeChooser';
+import { useGuidedDraft } from '../../hooks/useGuidedDraft';
 import { TeamLogo } from './TeamLogo';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
@@ -16,6 +21,7 @@ import { FieldView, FIELD_POSITIONS } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
 import { DepthChartPanel } from './DepthChartPanel';
 import { LineupPanel } from './LineupPanel';
+import { ProgressRing } from './ProgressRing';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { SlideOver } from '../shared/SlideOver';
 import { SearchGradientBorder } from '../shared/SearchGradientBorder';
@@ -26,7 +32,7 @@ import {
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
     FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
-    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh
+    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh, FaCompass
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
@@ -52,7 +58,11 @@ const PICK_SOURCE_META: Record<PickSource, { label: string; icon: IconType; clas
     MANUAL:   { label: 'Manual',   icon: FaHandPointer,       className: 'bg-sky-500/15 text-sky-600 dark:text-sky-300' },
     AUTOFILL: { label: 'Autofill', icon: FaWandMagicSparkles, className: 'bg-violet-500/15 text-violet-600 dark:text-violet-300' },
     IMPORTED: { label: 'Imported', icon: FaFileImport,        className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
+    GUIDED:   { label: 'Guided',   icon: FaCompass,           className: 'bg-amber-500/15 text-amber-600 dark:text-amber-300' },
 };
+
+/** Draft panel tab value for Guided Draft — sits alongside the card-source tabs (BOT/WOTC/...). */
+const GUIDED_TAB = 'GUIDED';
 
 function PickSourceBadge({ source }: { source: PickSource }) {
     const meta = PICK_SOURCE_META[source] ?? PICK_SOURCE_META.MANUAL;
@@ -283,6 +293,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [stale, setStale] = useState(false);
     const [draftSource, setDraftSource] = useState<CardSourceType>(CardSource.BOT);
+    // Search the card pool (one of the source tabs) or draft round-by-round via the Guided tab.
+    const [draftMode, setDraftMode] = useState<DraftMode>('search');
+    // Set once the drafter answers (or dismisses) the "how do you want to draft?" chooser, so it
+    // only greets an empty roster once per visit.
+    const [draftModeChosen, setDraftModeChosen] = useState(false);
+    // One-off budget a Guided Draft paces against when the team has no pts_limit.
+    const [guidedTarget, setGuidedTarget] = useState<number | undefined>(undefined);
+    // Whether Fill rounds walk the roster in order or target a random open slot each round.
+    const [guidedOrder, setGuidedOrder] = useState<GuidedFillOrder>('random');
     const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(
         () => justCopied ? { name: 'Team Copied', position: 'Added to My Teams' } : null
     );
@@ -325,6 +344,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const navigate = useNavigate();
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Set by a change that should save right away instead of after the usual debounce — a
+    // Guided Draft pick, whose next round is planned server-side from the saved roster.
+    const saveImmediatelyRef = useRef(false);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLg, setIsLg] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
 
@@ -439,10 +461,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return () => { stale = true; };
     }, [team.team_id, token]);
 
-    // Auto-save: debounce 1.5s after any dirty change
+    // Auto-save: debounce 1.5s after any dirty change (or save right away when flagged)
     useEffect(() => {
         if (!dirty || readOnly) return;
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        const delay = saveImmediatelyRef.current ? 0 : 1500;
+        saveImmediatelyRef.current = false;
         saveTimerRef.current = setTimeout(async () => {
             setSaveStatus('saving');
             try {
@@ -456,7 +480,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 setSaveStatus('error');
                 setPendingPickPositions(new Set());
             }
-        }, 1500);
+        }, delay);
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
     }, [draft, dirty]);
 
@@ -495,7 +519,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // on team switch, so this state can't leak across teams anyway).
     const [fitsRosterEnabled, setFitsRosterEnabled] = useState(false);
 
-    function update(updates: TeamUpdatePayload) {
+    function update(updates: TeamUpdatePayload, { immediate = false }: { immediate?: boolean } = {}) {
+        if (immediate) saveImmediatelyRef.current = true;
         setDraft(prev => ({ ...prev, ...updates } as Team));
         setDirty(true);
     }
@@ -601,13 +626,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
      *  pruned from the roster and any lineup/rotation slot first. The server re-derives the
      *  rotation (points-ordered) on save; we mirror the bullpen change locally so it shows
      *  immediately. */
-    function addGenericSlot(position: 'BE' | 'RP', card: CardDatabaseRecord, replacing: { card_id: string } | null) {
+    function addGenericSlot(position: 'BE' | 'RP', card: CardDatabaseRecord, replacing: { card_id: string } | null, pickSource: PickSource = 'MANUAL') {
         addCard(card);
         const rosterSlot: TeamRosterSlot = {
             ...slotRefForCard(card),
             roster_position: position,
             draft_order: nextDraftOrder(),
-            pick_source: 'MANUAL',
+            pick_source: pickSource,
         };
         const roster = [
             ...draft.roster.filter(s => !replacing || s.card_id !== replacing.card_id),
@@ -620,18 +645,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         if (position === 'RP') {
             rotation = [...rotation, { ...slotRefForCard(card), role: 'RP' }];
         }
-        update({ roster, lineups, rotation });
+        update({ roster, lineups, rotation }, { immediate: pickSource === 'GUIDED' });
         setDraftToast({ name: card.name, position: position === 'BE' ? 'Bench' : 'Bullpen' });
+        finishPick(pickSource);
+    }
+
+    /** Shared post-pick cleanup. A guided pick leaves `pendingSlot` alone so the mobile draft
+     *  SlideOver stays open on the next round instead of closing after every pick. */
+    function finishPick(pickSource: PickSource) {
         setConfirmCard(null);
-        setPendingSlot(null);
+        if (pickSource !== 'GUIDED') setPendingSlot(null);
         setDraftSearchResetKey(k => k + 1);
     }
 
-    function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!) {
+    function handleConfirmPosition(position: string, card: CardDatabaseRecord = confirmCard!, pickSource: PickSource = 'MANUAL') {
         if (!card) return;
 
         if (position === 'BE' || position === 'RP') {
-            addGenericSlot(position, card, null);
+            addGenericSlot(position, card, null, pickSource);
             return;
         }
 
@@ -641,21 +672,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             ...slotRefForCard(card),
             roster_position: position,
             draft_order: nextDraftOrder(),
-            pick_source: 'MANUAL',
+            pick_source: pickSource,
         };
 
         // SP1..SPn and field positions each own a single slot — replace whoever holds it.
         // Lineups/rotation are re-derived from the roster on save.
         const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-        update({ roster });
+        update({ roster }, { immediate: pickSource === 'GUIDED' });
         // The lineup/rotation slot for this position won't reflect the pick until the save
         // round-trips — flag it so FieldView/DepthChartPanel can show a spinner there meanwhile.
         setPendingPickPositions(prev => new Set(prev).add(position));
 
         setDraftToast({ name: card.name, position });
-        setConfirmCard(null);
-        setPendingSlot(null);
-        setDraftSearchResetKey(k => k + 1);
+        finishPick(pickSource);
     }
 
     /** Remove a drafted player entirely — off the roster and out of any lineup/rotation slot
@@ -781,8 +810,32 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return { filled, total, buckets };
     }, [draft, effectiveBucketMins]);
 
-    const activeFieldPosition = pendingSlot?.kind === 'field' ? pendingSlot.position : null;
-    const activeRole = pendingSlot?.kind === 'rotation' ? pendingSlot.role
+    const guidedActive = draftMode === 'guided' && showEditControls && setupStep === 'draft' && !!token && !!draft.team_id;
+    const guided = useGuidedDraft({
+        enabled: guidedActive,
+        teamId: draft.team_id,
+        token,
+        roster: draft.roster,
+        saved: !dirty && saveStatus !== 'saving',
+        ptsTarget: draft.pts_limit == null ? guidedTarget : undefined,
+        hasBudget: draft.pts_limit != null || guidedTarget != null,
+        order: guidedOrder,
+    });
+    // Mobile has no side-by-side draft panel, so guided mode docks a short strip to the bottom
+    // of the screen, under the field view, instead of living in the search SlideOver.
+    const guidedDocked = guidedActive && !isLg;
+    // The slot the current guided round fills — highlighted on the field/depth chart like a
+    // manually-selected slot. The star round has no single slot (it varies per option).
+    const guidedPosition = guidedActive ? guided.round?.round.position ?? null : null;
+
+    function handleGuidedPick(option: GuidedOption) {
+        handleConfirmPosition(option.roster_position, option.card, 'GUIDED');
+    }
+
+    const activeFieldPosition = guidedPosition && (FIELD_POSITIONS as readonly string[]).includes(guidedPosition) ? guidedPosition
+        : pendingSlot?.kind === 'field' ? pendingSlot.position : null;
+    const activeRole = guidedPosition && !(FIELD_POSITIONS as readonly string[]).includes(guidedPosition) ? guidedPosition
+        : pendingSlot?.kind === 'rotation' ? pendingSlot.role
         : pendingSlot?.kind === 'bullpen' ? 'RP'
         : pendingSlot?.kind === 'bench' ? 'BE'
         : null;
@@ -972,10 +1025,62 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         [draft.allowed_card_sources],
     );
 
+    const renderGuidedPanel = (variant: 'full' | 'docked') => (
+        <GuidedDraftPanel
+            variant={variant}
+            state={guided}
+            buckets={rosterProgress.buckets}
+            rosterCount={draft.roster.length}
+            rosterSize={draft.roster_size}
+            currentPts={pointsBreakdown.total}
+            budget={draft.pts_limit ?? guidedTarget ?? null}
+            benchPtsMultiplier={draft.bench_pts_multiplier}
+            needsTarget={draft.pts_limit == null && guidedTarget == null}
+            order={guidedOrder}
+            onOrderChange={setGuidedOrder}
+            onSetTarget={setGuidedTarget}
+            onPick={handleGuidedPick}
+            pickDisabled={draftActionDisabled}
+            saveFailed={saveStatus === 'error'}
+            onExit={variant === 'docked' ? () => setDraftMode('search') : undefined}
+        />
+    );
+
+    // Picking a source tab drops back to search; the Guided tab switches modes.
+    function handleDraftTabChange(value: string) {
+        if (value === GUIDED_TAB) {
+            setDraftMode('guided');
+            // Rounds pick their own slot; on mobile this also closes the search SlideOver so the
+            // docked guided strip takes over.
+            setPendingSlot(null);
+            return;
+        }
+        setDraftMode('search');
+        setDraftSource(value as CardSourceType);
+    }
+
+    function handleDraftModeChange(mode: DraftMode) {
+        handleDraftTabChange(mode === 'guided' ? GUIDED_TAB : draftSource);
+    }
+
+    function handleDraftStartChoice(choice: DraftStartChoice) {
+        setDraftModeChosen(true);
+        if (choice === 'autofill') {
+            setShowAutofill(true);
+            return;
+        }
+        handleDraftModeChange(choice);
+    }
+
+    const showDraftModeChooser = teamMode === 'drafting' && setupStep === 'draft' && !!token
+        && draft.roster.length === 0 && !draftModeChosen;
+
     const draftPanel = (
         <DraftPanel
             draftSource={draftSource}
-            onSourceChange={setDraftSource}
+            draftMode={draftMode}
+            onTabChange={handleDraftTabChange}
+            guidedPanel={renderGuidedPanel('full')}
             allowedSources={allowedSources}
             pendingLabel={pendingLabel}
             searchFilters={searchFilters}
@@ -1001,17 +1106,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 <button
                     key={s.key}
                     type="button"
-                    onClick={() => setDraftSource(s.key)}
-                    className={tabButtonClass(draftSource === s.key)}
+                    onClick={() => handleDraftTabChange(s.key)}
+                    className={tabButtonClass(draftMode === 'search' && draftSource === s.key)}
                 >
                     {s.label}
                 </button>
             ))}
             <div className="ml-auto flex items-center gap-2 shrink-0">
-                {runRate && (
+                {runRate && draftMode === 'search' && (
                     <FitsMyRosterToggle enabled={fitsRosterEnabled} onToggle={() => setFitsRosterEnabled(v => !v)} />
                 )}
-                {pendingLabel && (
+                {pendingLabel && draftMode === 'search' && (
                     <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                         {pendingLabel}
@@ -1029,33 +1134,32 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         </div>
     );
 
+    /** Start filling a specific slot by searching for it — leaves guided mode, since the drafter
+     *  just asked for something other than the current round's need. */
+    function openSlot(slot: PendingSlot) {
+        if (!showEditControls) return;
+        setDraftMode('search');
+        setPendingSlot(slot);
+    }
+
     const fieldViewContent = (
         <FieldView
             lineup={defaultLineup}
             cardMap={cardMap}
-            onSlotClick={(pos, slot) => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'field', position: pos, current: slot });
-            }}
-            onBenchClick={current => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'bench', current });
-            }}
-            onBullpenClick={current => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'bullpen', current });
-            }}
-            onRoleClick={(role, current) => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'rotation', role, current });
-            }}
-            readOnly={!showEditControls}
+            onSlotClick={(pos, slot) => openSlot({ kind: 'field', position: pos, current: slot })}
+            onBenchClick={current => openSlot({ kind: 'bench', current })}
+            onBullpenClick={current => openSlot({ kind: 'bullpen', current })}
+            onRoleClick={(role, current) => openSlot({ kind: 'rotation', role, current })}
+            // Guided Draft chooses each round's slot, so slots can't be picked to search for.
+            readOnly={!showEditControls || guidedActive}
             activePosition={activeFieldPosition}
+            activeRole={activeRole}
             rosterData={rosterData}
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
             isLoadingCards={isLoadingCards}
             pendingPositions={pendingPickPositions}
+            scrollTarget={guidedPosition && guided.round ? { position: guidedPosition, key: guided.round.round.index } : null}
         />
     );
 
@@ -1063,24 +1167,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         <DepthChartPanel
             team={draft}
             cardMap={cardMap}
-            onSlotClick={(pos, slot) => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'field', position: pos, current: slot });
-            }}
-            onRoleClick={(role, current) => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'rotation', role, current });
-            }}
-            onBullpenClick={current => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'bullpen', current });
-            }}
-            onBenchClick={current => {
-                if (!showEditControls) return;
-                setPendingSlot({ kind: 'bench', current });
-            }}
+            onSlotClick={(pos, slot) => openSlot({ kind: 'field', position: pos, current: slot })}
+            onRoleClick={(role, current) => openSlot({ kind: 'rotation', role, current })}
+            onBullpenClick={current => openSlot({ kind: 'bullpen', current })}
+            onBenchClick={current => openSlot({ kind: 'bench', current })}
             onReorder={showEditControls ? updates => update(updates) : undefined}
             readOnly={!showEditControls}
+            slotPickingDisabled={guidedActive}
             activePosition={activeFieldPosition}
             activeRole={activeRole}
             hoveredCardId={hoveredCardId}
@@ -1501,17 +1594,27 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {teamMode !== 'complete' && (
-                <div className="flex items-center justify-between gap-3 px-2 py-2.5 shrink-0" style={bannerStyle}>
+                // Wraps the controls onto a second row (right-aligned) rather than letting the
+                // step chips squeeze under them on narrow screens.
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 shrink-0" style={bannerStyle}>
                     <div className="flex items-center gap-1 min-w-0">
                         <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
-                        <span className="text-[11px] font-bold drop-shadow-sm flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
+                        <span className="text-[10px] md:text-[11px] font-bold drop-shadow-sm flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
                             {teamMode === 'drafting'
-                                ? <SetupStepChips
-                                    step={setupStep}
-                                    onStep={setSetupStep}
-                                    settingsDone={draft.roster.length > 0}
-                                    color={bannerLeft.fill}
-                                  />
+                                ? <>
+                                    <SetupStepChips
+                                        step={setupStep}
+                                        onStep={setSetupStep}
+                                        settingsDone={draft.roster.length > 0}
+                                        color={bannerLeft.fill}
+                                    />
+                                    {guidedActive && (
+                                        <span className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-black/20 font-black tabular-nums whitespace-nowrap" title="Guided Draft round">
+                                            <FaCompass className="text-[10px]" />
+                                            ROUND {Math.min(draft.roster.length + 1, draft.roster_size)}/{draft.roster_size}
+                                        </span>
+                                    )}
+                                  </>
                                 : <>EDITING<span className="hidden md:inline"> — changes are saved automatically</span></>}
                         </span>
                     </div>
@@ -1519,7 +1622,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         wide screens with a draft pace readout — points left under budget and
                         roughly what that leaves per remaining pick. */}
                     <div className="hidden sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold drop-shadow-sm" style={{ color: bannerLeft.fill }}>
-                        {teamMode === 'drafting' && setupStep === 'draft' && runRate && (
+                        {/* Guided Draft shows its own round progress and points left, so the banner drops both. */}
+                        {teamMode === 'drafting' && setupStep === 'draft' && !guidedActive && runRate && (
                             runRate.remaining < 0 ? (
                                 <span className="flex items-center gap-1.5 text-red-200">
                                     <FaGaugeHigh className="text-[12px]" />
@@ -1532,7 +1636,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         <span>{runRate.remaining} PTS LEFT</span>
                                     </div>
                                     {runRate.perSlot != null && (
-                                        <span className="opacity-70 text-[10px] sm:text-[11px] font-semibold">
+                                        <span className="hidden lg:inline opacity-70 text-[10px] sm:text-[11px] font-semibold">
                                             ~{Math.round(runRate.perSlot).toLocaleString()} PTS/PICK
                                         </span>
                                     )}
@@ -1540,8 +1644,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             )
                         )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        {teamMode === 'drafting' && setupStep === 'draft' && (
+                    <div className="flex items-center gap-2 shrink-0 ml-auto">
+                        {teamMode === 'drafting' && setupStep === 'draft' && !guidedActive && (
                             <div className="flex flex-col gap-0">
                                 <div className="flex items-center gap-2">
                                     <div className="w-14 xs:w-20 sm:w-20 md:w-28 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
@@ -1583,6 +1687,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         )}
                                     </>
                                 )}
+                                {teamMode === 'drafting' && (
+                                    <DraftModeBannerToggle
+                                        mode={draftMode}
+                                        onChange={handleDraftModeChange}
+                                        btnClass={bannerRight.btnClass}
+                                        // Guided hides the banner's progress / PTS readouts, freeing room for the labels.
+                                        alwaysShowLabels={guidedActive}
+                                    />
+                                )}
                                 {lastAutofillStrategy && (
                                     <button
                                         type="button"
@@ -1598,8 +1711,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     type="button"
                                     onClick={() => setShowAutofill(true)}
                                     className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                    aria-label="Autofill"
+                                    title="Autofill"
                                 >
-                                    <FaWandMagicSparkles className="text-[9px]" /> Autofill
+                                    <FaWandMagicSparkles className="text-[9px]" /> <span className="hidden sm:inline">Autofill</span>
                                 </button>
                             </>
                         )}
@@ -1752,7 +1867,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         own dismiss button occupies the same corner. A larger halo sits behind
                         it (same treatment as SlideOver's dismiss button) so it stays legible
                         over busy content, fading out via a radial mask rather than a hard edge. */}
-                    {!pendingSlot && (
+                    {!pendingSlot && !guidedDocked && (
                         <div
                             className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none"
                             style={{
@@ -1780,6 +1895,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                     )}
 
+                    {guidedDocked && (
+                        <>
+                            {/* Clears the docked strip so the bottom of the field view stays reachable. */}
+                            <div className={`${GUIDED_DOCK_HEIGHT_CLASS} shrink-0`} />
+                            <div className="lg:hidden fixed inset-x-0 md:left-(--side-menu-width) bottom-0 z-40 transition-[left] duration-300 border-t border-(--divider) shadow-[0_-8px_24px_rgba(0,0,0,0.25)] pb-[env(safe-area-inset-bottom)] bg-(--background-primary)/70 backdrop-blur-xl backdrop-saturate-150">
+                                {renderGuidedPanel('docked')}
+                            </div>
+                        </>
+                    )}
+
                     <SlideOver
                         isOpen={pendingSlot !== null}
                         onClose={() => setPendingSlot(null)}
@@ -1787,7 +1912,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     >
                         <DraftPanel
                             draftSource={draftSource}
-                            onSourceChange={setDraftSource}
+                            draftMode={draftMode}
+                            onTabChange={handleDraftTabChange}
+                            guidedPanel={renderGuidedPanel('full')}
                             allowedSources={allowedSources}
                             pendingLabel={pendingLabel}
                             searchFilters={searchFilters}
@@ -1961,6 +2088,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </Modal>
             )}
 
+            {showDraftModeChooser && (
+                <DraftModeChooser onChoose={handleDraftStartChoice} onClose={() => setDraftModeChosen(true)} />
+            )}
+
             {showAutofill && (
                 <AutofillPanel
                     ptsLimit={draft.pts_limit}
@@ -2084,7 +2215,11 @@ const TAB_TRIGGER_CLASS = radixTabTriggerClass();
 
 type DraftPanelProps = {
     draftSource: CardSourceType;
-    onSourceChange: (source: CardSourceType) => void;
+    draftMode: DraftMode;
+    /** A source key (BOT/WOTC/...) or GUIDED_TAB. */
+    onTabChange: (value: string) => void;
+    /** Rendered under the Guided tab, next to the source tabs. */
+    guidedPanel: React.ReactNode;
     allowedSources: readonly { key: CardSourceType; label: string }[];
     pendingLabel: string | null;
     searchFilters: Partial<FilterSelections>;
@@ -2107,11 +2242,12 @@ type DraftPanelProps = {
     actionDisabled?: boolean;
 };
 
-const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, fitsRosterToggle, actionDisabled = false }: DraftPanelProps) {
+const DraftPanel = memo(function DraftPanel({ draftSource, draftMode, onTabChange, guidedPanel, allowedSources, pendingLabel, searchFilters, lockedFilterKeys, draftedCardIds, onCardPicked, hideSourceTabs = false, onDismissPending, resetTrigger, fitsRosterToggle, actionDisabled = false }: DraftPanelProps) {
+    const isGuided = draftMode === 'guided';
     return (
         <Tabs.Root
-            value={draftSource}
-            onValueChange={v => onSourceChange(v as CardSourceType)}
+            value={isGuided ? GUIDED_TAB : draftSource}
+            onValueChange={onTabChange}
             className="flex flex-col gap-0 h-full min-h-0"
         >
             {!hideSourceTabs && (
@@ -2124,11 +2260,16 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                             {s.label}
                         </Tabs.Trigger>
                     ))}
+                    <Tabs.Trigger value={GUIDED_TAB} className={TAB_TRIGGER_CLASS}>
+                        <FaCompass className="inline-block" />
+                        Guided
+                        <NewBadge />
+                    </Tabs.Trigger>
                     <div className="ml-auto flex items-center gap-2 shrink-0">
-                        {fitsRosterToggle && (
+                        {fitsRosterToggle && !isGuided && (
                             <FitsMyRosterToggle enabled={fitsRosterToggle.enabled} onToggle={fitsRosterToggle.onToggle} />
                         )}
-                        {pendingLabel && (
+                        {pendingLabel && !isGuided && (
                             <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                                 {pendingLabel}
@@ -2168,33 +2309,12 @@ const DraftPanel = memo(function DraftPanel({ draftSource, onSourceChange, allow
                     />
                 </Tabs.Content>
             ))}
+            <Tabs.Content value={GUIDED_TAB} className="flex-1 min-h-0 flex flex-col focus:outline-none">
+                {guidedPanel}
+            </Tabs.Content>
         </Tabs.Root>
     );
 });
-
-/** Tiny donut showing how full a roster bucket is. Inherits the chip's text color via
- *  `currentColor`, and shows a full ring once the bucket meets (or exceeds) its target. */
-function ProgressRing({ filled, target, size = 12, stroke = 2 }: {
-    filled: number;
-    target: number;
-    size?: number;
-    stroke?: number;
-}) {
-    const pct = target > 0 ? Math.min(1, filled / target) : (filled > 0 ? 1 : 0);
-    const r = (size - stroke) / 2;
-    const circumference = 2 * Math.PI * r;
-    return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 -rotate-90" aria-hidden>
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity={0.3} strokeWidth={stroke} />
-            <circle
-                cx={size / 2} cy={size / 2} r={r}
-                fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={circumference * (1 - pct)}
-            />
-        </svg>
-    );
-}
 
 /** The two-step "Team Settings → Drafting" indicator shown in the drafting banner. Both steps
  *  are always clickable — the marks (check / number) are just progress hints. */
@@ -2208,7 +2328,7 @@ function SetupStepChips({ step, onStep, settingsDone, color }: {
         <button
             type="button"
             onClick={() => onStep(id)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
+            className={`flex items-center gap-1 px-1 py-1 rounded-lg cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
             style={{ color }}
         >
             <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[8px] shrink-0" style={{ borderColor: color }}>
@@ -2221,7 +2341,7 @@ function SetupStepChips({ step, onStep, settingsDone, color }: {
     return (
         <span className="flex items-center gap-0.5">
             {chip('settings', 'Settings', null, settingsDone)}
-            <FaArrowRight className="text-[8px] opacity-40 shrink-0" style={{ color }} />
+            <FaArrowRight className="text-[9px] opacity-40 shrink-0" style={{ color }} />
             {chip('draft', 'Drafting', null, false)}
         </span>
     );

@@ -247,14 +247,13 @@ class Position(Enum):
         match self:
             case Position.CA:
                 # SAFELY INCLUDE BOTH 'C' AND 'CA' JUST IN CASE THE NAME CHANGES ACROSS SETS
-                ca_games = [g for pos, g in games_played_dict.items() if pos in ['C', 'CA',]]
+                ca_games = [g for pos, g in games_played_dict.items() if getattr(pos, 'value', pos) in ['C', 'CA',]]
                 return sum(ca_games) if len(ca_games) > 0 else 0
             case Position.IF:
-                infield_games = [g for pos, g in games_played_dict.items() if pos in ['1B', '2B', '3B', 'SS']]
+                infield_games = [g for pos, g in games_played_dict.items() if getattr(pos, 'value', pos) in ['1B', '2B', '3B', 'SS']]
                 return sum(infield_games) if len(infield_games) > 0 else 0
             case Position.LFRF:
-                lf_rf_games = sum([g for pos, g in games_played_dict.items() if pos in ['LF', 'RF',]])
-                return lf_rf_games
+                return sum([g for pos, g in games_played_dict.items() if getattr(pos, 'value', pos) in ['LF', 'RF', 'LF/RF']])
             case _:
                 return games_played_dict.get(self.value, 0)
 
