@@ -53,6 +53,9 @@ type FieldViewProps = {
     onRoleClick?: (role: string, current: PitcherAssignment | null) => void;
     readOnly?: boolean;
     activePosition?: string | null;
+    /** Rotation role ('SP2') being filled, or 'RP' / 'BE' to highlight the next open bullpen /
+     *  bench row (those rows are interchangeable, so only the first open one lights up). */
+    activeRole?: string | null;
     rosterData?: FieldViewRosterData;
     hoveredCardId?: string | null;
     onCardHover?: (cardId: string | null) => void;
@@ -101,7 +104,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 }
 
 export function FieldView({
-    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition,
+    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition, activeRole,
     rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
     simStatsMap, simStatsTooltip, notFoundLabels, scrollTarget,
@@ -157,6 +160,12 @@ export function FieldView({
     const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
     const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).slice().sort(byPointsDesc);
+
+    const isRoleActive = (role: string) => !!activeRole && (
+        role === activeRole
+        || (activeRole === 'RP' && role === `RP${bullpenSlots.length + 1}`)
+        || (activeRole === 'BE' && role === `BE${benchSlots.length + 1}`)
+    );
 
     const benchRowCount   = rosterData ? (rosterData.draftSlots?.bench   ?? benchSlots.length)   : 0;
     const bullpenRowCount = rosterData ? (rosterData.draftSlots?.bullpen ?? bullpenSlots.length) : 0;
@@ -399,7 +408,7 @@ export function FieldView({
                                                 <PositionSlotPlaceholder
                                                     position={placeholderLabel ?? role}
                                                     onClick={onItemClick ? () => onItemClick(role) : undefined}
-                                                    isActive={isPeerHovered}
+                                                    isActive={isPeerHovered || isRoleActive(role)}
                                                 />
                                                 {isNotFound && <CardNotFoundOverlay variant="row" />}
                                             </>

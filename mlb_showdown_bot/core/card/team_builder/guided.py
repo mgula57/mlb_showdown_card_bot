@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from .autofill import (
     BUCKET_QUERY_FILTERS,
     OFFENSE_POSITIONS,
-    _VARIETY_WEIGHT_BOUNDS,
     _bullpen_slot_weights,
     _existing_pts_by_bucket,
     _is_small_sample,
@@ -40,6 +39,16 @@ CORNERSTONE_ROLES = ('ace', 'star', 'closer')
 # bench; 'random' draws any open slot (cornerstones always come first either way).
 FILL_ORDERS = ('linear', 'random')
 CORNERSTONE_LABELS = {'ace': 'Ace Pitcher', 'star': 'Star Position Player', 'closer': 'Closer'}
+
+# Spend shape per bucket as (top, bottom) multiples of the bucket's average slot price — a linear
+# ramp between them, normalized so the bucket still totals its budget. Mirrors how a real roster
+# spends: a star or two and some cheap fillers in the lineup, a descending rotation. The bullpen
+# uses autofill's closer + descending committee shape instead (`_bullpen_slot_weights`).
+_SPEND_SHAPES: dict[str, tuple[float, float]] = {
+    'offense':  (1.8, 0.45),
+    'rotation': (1.45, 0.6),
+    'bench':    (1.5, 0.6),
+}
 
 # Price windows (± target), tried in order until enough options turn up.
 CORNERSTONE_WINDOWS = (50, 75, 100)
@@ -102,6 +111,9 @@ class GuidedDraftPlanner:
 
     OPTION_COUNT = 4
     SAMPLE_PER_BAND = 40
+    # Last-resort sample across the whole affordable range, when no window around the target
+    # turns up enough cards (e.g. a top-tier closer target above any reliever in the pool).
+    SAMPLE_FALLBACK = 300
 
     def __init__(
         self,
@@ -136,6 +148,8 @@ class GuidedDraftPlanner:
         self.bullpen_target = team.min_bullpen + bullpen_extra
 
         self.spent_by_bucket = _existing_pts_by_bucket(team, {}, team.bench_pts_multiplier, existing_card_points)
+        # Seeded per team + round so re-requesting the same round prices it the same way.
+        self._rng = random.Random(f'{team.team_id}:{len(roster)}')
 
     # ------------------------------------------------------------------
     # Public
@@ -183,27 +197,18 @@ class GuidedDraftPlanner:
         return self._fill_spec()
 
     def _cornerstone_spec(self, role: str) -> _RoundSpec:
+        # Each cornerstone takes the top tier of its bucket's spend shape.
         if role == 'ace':
-            open_n = self._open_rotation_count()
-            # The ace takes the top variety weight a rotation fill would ever hand one slot.
-            target = self._bucket_remaining('rotation') * _VARIETY_WEIGHT_BOUNDS[1] / max(1, open_n) if open_n > 1 \
-                else self._bucket_remaining('rotation')
             return _RoundSpec('cornerstone', role, CORNERSTONE_LABELS[role], self._first_open_rotation_role(),
-                              'rotation', BUCKET_QUERY_FILTERS['rotation'], self._clamp(target, 'rotation'),
+                              'rotation', BUCKET_QUERY_FILTERS['rotation'], self._slot_target('rotation', top=True),
                               CORNERSTONE_WINDOWS)
         if role == 'star':
-            open_n = len(OFFENSE_POSITIONS) - len(self.field_filled)
-            target = self._bucket_remaining('offense') * _VARIETY_WEIGHT_BOUNDS[1] / max(1, open_n)
             return _RoundSpec('cornerstone', role, CORNERSTONE_LABELS[role], None,
-                              'offense', BUCKET_QUERY_FILTERS['offense'], self._clamp(target, 'offense'),
+                              'offense', BUCKET_QUERY_FILTERS['offense'], self._slot_target('offense', top=True),
                               CORNERSTONE_WINDOWS)
-        # closer: the heavy anchor slot of the bullpen spend shape
-        open_n = max(1, self.bullpen_target - self.bullpen_count)
-        weights = _bullpen_slot_weights(open_n, with_closer=True)
-        target = self._bucket_remaining('bullpen') * weights[0] / sum(weights)
         return _RoundSpec('cornerstone', role, CORNERSTONE_LABELS[role], 'RP',
                           'bullpen', {'player_type': ['PITCHER'], 'positions': ['CLOSER']},
-                          self._clamp(target, 'bullpen'), CORNERSTONE_WINDOWS,
+                          self._slot_target('bullpen', top=True), CORNERSTONE_WINDOWS,
                           # Some sets tag few true closers — fall back to any reliever.
                           fallback_filters=BUCKET_QUERY_FILTERS['bullpen'])
 
@@ -227,35 +232,90 @@ class GuidedDraftPlanner:
         return slots or ['RP']
 
     def _fill_spec_for(self, slot: str) -> _RoundSpec:
+        # Lineup and bench slots draw a random remaining tier (stars and bargains land anywhere);
+        # rotation and bullpen take the top remaining tier, so they fill in descending order.
         if slot in OFFENSE_POSITIONS:
-            open_field = len(OFFENSE_POSITIONS) - len(self.field_filled)
             filters = BUCKET_QUERY_FILTERS['offense'] if slot == 'DH' \
                 else {'player_type': ['HITTER'], 'positions': [_FIELD_POSITION_FILTER[slot]]}
-            return self._fill(slot, 'field', 'offense', filters, self._bucket_remaining('offense') / open_field)
+            return self._fill(slot, 'field', 'offense', filters, self._slot_target('offense', top=False))
 
         if slot in ROTATION_ROLES:
-            target = self._bucket_remaining('rotation') / self._open_rotation_count()
-            return self._fill(slot, 'rotation', 'rotation', BUCKET_QUERY_FILTERS['rotation'], target,
-                              label=f'Starting Pitcher ({slot})')
+            return self._fill(slot, 'rotation', 'rotation', BUCKET_QUERY_FILTERS['rotation'],
+                              self._slot_target('rotation', top=True), label=f'Starting Pitcher ({slot})')
 
         if slot == 'RP':
-            n = max(1, self.bullpen_target - self.bullpen_count)
-            weights = _bullpen_slot_weights(n, with_closer=self.bullpen_count == 0)
-            target = self._bucket_remaining('bullpen') * weights[0] / sum(weights)
-            return self._fill('RP', 'bullpen', 'bullpen', BUCKET_QUERY_FILTERS['bullpen'], target)
+            return self._fill('RP', 'bullpen', 'bullpen', BUCKET_QUERY_FILTERS['bullpen'],
+                              self._slot_target('bullpen', top=True))
 
-        # Bench PTS count against the budget at the multiplier, so the raw card target scales up.
-        per_slot = self._bucket_remaining('bench') / max(1, self.bench_target - self.bench_count)
-        mult = self.team.bench_pts_multiplier or 1.0
-        return self._fill('BE', 'bench', 'bench', BUCKET_QUERY_FILTERS['bench'], per_slot / mult)
+        return self._fill('BE', 'bench', 'bench', BUCKET_QUERY_FILTERS['bench'], self._slot_target('bench', top=False))
 
-    def _fill(self, position: str, role: str, bucket: str, filters: dict, target: float, label: str | None = None) -> _RoundSpec:
+    def _fill(self, position: str, role: str, bucket: str, filters: dict, target_points: int, label: str | None = None) -> _RoundSpec:
         return _RoundSpec('fill', role, label or _POSITION_LABELS.get(position, position), position,
-                          bucket, filters, self._clamp(target, bucket), FILL_WINDOWS)
+                          bucket, filters, target_points, FILL_WINDOWS)
 
     # ------------------------------------------------------------------
     # Budget
     # ------------------------------------------------------------------
+
+    def _slot_target(self, bucket: str, top: bool) -> int:
+        """Raw-PTS target for the next pick from `bucket`, shaped like a real roster's spend.
+
+        The bucket's spend shape (one tier per slot) is laid over its picks so far: each existing
+        pick claims the tier nearest its actual price, and this round prices off one of the tiers
+        left — the top one, or a random one (seeded per team + round, so re-asking for the same
+        round gives the same target). Targets are a share of the bucket's *remaining* budget, so
+        the bucket still lands on its total however earlier picks over- or under-shot.
+        """
+        filled = self._filled_costs(bucket)
+        n_total = len(filled) + self._open_count(bucket)
+        tiers = sorted(self._spend_shape(bucket, n_total), reverse=True)
+        avg = self.pts_limit * GUIDED_PTS_DISTRIBUTION[bucket] / n_total
+        for cost in filled:
+            if len(tiers) <= 1:
+                break
+            ratio = cost / avg if avg > 0 else 0
+            tiers.remove(min(tiers, key=lambda t: abs(t - ratio)))
+        tier = tiers[0] if top else self._rng.choice(tiers)
+        target = self._bucket_remaining(bucket) * tier / sum(tiers)
+        # Bench PTS count against the budget at the multiplier, so the raw card target scales up.
+        if bucket == 'bench':
+            target /= self.team.bench_pts_multiplier or 1.0
+        return self._clamp(target, bucket)
+
+    @staticmethod
+    def _spend_shape(bucket: str, n: int) -> list[float]:
+        """`n` per-slot spend weights for `bucket` (mean 1.0, summing to `n`)."""
+        if n <= 1:
+            return [1.0]
+        if bucket == 'bullpen':
+            return _bullpen_slot_weights(n, with_closer=True)
+        hi, lo = _SPEND_SHAPES[bucket]
+        ramp = [hi - (hi - lo) * i / (n - 1) for i in range(n)]
+        scale = n / sum(ramp)
+        return [w * scale for w in ramp]
+
+    def _filled_costs(self, bucket: str) -> list[float]:
+        """Budget cost of each pick already in `bucket` (bench at the bench multiplier)."""
+        positions = {
+            'offense': set(OFFENSE_POSITIONS),
+            'rotation': set(ROTATION_ROLES),
+            'bullpen': set(BULLPEN_ROLES),
+            'bench': {'BE'},
+        }[bucket]
+        mult = self.team.bench_pts_multiplier if bucket == 'bench' else 1.0
+        return [
+            (self.existing_card_points.get(s.card_id) or 0) * mult
+            for s in self.team.roster if s.roster_position in positions
+        ]
+
+    def _open_count(self, bucket: str) -> int:
+        """Open slots left in `bucket` — at least 1, since a round is being priced from it."""
+        return max(1, {
+            'offense': len(OFFENSE_POSITIONS) - len(self.field_filled),
+            'rotation': self._open_rotation_count(),
+            'bullpen': self.bullpen_target - self.bullpen_count,
+            'bench': self.bench_target - self.bench_count,
+        }[bucket])
 
     def _bucket_remaining(self, bucket: str) -> float:
         return max(0.0, self.pts_limit * GUIDED_PTS_DISTRIBUTION[bucket] - self.spent_by_bucket[bucket])
@@ -307,14 +367,30 @@ class GuidedDraftPlanner:
                     best, best_window = options, window
                 if len(best) >= self.OPTION_COUNT:
                     return best, best_window
+
+        # Nothing priced near the target: offer whatever affordable cards come closest to it,
+        # reporting the window as how far the furthest option landed from the target.
+        for filters in filter(None, (spec.query_filters, spec.fallback_filters)):
+            pool = fetch_stratified_candidates(
+                db, filters, self.active_filters, self.card_sources, self.sets_by_source,
+                bands=[(MIN_CARD_POINTS, max_points, self.SAMPLE_FALLBACK)], columns=None, user_id=self.user_id,
+            )
+            options = self._pick_options(pool, spec, closest_to=spec.target_points)
+            if len(options) > len(best):
+                best = options
+                best_window = max(abs((o['card'].get('points') or 0) - spec.target_points) for o in options)
+            if len(best) >= self.OPTION_COUNT:
+                break
         return best, best_window
 
-    def _pick_options(self, pool: list[dict], spec: _RoundSpec) -> list[dict]:
+    def _pick_options(self, pool: list[dict], spec: _RoundSpec, closest_to: int | None = None) -> list[dict]:
         candidates = []
         seen_players: set[str] = set()
         random.shuffle(pool)
-        # Full-sample seasons first (bench is exempt, same as autofill), small samples only as filler.
-        if spec.role != 'bench':
+        if closest_to is not None:
+            pool.sort(key=lambda c: abs((c.get('points') or 0) - closest_to))
+        elif spec.role != 'bench':
+            # Full-sample seasons first (bench is exempt, same as autofill), small samples only as filler.
             pool.sort(key=_is_small_sample)
         for card in pool:
             if card['card_id'] in self.drafted_ids:

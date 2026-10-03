@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     FaCircleCheck, FaCompass, FaBullseye, FaGaugeHigh, FaPlus, FaRotateRight, FaFlagCheckered,
     FaArrowRight, FaShuffle, FaListOl, FaMagnifyingGlass,
@@ -63,6 +63,14 @@ export function GuidedDraftPanel(props: Props) {
     const docked = variant === 'docked';
     const { round } = state;
     const roundIndex = Math.min(rosterCount + 1, rosterSize);
+
+    // After each pick, jump the options list back to its start so the next round's cards are
+    // seen from the top (desktop grid) / first card (docked row) instead of where the last
+    // round was left scrolled.
+    const optionsScrollRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        optionsScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }, [rosterCount]);
 
     const progressBar = (
         <div className="h-1 rounded-full overflow-hidden bg-(--background-quaternary)">
@@ -142,7 +150,7 @@ export function GuidedDraftPanel(props: Props) {
                 </div>
             )}
 
-            <div className={`flex-1 min-h-0 ${docked ? 'overflow-x-auto overflow-y-hidden scrollbar-hide px-3 py-2.5' : 'overflow-y-auto scrollbar-hide p-4'}`}>
+            <div ref={optionsScrollRef} className={`flex-1 min-h-0 ${docked ? 'overflow-x-auto overflow-y-hidden scrollbar-hide px-3 py-2.5' : 'overflow-y-auto scrollbar-hide p-4'}`}>
                 {needsTarget
                     ? <GuidedTargetPrompt onSetTarget={onSetTarget} />
                     : <GuidedOptions {...props} docked={docked} />}
@@ -328,7 +336,7 @@ function RoundStepper({ round, buckets }: { round: GuidedRound | null; buckets: 
         }`;
 
     return (
-        <div className="flex flex-1 min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
+        <div className="flex flex-1 min-w-0 items-center gap-1 py-1 overflow-x-auto scrollbar-hide px-1">
             {GUIDED_CORNERSTONES.map(({ role, label }, i) => {
                 const active = round?.round.phase === 'cornerstone' && round.round.role === role;
                 const done = !!round?.cornerstones[role];
@@ -338,7 +346,7 @@ function RoundStepper({ round, buckets }: { round: GuidedRound | null; buckets: 
                             ? <FaCircleCheck className="text-[10px] text-(--success)" />
                             : active
                                 ? <span className="w-1.5 h-1.5 rounded-full bg-(--showdown-red) animate-pulse" />
-                                : <span className="tabular-nums">{i + 1}</span>}
+                                : <span className="tabular-nums">{i + 1}.</span>}
                         {label}
                     </span>
                 );

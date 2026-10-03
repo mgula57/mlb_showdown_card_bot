@@ -301,7 +301,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // One-off budget a Guided Draft paces against when the team has no pts_limit.
     const [guidedTarget, setGuidedTarget] = useState<number | undefined>(undefined);
     // Whether Fill rounds walk the roster in order or target a random open slot each round.
-    const [guidedOrder, setGuidedOrder] = useState<GuidedFillOrder>('linear');
+    const [guidedOrder, setGuidedOrder] = useState<GuidedFillOrder>('random');
     const [draftToast, setDraftToast] = useState<{ name: string; position: string } | null>(
         () => justCopied ? { name: 'Team Copied', position: 'Added to My Teams' } : null
     );
@@ -1150,8 +1150,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             onBenchClick={current => openSlot({ kind: 'bench', current })}
             onBullpenClick={current => openSlot({ kind: 'bullpen', current })}
             onRoleClick={(role, current) => openSlot({ kind: 'rotation', role, current })}
-            readOnly={!showEditControls}
+            // Guided Draft chooses each round's slot, so slots can't be picked to search for.
+            readOnly={!showEditControls || guidedActive}
             activePosition={activeFieldPosition}
+            activeRole={activeRole}
             rosterData={rosterData}
             hoveredCardId={hoveredCardId}
             onCardHover={setHoveredCardId}
@@ -1171,6 +1173,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             onBenchClick={current => openSlot({ kind: 'bench', current })}
             onReorder={showEditControls ? updates => update(updates) : undefined}
             readOnly={!showEditControls}
+            slotPickingDisabled={guidedActive}
             activePosition={activeFieldPosition}
             activeRole={activeRole}
             hoveredCardId={hoveredCardId}
@@ -1596,7 +1599,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 shrink-0" style={bannerStyle}>
                     <div className="flex items-center gap-1 min-w-0">
                         <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
-                        <span className="text-[11px] font-bold drop-shadow-sm flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
+                        <span className="text-[10px] md:text-[11px] font-bold drop-shadow-sm flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
                             {teamMode === 'drafting'
                                 ? <>
                                     <SetupStepChips
@@ -1633,7 +1636,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         <span>{runRate.remaining} PTS LEFT</span>
                                     </div>
                                     {runRate.perSlot != null && (
-                                        <span className="opacity-70 text-[10px] sm:text-[11px] font-semibold">
+                                        <span className="hidden lg:inline opacity-70 text-[10px] sm:text-[11px] font-semibold">
                                             ~{Math.round(runRate.perSlot).toLocaleString()} PTS/PICK
                                         </span>
                                     )}
@@ -2325,7 +2328,7 @@ function SetupStepChips({ step, onStep, settingsDone, color }: {
         <button
             type="button"
             onClick={() => onStep(id)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
+            className={`flex items-center gap-1 px-1 py-1 rounded-lg cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
             style={{ color }}
         >
             <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[8px] shrink-0" style={{ borderColor: color }}>
@@ -2338,7 +2341,7 @@ function SetupStepChips({ step, onStep, settingsDone, color }: {
     return (
         <span className="flex items-center gap-0.5">
             {chip('settings', 'Settings', null, settingsDone)}
-            <FaArrowRight className="text-[8px] opacity-40 shrink-0" style={{ color }} />
+            <FaArrowRight className="text-[9px] opacity-40 shrink-0" style={{ color }} />
             {chip('draft', 'Drafting', null, false)}
         </span>
     );
