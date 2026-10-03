@@ -2,6 +2,7 @@ from pprint import pprint
 from typing import List, Dict, Optional, Tuple
 import statistics
 import os
+import traceback
 import csv
 import json
 
@@ -332,8 +333,60 @@ class ShowdownBotSet(BaseModel):
             self.expansion_cards = expansion_cards
         
         self.final_players = final_players
-        
+
         return
+
+    def build_preview_rows(self, db: PostgresDB, rerun_cards: bool = False) -> List[dict]:
+        """Build the set and return its `card_bot` rows in set-number order, as the Edition
+        Builder's Algorithm preview shows them. With `rerun_cards`, each row's card is rebuilt
+        through the current `ShowdownPlayerCard` algorithm instead of the archived version."""
+        self.build_set_player_list()
+
+        set_numbers_by_id = {p.id: p.set_number for p in self.final_players or []}
+        if not set_numbers_by_id:
+            return []
+
+        rows = db.fetch_card_list({'id': list(set_numbers_by_id.keys()), 'showdown_set': self.showdown_sets, 'limit': len(set_numbers_by_id)})
+        for row in rows:
+            row['algorithm_set_number'] = set_numbers_by_id.get(row.get('id'))
+        rows.sort(key=lambda r: r.get('algorithm_set_number') or 0)
+
+        if rerun_cards and rows:
+            self.warnings.extend(self._rerun_preview_rows(db, rows))
+        return rows
+
+    @staticmethod
+    def _rerun_preview_rows(db: PostgresDB, rows: List[dict]) -> List[str]:
+        """Rebuild each preview row's archived card through the current algorithm, overwriting the
+        row's card-derived columns in place. Rows that fail keep their archived card. Returns warnings."""
+        archived_cards = db.fetch_cards_for_roster_slots(
+            [{'card_id': row['card_id'], 'card_source': 'BOT'} for row in rows if row.get('card_id')]
+        )
+        failed_names: List[str] = []
+        changed_count = 0
+        for row in rows:
+            archived = archived_cards.get(str(row.get('card_id')))
+            if archived is None:
+                failed_names.append(row.get('name') or row.get('id'))
+                continue
+            try:
+                rebuilt = ShowdownPlayerCard.rebuilt_from_card_data(archived.as_json())
+            except Exception:
+                traceback.print_exc()
+                failed_names.append(row.get('name') or row.get('id'))
+                continue
+
+            points_diff = (rebuilt.points or 0) - (row.get('points') or 0)
+            if points_diff:
+                changed_count += 1
+            if row.get('points_change_yoy') is not None:
+                row['points_change_yoy'] += points_diff
+            row.update(rebuilt.card_bot_columns())
+
+        warnings = [f"Re-ran {len(rows) - len(failed_names)} cards through the current algorithm ({changed_count} changed points)."]
+        if failed_names:
+            warnings.append(f"Could not re-run {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")
+        return warnings
 
     def _generate_card_with_year_override(self, player: ShowdownBotSetPlayer, year_override: str) -> Optional[ShowdownPlayerCard]:
         """Generate a card live for a player whose stats should come from a different year combo (ex: '2025-2026').
