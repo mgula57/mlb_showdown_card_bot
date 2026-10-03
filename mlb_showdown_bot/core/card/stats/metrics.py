@@ -19,6 +19,8 @@ class DefenseMetric(Enum):
                         if max_year >= 2026: multiplier = 0.75
                     case '2003':
                         if max_year >= 2026: multiplier = 0.9
+                    case '2005':
+                        if max_year >= 2026: multiplier = 0.75 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
             case '2B': 
                 match set_str:
                     case '2000' | '2001'| 'CLASSIC': 
@@ -36,7 +38,13 @@ class DefenseMetric(Enum):
                         if max_year >= 2026: multiplier = 0.9 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
                     case '2003':
                         if max_year >= 2026: multiplier = 0.7 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
-                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.2
+                    case '2004':
+                        if max_year >= 2026: multiplier = 0.9 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                        else: multiplier = 1.2
+                    case '2005':
+                        if max_year >= 2026: multiplier = 1.0 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                        else: multiplier = 1.2
+                    case 'EXPANDED': multiplier = 1.2
             case '3B':
                 match set_str:
                     case '2000' | '2001' | 'CLASSIC':
@@ -46,6 +54,10 @@ class DefenseMetric(Enum):
                         if max_year >= 2026: multiplier = 0.4 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
                         else: multiplier = 1.2
                     case '2003':
+                        if max_year >= 2026: multiplier = 0.4 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                    case '2004':
+                        if max_year >= 2026: multiplier = 0.35 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                    case '2005':
                         if max_year >= 2026: multiplier = 0.4 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
             case 'LF' | 'RF':
                 match set_str:
@@ -60,6 +72,8 @@ class DefenseMetric(Enum):
                         if max_year >= 2026: multiplier = 0.9
                     case '2003':
                         if max_year >= 2026: multiplier = 0.7
+                    case '2004' | '2005':
+                        if max_year >= 2026: multiplier = 0.4
             case 'CF':
                 match set_str:
                     case '2000':
@@ -69,6 +83,8 @@ class DefenseMetric(Enum):
                     case '2002': multiplier = 1.5
                     case '2003':
                         if max_year >= 2026: multiplier = 0.3 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
+                    case '2004' | '2005':
+                        if max_year >= 2026: multiplier = 0.4 # SHALLOWER MIN -> PUSH BOTTOM HALF DOWN
 
         min_basis = -1 * self.range_max(position_str, set_str, max_year)
         match self:
@@ -99,7 +115,10 @@ class DefenseMetric(Enum):
         match position_str:
             case 'C': 
                 match set_str:
-                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.25
+                    case '2005':
+                        if max_year >= 2026: multiplier = 2.0 # WIDER RANGE -> TIGHTER SPREAD
+                        else: multiplier = 1.25
+                    case '2004' | 'EXPANDED': multiplier = 1.25
                     case '2003':
                         if max_year >= 2026: multiplier = 1.8 # WIDER RANGE -> TIGHTER SPREAD
                         else: multiplier = 1.3
@@ -120,12 +139,22 @@ class DefenseMetric(Enum):
                     case '2003':
                         if max_year >= 2026: multiplier = 1.4
                         else: multiplier = 1.2
-                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.3
+                    case '2004':
+                        if max_year >= 2026: multiplier = 1.5 # WIDER RANGE -> TIGHTER SPREAD
+                        else: multiplier = 1.3
+                    case '2005':
+                        if max_year >= 2026: multiplier = 1.7 # WIDER RANGE -> TIGHTER SPREAD
+                        else: multiplier = 1.3
+                    case 'EXPANDED': multiplier = 1.3
             case '3B': 
                 match set_str:
                     case '2000' | '2001' | '2002' | 'CLASSIC':
                         if max_year >= 2026: multiplier = 1.0
                         else: multiplier = 1.2
+                    case '2004':
+                        if max_year >= 2026: multiplier = 1.4 # WIDER RANGE -> TIGHTER SPREAD
+                    case '2005':
+                        if max_year >= 2026: multiplier = 1.3 # WIDER RANGE -> TIGHTER SPREAD
             case 'LF' | 'RF': 
                 match set_str:
                     case '2000' | '2001' | '2002' | 'CLASSIC':
@@ -134,6 +163,8 @@ class DefenseMetric(Enum):
             case 'OF': 
                 match set_str:
                     case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.3
+                    case '2004' | '2005':
+                        if max_year >= 2026: multiplier = 1.3
             case 'CF':
                 match set_str:
                     case '2000' | '2001' | '2002' | 'CLASSIC':
