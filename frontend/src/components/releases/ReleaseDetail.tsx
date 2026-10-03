@@ -9,6 +9,9 @@ import { FaArrowLeft, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
+    /** Slug of the edition in the URL (`/release-builder/:releaseId/:editionSlug`); falls back to the first edition. */
+    editionSlug?: string | null;
+    onEditionChange: (slug: string) => void;
     onBack: () => void;
     onReleaseUpdated: (release: Release) => void;
     token?: string;
@@ -19,10 +22,9 @@ const EDITION_TAB_CLASS =
     'data-[state=active]:border-(--secondary) data-[state=active]:text-(--text-primary) ' +
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
-export function ReleaseDetail({ release, readOnly, onBack, onReleaseUpdated, token }: ReleaseDetailProps) {
-    const [activeEditionId, setActiveEditionId] = useState<string | null>(release.editions[0]?.id ?? null);
+export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, token }: ReleaseDetailProps) {
+    const activeEditionId = (release.editions.find(e => e.slug === editionSlug) ?? release.editions[0])?.id ?? null;
     const [editionCache, setEditionCache] = useState<Record<string, ReleaseEdition>>({});
-    const [loadingEditionId, setLoadingEditionId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const [showNewEditionForm, setShowNewEditionForm] = useState(false);
@@ -31,12 +33,10 @@ export function ReleaseDetail({ release, readOnly, onBack, onReleaseUpdated, tok
 
     useEffect(() => {
         if (!activeEditionId || editionCache[activeEditionId]) return;
-        setLoadingEditionId(activeEditionId);
         setError(null);
         fetchEdition(release.id, activeEditionId, token)
             .then(edition => setEditionCache(prev => ({ ...prev, [edition.id]: edition })))
-            .catch(err => setError(err.message ?? 'Failed to load edition.'))
-            .finally(() => setLoadingEditionId(null));
+            .catch(err => setError(err.message ?? 'Failed to load edition.'));
     }, [activeEditionId, release.id, token]);
 
     async function handleCreateEdition() {
@@ -53,7 +53,7 @@ export function ReleaseDetail({ release, readOnly, onBack, onReleaseUpdated, tok
                     { id: edition.id, name: edition.name, attributes: edition.attributes, slug: edition.slug, is_published: edition.is_published, card_count: 0 },
                 ].sort((a, b) => a.name.localeCompare(b.name)),
             });
-            setActiveEditionId(edition.id);
+            onEditionChange(edition.slug);
             setShowNewEditionForm(false);
             setNewEditionName('');
         } catch (err: any) {
@@ -103,7 +103,10 @@ export function ReleaseDetail({ release, readOnly, onBack, onReleaseUpdated, tok
 
             <Tabs.Root
                 value={activeEditionId ?? undefined}
-                onValueChange={v => setActiveEditionId(v)}
+                onValueChange={id => {
+                    const edition = release.editions.find(e => e.id === id);
+                    if (edition) onEditionChange(edition.slug);
+                }}
                 className="flex flex-col flex-1 min-h-0"
             >
                 <div className="flex items-center gap-3 px-4 pt-2 bg-(--background-secondary) shrink-0">
@@ -162,11 +165,19 @@ export function ReleaseDetail({ release, readOnly, onBack, onReleaseUpdated, tok
                     </p>
                 ) : (
                     release.editions.map(edition => (
-                        <Tabs.Content key={edition.id} value={edition.id} className="flex-1 min-h-0 flex flex-col focus:outline-none">
-                            {loadingEditionId === edition.id || !editionCache[edition.id] ? (
-                                <div className="flex justify-center py-12">
-                                    <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                                </div>
+                        <Tabs.Content
+                            key={edition.id}
+                            value={edition.id}
+                            // Kept mounted once loaded (just hidden) so each edition's builder state survives tab switches.
+                            forceMount
+                            className="flex-1 min-h-0 flex flex-col focus:outline-none data-[state=inactive]:hidden"
+                        >
+                            {!editionCache[edition.id] ? (
+                                edition.id === activeEditionId && (
+                                    <div className="flex justify-center py-12">
+                                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                                    </div>
+                                )
                             ) : (
                                 <EditionBuilder
                                     releaseId={release.id}

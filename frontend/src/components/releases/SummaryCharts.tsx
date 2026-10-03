@@ -473,6 +473,23 @@ const COMPARISON_OPTIONS = [
     ...WOTC_BASE_SETS.map(set => ({ value: set, label: `${set} Base Set` })),
 ];
 
+const COMPARISON_STORAGE_KEY = 'releaseBuilder.wotcComparisonSet';
+
+/** Last selected WOTC comparison set, restored across edition switches and visits. */
+function loadComparisonSet(): WotcBaseSet | null {
+    try {
+        const stored = localStorage.getItem(COMPARISON_STORAGE_KEY);
+        return (WOTC_BASE_SETS as readonly string[]).includes(stored ?? '') ? stored as WotcBaseSet : null;
+    } catch { return null; }
+}
+
+function saveComparisonSet(set: WotcBaseSet | null) {
+    try {
+        if (set) localStorage.setItem(COMPARISON_STORAGE_KEY, set);
+        else localStorage.removeItem(COMPARISON_STORAGE_KEY);
+    } catch { /* storage unavailable */ }
+}
+
 /** Loads the selected WOTC base set; `snapshots` is null while nothing is selected or loading. */
 function useWotcComparison(selectedSet: WotcBaseSet | null) {
     // Tagged with the set it belongs to, so a stale result is ignored (and "loading" derived) after the selection changes.
@@ -501,9 +518,11 @@ function useWotcComparison(selectedSet: WotcBaseSet | null) {
 
 export function SummaryCharts({ cards }: SummaryChartsProps) {
     const [subsetFilter, setSubsetFilter] = useState<SubsetFilter>('all');
-    const [comparisonSet, setComparisonSet] = useState<WotcBaseSet | null>(null);
+    const [comparisonSet, setComparisonSet] = useState<WotcBaseSet | null>(loadComparisonSet);
     const [commandIncludesOuts, setCommandIncludesOuts] = useState(false);
     const wotc = useWotcComparison(comparisonSet);
+
+    useEffect(() => saveComparisonSet(comparisonSet), [comparisonSet]);
 
     const filteredSnapshots = useMemo(
         () => filterToSubset(cards.map(c => c.card_snapshot), subsetFilter),

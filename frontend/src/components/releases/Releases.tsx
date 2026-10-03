@@ -32,10 +32,11 @@ export default function Releases() {
     const [error, setError] = useState<string | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
-    // Extract releaseId from URL: /release-builder/:releaseId — only when actually on a /release-builder/ path
-    const releaseIdFromUrl = location.pathname.startsWith('/release-builder/')
-        ? (location.pathname.split('/')[2] ?? null)
-        : null;
+    // URL shape: /release-builder/:releaseId/:editionSlug
+    const isOnReleaseBuilder = location.pathname === '/release-builder' || location.pathname.startsWith('/release-builder/');
+    const [, , releaseIdFromUrl = null, editionSlugFromUrl = null] = isOnReleaseBuilder
+        ? location.pathname.split('/')
+        : [];
 
     useEffect(() => {
         loadReleases();
@@ -43,6 +44,8 @@ export default function Releases() {
 
     // When URL contains a release ID, fetch and open that release
     useEffect(() => {
+        // This page stays mounted while hidden, so leaving the route must not reset the open release.
+        if (!isOnReleaseBuilder) return;
         if (!releaseIdFromUrl) {
             setView({ mode: 'list' });
             return;
@@ -57,7 +60,7 @@ export default function Releases() {
             .catch(() => {
                 navigate('/release-builder', { replace: true });
             });
-    }, [releaseIdFromUrl, token]);
+    }, [releaseIdFromUrl, isOnReleaseBuilder, token]);
 
     async function loadReleases() {
         setLoading(true);
@@ -99,7 +102,7 @@ export default function Releases() {
         };
         setUserReleases(prev => [newRelease, ...prev]);
         setShowCreateModal(false);
-        navigate('/release-builder/' + newRelease.id);
+        navigate(`/release-builder/${newRelease.id}/${mainEdition.slug}`);
         setView({ mode: 'editor', release: newRelease, readOnly: false });
     }
 
@@ -118,6 +121,8 @@ export default function Releases() {
                 <ReleaseDetail
                     release={release}
                     readOnly={readOnly}
+                    editionSlug={editionSlugFromUrl}
+                    onEditionChange={slug => navigate(`/release-builder/${release.id}/${slug}`, { replace: true })}
                     onBack={goBack}
                     onReleaseUpdated={handleReleaseUpdated}
                     token={token}
