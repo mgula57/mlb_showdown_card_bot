@@ -139,20 +139,27 @@ function commandKeyGroup(key: BreakdownKey): string {
 // Scorecard order (C through RF), with the grouped IF/OF/LF-RF ratings older sets use slotted in beside their members.
 const DEFENSE_POSITION_ORDER = ['C', 'CA', '1B', '2B', '3B', 'SS', 'IF', 'LF', 'LF/RF', 'CF', 'RF', 'OF'];
 
-function defenseKeyPosition(key: BreakdownKey): string {
+// IP is split by role; starters and relievers work on very different innings scales.
+const IP_ROLE_ORDER = ['Starters', 'Relievers'];
+
+/** Group of a "GROUP N" key, e.g. "SS" for the defense key "SS +5" or "Starters" for "Starters 7". */
+function groupedKeyGroup(key: BreakdownKey): string {
     return String(key).split(' ')[0];
 }
 
-/** Orders "POS +N" defense keys by position, then by rating descending. */
-function compareDefenseKeys(a: BreakdownKey, b: BreakdownKey): number {
-    const parse = (key: BreakdownKey) => {
-        const [position, rating] = String(key).split(' ');
-        const positionIndex = DEFENSE_POSITION_ORDER.indexOf(position);
-        return { positionIndex: positionIndex === -1 ? DEFENSE_POSITION_ORDER.length : positionIndex, rating: Number(rating) };
+/** Numeric value of a "GROUP N" key or row label. */
+function groupedKeyValue(key: BreakdownKey): number {
+    return Number(String(key).split(' ')[1]);
+}
+
+/** Orders "GROUP N" keys by `groupOrder`, then by value (`descending` for defense ratings). */
+function compareGroupedKeys(groupOrder: string[], descending: boolean) {
+    const groupIndex = (key: BreakdownKey) => {
+        const index = groupOrder.indexOf(groupedKeyGroup(key));
+        return index === -1 ? groupOrder.length : index;
     };
-    const left = parse(a);
-    const right = parse(b);
-    return left.positionIndex - right.positionIndex || right.rating - left.rating;
+    return (a: BreakdownKey, b: BreakdownKey) =>
+        groupIndex(a) - groupIndex(b) || (groupedKeyValue(a) - groupedKeyValue(b)) * (descending ? -1 : 1);
 }
 
 /** Historical team codes (as on WOTC cards) mapped to the franchise's current code, so the Teams
@@ -194,7 +201,12 @@ const SPECS = {
     position: { keyFn: c => c.positions_list?.[0] ?? c.player_type, sort: 'count' },
     team: { keyFn: c => c.team ? (FRANCHISE_CODE[c.team] ?? c.team) : c.team, sort: 'count' },
     speed: { keyFn: c => c.is_pitcher ? null : c.speed, sort: 'key' },
-    ip: { keyFn: c => c.is_pitcher ? c.ip : null, sort: 'key' },
+    ip: {
+        keyFn: c => !c.is_pitcher || c.ip == null ? null : `${parentPositionGroup(c) === 'Starting Pitcher' ? 'Starters' : 'Relievers'} ${c.ip}`,
+        sort: compareGroupedKeys(IP_ROLE_ORDER, false),
+        groupFn: groupedKeyGroup,
+        scaleWithinGroup: true,
+    },
     defense: {
         keyFn: c => {
             const primaryPosition = c.positions_list?.[0];
@@ -203,8 +215,8 @@ const SPECS = {
             if (defValue === null) return null;
             return `${primaryPosition} ${defValue >= 0 ? '+' : ''}${defValue}`;
         },
-        sort: compareDefenseKeys,
-        groupFn: defenseKeyPosition,
+        sort: compareGroupedKeys(DEFENSE_POSITION_ORDER, true),
+        groupFn: groupedKeyGroup,
         scaleWithinGroup: true,
     },
 } satisfies Record<string, BreakdownSpec>;
@@ -358,13 +370,13 @@ function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false
     );
 }
 
-/** Count-weighted average defense rating of "POS +N" rows; `useCompare` weights by the unscaled WOTC counts. */
-function averageDefenseRating(rows: BreakdownRow[], useCompare: boolean): number | null {
+/** Count-weighted average value of "GROUP N" rows; `useCompare` weights by the unscaled WOTC counts. */
+function averageGroupedValue(rows: BreakdownRow[], useCompare: boolean): number | null {
     let total = 0;
     let weight = 0;
     for (const row of rows) {
         const rowWeight = useCompare ? (row.compareRaw ?? 0) : row.count;
-        total += Number(row.label.split(' ')[1]) * rowWeight;
+        total += groupedKeyValue(row.label) * rowWeight;
         weight += rowWeight;
     }
     return weight > 0 ? Math.round((total / weight) * 10) / 10 : null;
@@ -372,27 +384,38 @@ function averageDefenseRating(rows: BreakdownRow[], useCompare: boolean): number
 
 const formatRating = (rating: number) => `${rating >= 0 ? '+' : ''}${rating}`;
 
-/** One small column chart per defensive position, with the release's average rating vs WOTC's. */
-function DefensePositionCharts({ data, emptyMessage, compareLabel }: ChartProps) {
+/** "Avg X · WOTC Y" label shown above a chart; omits the WOTC part when there's no comparison. */
+function ChartAverage({ value, compareValue }: { value: string | null; compareValue?: string | null }) {
+    return (
+        <span className="text-[10px] text-(--text-tertiary)">
+            {`Avg ${value ?? '–'}`}
+            {compareValue != null && ` · WOTC ${compareValue}`}
+        </span>
+    );
+}
+
+/** One small column chart per group of "GROUP N" rows (defensive position, pitcher role), each with
+ * the release's average value vs WOTC's. `formatValue` renders both the averages and the column labels. */
+function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = String }: ChartProps & { formatValue?: (value: number) => string }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
-    const positions = [...new Set(data.map(row => row.group ?? ''))];
+    const groups = [...new Set(data.map(row => row.group ?? ''))];
     return (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-            {positions.map(position => {
-                const rows = data.filter(row => row.group === position);
-                const average = averageDefenseRating(rows, false);
-                const compareAverage = compareLabel === null ? null : averageDefenseRating(rows, true);
+            {groups.map(group => {
+                const rows = data.filter(row => row.group === group);
+                const average = averageGroupedValue(rows, false);
+                const compareAverage = compareLabel === null ? null : averageGroupedValue(rows, true);
                 return (
-                    <div key={position} className="rounded-lg border border-(--divider) p-2">
+                    <div key={group} className="rounded-lg border border-(--divider) p-2">
                         <div className="flex items-baseline justify-between gap-2 px-1">
-                            <span className="text-[13px] font-black text-(--text-primary)">{position}</span>
-                            <span className="text-[10px] text-(--text-tertiary)">
-                                {average !== null ? `Avg ${formatRating(average)}` : 'Avg –'}
-                                {compareAverage !== null && ` · WOTC ${formatRating(compareAverage)}`}
-                            </span>
+                            <span className="text-[13px] font-black text-(--text-primary)">{group}</span>
+                            <ChartAverage
+                                value={average !== null ? formatValue(average) : null}
+                                compareValue={compareAverage !== null ? formatValue(compareAverage) : null}
+                            />
                         </div>
                         <VerticalBarChart
-                            data={rows.map(row => ({ ...row, label: formatRating(Number(row.label.split(' ')[1])) }))}
+                            data={rows.map(row => ({ ...row, label: formatValue(groupedKeyValue(row.label)) }))}
                             emptyMessage={emptyMessage}
                             compareLabel={compareLabel}
                             height={140}
@@ -636,16 +659,16 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                         <VerticalBarChart data={breakdowns.team} emptyMessage="No team data yet." scrollable {...chartProps} />
                     </Section>
 
-                    <Section title="Speed">
+                    <Section title="Speed" action={<ChartAverage value={String(averages.speed)} compareValue={compareAverages && String(compareAverages.speed)} />}>
                         <VerticalBarChart data={breakdowns.speed} emptyMessage="No hitters with speed yet." {...chartProps} />
                     </Section>
 
                     <Section title="IP">
-                        <VerticalBarChart data={breakdowns.ip} emptyMessage="No pitchers yet." {...chartProps} />
+                        <GroupedColumnCharts data={breakdowns.ip} emptyMessage="No pitchers yet." {...chartProps} />
                     </Section>
 
                     <Section title="Defense">
-                        <DefensePositionCharts data={breakdowns.defense} emptyMessage="No defensive ratings yet." {...chartProps} />
+                        <GroupedColumnCharts data={breakdowns.defense} emptyMessage="No defensive ratings yet." formatValue={formatRating} {...chartProps} />
                     </Section>
                 </>
             )}

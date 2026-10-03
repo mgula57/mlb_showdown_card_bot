@@ -91,6 +91,7 @@ function defaultAlgorithmConfig(defaultShowdownSet?: string | null): AlgorithmCo
         point_buckets: [],
         selection_weights: { ...DEFAULT_SELECTION_WEIGHTS },
         position_targets: [],
+        variable_speed: false,
     };
 }
 
@@ -226,6 +227,8 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
 
     // Position targets already imply the hitter/starter/reliever split
     const distributionLocked = isFieldLocked('player_type_distribution') || hasPositionTargets;
+
+    const hasSet00_01 = config.showdown_sets.some(set => set === '2000' || set === '2001');
 
     const canRun = !!token
         && config.set_size > 0
@@ -424,7 +427,19 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     isEnabled={config.all_stars_only ?? false}
                     onChange={() => updateConfig(prev => ({ ...prev, all_stars_only: !(prev.all_stars_only ?? false) }))}
                 />
+                {hasSet00_01 && (
+                    <FormEnabler
+                        label="Variable Speed"
+                        isEnabled={config.variable_speed ?? false}
+                        onChange={() => updateConfig(prev => ({ ...prev, variable_speed: !(prev.variable_speed ?? false) }))}
+                    />
+                )}
             </div>
+            {hasSet00_01 && config.variable_speed && (
+                <p className="text-[11px] text-(--text-tertiary) shrink-0 -mt-3">
+                    2000/2001 cards use exact speed instead of 10/15/20, with points recalculated. Players are picked on their standard points, so point totals may shift slightly from your buckets.
+                </p>
+            )}
 
             {isAdmin && (
                 <SettingsGroup title="Admin" defaultOpen={true}>

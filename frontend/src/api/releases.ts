@@ -124,6 +124,8 @@ export type AlgorithmConfig = {
     selection_weights?: AlgorithmSelectionWeights;
     /** Per-position composition (e.g. from a WOTC base set). Replaces `player_type_distribution` when non-empty. */
     position_targets?: AlgorithmPositionTarget[];
+    /** 2000/2001 only: uncap speed (instead of 10/15/20) and recalculate each card's points. */
+    variable_speed?: boolean;
 };
 
 export type AlgorithmPreviewPlayer = CardDatabaseRecord & { algorithm_set_number: number | null };

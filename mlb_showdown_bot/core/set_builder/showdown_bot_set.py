@@ -19,6 +19,7 @@ from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRec
 from ..shared.player_position import Position
 from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel, StatHighlightsType, SpecialEdition
 from ..card.card_generation import generate_card
+from ..card.sets import Set
 from ..card.stats.stats_period import TeamSelection
 from ..card.utils.shared_functions import convert_year_string_to_list
 from .selection import (
@@ -336,10 +337,11 @@ class ShowdownBotSet(BaseModel):
 
         return
 
-    def build_preview_rows(self, db: PostgresDB, rerun_cards: bool = False) -> List[dict]:
+    def build_preview_rows(self, db: PostgresDB, rerun_cards: bool = False, variable_speed: bool = False) -> List[dict]:
         """Build the set and return its `card_bot` rows in set-number order, as the Edition
         Builder's Algorithm preview shows them. With `rerun_cards`, each row's card is rebuilt
-        through the current `ShowdownPlayerCard` algorithm instead of the archived version."""
+        through the current `ShowdownPlayerCard` algorithm instead of the archived version.
+        With `variable_speed`, 2000/2001 cards get uncapped speed and recalculated points."""
         self.build_set_player_list()
 
         set_numbers_by_id = {p.id: p.set_number for p in self.final_players or []}
@@ -351,41 +353,52 @@ class ShowdownBotSet(BaseModel):
             row['algorithm_set_number'] = set_numbers_by_id.get(row.get('id'))
         rows.sort(key=lambda r: r.get('algorithm_set_number') or 0)
 
-        if rerun_cards and rows:
-            self.warnings.extend(self._rerun_preview_rows(db, rows))
+        if (rerun_cards or variable_speed) and rows:
+            self.warnings.extend(self._recompute_preview_rows(db, rows, rerun_cards=rerun_cards, variable_speed=variable_speed))
         return rows
 
     @staticmethod
-    def _rerun_preview_rows(db: PostgresDB, rows: List[dict]) -> List[str]:
-        """Rebuild each preview row's archived card through the current algorithm, overwriting the
-        row's card-derived columns in place. Rows that fail keep their archived card. Returns warnings."""
+    def _recompute_preview_rows(db: PostgresDB, rows: List[dict], rerun_cards: bool, variable_speed: bool) -> List[str]:
+        """Recompute preview rows' archived cards, overwriting each row's card-derived columns in place.
+        `rerun_cards` rebuilds every card through the current algorithm; `variable_speed` applies
+        variable speed (and recalculated points) to 2000/2001 cards. Rows that fail keep their
+        archived card. Returns warnings."""
+        # Variable speed alone only affects 2000/2001 cards
+        target_rows = rows if rerun_cards else [row for row in rows if Set(row.get('showdown_set')).is_00_01]
+        if not target_rows:
+            return []
         archived_cards = db.fetch_cards_for_roster_slots(
-            [{'card_id': row['card_id'], 'card_source': 'BOT'} for row in rows if row.get('card_id')]
+            [{'card_id': row['card_id'], 'card_source': 'BOT'} for row in target_rows if row.get('card_id')]
         )
         failed_names: List[str] = []
         changed_count = 0
-        for row in rows:
-            archived = archived_cards.get(str(row.get('card_id')))
-            if archived is None:
+        for row in target_rows:
+            card = archived_cards.get(str(row.get('card_id')))
+            if card is None:
                 failed_names.append(row.get('name') or row.get('id'))
                 continue
             try:
-                rebuilt = ShowdownPlayerCard.rebuilt_from_card_data(archived.as_json())
+                if rerun_cards:
+                    card = ShowdownPlayerCard.rebuilt_from_card_data(card.as_json())
+                if variable_speed:
+                    card.apply_variable_speed_00_01(True)
             except Exception:
                 traceback.print_exc()
                 failed_names.append(row.get('name') or row.get('id'))
                 continue
 
-            points_diff = (rebuilt.points or 0) - (row.get('points') or 0)
+            points_diff = (card.points or 0) - (row.get('points') or 0)
             if points_diff:
                 changed_count += 1
             if row.get('points_change_yoy') is not None:
                 row['points_change_yoy'] += points_diff
-            row.update(rebuilt.card_bot_columns())
+            row.update(card.card_bot_columns())
 
-        warnings = [f"Re-ran {len(rows) - len(failed_names)} cards through the current algorithm ({changed_count} changed points)."]
+        recomputed_count = len(target_rows) - len(failed_names)
+        actions = [label for label, enabled in [('Re-ran', rerun_cards), ('applied variable speed to', variable_speed)] if enabled]
+        warnings = [f"{' and '.join(actions).capitalize()} {recomputed_count} cards ({changed_count} changed points)."]
         if failed_names:
-            warnings.append(f"Could not re-run {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")
+            warnings.append(f"Could not recompute {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")
         return warnings
 
     def _generate_card_with_year_override(self, player: ShowdownBotSetPlayer, year_override: str) -> Optional[ShowdownPlayerCard]:
@@ -990,6 +1003,8 @@ class AlgorithmPreviewRequest(BaseModel):
 
     manually_included_ids: Optional[List[str]] = None
     manually_excluded_ids: Optional[List[str]] = None
+
+    variable_speed: bool = Field(False, description="Uncap speed on 2000/2001 cards (instead of 10/15/20) and recalculate points")
 
     def to_showdown_bot_set(self) -> ShowdownBotSet:
         """Validate and construct the `ShowdownBotSet` this request describes."""

@@ -219,7 +219,7 @@ def preview_algorithm(release_id: str, edition_id: str):
             db.close_connection()
             return jsonify({'error': str(exc)}), 400
 
-        players = showdown_set.build_preview_rows(db, rerun_cards=rerun_cards)
+        players = showdown_set.build_preview_rows(db, rerun_cards=rerun_cards, variable_speed=algorithm_request.variable_speed)
         db.close_connection()
 
         return jsonify({
