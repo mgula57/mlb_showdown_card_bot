@@ -21,10 +21,13 @@ class WotcSetProfile(BaseModel):
     # Low point buckets that bring each set's 10-100 pt card counts closer to the WOTC base set.
     # Tuned with the review-set-build skill (2026 season); a bucket is a per player type floor.
     POINT_BUCKETS: ClassVar[Dict[str, List[PointBucket]]] = {
-        '2000': [PointBucket(min_points=10, max_points=50, percentage=0.06),],
+        '2000': [
+            PointBucket(min_points=10, max_points=50, percentage=0.06),
+            PointBucket(min_points=60, max_points=100, percentage=0.06),
+        ],
         '2001': [
             PointBucket(min_points=10, max_points=50, percentage=0.05), 
-            PointBucket(min_points=60, max_points=100, percentage=0.06)
+            PointBucket(min_points=60, max_points=100, percentage=0.06),
         ],
         '2002': [PointBucket(min_points=10, max_points=50, percentage=0.06)],
         '2003': [PointBucket(min_points=10, max_points=100, percentage=0.10)],

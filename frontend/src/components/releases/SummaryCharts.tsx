@@ -132,8 +132,11 @@ function commandKey(c: CardDatabaseRecord, includeOuts: boolean): number {
     return (c.is_pitcher ? 0 : COMMAND_HITTER_OFFSET) + command + (includeOuts ? (c.outs ?? 0) : 0);
 }
 
+const COMMAND_GROUP_PITCHERS = 'Pitchers';
+const COMMAND_GROUP_HITTERS = 'Hitters';
+
 function commandKeyGroup(key: BreakdownKey): string {
-    return Number(key) >= COMMAND_HITTER_OFFSET ? 'Hitters' : 'Pitchers';
+    return Number(key) >= COMMAND_HITTER_OFFSET ? COMMAND_GROUP_HITTERS : COMMAND_GROUP_PITCHERS;
 }
 
 // Scorecard order (C through RF), with the grouped IF/OF/LF-RF ratings older sets use slotted in beside their members.
@@ -188,6 +191,7 @@ const SPECS = {
         labelFn: key => String(Number(key) % COMMAND_HITTER_OFFSET),
         sort: 'key',
         groupFn: commandKeyGroup,
+        scaleWithinGroup: true,
     },
     commandOuts: {
         keyFn: c => c.command == null ? null : commandKey(c, true),
@@ -197,6 +201,7 @@ const SPECS = {
         },
         sort: 'key',
         groupFn: commandKeyGroup,
+        scaleWithinGroup: true,
     },
     position: { keyFn: c => c.positions_list?.[0] ?? c.player_type, sort: 'count' },
     team: { keyFn: c => c.team ? (FRANCHISE_CODE[c.team] ?? c.team) : c.team, sort: 'count' },
@@ -394,33 +399,87 @@ function ChartAverage({ value, compareValue }: { value: string | null; compareVa
     );
 }
 
+/** Distinct `group` values of `rows`, in row order. */
+function rowGroups(rows: BreakdownRow[]): string[] {
+    return [...new Set(rows.map(row => row.group ?? ''))];
+}
+
+/** Bordered card holding one titled chart, with its average vs WOTC's in the header. */
+function ChartPanel({ title, average, className, children }: { title: string; average: ReactNode; className?: string; children: ReactNode }) {
+    return (
+        <div className={`rounded-lg border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
+            <div className="flex items-baseline justify-between gap-2 px-1">
+                <span className="text-[13px] font-black text-(--text-primary)">{title}</span>
+                {average}
+            </div>
+            {children}
+        </div>
+    );
+}
+
 /** One small column chart per group of "GROUP N" rows (defensive position, pitcher role), each with
  * the release's average value vs WOTC's. `formatValue` renders both the averages and the column labels. */
 function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = String }: ChartProps & { formatValue?: (value: number) => string }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
-    const groups = [...new Set(data.map(row => row.group ?? ''))];
     return (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-            {groups.map(group => {
+            {rowGroups(data).map(group => {
                 const rows = data.filter(row => row.group === group);
                 const average = averageGroupedValue(rows, false);
                 const compareAverage = compareLabel === null ? null : averageGroupedValue(rows, true);
                 return (
-                    <div key={group} className="rounded-lg border border-(--divider) p-2">
-                        <div className="flex items-baseline justify-between gap-2 px-1">
-                            <span className="text-[13px] font-black text-(--text-primary)">{group}</span>
-                            <ChartAverage
-                                value={average !== null ? formatValue(average) : null}
-                                compareValue={compareAverage !== null ? formatValue(compareAverage) : null}
-                            />
-                        </div>
+                    <ChartPanel
+                        key={group}
+                        title={group}
+                        average={<ChartAverage
+                            value={average !== null ? formatValue(average) : null}
+                            compareValue={compareAverage !== null ? formatValue(compareAverage) : null}
+                        />}
+                    >
                         <VerticalBarChart
                             data={rows.map(row => ({ ...row, label: formatValue(groupedKeyValue(row.label)) }))}
                             emptyMessage={emptyMessage}
                             compareLabel={compareLabel}
                             height={140}
                         />
-                    </div>
+                    </ChartPanel>
+                );
+            })}
+        </div>
+    );
+}
+
+const COMMAND_PANELS: Record<string, { title: string; averageKey: keyof SummaryAverages }> = {
+    [COMMAND_GROUP_PITCHERS]: { title: 'Pitchers · Control', averageKey: 'control' },
+    [COMMAND_GROUP_HITTERS]: { title: 'Hitters · On-Base', averageKey: 'onBase' },
+};
+
+/** Separate Control and On-Base charts: side by side, or stacked on their own lines when
+ * `includesOuts` widens them into scrollable command/outs columns. */
+function CommandCharts({ data, emptyMessage, compareLabel, includesOuts, averages, compareAverages }: ChartProps & {
+    includesOuts: boolean;
+    averages: SummaryAverages;
+    compareAverages: SummaryAverages | null;
+}) {
+    if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
+    return (
+        <div className={`flex gap-4 ${includesOuts ? 'flex-col' : 'flex-wrap'}`}>
+            {rowGroups(data).map(group => {
+                const { title, averageKey } = COMMAND_PANELS[group];
+                return (
+                    <ChartPanel
+                        key={group}
+                        title={title}
+                        className={includesOuts ? undefined : 'flex-1 basis-64'}
+                        average={<ChartAverage value={String(averages[averageKey])} compareValue={compareAverages && String(compareAverages[averageKey])} />}
+                    >
+                        <VerticalBarChart
+                            data={data.filter(row => row.group === group)}
+                            emptyMessage={emptyMessage}
+                            compareLabel={compareLabel}
+                            scrollable={includesOuts}
+                        />
+                    </ChartPanel>
                 );
             })}
         </div>
@@ -643,10 +702,12 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                         title="Command (Control / On-Base)"
                         action={<FormEnabler label="Include Outs" isEnabled={commandIncludesOuts} onChange={enabled => setCommandIncludesOuts(!enabled)} />}
                     >
-                        <VerticalBarChart
+                        <CommandCharts
                             data={commandIncludesOuts ? breakdowns.commandOuts : breakdowns.command}
                             emptyMessage="No command data yet."
-                            scrollable={commandIncludesOuts}
+                            includesOuts={commandIncludesOuts}
+                            averages={averages}
+                            compareAverages={compareAverages}
                             {...chartProps}
                         />
                     </Section>
