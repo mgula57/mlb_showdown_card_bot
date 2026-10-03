@@ -46,7 +46,7 @@ Focus on the **Low point cards (10-100) by player type** table.
 - Describe the direction (e.g. "On-Base piles up at 9, WOTC peaks at 10 and 12 → hitters are under-rated by ~1"). Don't propose chart code changes unless asked.
 
 ### 2c. Speed: similar distribution?
-- **Skip speed for 2003.** WOTC's 2003 base set speed runs too low (most hitters at 8-12, peak at 9), so it's not a useful target. Report it as "Speed: skipped (WOTC 2003 speed runs low)" and don't flag it or suggest fixes.
+- **Skip speed for 2003, 2004 and 2005.** WOTC's speed in those base sets runs too low (most hitters at 8-12), so it's not a useful target. Report it as "Speed: skipped (WOTC <set> speed runs low)" and don't flag it or suggest fixes. Speed is only checked for 2000-2002.
 - **Hitters only**, on both sides: pitchers' speed is meaningless, so leave them out of every speed number (distribution, bands, average). The script's Speed table and Avg Speed already filter to `is_pitcher = false` for this set and for WOTC. Don't fall back to all-card numbers from the JSON.
 - Compare Avg Speed (flag ≥1.0 diff) and banded shares: slow (≤12), average (13-17), fast (18+). Flag a band that's off by more than ~8 percentage points, and any big tail cluster (e.g. too many 21+ or nobody ≤10).
 
