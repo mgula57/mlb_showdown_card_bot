@@ -1257,10 +1257,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             />
 
                                             {/* Showdown Set (default managed via top right corner) */}
-                                            <div className="@container shrink-0 w-20 xs:w-28 md:w-20">
+                                            <div className="@container shrink-0 w-18">
                                                 <CustomSelect
                                                     className="text-sm"
-                                                    buttonClassName="w-full px-3 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
+                                                    buttonClassName="w-full pl-1 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
                                                     imageClassName="object-contain object-center w-16 mr-2 h-7"
                                                     compactImageClassName="object-contain object-center w-10 h-7"
                                                     value={showdownSetOverride ?? ''}
