@@ -16,7 +16,7 @@ def set_builder(
     all_star_game: bool = typer.Option(False, "--all_star_game", "-asg", help="Build the full All-Star Game roster set for the given year(s)."),
     team_breakdown: str = typer.Option(None, "--team_breakdown", "-tb", help="Show team breakdown for a specific team."),
     point_buckets: str = typer.Option(None, "--point_buckets", "-pb", help="Point ranges with an ideal share of each player type, as 'min-max:pct' pairs, comma-separated. Ex: '10-50:0.15,60-100:0.10'."),
-    wotc_base_set: str = typer.Option(None, "--wotc_base_set", "-wbs", help="Match the position counts and average points of a WOTC base set (2000-2005), scaled to --set_size."),
+    wotc_base_set: str = typer.Option(None, "--wotc_base_set", "-wbs", help="Match the position counts, average points and low point buckets of a WOTC base set (2000-2005), scaled to --set_size. --point_buckets overrides the buckets."),
     manually_included_ids: str = typer.Option(None, "--manually_included_ids", "-inc", help="Specific player IDs to include in the set, comma-separated."),
     manually_excluded_ids: str = typer.Option(None, "--manually_excluded_ids", "-exc", help="Specific player IDs to exclude from the set, comma-separated."),
     year_overrides: str = typer.Option(None, "--year_overrides", "-yo", help="Per-player year overrides as 'bref_id:years' pairs, comma-separated. Ex: 'verlaju01:2025-2026'. Cards are generated live instead of pulled from the DB."),
@@ -56,13 +56,14 @@ def set_builder(
         year_list = [int(y.strip()) for y in years.split(',')] if years else []
 
         # BUILD THE SET
+        wotc_profile = WotcSetProfile.load(wotc_base_set) if wotc_base_set else None
         showdown_bot_set = ShowdownBotSet(
             years=year_list,
             showdown_sets=showdown_set_list,
             set_size=set_size,
             all_stars_only=all_star_game,
-            point_buckets=PointBucket.parse_cli(point_buckets) if point_buckets else [],
-            position_targets=WotcSetProfile.load(wotc_base_set).position_targets if wotc_base_set else [],
+            point_buckets=PointBucket.parse_cli(point_buckets) if point_buckets else (wotc_profile.point_buckets if wotc_profile else []),
+            position_targets=wotc_profile.position_targets if wotc_profile else [],
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
             manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None,
             year_overrides=year_overrides_dict,

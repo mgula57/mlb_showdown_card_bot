@@ -136,12 +136,12 @@ const ALL_STARS_BLUEPRINT: AlgorithmBlueprint = {
     lockedFields: ['player_type_distribution'],
 };
 
-/** Mirrors an original WOTC base set: card count, cards per position and average points per position. */
+/** Mirrors an original WOTC base set: card count, cards per position, average points per position and low point buckets. */
 function wotcBaseSetBlueprint(profile: WotcSetProfile): AlgorithmBlueprint {
     return {
         id: `wotc-${profile.showdown_set}`,
         name: `${profile.showdown_set} Base Set`,
-        description: `Matches WOTC's ${profile.showdown_set} Base Set: ${profile.set_size} cards with the same mix of positions and average points at each position. Change the set size to scale it.`,
+        description: `Matches WOTC's ${profile.showdown_set} Base Set: ${profile.set_size} cards with the same mix of positions, average points at each position and share of low point cards. Change the set size to scale it.`,
         icon: <FaLayerGroup />,
         apply: current => ({
             ...current,
@@ -154,7 +154,7 @@ function wotcBaseSetBlueprint(profile: WotcSetProfile): AlgorithmBlueprint {
             include_all_stars: true,
             include_award_winners: true,
             all_stars_only: false,
-            point_buckets: [],
+            point_buckets: profile.point_buckets ?? [],
             selection_weights: { ...DEFAULT_SELECTION_WEIGHTS },
             position_targets: profile.position_targets,
         }),

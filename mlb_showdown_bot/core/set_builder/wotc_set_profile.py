@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from ..database.postgres_db import PostgresDB
 from .selection import PositionTarget, SlotPosition
+from .showdown_bot_set import PointBucket
 
 
 class WotcSetProfile(BaseModel):
@@ -15,6 +16,16 @@ class WotcSetProfile(BaseModel):
     set_size: int
     team_count: int
     position_targets: List[PositionTarget]
+    point_buckets: List[PointBucket] = []
+
+    # Low point buckets that bring each set's 10-100 pt card counts closer to the WOTC base set.
+    # Tuned with the review-set-build skill (2026 season); a bucket is a per player type floor.
+    POINT_BUCKETS: ClassVar[Dict[str, List[PointBucket]]] = {
+        '2002': [PointBucket(min_points=10, max_points=50, percentage=0.06)],
+        '2003': [PointBucket(min_points=10, max_points=100, percentage=0.10)],
+        '2004': [PointBucket(min_points=10, max_points=100, percentage=0.25)],
+        '2005': [PointBucket(min_points=10, max_points=100, percentage=0.20)],
+    }
 
     # WOTC sets never change, so profiles are cached for the life of the process
     _cache: ClassVar[Optional[Dict[str, 'WotcSetProfile']]] = None
@@ -60,6 +71,7 @@ class WotcSetProfile(BaseModel):
                 showdown_set=showdown_set,
                 set_size=set_size,
                 team_count=len({row['team_id'] for row in set_rows if row['team_id']}),
+                point_buckets=cls.POINT_BUCKETS.get(showdown_set, []),
                 position_targets=[
                     PositionTarget(
                         position=slot,

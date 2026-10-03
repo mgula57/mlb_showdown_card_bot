@@ -1,8 +1,9 @@
 """Builds a set per WOTC base set through the Release Builder's algorithm and compares it to the
 original WOTC base set, mirroring the Edition Builder's Summary tab (`SummaryCharts.tsx`).
 
-Each set uses the "<set> Base Set" blueprint (WOTC's card count, position mix and average points),
-plus optional point buckets. Prints a Markdown report and optionally writes the raw numbers as JSON.
+Each set uses the "<set> Base Set" blueprint (WOTC's card count, position mix, average points and low
+point buckets from `WotcSetProfile.POINT_BUCKETS`). Prints a Markdown report and optionally writes the raw
+numbers as JSON.
 
 Usage (from repo root):
     python mlb_showdown_bot/scripts/review_set_build.py --rerun
@@ -13,7 +14,6 @@ import argparse
 import contextlib
 import io
 import json
-import os
 import statistics
 import sys
 from datetime import datetime
@@ -208,7 +208,7 @@ class SetBuildReview(BaseModel):
     showdown_set: str
     years: str
     rerun_cards: bool = False
-    point_buckets: List[PointBucket] = []
+    point_buckets: Optional[List[PointBucket]] = None  # None = the blueprint's buckets
     set_size: Optional[int] = None
 
     cards: List[dict] = []
@@ -218,6 +218,8 @@ class SetBuildReview(BaseModel):
 
     def run(self, db: PostgresDB) -> 'SetBuildReview':
         profile = WotcSetProfile.load(self.showdown_set)
+        if self.point_buckets is None:
+            self.point_buckets = profile.point_buckets
         request = AlgorithmPreviewRequest(
             set_size=self.set_size or profile.set_size,
             years=self.years,
@@ -368,16 +370,13 @@ class SetBuildReview(BaseModel):
 # MARK: - CLI
 # =============================================================================
 
-def parse_buckets(values: List[str], buckets_file: Optional[str]) -> Dict[str, List[PointBucket]]:
-    """`--buckets-file` JSON ({"2002": "10-50:0.06"}) overridden by `--buckets "2002=10-50:0.06"` flags"""
-    raw: Dict[str, str] = {}
-    if buckets_file and os.path.exists(buckets_file):
-        with open(buckets_file) as f:
-            raw.update({str(k): v for k, v in json.load(f).items() if v})
+def parse_buckets(values: List[str]) -> Dict[str, List[PointBucket]]:
+    """`--buckets "2002=10-50:0.06"` overrides for the blueprint's buckets ("2002=none" for no buckets)"""
+    overrides: Dict[str, List[PointBucket]] = {}
     for value in values:
-        showdown_set, buckets = value.split('=', 1)
-        raw[showdown_set.strip()] = buckets.strip()
-    return {s: PointBucket.validate_list(PointBucket.parse_cli(b)) for s, b in raw.items() if b}
+        showdown_set, buckets = (part.strip() for part in value.split('=', 1))
+        overrides[showdown_set] = [] if buckets.lower() == 'none' else PointBucket.validate_list(PointBucket.parse_cli(buckets))
+    return overrides
 
 
 def main():
@@ -385,20 +384,19 @@ def main():
     parser.add_argument('-s', '--sets', default=','.join(WOTC_SETS), help='Comma-separated WOTC sets (2000-2005)')
     parser.add_argument('-y', '--years', default=str(datetime.now().year), help='Year string, e.g. 2026')
     parser.add_argument('-r', '--rerun', action='store_true', help='Re-run each card through the current card algorithm')
-    parser.add_argument('-b', '--buckets', action='append', default=[], help='Per-set point buckets, e.g. "2002=10-50:0.06"')
-    parser.add_argument('-bf', '--buckets-file', help='JSON file of per-set point buckets, e.g. {"2002": "10-50:0.06"}')
+    parser.add_argument('-b', '--buckets', action='append', default=[], help='Override a set\'s blueprint point buckets, e.g. "2002=10-50:0.06" or "2002=none"')
     parser.add_argument('-ss', '--set-size', type=int, help="Override the blueprint's set size")
     parser.add_argument('-o', '--json-out', help='Write the raw comparison data to this JSON path')
     args = parser.parse_args()
 
-    buckets_by_set = parse_buckets(args.buckets, args.buckets_file)
+    buckets_by_set = parse_buckets(args.buckets)
     db = PostgresDB()
     reviews = []
     try:
         for showdown_set in [s.strip() for s in args.sets.split(',') if s.strip()]:
             print(f"Building {showdown_set}...", file=sys.stderr)
             review = SetBuildReview(showdown_set=showdown_set, years=args.years, rerun_cards=args.rerun,
-                                    point_buckets=buckets_by_set.get(showdown_set, []), set_size=args.set_size).run(db)
+                                    point_buckets=buckets_by_set.get(showdown_set), set_size=args.set_size).run(db)
             reviews.append(review)
             print(review.markdown() + '\n')
     finally:

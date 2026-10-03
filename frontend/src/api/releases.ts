@@ -302,6 +302,8 @@ export type WotcSetProfile = {
     set_size: number;
     team_count: number;
     position_targets: AlgorithmPositionTarget[];
+    /** Low point buckets that bring the set's 10-100 pt card counts closer to WOTC's. */
+    point_buckets: AlgorithmPointBucket[];
 };
 
 let _wotcSetProfilesRequest: Promise<WotcSetProfile[]> | null = null;

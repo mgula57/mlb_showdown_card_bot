@@ -14,18 +14,16 @@ the WOTC base set the way the Edition Builder's Summary tab does ("Compare to WO
 From the repo root (needs `.env` DB access; does **not** need the Flask server):
 
 ```bash
-.venv/bin/python mlb_showdown_bot/scripts/review_set_build.py --rerun \
-  --buckets-file .claude/skills/review-set-build/point_buckets.json \
-  -o <scratchpad>/set_review.json
+.venv/bin/python mlb_showdown_bot/scripts/review_set_build.py --rerun -o <scratchpad>/set_review.json
 ```
 
 - `--rerun` rebuilds every selected card through current code (the admin "Re-run cards" toggle). Always use it unless the user says otherwise; formula/`metrics.py` changes only show up with it.
 - `-s 2001` (or `-s 2000,2001`) limits sets; `-y` changes the year (defaults to the current year).
-- `-b "2001=10-100:0.08"` overrides one set's point buckets for a trial run (multiple buckets: `"2001=10-50:0.05,60-100:0.05"`).
+- `-b "2001=10-100:0.08"` overrides one set's blueprint buckets for a trial run (multiple buckets: `"2001=10-50:0.05,60-100:0.05"`; no buckets: `"2001=none"`).
 - A run takes ~5-10s per set. Selection is deterministic, so before/after runs pick the same players.
 - The JSON has every breakdown in raw form if you need more than the Markdown report.
 
-How it matches the UI: blueprint = WOTC set size + position mix + avg points per position (`WotcSetProfile`), default weights/thresholds, plus the per-set buckets in `point_buckets.json`. WOTC counts are **scaled** to the set's size (defense is scaled within each position). Point buckets are enforced on **archived** points, so a re-run can shift points after selection. Note that in the warnings.
+How it matches the UI: blueprint = WOTC set size + position mix + avg points per position + low point buckets (`WotcSetProfile`, buckets in `WotcSetProfile.POINT_BUCKETS`), with default weights/thresholds. WOTC counts are **scaled** to the set's size (defense is scaled within each position). Point buckets are enforced on **archived** points, so a re-run can shift points after selection. Note that in the warnings.
 
 ## 2. Review checks
 
@@ -38,7 +36,7 @@ Focus on the **Low point cards (10-100) by player type** table.
 - Flag when the set's total 10-100 count is under ~85% of WOTC scaled, or any type is ≥3 cards short.
 - Fix with a point bucket. A bucket is a **per-type floor**: each type (hitters / SP / RP) gets at least `pct` of its cards in the range, and types already above it are left alone. Pick `pct` near the WOTC share of the short type(s), but no higher than the WOTC share of any type it would push past WOTC. If one type needs much more than the others, use two buckets (e.g. `10-50` + `60-100`) or accept a small shortfall. Keep the percent low; the user wants just enough to match WOTC.
 - Check the trial: re-run that set with `-b "<set>=<buckets>"`. An "Only reached X of Y" warning means the pool doesn't have enough low-point cards.
-- When the user accepts a bucket, save it to `point_buckets.json` (`{"2001": "10-100:0.08"}`) so later reviews and the UI config stay in sync. Remind them to add the same bucket in the Release Builder.
+- When the user accepts a bucket, save it to `WotcSetProfile.POINT_BUCKETS` in `mlb_showdown_bot/core/set_builder/wotc_set_profile.py`. That's the single source for the Release Builder's "<set> Base Set" blueprint, the CLI's `--wotc_base_set` and this review. Remind them to re-apply the blueprint in the Release Builder (it only fills the form when selected) and restart Flask so the profiles endpoint picks it up.
 - Also mention big gaps elsewhere in the 50-pt histogram (e.g. a hole at 400-549 or a pile-up at 250-299).
 
 ### 2b. Command (On-Base / Control): flag only
@@ -79,4 +77,4 @@ Speed   ✅
 Defense ⚠️  SS: avg 3.4 vs 2.8, top-heavy (8 at +5 vs 3 scaled) → suggest range_max mult 1.4 → 1.6 for 2001/2026
 ```
 
-Then add a short **cross-set summary**: issues that repeat across sets (likely a shared formula problem, not a per-set range tweak), all suggested `metrics.py` diffs together, and the bucket changes to apply in the Release Builder.
+Then add a short **cross-set summary**: issues that repeat across sets (likely a shared formula problem, not a per-set range tweak), all suggested `metrics.py` diffs together, and any bucket changes for `WotcSetProfile.POINT_BUCKETS`.

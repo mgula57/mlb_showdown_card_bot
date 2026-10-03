@@ -155,6 +155,17 @@ function compareDefenseKeys(a: BreakdownKey, b: BreakdownKey): number {
     return left.positionIndex - right.positionIndex || right.rating - left.rating;
 }
 
+/** Historical team codes (as on WOTC cards) mapped to the franchise's current code, so the Teams
+ * breakdown groups e.g. WOTC's MON with WSN. Applies to both sets, which keeps the comparison aligned. */
+const FRANCHISE_CODE: Record<string, string> = {
+    MON: 'WSN',
+    FLA: 'MIA',
+    CAL: 'LAA',
+    ANA: 'LAA',
+    TBD: 'TBR',
+    OAK: 'ATH',
+};
+
 const SPECS = {
     parentPosition: {
         keyFn: parentPositionGroup,
@@ -181,7 +192,7 @@ const SPECS = {
         groupFn: commandKeyGroup,
     },
     position: { keyFn: c => c.positions_list?.[0] ?? c.player_type, sort: 'count' },
-    team: { keyFn: c => c.team, sort: 'count' },
+    team: { keyFn: c => c.team ? (FRANCHISE_CODE[c.team] ?? c.team) : c.team, sort: 'count' },
     speed: { keyFn: c => c.is_pitcher ? null : c.speed, sort: 'key' },
     ip: { keyFn: c => c.is_pitcher ? c.ip : null, sort: 'key' },
     defense: {
