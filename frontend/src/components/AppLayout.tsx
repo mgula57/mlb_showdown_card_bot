@@ -144,8 +144,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     // Global site settings from context
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
 
-    // Calculate main content padding based on desktop sidebar state
-    const contentPadding = isSideMenuOpen ? 'md:pl-48' : 'md:pl-14';
+    // Desktop sidebar width, published as `--side-menu-width` on the layout root so fixed-position
+    // elements elsewhere (e.g. the team builder's docked Guided Draft strip) can clear it at md+.
+    const sideMenuWidth = isSideMenuOpen ? '12rem' : '3.5rem';
     
     // Get current route information for header title and icon
     const location = useLocation();
@@ -230,7 +231,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         !/CriOS|FxiOS/.test(navigator.userAgent);
 
     return (
-        <div className="bg-primary flex relative">
+        <div className="bg-primary flex relative" style={{ '--side-menu-width': sideMenuWidth } as React.CSSProperties}>
             {/* Desktop Sidebar - Hidden on mobile, collapsible on desktop */}
             <SideMenu 
                 className="hidden md:block" 
@@ -264,7 +265,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
 
             {/* Main Content Container with responsive padding for sidebar */}
-            <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ${contentPadding}`}>
+            <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 md:pl-(--side-menu-width)`}>
                 
                 {/* Application Header - Adaptive positioning for iOS Safari */}
                 <header

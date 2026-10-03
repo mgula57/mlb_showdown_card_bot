@@ -69,6 +69,9 @@ def fetch_stratified_candidates(
     active_filters: dict,
     card_sources: list[str],
     sets_by_source: dict[str, list[str]] | None = None,
+    bands: list[tuple[int, int, int]] | None = None,
+    columns: list[str] | None = _CANDIDATE_COLUMNS,
+    user_id: str | None = None,
 ) -> list[dict]:
     """Fetch a candidate pool for one bucket, stratified across price bands (10-1000 pts) and
     every allowed card source, so the pool has representation at all budget levels rather than
@@ -76,7 +79,9 @@ def fetch_stratified_candidates(
     DB samples every band in a single pass (`fetch_card_sample_by_price_band`) rather than one
     full-table walk per band. `db` is any object with that method (duck-typed to avoid importing
     PostgresDB here). `sets_by_source`, if given, restricts each source to its allowed showdown
-    sets unless `active_filters` already specifies `showdown_set`."""
+    sets unless `active_filters` already specifies `showdown_set`. `bands` overrides the default
+    stratification (e.g. one narrow band around a guided-draft target), `columns=None` returns
+    full card rows, and `user_id` scopes the CUSTOM source to its owner."""
     merged_all: list[dict] = []
     seen_ids: set[str] = set()
 
@@ -87,8 +92,8 @@ def fetch_stratified_candidates(
             if source_sets:
                 base['showdown_set'] = source_sets
 
-        bands = _price_bands_for_player_types(base.get('player_type'))
-        cards = db.fetch_card_sample_by_price_band(filters=base, bands=bands, columns=_CANDIDATE_COLUMNS) or []
+        source_bands = bands or _price_bands_for_player_types(base.get('player_type'))
+        cards = db.fetch_card_sample_by_price_band(filters=base, bands=source_bands, columns=columns, user_id=user_id) or []
         for c in cards:
             if c['card_id'] not in seen_ids:
                 c['_card_source'] = source
