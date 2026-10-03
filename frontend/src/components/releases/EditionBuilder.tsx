@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer } from '../../api/releases';
 import { updateEdition } from '../../api/releases';
@@ -176,6 +176,9 @@ function buildReleaseCardsFromPreview(players: AlgorithmPreviewPlayer[]): Releas
     }));
 }
 
+/** Cards rendered per page in the Selected pool grid. */
+const POOL_PAGE_SIZE = 40;
+
 export function EditionBuilder({ releaseId, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     const [saving, setSaving] = useState(false);
@@ -282,6 +285,23 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
         [previewResult]
     );
     const displayCards = previewCards ?? cards;
+
+    // The pool can be hundreds of cards, so the grid renders in pages and loads more as the
+    // user scrolls to the sentinel below it.
+    const sortedDisplayCards = useMemo(
+        () => [...displayCards].sort((a, b) => (a.card_number ?? Infinity) - (b.card_number ?? Infinity)),
+        [displayCards]
+    );
+    const [visibleCount, setVisibleCount] = useState(POOL_PAGE_SIZE);
+    useEffect(() => { setVisibleCount(POOL_PAGE_SIZE); }, [previewResult]);
+    const poolSentinelRef = useCallback((node: HTMLDivElement | null) => {
+        if (!node) return;
+        const observer = new IntersectionObserver(entries => {
+            if (entries[0]?.isIntersecting) setVisibleCount(n => n + POOL_PAGE_SIZE);
+        }, { rootMargin: '400px' });
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
 
     /** Non-destructive save: keeps every currently-persisted card, appends new preview players
      * (deduped by source_card_id) until reaching the configured set size. */
@@ -732,8 +752,8 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                     </p>
                                 ) : (
                                     <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5">
-                                        {[...displayCards]
-                                            .sort((a, b) => (a.card_number ?? Infinity) - (b.card_number ?? Infinity))
+                                        {sortedDisplayCards
+                                            .slice(0, visibleCount)
                                             .map(card => (
                                                 <div key={card.id} className="flex items-center gap-2">
                                                     {!previewResult && numbering.mode === 'manual' && !readOnly ? (
@@ -770,6 +790,9 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                 </div>
                                             ))}
                                     </div>
+                                )}
+                                {visibleCount < sortedDisplayCards.length && (
+                                    <div key={visibleCount} ref={poolSentinelRef} className="h-8" />
                                 )}
                             </div>
                         </Tabs.Content>
