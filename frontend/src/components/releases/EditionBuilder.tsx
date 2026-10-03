@@ -12,6 +12,11 @@ import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import FormEnabler from '../customs/FormEnabler';
+import FormDropdown from '../customs/FormDropdown';
+import {
+    groupAndSortCards, takeFromGroups, POOL_GROUP_OPTIONS, POOL_SORT_OPTIONS, POOL_SORT_DEFAULT_DIRECTION,
+    type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
+} from './poolGrouping';
 import { FaGripVertical } from 'react-icons/fa';
 import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation } from 'react-icons/fa6';
 
@@ -288,12 +293,16 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
 
     // The pool can be hundreds of cards, so the grid renders in pages and loads more as the
     // user scrolls to the sentinel below it.
-    const sortedDisplayCards = useMemo(
-        () => [...displayCards].sort((a, b) => (a.card_number ?? Infinity) - (b.card_number ?? Infinity)),
-        [displayCards]
-    );
     const [visibleCount, setVisibleCount] = useState(POOL_PAGE_SIZE);
-    useEffect(() => { setVisibleCount(POOL_PAGE_SIZE); }, [previewResult]);
+    const [groupBy, setGroupBy] = useState<PoolGroupBy>('none');
+    const [sortBy, setSortBy] = useState<PoolSortBy>('set_number');
+    const [sortDirection, setSortDirection] = useState<PoolSortDirection>('asc');
+    const poolGroups = useMemo(
+        () => groupAndSortCards(displayCards, groupBy, sortBy, sortDirection),
+        [displayCards, groupBy, sortBy, sortDirection]
+    );
+    const visibleGroups = useMemo(() => takeFromGroups(poolGroups, visibleCount), [poolGroups, visibleCount]);
+    useEffect(() => { setVisibleCount(POOL_PAGE_SIZE); }, [previewResult, groupBy, sortBy, sortDirection]);
     const poolSentinelRef = useCallback((node: HTMLDivElement | null) => {
         if (!node) return;
         const observer = new IntersectionObserver(entries => {
@@ -742,6 +751,36 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                 </div>
                             )}
 
+                            {displayCards.length > 0 && (
+                                <div className="flex flex-wrap items-end gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
+                                    <FormDropdown
+                                        label="Group by"
+                                        className="min-w-32 flex-1"
+                                        options={POOL_GROUP_OPTIONS}
+                                        selectedOption={groupBy}
+                                        onChange={value => setGroupBy(value as PoolGroupBy)}
+                                    />
+                                    <FormDropdown
+                                        label="Sort by"
+                                        className="min-w-32 flex-1"
+                                        options={POOL_SORT_OPTIONS}
+                                        selectedOption={sortBy}
+                                        onChange={value => {
+                                            setSortBy(value as PoolSortBy);
+                                            setSortDirection(POOL_SORT_DEFAULT_DIRECTION[value as PoolSortBy]);
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
+                                        title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
+                                    >
+                                        {sortDirection === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Card Grid */}
                             <div className="flex-1 min-h-0 overflow-y-auto p-3">
                                 {displayCards.length === 0 ? (
@@ -751,47 +790,59 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                             : (readOnly ? 'No cards in this edition yet.' : 'No cards yet — use Manual search to build your pool.')}
                                     </p>
                                 ) : (
-                                    <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5">
-                                        {sortedDisplayCards
-                                            .slice(0, visibleCount)
-                                            .map(card => (
-                                                <div key={card.id} className="flex items-center gap-2">
-                                                    {!previewResult && numbering.mode === 'manual' && !readOnly ? (
-                                                        <div className="flex items-center gap-1 shrink-0">
-                                                            {numbering.prefix && (
-                                                                <span className="text-[13px] font-mono text-(--text-tertiary)">{numbering.prefix}</span>
-                                                            )}
-                                                            <input
-                                                                type="number"
-                                                                value={editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')}
-                                                                onChange={e => handleNumberInputChange(card.id, e.target.value)}
-                                                                onBlur={() => handleNumberInputBlur(card.id)}
-                                                                placeholder="—"
-                                                                className="w-14 min-h-9 text-[13px] font-mono text-right bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-[13px] font-mono text-(--text-tertiary) w-7 text-right shrink-0">
-                                                            {formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
+                                    <div className="flex flex-col gap-4">
+                                        {visibleGroups.map(group => (
+                                            <div key={group.key} className="flex flex-col gap-2">
+                                                {groupBy !== 'none' && (
+                                                    <div className="flex items-center gap-2 border-t border-(--divider) pt-2">
+                                                        <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{group.label}</span>
+                                                        <span className="text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">
+                                                            {poolGroups.find(g => g.key === group.key)?.cards.length}
                                                         </span>
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <CardItemCompactFromCardDatabaseRecord
-                                                            card={card.card_snapshot}
-                                                            onClick={() => setDetailCard(card.card_snapshot)}
-                                                            actionButton={(!readOnly && !previewResult) ? {
-                                                                icon: <FaXmark />,
-                                                                label: 'Remove',
-                                                                bgColorClass: 'bg-red-500/90 text-white rounded-full p-2',
-                                                                onClick: () => handleRemoveCard(card.id),
-                                                            } : undefined}
-                                                        />
                                                     </div>
+                                                )}
+                                                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5">
+                                                    {group.cards.map(card => (
+                                                        <div key={card.id} className="flex items-center gap-2">
+                                                            {!previewResult && numbering.mode === 'manual' && !readOnly ? (
+                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                    {numbering.prefix && (
+                                                                        <span className="text-[13px] font-mono text-(--text-tertiary)">{numbering.prefix}</span>
+                                                                    )}
+                                                                    <input
+                                                                        type="number"
+                                                                        value={editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')}
+                                                                        onChange={e => handleNumberInputChange(card.id, e.target.value)}
+                                                                        onBlur={() => handleNumberInputBlur(card.id)}
+                                                                        placeholder="—"
+                                                                        className="w-14 min-h-9 text-[13px] font-mono text-right bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                    />
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-[13px] font-mono text-(--text-tertiary) w-7 text-right shrink-0">
+                                                                    {formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
+                                                                </span>
+                                                            )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <CardItemCompactFromCardDatabaseRecord
+                                                                    card={card.card_snapshot}
+                                                                    onClick={() => setDetailCard(card.card_snapshot)}
+                                                                    actionButton={(!readOnly && !previewResult) ? {
+                                                                        icon: <FaXmark />,
+                                                                        label: 'Remove',
+                                                                        bgColorClass: 'bg-red-500/90 text-white rounded-full p-2',
+                                                                        onClick: () => handleRemoveCard(card.id),
+                                                                    } : undefined}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
-                                {visibleCount < sortedDisplayCards.length && (
+                                {visibleCount < displayCards.length && (
                                     <div key={visibleCount} ref={poolSentinelRef} className="h-8" />
                                 )}
                             </div>

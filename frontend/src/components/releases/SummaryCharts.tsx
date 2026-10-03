@@ -113,11 +113,11 @@ function buildBreakdown(snapshots: CardDatabaseRecord[], spec: BreakdownSpec, co
     });
 }
 
-const PARENT_POSITION_ORDER = ['Position Player', 'Starting Pitcher', 'Relief Pitcher'] as const;
+export const PARENT_POSITION_ORDER = ['Position Player', 'Starting Pitcher', 'Relief Pitcher'] as const;
 type ParentPositionGroup = typeof PARENT_POSITION_ORDER[number];
 
 /** Closers (and any other non-starter pitcher) roll up into Relief Pitcher. */
-function parentPositionGroup(snapshot: CardDatabaseRecord): ParentPositionGroup {
+export function parentPositionGroup(snapshot: CardDatabaseRecord): ParentPositionGroup {
     if (!snapshot.is_pitcher) return 'Position Player';
     return (snapshot.positions_list ?? []).includes('STARTER') ? 'Starting Pitcher' : 'Relief Pitcher';
 }
@@ -157,7 +157,7 @@ function compareDefenseKeys(a: BreakdownKey, b: BreakdownKey): number {
 
 /** Historical team codes (as on WOTC cards) mapped to the franchise's current code, so the Teams
  * breakdown groups e.g. WOTC's MON with WSN. Applies to both sets, which keeps the comparison aligned. */
-const FRANCHISE_CODE: Record<string, string> = {
+export const FRANCHISE_CODE: Record<string, string> = {
     MON: 'WSN',
     FLA: 'MIA',
     CAL: 'LAA',
