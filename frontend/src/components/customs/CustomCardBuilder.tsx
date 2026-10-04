@@ -1264,17 +1264,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                     aria-label="Dismiss"
                                                     className="absolute top-2 right-2 text-blue-300 hover:text-white transition-colors cursor-pointer"
                                                 >
-                                                    <FaXmark size={12} />
+                                                    <FaXmark size={20} />
                                                 </button>
-                                                10/4 Update: Round 1 of 2026 set adjustments are complete. Expect charts to fully be stabilized by October 15th. We have also added a new mechanism called "Curated" chart selections, where a certain chart will be promoted to V1 in rare and particular cases. Read more{' '}
-                                                <a
-                                                    href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#curated-chart-selections"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="underline text-white hover:text-blue-200 cursor-pointer"
-                                                >
-                                                    here
-                                                </a>.
+                                                <p>10/4 Update: Round 1 of 2026 set adjustments are complete. Expect charts to fully be stabilized by October 15th.</p>
+                                                <p className="mt-1.5">
+                                                    We have also added a new mechanism called "Curated" chart selections, where a certain chart can be promoted to V1 in rare and particular cases. Read more{' '}
+                                                    <a
+                                                        href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#curated-chart-selections"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="underline text-white hover:text-blue-200 cursor-pointer"
+                                                    >
+                                                        here
+                                                    </a>.
+                                                </p>
                                             </div>
                                         )}
 
