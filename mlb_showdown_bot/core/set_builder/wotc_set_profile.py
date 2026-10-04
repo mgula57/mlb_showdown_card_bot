@@ -26,8 +26,8 @@ class WotcSetProfile(BaseModel):
             PointBucket(min_points=60, max_points=100, percentage=0.06),
         ],
         '2001': [
-            PointBucket(min_points=10, max_points=50, percentage=0.05), 
-            PointBucket(min_points=60, max_points=100, percentage=0.06),
+            PointBucket(min_points=10, max_points=50, percentage=0.03), 
+            PointBucket(min_points=60, max_points=100, percentage=0.04),
         ],
         '2002': [PointBucket(min_points=10, max_points=50, percentage=0.06)],
         '2003': [PointBucket(min_points=10, max_points=100, percentage=0.10)],

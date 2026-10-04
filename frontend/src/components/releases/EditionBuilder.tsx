@@ -11,6 +11,8 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
+import CompactSelect from '../shared/CompactSelect';
+import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import FormEnabler from '../customs/FormEnabler';
 import {
@@ -336,6 +338,12 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
             return !prev;
         });
     }
+    // Distinct Showdown sets in the pool, in the site's set order, for the icons in the pool tab bar.
+    const poolSets = useMemo(() => {
+        const present = new Set(displayCards.map(c => c.card_snapshot.showdown_set));
+        return showdownSets.map(s => s.value).filter(set => present.has(set));
+    }, [displayCards]);
+
     const poolGroups = useMemo(
         () => groupAndSortCards(displayCards, groupBy, sortBy, sortDirection),
         [displayCards, groupBy, sortBy, sortDirection]
@@ -629,6 +637,17 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                             <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
                                 Summary
                             </Tabs.Trigger>
+                            {poolSets.length > 0 && (
+                                <div className="flex items-center gap-1 ml-auto shrink-0">
+                                    {poolSets.map(set => {
+                                        const useAbbreviated = poolSets.length >= 2;
+                                        const image = imageForSet(set, useAbbreviated);
+                                        return image ? (
+                                            <img key={set} src={image} alt={set} title={set} className={`${useAbbreviated ? 'h-4.5' : 'h-5.5'} w-auto object-contain`} />
+                                        ) : null;
+                                    })}
+                                </div>
+                            )}
                         </Tabs.List>
 
                         <Tabs.Content value="cards" className="flex-1 min-h-0 flex flex-col focus:outline-none">
@@ -676,13 +695,13 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 border-b border-(--divider) shrink-0">
                                     {displayCards.length > 0 && (
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <ToolbarSelect
+                                            <CompactSelect
                                                 label="Group"
                                                 options={POOL_GROUP_OPTIONS}
                                                 value={groupBy}
                                                 onChange={value => setGroupBy(value as PoolGroupBy)}
                                             />
-                                            <ToolbarSelect
+                                            <CompactSelect
                                                 label="Sort"
                                                 options={POOL_SORT_OPTIONS}
                                                 value={sortBy}
@@ -962,28 +981,5 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                 </Modal>
             </div>
         </div>
-    );
-}
-
-/** Compact inline-labelled select for the pool toolbar — sits on one row next to the numbering controls. */
-function ToolbarSelect({ label, options, value, onChange }: {
-    label: string;
-    options: { label: string; value: string }[];
-    value: string;
-    onChange: (value: string) => void;
-}) {
-    return (
-        <label className="flex items-center h-9 rounded-lg border border-(--divider) hover:border-(--text-tertiary) transition-colors text-[13px] cursor-pointer focus-within:border-(--secondary)">
-            <span className="pl-2.5 pr-1 text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">{label}</span>
-            <select
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                className="h-full pr-2 bg-transparent font-semibold text-(--text-primary) focus:outline-none cursor-pointer"
-            >
-                {options.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-            </select>
-        </label>
     );
 }

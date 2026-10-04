@@ -3,7 +3,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { fetchWotcBaseSet, WOTC_BASE_SETS, type ReleaseCard, type WotcBaseSet } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { defenseAtPosition } from '../shared/DefenseUtils';
-import FormDropdown from '../customs/FormDropdown';
+import CompactSelect from '../shared/CompactSelect';
 import FormEnabler from '../customs/FormEnabler';
 
 type SummaryChartsProps = {
@@ -253,9 +253,9 @@ function buildAverages(snapshots: CardDatabaseRecord[]): SummaryAverages {
 // MARK: - PRESENTATION
 // =============================================================================
 
-function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function Section({ title, action, className, children }: { title: string; action?: ReactNode; className?: string; children: ReactNode }) {
     return (
-        <div>
+        <div className={className}>
             <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
                     {title}
@@ -350,7 +350,10 @@ function hideDividerTick(label: string): string {
 }
 
 /** `scrollable` gives each column a minimum width and scrolls horizontally instead of squeezing labels together. */
-function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false, height = 200 }: ChartProps & { scrollable?: boolean; height?: number }) {
+/** Default height of a VerticalBarChart; charts sitting beside one can match it. */
+const VERTICAL_CHART_HEIGHT = 200;
+
+function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false, height = VERTICAL_CHART_HEIGHT }: ChartProps & { scrollable?: boolean; height?: number }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     const rows = withSectionDividers(data);
     const columnWidth = compareLabel === null ? 36 : 48;
@@ -519,12 +522,13 @@ function SubsetFilterBar({ value, onChange }: { value: SubsetFilter; onChange: (
     );
 }
 
-function HorizontalBarChart({ data, emptyMessage, compareLabel }: ChartProps) {
+/** `minHeight` lets a short chart (few rows) stretch its bars to match a neighbouring chart's height. */
+function HorizontalBarChart({ data, emptyMessage, compareLabel, minHeight = 120 }: ChartProps & { minHeight?: number }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     const rows = withSectionDividers(data);
     const rowHeight = compareLabel === null ? 32 : 44;
     return (
-        <ResponsiveContainer width="100%" height={Math.max(120, rows.length * rowHeight)}>
+        <ResponsiveContainer width="100%" height={Math.max(minHeight, rows.length * rowHeight)}>
             <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }} barGap={BAR_GAP}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--table-header)" horizontal={false} />
                 <XAxis type="number" fontSize={11} allowDecimals={false} tickLine={false} />
@@ -650,11 +654,10 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
         <div className="flex flex-col gap-6 p-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <SubsetFilterBar value={subsetFilter} onChange={setSubsetFilter} />
-                <FormDropdown
+                <CompactSelect
                     label="Compare to WOTC"
-                    className="min-w-44"
                     options={COMPARISON_OPTIONS}
-                    selectedOption={comparisonSet ?? NO_COMPARISON}
+                    value={comparisonSet ?? NO_COMPARISON}
                     onChange={value => setComparisonSet(value === NO_COMPARISON ? null : value as WotcBaseSet)}
                 />
             </div>
@@ -671,9 +674,11 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                         <LegendEntry color={CHART_ACCENT} label={`This set (${pluralizeCards(filteredSnapshots.length)})`} />
                         <LegendEntry color={COMPARE_ACCENT} label={`${compareLabel} (${pluralizeCards(comparison.snapshots.length)})`} />
                     </div>
-                    <span className="text-(--text-tertiary)">
-                        {compareLabel} counts are scaled to this set's size.
-                    </span>
+                    {comparison.snapshots.length !== filteredSnapshots.length && (
+                        <span className="text-(--text-tertiary)">
+                            {compareLabel} counts are scaled to this set's size.
+                        </span>
+                    )}
                 </div>
             )}
 
@@ -690,13 +695,20 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                 <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No cards match this subset.</p>
             ) : (
                 <>
-                    <Section title="Position Group">
-                        <HorizontalBarChart data={breakdowns.parentPosition} emptyMessage="No data yet." {...chartProps} />
-                    </Section>
+                    {/* Side by side (1/3 – 2/3) when there's room, stacked otherwise. */}
+                    <div className="flex flex-wrap gap-6">
+                        <Section title="Position Group" className="flex-[1_1_0%] min-w-80">
+                            <HorizontalBarChart data={breakdowns.parentPosition} emptyMessage="No data yet." minHeight={VERTICAL_CHART_HEIGHT} {...chartProps} />
+                        </Section>
 
-                    <Section title="Points Distribution">
-                        <VerticalBarChart data={breakdowns.points} emptyMessage="No point data yet." {...chartProps} />
-                    </Section>
+                        <Section
+                            title="Points Distribution"
+                            action={<ChartAverage value={String(averages.points)} compareValue={compareAverages && String(compareAverages.points)} />}
+                            className="flex-[2_1_0%] min-w-80"
+                        >
+                            <VerticalBarChart data={breakdowns.points} emptyMessage="No point data yet." {...chartProps} />
+                        </Section>
+                    </div>
 
                     <Section
                         title="Command (Control / On-Base)"
