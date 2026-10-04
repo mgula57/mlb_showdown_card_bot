@@ -20,7 +20,7 @@ import {
     type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
 } from './poolGrouping';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight } from 'react-icons/fa6';
+import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn } from 'react-icons/fa6';
 
 /** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
 const MIN_POOL_PANEL_WIDTH = 280;
@@ -632,10 +632,10 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                     >
                         <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
                             <Tabs.Trigger value="cards" className={TAB_TRIGGER_CLASS}>
-                                Selected <span className="ml-1.5 text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{displayCards.length}</span>
+                                <FaListCheck className="text-[10px] mr-1.5" /> Selected <span className="ml-1.5 text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{displayCards.length}</span>
                             </Tabs.Trigger>
                             <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
-                                Summary
+                                <FaChartColumn className="text-[10px] mr-1.5" /> Summary
                             </Tabs.Trigger>
                             {poolSets.length > 0 && (
                                 <div className="flex items-center gap-1 ml-auto shrink-0">
