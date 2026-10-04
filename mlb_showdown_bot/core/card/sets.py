@@ -176,25 +176,34 @@ class Set(str, Enum):
             case Set._2004 | Set._2005 | Set.EXPANDED: return 21
             case _: return 20
 
-    def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool) -> float:
+    def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool, max_year: int) -> float:
+        year_multiplier = 1.0
+        match max_year:
+            case year if year >= 2026: # ACCOUNT FOR INCREASE IN SB
+                if use_variable_speed_multiplier:
+                    year_multiplier = 1.03
+                else:
+                    year_multiplier = 1.05 
+            case _: year_multiplier = 1.0
+            
         if use_variable_speed_multiplier:
-            return self.variable_speed_multiplier
+            return self.variable_speed_multiplier * year_multiplier        
         
         if metric == SpeedMetric.STOLEN_BASES:
             match self.value:
-                case '2000': return 1.21
-                case '2001': return 1.22
-                case '2002': return 1.12
-                case '2003': return 0.962
-                case '2004': return 1.00
-                case '2005': return 1.00
-                case _: return 1.0
+                case '2000': return 1.21 * year_multiplier
+                case '2001': return 1.22 * year_multiplier
+                case '2002': return 1.12 * year_multiplier
+                case '2003': return 0.962 * year_multiplier
+                case '2004': return 1.00 * year_multiplier
+                case '2005': return 1.00 * year_multiplier
+                case _: return 1.0 * year_multiplier
         
-        return 1.0
+        return year_multiplier
     
     @property
     def variable_speed_multiplier(self) -> float:
-        return 1.05 if self.is_00_01 else 1.00
+        return 1.10 if self.is_00_01 else 1.00
 
     # ---------------------------------------
     # POSITIONS/DEFENSE
@@ -328,12 +337,15 @@ class Set(str, Enum):
             case PlayerType.PITCHER:
                 return list(range(1, 7)) if self.has_expanded_chart else list(range(0, 7))
 
-    def command_accuracy_weighting(self, command:int, player_sub_type:PlayerSubType) -> float:
+    def command_accuracy_weighting(self, command:int, outs:int, player_sub_type:PlayerSubType, year:int | None = None, whip:float | None = None) -> float:
         """List of commands are corresponding accuracy weighting
-        
+
         Args:
           command: Control/Onbase rating for player.
+          outs: Number of outs for the current play.
           player_sub_type: Player subtype attribute (POSITION_PLAYER, STARTING_PITCHER, RELIEF_PITCHER)
+          year: Last year of the card's stats period. Used for 2026+ adjustments.
+          whip: Pitcher's real WHIP. Used for 2026+ adjustments.
 
         Returns:
           Multiplier for the accuracy of the chart for the given command + set.
@@ -344,11 +356,49 @@ class Set(str, Enum):
                 match command:
                     case 1: return 0.925
                     case 2: return 0.925
+
+                # Dont adjust anything pre-2026
+                if year is None or year < 2026:
+                    return 1.0
+
+                is_hitter = player_sub_type == PlayerSubType.POSITION_PLAYER
+                if not is_hitter:
+                    return 1.0
+
+                # Bump down 8 onbase 5 out players slightly to better match WOTC
+                if command == 8 and outs == 5 and year >= 2026:
+                    return 0.985 # 2026+ HITTERS: SLIGHTLY PENALIZE 8 ONBASE WITH 5 OUTS
+
+                # Bump down 7 onbase 3 out players slightly to better match WOTC
+                if command == 7 and outs == 3 and year >= 2026:
+                    return 0.985 # 2026+ HITTERS: SLIGHTLY PENALIZE 7 ONBASE WITH 3 OUTS
+
+                # Bump up higher OB and 5 out players to better match WOTC
+                if command >= 9 and outs == 5 and year >= 2026:
+                    return 1.02 # 2026+ HITTERS: SLIGHTLY FAVOR 9+ ONBASE WITH 5 OUTS
+
+                if command >= 10 and year >= 2026:
+                    return 1.02 # 2026+ HITTERS: SLIGHTLY FAVOR 10+ ONBASE IN GENERAL
+
+                if command >= 9 and outs == 4 and year >= 2026:
+                    return 1.002 # 2026+ HITTERS: SLIGHTLY FAVOR 9+ ONBASE IN GENERAL
+                
             case Set._2001:
                 match command:
                     case 0: return 0.995
                     case 1: return 0.990
                     case 2: return 0.990
+            case Set._2004 | Set._2005:
+                # 2026+ PITCHERS SKEWED TOWARDS 1-2 CONTROL, NUDGE PITCHERS WITH A BETTER WHIP THAN WOTC'S TYPICAL PITCHER AT THAT CONTROL UPWARDS
+                is_pitcher = player_sub_type != PlayerSubType.POSITION_PLAYER
+                if not is_pitcher or year is None or year < 2026 or whip is None:
+                    return 1.0
+                weight, whip_cutoff = {
+                    1: (0.970, 1.50),
+                    2: (0.970, 1.40),
+                    3: (0.990, 1.30)
+                }.get(command, (1.0, 0))
+                return weight if whip < whip_cutoff else 1.0
 
         return 1.0
 

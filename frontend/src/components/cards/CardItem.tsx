@@ -3,7 +3,7 @@ import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
-import { useTheme } from "../shared/SiteSettingsContext";
+import { useTheme, imageForSet } from "../shared/SiteSettingsContext";
 import { CardSource } from "../../types/cardSource";
 import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles } from 'react-icons/fa6';
 import type { CardItemActionButton } from './CardItemCompact';
@@ -159,10 +159,10 @@ export const CardItem = ({
             ? `border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
             : `border-gray-200 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
 
-    // Calculate width of the set and expansion display for proper spacing
-    const has_expansion = cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion);
-    const setExpansionWidth = (has_expansion && cardSource === 'WOTC') ? '100px' : 
-        (has_expansion ? '75px' : 'auto');
+    const hasSetBadgeContent = cardSource === 'WOTC' || cardSource === 'CUSTOM' || !!cardSetNumber
+        || ['TD', 'PR', 'ASG', 'PM'].includes(cardExpansion || '');
+    // Redacted/placeholder cards fall back to a blurred 2005 logo
+    const setImage = imageForSet(cardSet || '2005', true);
 
     /**
      * Player-type specific metadata display
@@ -221,7 +221,8 @@ export const CardItem = ({
             <div
                 className={`
                     ${className}
-                    flex flex-col pl-2 py-2 gap-1
+                    relative
+                    flex flex-col pl-2 pt-2 pb-1 gap-1.5
                     bg-secondary
                     rounded-xl
                     border-3
@@ -345,7 +346,7 @@ export const CardItem = ({
                 </div>
 
                 {/* Bottom bar */}
-                <div className="flex flex-row justify-between items-center gap-x-1 pr-0.5">
+                <div className={`flex flex-row justify-between items-center gap-x-1`}>
 
                     {/* Statistical highlights ribbon */}
                     <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
@@ -394,21 +395,25 @@ export const CardItem = ({
                                     {stat}
                                 </div>
                             ))}
+                            {/* Add empty space to scroll through, accounting for the image in bottom right */}
+                            <div className={`${hasSetBadgeContent ? 'w-40' : 'w-24'} h-2 shrink-0`} />
                             </>
                         )}
                     </div>
 
-                    {/* Set and Expansion */}
-                    <div 
+                </div>
+
+                {/* Source, Set Number, Expansion, and Showdown Set logo — pinned to the bottom-right corner,
+                    blurring any highlights that scroll beneath */}
+                {setImage && (
+                    <div
                         className="
-                            flex flex-row justify-end items-center gap-x-1
-                            text-[9px] text-nowrap tracking-tight text-primary
-                            bg-(--background-tertiary)
-                            px-1 rounded-md font-bold shadow-md
+                            absolute bottom-0 right-0
+                            flex flex-row items-center gap-x-1
+                            px-0.5 py-0.5 rounded-lg rounded-br-[9px]
+                            text-[9px] text-nowrap tracking-tight text-primary font-bold
+                            bg-(--background-secondary)/10 backdrop-blur-sm
                         "
-                        style={{
-                            minWidth: setExpansionWidth
-                        }}
                     >
                         {cardSource === 'WOTC' && (
                             <FaHatWizard className="inline-block w-3 h-3" title="Wizards of the Coast" />
@@ -432,10 +437,13 @@ export const CardItem = ({
                         {['PM'].includes(cardExpansion || '') && (
                             <span>PROMO</span>
                         )}
-                        <span className={`${cardSet ? '' : 'redacted'}`}>{cardSet || '2005'}</span>
+                        <img
+                            src={setImage}
+                            alt={cardSet || 'Showdown Set'}
+                            className="h-4 w-auto object-contain"
+                        />
                     </div>
-
-                </div>
+                )}
             </div>
         </div>
     );

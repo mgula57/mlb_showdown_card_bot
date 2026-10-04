@@ -3,6 +3,7 @@ import { SimLeaderboard } from './SimLeaderboard';
 import { SimHistory } from './SimHistory';
 import { RecentSims } from './RecentSims';
 import { SimChallenges } from './SimChallenges';
+import { ChallengesUpdateBanner } from './ChallengesUpdateBanner';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 import { useAuth } from '../../auth/AuthContext';
 import { SimulationGuideModal } from '../../simulate/SimulationGuideModal';
@@ -106,6 +107,8 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
             </div>
 
             {showGuide && <SimulationGuideModal onClose={() => setShowGuide(false)} />}
+
+            <ChallengesUpdateBanner />
 
             {/* Challenges grid */}
             <div className="flex flex-col gap-4">

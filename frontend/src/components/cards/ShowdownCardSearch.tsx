@@ -1278,7 +1278,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-(--background-primary) font-bold flex items-center bg-(--showdown-gray) rounded-full px-2 gap-1 py-1 cursor-pointer">
+            <button onClick={() => resetFilters(targets)} className="text-black font-bold flex items-center bg-(--warning) rounded-full px-2 mx-1 gap-1 py-1 cursor-pointer">
                 <FaArrowRotateRight />
                 <span className="text-sm">Reset</span>
             </button>
@@ -1446,7 +1446,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div>
+                        <div className="absolute right-0 flex justify-end shadow-xl">
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}

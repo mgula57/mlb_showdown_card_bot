@@ -128,6 +128,14 @@ export async function generateChallengeInstance(
     return res.json();
 }
 
+/** Take a live instance offline now (sets its `expires_at` to the current time). */
+export async function expireChallengeInstance(token: string, instanceId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/admin/challenges/instances/${instanceId}/expire`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) await fail(res, 'Failed to take instance offline');
+}
+
 /** Prune expired instances, then fill every category that has no live challenge. */
 export async function runChallengeRotation(token: string): Promise<RotationResult> {
     const res = await fetch(`${API_BASE}/admin/challenges/rotate`, {

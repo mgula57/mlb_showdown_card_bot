@@ -68,6 +68,11 @@ interface PlayerSearchInputProps {
     };
 }
 
+/** Minimum dropdown width in px (the input itself can be narrower) */
+const MENU_MIN_WIDTH = 380;
+/** Minimum gap in px between the dropdown and the viewport edges */
+const MENU_VIEWPORT_MARGIN = 8;
+
 /**
  * Example search queries to cycle through in placeholder text
  * Demonstrates various search capabilities and formats
@@ -174,10 +179,18 @@ export function PlayerSearchInput({
         if (!inputRef.current) return;
         const inputRect = inputRef.current.getBoundingClientRect();
 
+        // Menu may be wider than the input, but never wider than the viewport
+        const width = Math.min(Math.max(inputRect.width, MENU_MIN_WIDTH), window.innerWidth - 2 * MENU_VIEWPORT_MARGIN);
+        // Keep the menu left-aligned with the input unless that would overflow the right edge
+        const left = Math.max(
+            MENU_VIEWPORT_MARGIN,
+            Math.min(inputRect.left, window.innerWidth - width - MENU_VIEWPORT_MARGIN)
+        );
+
         setMenuPos({
-            left: inputRect.left,
+            left,
             top: inputRect.bottom + 4, // Add small gap below input
-            width: inputRect.width
+            width
         });
     };
 
@@ -414,9 +427,10 @@ export function PlayerSearchInput({
                             type="button"
                             onClick={handleClear}
                             className="
-                                absolute right-2 top-1/2 transform -translate-y-1/2
-                                text-secondary hover:text-gray-600
-                                w-4 h-4 flex items-center justify-center
+                                absolute right-0 top-1/2 transform -translate-y-1/2
+                                text-secondary hover:text-secondary/80
+                                w-6 h-10 flex items-center justify-center
+                                backdrop-blur-xs rounded-r-md p-1
                                 text-lg
                             "
                         >

@@ -69,6 +69,7 @@ def infer_allowed_sets_from_cards(cards) -> dict:
 class PickSource(str, Enum):
     MANUAL    = "MANUAL"    # user picked the card themselves
     AUTOFILL  = "AUTOFILL"  # filled by the autofill algorithm
+    GUIDED    = "GUIDED"    # picked from a Guided Draft round's offered options
     IMPORTED  = "IMPORTED"  # copied from another team (future)
 
 

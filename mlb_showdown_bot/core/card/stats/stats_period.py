@@ -487,6 +487,30 @@ class StatsPeriod(BaseModel):
     # METHODS
     # ---------------------------------
 
+    def covers_full_season(self, full_season_stats: dict[str, Any]) -> bool:
+        """
+        Returns True if the period represents the player's entire single season.
+        A date range only qualifies once it includes every game of the season (ex: the final in-season trend datapoint).
+
+        Args:
+            full_season_stats (dict[str, Any]): The player's full season stats, compared against the period's stats.
+        """
+        if self.is_multi_year or self.year_int is None or self.team_override:
+            return False
+
+        match self.type:
+            case StatsPeriodType.REGULAR_SEASON:
+                return True
+            case StatsPeriodType.DATE_RANGE:
+                period_stats = self.stats or {}
+                for sample_size_stat in ['PA', 'G']:
+                    full_season_value = full_season_stats.get(sample_size_stat, None)
+                    if full_season_value:
+                        return period_stats.get(sample_size_stat, 0) >= full_season_value
+                return False
+            case _:
+                return False
+
     def player_type_for_mlb_api(self, primary_position:str | Position = None) -> PlayerType:
         """
         Determine whether to use pitching or hitting stats for the MLB API based on the stats period overrides and primary position.

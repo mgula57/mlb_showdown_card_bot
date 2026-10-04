@@ -195,6 +195,23 @@ def generate_challenge_instance(template_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+@admin_challenges_bp.route('/admin/challenges/instances/<instance_id>/expire', methods=['POST'])
+@require_admin
+def expire_challenge_instance(instance_id: str):
+    """Take a live instance offline now by setting its `expires_at` to the current time."""
+    try:
+        with PostgresDB() as db:
+            result = db.expire_challenge_instance(instance_id)
+        if result == 'not_found':
+            return jsonify({'error': 'Instance not found'}), 404
+        if result == 'already_expired':
+            return jsonify({'error': 'Instance is already expired'}), 409
+        return jsonify({'success': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @admin_challenges_bp.route('/admin/challenges/rotate', methods=['POST'])
 @require_admin
 def rotate_challenges():

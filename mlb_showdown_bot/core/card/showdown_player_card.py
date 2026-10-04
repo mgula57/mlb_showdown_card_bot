@@ -21,7 +21,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageCho
 from prettytable import PrettyTable
 from pprint import pprint
 from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
-from typing import Any, Optional, Union
+from typing import Any, ClassVar, Optional, Union
 
 # INTERNAL
 from ..shared.team import Team
@@ -44,6 +44,7 @@ from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, Pl
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
 from .images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
+from .command_out_selections import CommandOutSelection, CommandOutSelections
 
 from .trends.trends import TrendDatapoint
 
@@ -118,6 +119,9 @@ class ShowdownPlayerCard(BaseModel):
     positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
     positions_and_games_played: dict[Position, int] = {}
     command_out_accuracies: dict[str, float] = {}
+    command_out_selection: Optional[CommandOutSelection] = None # CURATED COMBO APPLIED TO THIS CARD (SEE `data/command_out_selections.yaml`)
+    command_out_selection_fingerprint: Optional[str] = None # FINGERPRINT OF THE SELECTION WHEN THE CARD WAS BUILT, USED TO DETECT STALE CARDS
+    selected_command_outs: Optional[str] = None # COMMAND/OUTS OF THE CHART ON THE CARD (EX: '13-8')
     ip: int = None
     hand: Hand = None
     speed: Speed = None
@@ -220,6 +224,9 @@ class ShowdownPlayerCard(BaseModel):
             game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
             self.stats_period.add_stats_from_game_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
 
+        # CHECK IF PERIOD COVERS THE FULL SEASON BEFORE MERGING WITH FULL SEASON STATS
+        is_full_season_period = self.stats_period.covers_full_season(full_season_stats=self.stats) and not self.team_override
+
         if self.stats_period.stats:
             full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
             # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS
@@ -286,7 +293,12 @@ class ShowdownPlayerCard(BaseModel):
         # MAKES MATH EASIER (20 SIDED DICE)
         stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats_for_card)
 
+        # CURATED COMMAND/OUT SELECTION
+        self.command_out_selection = self._curated_command_out_selection(is_full_season_period=is_full_season_period)
+        self.command_out_selection_fingerprint = self.command_out_selection.fingerprint if self.command_out_selection else None
+
         self.chart: Chart = self._most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
+        self.selected_command_outs = self.chart.command_outs_concat
         self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
 
         self.recalculate_points()
@@ -907,7 +919,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # RE-SORT POSITIONS
         final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: item[0].extract_games_played_used_for_sort(final_position_games_played), reverse=True))
-        
+
         return final_positions_in_game, positions_and_real_life_ratings, final_position_games_played
 
     def calc_positions_and_defense_for_visuals(self) -> dict[str, int]:
@@ -1210,7 +1222,7 @@ class ShowdownPlayerCard(BaseModel):
         #  EX: 60 GAMES PLAYED WOULD REDUCE EXCESS AMOUNT BY 50%. 
         #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
         
-        metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
+        metric_max = metric.range_max(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)
         if rating > metric_max and not metric.is_rate_stat:
             amount_over_max = rating - metric_max
             over_max_small_sample_reduction = min((games / 120), 1.0)
@@ -1219,8 +1231,8 @@ class ShowdownPlayerCard(BaseModel):
 
         min_defense_for_position = self.set.position_defense_min(position=position)
         max_defense_for_position = self.set.position_defense_max(position=position)
-        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value)) \
-                        / metric.range_total_values(position_str=position.value, set_str=self.set.value)
+        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)) \
+                        / metric.range_total_values(position_str=position.value, set_str=self.set.value, max_year=self.stats_period.last_year)
                    
         defense_raw = min_defense_for_position + ( percentile * (max_defense_for_position - min_defense_for_position) )
         defense = round(defense_raw) if defense_raw > 0 or self.set.is_showdown_bot else 0
@@ -1229,12 +1241,13 @@ class ShowdownPlayerCard(BaseModel):
 
         # ADD IN STATIC METRICS FOR 1B
         if is_1b:
+            first_base_minus_1_cutoff = metric.first_base_plus_1_cutoff(set_str=self.set.value, max_year=self.stats_period.last_year)
             games_required_for_plus_2 = 30 if not self.stats_period.is_multi_year and self.set.year == '2020' else 90
             if rating > metric.first_base_plus_2_cutoff and games >= games_required_for_plus_2:
                 defense = 2
-            elif rating > metric.first_base_plus_1_cutoff:
+            elif rating > first_base_minus_1_cutoff:
                 defense = 1
-            elif rating < metric.first_base_minus_1_cutoff and self.set.is_showdown_bot:
+            elif rating < first_base_minus_1_cutoff and self.set.is_showdown_bot:
                 defense = -1
             else:
                 defense = 0
@@ -1412,7 +1425,7 @@ class ShowdownPlayerCard(BaseModel):
         in_game_speed_for_metric: dict[SpeedMetric, float] = {}
         for metric, value in speed_elements.items():
             use_variable_speed_multiplier = self.set.is_00_01 and self.is_variable_speed_00_01
-            metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier)
+            metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier, max_year=self.stats_period.last_year)
             era_multiplier = self.era.speed_multiplier
 
             metric_min = metric.minimum_range_value(set=self.set.value)
@@ -1882,12 +1895,28 @@ class ShowdownPlayerCard(BaseModel):
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
         pa = self.stats_for_card.get('pa', 400)
         
+        def build_chart(command:int, outs:float) -> Chart:
+            return Chart(
+                command=command,
+                outs=outs,
+                opponent=opponent,
+                set=self.set.value,
+                era_year_list=year_list,
+                year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
+                era=self.era.value,
+                is_expanded=self.set.has_expanded_chart,
+                pa=pa,
+                stats_per_400_pa=stats_per_400_pa,
+                is_pitcher=self.is_pitcher,
+                player_subtype=self.player_sub_type.value,
+                command_accuracy_weight_fn=lambda outs_full: self.set.command_accuracy_weighting(command=command, outs=outs_full, player_sub_type=self.player_sub_type, year=self.stats_period.last_year, whip=self.stats_for_card.get('whip', None)),
+            )
+
         command_options = list(set([ c for c in self.set.command_options(player_type=self.player_type) if c not in self.commands_excluded]))
         for command in command_options:
             
             # CREATE CHART WITH COMMAND/OUT COMBO
             # SEE ACCURACY WHEN OVERESTIMATING OBP VS UNDERESTIMATING OBP WHEN ROUNDING # OF OUTS
-            command_accuracy_weight = self.set.command_accuracy_weighting(command=command, player_sub_type=self.player_sub_type)
             for use_alternate_outs in [False, True]:
                 
                 outs = 0
@@ -1899,21 +1928,7 @@ class ShowdownPlayerCard(BaseModel):
                     if outs == chart.outs or outs > 20:
                         continue
 
-                chart = Chart(
-                    command=command,
-                    outs=outs,
-                    opponent=opponent,
-                    set=self.set.value,
-                    era_year_list=year_list,
-                    year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
-                    era=self.era.value,
-                    is_expanded=self.set.has_expanded_chart,
-                    pa=pa,
-                    stats_per_400_pa=stats_per_400_pa,
-                    is_pitcher=self.is_pitcher,
-                    player_subtype=self.player_sub_type.value,
-                    command_accuracy_weight=command_accuracy_weight,
-                )
+                chart = build_chart(command=command, outs=outs)
 
                 # IF COMMAND OUT COMBO HAS ALREADY BEEN CALC'D PREVIOUSLY, SKIP
                 if chart.command_outs_concat in [c.command_outs_concat for c in charts]:
@@ -1921,32 +1936,59 @@ class ShowdownPlayerCard(BaseModel):
 
                 charts.append(chart)
 
-        # IF MANUAL COMMAND OUT OVERRIDE, ASSIGN THAT BY SETTING ACCURACY TO 100%
-        if self.command_out_override:
-            chart = Chart(
-                command=self.command_out_override[0],
-                outs=self.command_out_override[1] * chart.sub_21_per_slot_worth,
-                opponent=opponent,
-                set=self.set.value,
-                year=self.stats_period.last_year, # USED FOR 2026+ COMMAND ESTIMATE ADJUSTMENT
-                era_year_list=year_list,
-                era=self.era.value,
-                is_expanded=self.set.has_expanded_chart,
-                pa=pa,
-                stats_per_400_pa=stats_per_400_pa,
-                is_pitcher=self.is_pitcher,
-                player_subtype=self.player_sub_type.value,
-            )
-            chart.accuracy = 1.0
-            charts.append(chart)
-
-        # FIND MOST ACCURATE CHART
+        # SORT BY ACCURACY
         charts.sort(key=lambda x: x.accuracy, reverse=True)
+
+        # IF A COMBO IS FORCED (MANUAL OVERRIDE OR CURATED SELECTION), PROMOTE IT TO VERSION 1
+        # KEEPS ITS TRUE ACCURACY SO THE BREAKDOWN REFLECTS THE COST OF THE CHOICE
+        forced_command_outs = self.forced_command_outs
+        if forced_command_outs:
+            forced_command, forced_outs = forced_command_outs
+            forced_concat = f"{forced_command}-{forced_outs}"
+            forced_chart = next((c for c in charts if c.command_outs_concat == forced_concat), None)
+            if forced_chart is None:
+                slot_worth = next((c.sub_21_per_slot_worth for c in charts if c.command == forced_command), charts[0].sub_21_per_slot_worth)
+                forced_chart = build_chart(command=forced_command, outs=forced_outs * slot_worth)
+            else:
+                charts.remove(forced_chart)
+            charts.insert(0, forced_chart)
+
         best_chart = charts[offset]
         self.command_out_accuracies = { f"{ca.command_outs_concat}": round(ca.accuracy,4) for ca in charts }
         self.command_out_accuracy_breakdowns = { f"{ca.command_outs_concat}": ca.accuracy_breakdown for ca in charts }
 
         return best_chart
+
+    @property
+    def forced_command_outs(self) -> Optional[tuple[int, int]]:
+        """Command/outs combo promoted to chart version 1. A manual override takes priority over a curated selection."""
+        if self.command_out_override:
+            return tuple(self.command_out_override)
+        if self.command_out_selection:
+            return (self.command_out_selection.command, self.command_out_selection.outs)
+        return None
+
+    def _curated_command_out_selection(self, is_full_season_period: bool) -> Optional[CommandOutSelection]:
+        """Look up a curated command/out selection for this card.
+
+        Only applies to cards built from the player's full season, so partial periods
+        (ex: in-season trend datapoints) keep the most accurate chart.
+
+        Args:
+          is_full_season_period: True if the card's stats cover the player's entire season.
+
+        Returns:
+          The matching selection, or None.
+        """
+        # MANUAL OVERRIDE TAKES PRIORITY
+        if not is_full_season_period or self.is_wotc or self.command_out_override:
+            return None
+        return CommandOutSelections.load().lookup(
+            player_ids=[self.bref_id, f"mlb{self.mlb_id}" if self.mlb_id else None],
+            year=self.year,
+            set=self.set,
+            player_type=self.player_type,
+        )
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
@@ -2618,7 +2660,9 @@ class ShowdownPlayerCard(BaseModel):
 
         # COMMAND AND OUTS
         accuracy_suffix = f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.command_out_accuracy_weight != 1.0 else ''
-        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS {accuracy_suffix} ")
+        is_curated_chart = self.command_out_selection and self.selected_command_outs == self.command_out_selection.command_outs_concat
+        selection_suffix = f'(CURATED: {self.command_out_selection.key})' if is_curated_chart else ''
+        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS {accuracy_suffix} {selection_suffix}")
 
         chart_tbl = PrettyTable(field_names=[col.value + ('*' if col in self.chart.chart_categories_adjusted else '') for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)
@@ -5286,6 +5330,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # ---- IMAGE FROM GOOGLE DRIVE -----
         file_service = None
+        gdrive_file_versions: dict[str, str] = {}
         if player_img_user_uploaded is None:
             is_search_for_universal_img = self.image.parallel != ImageParallel.MYSTERY
             img_components_dict = self._player_image_components_dict()
@@ -5300,14 +5345,14 @@ class ShowdownPlayerCard(BaseModel):
                 else:
                     # USE FIREBASE AS DIRECTORY
                     folder_id = self.set.player_image_gdrive_folder_id
-                    file_service, img_components_dict = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
+                    file_service, img_components_dict, gdrive_file_versions = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
             if len(non_empty_components) == 0:
                 img_components_dict[PlayerImageComponent.SILHOUETTE] = self._template_img_path(f'SIL-{self.player_classification}')
             
-            player_imgs = self._automated_player_image_layers(component_img_urls_dict=img_components_dict, file_service=file_service)
+            player_imgs = self._automated_player_image_layers(component_img_urls_dict=img_components_dict, file_service=file_service, gdrive_file_versions=gdrive_file_versions)
             if len(player_imgs) > 0:
                 images_to_paste += player_imgs
 
@@ -5321,11 +5366,13 @@ class ShowdownPlayerCard(BaseModel):
 
         return images_to_paste
 
-    def _automated_player_image_layers(self, file_service, component_img_urls_dict:dict) -> list[tuple[Image.Image, tuple[int,int]]]:
+    def _automated_player_image_layers(self, file_service, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str] = None) -> list[tuple[Image.Image, tuple[int,int]]]:
         """ Download and manipulate player image asset(s) to fit the current set's style.
 
         Args:
+          file_service: Google Drive file service used for downloads.
           component_img_urls_dict: Dict of image urls per component.
+          gdrive_file_versions: Dict of Google Drive file id -> version (md5 checksum or modified time). Used as the local cache key.
 
         Returns:
           List of tuples that contain a PIL image objects and coordinates to paste them
@@ -5376,13 +5423,10 @@ class ShowdownPlayerCard(BaseModel):
             image = None
             match img_component.load_source:
                 case "DOWNLOAD":
-                    # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
+                    # 1. CHECK FOR IMAGE IN LOCAL CACHE. KEYED ON DRIVE FILE ID + VERSION SO REPLACED/UPDATED FILES ARE NEVER STALE.
                     image = None
-                    type_override = self.player_type_override.override_string if self.player_type_override else ''
-                    stats_period = self.stats_period.type.player_image_search_term if self.stats_period.type.player_image_search_term else ''
-                    cached_image_filename = f"{img_component.source_name}-{self.year}-({self.mlb_id or self.bref_id})-({self.team.value}){type_override}{stats_period}.png"
-                    cached_image_path = os.path.join(os.path.dirname(__file__), 'image_uploads', cached_image_filename)
-                    if not self.ignore_cache:
+                    cached_image_path = self._cached_gdrive_image_path(component=img_component, file_id=img_url, gdrive_file_versions=gdrive_file_versions)
+                    if cached_image_path and not self.ignore_cache:
                         try:
                             image = Image.open(cached_image_path)
                             self.image.source.type = ImageSourceType.LOCAL_CACHE
@@ -5400,7 +5444,8 @@ class ShowdownPlayerCard(BaseModel):
                     if image is None:
                         image = self._download_google_drive_image(file_service=file_service,file_id=img_url)
                         if image:
-                            self._cache_downloaded_image(image=image, path=cached_image_path)
+                            if cached_image_path:
+                                self._cache_downloaded_image(image=image, path=cached_image_path)
                             self.image.source.type = ImageSourceType.GOOGLE_DRIVE
                 case "COLOR":
                     if self.image.special_edition == SpecialEdition.ASG_LINES:
@@ -5661,22 +5706,24 @@ class ShowdownPlayerCard(BaseModel):
           Tuple with the following:
             Google Drive file service object
             Dict of image urls per component.
+            Dict of file id -> version (md5 checksum, falling back to modified time).
         """
         
         # GAIN ACCESS TO GOOGLE DRIVE
         file_service = None
+        file_versions: dict[str, str] = {}
         SCOPES = ['https://www.googleapis.com/auth/drive']
         GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
         if not GOOGLE_CREDENTIALS_STR:
             # IF NO CREDS, RETURN NONE
-            return (file_service, components_dict)
+            return (file_service, components_dict, file_versions)
         
         # CREDS FILE FOUND, PROCEED
         GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
         try:
             GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
         except:
-            return (file_service, components_dict)
+            return (file_service, components_dict, file_versions)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
 
         # BUILD THE SERVICE OBJECT.
@@ -5694,7 +5741,7 @@ class ShowdownPlayerCard(BaseModel):
                     query += f" or name contains '({mlb_id})'"
                 query += ")"
                 file_service = service.files()
-                response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
+                response = file_service.list(q=query,pageSize=1000,pageToken=page_token,fields="nextPageToken, files(id, name, md5Checksum, modifiedTime)").execute()
                 new_files_list = response.get('files')
                 page_token = response.get('nextPageToken', None)
                 files_metadata = files_metadata + new_files_list
@@ -5709,8 +5756,9 @@ class ShowdownPlayerCard(BaseModel):
         
         # LOOK FOR SUBSTRING IN FILE NAMES
         file_matches_metadata_dict = self._img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
+        file_versions = {f['id']: f.get('md5Checksum') or f.get('modifiedTime') for f in files_metadata if f.get('id') and (f.get('md5Checksum') or f.get('modifiedTime'))}
         
-        return (file_service, file_matches_metadata_dict)
+        return (file_service, file_matches_metadata_dict, file_versions)
     
     def _img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int) -> dict[PlayerImageComponent, str]:
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
@@ -6008,6 +6056,25 @@ class ShowdownPlayerCard(BaseModel):
             return components_dict
         
         return default_components_for_context
+
+    def _cached_gdrive_image_path(self, component:PlayerImageComponent, file_id:str, gdrive_file_versions:dict[str, str] = None) -> Optional[str]:
+        """Local cache path for a downloaded Google Drive image, keyed on the file id and its version.
+        A new upload (new id) or an in-place replacement (new md5/modified time) produces a new path,
+        so a stale image is never served.
+
+        Args:
+          component: Image component being loaded.
+          file_id: Google Drive file id.
+          gdrive_file_versions: Dict of Google Drive file id -> version.
+
+        Returns:
+          Path to the cached image, or None if the file is not a versioned Drive file (ex: local drive or template image).
+        """
+        version = (gdrive_file_versions or {}).get(file_id, None)
+        if not version:
+            return None
+        version_cleaned = re.sub(r'[^\w.-]', '', version)
+        return os.path.join(os.path.dirname(__file__), 'image_uploads', f"{component.source_name}-{file_id}-{version_cleaned}.png")
 
     def _cache_downloaded_image(self, image:Image.Image, path:str) -> None:
         """Store downloaded image to the uploads folder in order to cache it
@@ -7043,3 +7110,66 @@ class ShowdownPlayerCard(BaseModel):
         """Convert current class to a json"""
         
         return self.model_dump(mode="json", exclude=exclude, exclude_none=True)
+
+    # FIELDS PRODUCED BY `build_card()` (OR STAMPED AT BUILD TIME) - DROPPED WHEN RE-RUNNING A STORED CARD
+    REBUILT_FIELDS: ClassVar[frozenset[str]] = frozenset([
+        'version', 'load_time', 'warnings', 'chart', 'points', 'points_breakdown', 'projected',
+        'command_out_accuracies', 'command_out_accuracy_breakdowns', 'real_vs_projected_stats',
+        'command_out_selection', 'command_out_selection_fingerprint', 'selected_command_outs',
+        'positions_list', 'positions_and_defense', 'positions_and_defense_for_visuals',
+        'positions_and_defense_string', 'positions_and_real_life_ratings', 'positions_and_games_played',
+        'player_sub_type', 'ip', 'hand', 'speed', 'accolades', 'icons',
+    ])
+
+    @classmethod
+    def rebuilt_from_card_data(cls, card_data: dict) -> 'ShowdownPlayerCard':
+        """Re-run a stored card payload through the current card algorithm.
+
+        Keeps the card's inputs (stats, stats period, set, overrides, image settings) and drops
+        everything `build_card` derives, so the chart, points, speed, defense etc. reflect the
+        current code rather than the bot version the card was archived with.
+        """
+        inputs = {k: v for k, v in card_data.items() if k not in cls.REBUILT_FIELDS}
+        return cls(**inputs)
+
+    def card_bot_columns(self) -> dict:
+        """Card-derived columns of a `card_bot` row, computed from this card.
+
+        Mirrors the `dim_card.card_data` parsing in `PostgresDB.build_card_bot_view` so a rebuilt
+        card can be swapped into an archived row without a view refresh.
+        """
+        data = self.as_json()
+        chart = data.get('chart') or {}
+        speed = data.get('speed') or {}
+        image = data.get('image') or {}
+        speed_value, speed_letter = speed.get('speed'), speed.get('letter')
+        return {
+            'card_year': (data.get('stats_period') or {}).get('year'),
+            'showdown_bot_version': data.get('version'),
+            'points': data.get('points'),
+            'points_estimated': data.get('points_estimated'),
+            'points_diff_estimated_vs_actual': data.get('points_diff_estimated_vs_actual'),
+            'nationality': data.get('nationality'),
+            'color_primary': image.get('color_primary'),
+            'color_secondary': image.get('color_secondary'),
+            'positions_and_defense': data.get('positions_and_defense'),
+            'positions_and_defense_string': data.get('positions_and_defense_string'),
+            'positions_list': data.get('positions_list') or [],
+            'ip': data.get('ip'),
+            'speed': speed_value,
+            'hand': data.get('hand'),
+            'speed_letter': speed_letter,
+            'speed_full': f"{speed_letter}({speed_value})" if speed_letter is not None and speed_value is not None else None,
+            'speed_or_ip': speed_value if self.player_type == PlayerType.HITTER else data.get('ip'),
+            'icons_list': data.get('icons') or [],
+            'stat_highlights_list': image.get('stat_highlights_list'),
+            'command': chart.get('command'),
+            'outs': chart.get('outs_full'),
+            'is_pitcher': chart.get('is_pitcher'),
+            'is_chart_outlier': chart.get('is_command_out_anomaly'),
+            'chart_ranges': chart.get('ranges'),
+            'chart_values': chart.get('values'),
+            'is_errata': bool(data.get('is_errata')),
+            'notes': data.get('notes'),
+            'card_data': data,
+        }

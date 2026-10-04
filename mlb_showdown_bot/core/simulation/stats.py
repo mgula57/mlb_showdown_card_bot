@@ -646,5 +646,11 @@ def load_real_league_avgs(year: int, type: PlayerType) -> Stats:
         for row in csv.DictReader(f):
             if int(row['Year']) == int(year):
                 totals = {col.lower(): float(row[col]) if row.get(col) not in (None, '') else 0 for col in columns if col in row}
+                if 'gdp' in totals:
+                    # THE CSV'S GDP COLUMN IS STATCATEGORY.GDP ("gidp") IN A SIM STATS OBJECT
+                    totals[StatCategory.GDP.value] = totals.pop('gdp')
+                if type == PlayerType.PITCHER:
+                    # THE PITCHER CSV HAS NO GDP COLUMN, BUT EVERY GROUND-INTO-DP IS ONE AGAINST A PITCHER
+                    totals[StatCategory.GDP.value] = load_real_league_avgs(year=year, type=PlayerType.HITTER).stat(StatCategory.GDP)
                 return Stats(id="LG AVG", name="REAL", player_type=type, totals=totals)
     raise ValueError(f"Empty Stats for {year}")

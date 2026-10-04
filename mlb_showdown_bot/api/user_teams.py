@@ -6,6 +6,7 @@ from flask import Blueprint, g, jsonify, request
 from ..core.database.postgres_db import PostgresDB
 from ..core.card.team_builder.team import Team, DEFAULT_LINEUP_NAME
 from ..core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team, fetch_stratified_candidates
+from ..core.card.team_builder.guided import GuidedDraftPlanner
 from ..core.supabase import SupabaseClientManager, upload_to_supabase
 from .user_settings import require_auth, optional_user_id
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
@@ -289,6 +290,38 @@ def delete_team_logo(team_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+def _load_team_for_draft(db, team_id: str) -> tuple[Team, dict[str, int]] | None:
+    """The caller's team plus card_id -> points for every card already on its roster, or None
+    if the team isn't theirs. Points come straight off the raw DB row: `TeamRosterSlot`
+    deliberately drops card metadata like `points` (it's transient, refetched wherever it's
+    needed), so this is the only place that data is available to compute how many points a
+    partially-filled team has already spent."""
+    team_row = db.get_team(team_id, g.user_id)
+    if team_row is None:
+        return None
+    existing_card_points: dict[str, int] = {
+        s['card_id']: s.get('points') or 0
+        for s in (team_row.get('roster') or [])
+    } if isinstance(team_row, dict) else {}
+    team = Team.from_db_row(team_row) if isinstance(team_row, dict) else team_row
+    return team, existing_card_points
+
+
+def _team_draft_scope(team: Team, payload_filters: dict) -> tuple[dict, list[str], dict[str, list[str]]]:
+    """Card-pool scope for drafting into `team`: (filters, card sources, sets per source).
+
+    The base filter set comes from the team's stored constraints so that server-side drafting
+    always respects player_filters regardless of what the frontend sends. Payload filters are
+    merged last so the UI can add session-level overrides (e.g. a one-time set filter). Set
+    restrictions are per source, since each source has its own allowed sets (empty = no set
+    restriction); an explicit showdown_set in the filters wins over them.
+    """
+    filters: dict = {**(team.player_filters or {}), **(payload_filters or {})}
+    card_sources: list[str] = [s.upper() for s in (team.allowed_card_sources or [])] or ['BOT']
+    sets_by_source = {source: team.sets_for_source(source) for source in card_sources}
+    return filters, card_sources, sets_by_source
+
+
 @user_teams_bp.route('/user/teams/<team_id>/autofill', methods=['POST'])
 @require_auth
 def autofill_team_route(team_id: str):
@@ -310,20 +343,10 @@ def autofill_team_route(team_id: str):
                 return jsonify({'error': 'pts_target must be a number'}), 400
 
         with PostgresDB() as db:
-            team_row = db.get_team(team_id, g.user_id)
-            if team_row is None:
+            loaded = _load_team_for_draft(db, team_id)
+            if loaded is None:
                 return jsonify({'error': 'Team not found or access denied'}), 404
-
-            # Grab points per existing roster slot straight off the raw DB row before it's parsed
-            # into a Team: `TeamRosterSlot` deliberately drops card metadata like `points` (it's
-            # transient, refetched wherever it's needed), so this is the only place that data is
-            # available to compute how many points a partially-filled team has already spent.
-            existing_card_points: dict[str, int] = {
-                s['card_id']: s.get('points') or 0
-                for s in (team_row.get('roster') or [])
-            } if isinstance(team_row, dict) else {}
-
-            team = Team.from_db_row(team_row) if isinstance(team_row, dict) else team_row
+            team, existing_card_points = loaded
 
             # "Replace existing" wipes the current roster before filling, so autofill drafts a
             # clean team against the full budget instead of topping up around manual picks. Only
@@ -338,27 +361,7 @@ def autofill_team_route(team_id: str):
             if not team.pts_limit and not pts_target:
                 return jsonify({'error': 'Team must have a points limit set, or a target must be provided, to use autofill'}), 400
 
-            # Build the base filter set from the team's stored constraints so that
-            # autofill always respects player_filters regardless of what the frontend
-            # sends.  Payload active_filters are merged last so the UI can add
-            # session-level overrides (e.g. a one-time set filter).  Set restrictions are
-            # applied per source below, since each source has its own allowed sets.
-            team_filters: dict = {}
-            if team.player_filters:
-                team_filters.update(team.player_filters)
-            # Payload overrides come last
-            team_filters.update(active_filters)
-            active_filters = team_filters
-
-            # Determine which card sources to query.  Default to BOT; if the team
-            # explicitly allows only WOTC cards use that source instead.
-            card_sources: list[str] = [s.upper() for s in (team.allowed_card_sources or [])]
-            if not card_sources:
-                card_sources = ['BOT']
-
-            # An explicit showdown_set override from the caller wins; otherwise each source uses
-            # the sets this team allows for it (empty = no set restriction).
-            sets_by_source = {source: team.sets_for_source(source) for source in card_sources}
+            active_filters, card_sources, sets_by_source = _team_draft_scope(team, active_filters)
 
             # Fetch candidate pools for each bucket via stratified sampling across price bands.
             # Cheap tier (10-100 pts) gets the most cards to ensure bench fill has affordable
@@ -390,6 +393,52 @@ def autofill_team_route(team_id: str):
             }), 422
 
         return jsonify(result), 200
+
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@user_teams_bp.route('/user/teams/<team_id>/guided/round', methods=['POST'])
+@require_auth
+def guided_round_route(team_id: str):
+    """The team's next Guided Draft round — which roster need it fills, its points target, and a
+    handful of similarly priced options. Derived from the saved roster, so the client calls this
+    again after each pick has been saved. Returns `{"complete": true}` once the roster is full."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        pts_target = payload.get('pts_target')
+        if pts_target is not None:
+            try:
+                pts_target = int(pts_target)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'pts_target must be a number'}), 400
+
+        with PostgresDB() as db:
+            loaded = _load_team_for_draft(db, team_id)
+            if loaded is None:
+                return jsonify({'error': 'Team not found or access denied'}), 404
+            team, existing_card_points = loaded
+
+            if not team.pts_limit and not pts_target:
+                return jsonify({'error': 'Team must have a points limit set, or a target must be provided, to use Guided Draft'}), 400
+
+            active_filters, card_sources, sets_by_source = _team_draft_scope(team, payload.get('active_filters') or {})
+            planner = GuidedDraftPlanner(
+                team=team,
+                existing_card_points=existing_card_points,
+                card_sources=card_sources,
+                sets_by_source=sets_by_source,
+                active_filters=active_filters,
+                pts_target=pts_target,
+                user_id=g.user_id,
+                order=payload.get('order') or 'linear',
+            )
+            guided_round = planner.next_round(db)
+
+        if guided_round is None:
+            return jsonify({'complete': True}), 200
+        return jsonify({'complete': False, **guided_round.to_dict()}), 200
 
     except Exception as exc:
         traceback.print_exc()

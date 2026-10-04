@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaPlus, FaArrowsRotate, FaBolt, FaPen, FaTrash, FaSpinner } from 'react-icons/fa6';
+import { FaPlus, FaArrowsRotate, FaBolt, FaPen, FaTrash, FaSpinner, FaXmark } from 'react-icons/fa6';
 import BackButton from '../../../shared/BackButton';
 import { Modal } from '../../../shared/Modal';
 import { challengeCategoryMeta } from '../challengeCategory';
@@ -9,6 +9,7 @@ import {
     type ChallengeTemplateInput,
     createChallengeTemplate,
     deleteChallengeTemplate,
+    expireChallengeInstance,
     fetchAdminChallenges,
     generateChallengeInstance,
     runChallengeRotation,
@@ -153,6 +154,14 @@ export function AdminChallengesView({ token, onBack }: Props) {
         });
     };
 
+    const takeOffline = (inst: ChallengeInstance) => {
+        if (!window.confirm(`Take "${inst.title}" (${inst.year} ${inst.replaces_abbr}) offline now?`)) return;
+        return withRowBusy(inst.instance_id, async () => {
+            await expireChallengeInstance(token, inst.instance_id);
+            setNotice(`Took "${inst.title}" offline.`);
+        });
+    };
+
     const rotate = async () => {
         setRotating(true);
         try {
@@ -213,6 +222,18 @@ export function AdminChallengesView({ token, onBack }: Props) {
                             >
                                 {meta.label}: {inst.year} {inst.replaces_abbr}
                                 <span className="text-(--text-tertiary)">· {expiresIn(inst.expires_at)}</span>
+                                {busyId === inst.instance_id ? (
+                                    <FaSpinner className="animate-spin text-[10px]" />
+                                ) : (
+                                    <button
+                                        type="button"
+                                        title="Take offline now"
+                                        onClick={() => takeOffline(inst)}
+                                        className="text-(--text-tertiary) hover:text-red-400 cursor-pointer"
+                                    >
+                                        <FaXmark className="text-[11px]" />
+                                    </button>
+                                )}
                             </span>
                         );
                     })}

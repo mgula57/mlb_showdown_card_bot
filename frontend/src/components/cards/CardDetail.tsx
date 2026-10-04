@@ -12,13 +12,14 @@
 import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaPlus } from 'react-icons/fa6';
+import { FaPlus, FaWandMagicSparkles } from 'react-icons/fa6';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import CustomSelect from '../shared/CustomSelect';
 import ShowdownBotLogo from '../shared/ShowdownBotLogo';
+import { useCustomizeCard } from '../customs/customizeCard';
 
 import { imageForSet, showdownSets } from "../shared/SiteSettingsContext";
 
@@ -122,6 +123,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
 export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false }: CardDetailProps) {
 
     const { session } = useAuth();
+    const customizeCard = useCustomizeCard();
 
     // =============================================================================
     // MARK: STATES
@@ -229,12 +231,11 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                         const cardResponse = data as ShowdownBotCardAPIResponse;
                         setSetSwitchError(null);
 
-                        // Load image if necessary
+                        // Show chart data immediately; the image (if missing) fills in afterwards
+                        setInternalCardData(cardResponse);
                         const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
                         if (isDataWithoutImage && !isGeneratingImage) {
                             handleGenerateImage(cardResponse);
-                        } else {
-                            setInternalCardData(cardResponse);
                         }
 
                         if (cardResponse.card) {
@@ -265,6 +266,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
     // Mark if isLoading or isGeneratingImage
     const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId || isSwitchingSet;
+    // Panels only blur while chart data itself is loading — not when just the image is generating
+    const isLoadingPanels = isLoading || isLoadingFromId || isSwitchingSet || (isGeneratingImage && !activeCardData?.card?.chart);
 
     // Game
     const showGameBoxscore = (): boolean => {
@@ -506,6 +509,26 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                     </div>
                 ))}
+
+                {/* Customize — opens the Custom Card Builder prefilled with this card */}
+                {context !== 'custom' && activeCardData?.card && (
+                    <button
+                        type="button"
+                        onClick={() => activeCardData.card && customizeCard(activeCardData.card)}
+                        title="Open in the Custom Card Builder"
+                        className="
+                            flex items-center gap-2
+                            py-1 px-4 rounded-2xl
+                            border border-(--divider)
+                            text-sm font-semibold
+                            hover:bg-(--background-secondary) active:scale-95 transition
+                            cursor-pointer
+                        "
+                    >
+                        <FaWandMagicSparkles className="w-3.5 h-3.5" />
+                        Customize
+                    </button>
+                )}
             </div>
 
             {/* Tooltip */}
@@ -625,7 +648,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     )}
 
                     {/* Card vs Real Stats */}
-                    <SectionPanel isLoading={isLoadingOverall} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
+                    <SectionPanel isLoading={isLoadingPanels} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
                             
                         <RealVsProjectedVisual
                             realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
@@ -649,7 +672,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                 {/* Points Breakdown */}
                 {!activeCardData?.card?.is_wotc && (
-                    <SectionPanel isLoading={isLoadingOverall} title="Points Breakdown">
+                    <SectionPanel isLoading={isLoadingPanels} title="Points Breakdown">
                         <PointsContributionBars
                             pointsBreakdownData={activeCardData?.card?.points_breakdown}
                             ip={activeCardData?.card?.ip}
@@ -660,18 +683,24 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                 {/* Chart Accuracy */}
                 {!activeCardData?.card?.is_wotc && (
-                    <SectionPanel isLoading={isLoadingOverall} title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}>
+                    <SectionPanel
+                        isLoading={isLoadingPanels}
+                        title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}
+                        subtitle={activeCardData?.card?.command_out_selection ? "Version 1 is hand-curated. Scores shown are each chart's true accuracy" : undefined}
+                    >
                         <ChartSelectionBreakdown
                             chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns}
                             commandOutAccuraciesData={activeCardData?.card?.command_out_accuracies}
                             selectedChartVersion={activeCardData?.card?.chart_version || 1}
+                            selectedChart={activeCardData?.card?.selected_command_outs}
+                            selection={activeCardData?.card?.command_out_selection}
                         />
                     </SectionPanel>
                 )}
 
                 {/* Opponent Breakdown */}
                 <SectionPanel 
-                    isLoading={isLoadingOverall} 
+                    isLoading={isLoadingPanels} 
                     title="Baseline Opponent"
                     subtitle={`The avg opposing pitcher/hitter used to create the card. Adjusted to reflect run scoring environment of the ${activeCardData?.card?.era}`}
                 >
@@ -683,7 +712,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 </SectionPanel>
 
                 {/* Outcome Distribution */}
-                <SectionPanel isLoading={isLoadingOverall} title="Outcome Probabilities" subtitle="Use baseline or search for a specific opponent">
+                <SectionPanel isLoading={isLoadingPanels} title="Outcome Probabilities" subtitle="Use baseline or search for a specific opponent">
                     <OutcomeProbability
                         chart={activeCardData?.card?.chart}
                         primaryColor={mechPrimaryColor}
@@ -695,13 +724,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 {/* Trend Graphs */}
                 {!hideTrendGraphs && (
                     <>
-                        <SectionPanel isLoading={isLoadingOverall} title="Career Trends">
+                        <SectionPanel isLoading={isLoadingPanels} title="Career Trends">
                             <ChartPlayerPointsTrend
                                 title="Career Trends"
                                 trendData={activeCardData?.historical_season_trends?.yearly_trends || null}
                             />
                         </SectionPanel>
-                        <SectionPanel isLoading={isLoadingOverall} title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}>
+                        <SectionPanel isLoading={isLoadingPanels} title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}>
                             <ChartPlayerPointsTrend
                                 title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"}
                                 trendData={activeCardData?.in_season_trends?.cumulative_trends || null}
@@ -712,13 +741,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
 
                 {/* Most Similar WOTC Cards */}
                 <SectionPanel
-                    isLoading={isLoadingOverall}
+                    isLoading={isLoadingPanels}
                     title="Most Similar WOTC Cards"
                     subtitle={`Top matches by chart similarity`}
                 >
                     <CardComps
                         card={activeCardData?.card ?? null}
-                        isLoading={isLoadingOverall}
+                        isLoading={isLoadingPanels}
                     />
                 </SectionPanel>
 

@@ -1,6 +1,6 @@
 from enum import Enum
-from pydantic import BaseModel
-from typing import Union, Optional
+from pydantic import BaseModel, Field
+from typing import Callable, Union, Optional
 from collections import ChainMap
 from pprint import pprint
 from operator import itemgetter
@@ -268,6 +268,7 @@ class Chart(BaseModel):
 
     # ACCURACY
     command_accuracy_weight: float = 1.0
+    command_accuracy_weight_fn: Optional[Callable[[int], float]] = Field(default=None, exclude=True) # TAKES OUTS_FULL, OVERRIDES COMMAND_ACCURACY_WEIGHT ONCE OUTS ARE KNOWN
     command_out_accuracy_weight: float = 1.0
     accuracy: float = 1.0
     accuracy_breakdown: dict[Stat, ChartAccuracyBreakdown] = {}
@@ -1161,6 +1162,10 @@ class Chart(BaseModel):
 
     def generate_accuracy_rating(self) -> None:
         """Calculate accuracy of chart based on accuracy weights. Store to self."""
+
+        # RESOLVE COMMAND WEIGHT NOW THAT OUTS ARE FINAL (OUTS ARE DERIVED DURING INIT WHEN NOT PROVIDED)
+        if self.command_accuracy_weight_fn:
+            self.command_accuracy_weight = self.command_accuracy_weight_fn(self.outs_full)
         
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_per_400_pa = self.projected_stats_per_400_pa
@@ -1174,6 +1179,7 @@ class Chart(BaseModel):
         )
 
         if self.does_set_ignore_outlier_adjustments:
+            self.accuracy *= self.command_accuracy_weight
             self.is_command_out_anomaly = self.is_chart_an_outlier
             self.__finalize_accuracy_and_breakdowns()
             return
@@ -1377,6 +1383,10 @@ class Chart(BaseModel):
             # UPDATE FOR SPECIAL CASES
             if self.is_classic and self.command > 10: out_min, out_max = 2, 3
             if self.is_classic and self.command < 8: out_min, out_max = 3, 6
+            # POST 2026, ALLOW LOW ONBASE (4-6) WITH 2 OUTS IN CLASSIC SETS
+            # 5 ONBASES WITH 1 OUT AS WELL
+            if self.is_classic and self.command <= 6 and self.year and self.year >= 2026: out_min = 2
+            if self.is_classic and self.command == 5 and self.year and self.year >= 2026: out_min = 1
 
             command_outlier_upper_bound = 14 if self.is_expanded else 11
             command_outlier_lower_bound = 9 if self.is_expanded else 5
