@@ -164,7 +164,7 @@ export const sideMenuItems: SideMenuItemType[] = [
     //     isNew: true
     // },
     {
-        text: "Release Builder",
+        text: "Admin", // TODO: Update name once ready for public release
         icon: FaLayerGroup,      // Box icon representing a packaged card release/set
         path: "/release-builder",
         isNew: true

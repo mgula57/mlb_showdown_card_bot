@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -15,9 +15,14 @@ import { NewReleaseModal } from './NewReleaseModal';
 import { FaPlus, FaSpinner } from 'react-icons/fa6';
 import type { ReleaseCreatePayload } from '../../api/releases';
 
-type ViewState =
-    | { mode: 'list' }
-    | { mode: 'editor'; release: Release; readOnly: boolean };
+/** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
+ *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
+type OpenRelease = {
+    release: Release;
+    readOnly: boolean;
+    /** Last edition slug viewed in this release — restored when navigating back to it. */
+    editionSlug: string | null;
+};
 
 export default function Releases() {
     const { session } = useAuth();
@@ -27,8 +32,9 @@ export default function Releases() {
 
     const [userReleases, setUserReleases] = useState<Release[]>([]);
     const [officialReleases, setOfficialReleases] = useState<Release[]>([]);
-    const [view, setView] = useState<ViewState>({ mode: 'list' });
+    const [openReleases, setOpenReleases] = useState<Record<string, OpenRelease>>({});
     const [loading, setLoading] = useState(true);
+    const [listLoaded, setListLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -38,29 +44,62 @@ export default function Releases() {
         ? location.pathname.split('/')
         : [];
 
-    useEffect(() => {
-        loadReleases();
-    }, [token]);
+    // Auth change invalidates the cached list
+    useEffect(() => { setListLoaded(false); }, [token]);
 
-    // When URL contains a release ID, fetch and open that release
+    // Load the releases list lazily — only when viewing the list, so a direct visit to a
+    // release URL opens the release without first loading every release.
     useEffect(() => {
-        // This page stays mounted while hidden, so leaving the route must not reset the open release.
-        if (!isOnReleaseBuilder) return;
-        if (!releaseIdFromUrl) {
-            setView({ mode: 'list' });
-            return;
-        }
-        if (view.mode === 'editor' && view.release.id === releaseIdFromUrl) return;
+        if (!isOnReleaseBuilder || releaseIdFromUrl || listLoaded) return;
+        loadReleases();
+    }, [isOnReleaseBuilder, releaseIdFromUrl, listLoaded, token]);
+
+    const activeOpenRelease = releaseIdFromUrl ? openReleases[releaseIdFromUrl] : undefined;
+    const isActiveReleaseMounted = !!activeOpenRelease;
+
+    // readOnly is resolved per release when it mounts, so a different signed-in user needs fresh
+    // mounts. Keyed on the user id (not the token) so routine token refreshes keep progress.
+    const userId = session?.user?.id;
+    const mountedForUserRef = useRef(userId);
+    useEffect(() => {
+        if (mountedForUserRef.current === userId) return;
+        mountedForUserRef.current = userId;
+        setOpenReleases({});
+    }, [userId]);
+
+    // When the URL addresses a release that isn't mounted yet, fetch and mount it.
+    useEffect(() => {
+        // This page stays mounted while hidden, so leaving the route must not touch open releases.
+        if (!isOnReleaseBuilder || !releaseIdFromUrl || openReleases[releaseIdFromUrl]) return;
 
         fetchRelease(releaseIdFromUrl, token ?? undefined)
             .then(release => {
                 const readOnly = !token || release.created_by !== session?.user?.id;
-                setView({ mode: 'editor', release, readOnly });
+                mountRelease(release, readOnly);
             })
             .catch(() => {
                 navigate('/release-builder', { replace: true });
             });
     }, [releaseIdFromUrl, isOnReleaseBuilder, token]);
+
+    // Bare release URL (no edition slug) → restore the edition last viewed in that release.
+    useEffect(() => {
+        if (!isOnReleaseBuilder || !activeOpenRelease || editionSlugFromUrl || !activeOpenRelease.editionSlug) return;
+        navigate(`/release-builder/${activeOpenRelease.release.id}/${activeOpenRelease.editionSlug}`, { replace: true });
+    }, [releaseIdFromUrl, editionSlugFromUrl, isOnReleaseBuilder, isActiveReleaseMounted]);
+
+    // Remember the edition being viewed so returning to this release lands on it.
+    useEffect(() => {
+        if (!isOnReleaseBuilder || !releaseIdFromUrl || !editionSlugFromUrl) return;
+        setOpenReleases(prev => !prev[releaseIdFromUrl] || prev[releaseIdFromUrl].editionSlug === editionSlugFromUrl
+            ? prev
+            : { ...prev, [releaseIdFromUrl]: { ...prev[releaseIdFromUrl], editionSlug: editionSlugFromUrl } }
+        );
+    }, [releaseIdFromUrl, editionSlugFromUrl, isOnReleaseBuilder, isActiveReleaseMounted]);
+
+    function mountRelease(release: Release, readOnly: boolean, editionSlug: string | null = null) {
+        setOpenReleases(prev => prev[release.id] ? prev : { ...prev, [release.id]: { release, readOnly, editionSlug } });
+    }
 
     async function loadReleases() {
         setLoading(true);
@@ -72,6 +111,7 @@ export default function Releases() {
             ]);
             setOfficialReleases(publicReleases.filter(r => r.created_by !== session?.user?.id));
             setUserReleases(myReleases);
+            setListLoaded(true);
         } catch (err: any) {
             setError(err.message ?? 'Failed to load releases.');
         } finally {
@@ -80,13 +120,12 @@ export default function Releases() {
     }
 
     function openRelease(release: Release, readOnly: boolean) {
+        mountRelease(release, readOnly);
         navigate('/release-builder/' + release.id);
-        setView({ mode: 'editor', release, readOnly });
     }
 
     function goBack() {
         navigate('/release-builder');
-        setView({ mode: 'list' });
     }
 
     async function handleCreate(payload: ReleaseCreatePayload) {
@@ -102,36 +141,46 @@ export default function Releases() {
         };
         setUserReleases(prev => [newRelease, ...prev]);
         setShowCreateModal(false);
+        mountRelease(newRelease, false, mainEdition.slug);
         navigate(`/release-builder/${newRelease.id}/${mainEdition.slug}`);
-        setView({ mode: 'editor', release: newRelease, readOnly: false });
     }
 
     function handleReleaseUpdated(updated: Release) {
         setUserReleases(prev => prev.map(r => r.id === updated.id ? updated : r));
-        setView(prev => prev.mode === 'editor' && prev.release.id === updated.id
-            ? { ...prev, release: updated }
+        setOpenReleases(prev => prev[updated.id]
+            ? { ...prev, [updated.id]: { ...prev[updated.id], release: updated } }
             : prev
         );
     }
 
-    if (view.mode === 'editor') {
-        const { release, readOnly } = view;
-        return (
-            <div className="flex flex-col h-full">
-                <ReleaseDetail
-                    release={release}
-                    readOnly={readOnly}
-                    editionSlug={editionSlugFromUrl}
-                    onEditionChange={slug => navigate(`/release-builder/${release.id}/${slug}`, { replace: true })}
-                    onBack={goBack}
-                    onReleaseUpdated={handleReleaseUpdated}
-                    token={token}
-                />
-            </div>
-        );
-    }
-
     return (
+        <>
+            {/* One mounted ReleaseDetail per opened release; only the one in the URL is visible. */}
+            {Object.values(openReleases).map(({ release, readOnly, editionSlug }) => {
+                const isActive = release.id === releaseIdFromUrl;
+                return (
+                    <div key={release.id} className={isActive ? 'flex flex-col h-full' : 'hidden'}>
+                        <ReleaseDetail
+                            release={release}
+                            readOnly={readOnly}
+                            editionSlug={isActive ? (editionSlugFromUrl ?? editionSlug) : editionSlug}
+                            onEditionChange={slug => navigate(`/release-builder/${release.id}/${slug}`, { replace: true })}
+                            onBack={goBack}
+                            onReleaseUpdated={handleReleaseUpdated}
+                            token={token}
+                        />
+                    </div>
+                );
+            })}
+
+            {releaseIdFromUrl && !activeOpenRelease && <ReleaseDetailSkeleton />}
+
+            {!releaseIdFromUrl && renderList()}
+        </>
+    );
+
+    function renderList() {
+        return (
         <div className="flex flex-col gap-6 py-4 max-w-4xl mx-auto w-full">
             {/* Header */}
             <div className="flex items-center px-4 justify-between">
@@ -222,6 +271,30 @@ export default function Releases() {
                     )}
                 </>
             )}
+        </div>
+        );
+    }
+}
+
+/** Placeholder shaped like ReleaseDetail's header + edition tab bar while a release loads. */
+function ReleaseDetailSkeleton() {
+    return (
+        <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden animate-pulse">
+            <div className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider)">
+                <div className="h-4 w-4 rounded bg-(--background-secondary) mt-1" />
+                <div className="flex-1 space-y-2">
+                    <div className="h-6 w-56 rounded bg-(--background-secondary)" />
+                    <div className="h-3 w-80 max-w-full rounded bg-(--background-secondary)" />
+                </div>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3 bg-(--background-secondary)">
+                <div className="h-3 w-14 rounded bg-(--background-primary)" />
+                <div className="h-4 w-20 rounded bg-(--background-primary)" />
+                <div className="h-4 w-20 rounded bg-(--background-primary)" />
+            </div>
+            <div className="flex-1 p-4">
+                <div className="h-full rounded-lg bg-(--background-secondary)" />
+            </div>
         </div>
     );
 }

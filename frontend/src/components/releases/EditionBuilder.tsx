@@ -13,7 +13,6 @@ import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import FormEnabler from '../customs/FormEnabler';
-import FormDropdown from '../customs/FormDropdown';
 import {
     groupAndSortCards, takeFromGroups, POOL_GROUP_OPTIONS, POOL_SORT_OPTIONS, POOL_SORT_DEFAULT_DIRECTION,
     type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
@@ -21,13 +20,12 @@ import {
 import { FaGripVertical } from 'react-icons/fa';
 import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight } from 'react-icons/fa6';
 
-const MIN_PANEL_WIDTH = 280;
-/** Narrowest the Build Method panel can be dragged to; the Player Pool panel can take everything else. */
+/** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
+const MIN_POOL_PANEL_WIDTH = 280;
+/** Narrowest the Build Method panel can be dragged to. */
 const MIN_BUILD_PANEL_WIDTH = 320;
-const DEFAULT_PANEL_WIDTH = 400;
-/** The Algorithm tab has little content of its own (currently a placeholder), so give the
- * Player Pool panel more room to review the pool while it's active. */
-const ALGORITHM_PANEL_WIDTH = DEFAULT_PANEL_WIDTH * 2;
+/** Default Build Method widths until the user drags the divider — Manual needs a bit more room for search results. */
+const DEFAULT_BUILD_PANEL_WIDTH = { algorithm: 480, manual: 560 } as const;
 
 type EditionBuilderProps = {
     releaseId: string;
@@ -189,6 +187,17 @@ const POOL_PAGE_SIZE = 40;
 const POOL_FULL_CARDS_STORAGE_KEY = 'releaseBuilder.poolFullCards';
 /** Per-viewer preference for hiding the Build Method panel. */
 const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
+/** Per-viewer Build Method panel width, saved once they drag the divider. */
+const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
+
+function loadSavedBuildPanelWidth(): number | null {
+    try {
+        const saved = Number(localStorage.getItem(BUILD_PANEL_WIDTH_STORAGE_KEY));
+        return Number.isFinite(saved) && saved >= MIN_BUILD_PANEL_WIDTH ? saved : null;
+    } catch {
+        return null;
+    }
+}
 
 export function EditionBuilder({ releaseId, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
@@ -213,13 +222,14 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     // Left/right split resize
     const [buildMethod, setBuildMethod] = useState<'algorithm' | 'manual'>('algorithm');
     const [blueprintSlot, setBlueprintSlot] = useState<HTMLDivElement | null>(null);
-    const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+    const [buildPanelWidth, setBuildPanelWidth] = useState<number>(() => loadSavedBuildPanelWidth() ?? DEFAULT_BUILD_PANEL_WIDTH.algorithm);
     // Summary mounts lazily on first open, then stays mounted so its filters/WOTC comparison survive tab switches.
     const [summaryMounted, setSummaryMounted] = useState(false);
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
     const isResizing = useRef(false);
-    const hasManuallyResized = useRef(false);
+    const hasManuallyResized = useRef(loadSavedBuildPanelWidth() !== null);
     const splitContainerRef = useRef<HTMLDivElement>(null);
+    const buildPanelRef = useRef<HTMLDivElement>(null);
     const [buildPanelHidden, setBuildPanelHidden] = useState<boolean>(() => {
         try { return localStorage.getItem(BUILD_PANEL_HIDDEN_STORAGE_KEY) === 'true'; } catch { return false; }
     });
@@ -232,7 +242,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
 
     useEffect(() => {
         if (hasManuallyResized.current) return;
-        setRightPanelWidth(buildMethod === 'algorithm' ? ALGORITHM_PANEL_WIDTH : DEFAULT_PANEL_WIDTH);
+        setBuildPanelWidth(DEFAULT_BUILD_PANEL_WIDTH[buildMethod]);
     }, [buildMethod]);
 
     const handleResizeStart = (e: React.MouseEvent) => {
@@ -240,17 +250,19 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
         isResizing.current = true;
         hasManuallyResized.current = true;
         const startX = e.clientX;
-        const startWidth = rightPanelWidth;
-        // Scales with the screen so wide displays can shrink the Build Method panel down to its minimum.
-        const maxWidth = Math.max((splitContainerRef.current?.clientWidth ?? 0) - MIN_BUILD_PANEL_WIDTH, MIN_PANEL_WIDTH);
+        // Start from the rendered width — the CSS max-width may have clamped the stored value on a narrow screen.
+        const startWidth = buildPanelRef.current?.offsetWidth ?? buildPanelWidth;
+        const maxWidth = Math.max((splitContainerRef.current?.clientWidth ?? 0) - MIN_POOL_PANEL_WIDTH, MIN_BUILD_PANEL_WIDTH);
+        let latestWidth = startWidth;
 
         const onMouseMove = (ev: MouseEvent) => {
             if (!isResizing.current) return;
-            const newWidth = Math.min(Math.max(startWidth + (startX - ev.clientX), MIN_PANEL_WIDTH), maxWidth);
-            setRightPanelWidth(newWidth);
+            latestWidth = Math.min(Math.max(startWidth + (ev.clientX - startX), MIN_BUILD_PANEL_WIDTH), maxWidth);
+            setBuildPanelWidth(latestWidth);
         };
         const onMouseUp = () => {
             isResizing.current = false;
+            try { localStorage.setItem(BUILD_PANEL_WIDTH_STORAGE_KEY, String(Math.round(latestWidth))); } catch { /* storage unavailable */ }
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
             document.body.style.cursor = '';
@@ -528,9 +540,13 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                     </button>
                 )}
 
-                {/* Build panel: Algorithm / Manual — larger. Hidden (not unmounted) when collapsed so its state survives. */}
+                {/* Build panel: Algorithm / Manual. Hidden (not unmounted) when collapsed so its state survives. */}
                 {!readOnly && (
-                    <div className={`flex-1 min-w-0 border-r border-(--divider) flex-col min-h-0 ${buildPanelHidden ? 'hidden' : 'flex'}`}>
+                    <div
+                        ref={buildPanelRef}
+                        style={{ width: buildPanelWidth, maxWidth: `calc(100% - ${MIN_POOL_PANEL_WIDTH}px)` }}
+                        className={`shrink-0 min-w-0 border-r border-(--divider) flex-col min-h-0 ${buildPanelHidden ? 'hidden' : 'flex'}`}
+                    >
                         <div className="px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5">
                                 <button
@@ -596,11 +612,8 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                     </div>
                 )}
 
-                {/* Selected Cards / Summary — smaller */}
-                <div
-                    style={!readOnly && !buildPanelHidden ? { width: rightPanelWidth, maxWidth: `calc(100% - ${MIN_BUILD_PANEL_WIDTH}px)` } : undefined}
-                    className={`${readOnly || buildPanelHidden ? 'flex-1' : 'shrink-0'} min-w-0 flex flex-col min-h-0`}
-                >
+                {/* Selected Cards / Summary — takes whatever width the Build panel leaves. */}
+                <div className="flex-1 min-w-0 flex flex-col min-h-0">
                     <div className="px-3 pt-2 shrink-0">
                         <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Player Pool</span>
                     </div>
@@ -659,183 +672,185 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                     </div>
                                 </div>
                             )}
-                            {!readOnly && !previewResult && (
-                                <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
-                                    <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide shrink-0">
-                                        Numbering
-                                    </span>
-                                    <div className="flex gap-1.5">
-                                        {NUMBERING_MODE_OPTIONS.map(opt => (
+                            {((!readOnly && !previewResult) || displayCards.length > 0) && (
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 border-b border-(--divider) shrink-0">
+                                    {displayCards.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <ToolbarSelect
+                                                label="Group"
+                                                options={POOL_GROUP_OPTIONS}
+                                                value={groupBy}
+                                                onChange={value => setGroupBy(value as PoolGroupBy)}
+                                            />
+                                            <ToolbarSelect
+                                                label="Sort"
+                                                options={POOL_SORT_OPTIONS}
+                                                value={sortBy}
+                                                onChange={value => {
+                                                    setSortBy(value as PoolSortBy);
+                                                    setSortDirection(POOL_SORT_DEFAULT_DIRECTION[value as PoolSortBy]);
+                                                }}
+                                            />
                                             <button
-                                                key={opt.value}
                                                 type="button"
-                                                onClick={() => handleNumberingModeChange(opt.value)}
-                                                className={`min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border transition-colors
-                                                    ${numbering.mode === opt.value
-                                                        ? 'bg-(--secondary) text-(--background-primary) border-(--secondary)'
-                                                        : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                                onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
+                                                title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                                                className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
                                             >
-                                                {opt.label}
+                                                {sortDirection === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
                                             </button>
-                                        ))}
-                                    </div>
-                                    {numbering.mode === 'auto' && !numbering.autoLive && (
-                                        <button
-                                            type="button"
-                                            onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
-                                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors"
-                                        >
-                                            <FaArrowsRotate className="text-[12px]" /> Renumber Now
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={toggleShowFullCards}
+                                                title={showFullCards ? 'Show compact cards' : 'Show full cards'}
+                                                className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
+                                            >
+                                                {showFullCards ? <FaList className="text-[13px]" /> : <FaTableCellsLarge className="text-[13px]" />}
+                                            </button>
+                                        </div>
                                     )}
 
-                                    {numbering.mode !== 'none' && (
-                                        <div className="relative ml-auto shrink-0" ref={numberingSettingsRef}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowNumberingSettings(v => !v)}
-                                                className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors"
-                                                aria-label="Numbering settings"
-                                            >
-                                                <FaGear className="text-[15px]" />
-                                            </button>
+                                    {!readOnly && !previewResult && (
+                                        <div className="flex flex-wrap items-center gap-2 ml-auto">
+                                            <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide shrink-0">
+                                                Numbering
+                                            </span>
+                                            <div className="flex gap-1.5">
+                                                {NUMBERING_MODE_OPTIONS.map(opt => (
+                                                    <button
+                                                        key={opt.value}
+                                                        type="button"
+                                                        onClick={() => handleNumberingModeChange(opt.value)}
+                                                        className={`min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border transition-colors
+                                                            ${numbering.mode === opt.value
+                                                                ? 'bg-(--secondary) text-(--background-primary) border-(--secondary)'
+                                                                : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                                    >
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {numbering.mode === 'auto' && !numbering.autoLive && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
+                                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors"
+                                                >
+                                                    <FaArrowsRotate className="text-[12px]" /> Renumber Now
+                                                </button>
+                                            )}
 
-                                            {showNumberingSettings && (
-                                                <div className="absolute right-0 top-full mt-2 w-80 p-3 bg-(--background-secondary) border border-(--divider) rounded-lg shadow-xl z-50 flex flex-col gap-4">
-                                                    {numbering.mode === 'auto' && (
-                                                        <>
-                                                            <div className="flex flex-col gap-2">
-                                                                <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">
-                                                                    Sort By (in order)
-                                                                </span>
-                                                                {numbering.sortLayers.map((layer, index) => (
-                                                                    <div key={index} className="flex items-center gap-1.5">
-                                                                        <span className="text-[11px] font-mono text-(--text-tertiary) w-3 shrink-0">{index + 1}</span>
-                                                                        <select
-                                                                            value={layer.category}
-                                                                            onChange={e => updateSortLayer(index, { category: e.target.value as SortCategory })}
-                                                                            className="flex-1 min-w-0 min-h-9 text-[13px] bg-transparent border border-(--divider) rounded-lg px-2 py-2 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
-                                                                        >
-                                                                            {availableCategoriesFor(layer.category).map(opt => (
-                                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                                            ))}
-                                                                        </select>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => updateSortLayer(index, { direction: layer.direction === 'asc' ? 'desc' : 'asc' })}
-                                                                            title={layer.direction === 'asc' ? 'Ascending' : 'Descending'}
-                                                                            className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0"
-                                                                        >
-                                                                            {layer.direction === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => moveSortLayer(index, -1)}
-                                                                            disabled={index === 0}
-                                                                            className="flex items-center justify-center w-8 h-9 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                                                                        >
-                                                                            ▲
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => moveSortLayer(index, 1)}
-                                                                            disabled={index === numbering.sortLayers.length - 1}
-                                                                            className="flex items-center justify-center w-8 h-9 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                                                                        >
-                                                                            ▼
-                                                                        </button>
-                                                                        {numbering.sortLayers.length > 1 && (
+                                            {numbering.mode !== 'none' && (
+                                                <div className="relative shrink-0" ref={numberingSettingsRef}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowNumberingSettings(v => !v)}
+                                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors"
+                                                        aria-label="Numbering settings"
+                                                    >
+                                                        <FaGear className="text-[15px]" />
+                                                    </button>
+
+                                                    {showNumberingSettings && (
+                                                        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-(--background-secondary) border border-(--divider) rounded-lg shadow-xl z-50 flex flex-col gap-4">
+                                                            {numbering.mode === 'auto' && (
+                                                                <>
+                                                                    <div className="flex flex-col gap-2">
+                                                                        <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">
+                                                                            Sort By (in order)
+                                                                        </span>
+                                                                        {numbering.sortLayers.map((layer, index) => (
+                                                                            <div key={index} className="flex items-center gap-1.5">
+                                                                                <span className="text-[11px] font-mono text-(--text-tertiary) w-3 shrink-0">{index + 1}</span>
+                                                                                <select
+                                                                                    value={layer.category}
+                                                                                    onChange={e => updateSortLayer(index, { category: e.target.value as SortCategory })}
+                                                                                    className="flex-1 min-w-0 min-h-9 text-[13px] bg-transparent border border-(--divider) rounded-lg px-2 py-2 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                                >
+                                                                                    {availableCategoriesFor(layer.category).map(opt => (
+                                                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => updateSortLayer(index, { direction: layer.direction === 'asc' ? 'desc' : 'asc' })}
+                                                                                    title={layer.direction === 'asc' ? 'Ascending' : 'Descending'}
+                                                                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0"
+                                                                                >
+                                                                                    {layer.direction === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => moveSortLayer(index, -1)}
+                                                                                    disabled={index === 0}
+                                                                                    className="flex items-center justify-center w-8 h-9 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                                                                >
+                                                                                    ▲
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => moveSortLayer(index, 1)}
+                                                                                    disabled={index === numbering.sortLayers.length - 1}
+                                                                                    className="flex items-center justify-center w-8 h-9 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                                                                >
+                                                                                    ▼
+                                                                                </button>
+                                                                                {numbering.sortLayers.length > 1 && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => removeSortLayer(index)}
+                                                                                        className="flex items-center justify-center w-8 h-9 text-(--text-tertiary) hover:text-red-400 transition-colors shrink-0"
+                                                                                    >
+                                                                                        <FaXmark className="text-[13px]" />
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                        {numbering.sortLayers.length < SORT_CATEGORY_OPTIONS.length && (
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => removeSortLayer(index)}
-                                                                                className="flex items-center justify-center w-8 h-9 text-(--text-tertiary) hover:text-red-400 transition-colors shrink-0"
+                                                                                onClick={addSortLayer}
+                                                                                className="flex items-center gap-1.5 min-h-9 px-2 text-[13px] font-semibold text-secondary hover:bg-(--background-quaternary) rounded-lg transition-colors self-start"
                                                                             >
-                                                                                <FaXmark className="text-[13px]" />
+                                                                                <FaPlus className="text-[11px]" /> Add sort level
                                                                             </button>
                                                                         )}
                                                                     </div>
-                                                                ))}
-                                                                {numbering.sortLayers.length < SORT_CATEGORY_OPTIONS.length && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={addSortLayer}
-                                                                        className="flex items-center gap-1.5 min-h-9 px-2 text-[13px] font-semibold text-secondary hover:bg-(--background-quaternary) rounded-lg transition-colors self-start"
-                                                                    >
-                                                                        <FaPlus className="text-[11px]" /> Add sort level
-                                                                    </button>
-                                                                )}
-                                                            </div>
+
+                                                                    <FormEnabler
+                                                                        label="Live"
+                                                                        isEnabled={numbering.autoLive}
+                                                                        onChange={autoLive => handleNumberingSettingChange({ autoLive })}
+                                                                        className="min-h-10 text-[13px]"
+                                                                    />
+                                                                </>
+                                                            )}
 
                                                             <FormEnabler
-                                                                label="Live"
-                                                                isEnabled={numbering.autoLive}
-                                                                onChange={autoLive => handleNumberingSettingChange({ autoLive })}
+                                                                label="Zero-pad"
+                                                                isEnabled={numbering.zeroPad}
+                                                                onChange={zeroPad => persistNumberingSettings({ ...numbering, zeroPad: !zeroPad })}
                                                                 className="min-h-10 text-[13px]"
                                                             />
-                                                        </>
+
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Prefix</span>
+                                                                <input
+                                                                    type="text"
+                                                                    value={numbering.prefix}
+                                                                    onChange={e => handlePrefixInputChange(e.target.value)}
+                                                                    onBlur={handlePrefixInputBlur}
+                                                                    maxLength={3}
+                                                                    placeholder="e.g. AS"
+                                                                    className="w-24 min-h-9 text-[13px] font-mono uppercase bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     )}
-
-                                                    <FormEnabler
-                                                        label="Zero-pad"
-                                                        isEnabled={numbering.zeroPad}
-                                                        onChange={zeroPad => persistNumberingSettings({ ...numbering, zeroPad: !zeroPad })}
-                                                        className="min-h-10 text-[13px]"
-                                                    />
-
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Prefix</span>
-                                                        <input
-                                                            type="text"
-                                                            value={numbering.prefix}
-                                                            onChange={e => handlePrefixInputChange(e.target.value)}
-                                                            onBlur={handlePrefixInputBlur}
-                                                            maxLength={3}
-                                                            placeholder="e.g. AS"
-                                                            className="w-24 min-h-9 text-[13px] font-mono uppercase bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
-                                                        />
-                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     )}
-                                </div>
-                            )}
-
-                            {displayCards.length > 0 && (
-                                <div className="flex flex-wrap items-end gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
-                                    <FormDropdown
-                                        label="Group by"
-                                        className="min-w-32 flex-1"
-                                        options={POOL_GROUP_OPTIONS}
-                                        selectedOption={groupBy}
-                                        onChange={value => setGroupBy(value as PoolGroupBy)}
-                                    />
-                                    <FormDropdown
-                                        label="Sort by"
-                                        className="min-w-32 flex-1"
-                                        options={POOL_SORT_OPTIONS}
-                                        selectedOption={sortBy}
-                                        onChange={value => {
-                                            setSortBy(value as PoolSortBy);
-                                            setSortDirection(POOL_SORT_DEFAULT_DIRECTION[value as PoolSortBy]);
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
-                                        title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
-                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
-                                    >
-                                        {sortDirection === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={toggleShowFullCards}
-                                        title={showFullCards ? 'Show compact cards' : 'Show full cards'}
-                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
-                                    >
-                                        {showFullCards ? <FaList className="text-[13px]" /> : <FaTableCellsLarge className="text-[13px]" />}
-                                    </button>
                                 </div>
                             )}
 
@@ -859,7 +874,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                         </span>
                                                     </div>
                                                 )}
-                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3' : 'grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5'}>
+                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3' : 'grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5'}>
                                                     {group.cards.map(card => {
                                                         const cardProps = {
                                                             card: card.card_snapshot,
@@ -902,7 +917,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                                 )}
                                                             </div>
                                                             {/* Hovering the remove button outlines the card it removes. */}
-                                                            <div className={`flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-red-500/80 ${showFullCards ? 'rounded-xl' : 'rounded-lg'}`}>
+                                                            <div className={`flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-red-500/80 ${showFullCards ? 'rounded-xl max-w-[400px]' : 'rounded-lg'}`}>
                                                                 {showFullCards
                                                                     ? <CardItemFromCardDatabaseRecord {...cardProps} />
                                                                     : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}
@@ -947,5 +962,28 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                 </Modal>
             </div>
         </div>
+    );
+}
+
+/** Compact inline-labelled select for the pool toolbar — sits on one row next to the numbering controls. */
+function ToolbarSelect({ label, options, value, onChange }: {
+    label: string;
+    options: { label: string; value: string }[];
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    return (
+        <label className="flex items-center h-9 rounded-lg border border-(--divider) hover:border-(--text-tertiary) transition-colors text-[13px] cursor-pointer focus-within:border-(--secondary)">
+            <span className="pl-2.5 pr-1 text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">{label}</span>
+            <select
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                className="h-full pr-2 bg-transparent font-semibold text-(--text-primary) focus:outline-none cursor-pointer"
+            >
+                {options.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+            </select>
+        </label>
     );
 }
