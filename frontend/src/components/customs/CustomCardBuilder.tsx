@@ -35,7 +35,6 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
@@ -53,7 +52,7 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced, FaArrowDown
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
@@ -1104,15 +1103,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In small screens, the form will take full width
         // In larger screens, it will be split into two sections
         <div className='@container'>
-
-            <WhatsNewBanner
-                storageKey="customCardBuilderWhatsNew_v4.4"
-                version="4.4"
-                features={[
-                    { icon: <FaCalendarXmark />, text: 'Hide the split/date text banner on TD/PR expansions and ASG/POST editions' },
-                    { icon: <FaScaleBalanced />, text: 'Regress small sample sizes toward replacement level for more realistic stats' },
-                ]}
-            />
 
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>

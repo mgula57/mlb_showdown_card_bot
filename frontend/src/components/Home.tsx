@@ -21,8 +21,6 @@ import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
 
 // Modal
 import { Modal } from './shared/Modal';
-import { LoginModal } from './auth/LoginModal';
-import { WhatsNewBanner } from './shared/WhatsNewBanner';
 import ShowdownBotLogo from './shared/ShowdownBotLogo';
 
 // Card Components
@@ -114,7 +112,6 @@ export default function Home() {
     const { user, session, loading: authLoading } = useAuth();
 
     // What's New banner
-    const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
     type RecentCardItem = { record: GalleryImageRecord; thumbUrl: string; fullUrl: string };
     const [recentCards, setRecentCards] = useState<RecentCardItem[]>([]);
     const [isLoadingRecentCards, setIsLoadingRecentCards] = useState<boolean>(false);
@@ -318,22 +315,6 @@ export default function Home() {
                 pb-24
                 pt-3 sm:pt-5 lg:pt-8
             `}>
-
-            {/* What's New Banner */}
-            <WhatsNewBanner
-                storageKey="featureBanner_home_v4.4_dismissed"
-                version='4.4'
-                features={[
-                    { icon: <FaPeopleGroup />, text: 'Team Builder: draft a roster and enter simulations to test your team' },
-                    { icon: <FaCalendar />,    text: 'Seasons: simulate any MLB season start to finish' },
-                    { icon: <FaBolt />,        text: 'New gameday playback: watch games unfold pitch by pitch or take over and simulate the rest' },
-                ]}
-                onLoginClick={() => setShowBannerLoginModal(true)}
-                textSize="sm"
-            />
-            {showBannerLoginModal && (
-                <LoginModal onClose={() => setShowBannerLoginModal(false)} />
-            )}
 
             {/* Hero Section */}
             <div className="max-w-7xl mx-auto py-2">

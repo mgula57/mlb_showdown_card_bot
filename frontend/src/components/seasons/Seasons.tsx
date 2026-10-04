@@ -28,7 +28,7 @@ import StandingsTab from "./Standings";
 
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
-    FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
+    FaChevronDown, FaChevronRight, FaChevronLeft,
     FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
 } from "react-icons/fa6";
 
@@ -43,7 +43,6 @@ import { SignInPrompt } from "../shared/SignInPrompt";
 import { SeasonSimSetupForm } from "../simulate/SeasonSimSetupForm";
 import { SimulationGuideModal } from "../simulate/SimulationGuideModal";
 import { RecentSims } from "../simulate/RecentSims";
-import { WhatsNewBanner } from "../shared/WhatsNewBanner";
 import { NewBadge } from "../shared/NewBadge";
 import { BetaBadge } from "../shared/BetaBadge";
 import { startOpenSim, type OpenSimPayload } from "../../api/sim";
@@ -1083,18 +1082,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     return (
         <div className="w-full bg-(--background-primary)">
-            {type === 'mlb' && (
-                <WhatsNewBanner
-                    storageKey="seasonsWhatsNew_v4.4"
-                    version='4.4'
-                    features={[
-                        { icon: <FaDice />,          text: 'Simulate MLB seasons. Brand new engine rolls the full 162 game schedule' },
-                        { icon: <FaBaseball />,      text: 'Revamped live games - take over a game mid-way through and simulate the rest' },
-                        { icon: <FaMedal />,         text: 'New Awards page: MVP, Cy Young, Gold Glove, Silver Slugger and more' },
-                        { icon: <FaClipboardList />, text: 'New Team UI - revamped interface for viewing historical rosters' },
-                    ]}
-                />
-            )}
             <div className="max-w-full lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>
