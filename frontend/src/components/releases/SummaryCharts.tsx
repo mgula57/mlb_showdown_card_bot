@@ -422,7 +422,7 @@ function ChartPanel({ title, average, className, children }: { title: string; av
 function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = String }: ChartProps & { formatValue?: (value: number) => string }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     return (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
             {rowGroups(data).map(group => {
                 const rows = data.filter(row => row.group === group);
                 const average = averageGroupedValue(rows, false);
