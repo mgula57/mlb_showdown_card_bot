@@ -674,6 +674,8 @@ export interface BoxscoreBattingStats {
     at_bats: number;
     runs: number;
     hits: number;
+    doubles?: number;
+    triples?: number;
     rbi: number;
     base_on_balls: number;
     strike_outs: number;

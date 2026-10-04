@@ -230,6 +230,8 @@ const toBoxscore = (data: BoxscoreTeamData, sportId?: number): TeamBoxscore => (
         atBats: batter.stats.at_bats,
         runs: batter.stats.runs,
         hits: batter.stats.hits,
+        doubles: batter.stats.doubles,
+        triples: batter.stats.triples,
         homeRuns: batter.stats.home_runs,
         rbi: batter.stats.rbi,
         baseOnBalls: batter.stats.base_on_balls,
@@ -249,6 +251,7 @@ const toBoxscore = (data: BoxscoreTeamData, sportId?: number): TeamBoxscore => (
         homeRuns: pitcher.stats.home_runs,
         battersFaced: pitcher.stats.batters_faced,
         summary: pitcher.stats.summary,
+        note: pitcher.stats.note,
     })),
 });
 

@@ -572,6 +572,7 @@ class BoxScorePitchingStats(BaseModel):
     batters_faced: int = 0
     era: float = 0.0
     summary: str = ""
+    note: str = ""                 # PITCHER OF RECORD, MLB FEED SHAPE - "(W)", "(L)", "(SV)", "(BS, W)"
 
 
 class BoxScorePitcher(BaseModel):

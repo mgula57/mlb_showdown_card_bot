@@ -4,7 +4,7 @@
  * the canonical `GameView`. Field names mirror the Python models exactly (snake_case), since
  * that's the wire format.
  */
-import type { BoxscoreBatterLine, BoxscorePitcherLine, GameSide, GameView, Linescore, LiveSituation, PlayerRef, TeamBoxscore } from "../game";
+import type { BoxscoreBatterLine, BoxscorePitcherLine, GameDecisions, GameSide, GameView, Linescore, LiveSituation, PlayerRef, TeamBoxscore } from "../game";
 import type { PlayEntry } from "../play";
 import type { TeamIdentity } from "../team";
 import { ordinal } from "../../functions/formatters";
@@ -92,6 +92,9 @@ export type SimBoxScorePitchingStatsJson = {
     batters_faced: number;
     era: number;
     summary: string;
+    /** "(W)", "(L)", "(SV)", "(BS, W)" — empty for no decision. Absent on sims stored before
+     * decisions were emitted. */
+    note?: string;
 };
 
 export type SimBoxScorePitcherJson = {
@@ -248,8 +251,21 @@ const toSimBoxscore = (box: SimTeamBoxScoreJson): TeamBoxscore => ({
         battersFaced: pitcher.stats.batters_faced,
         era: pitcher.stats.era,
         summary: pitcher.stats.summary,
+        note: pitcher.stats.note || undefined,
     })),
 });
+
+/** The sim tags its pitchers of record in each line's `note` (MLB feed shape) rather than in a
+ *  separate decisions block, so W / L / SV are read back out of both staffs. */
+const decisionsFromBoxscores = (...boxes: (TeamBoxscore | undefined)[]): GameDecisions | undefined => {
+    const pitchers = boxes.flatMap((box) => box?.pitching ?? []);
+    const find = (tag: string): PlayerRef | undefined => {
+        const line = pitchers.find((p) => p.note?.replace(/[()]/g, "").split(",").map((t) => t.trim()).includes(tag));
+        return line ? { id: line.id, name: line.name } : undefined;
+    };
+    const decisions = { winner: find("W"), loser: find("L"), save: find("SV") };
+    return decisions.winner || decisions.loser ? decisions : undefined;
+};
 
 /**
  * Sim game log to play entries, newest-first to match `fromGamePlays`. Populates `roll` — the
@@ -314,6 +330,9 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
         boxscore: boxScore ? toSimBoxscore(boxScore) : undefined,
     });
 
+    const away = toSide(game.away_team, game.away_team_identity, game.away_score, game.away_box_score);
+    const home = toSide(game.home_team, game.home_team_identity, game.home_score, game.home_box_score);
+
     // The last logged plate appearance is the game's final state. Balls/strikes and the defensive
     // alignment stay undefined — the sim models neither — which is what the field and matchup
     // components degrade against.
@@ -336,10 +355,11 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
         date: game.date,
         state: "FINAL",
         detailedState: "Final",
-        away: toSide(game.away_team, game.away_team_identity, game.away_score, game.away_box_score),
-        home: toSide(game.home_team, game.home_team_identity, game.home_score, game.home_box_score),
+        away,
+        home,
         linescore,
         situation,
+        decisions: decisionsFromBoxscores(away.boxscore, home.boxscore),
         lastPlay: lastEntry?.description || lastEntry?.summary,
     };
 };
@@ -408,7 +428,11 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
     const scheduledInnings = view.linescore?.scheduledInnings ?? 9;
     const finalErrors = { away: view.linescore?.away.errors ?? 0, home: view.linescore?.home.errors ?? 0 };
     const accumulator = new LinescoreAccumulator(scheduledInnings, finalErrors);
-    const baseView = (overrides: Partial<GameView>): GameView => ({ ...view, isReplay: true, ...overrides });
+    // W / L / SV are the result — only the final frame carries them, matching the MLB timeline.
+    const baseView = (overrides: Partial<GameView>): GameView => ({
+        ...view, isReplay: true, ...overrides,
+        decisions: overrides.state === "FINAL" ? view.decisions : undefined,
+    });
 
     const frames: GameFrame[] = [];
     let prevBases: Record<BaseSlot, PlayerRef | null> = EMPTY_BASES;

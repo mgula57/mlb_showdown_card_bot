@@ -69,6 +69,19 @@ def _pitching_summary(stats, outs: int) -> str:
     return f"{_ip_string(outs)} IP, {earned_runs} ER, {strike_outs} K"
 
 
+def _pitching_decision_note(stats) -> str:
+    """The pitcher-of-record tag in the MLB feed's `note` shape (e.g. "(W)"), read off the
+    W / L / SV that `Game._award_pitcher_decisions` merged into the per-game stats. A blown
+    save rides along ("(BS, W)") the way the real box score lists both."""
+    tags = [label for category, label in (
+        (StatCategory.BLOWN_SAVES, "BS"),
+        (StatCategory.WINS, "W"),
+        (StatCategory.LOSSES, "L"),
+        (StatCategory.SAVES, "SV"),
+    ) if stats.stat(category)]
+    return f"({', '.join(tags)})" if tags else ""
+
+
 def _sum_batting_stats(rows: list) -> BoxScoreBattingStats:
     totals = BoxScoreBattingStats()
     for row in rows:
@@ -581,6 +594,7 @@ class Game:
                     batters_faced=int(s.stat(StatCategory.PA)),
                     era=s.era,
                     summary=_pitching_summary(s, outs),
+                    note=_pitching_decision_note(s),
                 ),
             ))
 
