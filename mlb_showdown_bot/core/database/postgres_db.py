@@ -9145,6 +9145,22 @@ class PostgresDB:
             cur.execute("DELETE FROM internal.challenge_template WHERE template_id = %s", (template_id,))
         return 'ok'
 
+    def expire_challenge_instance(self, instance_id: str) -> str:
+        """Take a live instance offline by setting its `expires_at` to now. Returns 'not_found',
+        'already_expired', or 'ok'. The row (and any attempts) is kept; the next rotation prunes it."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.challenge_instance SET expires_at = NOW() "
+                "WHERE instance_id = %s AND expires_at > NOW()",
+                (instance_id,),
+            )
+            if cur.rowcount:
+                return 'ok'
+            cur.execute("SELECT 1 FROM internal.challenge_instance WHERE instance_id = %s", (instance_id,))
+            return 'already_expired' if cur.fetchone() else 'not_found'
+
     def list_active_challenge_templates(self) -> list[dict]:
         """Every template flagged active, each with `last_instanced_at` (the newest instance's
         `created_at`, or null if never generated) - the generator rotates one template per

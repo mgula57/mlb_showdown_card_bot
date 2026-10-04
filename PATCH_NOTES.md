@@ -14,7 +14,7 @@ This release focuses on a new Guided Draft mode in the Team Builder, a rebalance
 - Team settings now use a cleaner grid layout
 
 ### Card Balancing
-- Balanced the 2000, 2001, 2002, 2003, 2004, 2005, `Classic`, and `Expanded` sets to better fit 2026 offense
+- Balanced the 2000, 2001, 2002, 2003, 2004, 2005, `Classic`, and `Expanded` sets to better fit 2026 results
 - Adjusted speed ratings for 2026 players to account for changes in stolen bases
 - Some players now have a hand-picked chart chosen as the default when the most accurate chart isn't the most representative one. These cards show a `Curated` badge and a note on why in the chart breakdown, and other chart options remain available via `Chart Version`
 
