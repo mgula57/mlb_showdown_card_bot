@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../../api/userTeams';
 import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -53,6 +53,9 @@ type FieldViewProps = {
     onRoleClick?: (role: string, current: PitcherAssignment | null) => void;
     readOnly?: boolean;
     activePosition?: string | null;
+    /** Rotation role ('SP2') being filled, or 'RP' / 'BE' to highlight the next open bullpen /
+     *  bench row (those rows are interchangeable, so only the first open one lights up). */
+    activeRole?: string | null;
     rosterData?: FieldViewRosterData;
     hoveredCardId?: string | null;
     onCardHover?: (cardId: string | null) => void;
@@ -81,6 +84,11 @@ type FieldViewProps = {
     /** card_id -> display name/id, surfaced on the "card not found" overlay for a filled-but-unresolved
      *  position slot (e.g. an award recipient whose card_bot card couldn't be located). */
     notFoundLabels?: Record<string, { name?: string; playerId?: number | string }>;
+    /** Smooth-scrolls this slot into view whenever `key` changes — a field position ('SS'), a
+     *  rotation role ('SP2'), or 'RP' / 'BE' for the first empty bullpen / bench row. Used by
+     *  Guided Draft to follow each round; `key` (the round) re-triggers even when consecutive
+     *  rounds target the same generic slot. */
+    scrollTarget?: { position: string; key: string | number } | null;
 };
 
 
@@ -96,11 +104,25 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 }
 
 export function FieldView({
-    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition,
+    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition, activeRole,
     rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
-    simStatsMap, simStatsTooltip, notFoundLabels,
+    simStatsMap, simStatsTooltip, notFoundLabels, scrollTarget,
 }: FieldViewProps) {
+    const rootRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const root = rootRef.current;
+        if (!root || !scrollTarget) return;
+        const { position } = scrollTarget;
+        // Bench/bullpen rows are keyed 'BE1'/'RP1'..., so a generic 'BE'/'RP' target lands on the
+        // first empty row of that section (falling back to its first row).
+        const target = position === 'BE' || position === 'RP'
+            ? root.querySelector(`[data-slot^="${position}"][data-empty]`) ?? root.querySelector(`[data-slot^="${position}"]`)
+            : root.querySelector(`[data-slot="${position}"]`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scrollTarget?.position, scrollTarget?.key]);
+
     // `onDraft` runs the same handler as the card's inline action button (opens the slot-fill
     // flow) — surfaced as a "Draft" button inside the CardDetail modal while editing.
     const [detailCard, setDetailCard] = useState<{ card: CardDatabaseRecord; onDraft?: () => void } | null>(null);
@@ -138,6 +160,12 @@ export function FieldView({
     const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
     const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).slice().sort(byPointsDesc);
+
+    const isRoleActive = (role: string) => !!activeRole && (
+        role === activeRole
+        || (activeRole === 'RP' && role === `RP${bullpenSlots.length + 1}`)
+        || (activeRole === 'BE' && role === `BE${benchSlots.length + 1}`)
+    );
 
     const benchRowCount   = rosterData ? (rosterData.draftSlots?.bench   ?? benchSlots.length)   : 0;
     const bullpenRowCount = rosterData ? (rosterData.draftSlots?.bullpen ?? bullpenSlots.length) : 0;
@@ -214,7 +242,7 @@ export function FieldView({
     ] : [];
 
     return (
-        <div className="flex flex-col @container">
+        <div ref={rootRef} className="flex flex-col @container">
             {showTotalPoints && (
                 <div className="flex items-center justify-center gap-2 p-1">
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-(--text-tertiary)">Total Points</span>
@@ -280,6 +308,7 @@ export function FieldView({
                     return (
                         <div
                             key={pos}
+                            data-slot={pos}
                             className={`
                                 absolute transition-all duration-200 
                                 ${isActive ? 'z-10' : ''}
@@ -353,7 +382,7 @@ export function FieldView({
                                 // rotation roles ('SP1'…) ever match a pending pick here.
                                 const isSaving = !!pendingPositions?.has(role);
                                 return (
-                                    <div key={role} className="relative">
+                                    <div key={role} className="relative" data-slot={role} data-empty={card || hasAssignment(role) ? undefined : ''}>
                                         {card ? (
                                             <div
                                                 onMouseEnter={() => onCardHover?.(card.card_id)}
@@ -379,7 +408,7 @@ export function FieldView({
                                                 <PositionSlotPlaceholder
                                                     position={placeholderLabel ?? role}
                                                     onClick={onItemClick ? () => onItemClick(role) : undefined}
-                                                    isActive={isPeerHovered}
+                                                    isActive={isPeerHovered || isRoleActive(role)}
                                                 />
                                                 {isNotFound && <CardNotFoundOverlay variant="row" />}
                                             </>

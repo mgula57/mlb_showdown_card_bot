@@ -59,13 +59,16 @@ function GuideSkeleton() {
     );
 }
 
+const GUIDE_TITLE = 'How the Simulation Works';
+const GUIDE_SUBTITLE = 'What the engine assumes, decides, and deliberately leaves out';
+
 /**
  * Plain-language "how does this work" reference for the season sim engine, sourced live from
  * `core/simulation/SIMULATION_GUIDE.md` so this never drifts out of sync with the actual doc.
- * The rotating one-liners in `SimEngineExplainer` are the short version of the same content,
- * shown while a run is in flight; this is the long-form version, shown on demand.
+ * The rotating one-liners in `SimEngineExplainer` are the short version of the same content;
+ * this is the long-form version. Rendered bare so it can live in a modal or an inline panel.
  */
-export function SimulationGuideModal({ onClose }: { onClose: () => void }) {
+function SimulationGuideContent() {
     const [content, setContent] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -78,23 +81,45 @@ export function SimulationGuideModal({ onClose }: { onClose: () => void }) {
     }, []);
 
     return (
-        <Modal 
-            onClose={onClose} 
-            title={<><FaDice className="inline mr-2" />How the Simulation Works</>}
-            subtitle="What the engine assumes, decides, and deliberately leaves out" 
+        <div className="p-5">
+            {error ? (
+                <p className="text-[13px] text-red-500">{error}</p>
+            ) : content ? (
+                <div className="flex flex-col gap-3">
+                    <ReactMarkdown components={markdownComponents}>{toDisplayMarkdown(content)}</ReactMarkdown>
+                </div>
+            ) : (
+                <GuideSkeleton />
+            )}
+        </div>
+    );
+}
+
+/** The guide, shown on demand as a modal. */
+export function SimulationGuideModal({ onClose }: { onClose: () => void }) {
+    return (
+        <Modal
+            onClose={onClose}
+            title={<><FaDice className="inline mr-2" />{GUIDE_TITLE}</>}
+            subtitle={GUIDE_SUBTITLE}
             size="lg"
         >
-            <div className="p-5">
-                {error ? (
-                    <p className="text-[13px] text-red-500">{error}</p>
-                ) : content ? (
-                    <div className="flex flex-col gap-3">
-                        <ReactMarkdown components={markdownComponents}>{toDisplayMarkdown(content)}</ReactMarkdown>
-                    </div>
-                ) : (
-                    <GuideSkeleton />
-                )}
-            </div>
+            <SimulationGuideContent />
         </Modal>
+    );
+}
+
+/** The guide as an always-visible panel with its own scrolling body - for layouts with room beside the main content. */
+export function SimulationGuidePanel({ className = '' }: { className?: string }) {
+    return (
+        <aside className={`flex flex-col overflow-hidden rounded-2xl border border-(--divider) bg-(--background-primary) shadow-sm ${className}`}>
+            <div className="shrink-0 border-b border-(--divider) px-5 py-3">
+                <p className="text-[15px] font-black text-(--text-primary)"><FaDice className="inline mr-2" />{GUIDE_TITLE}</p>
+                <p className="text-[12px] text-(--text-secondary)">{GUIDE_SUBTITLE}</p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+                <SimulationGuideContent />
+            </div>
+        </aside>
     );
 }

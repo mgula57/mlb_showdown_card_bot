@@ -54,6 +54,7 @@ card = generate_card(
 
 ### 📊 Card Creation Formula
 - [Chart Generation](#creating-a-chart)
+- [Curated Chart Selections](#curated-chart-selections)
 - [Defensive Ratings](#defense)
 - [Speed Calculation](#speed)
 - [Point Values](#points)
@@ -381,6 +382,34 @@ Extended Results:
 - Allow "outlier" combinations (e.g., 1 Command, 20 Outs) if accuracy justifies it
 - Apply 1-5% accuracy penalty to limit outliers
 - Adjust scaling for different eras and league averages
+
+### Curated Chart Selections
+
+**The Challenge**: The most accurate chart isn't always the most *representative* one. A season's stat line can be matched almost equally well by several Command/Out combinations, and sometimes the top pick by accuracy score doesn't reflect how the player actually performed (e.g. a hot or cold stretch skewing the totals).
+
+**The Solution**: In rare, particular cases, a specific Command/Out combination is hand-picked and promoted to **Chart Version 1**. All other charts shift down one version, so they remain available via the Chart Version option.
+
+**How It Works:**
+- Selections live in [`command_out_selections.yaml`](mlb_showdown_bot/core/card/data/command_out_selections.yaml) and are keyed by player, year, and set(s). Each entry records the Command, Outs, the bot version it was added in, and a short note explaining why.
+- A selection only applies to a **full-season** card. Partial periods (date ranges, splits, postseason, in-season trend datapoints) keep the most accurate chart.
+- A manually chosen chart (CLI/web override) always takes priority over a curated selection. WOTC cards are never affected.
+- Cards with a curated chart show a **Curated** badge and the reasoning in the chart breakdown on the card detail page. The breakdown still shows each chart's true accuracy score.
+- Editing a selection changes its fingerprint, so stored cards built with the old values can be detected and rebuilt:
+
+```bash
+showdown_bot database check_selections --years 2026
+```
+
+**Example: Pete Crow-Armstrong 2026**
+```yaml
+- key: crowape01-2026-04-05
+  player_id: crowape01
+  year: "2026"
+  sets: ["2004", "2005", "EXPANDED"]
+  command: 13
+  outs: 8
+  note: 13 Onbase / 8 Out chart matches his OPS closely and is more representative of his overall performance.
+```
 
 ### Final Accuracy Scoring
 

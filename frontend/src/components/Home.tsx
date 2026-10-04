@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
 import { FaXmark, FaPeopleGroup } from 'react-icons/fa6';
+import { FaDiscord } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
@@ -20,8 +21,6 @@ import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
 
 // Modal
 import { Modal } from './shared/Modal';
-import { LoginModal } from './auth/LoginModal';
-import { WhatsNewBanner } from './shared/WhatsNewBanner';
 import ShowdownBotLogo from './shared/ShowdownBotLogo';
 
 // Card Components
@@ -113,7 +112,6 @@ export default function Home() {
     const { user, session, loading: authLoading } = useAuth();
 
     // What's New banner
-    const [showBannerLoginModal, setShowBannerLoginModal] = useState(false);
     type RecentCardItem = { record: GalleryImageRecord; thumbUrl: string; fullUrl: string };
     const [recentCards, setRecentCards] = useState<RecentCardItem[]>([]);
     const [isLoadingRecentCards, setIsLoadingRecentCards] = useState<boolean>(false);
@@ -317,22 +315,6 @@ export default function Home() {
                 pb-24
                 pt-3 sm:pt-5 lg:pt-8
             `}>
-
-            {/* What's New Banner */}
-            <WhatsNewBanner
-                storageKey="featureBanner_home_v4.4_dismissed"
-                version='4.4'
-                features={[
-                    { icon: <FaPeopleGroup />, text: 'Team Builder: draft a roster and enter simulations to test your team' },
-                    { icon: <FaCalendar />,    text: 'Seasons: simulate any MLB season start to finish' },
-                    { icon: <FaBolt />,        text: 'New gameday playback: watch games unfold pitch by pitch or take over and simulate the rest' },
-                ]}
-                onLoginClick={() => setShowBannerLoginModal(true)}
-                textSize="sm"
-            />
-            {showBannerLoginModal && (
-                <LoginModal onClose={() => setShowBannerLoginModal(false)} />
-            )}
 
             {/* Hero Section */}
             <div className="max-w-7xl mx-auto py-2">
@@ -832,7 +814,7 @@ export default function Home() {
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <h3 className="text-lg font-semibold mb-2">How can I contact the developers?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>. Feel free to reach out with questions or feedback.</p>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>, or join the conversation on <a href="https://discord.com/channels/669174897939054602/857237582740193282" target="_blank" rel="noopener noreferrer" className="text-primary underline inline-flex items-center gap-1 align-middle"><FaDiscord className="w-4 h-4" />Discord</a>. Feel free to reach out with questions or feedback.</p>
                     </div>
                 </div>
             </div>

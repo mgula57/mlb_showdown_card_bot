@@ -27,6 +27,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { FaXmark } from 'react-icons/fa6';
 
 // Global counter to track multiple concurrent modals for proper scroll lock management
@@ -71,6 +72,21 @@ type ModalProps = {
 export function Modal({ children, onClose, title, subtitle, footer, size = 'lg', disableCloseButton = false, isVisible = true }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
     const scrollYRef = useRef(0); // Stores scroll position for restoration
+
+    /**
+     * Effect: Close when navigating to a different top-level page (ex: "Customize" → /customs).
+     * Pages stay mounted-but-hidden across routes, so without this the modal (and its body scroll
+     * lock) would linger behind the new page. Sub-route changes within a page are left alone.
+     */
+    const { pathname } = useLocation();
+    const pageSection = pathname.split('/')[1] ?? '';
+    const pageSectionRef = useRef(pageSection);
+    useEffect(() => {
+        if (pageSection !== pageSectionRef.current) {
+            pageSectionRef.current = pageSection;
+            onClose();
+        }
+    }, [pageSection]);
 
     /**
      * Effect: Keyboard navigation support

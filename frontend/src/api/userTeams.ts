@@ -9,7 +9,7 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // MARK: - TYPES
 // =============================================================================
 
-export type PickSource = 'MANUAL' | 'AUTOFILL' | 'IMPORTED';
+export type PickSource = 'MANUAL' | 'AUTOFILL' | 'IMPORTED' | 'GUIDED';
 
 export type TeamRosterSlot = {
     card_id: string;
@@ -599,6 +599,80 @@ export async function autofillTeam(
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Autofill request failed: ${res.status}`);
+    }
+    return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Guided Draft
+// ---------------------------------------------------------------------------
+
+export type GuidedCornerstoneRole = 'ace' | 'star' | 'closer';
+export type GuidedRoundRole = GuidedCornerstoneRole | 'field' | 'rotation' | 'bullpen' | 'bench';
+
+export const GUIDED_CORNERSTONES: { role: GuidedCornerstoneRole; label: string }[] = [
+    { role: 'ace', label: 'Ace' },
+    { role: 'star', label: 'Star' },
+    { role: 'closer', label: 'Closer' },
+];
+
+export type GuidedOption = {
+    card: CardDatabaseRecord;
+    /** Roster slot the card is drafted into if picked (e.g. 'SS', 'SP1', 'RP', 'BE'). */
+    roster_position: string;
+};
+
+export type GuidedRound = {
+    complete: false;
+    round: {
+        /** 1-based round number — picks on the roster so far + 1. */
+        index: number;
+        /** Total rounds — the team's roster size. */
+        total: number;
+        phase: 'cornerstone' | 'fill';
+        role: GuidedRoundRole;
+        label: string;
+        /** Roster slot this round fills, or null for the star round (varies per option). */
+        position: string | null;
+    };
+    target_points: number;
+    /** ± points window the options were actually drawn from (widens when supply is thin). */
+    window: number;
+    options: GuidedOption[];
+    /** Which cornerstone roles the roster already covers. */
+    cornerstones: Record<GuidedCornerstoneRole, boolean>;
+};
+
+export type GuidedRoundResponse = GuidedRound | { complete: true };
+
+/** How Fill rounds pick the next roster need — walk the roster in order, or draw any open slot. */
+export type GuidedFillOrder = 'linear' | 'random';
+
+export const GUIDED_FILL_ORDER_OPTIONS: { value: GuidedFillOrder; label: string }[] = [
+    { value: 'linear', label: 'In order' },
+    { value: 'random', label: 'Random' },
+];
+
+/** The team's next Guided Draft round, derived server-side from the *saved* roster — call it
+ *  again once each pick has been saved. `ptsTarget` is only needed for a team with no pts_limit. */
+export async function fetchGuidedRound(
+    teamId: string,
+    token: string,
+    { ptsTarget, order }: { ptsTarget?: number; order: GuidedFillOrder },
+    signal?: AbortSignal,
+): Promise<GuidedRoundResponse> {
+    const res = await fetch(`${API_BASE}/user/teams/${teamId}/guided/round`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pts_target: ptsTarget, order }),
+        signal,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Guided draft request failed: ${res.status}`);
     }
     return res.json();
 }

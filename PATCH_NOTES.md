@@ -2,6 +2,44 @@
 
 What's new in each Showdown Bot release, newest first.
 
+## 4.41 Release — Guided Draft & 2026 Card Balancing
+_Unreleased_
+
+This release focuses on a new Guided Draft mode in the Team Builder, a rebalance of every card set for 2026, and smoother Custom Card Builder workflows.
+
+### Team Builder
+- New `Guided` draft mode walks you through building a roster step by step, starting with your ace, a star hitter, and other core players before filling out the rest
+- Each guided pick offers options sized to your remaining budget, with scarce lineup positions offered first
+- Added a restart button to start a guided draft over
+- Team settings now use a cleaner grid layout
+
+### Card Balancing
+- Balanced the 2000, 2001, 2002, 2003, 2004, 2005, `Classic`, and `Expanded` sets to better fit 2026 results
+- Adjusted speed ratings for 2026 players to account for changes in stolen bases
+- Some players now have a hand-picked chart chosen as the default when the most accurate chart isn't the most representative one. These cards show a `Curated` badge and a note on why in the chart breakdown, and other chart options remain available via `Chart Version`
+
+### Custom Card Builder
+- New button on a card's explore card detail screen to open that card in the Custom Card Builder and tweak it
+- Smoother animations when the form opens and changes
+- Updated the look of the set selection dropdowns and form sections
+- Cards in lists now use a tighter, cleaner format
+
+### Sims/Challenges
+- The simulation progress screen now includes a guide to what's happening
+- Challenges no longer accept teams containing original WOTC cards
+- Challenges are now more strategic, with reduction of player pools to add more diversity.
+
+### Bug Fixes
+- Fixed the All-Star Game and Rainbow Foil options not working together
+- Fixed the page jumping to the wrong spot when viewing a card on mobile
+- Fixed blur staying on card details that were already loaded
+- Fixed the set dropdown size and the clear button in search
+- Fixed sorting of defensive positions
+- Fixed color picker issues
+- Fixed some players missing from rosters
+
+---
+
 ## 4.4 Release — Team Builder & Season Simulator
 _Released 2026-09-27 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.4)_
 
