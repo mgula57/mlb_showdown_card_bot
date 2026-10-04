@@ -4,7 +4,7 @@
  * the canonical `GameView`. Field names mirror the Python models exactly (snake_case), since
  * that's the wire format.
  */
-import type { BoxscoreBatterLine, BoxscorePitcherLine, GameSide, GameView, Linescore, LiveSituation, PlayerRef, TeamBoxscore } from "../game";
+import type { BoxscoreBatterLine, BoxscorePitcherLine, GameDecisions, GameSide, GameView, Linescore, LiveSituation, PlayerRef, TeamBoxscore } from "../game";
 import type { PlayEntry } from "../play";
 import type { TeamIdentity } from "../team";
 import { ordinal } from "../../functions/formatters";
@@ -20,6 +20,7 @@ import {
     type GameFrame,
     type GameTimeline,
     type RetiredRunner,
+    type RunnerRoll,
     type RunnerMove,
     type RunnerSpot,
 } from "../timeline";
@@ -92,6 +93,9 @@ export type SimBoxScorePitchingStatsJson = {
     batters_faced: number;
     era: number;
     summary: string;
+    /** "(W)", "(L)", "(SV)", "(BS, W)" — empty for no decision. Absent on sims stored before
+     * decisions were emitted. */
+    note?: string;
 };
 
 export type SimBoxScorePitcherJson = {
@@ -155,6 +159,17 @@ export type SimGameLogEntryJson = {
      *   - `bases_after_swing`  — after the ball-in-play advancement + any DP, before extra-base sends */
     bases_after_steal?: SimRunnerRefJson[] | null;
     bases_after_swing?: SimRunnerRefJson[] | null;
+    /** The dice behind the steal and extra-base beats above. Absent on older logs. */
+    steal_rolls?: SimRunnerRollJson[];
+    advance_rolls?: SimRunnerRollJson[];
+};
+
+/** `base` is the base the runner ran FROM; `result` is "safe" | "out". */
+export type SimRunnerRollJson = {
+    runner_id: string; runner: string; base: number; roll: number; result: string;
+    /** Out when `defense + roll > target`: catcher arm (steal) / outfield defense (extra base) vs
+     *  the runner's speed incl. base bonus. 0 on logs written before these were recorded. */
+    defense?: number; target?: number;
 };
 
 /** `reason` is set only on `scored` / `retired` and tells the replay which beat of the plate
@@ -248,8 +263,21 @@ const toSimBoxscore = (box: SimTeamBoxScoreJson): TeamBoxscore => ({
         battersFaced: pitcher.stats.batters_faced,
         era: pitcher.stats.era,
         summary: pitcher.stats.summary,
+        note: pitcher.stats.note || undefined,
     })),
 });
+
+/** The sim tags its pitchers of record in each line's `note` (MLB feed shape) rather than in a
+ *  separate decisions block, so W / L / SV are read back out of both staffs. */
+const decisionsFromBoxscores = (...boxes: (TeamBoxscore | undefined)[]): GameDecisions | undefined => {
+    const pitchers = boxes.flatMap((box) => box?.pitching ?? []);
+    const find = (tag: string): PlayerRef | undefined => {
+        const line = pitchers.find((p) => p.note?.replace(/[()]/g, "").split(",").map((t) => t.trim()).includes(tag));
+        return line ? { id: line.id, name: line.name } : undefined;
+    };
+    const decisions = { winner: find("W"), loser: find("L"), save: find("SV") };
+    return decisions.winner || decisions.loser ? decisions : undefined;
+};
 
 /**
  * Sim game log to play entries, newest-first to match `fromGamePlays`. Populates `roll` — the
@@ -314,6 +342,9 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
         boxscore: boxScore ? toSimBoxscore(boxScore) : undefined,
     });
 
+    const away = toSide(game.away_team, game.away_team_identity, game.away_score, game.away_box_score);
+    const home = toSide(game.home_team, game.home_team_identity, game.home_score, game.home_box_score);
+
     // The last logged plate appearance is the game's final state. Balls/strikes and the defensive
     // alignment stay undefined — the sim models neither — which is what the field and matchup
     // components degrade against.
@@ -336,10 +367,11 @@ export const fromSimGame = (game: SimGameResultJson): GameView => {
         date: game.date,
         state: "FINAL",
         detailedState: "Final",
-        away: toSide(game.away_team, game.away_team_identity, game.away_score, game.away_box_score),
-        home: toSide(game.home_team, game.home_team_identity, game.home_score, game.home_box_score),
+        away,
+        home,
         linescore,
         situation,
+        decisions: decisionsFromBoxscores(away.boxscore, home.boxscore),
         lastPlay: lastEntry?.description || lastEntry?.summary,
     };
 };
@@ -408,7 +440,11 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
     const scheduledInnings = view.linescore?.scheduledInnings ?? 9;
     const finalErrors = { away: view.linescore?.away.errors ?? 0, home: view.linescore?.home.errors ?? 0 };
     const accumulator = new LinescoreAccumulator(scheduledInnings, finalErrors);
-    const baseView = (overrides: Partial<GameView>): GameView => ({ ...view, isReplay: true, ...overrides });
+    // W / L / SV are the result — only the final frame carries them, matching the MLB timeline.
+    const baseView = (overrides: Partial<GameView>): GameView => ({
+        ...view, isReplay: true, ...overrides,
+        decisions: overrides.state === "FINAL" ? view.decisions : undefined,
+    });
 
     const frames: GameFrame[] = [];
     let prevBases: Record<BaseSlot, PlayerRef | null> = EMPTY_BASES;
@@ -565,7 +601,13 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             home: number;
             runs: number;
             isHomeRun: boolean;
+            runnerRolls?: RunnerRoll[];
         };
+
+        const toRunnerRolls = (kind: RunnerRoll["kind"], rolls?: SimRunnerRollJson[]): RunnerRoll[] | undefined =>
+            rolls?.length
+                ? rolls.map((r) => ({ kind, runner: { id: r.runner_id, name: r.runner }, base: r.base, roll: r.roll, isSafe: r.result === "safe", defense: r.target ? r.defense : undefined, target: r.target || undefined }))
+                : undefined;
 
         const legs: SimLeg[] = [];
 
@@ -583,6 +625,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 home: isTop ? entry.home_score : entry.home_score - runsScored,
                 runs: 0,
                 isHomeRun: false,
+                runnerRolls: toRunnerRolls("steal", entry.steal_rolls),
             });
         }
 
@@ -618,6 +661,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 home: entry.home_score,
                 runs: advanceRuns,
                 isHomeRun: false,
+                runnerRolls: toRunnerRolls("advance", entry.advance_rolls),
             });
         }
 
@@ -661,6 +705,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                     moves, runsScored: leg.runs, outsRecorded: leg.outs,
                     isHalfInningChange: isLastLeg && isHalfInningChange, severity,
                     beatLabel: leg.play ? undefined : beatLabelFor(leg.id, moves),
+                    runnerRolls: leg.runnerRolls,
                 },
                 view: baseView({
                     state: legKind === "FINAL" ? "FINAL" : "LIVE",

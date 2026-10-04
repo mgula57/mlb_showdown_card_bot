@@ -1,4 +1,5 @@
 import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
+import AdvantageBadge from "./card_elements/AdvantageBadge";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
@@ -84,6 +85,8 @@ type CardItemProps = {
     isSelected?: boolean;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
+    hasAdvantage?: boolean;
 };
 
 /**
@@ -124,7 +127,7 @@ export const CardItem = ({
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
     cardChartRanges, cardLeague, cardSource, cardStatus,
-    onClick, className, isSelected, actionButton
+    onClick, className, isSelected, actionButton, hasAdvantage
 }: CardItemProps) => {
 
     const { isDark } = useTheme();
@@ -202,6 +205,7 @@ export const CardItem = ({
 
     return (
         <div className={`${className} relative`}>
+            {hasAdvantage && <AdvantageBadge />}
             {actionButton && (
                 <button
                     type="button"
@@ -232,6 +236,7 @@ export const CardItem = ({
                     border-3
                     ${isClickable ? 'cursor-pointer' : ''}
                     ${borderSettings}
+                    ${hasAdvantage ? 'card-advantage' : ''}
                 `}
                 onClick={onClick}
             >
@@ -478,9 +483,11 @@ type CardItemFromCardProps = {
     actionButton?: CardItemActionButton;
     /** Override the source badge shown (e.g. CUSTOM) — `card.is_wotc` only distinguishes WOTC vs BOT, so callers displaying a user's own custom card (which also has is_wotc: false) must pass this explicitly. */
     sourceOverride?: CardSource;
+    /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
+    hasAdvantage?: boolean;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride, hasAdvantage }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -527,6 +534,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             className={className}
             isSelected={isSelected}
             actionButton={actionButton}
+            hasAdvantage={hasAdvantage}
         />
     );
 }

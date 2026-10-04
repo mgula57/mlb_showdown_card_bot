@@ -7,18 +7,16 @@
  * recent play's rolls, which is the equivalent "what just happened" readout for a sim game.
  */
 import type { GameView, PlayerRef } from "../../domain/game";
-import type { PlayEntry } from "../../domain/play";
 import { resolveCardKey } from "../../domain/players";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
+import type { AdvantageSide } from "../../domain/play";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
 type GameMatchupProps = {
     game: GameView;
-    /** Newest-first; only the latest entry is read, for the sim roll readout. */
-    plays?: PlayEntry[];
     cardMap: CardMap;
     isLoadingCards?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
@@ -28,6 +26,8 @@ type GameMatchupProps = {
      *  frozen at the game's current/final totals, so showing them while the cursor sits at an
      *  earlier point spoils what's still to come. Hidden then. */
     hideStatlines?: boolean;
+    /** Sim only — which side's card to highlight as having won the advantage roll. */
+    advantage?: AdvantageSide;
 };
 
 /**
@@ -51,7 +51,7 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
 }
 
 function MatchupSide({
-    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect, hideTrend,
+    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect, hideTrend, hasAdvantage,
 }: {
     label: string;
     player?: PlayerRef;
@@ -62,6 +62,7 @@ function MatchupSide({
     isCompact?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
     hideTrend?: boolean;
+    hasAdvantage?: boolean;
 }) {
     return (
         <div className="min-w-0 space-y-1.5">
@@ -81,9 +82,9 @@ function MatchupSide({
 
             {response?.card ? (
                 isCompact ? (
-                    <CardItemCompactFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
+                    <CardItemCompactFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} />
                 ) : (
-                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
+                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} />
                 )
             ) : isLoadingCards ? (
                 <CardItemSkeleton className="w-full" />
@@ -102,7 +103,7 @@ function MatchupSide({
     );
 }
 
-export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, hideStatlines = false, }: GameMatchupProps) {
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, hideStatlines = false, advantage: advantageSide }: GameMatchupProps) {
     const situation = game.situation;
     if (!situation) return null;
 
@@ -121,12 +122,6 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
     const onbase = batterResponse?.card?.chart.command;
     const pitcherAdvantage = control != null && onbase != null ? pitcherAdvantagePct(control, onbase) : undefined;
 
-    /* MLB reports a live ball/strike count. A sim has none, so the latest play's two rolls stand
-       in as the equivalent readout - the plate appearance the situation is describing IS that
-       play, since `fromSimGame` builds the situation from the final log entry. */
-    const hasCount = situation.balls != null && situation.strikes != null;
-    const latestRoll = hasCount ? undefined : plays?.[0]?.roll;
-
     return (
         <div className={`@container rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
             <div 
@@ -140,6 +135,7 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
                         response={pitcherResponse}
                         summary={pitcherSummary}
                         advantage={pitcherAdvantage}
+                        hasAdvantage={advantageSide === "pitcher"}
                         isLoadingCards={isLoadingCards}
                         onCardSelect={onCardSelect}
                         isCompact={isCompactCards}
@@ -152,20 +148,13 @@ export default function GameMatchup({ game, plays, cardMap, isLoadingCards, onCa
                         response={batterResponse}
                         summary={batterSummary}
                         advantage={pitcherAdvantage != null ? 100 - pitcherAdvantage : undefined}
+                        hasAdvantage={advantageSide === "hitter"}
                         isLoadingCards={isLoadingCards}
                         onCardSelect={onCardSelect}
                         isCompact={isCompactCards}
                         hideTrend={hideStatlines}
                     />
             </div>
-
-            {(latestRoll) && (
-                <div className="mt-3 flex items-center justify-center gap-2 border-t border-(--divider) text-[11px]">
-                    <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 font-bold tracking-wide text-(--secondary)">
-                        P {latestRoll!.pitchRoll} · S {latestRoll!.swingRoll}
-                    </span>
-                </div>
-            )}
 
             {(situation.onDeck || situation.inHole) && (
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-(--divider) pt-2 text-[11px]">

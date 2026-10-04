@@ -52,6 +52,8 @@ export type BoxscorePitcherLine = {
     battersFaced?: number;
     era?: number | string;
     summary?: string;
+    /** Pitcher-of-record tag in the MLB feed's shape, e.g. "(W, 12-5)" — the sim emits "(W)". */
+    note?: string;
 };
 
 export type TeamBoxscore = {

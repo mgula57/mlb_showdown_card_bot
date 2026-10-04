@@ -6,7 +6,7 @@
  * Reads only `GameView`, so a sim game drives it the same way a real one does. Slots the sim
  * can't fill (defense alignment, runner identity) degrade to markers rather than disappearing.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FaCaretUp, FaCompress, FaExpand, FaPlay } from "react-icons/fa6";
 
 import type { DefenseAlignment, GameView, PlayerRef } from "../../domain/game";
@@ -14,9 +14,12 @@ import { resolveCardKey } from "../../domain/players";
 import { ordinal } from "../../functions/formatters";
 import { basePathBetween, runnerKey, type FrameTransition, type RunnerSpot } from "../../domain/timeline";
 import type { PlayEntry } from "../../domain/play";
-import type { ShowdownBotCardAPIResponse, ShowdownBotCardCompact } from "../../api/showdownBotCard";
-import { CardItemCompact, CardItemCompactFromCard } from "../cards/CardItemCompact";
+import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { defenseAtPosition, IF_POSITIONS, OF_POSITIONS } from "../shared/DefenseUtils";
+import SimFieldDie from "./SimFieldDie";
+import SimRunnerRolls from "./SimRunnerRolls";
+import FieldMarker from "./FieldMarker";
+import type { AdvantageSide } from "../../domain/play";
 import { usePresenceList } from "../../hooks/usePresenceList";
 import type { PlayPhase } from "../../hooks/useGamePlayback";
 
@@ -49,6 +52,11 @@ type GameFieldProps = {
     /** The most recent completed play — its text description sits in the field's bottom-right
      *  corner, opposite the defense summary. Undefined before the first play of the game. */
     lastPlay?: PlayEntry;
+    /** Sim only — which side won the advantage on the play being resolved; that side's card is
+     *  highlighted. Undefined outside the reveal beats, and for real games. */
+    advantage?: AdvantageSide;
+    /** Effective playback speed; scales the sim dice animation. */
+    playbackSpeed?: number;
     /** A finished sim result sitting unplayed at its first-pitch frame — the field itself is
      *  otherwise the least obvious place to notice that pressing play is what reveals the outcome,
      *  so a big centered button is overlaid here rather than leaving "Watch" as a small banner
@@ -403,93 +411,10 @@ function ResultFlash({ play, phase, transition }: { play: PlayEntry | undefined;
     );
 }
 
-/** Border accent distinguishing offense from defense — a translucent version of the same
- * live/divider colors the rest of the field UI already leans on. */
-const TONE_ACCENT: Record<"offense" | "defense", string | undefined> = {
-    offense: "color-mix(in srgb, var(--live) 60%, transparent)",
-    defense: undefined,
-};
-
-/** A player marker on the field, built from the shared compact card so it reads consistently
- * with the rest of the app. Falls back to an unnamed dot for runners the source can only report
- * as "occupied" (the sim tracks base state, not who's standing there), and to a name-only
- * placeholder card while the real one is still being fetched. */
-function FieldMarker({
-    player, role, cardMap, onCardSelect, isLoadingCards, tone,
-    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings,
-}: {
-    player: PlayerRef;
-    role: "H" | "P";
-    cardMap: CardMap;
-    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
-    isLoadingCards?: boolean;
-    tone: "offense" | "defense";
-    hideCommand?: boolean;
-    /** Hide the team/points row, leaving just the name and detail stat. Defaults to whatever hideCommand is, since the two go together on these lean field chips. */
-    hideTeamPoints?: boolean;
-    detailStat1Category?: "defense" | "speed" | "hr";
-    liveIp?: string | number | null;
-    fieldPosition?: string;
-    /** Optional background settings for the card container, e.g., "bg-secondary" */
-    backgroundSettings?: string;
-}) {
-    if (!player.name) {
-        return <span className="block h-3 w-3 rotate-45 rounded-xs bg-(--live) shadow-sm" />;
-    }
-
-    const response = cardMap[resolveCardKey(player.id, role) ?? ""];
-    const accentColor = TONE_ACCENT[tone];
-    const showDetails = detailStat1Category != null;
-
-    const placeholderCard: ShowdownBotCardCompact = {
-        id: `${player.id}-${role}`,
-        name: player.name,
-        year: "----",
-        set: "---",
-        points: 0,
-        command: 0,
-        outs: 0,
-        is_pitcher: role === "P",
-        color_primary: null,
-        color_secondary: null,
-        team: null,
-        positions_and_defense_string: null,
-        positions_and_defense: null,
-        ip: null,
-        speed: null,
-        hand: null,
-        hr_range: null,
-        source: "BOT",
-    };
-
-    return (
-        <div className="w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40">
-            {response?.card ? (
-                <CardItemCompactFromCard
-                    card={response.card}
-                    onClick={() => onCardSelect?.(response)}
-                    hideCommand={hideCommand}
-                    hideTeamPoints={hideTeamPoints}
-                    hideDetails={!showDetails}
-                    detailStat1Category={detailStat1Category}
-                    liveIp={liveIp}
-                    fieldPosition={fieldPosition}
-                    accentColor={accentColor}
-                    backgroundSettings={backgroundSettings}
-                />
-            ) : (
-                <CardItemCompact
-                    card={placeholderCard}
-                    isLoading={isLoadingCards}
-                    hideCommand={hideCommand}
-                    hideTeamPoints={hideTeamPoints}
-                    hideDetails
-                    accentColor={accentColor}
-                    backgroundSettings={backgroundSettings}
-                />
-            )}
-        </div>
-    );
+/** Pins a sim die to the left of the player marker it sits inside (the marker's wrapper is the
+ *  positioned ancestor), vertically centered on the card. */
+function DieDock({ children }: { children: ReactNode }) {
+    return <div className="absolute right-full top-1/2 -translate-y-1/2 pr-1">{children}</div>;
 }
 
 /** OF / IF / CA totals for the fielding side plus the expand/collapse toggle, gathered into one
@@ -591,7 +516,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, onPlayClick, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // if (!situation) return null;
 
@@ -657,7 +582,11 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                         fieldPosition={DEFENSE_POSITIONS[slot]}
                                         liveIp={isBattery ? pitcherLine?.inningsPitched : undefined}
                                         backgroundSettings={backgroundSettings}
+                                        hasAdvantage={isBattery && advantage === "pitcher"}
                                     />
+                                    {isBattery && (
+                                        <DieDock><SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
+                                    )}
                                 </div>
                             );
                         })}
@@ -674,7 +603,9 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 tone="defense"
                                 detailStat1Category="defense"
                                 liveIp={pitcherLine?.inningsPitched}
+                                hasAdvantage={advantage === "pitcher"}
                             />
+                            <DieDock><SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
                         </div>
                     )}
 
@@ -731,6 +662,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     : taggedOut ? "opacity-50 scale-90 grayscale"
                                     : "opacity-100 scale-100";
 
+                        // The hitter this play resolves — they carry the swing die (and the advantage
+                        // glow) with them as they leave the plate.
+                        const isPendingBatter = pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId);
+
                         return (
                             <div
                                 key={occ.key}
@@ -756,7 +691,11 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     hideCommand={occ.spot !== "plate"}
                                     hideTeamPoints={occ.spot !== "plate"}
                                     detailStat1Category={occ.spot === "plate" ? "hr" : "hr"}
+                                    hasAdvantage={advantage === "hitter" && isPendingBatter}
                                 />
+                                {isPendingBatter && (
+                                    <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
+                                )}
                             </div>
                         );
                     })}
@@ -801,6 +740,14 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             expanded={expanded}
                             onToggleExpanded={onToggleExpanded}
                         />
+                    </div>
+                )}
+
+                {/* Sim steal / extra-base dice, in the corner the defense summary holds for a real
+                    game (a sim has no defense alignment, so the two never compete). */}
+                {transition?.runnerRolls && (
+                    <div className="absolute bottom-0 left-0">
+                        <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                     </div>
                 )}
 

@@ -3,6 +3,7 @@
  * Reads only `GameView`, so it renders identically for a live feed, a stored sim, or (later) a
  * historical replay frame — the caller decides which `GameView` to hand it.
  */
+import type { ReactNode } from "react";
 import ReactCountryFlag from "react-country-flag";
 
 import type { GameView } from "../../../domain/game";
@@ -16,9 +17,12 @@ type ScoreHeaderProps = {
      *  desktop bug, but with the team records dropped and every text/symbol stepped down a size
      *  so it takes less vertical room above the field. */
     compact?: boolean;
+    /** Rendered under the game state in the center column once the game isn't in progress —
+     *  e.g. the finished-game Recap / Field toggle. */
+    centerAction?: ReactNode;
 };
 
-export default function ScoreHeader({ game, className = "", compact = false }: ScoreHeaderProps) {
+export default function ScoreHeader({ game, className = "", compact = false, centerAction }: ScoreHeaderProps) {
     const { away, home } = game;
     const situation = game.situation;
     const isInProgress = game.state === "LIVE";
@@ -86,6 +90,8 @@ export default function ScoreHeader({ game, className = "", compact = false }: S
                     ) : (
                         <div className={`font-semibold text-(--secondary) uppercase tracking-wide ${compact ? "text-[10px]" : "text-xs"}`}>{game.detailedState}</div>
                     )}
+
+                    {!isInProgress && centerAction}
 
                     {isInProgress && (
                         <div className={`flex items-center ${compact ? "gap-2.5" : "gap-3"}`}>

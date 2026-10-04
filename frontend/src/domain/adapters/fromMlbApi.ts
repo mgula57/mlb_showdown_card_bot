@@ -12,6 +12,7 @@ import type {
     HistoricalTeam,
     LeaderTeam,
     MostRecentPlay,
+    PlayRunnerMovement,
     BoxscoreTeamInfo,
     BoxscoreTeamData,
     Team as MlbTeam,
@@ -230,6 +231,8 @@ const toBoxscore = (data: BoxscoreTeamData, sportId?: number): TeamBoxscore => (
         atBats: batter.stats.at_bats,
         runs: batter.stats.runs,
         hits: batter.stats.hits,
+        doubles: batter.stats.doubles,
+        triples: batter.stats.triples,
         homeRuns: batter.stats.home_runs,
         rbi: batter.stats.rbi,
         baseOnBalls: batter.stats.base_on_balls,
@@ -249,6 +252,7 @@ const toBoxscore = (data: BoxscoreTeamData, sportId?: number): TeamBoxscore => (
         homeRuns: pitcher.stats.home_runs,
         battersFaced: pitcher.stats.batters_faced,
         summary: pitcher.stats.summary,
+        note: pitcher.stats.note,
     })),
 });
 
@@ -378,6 +382,43 @@ const postOnRef = (person?: { id: number; fullName?: string } | null): PlayerRef
  *  every out) is exactly right for a force play — the attempted base is just the next one over. */
 const HIT_BASES: Record<string, number> = { single: 1, double: 2, triple: 3, home_run: 4 };
 
+const BASE_BY_CODE: Record<string, BaseSlot> = { "1B": "first", "2B": "second", "3B": "third" };
+
+/**
+ * The bases as they stood when the play's plate result began. `prevBases` is the state at the END
+ * of the previous at-bat, but a runner can move mid-at-bat (wild pitch, steal, balk) before the
+ * hit — and the animation should start him from where he actually was. A runner with several
+ * movements in one play started his final move at the last entry's `start`; a runner with one
+ * movement began it from `prevBases` already, so only multi-entry runners are relocated.
+ */
+const basesBeforeFinalMove = (
+    prevBases: Record<BaseSlot, PlayerRef | null>,
+    runners: PlayRunnerMovement[] | undefined,
+): Record<BaseSlot, PlayerRef | null> => {
+    if (!runners?.length) return prevBases;
+    const lastById = new Map<number, PlayRunnerMovement>();
+    const counts = new Map<number, number>();
+    for (const r of runners) {
+        if (r.id == null) continue;
+        counts.set(r.id, (counts.get(r.id) ?? 0) + 1);
+        const seen = lastById.get(r.id);
+        if (!seen || (r.playIndex ?? 0) >= (seen.playIndex ?? 0)) lastById.set(r.id, r);
+    }
+
+    const adjusted = { ...prevBases };
+    const relocations: [BaseSlot, PlayerRef][] = [];
+    for (const slot of ["first", "second", "third"] as BaseSlot[]) {
+        const player = prevBases[slot];
+        const last = player?.id != null ? lastById.get(Number(player.id)) : undefined;
+        const target = last?.start ? BASE_BY_CODE[last.start] : undefined;
+        if (!player || !target || (counts.get(Number(player.id)) ?? 0) < 2) continue;
+        adjusted[slot] = null;
+        relocations.push([target, player]);
+    }
+    for (const [target, player] of relocations) adjusted[target] = player;
+    return adjusted;
+};
+
 /**
  * Reconstructs a frame-by-frame `GameTimeline` from the same untrimmed play data
  * `fromBoxscoreDetail` already has — the backend's `_extract_play` passes `result`/`matchup`/
@@ -462,9 +503,10 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
 
         // Departed base runners: on base before this play, gone afterward — candidates for
         // having scored or been retired (see `allocateScoredAndRetired`'s doc comment).
+        const startBases = basesBeforeFinalMove(prevBases, play.runners);
         const departed = (["first", "second", "third"] as BaseSlot[])
             .filter((slot) => {
-                const player = prevBases[slot];
+                const player = startBases[slot];
                 if (!player) return false;
                 const key = runnerKey(player, slot);
                 return !(["first", "second", "third"] as BaseSlot[]).some((s) => {
@@ -472,13 +514,13 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
                     return nextPlayer != null && runnerKey(nextPlayer, s) === key;
                 });
             })
-            .map((slot) => ({ slot, player: prevBases[slot] as PlayerRef }));
+            .map((slot) => ({ slot, player: startBases[slot] as PlayerRef }));
         const runsForOthers = isHomeRun ? Math.max(0, runsScored - 1) : runsScored;
         const hitBases = HIT_BASES[eventType] ?? 0;
         const { scored: othersScored, retired } = allocateScoredAndRetired(departed, runsForOthers, hitBases);
         const scored = isHomeRun && batter ? [...othersScored, batter] : othersScored;
 
-        const moves = buildRunnerMoves({ prevBases, nextBases, scored, retired, batter });
+        const moves = buildRunnerMoves({ prevBases: startBases, nextBases, scored, retired, batter });
         const isHalfInningChange = !!nextPlay && (nextPlay.about?.inning !== inning || nextPlay.about?.isTopInning !== isTop);
         const isHit = ["single", "double", "triple", "home_run"].includes(eventType);
 
