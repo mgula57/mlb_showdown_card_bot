@@ -35,7 +35,6 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
@@ -53,7 +52,7 @@ import {
     FaImages
 } from 'react-icons/fa';
 import {
-    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaCalendarXmark, FaScaleBalanced, FaArrowDown
+    FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
@@ -238,7 +237,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
     const [is2026NoticeDismissed, setIs2026NoticeDismissed] = useState(
-        () => localStorage.getItem('customCardBuilder2026StatsNotice') === 'true'
+        () => localStorage.getItem('customCardBuilderCuratedNotice') === 'true'
     );
     const previewSectionRef = useRef<HTMLDivElement>(null);
     const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
@@ -1105,15 +1104,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
-            <WhatsNewBanner
-                storageKey="customCardBuilderWhatsNew_v4.4"
-                version="4.4"
-                features={[
-                    { icon: <FaCalendarXmark />, text: 'Hide the split/date text banner on TD/PR expansions and ASG/POST editions' },
-                    { icon: <FaScaleBalanced />, text: 'Regress small sample sizes toward replacement level for more realistic stats' },
-                ]}
-            />
-
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
@@ -1268,15 +1258,26 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug text-blue-100 bg-linear-to-br from-blue-500 via-blue-700 to-red-700 shadow-lg shadow-blue-900/40">
                                                 <button
                                                     onClick={() => {
-                                                        localStorage.setItem('customCardBuilder2026StatsNotice', 'true');
+                                                        localStorage.setItem('customCardBuilderCuratedNotice', 'true');
                                                         setIs2026NoticeDismissed(true);
                                                     }}
                                                     aria-label="Dismiss"
                                                     className="absolute top-2 right-2 text-blue-300 hover:text-white transition-colors cursor-pointer"
                                                 >
-                                                    <FaXmark size={12} />
+                                                    <FaXmark size={20} />
                                                 </button>
-                                                Please note: 2026 cards may shift slightly over the next month as defensive metrics, weighting adjustments, and other finalizations are completed.
+                                                <p>10/4 Update: Round 1 of 2026 set adjustments are complete. Expect charts to fully be stabilized by October 15th.</p>
+                                                <p className="mt-1.5">
+                                                    We have also added a new mechanism called "Curated" chart selections, where a certain chart can be promoted to V1 in rare and particular cases. Read more{' '}
+                                                    <a
+                                                        href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#curated-chart-selections"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="underline text-white hover:text-blue-200 cursor-pointer"
+                                                    >
+                                                        here
+                                                    </a>.
+                                                </p>
                                             </div>
                                         )}
 

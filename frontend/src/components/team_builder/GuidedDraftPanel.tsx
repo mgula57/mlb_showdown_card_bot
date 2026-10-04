@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
     FaCircleCheck, FaCompass, FaBullseye, FaGaugeHigh, FaPlus, FaRotateRight, FaFlagCheckered,
-    FaArrowRight, FaShuffle, FaListOl, FaMagnifyingGlass,
+    FaArrowRight, FaShuffle, FaListOl, FaMagnifyingGlass, FaArrowRotateLeft,
 } from 'react-icons/fa6';
 
 import { GUIDED_CORNERSTONES, GUIDED_FILL_ORDER_OPTIONS } from '../../api/userTeams';
@@ -36,8 +36,11 @@ type Props = {
     /** Set while the last pick is still saving. */
     pickDisabled: boolean;
     saveFailed: boolean;
-    /** Leave guided mode for card search — offered by the docked variant, which has no tabs. */
+    /** Leave guided mode for card search — shown in the docked header (which has no tabs) and as
+     *  a fallback whenever a round has no options. */
     onExit?: () => void;
+    /** Clear every pick and restart the draft from the first Cornerstone round. */
+    onRestart?: () => void;
 };
 
 const OPTION_SKELETON_COUNT = 4;
@@ -59,7 +62,11 @@ const FILL_SEGMENTS: { key: keyof Props['buckets']; label: string; role: GuidedR
  * roster slot by slot. Rounds come from the server via `useGuidedDraft`.
  */
 export function GuidedDraftPanel(props: Props) {
-    const { state, variant = 'full', rosterCount, rosterSize, currentPts, budget, order, onOrderChange, needsTarget, onSetTarget, onExit } = props;
+    const { state, variant = 'full', rosterCount, rosterSize, currentPts, budget, order, onOrderChange, needsTarget, onSetTarget, onExit, onRestart, pickDisabled } = props;
+    // Nothing to restart before the first pick (or once the roster is complete).
+    const restartButton = onRestart && rosterCount > 0 && !state.complete && (
+        <HeaderIconButton icon={FaArrowRotateLeft} label="Start over" onClick={onRestart} disabled={pickDisabled} />
+    );
     const docked = variant === 'docked';
     const { round } = state;
     const roundIndex = Math.min(rosterCount + 1, rosterSize);
@@ -104,17 +111,8 @@ export function GuidedDraftPanel(props: Props) {
                         <span className="ml-auto flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-(--text-secondary)">
                             {target}
                             <OrderToggle order={order} onChange={onOrderChange} compact />
-                            {onExit && (
-                                <button
-                                    type="button"
-                                    onClick={onExit}
-                                    className="p-1.5 rounded-lg text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-tertiary) cursor-pointer transition-colors"
-                                    aria-label="Search cards instead"
-                                    title="Search cards instead"
-                                >
-                                    <FaMagnifyingGlass className="text-[11px]" />
-                                </button>
-                            )}
+                            {restartButton}
+                            {onExit && <HeaderIconButton icon={FaMagnifyingGlass} label="Search cards instead" onClick={onExit} />}
                         </span>
                     </div>
                     {progressBar}
@@ -146,6 +144,7 @@ export function GuidedDraftPanel(props: Props) {
                     <div className="flex items-center gap-2">
                         <RoundStepper round={round} buckets={props.buckets} />
                         <OrderToggle order={order} onChange={onOrderChange} />
+                        {restartButton}
                     </div>
                 </div>
             )}
@@ -160,7 +159,7 @@ export function GuidedDraftPanel(props: Props) {
 }
 
 /** The current round's options (or its loading / empty / error / complete state). */
-function GuidedOptions({ state, docked, currentPts, budget, benchPtsMultiplier, onPick, pickDisabled, saveFailed }: Props & { docked: boolean }) {
+function GuidedOptions({ state, docked, currentPts, budget, benchPtsMultiplier, onPick, pickDisabled, saveFailed, onExit }: Props & { docked: boolean }) {
     const { round, loading, complete, error, retry } = state;
     // Option whose full card detail is open in the modal.
     const [detailOption, setDetailOption] = useState<GuidedOption | null>(null);
@@ -170,14 +169,19 @@ function GuidedOptions({ state, docked, currentPts, budget, benchPtsMultiplier, 
         : 'grid grid-cols-1 xl:grid-cols-2 gap-3';
     const itemClass = docked ? 'w-80 shrink-0 snap-start' : '';
 
+    const noticeButtonClass = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors';
     const retryButton = (
-        <button
-            type="button"
-            onClick={retry}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
-        >
-            <FaRotateRight className="text-[10px]" /> Try again
-        </button>
+        <div className="flex flex-wrap justify-center gap-2">
+            <button type="button" onClick={retry} className={noticeButtonClass}>
+                <FaRotateRight className="text-[10px]" /> Try again
+            </button>
+            {/* The round can't be filled from its price band — let the drafter search for this slot themselves. */}
+            {onExit && (
+                <button type="button" onClick={onExit} className={noticeButtonClass}>
+                    <FaMagnifyingGlass className="text-[10px]" /> Search cards
+                </button>
+            )}
+        </div>
     );
     const notice = (children: React.ReactNode) => (
         <div className={`flex flex-col items-center justify-center gap-3 text-center ${docked ? 'h-full' : 'py-10'}`}>{children}</div>
@@ -288,6 +292,22 @@ function GuidedOptionCard({ option, currentPts, budget, benchPtsMultiplier, onPi
                 onClick={() => onOpenDetail(option)}
             />
         </div>
+    );
+}
+
+/** Small icon-only action in the panel header. */
+function HeaderIconButton({ icon: Icon, label, onClick, disabled = false }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; disabled?: boolean }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className="p-1.5 shrink-0 rounded-lg text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-tertiary) disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            aria-label={label}
+            title={label}
+        >
+            <Icon className="text-[11px]" />
+        </button>
     );
 }
 

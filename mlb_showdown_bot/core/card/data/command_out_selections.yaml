@@ -18,10 +18,21 @@
 #
 # Editing an entry changes its fingerprint, which flags stored cards built with the old values as stale.
 
+# ---------------------------------
+# Pete Crow-Armstrong 2026
+# ---------------------------------
+- key: crowape01-2026-01
+  player_id: crowape01
+  year: "2026"
+  sets: ["2001", "CLASSIC"]
+  command: 10
+  outs: 5
+  added_in: "4.5"
+  note: 10 Onbase / 5 Out chart matches his OPS closely and is representative of his overall performance in 2026.
 - key: crowape01-2026-04-05
   player_id: crowape01
   year: "2026"
-  sets: ["2004", "2005"]
+  sets: ["2004", "2005", "EXPANDED"]
   command: 13
   outs: 8
   added_in: "4.5"

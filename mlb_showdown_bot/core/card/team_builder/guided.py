@@ -29,6 +29,10 @@ GUIDED_PTS_DISTRIBUTION: dict[str, float] = {'offense': 0.52, 'rotation': 0.28, 
 # of the draft (matches MIN_CARD_POINTS in TeamDetail.tsx and the autofill price-band floor).
 MIN_CARD_POINTS = 10
 
+# Floor for the Ace cornerstone's target and options, so the draft always opens on a true ace.
+# Waived only when the budget can't afford it (see `_floor_for`).
+ACE_MIN_POINTS = 500
+
 # Lineup positions are offered scarcest-first, so the thin positions get filled while there's
 # still budget to spend on them.
 FILL_POSITION_ORDER = ['C', 'SS', 'CF', '2B', '3B', '1B', 'LF', 'RF', 'DH']
@@ -97,6 +101,8 @@ class _RoundSpec:
     windows: tuple[int, ...]
     # Broader query tried only if `query_filters` can't fill the round at any window.
     fallback_filters: dict | None = None
+    # Cheapest raw PTS an option may cost (and the target's floor).
+    min_points: int = MIN_CARD_POINTS
 
 
 _POSITION_LABELS = {
@@ -199,9 +205,11 @@ class GuidedDraftPlanner:
     def _cornerstone_spec(self, role: str) -> _RoundSpec:
         # Each cornerstone takes the top tier of its bucket's spend shape.
         if role == 'ace':
+            floor = self._floor_for('rotation', ACE_MIN_POINTS)
             return _RoundSpec('cornerstone', role, CORNERSTONE_LABELS[role], self._first_open_rotation_role(),
-                              'rotation', BUCKET_QUERY_FILTERS['rotation'], self._slot_target('rotation', top=True),
-                              CORNERSTONE_WINDOWS)
+                              'rotation', BUCKET_QUERY_FILTERS['rotation'],
+                              max(floor, self._slot_target('rotation', top=True)),
+                              CORNERSTONE_WINDOWS, min_points=floor)
         if role == 'star':
             return _RoundSpec('cornerstone', role, CORNERSTONE_LABELS[role], None,
                               'offense', BUCKET_QUERY_FILTERS['offense'], self._slot_target('offense', top=True),
@@ -310,7 +318,10 @@ class GuidedDraftPlanner:
 
     def _open_count(self, bucket: str) -> int:
         """Open slots left in `bucket` — at least 1, since a round is being priced from it."""
-        return max(1, {
+        return max(1, self._raw_open_count(bucket))
+
+    def _raw_open_count(self, bucket: str) -> int:
+        return max(0, {
             'offense': len(OFFENSE_POSITIONS) - len(self.field_filled),
             'rotation': self._open_rotation_count(),
             'bullpen': self.bullpen_target - self.bullpen_count,
@@ -318,10 +329,34 @@ class GuidedDraftPlanner:
         }[bucket])
 
     def _bucket_remaining(self, bucket: str) -> float:
-        return max(0.0, self.pts_limit * GUIDED_PTS_DISTRIBUTION[bucket] - self.spent_by_bucket[bucket])
+        """Budget `bucket` still has to spend, rebalanced so the open buckets together always
+        account for exactly the team's remaining budget.
+
+        Each bucket's nominal remaining is its share of the budget minus what it has spent. A
+        bucket that finished under (or over) its share would otherwise strand that difference —
+        e.g. a lineup that came in 300 PTS cheap leaves 300 PTS unspent forever. Scaling the
+        still-open buckets' nominal remaining to the global remaining hands that slack to the
+        rest of the draft, and on the last open slot targets exactly what's left."""
+        def nominal(b: str) -> float:
+            return max(0.0, self.pts_limit * GUIDED_PTS_DISTRIBUTION[b] - self.spent_by_bucket[b])
+
+        # The bucket being priced always counts, even past its target (overflow 'RP' slack).
+        open_buckets = [b for b in GUIDED_PTS_DISTRIBUTION if b == bucket or self._raw_open_count(b) > 0]
+        global_remaining = max(0.0, self.pts_limit - sum(self.spent_by_bucket.values()))
+        total_nominal = sum(nominal(b) for b in open_buckets)
+        if total_nominal <= 0:
+            # Every open bucket has already spent its share: split what's left by share instead.
+            total_share = sum(GUIDED_PTS_DISTRIBUTION[b] for b in open_buckets)
+            return global_remaining * GUIDED_PTS_DISTRIBUTION[bucket] / total_share
+        return global_remaining * nominal(bucket) / total_nominal
 
     def _clamp(self, target: float, bucket: str) -> int:
         return int(max(MIN_CARD_POINTS, min(target, self._max_points(bucket))))
+
+    def _floor_for(self, bucket: str, min_points: int) -> int:
+        """`min_points`, lowered to the most a pick from `bucket` can afford when the budget
+        can't stretch that far — a tiny budget still gets a round instead of no options."""
+        return int(max(MIN_CARD_POINTS, min(min_points, self._max_points(bucket))))
 
     def _max_points(self, bucket: str) -> float:
         """Most raw PTS a pick from `bucket` can cost while still leaving MIN_CARD_POINTS for
@@ -356,7 +391,7 @@ class GuidedDraftPlanner:
         max_points = max(MIN_CARD_POINTS, int(self._max_points(spec.bucket)))
         for filters in filter(None, (spec.query_filters, spec.fallback_filters)):
             for window in spec.windows:
-                lo = max(MIN_CARD_POINTS, spec.target_points - window)
+                lo = max(spec.min_points, spec.target_points - window)
                 hi = min(spec.target_points + window, max_points)
                 pool = fetch_stratified_candidates(
                     db, filters, self.active_filters, self.card_sources, self.sets_by_source,
@@ -373,7 +408,7 @@ class GuidedDraftPlanner:
         for filters in filter(None, (spec.query_filters, spec.fallback_filters)):
             pool = fetch_stratified_candidates(
                 db, filters, self.active_filters, self.card_sources, self.sets_by_source,
-                bands=[(MIN_CARD_POINTS, max_points, self.SAMPLE_FALLBACK)], columns=None, user_id=self.user_id,
+                bands=[(spec.min_points, max_points, self.SAMPLE_FALLBACK)], columns=None, user_id=self.user_id,
             )
             options = self._pick_options(pool, spec, closest_to=spec.target_points)
             if len(options) > len(best):

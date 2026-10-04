@@ -149,14 +149,12 @@ export const sideMenuItems: SideMenuItemType[] = [
     {
         text: "Team Builder",
         icon: FaPeopleGroup,      // Group icon representing teams/rosters
-        path: "/teams",
-        isNew: true
+        path: "/teams"
     },
     {
         text: "Seasons",
         icon: FaCalendar,      // Calendar icon representing seasons/schedules
-        path: "/seasons",
-        isNew: true
+        path: "/seasons"
     },
     // Hidden for this release — the Simulate flow is reached from the Seasons page instead.
     // {
@@ -174,7 +172,6 @@ export const sideMenuItems: SideMenuItemType[] = [
     {
         text: "Account",
         icon: FaUserCircle,
-        path: "/account",
-        isNew: true
+        path: "/account"
     },
 ];
