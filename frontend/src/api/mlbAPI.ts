@@ -963,7 +963,20 @@ export interface PlayCount {
     outs?: number;
 }
 
+/** One runner movement within a play, in order. A runner can have several in one at-bat (a wild
+ *  pitch, then the hit) — `start` of their LAST entry is where they stood when the plate result
+ *  began. `start` is null for the batter's own entry. */
+export interface PlayRunnerMovement {
+    id?: number;
+    event?: string;
+    playIndex?: number;
+    start?: "1B" | "2B" | "3B" | null;
+    end?: string | null;
+    isOut?: boolean;
+}
+
 export interface MostRecentPlay {
+    runners?: PlayRunnerMovement[];
     result?: PlayResult;
     about?: PlayAbout;
     matchup?: PlayMatchup;

@@ -198,12 +198,28 @@ class GamesClient(BaseMLBClient):
         
         def _extract_play(play: dict) -> dict:
             """Trim a single raw play down to the fields the frontend needs: result, matchup,
-            about, and count (for the post-play out count)."""
+            about, count (for the post-play out count), and runner movements. The movements
+            matter because bases can change MID at-bat (wild pitch, steal) — `matchup.postOn*`
+            only reports the state at the END of the play, so without them the frontend would
+            animate a runner from where he stood before the at-bat rather than before the hit."""
+            runners = []
+            for r in play.get("runners") or []:
+                details = r.get("details") or {}
+                movement = r.get("movement") or {}
+                runners.append({
+                    "id": (details.get("runner") or {}).get("id"),
+                    "event": details.get("event", ""),
+                    "playIndex": details.get("playIndex"),
+                    "start": movement.get("start"),
+                    "end": movement.get("end"),
+                    "isOut": movement.get("isOut", False),
+                })
             return {
                 "result": play.get("result", {}),
                 "matchup": play.get("matchup", {}),
                 "about": play.get("about", {}),
                 "count": play.get("count", {}),
+                "runners": runners,
             }
 
         def _extract_most_recent_play(plays: dict) -> dict | None:
