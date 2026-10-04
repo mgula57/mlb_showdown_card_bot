@@ -11,6 +11,8 @@ type Props = {
     seasonYear?: number;
     /** Layout style for displaying the recent sims, e.g., 'grid' or 'list' */
     layout?: 'grid' | 'list';
+    /** Additional class name(s) to apply to the container element */
+    className?: string;
 };
 
 /**
@@ -19,7 +21,7 @@ type Props = {
  * team's own Sims tab, so this stays scoped to the plain "simulate a season" path. Deliberately
  * minimal for now; can grow filters/grouping later if it gets used.
  */
-export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
+export function RecentSims({ token, onOpen, seasonYear, layout, className }: Props) {
     const [seasons, setSeasons] = useState<SimSeasonListItem[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [showAllSeasons, setShowAllSeasons] = useState(false);
@@ -63,7 +65,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
 
     if (seasons === null) {
         return (
-            <div className={layoutClass}>
+            <div className={`${layoutClass} ${className ?? ''}`}>
                 {Array.from({ length: RECENT_LIMIT }).map((_, index) => <SimSeasonRowSkeleton key={index} />)}
             </div>
         );
@@ -91,7 +93,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout }: Props) {
     const remaining = visibleSeasons.length - visibleCount;
 
     return (
-        <div className={layoutClass}>
+        <div className={`${layoutClass} ${className ?? ''}`}>
             {seasonToggle && <div className="flex justify-end pb-0.5">{seasonToggle}</div>}
             {visibleSeasons.slice(0, visibleCount).map(entry => (
                 <SimSeasonRow

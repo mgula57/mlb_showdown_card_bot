@@ -1436,7 +1436,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 </div>
                                             </div>
                                             {simToken ? (
-                                                <RecentSims token={simToken} onOpen={handleOpenSim} seasonYear={selectedSeasonYear ?? undefined} />
+                                                <RecentSims className='px-0.5' token={simToken} onOpen={handleOpenSim} seasonYear={selectedSeasonYear ?? undefined} />
                                             ) : (
                                                 <SignInPrompt
                                                     className="py-12"
