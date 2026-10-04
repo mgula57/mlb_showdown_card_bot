@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { Release, ReleaseEdition } from '../../api/releases';
-import { fetchEdition, createEdition } from '../../api/releases';
+import { fetchEdition, createEdition, updateEdition } from '../../api/releases';
 import { EditionBuilder } from './EditionBuilder';
 import FormInput from '../customs/FormInput';
-import { FaArrowLeft, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { FaArrowLeft, FaCheck, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 type ReleaseDetailProps = {
     release: Release;
@@ -27,9 +27,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const [editionCache, setEditionCache] = useState<Record<string, ReleaseEdition>>({});
     const [error, setError] = useState<string | null>(null);
 
-    const [showNewEditionForm, setShowNewEditionForm] = useState(false);
-    const [newEditionName, setNewEditionName] = useState('');
-    const [creatingEdition, setCreatingEdition] = useState(false);
+    /** Inline name form above the builder — creates a new edition or renames the active one. */
+    const [editionForm, setEditionForm] = useState<'create' | 'rename' | null>(null);
+    const [editionFormName, setEditionFormName] = useState('');
+    const [savingEditionForm, setSavingEditionForm] = useState(false);
+    const activeEditionName = release.editions.find(e => e.id === activeEditionId)?.name ?? '';
 
     useEffect(() => {
         if (!activeEditionId || editionCache[activeEditionId]) return;
@@ -39,12 +41,37 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             .catch(err => setError(err.message ?? 'Failed to load edition.'));
     }, [activeEditionId, release.id, token]);
 
-    async function handleCreateEdition() {
-        if (!token || !newEditionName.trim() || creatingEdition) return;
-        setCreatingEdition(true);
+    function openEditionForm(mode: 'create' | 'rename') {
+        setEditionForm(mode);
+        setEditionFormName(mode === 'rename' ? activeEditionName : '');
+    }
+
+    function closeEditionForm() {
+        setEditionForm(null);
+        setEditionFormName('');
+    }
+
+    async function handleSubmitEditionForm() {
+        const name = editionFormName.trim();
+        if (!token || !name || savingEditionForm) return;
+        if (editionForm === 'rename') {
+            if (!activeEditionId || name === activeEditionName) { closeEditionForm(); return; }
+            setSavingEditionForm(true);
+            setError(null);
+            try {
+                handleEditionUpdated(await updateEdition(release.id, activeEditionId, { name }, token));
+                closeEditionForm();
+            } catch (err: any) {
+                setError(err.message ?? 'Failed to rename edition.');
+            } finally {
+                setSavingEditionForm(false);
+            }
+            return;
+        }
+        setSavingEditionForm(true);
         setError(null);
         try {
-            const edition = await createEdition(release.id, { name: newEditionName.trim() }, token);
+            const edition = await createEdition(release.id, { name }, token);
             setEditionCache(prev => ({ ...prev, [edition.id]: edition }));
             onReleaseUpdated({
                 ...release,
@@ -54,12 +81,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 ].sort((a, b) => a.name.localeCompare(b.name)),
             });
             onEditionChange(edition.slug);
-            setShowNewEditionForm(false);
-            setNewEditionName('');
+            closeEditionForm();
         } catch (err: any) {
             setError(err.message ?? 'Failed to create edition.');
         } finally {
-            setCreatingEdition(false);
+            setSavingEditionForm(false);
         }
     }
 
@@ -70,7 +96,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             editions: release.editions.map(e => e.id === updated.id
                 ? { ...e, name: updated.name, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length }
                 : e
-            ),
+            ).sort((a, b) => a.name.localeCompare(b.name)),
         });
     }
 
@@ -121,45 +147,57 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         {!readOnly && (
                             <button
                                 type="button"
-                                onClick={() => setShowNewEditionForm(true)}
-                                className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0"
+                                onClick={() => openEditionForm('create')}
+                                className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
                             >
                                 <FaPlus className="text-[10px]" /> Edition
+                            </button>
+                        )}
+                        {!readOnly && activeEditionId && (
+                            <button
+                                type="button"
+                                onClick={() => openEditionForm('rename')}
+                                title="Rename edition"
+                                className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
+                            >
+                                <FaPen className="text-[10px]" /> Rename
                             </button>
                         )}
                     </Tabs.List>
                 </div>
 
-                {showNewEditionForm && (
+                {editionForm && (
                     <div className="flex items-center gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
                         <div className="flex-1 max-w-xs">
                             <FormInput
                                 label=""
-                                value={newEditionName}
-                                onChange={v => setNewEditionName(v ?? '')}
+                                value={editionFormName}
+                                onChange={v => setEditionFormName(v ?? '')}
                                 placeholder="Edition name (e.g. 2001, Rainbow Foil)"
                             />
                         </div>
                         <button
                             type="button"
-                            onClick={handleCreateEdition}
-                            disabled={!newEditionName.trim() || creatingEdition}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                            onClick={handleSubmitEditionForm}
+                            disabled={!editionFormName.trim() || savingEditionForm}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
-                            {creatingEdition ? <FaSpinner className="animate-spin text-[10px]" /> : <FaPlus className="text-[10px]" />}
-                            Create
+                            {savingEditionForm
+                                ? <FaSpinner className="animate-spin text-[10px]" />
+                                : editionForm === 'rename' ? <FaCheck className="text-[10px]" /> : <FaPlus className="text-[10px]" />}
+                            {editionForm === 'rename' ? 'Save' : 'Create'}
                         </button>
                         <button
                             type="button"
-                            onClick={() => { setShowNewEditionForm(false); setNewEditionName(''); }}
-                            className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors"
+                            onClick={closeEditionForm}
+                            className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
                         >
                             <FaXmark className="text-[14px]" />
                         </button>
                     </div>
                 )}
 
-                {release.editions.length === 0 && !showNewEditionForm ? (
+                {release.editions.length === 0 && !editionForm ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
                         {readOnly ? 'This release has no editions yet.' : 'Add an edition to start building your player pool.'}
                     </p>
