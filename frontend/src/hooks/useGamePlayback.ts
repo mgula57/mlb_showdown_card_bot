@@ -11,7 +11,7 @@
  *    the seam a dice-roll/manager-button UI hooks into later. `gate` is never passed by any
  *    current caller, so that branch is dead code until it exists; it costs nothing to leave wired.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FrameTransition, GameFrame, GameTimeline, TransitionSeverity } from "../domain/timeline";
 import type { PlayEntry } from "../domain/play";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
@@ -144,6 +144,28 @@ export function useGamePlayback(options: {
 
     useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
+    // A live timeline ends in a trailing AT_BAT frame whose id never changes ("mlb-live"), so a
+    // cursor parked on it would resolve to the last index no matter how many play frames the next
+    // poll inserts ahead of it — `behindBy` stays 0 and new plays (a HR included) are skipped
+    // without animating. This remembers the frame just before the AT_BAT frame at the time the
+    // cursor landed on it; when a poll grows the timeline, the cursor is moved back onto that
+    // frame so the new plays sit ahead of it and autoplay walks through them. Both frames show
+    // the same situation, so the move itself is invisible (hence layout effect: no painted jump).
+    const liveAnchorRef = useRef<string | null>(null);
+    const prevFramesRef = useRef(frames);
+    useLayoutEffect(() => {
+        const framesChanged = prevFramesRef.current !== frames;
+        prevFramesRef.current = frames;
+        if (frames[cursorIndex]?.kind !== "AT_BAT") { liveAnchorRef.current = null; return; }
+        const anchorIndex = liveAnchorRef.current ? frames.findIndex((f) => f.id === liveAnchorRef.current) : -1;
+        if (framesChanged && anchorIndex >= 0 && anchorIndex < cursorIndex - 1) {
+            setCursorId(frames[anchorIndex].id);
+            return;
+        }
+        liveAnchorRef.current = frames[cursorIndex - 1]?.id ?? null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [frames, cursorId]);
+
     function scheduleAdvance(autoplay = false) {
         const nextIndex = cursorIndex + 1;
         const nextFrame = frames[nextIndex];
@@ -153,6 +175,14 @@ export function useGamePlayback(options: {
         if (gateResult) {
             setAwaitingInput(gateResult);
             setPhase("await-input");
+            return;
+        }
+
+        // The trailing live at-bat frame is the ground-truth "now" with nothing to animate — land
+        // on it directly rather than idling through empty pitch/result/runner beats.
+        if (nextFrame.kind === "AT_BAT") {
+            setCursorId(nextFrame.id);
+            setPhase("idle");
             return;
         }
 
@@ -250,6 +280,7 @@ export function useGamePlayback(options: {
         seekToStart: () => controls.seek(0),
         seekToLive: () => {
             interrupt();
+            liveAnchorRef.current = null; // instant jump — don't let the anchor pull the cursor back to animate
             setMode("live");
             setCursorId(frames[frames.length - 1].id);
             setIsPlaying(true);
