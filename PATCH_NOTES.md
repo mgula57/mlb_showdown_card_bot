@@ -3,7 +3,7 @@
 What's new in each Showdown Bot release, newest first.
 
 ## 4.41 Release — Guided Draft & 2026 Card Balancing
-_Unreleased_
+_Released 2026-10-04 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.41)_
 
 This release focuses on a new Guided Draft mode in the Team Builder, a rebalance of every card set for 2026, and smoother Custom Card Builder workflows.
 
