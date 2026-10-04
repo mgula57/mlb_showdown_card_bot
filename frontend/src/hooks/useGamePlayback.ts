@@ -72,8 +72,12 @@ export type GamePlaybackControls = {
 // to feel like so the default replay reads as watchable rather than a flip-book — the speed
 // control is there for anyone who wants to move quicker. `result` is kept short so the runners
 // start moving promptly after the event badge reveals, rather than hanging on a static frame.
+// `pitch` is long enough for a sim's dice to tumble (`SimFieldDie`, ~530ms) AND sit landed for a
+// beat before anything resolves — the hitter is retired and the result badge reveals as `result`
+// begins, so this is the "time before the outcome" dial; `result` is then the beat between the
+// outcome landing and the runners moving.
 const PHASE_MS: Record<"pitch" | "result" | "runners" | "settle", number> = {
-    pitch: 900, result: 550, runners: 1400, settle: 700,
+    pitch: 1500, result: 1100, runners: 1400, settle: 700,
 };
 
 // A quiet pause after each play COMMITS before autoplay schedules the next one — this is the
@@ -217,7 +221,10 @@ export function useGamePlayback(options: {
             // advance effect is allowed to schedule the next play — "hold" keeps the effect's
             // `phase !== "idle"` guard engaged for that long. A manual step (`autoplay` false)
             // or the last frame drops straight to "idle".
-            if (autoplay && !reachedEnd) {
+            // ...except before a half-inning changeover, which follows the final out of the inning
+            // straight away.
+            const nextIsBreak = frames[nextIndex + 1]?.kind === "HALF_INNING_BREAK";
+            if (autoplay && !reachedEnd && !nextIsBreak) {
                 setPhase("hold");
                 timerRef.current = setTimeout(() => setPhase("idle"), PLAY_GAP_MS / effectiveSpeed);
             } else {
@@ -225,7 +232,9 @@ export function useGamePlayback(options: {
             }
         };
 
-        runPhase("pitch");
+        // The half-inning changeover has no pitch to build up to (no dice, no matchup) — start it
+        // straight on its arrow-flip so the new inning reads as following right on from the last out.
+        runPhase(nextFrame.kind === "HALF_INNING_BREAK" ? "result" : "pitch");
     }
 
     // The one advance trigger — fires on user actions (`play()`) and on the live timeline

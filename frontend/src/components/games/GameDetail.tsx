@@ -17,6 +17,7 @@ import GameSimHistoryModal from "./GameSimHistoryModal";
 import SimBoxScoreTable from "./SimBoxScoreTable";
 import PlayByPlayLog from "./PlayByPlayLog";
 import GameField from "./GameField";
+import { advantageSideOf } from "../../domain/play";
 import GameMatchup from "./GameMatchup";
 import GameLinescore from "./GameLinescore";
 import { useGameDetailData } from "./useGameDetailData";
@@ -363,6 +364,12 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                    trailing cursor as a review once the user has opened the transport bar. */
                 const isReviewing = isReplaying && !(isLiveReal && !showPlaybackControls);
 
+                /* Who won the pitch roll, flagged on the matching cards from the moment the result
+                   reveals until the play commits — before that the dice are still in the air, and
+                   after it the cursor has moved on to the next plate appearance. */
+                const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
+                const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : undefined;
+
                 const modeBanner = simResult ? (
                     <ModeBanner
                         primaryColor={away.team.primary_color ?? '#374151'}
@@ -548,6 +555,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                     pendingPlay={playbackState.pendingPlay}
                                                     phase={playbackState.phase}
                                                     lastPlay={showRecap ? undefined : activePlays[0]}
+                                                    advantage={advantage}
+                                                    playbackSpeed={playbackState.effectiveSpeed}
                                                     onPlayClick={simResult && playbackState.cursor === 0 && !simPlayStarted ? () => {
                                                         setSimPlayStarted(true);
                                                         playbackControls.seekToStart();
@@ -580,11 +589,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                 {!showRecap && (
                                                     <GameMatchup
                                                         game={activeView}
-                                                        plays={activePlays}
                                                         cardMap={cardMap}
                                                         isLoadingCards={isLoadingCards}
                                                         onCardSelect={setSelectedCard}
                                                         hideStatlines={isReplaying}
+                                                        advantage={advantage}
                                                     />
                                                 )}
                                             </div>

@@ -20,6 +20,7 @@ import {
     type GameFrame,
     type GameTimeline,
     type RetiredRunner,
+    type RunnerRoll,
     type RunnerMove,
     type RunnerSpot,
 } from "../timeline";
@@ -158,6 +159,17 @@ export type SimGameLogEntryJson = {
      *   - `bases_after_swing`  — after the ball-in-play advancement + any DP, before extra-base sends */
     bases_after_steal?: SimRunnerRefJson[] | null;
     bases_after_swing?: SimRunnerRefJson[] | null;
+    /** The dice behind the steal and extra-base beats above. Absent on older logs. */
+    steal_rolls?: SimRunnerRollJson[];
+    advance_rolls?: SimRunnerRollJson[];
+};
+
+/** `base` is the base the runner ran FROM; `result` is "safe" | "out". */
+export type SimRunnerRollJson = {
+    runner_id: string; runner: string; base: number; roll: number; result: string;
+    /** Out when `defense + roll > target`: catcher arm (steal) / outfield defense (extra base) vs
+     *  the runner's speed incl. base bonus. 0 on logs written before these were recorded. */
+    defense?: number; target?: number;
 };
 
 /** `reason` is set only on `scored` / `retired` and tells the replay which beat of the plate
@@ -589,7 +601,13 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             home: number;
             runs: number;
             isHomeRun: boolean;
+            runnerRolls?: RunnerRoll[];
         };
+
+        const toRunnerRolls = (kind: RunnerRoll["kind"], rolls?: SimRunnerRollJson[]): RunnerRoll[] | undefined =>
+            rolls?.length
+                ? rolls.map((r) => ({ kind, runner: { id: r.runner_id, name: r.runner }, base: r.base, roll: r.roll, isSafe: r.result === "safe", defense: r.target ? r.defense : undefined, target: r.target || undefined }))
+                : undefined;
 
         const legs: SimLeg[] = [];
 
@@ -607,6 +625,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 home: isTop ? entry.home_score : entry.home_score - runsScored,
                 runs: 0,
                 isHomeRun: false,
+                runnerRolls: toRunnerRolls("steal", entry.steal_rolls),
             });
         }
 
@@ -642,6 +661,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 home: entry.home_score,
                 runs: advanceRuns,
                 isHomeRun: false,
+                runnerRolls: toRunnerRolls("advance", entry.advance_rolls),
             });
         }
 
@@ -685,6 +705,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                     moves, runsScored: leg.runs, outsRecorded: leg.outs,
                     isHalfInningChange: isLastLeg && isHalfInningChange, severity,
                     beatLabel: leg.play ? undefined : beatLabelFor(leg.id, moves),
+                    runnerRolls: leg.runnerRolls,
                 },
                 view: baseView({
                     state: legKind === "FINAL" ? "FINAL" : "LIVE",

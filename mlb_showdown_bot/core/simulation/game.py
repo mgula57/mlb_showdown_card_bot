@@ -16,6 +16,7 @@ from .models import (
     InningLineScore,
     LineScoreResult,
     RunnerRef,
+    RunnerRollLog,
     SimGameStarter,
     TeamBoxScore,
     TeamLineScoreTotals,
@@ -202,7 +203,7 @@ class Game:
         home_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.away.runs_scored)
         away_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.home.runs_scored)
 
-    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False, platoon_roll_adjustment: int = 0, keep_innings: bool = True):
+    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False, platoon_roll_adjustment: int = 0, keep_innings: bool = True, random_roll_adjustments: bool = True):
 
         self._collect_box_score = collect_box_score
         self._keep_innings = keep_innings
@@ -235,7 +236,7 @@ class Game:
             team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0), rng=rng)
             pitcher = team_pitching.current_pitcher()
             hitter = team_hitting.current_hitter(game=self)
-            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=(single_plus_inning is inning), manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year)
+            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=(single_plus_inning is inning), manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year, random_roll_adjustments=random_roll_adjustments)
 
             # ROLL THE DICE
             plate_appearance.check_and_execute_steal(catcher=team_pitching.catcher)
@@ -308,6 +309,8 @@ class Game:
                         [RunnerRef(id=i, name=n, base=b) for i, n, b in plate_appearance.bases_snapshot_after_swing]
                         if plate_appearance.advance_attempts else None
                     ),
+                    steal_rolls=[self._runner_roll_log(r) for r in plate_appearance.steal_attempts if r.roll],
+                    advance_rolls=[self._runner_roll_log(r) for r in plate_appearance.advance_attempts],
                 )
                 if collect_log:
                     self.logs.append(log_entry)
@@ -386,6 +389,11 @@ class Game:
             self.home_box_score = self._build_team_box_score(self.home_team)
             self.away_box_score = self._build_team_box_score(self.away_team)
         self.is_game_over = True
+
+    @staticmethod
+    def _runner_roll_log(roll) -> RunnerRollLog:
+        """A steal/extra-base `Roll` as its log row. `roll.base` is where the runner went FROM."""
+        return RunnerRollLog(runner_id=roll.runner.id, runner=roll.runner.name, base=roll.base, roll=roll.roll, result=roll.result.value, defense=roll.defense, target=roll.target)
 
     @staticmethod
     def _starting_pitcher(team) -> Optional[SimGameStarter]:
