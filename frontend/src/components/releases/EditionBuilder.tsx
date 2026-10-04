@@ -961,7 +961,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                 forceMount
                                 className="flex-1 min-h-0 overflow-y-auto focus:outline-none data-[state=inactive]:hidden"
                             >
-                                <SummaryCharts cards={displayCards} />
+                                <SummaryCharts cards={displayCards} editionId={edition.id} />
                             </Tabs.Content>
                         )}
                     </Tabs.Root>

@@ -8,6 +8,8 @@ import FormEnabler from '../customs/FormEnabler';
 
 type SummaryChartsProps = {
     cards: ReleaseCard[];
+    /** Scopes the saved WOTC comparison selection to this edition. */
+    editionId: string;
 };
 
 const POINTS_BUCKET_SIZE = 50;
@@ -250,15 +252,81 @@ function buildAverages(snapshots: CardDatabaseRecord[]): SummaryAverages {
 }
 
 // =============================================================================
+// MARK: - WOTC FIT
+// =============================================================================
+
+/** How closely a breakdown tracks the WOTC comparison set. Only 'warn'/'off' get color. */
+type Fit = 'ok' | 'warn' | 'off';
+type FitCheck = { fit: Fit; detail: string };
+type Tolerance = { warn: number; off: number };
+
+const FIT_RANK: Record<Fit, number> = { ok: 0, warn: 1, off: 2 };
+
+const COMMAND_AVERAGE_TOLERANCE: Tolerance = { warn: 0.4, off: 0.8 };
+const IP_AVERAGE_TOLERANCE: Tolerance = { warn: 0.4, off: 0.8 };
+
+/** Share of cards that would have to move buckets to match WOTC's shape (total variation distance). */
+const DISTRIBUTION_TOLERANCE: Tolerance = { warn: 0.15, off: 0.3 };
+/** Defense panels are small and split over many rating buckets, so their spread is noisier — judge it more loosely. */
+const DEFENSE_DISTRIBUTION_TOLERANCE: Tolerance = { warn: 0.25, off: 0.45 };
+/** Below this many cards a full-width chart's shape is mostly sampling noise, so it isn't judged. */
+const MIN_CARDS_TO_SCORE = 20;
+/** Same floor for the small per-group panels (a defensive position, a pitcher role). */
+const MIN_PANEL_CARDS_TO_SCORE = 10;
+
+function fitFor(delta: number, tolerance: Tolerance): Fit {
+    return delta >= tolerance.off ? 'off' : delta >= tolerance.warn ? 'warn' : 'ok';
+}
+
+/** Compares one chart's bucket shares against WOTC's (raw counts, so scaling doesn't matter).
+ * Null when there are fewer than `minCards` cards to judge. */
+function distributionCheck(rows: BreakdownRow[], minCards = MIN_CARDS_TO_SCORE, tolerance = DISTRIBUTION_TOLERANCE): FitCheck | null {
+    const count = rows.reduce((sum, row) => sum + row.count, 0);
+    if (count < minCards) return null;
+    const compareCount = rows.reduce((sum, row) => sum + (row.compareRaw ?? 0), 0);
+    const distance = compareCount === 0
+        ? 1
+        : rows.reduce((sum, row) => sum + Math.abs(row.count / count - (row.compareRaw ?? 0) / compareCount), 0) / 2;
+    return { fit: fitFor(distance, tolerance), detail: `Distribution ${Math.round(distance * 100)}% off` };
+}
+
+function averageCheck(label: string, value: number, compareValue: number, tolerance: Tolerance): FitCheck {
+    return { fit: fitFor(Math.abs(value - compareValue), tolerance), detail: `${label} ${value} vs ${compareValue}` };
+}
+
+/** Worst of a section's checks; null (no dot) when its distribution can't be judged. */
+function combineChecks(distribution: FitCheck | null, ...averages: (FitCheck | null)[]): FitCheck | null {
+    if (!distribution) return null;
+    const checks = [distribution, ...averages.filter((check): check is FitCheck => check !== null)];
+    const fit = checks.reduce<Fit>((worst, check) => FIT_RANK[check.fit] > FIT_RANK[worst] ? check.fit : worst, 'ok');
+    return { fit, detail: checks.map(check => check.detail).join(' · ') };
+}
+
+// =============================================================================
 // MARK: - PRESENTATION
 // =============================================================================
 
-function Section({ title, action, className, children }: { title: string; action?: ReactNode; className?: string; children: ReactNode }) {
+const FIT_DOT_CLASS: Record<Fit, string> = {
+    ok: 'bg-emerald-500',
+    warn: 'bg-amber-500',
+    off: 'bg-red-500',
+};
+
+const FIT_LABEL: Record<Fit, string> = { ok: 'Close to WOTC', warn: 'Drifting from WOTC', off: 'Far from WOTC' };
+
+/** Small status dot beside a section title; the hover text explains the rating. */
+function FitDot({ check }: { check: FitCheck }) {
+    const text = `${FIT_LABEL[check.fit]} — ${check.detail}`;
+    return <span title={text} aria-label={text} className={`inline-block w-2 h-2 rounded-full shrink-0 cursor-help ${FIT_DOT_CLASS[check.fit]}`} />;
+}
+
+function Section({ title, action, fit, className, children }: { title: string; action?: ReactNode; fit?: FitCheck | null; className?: string; children: ReactNode }) {
     return (
         <div className={className}>
             <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
                     {title}
+                    {fit && <FitDot check={fit} />}
                 </div>
                 {action}
             </div>
@@ -408,11 +476,14 @@ function rowGroups(rows: BreakdownRow[]): string[] {
 }
 
 /** Bordered card holding one titled chart, with its average vs WOTC's in the header. */
-function ChartPanel({ title, average, className, children }: { title: string; average: ReactNode; className?: string; children: ReactNode }) {
+function ChartPanel({ title, average, fit, className, children }: { title: string; average: ReactNode; fit?: FitCheck | null; className?: string; children: ReactNode }) {
     return (
         <div className={`rounded-lg border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
             <div className="flex items-baseline justify-between gap-2 px-1">
-                <span className="text-[13px] font-black text-(--text-primary)">{title}</span>
+                <span className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
+                    {title}
+                    {fit && <FitDot check={fit} />}
+                </span>
                 {average}
             </div>
             {children}
@@ -422,7 +493,12 @@ function ChartPanel({ title, average, className, children }: { title: string; av
 
 /** One small column chart per group of "GROUP N" rows (defensive position, pitcher role), each with
  * the release's average value vs WOTC's. `formatValue` renders both the averages and the column labels. */
-function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = String }: ChartProps & { formatValue?: (value: number) => string }) {
+function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = String, averageTolerance, distributionTolerance }: ChartProps & {
+    formatValue?: (value: number) => string;
+    /** When set, each panel's WOTC fit also checks its average against this tolerance. */
+    averageTolerance?: Tolerance;
+    distributionTolerance?: Tolerance;
+}) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     return (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
@@ -430,10 +506,17 @@ function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = S
                 const rows = data.filter(row => row.group === group);
                 const average = averageGroupedValue(rows, false);
                 const compareAverage = compareLabel === null ? null : averageGroupedValue(rows, true);
+                const fit = compareLabel === null ? null : combineChecks(
+                    distributionCheck(rows, MIN_PANEL_CARDS_TO_SCORE, distributionTolerance),
+                    averageTolerance && average !== null && compareAverage !== null
+                        ? averageCheck('Avg', average, compareAverage, averageTolerance)
+                        : null,
+                );
                 return (
                     <ChartPanel
                         key={group}
                         title={group}
+                        fit={fit}
                         average={<ChartAverage
                             value={average !== null ? formatValue(average) : null}
                             compareValue={compareAverage !== null ? formatValue(compareAverage) : null}
@@ -459,8 +542,10 @@ const COMMAND_PANELS: Record<string, { title: string; averageKey: keyof SummaryA
 
 /** Separate Control and On-Base charts: side by side, or stacked on their own lines when
  * `includesOuts` widens them into scrollable command/outs columns. */
-function CommandCharts({ data, emptyMessage, compareLabel, includesOuts, averages, compareAverages }: ChartProps & {
+function CommandCharts({ data, emptyMessage, compareLabel, includesOuts, averages, compareAverages, fits }: ChartProps & {
     includesOuts: boolean;
+    /** WOTC fit per panel group, judged on On-Base/Control alone so "Include Outs" doesn't change it. */
+    fits: Record<string, FitCheck | null> | null;
     averages: SummaryAverages;
     compareAverages: SummaryAverages | null;
 }) {
@@ -473,6 +558,7 @@ function CommandCharts({ data, emptyMessage, compareLabel, includesOuts, average
                     <ChartPanel
                         key={group}
                         title={title}
+                        fit={fits?.[group]}
                         className={includesOuts ? undefined : 'flex-1 basis-64'}
                         average={<ChartAverage value={String(averages[averageKey])} compareValue={compareAverages && String(compareAverages[averageKey])} />}
                     >
@@ -559,20 +645,20 @@ const COMPARISON_OPTIONS = [
     ...WOTC_BASE_SETS.map(set => ({ value: set, label: `${set} Base Set` })),
 ];
 
-const COMPARISON_STORAGE_KEY = 'releaseBuilder.wotcComparisonSet';
+const comparisonStorageKey = (editionId: string) => `releaseBuilder.wotcComparisonSet.${editionId}`;
 
-/** Last selected WOTC comparison set, restored across edition switches and visits. */
-function loadComparisonSet(): WotcBaseSet | null {
+/** Last WOTC comparison set selected for this edition, restored across visits. */
+function loadComparisonSet(editionId: string): WotcBaseSet | null {
     try {
-        const stored = localStorage.getItem(COMPARISON_STORAGE_KEY);
+        const stored = localStorage.getItem(comparisonStorageKey(editionId));
         return (WOTC_BASE_SETS as readonly string[]).includes(stored ?? '') ? stored as WotcBaseSet : null;
     } catch { return null; }
 }
 
-function saveComparisonSet(set: WotcBaseSet | null) {
+function saveComparisonSet(editionId: string, set: WotcBaseSet | null) {
     try {
-        if (set) localStorage.setItem(COMPARISON_STORAGE_KEY, set);
-        else localStorage.removeItem(COMPARISON_STORAGE_KEY);
+        if (set) localStorage.setItem(comparisonStorageKey(editionId), set);
+        else localStorage.removeItem(comparisonStorageKey(editionId));
     } catch { /* storage unavailable */ }
 }
 
@@ -602,13 +688,13 @@ function useWotcComparison(selectedSet: WotcBaseSet | null) {
 // MARK: - COMPONENT
 // =============================================================================
 
-export function SummaryCharts({ cards }: SummaryChartsProps) {
+export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
     const [subsetFilter, setSubsetFilter] = useState<SubsetFilter>('all');
-    const [comparisonSet, setComparisonSet] = useState<WotcBaseSet | null>(loadComparisonSet);
+    const [comparisonSet, setComparisonSet] = useState<WotcBaseSet | null>(() => loadComparisonSet(editionId));
     const [commandIncludesOuts, setCommandIncludesOuts] = useState(false);
     const wotc = useWotcComparison(comparisonSet);
 
-    useEffect(() => saveComparisonSet(comparisonSet), [comparisonSet]);
+    useEffect(() => saveComparisonSet(editionId, comparisonSet), [editionId, comparisonSet]);
 
     const filteredSnapshots = useMemo(
         () => filterToSubset(cards.map(c => c.card_snapshot), subsetFilter),
@@ -639,6 +725,24 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
 
     const averages = buildAverages(filteredSnapshots);
     const compareAverages = comparison ? buildAverages(comparison.snapshots) : null;
+
+    // Per-chart WOTC fit for the single-chart sections; Command, IP and Defense rate each of their
+    // panels instead. Teams is left out since team spread says little about set balance.
+    const fits = compareAverages ? {
+        parentPosition: combineChecks(distributionCheck(breakdowns.parentPosition)),
+        points: combineChecks(distributionCheck(breakdowns.points),
+            averageCheck('Avg PTS', averages.points, compareAverages.points, { warn: 20, off: 40 })),
+        command: Object.fromEntries(Object.entries(COMMAND_PANELS).map(([group, { averageKey }]) => [
+            group,
+            combineChecks(
+                distributionCheck(breakdowns.command.filter(row => row.group === group), MIN_PANEL_CARDS_TO_SCORE),
+                averageCheck('Avg', averages[averageKey], compareAverages[averageKey], COMMAND_AVERAGE_TOLERANCE),
+            ),
+        ])),
+        position: combineChecks(distributionCheck(breakdowns.position)),
+        speed: combineChecks(distributionCheck(breakdowns.speed),
+            averageCheck('Avg Speed', averages.speed, compareAverages.speed, { warn: 1, off: 2 })),
+    } : null;
 
     if (cards.length === 0) {
         return (
@@ -697,12 +801,13 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                 <>
                     {/* Side by side (1/3 – 2/3) when there's room, stacked otherwise. */}
                     <div className="flex flex-wrap gap-6">
-                        <Section title="Position Group" className="flex-[1_1_0%] min-w-80">
+                        <Section title="Position Group" fit={fits?.parentPosition} className="flex-[1_1_0%] min-w-80">
                             <HorizontalBarChart data={breakdowns.parentPosition} emptyMessage="No data yet." minHeight={VERTICAL_CHART_HEIGHT} {...chartProps} />
                         </Section>
 
                         <Section
                             title="Points Distribution"
+                            fit={fits?.points}
                             action={<ChartAverage value={String(averages.points)} compareValue={compareAverages && String(compareAverages.points)} />}
                             className="flex-[2_1_0%] min-w-80"
                         >
@@ -720,11 +825,12 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                             includesOuts={commandIncludesOuts}
                             averages={averages}
                             compareAverages={compareAverages}
+                            fits={fits?.command ?? null}
                             {...chartProps}
                         />
                     </Section>
 
-                    <Section title="Position Breakdown">
+                    <Section title="Position Breakdown" fit={fits?.position}>
                         <HorizontalBarChart data={breakdowns.position} emptyMessage="No position data yet." {...chartProps} />
                     </Section>
 
@@ -732,16 +838,16 @@ export function SummaryCharts({ cards }: SummaryChartsProps) {
                         <VerticalBarChart data={breakdowns.team} emptyMessage="No team data yet." scrollable {...chartProps} />
                     </Section>
 
-                    <Section title="Speed" action={<ChartAverage value={String(averages.speed)} compareValue={compareAverages && String(compareAverages.speed)} />}>
+                    <Section title="Speed" fit={fits?.speed} action={<ChartAverage value={String(averages.speed)} compareValue={compareAverages && String(compareAverages.speed)} />}>
                         <VerticalBarChart data={breakdowns.speed} emptyMessage="No hitters with speed yet." {...chartProps} />
                     </Section>
 
                     <Section title="IP">
-                        <GroupedColumnCharts data={breakdowns.ip} emptyMessage="No pitchers yet." {...chartProps} />
+                        <GroupedColumnCharts data={breakdowns.ip} emptyMessage="No pitchers yet." averageTolerance={IP_AVERAGE_TOLERANCE} {...chartProps} />
                     </Section>
 
                     <Section title="Defense">
-                        <GroupedColumnCharts data={breakdowns.defense} emptyMessage="No defensive ratings yet." formatValue={formatRating} {...chartProps} />
+                        <GroupedColumnCharts data={breakdowns.defense} emptyMessage="No defensive ratings yet." formatValue={formatRating} distributionTolerance={DEFENSE_DISTRIBUTION_TOLERANCE} {...chartProps} />
                     </Section>
                 </>
             )}
