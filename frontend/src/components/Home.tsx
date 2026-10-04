@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
 import { FaXmark, FaPeopleGroup } from 'react-icons/fa6';
+import { FaDiscord } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
@@ -832,7 +833,7 @@ export default function Home() {
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <h3 className="text-lg font-semibold mb-2">How can I contact the developers?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>. Feel free to reach out with questions or feedback.</p>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>, or join the conversation on <a href="https://discord.com/channels/669174897939054602/857237582740193282" target="_blank" rel="noopener noreferrer" className="text-primary underline inline-flex items-center gap-1 align-middle"><FaDiscord className="w-4 h-4" />Discord</a>. Feel free to reach out with questions or feedback.</p>
                     </div>
                 </div>
             </div>
