@@ -29,6 +29,10 @@ GUIDED_PTS_DISTRIBUTION: dict[str, float] = {'offense': 0.52, 'rotation': 0.28, 
 # of the draft (matches MIN_CARD_POINTS in TeamDetail.tsx and the autofill price-band floor).
 MIN_CARD_POINTS = 10
 
+# Floor for the Ace cornerstone's target and options, so the draft always opens on a true ace.
+# Waived only when the budget can't afford it (see `_floor_for`).
+ACE_MIN_POINTS = 500
+
 # Lineup positions are offered scarcest-first, so the thin positions get filled while there's
 # still budget to spend on them.
 FILL_POSITION_ORDER = ['C', 'SS', 'CF', '2B', '3B', '1B', 'LF', 'RF', 'DH']
@@ -97,6 +101,8 @@ class _RoundSpec:
     windows: tuple[int, ...]
     # Broader query tried only if `query_filters` can't fill the round at any window.
     fallback_filters: dict | None = None
+    # Cheapest raw PTS an option may cost (and the target's floor).
+    min_points: int = MIN_CARD_POINTS
 
 
 _POSITION_LABELS = {
@@ -199,9 +205,11 @@ class GuidedDraftPlanner:
     def _cornerstone_spec(self, role: str) -> _RoundSpec:
         # Each cornerstone takes the top tier of its bucket's spend shape.
         if role == 'ace':
+            floor = self._floor_for('rotation', ACE_MIN_POINTS)
             return _RoundSpec('cornerstone', role, CORNERSTONE_LABELS[role], self._first_open_rotation_role(),
-                              'rotation', BUCKET_QUERY_FILTERS['rotation'], self._slot_target('rotation', top=True),
-                              CORNERSTONE_WINDOWS)
+                              'rotation', BUCKET_QUERY_FILTERS['rotation'],
+                              max(floor, self._slot_target('rotation', top=True)),
+                              CORNERSTONE_WINDOWS, min_points=floor)
         if role == 'star':
             return _RoundSpec('cornerstone', role, CORNERSTONE_LABELS[role], None,
                               'offense', BUCKET_QUERY_FILTERS['offense'], self._slot_target('offense', top=True),
@@ -345,6 +353,11 @@ class GuidedDraftPlanner:
     def _clamp(self, target: float, bucket: str) -> int:
         return int(max(MIN_CARD_POINTS, min(target, self._max_points(bucket))))
 
+    def _floor_for(self, bucket: str, min_points: int) -> int:
+        """`min_points`, lowered to the most a pick from `bucket` can afford when the budget
+        can't stretch that far — a tiny budget still gets a round instead of no options."""
+        return int(max(MIN_CARD_POINTS, min(min_points, self._max_points(bucket))))
+
     def _max_points(self, bucket: str) -> float:
         """Most raw PTS a pick from `bucket` can cost while still leaving MIN_CARD_POINTS for
         every other open slot (bench slots reserve at the bench multiplier) — same rule as the
@@ -378,7 +391,7 @@ class GuidedDraftPlanner:
         max_points = max(MIN_CARD_POINTS, int(self._max_points(spec.bucket)))
         for filters in filter(None, (spec.query_filters, spec.fallback_filters)):
             for window in spec.windows:
-                lo = max(MIN_CARD_POINTS, spec.target_points - window)
+                lo = max(spec.min_points, spec.target_points - window)
                 hi = min(spec.target_points + window, max_points)
                 pool = fetch_stratified_candidates(
                     db, filters, self.active_filters, self.card_sources, self.sets_by_source,
@@ -395,7 +408,7 @@ class GuidedDraftPlanner:
         for filters in filter(None, (spec.query_filters, spec.fallback_filters)):
             pool = fetch_stratified_candidates(
                 db, filters, self.active_filters, self.card_sources, self.sets_by_source,
-                bands=[(MIN_CARD_POINTS, max_points, self.SAMPLE_FALLBACK)], columns=None, user_id=self.user_id,
+                bands=[(spec.min_points, max_points, self.SAMPLE_FALLBACK)], columns=None, user_id=self.user_id,
             )
             options = self._pick_options(pool, spec, closest_to=spec.target_points)
             if len(options) > len(best):
