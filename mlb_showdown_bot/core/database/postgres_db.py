@@ -772,41 +772,35 @@ class PostgresDB:
 
     def fetch_single_card(self, card_id: str) -> Optional[ShowdownPlayerCard]:
         """Fetch a single explore data record from the database by card ID."""
-        
-        query = sql.SQL("""
-            SELECT id, card_data
-            FROM internal.dim_card
-            WHERE id = %s
-            LIMIT 1
-        """)
+        return self.fetch_cards_by_ids([card_id]).get(card_id)
 
-        if '-WOTC' in card_id:
-            query = sql.SQL("""
-                SELECT id, card_data
-                FROM public.card_wotc
-                WHERE id = %s
-                LIMIT 1
-            """)
+    def fetch_cards_by_ids(self, card_ids: List[str]) -> Dict[str, ShowdownPlayerCard]:
+        """Fetch full cards for a batch of card IDs, keyed by card ID. IDs that aren't found are omitted.
 
-        # CHECK FOR DATA
-        raw_data = self.execute_query(query=query, filter_values=(card_id,))
-        
-        if len(raw_data) == 0:
-            # Check in the WBC table if not found in the main card table (since some WBC cards are only stored there)
-            query_wbc = sql.SQL("""
-                SELECT id, card_data
-                FROM card_wbc
-                WHERE id = %s
-                LIMIT 1
-            """)
-            raw_data = self.execute_query(query=query_wbc, filter_values=(card_id,))
-            if len(raw_data) == 0:
-                return None
-        
-        if 'card_data' not in raw_data[0]:
-            return None
-        
-        return ShowdownPlayerCard(**raw_data[0].get('card_data'))
+        WOTC IDs (`-WOTC`) live in `card_wotc`; everything else in `internal.dim_card`, falling back
+        to `card_wbc` for any not found there (some WBC cards are only stored in that table).
+        """
+        card_ids = list(dict.fromkeys(card_ids))  # Dedupe, preserving order
+        wotc_ids = [card_id for card_id in card_ids if '-WOTC' in card_id]
+        bot_ids = [card_id for card_id in card_ids if '-WOTC' not in card_id]
+
+        rows: list[dict] = []
+        for table, ids in ((sql.SQL("public.card_wotc"), wotc_ids), (sql.SQL("internal.dim_card"), bot_ids)):
+            if ids:
+                rows += self.execute_query(
+                    query=sql.SQL("SELECT id, card_data FROM {table} WHERE id IN %s").format(table=table),
+                    filter_values=(tuple(ids),),
+                ) or []
+
+        found_ids = {row['id'] for row in rows}
+        missing_ids = [card_id for card_id in bot_ids if card_id not in found_ids]
+        if missing_ids:
+            rows += self.execute_query(
+                query=sql.SQL("SELECT id, card_data FROM card_wbc WHERE id IN %s"),
+                filter_values=(tuple(missing_ids),),
+            ) or []
+
+        return {row['id']: ShowdownPlayerCard(**row['card_data']) for row in rows if row.get('card_data')}
 
     def fetch_compact_cards_by_mlb_id(self, mlb_ids: List[int], is_wbc: bool = False, season: int = None, showdown_set: str = "2000") -> Dict[int, ShowdownBotCardCompact]:
         """Fetch all explore data from the database for a given MLB ID."""
@@ -6698,9 +6692,15 @@ class PostgresDB:
             error: Error message if any.
             user_id: Verified user ID from JWT, if authenticated.
         """
+        self.log_card_id_lookups(card_ids=[card_id], source=source, error=error, user_id=user_id)
+
+    def log_card_id_lookups(self, card_ids: List[str], source: str, error: str = None, user_id: str = None) -> None:
+        """Store one log_card_id_lookup row per card ID in a single commit. See `log_card_id_lookup`."""
 
         if not self.connection:
             print("No database connection available for logging.")
+            return
+        if not card_ids:
             return
 
         sql = """
@@ -6709,7 +6709,7 @@ class PostgresDB:
         """
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (card_id, source, error, user_id))
+                cur.executemany(sql, [(card_id, source, error, user_id) for card_id in card_ids])
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()

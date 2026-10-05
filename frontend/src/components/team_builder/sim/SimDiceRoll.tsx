@@ -1,23 +1,17 @@
 import { useEffect, useId, useState } from 'react';
 import { usePrefersReducedMotion } from '../../../hooks/usePrefersReducedMotion';
+import { rollFace, SCRAMBLE_MS, STAGGER_MS, TOSS_MS } from './dieRoll';
 
 // An MLB Showdown at-bat is two twenty-sided rolls - the pitch roll decides who has the
 // advantage, the swing roll is read off that player's chart - so this is a pair of d20s rather
 // than the six-sided dice a generic "rolling" flourish would use.
-const SIDES = 20;
 
 // TOSS_MS MUST MATCH the `sim-die-toss` / `sim-die-shadow` durations in index.css. The face value
 // is scrambled from here while the CSS motion runs and set one final time when it ends, so a
 // mismatch shows up as a die that visibly changes number after it has already landed.
-const TOSS_MS = 900;
 /** How long a landed die holds its result before the next toss. */
 const HOLD_MS = 1300;
-/** Face-change cadence mid-air. Fast enough to read as a tumble, slow enough not to strobe. */
-const SCRAMBLE_MS = 70;
-/** The swing die lags the pitch die so the pair reads as two throws, not one mirrored animation. */
-const STAGGER_MS = 170;
 
-const rollFace = () => 1 + Math.floor(Math.random() * SIDES);
 
 // Face-on icosahedron: a hexagonal silhouette (circumradius 46) around an upward centre face
 // (circumradius 26), with the remaining nine visible faces filling the ring between them. Drawn
@@ -40,7 +34,7 @@ const FACET_LINES = [
 /** The die itself. Rounded corners come from stroking the silhouette with its own fill and a
  *  round line join, which keeps the shape a single shape (no separate outline to fall out of
  *  sync with the gradient). */
-function D20Face({ value, accent }: { value: number; accent: string }) {
+export function D20Face({ value, accent, ink = '#ffffff' }: { value: number; accent: string; ink?: string }) {
     // `useId` output contains colons, which are legal in an id but awkward inside `url(#…)`.
     const gradientId = `d20-${useId().replace(/:/g, '')}`;
     return (
@@ -58,11 +52,11 @@ function D20Face({ value, accent }: { value: number; accent: string }) {
                 strokeWidth="7"
                 strokeLinejoin="round"
             />
-            <polygon points={CENTER_FACE_POINTS} fill="#ffffff" fillOpacity="0.16" />
+            <polygon points={CENTER_FACE_POINTS} fill={ink} fillOpacity="0.16" />
             <path
                 d={FACET_LINES}
                 fill="none"
-                stroke="#ffffff"
+                stroke={ink}
                 strokeOpacity="0.3"
                 strokeWidth="1.6"
                 strokeLinecap="round"
@@ -76,7 +70,7 @@ function D20Face({ value, accent }: { value: number; accent: string }) {
                 fontSize="22"
                 fontWeight="800"
                 letterSpacing="-0.5"
-                fill="#ffffff"
+                fill={ink}
             >
                 {value}
             </text>

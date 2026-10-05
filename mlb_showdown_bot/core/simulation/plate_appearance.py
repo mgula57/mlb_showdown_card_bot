@@ -64,7 +64,7 @@ class PlateAppearanceState(Enum):
 
 class Roll:
 
-    def __init__(self, roll=0, result=Result.NONE, runner: Runner = None, adjustment: int = 0, base: int = 0) -> None:
+    def __init__(self, roll=0, result=Result.NONE, runner: Runner = None, adjustment: int = 0, base: int = 0, defense: int = 0, target: int = 0) -> None:
         self.roll = roll
         self.result = result
         self.runner = runner
@@ -73,13 +73,18 @@ class Roll:
         # OR ADVANCE MUTATES `runner.base` IMMEDIATELY, SO READING IT BACK LATER (AS THE
         # PLAY-BY-PLAY NARRATION DOES) WOULD REPORT WHERE THEY ENDED UP, NOT WHERE THEY RAN FROM.
         self.base = base
+        # STEAL / EXTRA-BASE ROLLS ONLY: THE DEFENSE THE ROLL WAS ADDED TO (CATCHER ARM, OR OUTFIELD
+        # DEFENSE) AND THE RUNNER'S EFFECTIVE SPEED (SPEED + BASE BONUS) IT WAS COMPARED AGAINST -
+        # OUT WHEN `defense + roll > target`. 0 ON EVERY OTHER ROLL.
+        self.defense = defense
+        self.target = target
 
     def is_empty(self) -> bool:
         return self.result == Result.NONE
 
 class PlateAppearance:
 
-    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT, year: Optional[int] = None) -> None:
+    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT, year: Optional[int] = None, random_roll_adjustments: bool = True) -> None:
         self.state = PlateAppearanceState.PITCH
         self.hitter = hitter
         self.pitcher = pitcher
@@ -93,6 +98,9 @@ class PlateAppearance:
         # SEE `SeasonSimulationConfig.platoon_roll_adjustment` - HOW MANY PIPS A HANDEDNESS
         # MATCHUP SHIFTS THE PITCH/SWING ROLLS. 0 DISABLES THE HANDEDNESS MECHANIC ENTIRELY.
         self.platoon_roll_adjustment = platoon_roll_adjustment
+        # WHETHER THE PITCH/SWING ROLLS GET THE SMALL RANDOM +/- NUDGE (`random_plus_or_minus_to_roll`).
+        # OFF FOR LIVE-GAME SIMS, WHERE THE DICE SHOULD BE EXACTLY WHAT THE UI SHOWS.
+        self.random_roll_adjustments = random_roll_adjustments
         self.pitch = Roll()
         self.swing = Roll()
         self.double_play_roll = None
@@ -164,7 +172,10 @@ class PlateAppearance:
     def random_plus_or_minus_to_roll(self, occurance_probability:float = 0.25) -> int:
         """A small symmetric nudge to a dice roll so identical matchups don't replay identically.
         A nudge lands on `occurance_probability` of rolls; within that, the wider swings are the
-        rarer ones - the smallest slice (`/4`) is ±3, the next (`/2`) ±2, the rest ±1."""
+        rarer ones - the smallest slice (`/4`) is ±3, the next (`/2`) ±2, the rest ±1. Always 0
+        (and no RNG is consumed) when `random_roll_adjustments` is off."""
+        if not self.random_roll_adjustments:
+            return 0
         randomizer = self.rng.randint(1, 100)
         if randomizer <= occurance_probability * 100 / 4: return self.rng.randint(-3, 3)
         elif randomizer <= occurance_probability * 100 / 2: return self.rng.randint(-2, 2)
@@ -249,7 +260,7 @@ class PlateAppearance:
                     if self.rng.random() < attempt_probability:
                         dice_roll = self.__random_dice_roll()
                         steal_result = Result.OUT if ( (catcher_arm + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
-                        steal_roll = Roll(roll=dice_roll, result=steal_result, runner=runner, base=runner.base)
+                        steal_roll = Roll(roll=dice_roll, result=steal_result, runner=runner, base=runner.base, defense=catcher_arm, target=runner.speed + runner_bonus)
                         self.steal_attempts.append(steal_roll)
                         self.outs += int(steal_result.is_out)
                         if steal_result == Result.SAFE:
@@ -307,7 +318,7 @@ class PlateAppearance:
                     if probability_of_safe >= threshold:
                         dice_roll = self.__random_dice_roll()
                         advance_result = Result.OUT if ( (outfield_defense + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
-                        advance_roll = Roll(roll=dice_roll, result=advance_result, runner=runner, base=runner.base)
+                        advance_roll = Roll(roll=dice_roll, result=advance_result, runner=runner, base=runner.base, defense=outfield_defense, target=runner.speed + runner_bonus)
                         self.advance_attempts.append(advance_roll)
                         self.outs += int(advance_result.is_out)
                         if advance_result == Result.SAFE:

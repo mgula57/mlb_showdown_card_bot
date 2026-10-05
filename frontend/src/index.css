@@ -50,9 +50,18 @@
 
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 
+    /* Neutral d20 for the in-game sim roll readout: a white die with dark numerals in light
+       mode, flipped to a black die with white numerals in dark mode. */
+    --die-body: #ffffff;
+    --die-ink: #111111;
+
+    /* Highlight for whichever side won the pitch roll in a sim plate appearance. */
+    --advantage: #f5a623;
 }
 
 .dark {
+    --die-body: #000000;
+    --die-ink: #ffffff;
     --primary: #ffffff;
     --secondary: #dfdfdf;
     --tertiary: #cfcfcf;
@@ -481,6 +490,13 @@
 
 @media (prefers-reduced-motion: reduce) {
     .animated-team-gradient { animation: none; }
+}
+
+/* Card highlight for the side that won the advantage on a sim plate appearance (see
+   `AdvantageBadge`). Unlayered on purpose: it has to beat the card's own `shadow-xl` utility. */
+.card-advantage {
+    box-shadow: 0 0 0 2px var(--advantage), 0 0 16px 2px color-mix(in srgb, var(--advantage) 55%, transparent);
+    transition: box-shadow 200ms ease-out;
 }
 
 /* Sim progress dice — a pair of d20s tossed on a loop while a season simulates, as a nod to the

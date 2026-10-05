@@ -175,6 +175,25 @@ export async function fetchCardById(cardId: string, source: string): Promise<Sho
     return res.json();
 }
 
+/** Bulk counterpart of `fetchCardById` — one request for many cards, keyed by card id. Missing ids are omitted. */
+export async function fetchCardsByIds(cardIds: string[], source: string): Promise<Record<string, ShowdownBotCardAPIResponse>> {
+    if (cardIds.length === 0) return {};
+    const res = await fetch(`${API_BASE}/cards/by_ids`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: cardIds, src: source }),
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch cards failed: ${res.status} ${res.statusText}`);
+    }
+
+    const { cards } = await res.json() as { cards: Record<string, ShowdownBotCardAPIResponse['card']> };
+    return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card }]));
+}
+
 export async function buildCards(requestedCards: Record<string, any>[]): Promise<ShowdownBotMultiCardAPIResponse> {
     const res = await fetch(`${API_BASE}/build_cards`, {
         method: "POST",

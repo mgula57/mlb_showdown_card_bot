@@ -1,7 +1,58 @@
 import os
 import json
+import threading
+from typing import Optional
 from googleapiclient.discovery import build
 from oauth2client.service_account import ServiceAccountCredentials
+
+
+class GoogleDriveClient:
+    """Process-wide Google Drive access.
+
+    Credentials are parsed once and shared, so the OAuth access token they hold is
+    reused across requests instead of being re-fetched for every card.
+    """
+
+    SCOPES = ['https://www.googleapis.com/auth/drive']
+    _credentials: Optional[ServiceAccountCredentials] = None
+    _lock = threading.Lock()
+
+    @classmethod
+    def credentials(cls) -> Optional[ServiceAccountCredentials]:
+        """Shared service account credentials, or None if GOOGLE_CREDENTIALS is missing/invalid."""
+        if cls._credentials is None:
+            with cls._lock:
+                if cls._credentials is None:
+                    cls._credentials = cls._load_credentials()
+        return cls._credentials
+
+    @classmethod
+    def files_service(cls):
+        """New Drive files resource built from the shared credentials.
+
+        httplib2 is not thread-safe, so each thread needs its own resource. Building one
+        is cheap (a few ms) and reuses the shared credentials' access token.
+
+        Returns:
+          Drive v3 files resource, or None if there are no valid credentials.
+        """
+        creds = cls.credentials()
+        if creds is None:
+            return None
+        return build('drive', 'v3', credentials=creds).files()
+
+    @classmethod
+    def _load_credentials(cls) -> Optional[ServiceAccountCredentials]:
+        GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
+        if not GOOGLE_CREDENTIALS_STR:
+            return None
+        GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
+        try:
+            GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
+        except:
+            return None
+        return ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, cls.SCOPES)
+
 
 def fetch_image_metadata(folder_id:str, retries:int = 3) -> list[dict]:
     """Fetches file metadata from a Google Drive folder based on a query.
@@ -14,24 +65,10 @@ def fetch_image_metadata(folder_id:str, retries:int = 3) -> list[dict]:
         list[dict]: A list of file metadata dictionaries.
     """
 
-    SCOPES = ['https://www.googleapis.com/auth/drive']
-    GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
-    if not GOOGLE_CREDENTIALS_STR:
-        # IF NO CREDS, RETURN NONE
-        print("No Google credentials found in environment variables.")
+    file_service = GoogleDriveClient.files_service()
+    if file_service is None:
+        print("No valid Google credentials found in environment variables.")
         return
-    
-    # CREDS FILE FOUND, PROCEED
-    GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
-    try:
-        GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
-    except:
-        print("Failed to parse Google credentials JSON.")
-        return
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
-
-    # BUILD THE SERVICE OBJECT.
-    service = build('drive', 'v3', credentials=creds)
 
     # GET LIST OF FILE METADATA FROM CORRECT FOLDER
     files_metadata: list[dict] = []
@@ -40,12 +77,11 @@ def fetch_image_metadata(folder_id:str, retries:int = 3) -> list[dict]:
     while True and failure_number < retries:
         try:
             query = f"mimeType='image/png' and parents = '{folder_id}'"
-            file_service = service.files()
             # Build request parameters conditionally
             request_params = {
-                'q': query, 
-                'pageSize': 1000, 
-                'fields': "nextPageToken, files(id, name, modifiedTime, createdTime)", 
+                'q': query,
+                'pageSize': 1000,
+                'fields': "nextPageToken, files(id, name, modifiedTime, createdTime)",
                 'orderBy': 'modifiedTime asc'
             }
             # Only include pageToken if it's not None

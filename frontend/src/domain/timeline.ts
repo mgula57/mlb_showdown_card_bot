@@ -53,6 +53,21 @@ export type RunnerMove = {
 
 export type TransitionSeverity = "quiet" | "notable" | "big";
 
+/** The dice behind a sim's runner-only beat: one steal attempt (before the pitch) or extra-base
+ *  send (after the ball is in play). `base` is the base the runner ran FROM (1-3). */
+export type RunnerRoll = {
+    kind: "steal" | "advance";
+    runner: PlayerRef;
+    base: number;
+    roll: number;
+    isSafe: boolean;
+    /** What the roll was weighed against — out when `defense + roll > target`. `defense` is the
+     *  catcher's arm (steal) or the outfield defense (extra base); `target` is the runner's speed
+     *  including the base bonus. Unset on logs from before these were recorded. */
+    defense?: number;
+    target?: number;
+};
+
 export type FrameTransition = {
     fromIndex: number;
     toIndex: number;
@@ -66,6 +81,9 @@ export type FrameTransition = {
      *  beat animates with a label instead of silently. Unset when the frame has a `play` (that
      *  play's own event is what the flash shows). */
     beatLabel?: string;
+    /** Sim only — the baserunning dice for a steal / extra-base beat, shown beside the field
+     *  while the beat plays. Unset on every other frame. */
+    runnerRolls?: RunnerRoll[];
     /** Set only on the synthetic HALF_INNING_BREAK transition — the half-inning just finished and
      *  the one about to begin, so the field's flash can play an arrow-flip from one to the other
      *  while the bases clear, instead of flashing nothing on a play-less frame. */

@@ -11,7 +11,7 @@
  *    the seam a dice-roll/manager-button UI hooks into later. `gate` is never passed by any
  *    current caller, so that branch is dead code until it exists; it costs nothing to leave wired.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FrameTransition, GameFrame, GameTimeline, TransitionSeverity } from "../domain/timeline";
 import type { PlayEntry } from "../domain/play";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
@@ -72,8 +72,12 @@ export type GamePlaybackControls = {
 // to feel like so the default replay reads as watchable rather than a flip-book — the speed
 // control is there for anyone who wants to move quicker. `result` is kept short so the runners
 // start moving promptly after the event badge reveals, rather than hanging on a static frame.
+// `pitch` is long enough for a sim's dice to tumble (`SimFieldDie`, ~530ms) AND sit landed for a
+// beat before anything resolves — the hitter is retired and the result badge reveals as `result`
+// begins, so this is the "time before the outcome" dial; `result` is then the beat between the
+// outcome landing and the runners moving.
 const PHASE_MS: Record<"pitch" | "result" | "runners" | "settle", number> = {
-    pitch: 900, result: 550, runners: 1400, settle: 700,
+    pitch: 1500, result: 1100, runners: 1400, settle: 700,
 };
 
 // A quiet pause after each play COMMITS before autoplay schedules the next one — this is the
@@ -144,6 +148,28 @@ export function useGamePlayback(options: {
 
     useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
+    // A live timeline ends in a trailing AT_BAT frame whose id never changes ("mlb-live"), so a
+    // cursor parked on it would resolve to the last index no matter how many play frames the next
+    // poll inserts ahead of it — `behindBy` stays 0 and new plays (a HR included) are skipped
+    // without animating. This remembers the frame just before the AT_BAT frame at the time the
+    // cursor landed on it; when a poll grows the timeline, the cursor is moved back onto that
+    // frame so the new plays sit ahead of it and autoplay walks through them. Both frames show
+    // the same situation, so the move itself is invisible (hence layout effect: no painted jump).
+    const liveAnchorRef = useRef<string | null>(null);
+    const prevFramesRef = useRef(frames);
+    useLayoutEffect(() => {
+        const framesChanged = prevFramesRef.current !== frames;
+        prevFramesRef.current = frames;
+        if (frames[cursorIndex]?.kind !== "AT_BAT") { liveAnchorRef.current = null; return; }
+        const anchorIndex = liveAnchorRef.current ? frames.findIndex((f) => f.id === liveAnchorRef.current) : -1;
+        if (framesChanged && anchorIndex >= 0 && anchorIndex < cursorIndex - 1) {
+            setCursorId(frames[anchorIndex].id);
+            return;
+        }
+        liveAnchorRef.current = frames[cursorIndex - 1]?.id ?? null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [frames, cursorId]);
+
     function scheduleAdvance(autoplay = false) {
         const nextIndex = cursorIndex + 1;
         const nextFrame = frames[nextIndex];
@@ -153,6 +179,14 @@ export function useGamePlayback(options: {
         if (gateResult) {
             setAwaitingInput(gateResult);
             setPhase("await-input");
+            return;
+        }
+
+        // The trailing live at-bat frame is the ground-truth "now" with nothing to animate — land
+        // on it directly rather than idling through empty pitch/result/runner beats.
+        if (nextFrame.kind === "AT_BAT") {
+            setCursorId(nextFrame.id);
+            setPhase("idle");
             return;
         }
 
@@ -187,7 +221,10 @@ export function useGamePlayback(options: {
             // advance effect is allowed to schedule the next play — "hold" keeps the effect's
             // `phase !== "idle"` guard engaged for that long. A manual step (`autoplay` false)
             // or the last frame drops straight to "idle".
-            if (autoplay && !reachedEnd) {
+            // ...except before a half-inning changeover, which follows the final out of the inning
+            // straight away.
+            const nextIsBreak = frames[nextIndex + 1]?.kind === "HALF_INNING_BREAK";
+            if (autoplay && !reachedEnd && !nextIsBreak) {
                 setPhase("hold");
                 timerRef.current = setTimeout(() => setPhase("idle"), PLAY_GAP_MS / effectiveSpeed);
             } else {
@@ -195,7 +232,9 @@ export function useGamePlayback(options: {
             }
         };
 
-        runPhase("pitch");
+        // The half-inning changeover has no pitch to build up to (no dice, no matchup) — start it
+        // straight on its arrow-flip so the new inning reads as following right on from the last out.
+        runPhase(nextFrame.kind === "HALF_INNING_BREAK" ? "result" : "pitch");
     }
 
     // The one advance trigger — fires on user actions (`play()`) and on the live timeline
@@ -250,6 +289,7 @@ export function useGamePlayback(options: {
         seekToStart: () => controls.seek(0),
         seekToLive: () => {
             interrupt();
+            liveAnchorRef.current = null; // instant jump — don't let the anchor pull the cursor back to animate
             setMode("live");
             setCursorId(frames[frames.length - 1].id);
             setIsPlaying(true);
