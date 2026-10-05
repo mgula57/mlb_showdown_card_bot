@@ -98,6 +98,25 @@ def fetch_card():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+@card_db_bp.route('/cards/by_ids', methods=["POST"])
+def fetch_cards_by_ids():
+    """Fetch a batch of cards by their IDs. Bulk counterpart of `/cards/card`."""
+    try:
+        payload = request.get_json() or {}
+        card_ids = [str(card_id) for card_id in payload.get('ids', []) if card_id]
+        source = payload.get('src', 'unknown')
+        if not card_ids:
+            return jsonify({'cards': {}})
+
+        with PostgresDB() as db:
+            cards = db.fetch_cards_by_ids(card_ids)
+            db.log_card_id_lookups(card_ids=list(cards.keys()), source=source, user_id=optional_user_id())
+
+        return jsonify({'cards': {card_id: card.as_json() for card_id, card in cards.items()}})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @card_db_bp.route('/cards/total_count', methods=["GET"])
 def fetch_total_card_count():
     """Fetch the total count of cards in the database"""

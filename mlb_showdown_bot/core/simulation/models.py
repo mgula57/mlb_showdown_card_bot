@@ -486,6 +486,22 @@ class RunnerRef(BaseModel):
     reason: str = ""
 
 
+class RunnerRollLog(BaseModel):
+    """One baserunning dice roll within a plate appearance - a steal attempt or an extra-base send
+    - so a replay can show the die alongside the runner-only beat it drives. `base` is the base the
+    runner was on when they went (the one they ran FROM); `result` is `Result` value "safe"/"out"."""
+    runner_id: str
+    runner: str
+    base: int
+    roll: int
+    result: str
+    # WHAT THE ROLL WAS COMPARED AGAINST: OUT WHEN `defense + roll > target`. `defense` IS THE
+    # CATCHER'S ARM (STEAL) OR THE OUTFIELD DEFENSE (EXTRA BASE); `target` IS THE RUNNER'S SPEED
+    # INCLUDING THE BASE BONUS. 0 ON LOGS WRITTEN BEFORE THESE EXISTED.
+    defense: int = 0
+    target: int = 0
+
+
 class GameLogEntry(BaseModel):
     inning: int
     is_top: bool
@@ -524,6 +540,9 @@ class GameLogEntry(BaseModel):
     #   bases_after_swing  - after the ball-in-play advancement + any DP, BEFORE extra-base sends
     bases_after_steal: Optional[list[RunnerRef]] = None
     bases_after_swing: Optional[list[RunnerRef]] = None
+    # THE DICE BEHIND THOSE TWO BASERUNNING BEATS. A "SINGLE+" FREE STEAL HAS NO ROLL AND ISN'T LISTED.
+    steal_rolls: list[RunnerRollLog] = Field(default_factory=list)
+    advance_rolls: list[RunnerRollLog] = Field(default_factory=list)
 
 
 class InningLineScore(BaseModel):
@@ -572,6 +591,7 @@ class BoxScorePitchingStats(BaseModel):
     batters_faced: int = 0
     era: float = 0.0
     summary: str = ""
+    note: str = ""                 # PITCHER OF RECORD, MLB FEED SHAPE - "(W)", "(L)", "(SV)", "(BS, W)"
 
 
 class BoxScorePitcher(BaseModel):

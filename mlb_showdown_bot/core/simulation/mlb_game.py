@@ -924,7 +924,9 @@ class MLBGameSimulator:
             away_team_game_number=1,
         )
         game.setup(home_team=teams['home'], away_team=teams['away'], start_state=setup.start_state)
-        game.simulate(rng=Random(seed), collect_log=True, collect_box_score=True)
+        # NO RANDOM +/- ROLL NUDGES: A LIVE-GAME SIM SHOWS ITS DICE IN THE UI, SO THE ROLLS SHOULD BE
+        # THE RAW D20S. EVERY OTHER SIM (SEASON, POSTSEASON) KEEPS THEM.
+        game.simulate(rng=Random(seed), collect_log=True, collect_box_score=True, random_roll_adjustments=False)
 
         return MLBGameSimResult(
             game_pk=setup.game_pk,

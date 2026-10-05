@@ -54,6 +54,13 @@ _SPEND_SHAPES: dict[str, tuple[float, float]] = {
     'bench':    (1.5, 0.6),
 }
 
+# Most a single slot's target may price at, per bucket. Targets are a share of the budget, so on a
+# big budget they'd climb past anything the pool sells (card_bot p95/p99: starters 600/700,
+# relievers 310/380, closers 340/390, hitters 430/570), leaving rounds with no options near the
+# target and the surplus stranded. Capped, the surplus rolls into the other open slots through
+# `_bucket_remaining`. Bench is uncapped: its targets stay small.
+MAX_TARGET_POINTS: dict[str, int] = {'offense': 650, 'rotation': 650, 'bullpen': 340}
+
 # Price windows (± target), tried in order until enough options turn up.
 CORNERSTONE_WINDOWS = (50, 75, 100)
 FILL_WINDOWS = (10, 25, 50, 100)
@@ -351,7 +358,8 @@ class GuidedDraftPlanner:
         return global_remaining * nominal(bucket) / total_nominal
 
     def _clamp(self, target: float, bucket: str) -> int:
-        return int(max(MIN_CARD_POINTS, min(target, self._max_points(bucket))))
+        ceiling = MAX_TARGET_POINTS.get(bucket, float('inf'))
+        return int(max(MIN_CARD_POINTS, min(target, ceiling, self._max_points(bucket))))
 
     def _floor_for(self, bucket: str, min_points: int) -> int:
         """`min_points`, lowered to the most a pick from `bucket` can afford when the budget

@@ -6,6 +6,8 @@
  * redesign of the rendering component.
  */
 
+export type AdvantageSide = "pitcher" | "hitter";
+
 export type PlayEntry = {
     id: string;              // about.atBatIndex — stable across polls
     inning: number;
@@ -28,4 +30,14 @@ export type PlayEntry = {
         swingRoll: number;
         swingResult: string;
     };
+};
+
+/** Who won the pitch roll ("padv" / "hadv" in the sim's log). Undefined for MLB plays and for any
+ *  play that carries no roll (a runner-only beat, a half-inning break). */
+export const advantageSideOf = (play?: PlayEntry): AdvantageSide | undefined => {
+    switch (play?.roll?.pitchResult) {
+        case "padv": return "pitcher";
+        case "hadv": return "hitter";
+        default: return undefined;
+    }
 };

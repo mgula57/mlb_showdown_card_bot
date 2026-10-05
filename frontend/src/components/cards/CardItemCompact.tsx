@@ -8,6 +8,7 @@ import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardIcon from "./card_elements/CardIcon";
+import AdvantageBadge from "./card_elements/AdvantageBadge";
 import { getFirstName, getLastName, getFirstInitial } from "../../functions/names"
 
 // =============================================================================
@@ -51,6 +52,8 @@ type CardItemCompactProps = {
     accentColor?: string;
     /** Optional background settings for the card container, e.g., "bg-secondary" */
     backgroundSettings?: string;
+    /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
+    hasAdvantage?: boolean;
 };
 
 // =============================================================================
@@ -98,7 +101,8 @@ export const CardItemCompact = ({
     hideTeamPoints,
     liveIp,
     accentColor,
-    backgroundSettings
+    backgroundSettings,
+    hasAdvantage
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
@@ -154,9 +158,11 @@ export const CardItemCompact = ({
                 rounded-lg pl-1 py-1
                 ${backgroundSettings || 'bg-secondary'}
                 ${borderSettings}
+                ${hasAdvantage ? 'card-advantage' : ''}
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
             `}
         >
+            {hasAdvantage && <AdvantageBadge />}
             {!hideCommand && (
                 <CardCommand
                     isPitcher={card?.is_pitcher || false}
@@ -330,9 +336,10 @@ type CardItemCompactFromCardProps = {
     liveIp?: number | string | null;
     accentColor?: string;
     backgroundSettings?: string;
+    hasAdvantage?: boolean;
 };
 
-export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings, hasAdvantage }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -377,6 +384,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideD
             liveIp={liveIp}
             accentColor={accentColor}
             backgroundSettings={backgroundSettings}
+            hasAdvantage={hasAdvantage}
         />
     );
 };
