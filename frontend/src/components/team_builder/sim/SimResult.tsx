@@ -150,9 +150,6 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
             ? '--warning'
             : '--error';
 
-    const isTakeover = !isOpenSim && !!team.replaced_abbr;
-    const myTeamLabel = isTakeover ? `My Team (${team.identity?.abbreviation || team.replaced_abbr})` : 'My Team';
-
     return (
         <div className="flex flex-col gap-2 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4">
             {/* Headline */}
@@ -278,7 +275,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     {hasAwards && (
                         <Tabs.Trigger value="awards" className={TAB_TRIGGER_CLASS}><FaTrophy className={TAB_ICON_CLASS} />Awards</Tabs.Trigger>
                     )}
-                    <Tabs.Trigger value="my_team" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className={TAB_ICON_CLASS} />{myTeamLabel}</Tabs.Trigger>
+                    <Tabs.Trigger value="my_team" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className={TAB_ICON_CLASS} />My Team</Tabs.Trigger>
                     <Tabs.Trigger value="standings" className={TAB_TRIGGER_CLASS}><FaTableList className={TAB_ICON_CLASS} />Standings</Tabs.Trigger>
                     <Tabs.Trigger value="leaders" className={TAB_TRIGGER_CLASS}><FaRankingStar className={TAB_ICON_CLASS} />League Leaders</Tabs.Trigger>
                     <Tabs.Trigger value="league_stats" className={TAB_TRIGGER_CLASS}><FaDiceD20 className={TAB_ICON_CLASS} />League Stats</Tabs.Trigger>
