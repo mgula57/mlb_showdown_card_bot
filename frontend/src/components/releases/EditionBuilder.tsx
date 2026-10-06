@@ -500,7 +500,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Step indicator */}
-            {/* <div className="flex items-center gap-3 px-4 py-3 border-b border-(--divider) shrink-0">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-(--divider) shrink-0">
                 <div className="flex items-center gap-2">
                     <span className="flex items-center justify-center w-5 h-5 rounded-full bg-(--secondary) text-(--background-primary) text-[10px] font-black shrink-0">
                         1
@@ -526,7 +526,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                         <FaSpinner className="animate-spin text-[10px]" /> Saving…
                     </span>
                 )}
-            </div> */}
+            </div>
 
             {error && (
                 <div className="mx-4 mt-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 shrink-0">
