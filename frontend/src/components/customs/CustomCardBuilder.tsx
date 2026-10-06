@@ -35,6 +35,7 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
@@ -49,12 +50,13 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages
+    FaImages, FaGoogleDrive, FaListOl
 } from 'react-icons/fa';
 import {
     FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
+import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
 // ----------------------------------
@@ -1104,6 +1106,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
+            <WhatsNewBanner
+                storageKey="customCardBuilderWhatsNew_v4.42"
+                version="4.42"
+                features={[
+                    { icon: <FaGoogleDrive />, text: 'Image Libraries: connect your own Google Drive folder of player images' },
+                    { icon: <FaListOl />, text: 'Choose whether Auto images check your folders or Showdown Bot first in Account settings' },
+                    { icon: <FaImage />, text: "Cards now show where their player image came from" },
+                ]}
+            />
+
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
@@ -1464,6 +1476,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         <FormSection 
                                             title='Image' 
                                             icon={<FaImage />} 
+                                            isNew={true}
                                             isOpenByDefault={sectionStates['Image']}
                                             onToggle={() => toggleSection('Image')}
                                             childrenWhenClosed={sectionWhenClosed('Image')}
@@ -1476,6 +1489,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 selectedOption={form.image_source}
                                                 onChange={(value) => setForm({ ...form, image_source: value })}
                                             />
+                                            {form.image_source === 'AUTO' && <ImageLibraryOrderHint className="col-span-full -mt-1" />}
 
                                             {/* Source Specific Options */}
                                             <FormDropdown

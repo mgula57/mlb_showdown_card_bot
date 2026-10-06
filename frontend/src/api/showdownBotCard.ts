@@ -525,7 +525,18 @@ export type ShowdownBotCardCompact = {
  * Controls visual appearance including colors, effects, and special editions.
  * Used by the image generation system to create the final card artwork.
  */
+/** Where the card's player image came from */
+export type ShowdownBotCardImageSource = {
+    /** Backend ImageSourceType value: 'Upload', 'Link', 'Google Drive', 'User Drive', 'Local Cache', 'Local Drive', 'EMPTY' */
+    type?: string | null;
+    /** Auto image library the image matched in (ex: 'Showdown Bot' or a user's Drive folder name) */
+    library_name?: string | null;
+};
+
 export type ShowdownBotCardImage = {
+    /** Where the player image came from */
+    source?: ShowdownBotCardImageSource | null;
+
     /** Set expansion identifier */
     expansion: string | null;
     

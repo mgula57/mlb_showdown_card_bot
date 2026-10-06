@@ -7,7 +7,7 @@ import json
 import ast
 
 # INTERNAL
-from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
+from .showdown_player_card import ShowdownPlayerCard, ImageLibrary, ImageSource, ShowdownImage, PlayerType, Team, Edition
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, StatsPeriodLeague
@@ -81,7 +81,7 @@ def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, 
         print(f"Failed to check MLB API seasons for career: {e}")
         return None
 
-def generate_card(**kwargs) -> dict[str, Any]:
+def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[str, Any]:
     """
     Responsible for processing Showdown Bot Player Cards across API, CLI, and Web App.
     
@@ -93,6 +93,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
     - `error`: Error message if an error occurs during card generation, otherwise None
 
     Args:
+        image_libraries: Auto image libraries to search, in order (resolved from the user's account). Kept out
+            of kwargs so folder ids are never logged.
         **kwargs: Keyword arguments that can include:
             - name: Name of the player (required)
             - year: Year of the player (required)
@@ -207,6 +209,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             
             # RESET IMAGE SETTINGS TO WHAT USER INPUTTED
             image_source = ImageSource(**kwargs)
+            image_source.set_libraries(image_libraries)
             image = ShowdownImage(source=image_source, **kwargs)
             preprocessed_card.image = image
             preprocessed_card.generate_card_image(show=kwargs.get('show_image', False))
@@ -394,6 +397,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
+        image_source.set_libraries(image_libraries)
         image = ShowdownImage(source=image_source, **kwargs)
         card = ShowdownPlayerCard(
             stats_period=stats_period, 
