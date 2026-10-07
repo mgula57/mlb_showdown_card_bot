@@ -12,6 +12,7 @@ import { FaCheck, FaCheckCircle, FaCopy, FaExclamationTriangle, FaSpinner } from
 import { Modal } from '../shared/Modal';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import FormInput from '../customs/FormInput';
+import ImageLibraryGuideLink from './ImageLibraryGuideLink';
 import { saveImageLibrary, testImageLibrary } from '../../api/imageLibraries';
 import type { ImageLibrariesOverview, ImageLibraryTestResult } from '../../api/imageLibraries';
 
@@ -206,6 +207,9 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
 
                 {step === 0 && (
                     <div className="space-y-4">
+                        <p className="text-sm text-secondary">
+                            New to making player images? <ImageLibraryGuideLink>Read the full guide</ImageLibraryGuideLink> for templates, canvas setup, and examples.
+                        </p>
                         <StepList>
                             <li>
                                 Create a folder in Google Drive. Any Google account works. Work or school accounts may block sharing outside the organization, so a personal account is best.

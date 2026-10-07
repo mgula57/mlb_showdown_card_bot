@@ -11,6 +11,7 @@ import { FaArrowDown, FaArrowUp, FaGoogleDrive, FaImages, FaPlus, FaRobot, FaSpi
 import AccountSection from './AccountSection';
 import ImageLibraryName from './ImageLibraryName';
 import DriveLibrarySetupModal from './DriveLibrarySetupModal';
+import ImageLibraryGuideLink from './ImageLibraryGuideLink';
 import { IMAGE_LIBRARIES_SECTION_ID, useImageLibraries } from './useImageLibraries';
 import type { OrderedImageLibrary } from './useImageLibraries';
 import { deleteImageLibrary, saveImageLibrary, updateImageLibraryOrder } from '../../api/imageLibraries';
@@ -172,7 +173,7 @@ export const ImageLibrarySettings: React.FC = () => {
             id={IMAGE_LIBRARIES_SECTION_ID}
             title="Image Libraries"
             icon={<FaImages />}
-            description="Use player images from your own Google Drive folders when a card's Player Image is set to Auto."
+            description={<>Use player images from your own Google Drive folders when a card's Player Image is set to Auto. <ImageLibraryGuideLink>How to make images</ImageLibraryGuideLink></>}
             action={connectButton}
         >
             {error && <p className="text-sm text-red-500">{error}</p>}
