@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react';
 import type { Lineup } from '../../api/userTeams';
+import { DEFAULT_LINEUP_NAME, simLineup } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { FaPlus, FaTrash, FaPencil, FaCheck, FaChevronUp, FaChevronDown, FaCopy } from 'react-icons/fa6';
+import { FaPlus, FaTrash, FaPencil, FaCheck, FaChevronUp, FaChevronDown, FaCopy, FaCircleCheck } from 'react-icons/fa6';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
-
-const DEFAULT_LINEUP_NAME = 'Default';
 
 type LineupPanelProps = {
     lineups: Lineup[];
@@ -28,6 +27,10 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
     const allTabs: Lineup[] = [...(defaultLineup ? [defaultLineup] : []), ...userLineups];
     const activeLineup = allTabs[activeIndex] ?? null;
     const isDefault = activeLineup?.name === DEFAULT_LINEUP_NAME;
+    // The lineup sims actually play — the first complete user lineup, else Default.
+    const simLn = simLineup(allTabs);
+    const isActiveSimLineup = activeLineup !== null && activeLineup === simLn;
+    const isIncomplete = !isDefault && activeLineup !== null && activeLineup.slots.length < 9;
 
     function emitChange(updated: Lineup[]) {
         onLineupsChange(updated.filter(ln => ln.name !== DEFAULT_LINEUP_NAME));
@@ -62,6 +65,15 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
         const next = userLineups.filter(ln => ln !== lineup);
         emitChange([...(defaultLineup ? [defaultLineup] : []), ...next]);
         setActiveIndex(Math.min(activeIndex, allTabs.length - 2));
+    }
+
+    /** Sims play the first complete user lineup, so "use in sims" just moves it to the front. */
+    function makeSimLineup(tabIndex: number) {
+        const lineup = allTabs[tabIndex];
+        if (!lineup || lineup.name === DEFAULT_LINEUP_NAME) return;
+        const next = [lineup, ...userLineups.filter(ln => ln !== lineup)];
+        emitChange([...(defaultLineup ? [defaultLineup] : []), ...next]);
+        setActiveIndex(defaultLineup ? 1 : 0);
     }
 
     function startRename(tabIndex: number) {
@@ -133,49 +145,62 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
             {/* Tab strip — a single horizontally-scrollable row so a phone never has to deal
                 with tabs wrapping onto multiple lines, with thumb-sized chips and actions. */}
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
-                {allTabs.map((ln, i) => (
-                    <div key={`${ln.name}-${i}`} className="flex items-center gap-1 shrink-0">
-                        {editingTabIndex === i ? (
-                            <div className="flex items-center gap-1">
+                {allTabs.map((ln, i) => {
+                    const isActiveTab = i === activeIndex;
+                    // Rename / delete live inside the selected user-created tab's chip, so it's
+                    // obvious which lineup they act on.
+                    const showActions = !readOnly && ln.name !== DEFAULT_LINEUP_NAME && isActiveTab;
+                    return (
+                        <div
+                            key={`${ln.name}-${i}`}
+                            className={`flex items-center shrink-0 min-h-8 rounded-lg border transition-colors
+                                ${isActiveTab
+                                    ? 'border-(--secondary)'
+                                    : 'border-(--divider) hover:border-(--secondary)/50'
+                                }`}
+                        >
+                            {editingTabIndex === i ? (
                                 <input
                                     autoFocus
                                     value={draftName}
                                     onChange={e => setDraftName(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Enter') commitRename(i); if (e.key === 'Escape') setEditingTabIndex(null); }}
-                                    className="text-[13px] bg-(--background-secondary) border border-(--divider) rounded-lg px-2 py-1.5 w-32"
+                                    className="text-[13px] font-semibold bg-transparent outline-none px-3 py-1.5 w-32"
                                 />
-                                <button type="button" onClick={() => commitRename(i)} aria-label="Save name" className="flex items-center justify-center w-8 h-8 rounded-lg text-(--secondary) hover:bg-(--secondary)/10 cursor-pointer">
-                                    <FaCheck className="text-[12px]" />
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveIndex(i)}
+                                    className={`text-[13px] font-semibold px-3 py-1.5 cursor-pointer whitespace-nowrap
+                                        ${isActiveTab ? 'text-(--secondary)' : 'text-(--text-secondary)'}`}
+                                >
+                                    {ln.name}
+                                    {ln === simLn && allTabs.length > 1 && (
+                                        <FaCircleCheck className="inline ml-1.5 text-[11px] -translate-y-px text-green-500" title="Used in sims" />
+                                    )}
                                 </button>
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setActiveIndex(i)}
-                                className={`text-[13px] font-semibold px-3 py-1.5 min-h-8 rounded-lg border transition-colors cursor-pointer whitespace-nowrap
-                                    ${i === activeIndex
-                                        ? 'border-(--secondary) text-(--secondary)'
-                                        : 'border-(--divider) text-(--text-secondary) hover:border-(--secondary)/50'
-                                    }`}
-                            >
-                                {ln.name}
-                            </button>
-                        )}
-                        {/* Rename / delete — user-created tabs only, edit mode */}
-                        {!readOnly && ln.name !== DEFAULT_LINEUP_NAME && i === activeIndex && editingTabIndex !== i && (
-                            <>
-                                <button type="button" onClick={() => startRename(i)} aria-label="Rename lineup" className="flex items-center justify-center w-8 h-8 rounded-lg text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-secondary) cursor-pointer">
-                                    <FaPencil className="text-[11px]" />
-                                </button>
-                                {userLineups.length > 0 && (
-                                    <button type="button" onClick={() => removeLineup(i)} aria-label="Delete lineup" className="flex items-center justify-center w-8 h-8 rounded-lg text-(--text-tertiary) hover:text-red-400 hover:bg-red-400/10 cursor-pointer">
-                                        <FaTrash className="text-[11px]" />
-                                    </button>
-                                )}
-                            </>
-                        )}
-                    </div>
-                ))}
+                            )}
+                            {showActions && (
+                                <div className="flex items-center gap-0.5 pr-1 pl-1 border-l border-(--secondary)/30 self-stretch">
+                                    {editingTabIndex === i ? (
+                                        <button type="button" onClick={() => commitRename(i)} aria-label="Save name" className="flex items-center justify-center w-7 h-7 rounded-md text-(--secondary) hover:bg-(--secondary)/10 cursor-pointer">
+                                            <FaCheck className="text-[12px]" />
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <button type="button" onClick={() => startRename(i)} aria-label="Rename lineup" className="flex items-center justify-center w-7 h-7 rounded-md text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-secondary) cursor-pointer">
+                                                <FaPencil className="text-[11px]" />
+                                            </button>
+                                            <button type="button" onClick={() => removeLineup(i)} aria-label="Delete lineup" className="flex items-center justify-center w-7 h-7 rounded-md text-(--text-tertiary) hover:text-red-400 hover:bg-red-400/10 cursor-pointer">
+                                                <FaTrash className="text-[11px]" />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
 
                 {!readOnly && (
                     <button
@@ -189,11 +214,33 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                 )}
             </div>
 
+            {/* Which lineup sims play, and a CTA to switch to this one */}
+            {!isDefault && activeLineup && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
+                    <p className="text-[11px] text-(--text-tertiary)">
+                        {isActiveSimLineup
+                            ? 'Used in sims'
+                            : isIncomplete
+                                ? `Incomplete (${activeLineup.slots.length}/9) · sims won't use this lineup until all 9 spots are filled`
+                                : `Not used in sims · sims use ${simLn?.name ?? DEFAULT_LINEUP_NAME}`}
+                    </p>
+                    {!readOnly && !isActiveSimLineup && !isIncomplete && (
+                        <button
+                            type="button"
+                            onClick={() => makeSimLineup(activeIndex)}
+                            className="flex items-center gap-1.5 self-start text-[12px] font-semibold text-(--secondary) px-3 py-1.5 rounded-lg border border-(--secondary)/40 hover:bg-(--secondary)/10 cursor-pointer transition-colors"
+                        >
+                            <FaCircleCheck className="text-[11px]" /> Use in sims
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Default read-only notice + copy CTA */}
             {isDefault && !readOnly && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
                     <p className="text-[11px] text-(--text-tertiary)">
-                        Auto-calculated · updates when roster changes
+                        Auto-calculated · updates when roster changes{isActiveSimLineup ? ' · used in sims' : ''}
                     </p>
                     <button
                         type="button"
