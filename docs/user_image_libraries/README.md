@@ -1,8 +1,7 @@
 # Making Images for Your Google Drive Image Library
 
-This guide walks through making player images for your own Google Drive image library and getting Showdown Bot to use them on your cards. It covers the whole process, from editing an image to seeing it on a card.
+This guide walks through making player images for your own Google Drive image library and getting Showdown Bot to use them on your cards. It covers the whole process, from editing an image to how it will present on a card.
 
-> **Screenshot placeholders** are marked like this: **[Screenshot: description]** → `images/file-name.png`. Save screenshots in the [`images/`](images/) folder next to this README.
 
 ---
 
@@ -11,8 +10,8 @@ This guide walks through making player images for your own Google Drive image li
 1. [How it works](#how-it-works)
 2. [Which images you need](#which-images-you-need)
 3. [Setting up your canvas](#setting-up-your-canvas)
-4. [Editing a BG image](#editing-a-bg-image)
-5. [Editing a CUT image](#editing-a-cut-image)
+4. [Editing a Background image](#editing-a-bg-image)
+5. [Editing a Cutout image](#editing-a-cut-image)
 6. [Exporting](#exporting)
 7. [Naming your files](#naming-your-files)
 8. [Uploading and connecting your folder](#uploading-and-connecting-your-folder)
@@ -34,9 +33,7 @@ For each library, the bot:
 
 The card shows which library the image came from, so you can tell when your own image was used.
 
-**[Screenshot: Account page image library list with search order]** → `images/account-library-order.png`
-
----
+![Image](images/ILRM-AccountPage.png)
 
 ## Which images you need
 
@@ -45,7 +42,7 @@ There are two image types:
 | Type | What it is | Format |
 |------|------------|--------|
 | `BG` | The full photo: player **and** background, edge to edge. | PNG or JPG |
-| `CUT` | Only the player, cut out, on a **transparent** background. | PNG with transparency |
+| `CUT` | Only the player, cut out, on a **transparent** background. Glow/Shadow NOT included (Bot handles that part) | PNG with transparency |
 
 Each set uses a different combination:
 
@@ -71,9 +68,9 @@ These steps work in any editor: Photoshop, Photopea (free, in the browser), GIMP
 
 | Option | Canvas size | What happens |
 |--------|-------------|--------------|
-| **Card size (recommended)** | `1500 x 2100` px | **Shown as is.** What you see in your editor is what's on the card, on every set. |
+| **Showdown Bot bleed** | **exactly** `1950 x 2730` px | **Auto-positioned per set**, the same way Showdown Bot library images are. Enables you to make one image and have it work for any style (00, 01, Expanded, etc) |
+| **Card size** | `1500 x 2100` px | **Shown as is.** What you see in your editor is what's on the card, on every set. |
 | **Bordered card size** | `1644 x 2244` px | Shown as is, and also fills the border on bordered cards. |
-| **Showdown Bot bleed** | exactly `1950 x 2730` px | **Auto-positioned per set**, the same way Showdown Bot library images are. |
 
 All of these are **5:7 portrait** (or very close), the same shape as the card.
 
