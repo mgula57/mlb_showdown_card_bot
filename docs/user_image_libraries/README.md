@@ -1,6 +1,16 @@
 # Using Your Own Player Images (Google Drive Image Libraries)
 
-Showdown Bot can use player images from your own Google Drive folder when a card's image is set to automatic. This guide has three parts. Most people only need the first two.
+Showdown Bot can use player images from your own Google Drive folder when a card's image is set to automatic.
+
+## Why use an image library?
+
+- **No more re-uploading.** Add an image to your folder once and it's used every time you build that player's card, on any device.
+- **Automatic matching.** The bot finds the right player's image from the file name and picks the best one for the card's year, team, and set. No need to pick an image yourself.
+- **Share with friends.** Once your folder is set up, anyone can connect it to their own account by pasting the folder link. Pool libraries with friends to cover as many players as possible.
+
+## How this guide works
+
+This guide has three parts. Most people only need the first two. If you want the best possible experience and best looking cards, I suggest learning the advanced image setup as well.
 
 1. **[Setting up the integration](#1-setting-up-the-integration).** Connect a Google Drive folder to your Showdown Bot account. You only do this once.
 2. **[Image setup (basic)](#2-image-setup-basic).** The minimum: make a `1500 x 2100` image, name it correctly, and put it in your folder.
@@ -39,6 +49,12 @@ On your [Account](https://www.showdownbot.com/account) page, under **Image Libra
 The test shows how many images it found and how many follow the naming format, with examples of any that don't so you can fix them. It's fine to connect an empty folder and add images later.
 
 You can connect up to **5 folders** and use the arrows to set the order they're searched.
+
+### Sharing your library with friends
+
+To share your library, send a friend the folder link. They connect it on their own Account page the same way (Step 3). They don't need to share anything themselves, because the folder is already shared with Showdown Bot. A friend's library works the same way: paste their link and connect it.
+
+Changes the owner makes to the folder show up for everyone who has it connected. If the owner removes the bot's access, the library stops working for everyone.
 
 ---
 
