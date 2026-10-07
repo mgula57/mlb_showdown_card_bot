@@ -5393,6 +5393,7 @@ class ShowdownPlayerCard(BaseModel):
                 paste_coordinates = (paste_coordinates[0] + paste_offset[0], paste_coordinates[1] + paste_offset[1])
             if img_url is None and not (img_component.load_source == 'COLOR' and img_component in component_img_urls_dict.keys()):
                 continue
+            is_shown_as_is = False
 
             # CARD SIZING
             card_size = self.set.card_size_bordered if self.image.is_bordered and not img_component.adjust_paste_coordinates_for_bordered else self.set.card_size
@@ -5447,9 +5448,13 @@ class ShowdownPlayerCard(BaseModel):
                                 self._cache_downloaded_image(image=image, path=cached_image_path)
                             self.image.source.type = ImageSourceType.GOOGLE_DRIVE
 
-                    # USER LIBRARY IMAGES ARE USUALLY CARD SIZED WITHOUT BLEED, PAD TO THE CANVAS THE CROPS BELOW EXPECT
+                    # USER LIBRARY IMAGES AT THE BLEED SIZE GET THE SET'S CROP LIKE SHOWDOWN BOT LIBRARY IMAGES.
+                    # ANY OTHER SIZE IS SHOWN AS IS, LIKE AN UPLOADED IMAGE, SINCE SET CROP WINDOWS ARE OFFSET FROM THE CARD AREA
                     if image is not None and drive_client is UserDriveClient:
-                        image = self._user_library_image_with_bleed(image=image, component=img_component)
+                        image = image.convert('RGBA')
+                        if image.size != self.set.player_image_bleed_size:
+                            image, paste_coordinates = self._user_uploaded_player_image_crop(image)
+                            is_shown_as_is = True
                 case "COLOR":
                     if self.image.special_edition == SpecialEdition.ASG_LINES:
                         # GET MOST COMMON COLOR FROM ASG LOGO
@@ -5521,11 +5526,12 @@ class ShowdownPlayerCard(BaseModel):
                 image = image.resize(size=new_size, resample=Image.Resampling.LANCZOS)
             
             # CROP IMAGE
-            crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
-            crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
-            image = self._img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
-            if crop_size != card_size:
-                image = image.resize(size=card_size, resample=Image.Resampling.LANCZOS)
+            if not is_shown_as_is:
+                crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
+                crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
+                image = self._img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
+                if crop_size != card_size:
+                    image = image.resize(size=card_size, resample=Image.Resampling.LANCZOS)
 
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
             is_super_season_glow = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.SUPER_SEASON
@@ -6575,39 +6581,6 @@ class ShowdownPlayerCard(BaseModel):
         tw, th = right - left, bottom - top
 
         return tw, th
-
-    def _user_library_image_with_bleed(self, image:Image.Image, component:PlayerImageComponent) -> Image.Image:
-        """Fit a user library image to the card and pad it out to the Showdown Bot library's bleed size.
-
-        Set crops are fixed pixel windows centered on a bleed-sized image, so a card-sized image without
-        bleed would be cropped too tight (or past its edges). The image fills the card area (center cropped
-        to the card's aspect ratio), backgrounds get mirrored edges as bleed so bordered cards and crop
-        adjustments still have content, and cutouts get a transparent margin.
-        Images already at the bleed size are assumed to include bleed and are left as is.
-
-        Args:
-          image: PIL image from a user's library.
-          component: Image component the image is for.
-
-        Returns:
-          RGBA PIL image at the bleed size.
-        """
-        bleed_size = self.set.player_image_bleed_size
-        image = image.convert('RGBA')
-        if image.size == bleed_size:
-            return image
-
-        card_width, card_height = self.set.card_size
-        image = ImageOps.fit(image, (card_width, card_height), method=Image.Resampling.LANCZOS)
-        pad_x = (bleed_size[0] - card_width) // 2
-        pad_y = (bleed_size[1] - card_height) // 2
-        padding = ((pad_y, pad_y), (pad_x, pad_x), (0, 0))
-        pixels = np.asarray(image)
-        if component == PlayerImageComponent.BACKGROUND:
-            padded = np.pad(pixels, padding, mode='reflect')
-        else:
-            padded = np.pad(pixels, padding, mode='constant', constant_values=0)
-        return Image.fromarray(padded, mode='RGBA')
 
     def _img_crop(self, image:Image.Image, crop_size:tuple[int,int], crop_adjustment:tuple[int,int] = (0,0)) -> Image.Image:
         """Crop and image in the center to the given size.

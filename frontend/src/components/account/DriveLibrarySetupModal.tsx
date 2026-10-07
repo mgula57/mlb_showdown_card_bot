@@ -244,9 +244,9 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                                 <li><b>Aspect ratio</b>: 5:7 (portrait), the same shape as the card. Other shapes are center-cropped to fit.</li>
                                 <li><b>Size</b>: <Code>1500 x 2100</Code> px recommended. Smaller images are scaled up and may look blurry.</li>
                                 <li><b>Format</b>: PNG recommended (JPG works for <Code>BG</Code>). <Code>CUT</Code> images must be PNG with a transparent background.</li>
-                                <li><b>No bleed needed</b>: the whole image is used as the card art. Some sets (2001, 2002, 2003, Classic, Expanded) zoom in slightly, so keep the player's head and key details away from the very edges.</li>
+                                <li><b>Shown as is</b>: the image is placed on the card just like an uploaded image, on every set. Use <Code>1644 x 2244</Code> px to also fill the border on bordered cards.</li>
                             </ul>
-                            <Note>Already add bleed to your images? Use <Code>1950 x 2730</Code> px with the 1500 x 2100 card area centered, and the bleed is used as is.</Note>
+                            <Note>Want each set to position your image like the Showdown Bot library does? Use exactly <Code>1950 x 2730</Code> px with the 1500 x 2100 card area centered. Each set crops, zooms, and shifts it to fit its design.</Note>
                         </div>
 
                         <div className="rounded-lg border border-form-element p-3 text-sm text-secondary">
