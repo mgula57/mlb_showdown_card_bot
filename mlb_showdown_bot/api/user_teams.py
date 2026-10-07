@@ -46,7 +46,9 @@ def normalize_lineups(payload: dict) -> str | None:
     """Validate and normalize payload['lineups'] in place. Returns an error message, or None.
 
     Only user-created lineups are stored — the computed 'Default' is dropped. Slots must
-    reference cards on the roster and carry a unique batting order in 1-9.
+    carry a unique batting order in 1-9. A slot whose card is no longer on the roster (it was
+    swapped out or dropped in the same save) is pruned rather than rejected, matching how
+    `derive_lineups_rotation` skips such slots on read.
     """
     lineups = payload.get('lineups')
     if lineups is None:
@@ -67,15 +69,16 @@ def normalize_lineups(payload: dict) -> str | None:
         if (lineup.get('name') or '').strip() == DEFAULT_LINEUP_NAME:
             continue  # computed on read, never stored
 
-        slots = lineup.get('slots') or []
+        slots = []
         orders = set()
-        for slot in slots:
+        for slot in lineup.get('slots') or []:
             if not isinstance(slot, dict) or not slot.get('card_id'):
                 return 'each lineup slot needs a card_id'
-            # Only enforce roster membership when the roster is part of this same payload;
-            # a lineup-only update is validated against the roster already in the DB on read.
+            # Only check roster membership when the roster is part of this same payload;
+            # a lineup-only update is filtered against the roster already in the DB on read.
             if roster_card_ids and slot['card_id'] not in roster_card_ids:
-                return f"lineup '{lineup.get('name')}' references {slot['card_id']}, which is not on the roster"
+                continue
+            slots.append(slot)
             order = slot.get('batting_order')
             if not isinstance(order, int) or not 1 <= order <= 9:
                 return f"batting_order must be an integer 1-9, got {order!r}"

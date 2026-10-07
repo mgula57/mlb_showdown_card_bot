@@ -174,6 +174,16 @@ export const MAX_STARTERS = 10;
 export const ROTATION_ROLES: string[] = Array.from({ length: MAX_STARTERS }, (_, i) => `SP${i + 1}`);
 export const BULLPEN_ROLES: string[] = ['RP', 'CL'];
 
+export const DEFAULT_LINEUP_NAME = 'Default';
+
+/** The lineup a sim plays: the first user-created lineup with all 9 spots filled, else the
+ *  computed Default. Mirrors `Team.sim_lineup` in mlb_showdown_bot/core/card/team_builder/team.py. */
+export function simLineup(lineups: Lineup[]): Lineup | null {
+    return lineups.find(ln => ln.name !== DEFAULT_LINEUP_NAME && ln.slots.length === 9)
+        ?? lineups.find(ln => ln.name === DEFAULT_LINEUP_NAME)
+        ?? null;
+}
+
 export function isTeamDrafting(team: Team): boolean {
     // Synthesized (mlb) and admin-curated (official) rosters are always shown as finished.
     if (team.source === 'mlb' || team.source === 'official') return false;

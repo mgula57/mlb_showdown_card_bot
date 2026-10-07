@@ -322,6 +322,15 @@ class Team(BaseModel):
         """User-created lineups only — the computed 'Default' is never persisted."""
         return [ln for ln in self.lineups if ln.name != DEFAULT_LINEUP_NAME]
 
+    @property
+    def sim_lineup(self) -> Optional['Lineup']:
+        """The lineup a sim plays: the first user-created lineup with all 9 spots filled,
+        else the computed Default. A user lineup goes incomplete when one of its players is
+        dropped from the roster (see `derive_lineups_rotation`), and falls back to Default
+        rather than fielding a partial order. The frontend mirrors this in `simLineup`."""
+        complete = next((ln for ln in self.stored_lineups if len(ln.slots) == 9), None)
+        return complete or next((ln for ln in self.lineups if ln.name == DEFAULT_LINEUP_NAME), None)
+
     @classmethod
     def from_db_row(cls, row: dict) -> 'Team':
         """Deserialize from a DB row dict (as returned by RealDictCursor).

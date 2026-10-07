@@ -226,11 +226,12 @@ class SimTeam:
             None,
         )
 
-        # PRESET LINEUP (FIRST DEFINED LINEUP)
-        if len(team.lineups) > 0:
+        # PRESET LINEUP - THE USER'S ACTIVE LINEUP, FALLING BACK TO THE COMPUTED DEFAULT
+        sim_lineup = team.sim_lineup
+        if sim_lineup is not None:
             _apply_preset_lineup(position_players, {
                 pid(slot.card_id): (slot.batting_order, slot.field_position)
-                for slot in team.lineups[0].slots
+                for slot in sim_lineup.slots
             })
 
         bench_player_ids = {pid(slot.card_id) for slot in team.roster if slot.roster_position.upper() == 'BE'}
