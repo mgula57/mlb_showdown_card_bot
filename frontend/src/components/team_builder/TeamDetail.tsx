@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource, GuidedOption, GuidedFillOrder } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS, DEFAULT_LINEUP_NAME } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
@@ -676,9 +676,20 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         };
 
         // SP1..SPn and field positions each own a single slot — replace whoever holds it.
-        // Lineups/rotation are re-derived from the roster on save.
+        // The Default lineup and rotation are re-derived from the roster on save, but
+        // user-created lineups are stored by card_id, so the new pick inherits the replaced
+        // player's batting spot there (otherwise the lineup would reference a dropped card).
+        const replaced = draft.roster.find(s => s.roster_position === position);
         const roster = [...draft.roster.filter(s => s.roster_position !== position), rosterSlot];
-        update({ roster }, { immediate: pickSource === 'GUIDED' });
+        const lineups = replaced
+            ? draft.lineups.map(ln => ({
+                ...ln,
+                slots: ln.slots.map(s => s.card_id === replaced.card_id
+                    ? { ...s, ...slotRefForCard(card), field_position: position }
+                    : s),
+            }))
+            : draft.lineups;
+        update({ roster, lineups }, { immediate: pickSource === 'GUIDED' });
         // The lineup/rotation slot for this position won't reflect the pick until the save
         // round-trips — flag it so FieldView/DepthChartPanel can show a spinner there meanwhile.
         setPendingPickPositions(prev => new Set(prev).add(position));
@@ -1197,7 +1208,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             cardMap={cardMap}
             onLineupsChange={userLineups => {
                 // Merge user-created lineups back with the computed Default (index 0)
-                const defaultLn = draft.lineups.find(ln => ln.name === 'Default');
+                const defaultLn = draft.lineups.find(ln => ln.name === DEFAULT_LINEUP_NAME);
                 const next = [...(defaultLn ? [defaultLn] : []), ...userLineups];
                 update({ lineups: next });
             }}
