@@ -1613,9 +1613,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                         </div>
 
-                        {/* Mobile: floating circular CTAs pinned to the bottom corners. Desktop (@2xl): full-width sticky bar. */}
+                        {/* Mobile: floating circular CTA pinned bottom-right (Jump to Card pins itself bottom-left). Desktop (@2xl): full-width sticky bar. */}
                         <footer className={`
-                            fixed bottom-0 inset-x-0 z-30
+                            fixed bottom-0 right-0 z-30
                             p-4 pb-[calc(0.5rem+var(--safe-bottom))]
                             pointer-events-none
                             @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
@@ -1627,14 +1627,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex items-center justify-between @2xl:block">
+                            <div className="flex justify-end @2xl:block">
 
-                                {/* Jump to Card Detail (mobile only) */}
+                                {/* Jump to Card Detail (mobile only). Pinned on its own rather than via a
+                                    full-width footer — iOS Safari tints its toolbar to match full-width fixed
+                                    bars along the bottom edge. Bottom offset centers it on the Build button. */}
                                 <button
                                     type="button"
                                     aria-label="Jump to Card"
                                     title="Jump to Card"
                                     className="
+                                        fixed left-4 bottom-[calc(1rem+var(--safe-bottom))]
                                         pointer-events-auto @2xl:hidden
                                         flex items-center justify-center
                                         h-12 w-12 rounded-full shadow-xl shadow-black/25
