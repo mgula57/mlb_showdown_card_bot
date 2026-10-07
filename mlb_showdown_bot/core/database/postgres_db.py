@@ -2620,6 +2620,58 @@ class PostgresDB:
         cards = [ExploreDataRecord(**row) for row in rows] if rows else []
         return cards, meta_rows
 
+    def fetch_historical_roster_audit_rows(self, showdown_set: str, start_season: int, end_season: int,
+                                           sport_id: int = 1, team_ids: Optional[list[int]] = None) -> list[dict]:
+        """Per-team slot counts for auditing pre-processed historical rosters.
+
+        Every team in internal.dim_historical_team within the season range is returned (including
+        ones with no stored slots), with two sets of counts per bucket: `stored_*` counts the slots
+        written by `teams build-historical`, and `resolved_*` counts only the slots that resolve to
+        a card_bot row for `showdown_set` -- the latter is what the Historical tab actually renders,
+        so a gap between the two means cards are missing for that set rather than slots.
+        """
+        if not self.connection:
+            return []
+        conditions = ["t.sport_id = %s", "t.season BETWEEN %s AND %s"]
+        params: list = [showdown_set, sport_id, start_season, end_season]
+        if team_ids:
+            conditions.append("t.team_id = ANY(%s)")
+            params.append(list(team_ids))
+
+        def bucket_counts(prefix: str, extra: str = "") -> str:
+            # Field slots are counted by distinct position so a duplicated position can't mask a gap.
+            return f"""
+                COUNT(r.mlb_id) FILTER (WHERE TRUE {extra})                                             AS {prefix}_total,
+                COUNT(DISTINCT r.roster_position) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH') {extra}) AS {prefix}_field,
+                COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]' {extra})                          AS {prefix}_starters,
+                COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL') {extra})                         AS {prefix}_bullpen,
+                COUNT(*) FILTER (WHERE r.roster_position = 'BE' {extra})                                 AS {prefix}_bench
+            """
+
+        query = f"""
+            SELECT
+                t.season, t.team_id, t.abbreviation, t.name,
+                t.roster_count AS recorded_roster_count,
+                ARRAY_AGG(DISTINCT r.roster_position) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH') AND cb.found) AS resolved_field_positions,
+                {bucket_counts('stored')},
+                {bucket_counts('resolved', 'AND cb.found')}
+            FROM internal.dim_historical_team t
+            LEFT JOIN internal.dim_historical_roster r
+                ON r.season = t.season AND r.sport_id = t.sport_id AND r.team_id = t.team_id
+            LEFT JOIN LATERAL (
+                SELECT TRUE AS found FROM card_bot
+                WHERE mlb_id = r.mlb_id AND player_type = r.player_type
+                    AND year = {self._HISTORICAL_CARD_YEAR} AND showdown_set = %s
+                LIMIT 1
+            ) cb ON TRUE
+            WHERE {' AND '.join(conditions)}
+            GROUP BY t.season, t.team_id, t.abbreviation, t.name, t.roster_count
+            ORDER BY t.season DESC, t.abbreviation ASC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            return [dict(r) for r in cur.fetchall()]
+
     # ------------------------------------------------------------------------
     # ALL-TIME TEAMS (PRE-PROCESSED ROSTER SLOTS)
     # ------------------------------------------------------------------------
