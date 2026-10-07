@@ -7076,7 +7076,6 @@ class ShowdownPlayerCard(BaseModel):
             destination_path=full_path
         )
         self.image.storage_path = upload_result_data.get('path', None)
-        print("Full image uploaded to Supabase storage with path: ", self.image.storage_path)
 
         # UPLOAD THUMBNAIL
         thumb_filename = self._thumbnail_file_name
