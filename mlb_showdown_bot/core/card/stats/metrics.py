@@ -241,7 +241,18 @@ class DefenseMetric(Enum):
             case 'tzr': return 4
             case 'dWAR': return -0.25
             case 'fld_pct': return 0.992
-    
+
+    @staticmethod
+    def first_base_positive_defense_min_games(max_year: int) -> int:
+        """ Minimum games at 1B required to earn +1/+2 defense. Small samples are capped at +0 for 2026+. """
+        return 50 if max_year >= 2026 else 0
+
+    @staticmethod
+    def first_base_plus_2_min_games(max_year: int, is_shortened_season: bool) -> int:
+        """ Minimum games at 1B required to earn +2 defense. """
+        if max_year >= 2026: return 130
+        return 30 if is_shortened_season else 90
+
     @property
     def first_base_minus_1_cutoff(self) -> float:
         """ For 1B, use a static cutoff instead of range. -1 1B defense only applies to 2022 set and beyond."""

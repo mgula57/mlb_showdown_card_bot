@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import FormElementGrid from './FormElementGrid';
 import { FaChevronDown } from 'react-icons/fa6';
+import { NewBadge } from '../shared/NewBadge';
 
 /**
  * Props for the FormSection component
@@ -30,6 +31,8 @@ type FormSectionProps = {
     /** When false, the section is always expanded with no toggle — for content that's too
      *  essential to hide (e.g. an Identity section). Defaults to true. */
     collapsible?: boolean;
+    /** Show a "New" badge next to the title, for sections with newly released options. */
+    isNew?: boolean;
 };
 
 /**
@@ -61,7 +64,7 @@ type FormSectionProps = {
  * @param childrenWhenClosed - Summary content when collapsed
  * @returns Collapsible form section container
  */
-const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle, collapsible=true }) => {
+const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle, collapsible=true, isNew=false }) => {
 
     /** Internal state for section expand/collapse */
     const [isOpen, setIsOpen] = useState(collapsible ? isOpenByDefault : true);
@@ -97,6 +100,7 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
                 <span className='flex items-center gap-2 shrink-0 text-sm font-bold text-secondary'>
                     {icon && <span className='text-xs text-(--tertiary)'>{icon}</span>}
                     {title}
+                    {isNew && <NewBadge />}
                 </span>
 
                 {/* Summary content - shown inline when collapsed, wrapping onto extra rows if needed */}

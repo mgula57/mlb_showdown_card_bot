@@ -2625,6 +2625,58 @@ class PostgresDB:
         cards = [ExploreDataRecord(**row) for row in rows] if rows else []
         return cards, meta_rows
 
+    def fetch_historical_roster_audit_rows(self, showdown_set: str, start_season: int, end_season: int,
+                                           sport_id: int = 1, team_ids: Optional[list[int]] = None) -> list[dict]:
+        """Per-team slot counts for auditing pre-processed historical rosters.
+
+        Every team in internal.dim_historical_team within the season range is returned (including
+        ones with no stored slots), with two sets of counts per bucket: `stored_*` counts the slots
+        written by `teams build-historical`, and `resolved_*` counts only the slots that resolve to
+        a card_bot row for `showdown_set` -- the latter is what the Historical tab actually renders,
+        so a gap between the two means cards are missing for that set rather than slots.
+        """
+        if not self.connection:
+            return []
+        conditions = ["t.sport_id = %s", "t.season BETWEEN %s AND %s"]
+        params: list = [showdown_set, sport_id, start_season, end_season]
+        if team_ids:
+            conditions.append("t.team_id = ANY(%s)")
+            params.append(list(team_ids))
+
+        def bucket_counts(prefix: str, extra: str = "") -> str:
+            # Field slots are counted by distinct position so a duplicated position can't mask a gap.
+            return f"""
+                COUNT(r.mlb_id) FILTER (WHERE TRUE {extra})                                             AS {prefix}_total,
+                COUNT(DISTINCT r.roster_position) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH') {extra}) AS {prefix}_field,
+                COUNT(*) FILTER (WHERE r.roster_position ~ '^SP[0-9]' {extra})                          AS {prefix}_starters,
+                COUNT(*) FILTER (WHERE r.roster_position IN ('RP','CL') {extra})                         AS {prefix}_bullpen,
+                COUNT(*) FILTER (WHERE r.roster_position = 'BE' {extra})                                 AS {prefix}_bench
+            """
+
+        query = f"""
+            SELECT
+                t.season, t.team_id, t.abbreviation, t.name,
+                t.roster_count AS recorded_roster_count,
+                ARRAY_AGG(DISTINCT r.roster_position) FILTER (WHERE r.roster_position IN ('C','1B','2B','3B','SS','LF','CF','RF','DH') AND cb.found) AS resolved_field_positions,
+                {bucket_counts('stored')},
+                {bucket_counts('resolved', 'AND cb.found')}
+            FROM internal.dim_historical_team t
+            LEFT JOIN internal.dim_historical_roster r
+                ON r.season = t.season AND r.sport_id = t.sport_id AND r.team_id = t.team_id
+            LEFT JOIN LATERAL (
+                SELECT TRUE AS found FROM card_bot
+                WHERE mlb_id = r.mlb_id AND player_type = r.player_type
+                    AND year = {self._HISTORICAL_CARD_YEAR} AND showdown_set = %s
+                LIMIT 1
+            ) cb ON TRUE
+            WHERE {' AND '.join(conditions)}
+            GROUP BY t.season, t.team_id, t.abbreviation, t.name, t.roster_count
+            ORDER BY t.season DESC, t.abbreviation ASC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            return [dict(r) for r in cur.fetchall()]
+
     # ------------------------------------------------------------------------
     # ALL-TIME TEAMS (PRE-PROCESSED ROSTER SLOTS)
     # ------------------------------------------------------------------------
@@ -4617,6 +4669,7 @@ class PostgresDB:
             return
         steps = [
             ("user_settings",             self.build_user_settings_table),
+            ("user_image_libraries",      self.build_user_image_libraries_table),
             ("user_teams",                self.build_user_teams_table),
             ("asg_roster",                self.build_asg_roster_table),
             ("team_collection",           self.build_team_collection_table),
@@ -5157,6 +5210,11 @@ class PostgresDB:
                 ALTER TABLE internal.user_settings
                     ALTER COLUMN default_secondary_color SET DEFAULT '#9a362f';
             """)
+            # ORDERED LIBRARY IDS SEARCHED FOR AUTO IMAGES (SEE ImageLibrary.ordered)
+            cur.execute("""
+                ALTER TABLE internal.user_settings
+                    ADD COLUMN IF NOT EXISTS image_library_order JSONB;
+            """)
 
     def get_user_settings(self, user_id: str) -> dict | None:
         """Fetch settings for the given Supabase user UUID. Returns None if no row exists."""
@@ -5164,7 +5222,7 @@ class PostgresDB:
             return None
         query = """
             SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url,
-                   default_primary_color, default_secondary_color
+                   default_primary_color, default_secondary_color, image_library_order
             FROM internal.user_settings
             WHERE user_id = %s
         """
@@ -5286,7 +5344,7 @@ class PostgresDB:
             return
         ALLOWED = {
             'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url',
-            'default_primary_color', 'default_secondary_color',
+            'default_primary_color', 'default_secondary_color', 'image_library_order',
         }
         fields = {k: v for k, v in settings_dict.items() if k in ALLOWED}
         if not fields:
@@ -5388,6 +5446,85 @@ class PostgresDB:
         with self.connection.cursor() as cur:
             cur.execute(
                 "DELETE FROM internal.user_quick_filters WHERE id = %s AND user_id = %s",
+                (id, user_id),
+            )
+            return cur.rowcount > 0
+
+# ------------------------------------------------------------------------
+# USER IMAGE LIBRARIES
+# ------------------------------------------------------------------------
+
+    # One row per Google Drive folder a user shared with the user-drive service account. Owner-scoped
+    # today; sharing libraries between users would add an access table keyed on library id.
+    _USER_IMAGE_LIBRARY_COLUMNS = "id, owner_user_id, folder_id, name, image_count, recognized_image_count, verified_at, created_at"
+
+    def build_user_image_libraries_table(self) -> None:
+        """Create the user_image_libraries table if it does not exist."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.user_image_libraries (
+                    id                     TEXT NOT NULL PRIMARY KEY,
+                    owner_user_id          TEXT NOT NULL,
+                    folder_id              TEXT NOT NULL,
+                    name                   TEXT NOT NULL,
+                    image_count            INT NOT NULL DEFAULT 0,
+                    recognized_image_count INT NOT NULL DEFAULT 0,
+                    verified_at            TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    created_at             TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    UNIQUE (owner_user_id, folder_id)
+                );
+            """)
+
+    @staticmethod
+    def _user_image_library_row(row: dict) -> dict:
+        return {
+            **row,
+            'verified_at': row['verified_at'].isoformat() if row.get('verified_at') else None,
+            'created_at': row['created_at'].isoformat() if row.get('created_at') else None,
+        }
+
+    def get_user_image_libraries(self, user_id: str) -> list[dict]:
+        """Libraries the user can search, oldest first."""
+        if not self.connection:
+            return []
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"SELECT {self._USER_IMAGE_LIBRARY_COLUMNS} FROM internal.user_image_libraries WHERE owner_user_id = %s ORDER BY created_at ASC",
+                (user_id,),
+            )
+            return [self._user_image_library_row(row) for row in cur.fetchall()]
+
+    def upsert_user_image_library(self, user_id: str, id: str, folder_id: str, name: str, image_count: int, recognized_image_count: int) -> dict | None:
+        """Insert a library, or refresh name/counts/verified_at if the user already connected this folder."""
+        if not self.connection:
+            return None
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                INSERT INTO internal.user_image_libraries (id, owner_user_id, folder_id, name, image_count, recognized_image_count)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (owner_user_id, folder_id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    image_count = EXCLUDED.image_count,
+                    recognized_image_count = EXCLUDED.recognized_image_count,
+                    verified_at = NOW()
+                RETURNING {self._USER_IMAGE_LIBRARY_COLUMNS}
+                """,
+                (id, user_id, folder_id, name, image_count, recognized_image_count),
+            )
+            row = cur.fetchone()
+            return self._user_image_library_row(row) if row else None
+
+    def delete_user_image_library(self, user_id: str, id: str) -> bool:
+        """Delete a library, ensuring ownership. Returns True if a row was deleted."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM internal.user_image_libraries WHERE id = %s AND owner_user_id = %s",
                 (id, user_id),
             )
             return cur.rowcount > 0

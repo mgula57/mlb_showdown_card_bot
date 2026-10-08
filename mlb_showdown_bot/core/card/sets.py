@@ -1147,6 +1147,11 @@ class Set(str, Enum):
     def player_image_gdrive_folder_id(self) -> str:
         return '1htwN6r-9QNHJzg6Jq56dGXuJxD2QNaGv' # UNIVERSAL
     
+    @property
+    def player_image_bleed_size(self) -> tuple[int,int]:
+        """Size of Showdown Bot library auto images: the card size plus the bleed that player image crops rely on. User library images at this size get the same crops."""
+        return (1950,2730)
+
     def player_image_crop_size(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
 
         # SPECIAL CASES

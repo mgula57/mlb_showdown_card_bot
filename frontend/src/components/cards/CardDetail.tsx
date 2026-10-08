@@ -42,6 +42,7 @@ import OutcomeProbability from './card_detail/OutcomeProbability';
 import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
 import PointsContributionBars from './card_detail/PointsContributionBars';
 import { CardComps } from './card_detail/CardComps';
+import ImageSourceBadge from './card_detail/ImageSourceBadge';
 
 /**
  * Props for the CardDetail component
@@ -529,6 +530,9 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                         Customize
                     </button>
                 )}
+
+                {/* Player image source (Showdown Bot library, user's Drive library, upload, link) */}
+                <ImageSourceBadge source={activeCardData?.card?.image?.source} />
             </div>
 
             {/* Tooltip */}

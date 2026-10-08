@@ -35,6 +35,7 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
@@ -49,12 +50,13 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages
+    FaImages, FaGoogleDrive, FaListOl
 } from 'react-icons/fa';
 import {
     FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
+import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
 // ----------------------------------
@@ -1104,6 +1106,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
+            <WhatsNewBanner
+                storageKey="customCardBuilderWhatsNew_v4.42"
+                version="4.42"
+                features={[
+                    { icon: <FaGoogleDrive />, text: 'Image Libraries: connect your own Google Drive folder of player images' },
+                    { icon: <FaListOl />, text: 'Choose whether Auto images check your folders or Showdown Bot first in Account settings' },
+                    { icon: <FaImage />, text: "Cards now show where their player image came from" },
+                ]}
+            />
+
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
@@ -1464,6 +1476,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         <FormSection 
                                             title='Image' 
                                             icon={<FaImage />} 
+                                            isNew={true}
                                             isOpenByDefault={sectionStates['Image']}
                                             onToggle={() => toggleSection('Image')}
                                             childrenWhenClosed={sectionWhenClosed('Image')}
@@ -1476,6 +1489,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 selectedOption={form.image_source}
                                                 onChange={(value) => setForm({ ...form, image_source: value })}
                                             />
+                                            {form.image_source === 'AUTO' && <ImageLibraryOrderHint className="col-span-full -mt-1" />}
 
                                             {/* Source Specific Options */}
                                             <FormDropdown
@@ -1613,9 +1627,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                         </div>
 
-                        {/* Mobile: floating circular CTAs pinned to the bottom corners. Desktop (@2xl): full-width sticky bar. */}
+                        {/* Mobile: floating circular CTA pinned bottom-right (Jump to Card pins itself bottom-left). Desktop (@2xl): full-width sticky bar. */}
                         <footer className={`
-                            fixed bottom-0 inset-x-0 z-30
+                            fixed bottom-0 right-0 z-30
                             p-4 pb-[calc(0.5rem+var(--safe-bottom))]
                             pointer-events-none
                             @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
@@ -1627,14 +1641,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex items-center justify-between @2xl:block">
+                            <div className="flex justify-end @2xl:block">
 
-                                {/* Jump to Card Detail (mobile only) */}
+                                {/* Jump to Card Detail (mobile only). Pinned on its own rather than via a
+                                    full-width footer — iOS Safari tints its toolbar to match full-width fixed
+                                    bars along the bottom edge. Bottom offset centers it on the Build button. */}
                                 <button
                                     type="button"
                                     aria-label="Jump to Card"
                                     title="Jump to Card"
                                     className="
+                                        fixed left-4 bottom-[calc(1rem+var(--safe-bottom))]
                                         pointer-events-auto @2xl:hidden
                                         flex items-center justify-center
                                         h-12 w-12 rounded-full shadow-xl shadow-black/25

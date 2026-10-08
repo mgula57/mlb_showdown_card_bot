@@ -120,6 +120,14 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     if (!record.mlb_id) return;
                     map[`${record.mlb_id}-${record.is_pitcher ? 'P' : 'H'}`] = record;
                 });
+                // MLB API's award primary_position is sometimes wrong (e.g. 2006 AL ROY Verlander is listed as "OF"),
+                // so alias the expected key to the player's other card when only that one exists.
+                allRecipients.forEach(recipient => {
+                    const key = cardKey(recipient);
+                    if (map[key]) return;
+                    const fallbackKey = `${recipient.player.id}-${key.endsWith('-P') ? 'H' : 'P'}`;
+                    if (map[fallbackKey]) map[key] = map[fallbackKey];
+                });
                 setCardMap(map);
             })
             .catch(err => console.error('Failed to fetch award winner cards:', err))
