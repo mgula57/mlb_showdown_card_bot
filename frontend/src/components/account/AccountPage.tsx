@@ -6,6 +6,7 @@
  * - Viewing account details (email, join date)
  * - Managing account settings (future: email preferences, notifications)
  * - Application preferences (theme, default set)
+ * - Image libraries (Google Drive folders used for Auto player images)
  * - Account actions (sign out, delete account)
  * 
  * **Features:**
@@ -29,6 +30,8 @@ import AvatarCropModal from './AvatarCropModal';
 import { AccountAvatar } from '../auth/AccountIcon';
 import ColorPicker from '../shared/ColorPicker';
 import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
+import AccountSection from './AccountSection';
+import ImageLibrarySettings from './ImageLibrarySettings';
 
 /**
  * Account Page Component
@@ -44,7 +47,7 @@ import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSe
 const AccountPage: React.FC = () => {
     const { user, signOut, loading, username, updateUsername, checkUsernameAvailability, userSettings, syncSetting } = useAuth();
     const navigate = useNavigate();
-    const { isDark, setTheme, theme } = useTheme();
+    const { setTheme, theme } = useTheme();
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
     const [isSigningOut, setIsSigningOut] = useState(false);
     const [isEditingUsername, setIsEditingUsername] = useState(false);
@@ -206,7 +209,7 @@ const AccountPage: React.FC = () => {
                 </div>
 
                 {/* User Profile Card */}
-                <div className={`rounded-lg border border-form-element p-6 ${isDark ? 'bg-background-secondary' : 'bg-white'}`}>
+                <AccountSection>
                     <div className="flex items-start space-x-4">
                         {/* Avatar */}
                         <div className="shrink-0">
@@ -377,15 +380,10 @@ const AccountPage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </AccountSection>
 
                 {/* Application Settings */}
-                <div className={`rounded-lg border border-form-element p-6 ${isDark ? 'bg-background-secondary' : 'bg-white'}`}>
-                    <div className="flex items-center space-x-2 mb-4">
-                        <FaCog className="text-secondary" />
-                        <h2 className="text-2xl font-semibold text-secondary">Application Settings</h2>
-                    </div>
-
+                <AccountSection title="Application Settings" icon={<FaCog />}>
                     <div className="space-y-6">
                         {/* Theme Setting */}
                         <div>
@@ -476,12 +474,13 @@ const AccountPage: React.FC = () => {
                             </p>
                         </div>
                     </div>
-                </div>
+                </AccountSection>
+
+                {/* Image Libraries */}
+                <ImageLibrarySettings />
 
                 {/* Account Actions */}
-                <div className={`rounded-lg border border-form-element p-6 ${isDark ? 'bg-background-secondary' : 'bg-white'}`}>
-                    <h2 className="text-2xl font-semibold text-secondary mb-4">Account Actions</h2>
-                    
+                <AccountSection title="Account Actions">
                     <div className="space-y-3">
                         {/* Sign Out Button */}
                         <button
@@ -526,7 +525,7 @@ const AccountPage: React.FC = () => {
                             If you need account assistance please email <a href="mailto:mlbshowdownbot@gmail.com" className="text-tertiary hover:underline">mlbshowdownbot@gmail.com</a>.
                         </p>
                     </div>
-                </div>
+                </AccountSection>
 
                 {/* Footer Info */}
                 <div className="text-center text-sm text-gray-500 py-4">

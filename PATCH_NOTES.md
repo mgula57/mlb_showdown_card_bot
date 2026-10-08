@@ -2,6 +2,33 @@
 
 What's new in each Showdown Bot release, newest first.
 
+## 4.42 Release — Google Drive Image Libraries
+_Released 2026-10-08 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.42)_
+
+This release focuses on using your own player images from Google Drive, the next round of 2026 card balancing, and a few fixes.
+
+### Image Libraries
+Link a Google Drive folder of your own player images, and cards with an automatic image will use them, with no more uploading an image for every card.
+- Connect up to 5 Google Drive folders under `Image Libraries` on your `Account` page
+- `Test connection` checks your folder and points out any images that don't follow the naming format
+- Set the order libraries are searched; the built-in Showdown Bot library is always on the list
+- Share a folder link with friends so they can connect your library too
+- Cards now show where their player image came from (your library, the Showdown Bot library, an upload, or a link)
+- The Custom Card Builder shows your `Image search order` with a quick link to manage it
+- Added a [step-by-step setup guide](https://github.com/mgula57/mlb_showdown_card_bot/blob/master/docs/user_image_libraries/README.md), including a Photoshop template for images that fit every set
+
+### 2026 Card Balancing
+Phase 2 of the 2026 set adjustments is complete, with final adjustments targeted for October 15th.
+- Rebalanced 2026 charts so simulated games play out more like real results, including slightly stronger pitchers in the 2003–2005 and `Expanded` sets
+- 2026 hitters get a more realistic mix of home runs and doubles in the 2004, 2005, and `Expanded` sets
+- First basemen now need more games at the position to earn plus defense on 2026 cards
+
+### Bug Fixes
+- Fixed some award winners not showing their card on the `Seasons` page when MLB lists the wrong position
+- Fixed negative first base defense ratings on `Classic` and `Expanded` cards
+
+---
+
 ## 4.41 Release — Guided Draft & 2026 Card Balancing
 _Released 2026-10-04 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.41)_
 

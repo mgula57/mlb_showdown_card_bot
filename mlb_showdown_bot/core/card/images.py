@@ -1,6 +1,7 @@
+import re
 from enum import Enum
-from pydantic import BaseModel, ValidationInfo, field_validator
-from typing import Optional
+from pydantic import BaseModel, PrivateAttr, ValidationInfo, field_validator
+from typing import ClassVar, Optional
 
 from ...core.shared.nationality import WBCTeam
 
@@ -473,6 +474,7 @@ class ImageSourceType(str, Enum):
     LINK = 'Link'
     LOCAL_CACHE = 'Local Cache'
     GOOGLE_DRIVE = 'Google Drive'
+    USER_DRIVE = 'User Drive'
     LOCAL_DRIVE = 'Local Drive'
     EMPTY = 'EMPTY'
 
@@ -482,14 +484,55 @@ class ImageSourceType(str, Enum):
     @property
     def is_user_generated(self) -> bool:
         return self.name in ['UPLOAD', 'LINK']
-    
+
     @property
     def is_automated(self) -> bool:
-        return self.name in ['LOCAL_CACHE', 'GOOGLE_DRIVE', 'LOCAL_DRIVE']
-    
+        return self.name in ['LOCAL_CACHE', 'GOOGLE_DRIVE', 'USER_DRIVE', 'LOCAL_DRIVE']
+
     @property
     def is_empty(self) -> bool:
         return self.name == 'EMPTY'
+
+
+class ImageLibrary(BaseModel):
+    """A folder of auto images searched for player image matches.
+
+    The Showdown Bot library is built in. Others are Google Drive folders users shared (Viewer)
+    with the user-drive service account, searched in the order the user picked in Account settings.
+    """
+
+    SHOWDOWN_BOT_ID: ClassVar[str] = 'SHOWDOWN_BOT'
+    # ex: BG-1994-Bonds-(bondsba01)-(SFG).png
+    FILE_NAME_PATTERN: ClassVar[re.Pattern] = re.compile(r'^(BG|CUT)-[^-]+-.*\([^)]+\)')
+
+    id: str
+    name: str
+    folder_id: Optional[str] = None
+
+    @classmethod
+    def showdown_bot(cls) -> 'ImageLibrary':
+        return cls(id=cls.SHOWDOWN_BOT_ID, name='Showdown Bot')
+
+    @property
+    def is_showdown_bot(self) -> bool:
+        return self.id == self.SHOWDOWN_BOT_ID
+
+    @classmethod
+    def ordered(cls, libraries: list['ImageLibrary'], order: Optional[list[str]]) -> list['ImageLibrary']:
+        """Libraries sorted by the user's saved order. Unordered user libraries go first, since
+        connecting one implies wanting it searched; the Showdown Bot library is always included."""
+        by_id = {lib.id: lib for lib in [*libraries, cls.showdown_bot()]}
+        ordered_ids = [lib_id for lib_id in (order or []) if lib_id in by_id]
+        unordered_ids = [lib.id for lib in libraries if lib.id not in ordered_ids]
+        ids = unordered_ids + ordered_ids
+        if cls.SHOWDOWN_BOT_ID not in ids:
+            ids.append(cls.SHOWDOWN_BOT_ID)
+        return [by_id[lib_id] for lib_id in ids]
+
+    @classmethod
+    def is_recognized_file_name(cls, file_name: str) -> bool:
+        """True if the file follows the {BG|CUT}-{YEAR}-{NAME}-({PLAYER ID})... naming the matcher needs."""
+        return bool(cls.FILE_NAME_PATTERN.match(file_name or ''))
 
 
 class ImageSource(BaseModel):
@@ -497,6 +540,17 @@ class ImageSource(BaseModel):
     type: ImageSourceType = ImageSourceType.EMPTY
     url: Optional[str] = None
     path: Optional[str] = None
+    library_name: Optional[str] = None
+    # SERVER-RESOLVED FROM THE USER'S ACCOUNT. PRIVATE SO IT'S NEVER PARSED FROM REQUEST/CARD JSON
+    # (NO SEARCHING FOLDERS THE USER DOESN'T OWN) OR SERIALIZED (KEEPS FOLDER IDS OUT OF CARD JSON/LOGS)
+    _libraries: list[ImageLibrary] = PrivateAttr(default_factory=list)
+
+    @property
+    def libraries(self) -> list[ImageLibrary]:
+        return self._libraries
+
+    def set_libraries(self, libraries: Optional[list[ImageLibrary]]) -> None:
+        self._libraries = list(libraries or [])
 
     def model_post_init(self, __context):
         """Post init to update the source type if empty"""

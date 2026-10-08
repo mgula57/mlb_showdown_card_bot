@@ -1,11 +1,11 @@
 ---
 name: update-league-averages
-description: Refresh league_averages_hitter.csv, league_averages_pitcher.csv, and MLB_SEASON_AVGS (core/data/mlb_season_averages.py) with the latest MLB season stats scraped from Baseball Reference. Use when asked to update, refresh, or sync league averages, or to pull the latest year of league stats into the sim's real-stats or era-adjustment reference data.
+description: Refresh league_averages_hitter.csv, league_averages_pitcher.csv, MLB_SEASON_AVGS (core/data/mlb_season_averages.py), and FIP_CONSTANT (core/card/utils/showdown_constants.py) with the latest MLB season stats scraped from Baseball Reference. Use when asked to update, refresh, or sync league averages or the FIP constant, or to pull the latest year of league stats into the sim's real-stats or era-adjustment reference data.
 ---
 
 # Update League Averages
 
-Three files hold year-by-year MLB league reference data, all fed by the same Baseball Reference
+Four places hold year-by-year MLB league reference data, all fed by the same Baseball Reference
 pages but different tables on them:
 
 - `mlb_showdown_bot/core/simulation/real_stats/league_averages_hitter.csv` and
@@ -14,6 +14,8 @@ pages but different tables on them:
 - `mlb_showdown_bot/core/data/mlb_season_averages.py` (`MLB_SEASON_AVGS`) — per-game **rates**,
   hitting and pitching combined into one dict per year, read by `chart.py`'s era-adjustment logic
   to scale card charts to the offensive/pitching environment of a given year.
+- `mlb_showdown_bot/core/card/utils/showdown_constants.py` (`FIP_CONSTANT`) — the per-year FIP
+  constant, read by `showdown_player_card.py` when it computes a pitcher's FIP.
 
 Source tables:
 
@@ -27,6 +29,11 @@ Source tables:
   https://www.baseball-reference.com/leagues/majors/{year}-ratio-pitching.shtml
   → table `teams_ratio_pitching`'s `tfoot` row (the league-wide average across all teams;
   `go_ao_ratio` and `infield_fb_perc`, the latter a percentage converted to a decimal).
+- `FIP_CONSTANT` is computed from the same `teams_standard_pitching_totals` row as the pitcher
+  CSV, using FanGraphs' formula: `lgERA - (13*HR + 3*(BB+HBP) - 2*SO) / IP`. The values originally
+  came from the `cFIP` column of FanGraphs' Guts! page (https://www.fangraphs.com/guts.aspx?type=cn),
+  but that page is Cloudflare-blocked for scripts. The derived value matches FanGraphs exactly for
+  most historical years and is within about 0.005 for modern years, which doesn't change a FIP rounded to 2 decimals.
 
 ## How to update
 
@@ -36,10 +43,12 @@ Run the bundled script from the repo root:
 python mlb_showdown_bot/core/simulation/real_stats/update_league_averages.py
 ```
 
-This updates all three files for the current year: upserting the row in each CSV (replacing it
+This updates all four for the current year: upserting the row in each CSV (replacing it
 in place if the year already exists — useful for refreshing an in-progress season — or inserting
 it if new), and doing the same for the `MLB_SEASON_AVGS` entry (new years are appended after the
-current last/highest year; it doesn't support back-filling arbitrary past years).
+current last/highest year; it doesn't support back-filling arbitrary past years). The
+`FIP_CONSTANT` entry is upserted the same way: replaced in place (dropping any trailing comment
+like `# TEMPORARY VALUE`) or inserted newest-first.
 
 Options:
 
@@ -52,6 +61,9 @@ python mlb_showdown_bot/core/simulation/real_stats/update_league_averages.py --t
 
 # Skip MLB_SEASON_AVGS, only touch the CSVs
 python mlb_showdown_bot/core/simulation/real_stats/update_league_averages.py --skip-season-averages
+
+# Skip FIP_CONSTANT
+python mlb_showdown_bot/core/simulation/real_stats/update_league_averages.py --skip-fip-constant
 ```
 
 ## Notes
@@ -60,6 +72,7 @@ python mlb_showdown_bot/core/simulation/real_stats/update_league_averages.py --s
   clients — same pattern used elsewhere in this repo's scrapers
   (`core/archive/player_stats_archive.py`, `core/card/stats/baseball_ref_scraper.py`).
 - Baseball Reference's tables are wrapped in HTML comments; the script strips `<!--`/`-->`
-  before parsing, matching the existing scraper convention.
+  before parsing, matching the existing scraper convention. Each page is fetched once per run and
+  reused across tables.
 - After running, diff the changed files (`git diff`) to sanity-check the new/updated rows before
   committing.

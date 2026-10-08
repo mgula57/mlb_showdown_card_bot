@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify, g
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.data_conversion import convert_form_data_types
 from .user_settings import optional_user_id
+from .image_libraries import UserImageLibraries
 from ..core.card.card_generation import generate_card, generate_cards
 from ..core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.utils.ttl_cache import TTLCache
@@ -61,14 +62,17 @@ def build_custom_card():
     is_random = kwargs.get('name', '').upper() == '((RANDOM))'
 
     # Upload to supabase — only if client-supplied user_id matches the JWT-verified identity
-    if kwargs.get('user_id') and kwargs.get('user_id') == optional_user_id():
+    verified_user_id = optional_user_id()
+    if kwargs.get('user_id') and kwargs.get('user_id') == verified_user_id:
         payload['upload_to_supabase'] = True
     else:
         payload.pop('user_id', None)
 
     try:
         # Normal card generation
-        card_data = generate_card(randomize=is_random, store_in_logs=True, **payload)
+        payload.pop('image_libraries', None) # SERVER-RESOLVED ONLY
+        image_libraries = UserImageLibraries.for_card_build(verified_user_id)
+        card_data = generate_card(image_libraries=image_libraries, randomize=is_random, store_in_logs=True, **payload)
 
         return jsonify(card_data)
         
@@ -97,6 +101,7 @@ def build_image_for_card():
         card = ShowdownPlayerCard(**card_json)
 
         card.image.output_folder_path = "static/output"
+        card.image.source.set_libraries(UserImageLibraries.for_card_build(optional_user_id()))
 
         with PostgresDB() as db:
             # CHECK IF CARD HAS BREF ID
