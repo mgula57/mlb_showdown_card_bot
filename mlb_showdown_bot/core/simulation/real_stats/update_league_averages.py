@@ -1,5 +1,6 @@
-"""Refresh league_averages_hitter.csv / league_averages_pitcher.csv, and MLB_SEASON_AVGS in
-core/data/mlb_season_averages.py, from Baseball Reference.
+"""Refresh league_averages_hitter.csv / league_averages_pitcher.csv, MLB_SEASON_AVGS in
+core/data/mlb_season_averages.py, and FIP_CONSTANT in core/card/utils/showdown_constants.py, from
+Baseball Reference.
 
 Source tables:
     https://www.baseball-reference.com/leagues/majors/bat.shtml               -> table#teams_standard_batting_totals (season totals)
@@ -9,7 +10,7 @@ Source tables:
     https://www.baseball-reference.com/leagues/majors/{year}-ratio-pitching.shtml -> table#teams_ratio_pitching tfoot (league-wide GO/AO, IF/FB)
 
 Usage:
-    python update_league_averages.py [--year YEAR] [--type hitter|pitcher|both] [--skip-season-averages]
+    python update_league_averages.py [--year YEAR] [--type hitter|pitcher|both] [--skip-season-averages] [--skip-fip-constant]
 """
 import argparse
 import csv
@@ -22,6 +23,7 @@ from bs4 import BeautifulSoup
 
 REAL_STATS_DIR = os.path.dirname(os.path.abspath(__file__))
 SEASON_AVERAGES_PATH = os.path.normpath(os.path.join(REAL_STATS_DIR, '..', '..', 'data', 'mlb_season_averages.py'))
+SHOWDOWN_CONSTANTS_PATH = os.path.normpath(os.path.join(REAL_STATS_DIR, '..', '..', 'card', 'utils', 'showdown_constants.py'))
 
 # CSV column name -> Baseball Reference `data-stat` key, in the exact order the CSVs use.
 HITTER_COLUMNS = {
@@ -69,12 +71,19 @@ SEASON_AVG_RATIO_COLUMNS = {'GO/AO': 'go_ao_ratio', 'IF/FB': 'infield_fb_perc'}
 SEASON_AVG_RATIO_URL = 'https://www.baseball-reference.com/leagues/majors/{year}-ratio-pitching.shtml'
 SEASON_AVG_RATIO_TABLE_ID = 'teams_ratio_pitching'
 
+# FIP_CONSTANT mirrors FanGraphs' Guts! `cFIP` (https://www.fangraphs.com/guts.aspx?type=cn), which
+# is Cloudflare-blocked for scripts. It's derived instead from BREF's pitcher totals with the same
+# formula FanGraphs uses: lgERA - (13*HR + 3*(BB+HBP) - 2*SO) / IP. Matches FanGraphs exactly for
+# most historical years and within ~0.005 for modern ones (minor source-data differences).
+FIP_CONSTANT_COLUMNS = {stat: PITCHER_COLUMNS[stat] for stat in ('IP', 'ER', 'HR', 'BB', 'HBP', 'SO')}
+
 
 class LeagueAveragesUpdater:
     """Scrapes Baseball Reference's year-by-year league totals tables and syncs them into real_stats/*.csv."""
 
     def __init__(self) -> None:
         self.scraper = cloudscraper.create_scraper()
+        self.soup_cache: dict[str, BeautifulSoup] = {}
 
     def update(self, player_type: str, year: int) -> None:
         url, table_id, columns = BREF_PAGES[player_type]
@@ -85,11 +94,16 @@ class LeagueAveragesUpdater:
         self.__upsert_row(player_type=player_type, row=row)
         print(f"Updated {player_type} league averages for {year}")
 
+    def __soup(self, url: str) -> BeautifulSoup:
+        # Several tables live on the same page (e.g. pitch.shtml), so fetch each page only once per run.
+        if url not in self.soup_cache:
+            # BREF's year-by-year tables are hidden inside HTML comments; strip them to expose the markup.
+            html = self.scraper.get(url, timeout=(8, 22)).text.replace('<!--', '').replace('-->', '')
+            self.soup_cache[url] = BeautifulSoup(html, 'lxml')
+        return self.soup_cache[url]
+
     def __row_for_year(self, url: str, table_id: str, columns: dict[str, str], year: int) -> dict[str, str] | None:
-        # BREF's year-by-year tables are hidden inside HTML comments; strip them to expose the markup.
-        html = self.scraper.get(url, timeout=(8, 22)).text.replace('<!--', '').replace('-->', '')
-        soup = BeautifulSoup(html, 'lxml')
-        table = soup.find('table', attrs={'id': table_id})
+        table = self.__soup(url).find('table', attrs={'id': table_id})
         for tr in table.find('tbody').find_all('tr'):
             cells = {c.get('data-stat'): c.text.strip() for c in tr.find_all(['th', 'td'])}
             if cells.get('year_ID') == str(year):
@@ -142,9 +156,7 @@ class LeagueAveragesUpdater:
 
     def __ratio_averages_for_year(self, year: int) -> dict[str, str] | None:
         url = SEASON_AVG_RATIO_URL.format(year=year)
-        html = self.scraper.get(url, timeout=(8, 22)).text.replace('<!--', '').replace('-->', '')
-        soup = BeautifulSoup(html, 'lxml')
-        table = soup.find('table', attrs={'id': SEASON_AVG_RATIO_TABLE_ID})
+        table = self.__soup(url).find('table', attrs={'id': SEASON_AVG_RATIO_TABLE_ID})
         if table is None:
             return None
         tfoot = table.find('tfoot')
@@ -187,12 +199,51 @@ class LeagueAveragesUpdater:
         body = ',\n        '.join(lines)
         return f"{year}: {{{body}}},\n"
 
+    def update_fip_constant(self, year: int) -> None:
+        url, table_id, _ = BREF_PAGES['pitcher']
+        row = self.__row_for_year(url=url, table_id=table_id, columns=FIP_CONSTANT_COLUMNS, year=year)
+        if row is None or not all(row.values()):
+            print(f"WARNING: no pitcher totals found for {year} on {url}; FIP_CONSTANT not updated")
+            return
+        # BREF writes IP in thirds notation (e.g. "1234.2" = 1234 2/3 innings).
+        whole, _, thirds = row['IP'].partition('.')
+        ip = int(whole) + int(thirds or 0) / 3
+        er, hr, bb, hbp, so = (float(row[stat]) for stat in ('ER', 'HR', 'BB', 'HBP', 'SO'))
+        fip_constant = round(9 * er / ip - (13 * hr + 3 * (bb + hbp) - 2 * so) / ip, 3)
+        self.__upsert_fip_constant(year=year, fip_constant=fip_constant)
+        print(f"Updated FIP_CONSTANT for {year}: {fip_constant}")
+
+    def __upsert_fip_constant(self, year: int, fip_constant: float) -> None:
+        with open(SHOWDOWN_CONSTANTS_PATH, encoding='utf-8') as f:
+            content = f.read()
+
+        block_match = re.search(r'^FIP_CONSTANT = \{\n(?P<body>.*?)^\}', content, re.DOTALL | re.MULTILINE)
+        if block_match is None:
+            raise ValueError(f"Couldn't find the FIP_CONSTANT dict in {SHOWDOWN_CONSTANTS_PATH}")
+        body = block_match.group('body')
+        entry_text = f"    {year}: {fip_constant},\n"
+
+        # Replacing also drops any trailing comment on the old line (e.g. "# TEMPORARY VALUE").
+        existing_match = re.search(rf'^    {year}: .*\n', body, re.MULTILINE)
+        if existing_match:
+            body = body[:existing_match.start()] + entry_text + body[existing_match.end():]
+        else:
+            # Entries are sorted newest-year-first; insert just before the first older year.
+            older_match = next((m for m in re.finditer(r'^    (?P<year>\d{4}): ', body, re.MULTILINE) if int(m.group('year')) < year), None)
+            insert_at = older_match.start() if older_match else len(body)
+            body = body[:insert_at] + entry_text + body[insert_at:]
+
+        content = content[:block_match.start('body')] + body + content[block_match.end('body'):]
+        with open(SHOWDOWN_CONSTANTS_PATH, 'w', encoding='utf-8') as f:
+            f.write(content)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Update MLB league average data from Baseball Reference")
     parser.add_argument('--year', type=int, default=date.today().year, help="Season year to fetch (default: current year)")
     parser.add_argument('--type', choices=['hitter', 'pitcher', 'both'], default='both')
     parser.add_argument('--skip-season-averages', action='store_true', help="Don't also update MLB_SEASON_AVGS in core/data/mlb_season_averages.py")
+    parser.add_argument('--skip-fip-constant', action='store_true', help="Don't also update FIP_CONSTANT in core/card/utils/showdown_constants.py")
     args = parser.parse_args()
 
     player_types = ['hitter', 'pitcher'] if args.type == 'both' else [args.type]
@@ -202,6 +253,9 @@ def main() -> None:
 
     if not args.skip_season_averages:
         updater.update_season_averages(year=args.year)
+
+    if not args.skip_fip_constant:
+        updater.update_fip_constant(year=args.year)
 
 
 if __name__ == '__main__':

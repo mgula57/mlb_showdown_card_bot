@@ -42,6 +42,48 @@ class SeasonCardPool:
     # THE CHRONOLOGICAL CLUB HISTORY THE TRADE DEADLINE READS; EMPTY WHEN NO ONE CHANGED CLUBS.
     team_history: dict[str, tuple[list[str], dict[str, int]]]
 
+    def rebuild(self, status_callback: Optional[Callable[[str], None]] = None) -> None:
+        """Swap every card for one re-processed through the current formulas (see `CardRebuilder`).
+        Rebuilt cards keep their `id`, so `archive_card_ids` still lines up."""
+        if status_callback:
+            status_callback(f"Rebuilding {len(self.cards_by_player_id)} card(s) through current formulas...")
+        self.cards_by_player_id = CardRebuilder.rebuild(self.cards_by_player_id, status_callback=status_callback)
+        self.cards = list(self.cards_by_player_id.values())
+
+
+class CardRebuilder:
+    """Re-processes already-built cards through the current `ShowdownPlayerCard` formulas.
+
+    Backs `SeasonSimulationConfig.rebuild_cards`. WOTC cards are original printed cards rather
+    than formula output, so they pass through untouched, as does any card whose rebuild fails.
+    """
+
+    @staticmethod
+    def rebuild(cards: dict[str, ShowdownPlayerCard], status_callback: Optional[Callable[[str], None]] = None) -> dict[str, ShowdownPlayerCard]:
+        """Rebuilt copy of `cards`, same keys and order."""
+        rebuilt: dict[str, ShowdownPlayerCard] = {}
+        changed_count, failed_count, points_delta = 0, 0, 0
+        for key, card in cards.items():
+            if card.is_wotc:
+                rebuilt[key] = card
+                continue
+            try:
+                new_card = card.rebuilt()
+            except Exception:
+                failed_count += 1
+                rebuilt[key] = card
+                continue
+            rebuilt[key] = new_card
+            if new_card.points != card.points:
+                changed_count += 1
+                points_delta += new_card.points - card.points
+
+        if status_callback:
+            avg_delta_str = f" (avg {points_delta / changed_count:+.1f} pts)" if changed_count else ""
+            failed_str = f", {failed_count} failed and kept as archived" if failed_count else ""
+            status_callback(f"Rebuilt {len(cards)} card(s) with current formulas: {changed_count} changed points{avg_delta_str}{failed_str}")
+        return rebuilt
+
 
 class PlayerLoader:
     """Loads season card pools, preferring pre-built cards from dim_card over rebuilding from archive stats."""
@@ -200,6 +242,8 @@ class SeasonPreload:
                 min_ip=min(config.min_ip_sp, config.min_ip_rp, RESERVE_MIN_IP_PITCHER),
                 status_callback=status_callback,
             )
+            if config.rebuild_cards:
+                card_pool.rebuild(status_callback=status_callback)
             if config.resume_from_real_season and config.merge_real_stats:
                 if status_callback:
                     status_callback(f"Loading real {config.year} stats to merge...")
@@ -410,8 +454,7 @@ class Season:
     # TEAM CONSTRUCTION
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _load_builder_team_cards(builder_team) -> dict[str, ShowdownPlayerCard]:
+    def _load_builder_team_cards(self, builder_team) -> dict[str, ShowdownPlayerCard]:
         """Hydrate a builder team's roster slots.
 
         Deliberately reads the logs DB rather than the archive: builder teams are drafted from
@@ -422,6 +465,8 @@ class Season:
             cards = db.fetch_cards_for_roster_slots(slots=builder_team.roster, strip_diagnostics=True)
         if len(cards) == 0:
             raise ValueError(f"No cards could be loaded for team '{builder_team.name}'")
+        if self.config.rebuild_cards:
+            cards = CardRebuilder.rebuild(cards)
         return cards
 
     def _build_tournament_teams(self) -> dict[str, SimTeam]:
