@@ -319,6 +319,38 @@ class ShowdownPlayerCard(BaseModel):
         if print_to_cli:
             self.print_player()
 
+    def rebuilt(self, **overrides) -> 'ShowdownPlayerCard':
+        """A fresh card re-processed through the *current* formulas from this card's own stored
+        inputs (stats, stats period, overrides) - no datasource re-fetch. Lets an archived card
+        (e.g. a sim's pre-built season pool) reflect a formula change without re-archiving it.
+
+        Identity inputs (`year`, `bref_id`, `image.expansion`, ...) are carried over unchanged so
+        the rebuilt card keeps the same `id`. Any field can be overridden via kwargs.
+
+        Args:
+          overrides: Card fields to change on the rebuilt card (ex: `regress_small_sample_to_replacement=True`).
+
+        Returns:
+          New, fully built ShowdownPlayerCard.
+        """
+        inputs = dict(
+            year=self.year, set=self.set, era=self.era, name=self.name,
+            stats=self.stats.copy(),
+            # STALE PERIOD STATS (NERFED/REGRESSED/GAME-LOG AGGREGATES) ARE RE-DERIVED IN `build_card`
+            stats_period=self.stats_period.model_copy(deep=True, update={'stats': None}),
+            bref_id=self.bref_id, bref_url=self.bref_url, mlb_id=self.mlb_id,
+            league=self.league, team=self.team, nationality=self.nationality,
+            player_type=self.player_type, player_type_override=self.player_type_override,
+            team_override=self.team_override, wbc_team=self.wbc_team, wbc_year=self.wbc_year,
+            is_stats_estimate=self.is_stats_estimate, chart_version=self.chart_version,
+            date_override=self.date_override, command_out_override=self.command_out_override,
+            commands_excluded=self.commands_excluded, is_variable_speed_00_01=self.is_variable_speed_00_01,
+            nerf_by_run_value=self.nerf_by_run_value, regress_small_sample_to_replacement=self.regress_small_sample_to_replacement,
+            image=self.image.model_copy(deep=True),
+        )
+        inputs.update(overrides)
+        return ShowdownPlayerCard(**inputs)
+
 # ------------------------------------------------------------------------
 # VALIDATORS
 # ------------------------------------------------------------------------

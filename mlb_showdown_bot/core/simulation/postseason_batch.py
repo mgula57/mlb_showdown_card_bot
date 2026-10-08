@@ -404,11 +404,12 @@ class PostseasonBatch:
     PDF_FILE = "summary.pdf"
     IMAGE_STEM = "summary"
 
-    def __init__(self, year: int, set: str, runs: int, base_seed: int, out_dir: Optional[Path] = None) -> None:
+    def __init__(self, year: int, set: str, runs: int, base_seed: int, out_dir: Optional[Path] = None, rebuild_cards: bool = False) -> None:
         self.year = year
         self.set = Set(set)
         self.runs = runs
         self.base_seed = base_seed
+        self.rebuild_cards = rebuild_cards
         self.out_dir = Path(out_dir or f"sim_output/postseason_{year}_{self.set.value}")
 
     @property
@@ -434,6 +435,7 @@ class PostseasonBatch:
             resume_from_real_season=True,
             resume_from_real_postseason=True,
             merge_real_stats=True,
+            rebuild_cards=self.rebuild_cards,
         )
 
     def load_records(self) -> list[PostseasonRunRecord]:

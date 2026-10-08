@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Optional, Union
 from pydantic import BaseModel
 
 from ..card.showdown_player_card import ShowdownPlayerCard
-from ..card.stats.stats_period import StatsPeriod, StatsPeriodType
 from ..data.helpers_and_weights import REPLACEMENT_RUN_GAP_PA_BASIS
 from ..shared.player_position import PlayerSubType, PositionSlot, PositionSlotParent
 from .models import Transaction, TransactionType
@@ -231,12 +230,7 @@ class Roster:
         """
         if card.stats.get('PA', 0) >= REPLACEMENT_RUN_GAP_PA_BASIS:
             return card
-        return ShowdownPlayerCard(
-            year=card.year, set=card.set, stats=card.stats, name=card.name,
-            stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=card.year),
-            bref_id=card.bref_id, mlb_id=card.mlb_id,
-            regress_small_sample_to_replacement=True,
-        )
+        return card.rebuilt(regress_small_sample_to_replacement=True)
 
     @classmethod
     def select(cls, cards: list[ShowdownPlayerCard], card_ids: dict[str, str] = {}, min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162, regress_small_sample_stats: bool = False) -> RosterSelection:
