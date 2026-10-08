@@ -26,7 +26,7 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
                     relative z-10 flex items-center justify-center h-6 min-w-6 px-1 rounded-full text-[10px] font-black
                     ${isComplete
                         ? 'bg-(--warning) text-yellow-950'
-                        : 'bg-secondary text-(--warning) ring-2 ring-(--warning) '}
+                        : 'bg-secondary text-(--warning) border-2 border-dotted border-(--warning)'}
                 `}
             >
                 {isComplete 
