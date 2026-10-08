@@ -253,11 +253,12 @@ class DefenseMetric(Enum):
         if max_year >= 2026: return 130
         return 30 if is_shortened_season else 90
 
-    @property
-    def first_base_minus_1_cutoff(self) -> float:
+    def first_base_minus_1_cutoff(self, max_year: int) -> int:
         """ For 1B, use a static cutoff instead of range. -1 1B defense only applies to 2022 set and beyond."""
         match self.value:
-            case 'oaa': return -5
+            case 'oaa': 
+                if max_year >= 2026: return -5
+                else: return -5
             case 'drs': return -5
             case 'tzr': return -5
             case 'dWAR': return -1.0
