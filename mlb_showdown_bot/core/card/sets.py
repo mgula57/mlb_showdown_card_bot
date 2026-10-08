@@ -1623,12 +1623,13 @@ class Set(str, Enum):
     # BASELINE PLAYERS
     # ---------------------------------------
 
-    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era, year_list: list[int], adjust_for_simulation_accuracy:bool = True) -> Chart:
+    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era, year_list: list[int], adjust_for_simulation_accuracy:bool = True, year:int | None = None) -> Chart:
         chart = self.wotc_baseline_chart(
             player_type=player_sub_type.parent_type.opponent_type, 
             my_type=player_sub_type, 
             adjust_for_simulation_accuracy=adjust_for_simulation_accuracy
         )
+        chart.year = year # USED FOR 2026+ ERA ADJUSTMENTS
         chart.adjust_for_era(era.value, year_list=year_list)
         return chart
 

@@ -1929,7 +1929,7 @@ class ShowdownPlayerCard(BaseModel):
             year_list = [y for y in year_list if y <= self.stats_period.last_year]
 
         # SET CONSTANTS
-        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
+        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True, year=self.stats_period.last_year)
         pa = self.stats_for_card.get('pa', 400)
         
         def build_chart(command:int, outs:float) -> Chart:
