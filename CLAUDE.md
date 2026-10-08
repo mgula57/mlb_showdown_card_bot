@@ -40,12 +40,13 @@ Flask serves the built frontend at `/` in production. In dev, run Flask on `:500
 ## Required Environment Variables
 
 ```
-DATABASE_URL_LOGS       # PostgreSQL connection string for the logs DB
-DATABASE_URL_ARCHIVE    # PostgreSQL connection string for the archive DB
-SUPABASE_URL            # Supabase project URL
-SUPABASE_KEY            # Supabase anon/service key
-GOOGLE_CREDENTIALS      # JSON string for Google service account (Drive image uploads)
-FRONTEND_ORIGIN         # CORS allowed origin (default: http://localhost:5173)
+DATABASE_URL_LOGS             # PostgreSQL connection string for the logs DB
+DATABASE_URL_ARCHIVE          # PostgreSQL connection string for the archive DB
+SUPABASE_URL                  # Supabase project URL
+SUPABASE_KEY                  # Supabase anon/service key
+GOOGLE_CREDENTIALS            # JSON string for Google service account (Drive image uploads)
+GOOGLE_USER_DRIVE_CREDENTIALS # JSON string for Google service account for user image uploads (Optional)
+FRONTEND_ORIGIN               # CORS allowed origin (default: http://localhost:5173)
 ```
 
 ## Code Style Principles

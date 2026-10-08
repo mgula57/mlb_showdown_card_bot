@@ -12,6 +12,7 @@ from ...core.database.postgres_db import PostgresDB, Set
 from ...core.card.team_builder import (
     Team, TeamSource, RosterToTeamConverter, EraRosterDrafter, RosterEraRegistry,
     LEAGUE_WIDE_TEAM_ID, LEAGUE_WIDE_ABBR, LEAGUE_WIDE_NAME,
+    HistoricalRosterAuditor, HistoricalRosterAuditThresholds,
 )
 from ...core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team, fetch_stratified_candidates
 from ...core.mlb_stats_api import MLBStatsAPI
@@ -61,6 +62,37 @@ def build_asg_roster(
     typer.echo(f"Done. Wrote {count} ASG roster row(s) for {season}.")
 
 
+def _resolve_team_ids(api: MLBStatsAPI, teams: Optional[str], sport_id: int) -> Optional[set[int]]:
+    """Parse a comma-separated --teams option into MLB team ids (None = every team).
+
+    Numeric tokens are taken as team ids; abbreviations are resolved against the *current*
+    season's teams, since the id is stable across a franchise's whole history.
+    """
+    if not teams:
+        return None
+    requested_team_ids: set[int] = set()
+    unresolved: list[str] = []
+    abbr_to_id: dict[str, int] = {}
+    for token in (t.strip() for t in teams.split(",") if t.strip()):
+        if token.isdigit():
+            requested_team_ids.add(int(token))
+            continue
+        if not abbr_to_id:
+            # Lazily resolve current-season teams once, only if an abbreviation was given.
+            for current_team in api.teams.get_teams(season=None, sport_id=sport_id):
+                if current_team.abbreviation:
+                    abbr_to_id[current_team.abbreviation.upper()] = current_team.id
+        team_id = abbr_to_id.get(token.upper())
+        if team_id is None:
+            unresolved.append(token)
+        else:
+            requested_team_ids.add(team_id)
+    if unresolved:
+        typer.echo(f"Could not resolve team(s): {', '.join(unresolved)}. Use a current abbreviation (e.g. NYY) or numeric MLB team id.", err=True)
+        raise typer.Exit(1)
+    return requested_team_ids
+
+
 @app.command("build-historical")
 def build_historical_teams(
     season: Optional[int] = typer.Option(None, "--season", "-y", help="Single season to process (overrides the range)"),
@@ -94,30 +126,7 @@ def build_historical_teams(
     seasons.sort(reverse=True)
 
     api = MLBStatsAPI()
-
-    requested_team_ids: Optional[set[int]] = None
-    if teams:
-        tokens = [t.strip() for t in teams.split(",") if t.strip()]
-        requested_team_ids = set()
-        unresolved: list[str] = []
-        abbr_to_id: dict[str, int] = {}
-        for token in tokens:
-            if token.isdigit():
-                requested_team_ids.add(int(token))
-                continue
-            if not abbr_to_id:
-                # Lazily resolve current-season teams once, only if an abbreviation was given.
-                for current_team in api.teams.get_teams(season=None, sport_id=sport_id):
-                    if current_team.abbreviation:
-                        abbr_to_id[current_team.abbreviation.upper()] = current_team.id
-            team_id = abbr_to_id.get(token.upper())
-            if team_id is None:
-                unresolved.append(token)
-            else:
-                requested_team_ids.add(team_id)
-        if unresolved:
-            typer.echo(f"Could not resolve team(s): {', '.join(unresolved)}. Use a current abbreviation (e.g. NYY) or numeric MLB team id.", err=True)
-            raise typer.Exit(1)
+    requested_team_ids = _resolve_team_ids(api, teams, sport_id)
 
     db = PostgresDB(is_archive=(env.lower() == "prod"))
     if not dry_run:
@@ -218,6 +227,125 @@ def build_historical_teams(
     db.close_connection()
     suffix = " (dry run — nothing written)" if dry_run else ""
     typer.echo(f"\nDone. {total_teams} team(s), {total_slots} roster slot(s) across {len(seasons)} season(s).{suffix}")
+
+
+@app.command("audit-historical")
+def audit_historical_teams(
+    season: Optional[int] = typer.Option(None, "--season", "-y", help="Single season to audit (overrides the range)"),
+    start_season: int = typer.Option(1901, "--start-season", help="First season of the range to audit"),
+    end_season: int = typer.Option(datetime.now().year, "--end-season", help="Last season of the range to audit"),
+    teams: Optional[str] = typer.Option(None, "--teams", "-t", help="Comma-separated current abbreviations or numeric MLB team ids. Omit to audit every team."),
+    sport_id: int = typer.Option(1, "--sport-id", help="MLB Stats API sport id (1 = MLB)"),
+    showdown_sets: str = typer.Option("EXPANDED", "--set", "-s", help="Comma-separated sets to resolve cards against, or ALL"),
+    min_roster: Optional[int] = typer.Option(None, "--min-roster", help="Minimum roster size (default: the season's real limit — 21/25/26)"),
+    max_roster: Optional[int] = typer.Option(None, "--max-roster", help="Maximum roster size (default: the season's real limit — 21/25/26)"),
+    min_starters: int = typer.Option(HistoricalRosterAuditThresholds.min_starters, "--min-starters", help="Minimum SP slots"),
+    min_bullpen: int = typer.Option(HistoricalRosterAuditThresholds.min_bullpen, "--min-bullpen", help="Minimum RP/CL slots"),
+    min_bench: int = typer.Option(HistoricalRosterAuditThresholds.min_bench, "--min-bench", help="Minimum BE slots"),
+    show_ok: bool = typer.Option(False, "--show-ok", help="Also list teams that pass every check"),
+    compare_api: bool = typer.Option(True, "--compare-api/--no-compare-api", help="Check each season's stored teams against the MLB API's team list"),
+    env: str = typer.Option("dev", "--env", "-e", help="Database environment: dev | prod"),
+):
+    """Audit pre-processed historical rosters for teams that won't render as a full team.
+
+    Flags teams whose roster (counting only slots that resolve to a card in the given set, i.e.
+    what the Historical tab shows) is outside the expected size, is missing a field position,
+    or is short on starters / bullpen / bench. Also flags stored slots with no card in the set,
+    a stale roster_count column, seasons in the range with no teams at all, and (with
+    --compare-api) teams the MLB API lists for a season that were never stored.
+    Exits 1 if anything is flagged.
+    """
+    if showdown_sets.strip().upper() == "ALL":
+        sets = list(Set)
+    else:
+        try:
+            sets = [Set(s.strip()) for s in showdown_sets.split(",") if s.strip()]
+        except ValueError as exc:
+            typer.echo(f"{exc}. Valid options: {[s.value for s in Set]} or ALL", err=True)
+            raise typer.Exit(1)
+
+    if season is not None:
+        start_season = end_season = season
+    api = MLBStatsAPI()
+    team_ids = _resolve_team_ids(api, teams, sport_id)
+    auditor = HistoricalRosterAuditor(HistoricalRosterAuditThresholds(
+        min_roster=min_roster, max_roster=max_roster,
+        min_starters=min_starters, min_bullpen=min_bullpen, min_bench=min_bench,
+    ))
+
+    db = PostgresDB(is_archive=(env.lower() == "prod"))
+    any_flagged = False
+
+    rows_by_set = {
+        showdown_set: db.fetch_historical_roster_audit_rows(
+            showdown_set=showdown_set.value, start_season=start_season, end_season=end_season,
+            sport_id=sport_id, team_ids=sorted(team_ids) if team_ids else None,
+        )
+        for showdown_set in sets
+    }
+    db.close_connection()
+
+    # Stored team coverage is set-agnostic, so it's checked once rather than per set.
+    if compare_api:
+        expected_by_season: dict[int, dict[int, str]] = {}
+        for season_year in range(start_season, end_season + 1):
+            try:
+                api_teams = api.teams.get_teams(season=season_year, sport_id=sport_id)
+            except Exception as exc:
+                typer.echo(f"  {season_year}: could not fetch teams from the MLB API ({exc})", err=True)
+                continue
+            expected_by_season[season_year] = {
+                t.id: t.abbreviation or str(t.id) for t in api_teams if team_ids is None or t.id in team_ids
+            }
+        missing_teams = auditor.missing_teams(rows_by_set[sets[0]], expected_by_season)
+        if missing_teams:
+            any_flagged = True
+            typer.echo(f"\nSeasons missing teams the MLB API lists ({len(missing_teams)}):")
+            for season_year, missing in missing_teams.items():
+                typer.echo(f"  {season_year}: {', '.join(missing)}")
+
+    for showdown_set, rows in rows_by_set.items():
+        results = auditor.audit(rows)
+        flagged = [r for r in results if not r.is_ok]
+        any_flagged = any_flagged or bool(flagged)
+
+        typer.echo(f"\n=== {showdown_set.value}: {len(flagged)} of {len(results)} team(s) flagged ===")
+        listed = results if show_ok else flagged
+        if listed:
+            table = PrettyTable(["season", "team", "id", "stored", "roster", "SP", "RP", "BE", "issues"])
+            table.align = "l"
+            for r in listed:
+                table.add_row([
+                    r.season, r.abbreviation, r.team_id, r.stored_total, r.resolved_total,
+                    r.resolved_starters, r.resolved_bullpen, r.resolved_bench,
+                    "; ".join(r.issues) or "ok",
+                ])
+            typer.echo(table)
+
+        # Per-season rollup makes "some years are broken" patterns obvious at a glance.
+        by_season: dict[int, list] = {}
+        for r in results:
+            by_season.setdefault(r.season, []).append(r)
+        flagged_seasons = {s: rs for s, rs in by_season.items() if any(not r.is_ok for r in rs)}
+        if flagged_seasons:
+            summary = PrettyTable(["season", "teams", "flagged", "min roster", "max roster"])
+            summary.align = "l"
+            for s in sorted(flagged_seasons, reverse=True):
+                rs = flagged_seasons[s]
+                sizes = [r.resolved_total for r in rs]
+                summary.add_row([s, len(rs), sum(not r.is_ok for r in rs), min(sizes), max(sizes)])
+            typer.echo("\nSeasons with flagged teams:")
+            typer.echo(summary)
+
+        if team_ids is None:
+            missing = auditor.missing_seasons(rows, start_season, end_season)
+            if missing:
+                any_flagged = True
+                typer.echo(f"\nSeasons with no pre-processed teams ({len(missing)}): {', '.join(map(str, missing))}")
+
+    if any_flagged:
+        raise typer.Exit(1)
+    typer.echo("\nAll audited historical rosters pass.")
 
 
 class _EraTeamSpec(NamedTuple):

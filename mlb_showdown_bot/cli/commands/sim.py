@@ -53,6 +53,7 @@ def sim_main(
     show_transactions: bool = typer.Option(False, "--show_transactions", "-tx", help="Show the injury/callup transaction log"),
     active_roster_size: int = typer.Option(26, "--active_roster_size", "-ars", help="Active roster size for real-season teams"),
     full_roster_size: int = typer.Option(40, "--full_roster_size", "-frs", help="Full (active + reserve) roster size for real-season teams"),
+    rebuild_cards: bool = typer.Option(False, "--rebuild_cards", "-rb", help="Re-process every loaded card through the current ShowdownPlayerCard formulas instead of using the archived card. For testing formula changes."),
 ):
     """Run an MLB Showdown season simulation."""
     if ctx.invoked_subcommand is not None:
@@ -104,6 +105,7 @@ def sim_main(
         injury_severity_multiplier=injury_severity,
         active_roster_size=active_roster_size,
         full_roster_size=full_roster_size,
+        rebuild_cards=rebuild_cards,
     )
 
     progress_bar_holder = {}
@@ -185,9 +187,10 @@ def postseason_batch(
     resume: bool = typer.Option(False, "--resume", "-r", help="Keep runs already in runs.jsonl and only simulate the missing ones."),
     render_only: bool = typer.Option(False, "--render-only", help="Skip simulating; rebuild summary.json/runs.csv/summary.html from runs.jsonl."),
     image_format: str = typer.Option("png", "--image-format", "-img", help="Image format for the per-page social exports (summary_1.<ext>, summary_2.<ext>), or 'none' to skip them.", case_sensitive=False),
+    rebuild_cards: bool = typer.Option(False, "--rebuild_cards", "-rb", help="Re-process every loaded card through the current ShowdownPlayerCard formulas instead of using the archived card. For testing formula changes."),
 ):
     """Simulate the real postseason bracket many times and write a shareable summary."""
-    batch = PostseasonBatch(year=year, set=set, runs=runs, base_seed=seed, out_dir=Path(out) if out else None)
+    batch = PostseasonBatch(year=year, set=set, runs=runs, base_seed=seed, out_dir=Path(out) if out else None, rebuild_cards=rebuild_cards)
     image_format_normalized = None if image_format.lower() == "none" else image_format.lower()
 
     if render_only:

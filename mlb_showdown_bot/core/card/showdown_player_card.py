@@ -10,6 +10,7 @@ import statistics
 import pandas as pd
 import ast
 import unidecode
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -29,7 +30,7 @@ from ..shared.player_position import PositionSlot, PositionSlotParent
 from ..shared.nationality import Nationality, WBCTeam
 from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
-from ..shared.google_drive import GoogleDriveClient
+from ..shared.google_drive import GoogleDriveClient, UserDriveClient
 
 from .utils import showdown_constants as sc, colors
 from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, convert_year_string_to_list, total_ip_for_calculations, traditional_round
@@ -42,7 +43,7 @@ from .stats.datasource import Datasource
 
 from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
-from .images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
+from .images import ImageLibrary, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
 from .command_out_selections import CommandOutSelection, CommandOutSelections
 
@@ -317,6 +318,38 @@ class ShowdownPlayerCard(BaseModel):
         
         if print_to_cli:
             self.print_player()
+
+    def rebuilt(self, **overrides) -> 'ShowdownPlayerCard':
+        """A fresh card re-processed through the *current* formulas from this card's own stored
+        inputs (stats, stats period, overrides) - no datasource re-fetch. Lets an archived card
+        (e.g. a sim's pre-built season pool) reflect a formula change without re-archiving it.
+
+        Identity inputs (`year`, `bref_id`, `image.expansion`, ...) are carried over unchanged so
+        the rebuilt card keeps the same `id`. Any field can be overridden via kwargs.
+
+        Args:
+          overrides: Card fields to change on the rebuilt card (ex: `regress_small_sample_to_replacement=True`).
+
+        Returns:
+          New, fully built ShowdownPlayerCard.
+        """
+        inputs = dict(
+            year=self.year, set=self.set, era=self.era, name=self.name,
+            stats=self.stats.copy(),
+            # STALE PERIOD STATS (NERFED/REGRESSED/GAME-LOG AGGREGATES) ARE RE-DERIVED IN `build_card`
+            stats_period=self.stats_period.model_copy(deep=True, update={'stats': None}),
+            bref_id=self.bref_id, bref_url=self.bref_url, mlb_id=self.mlb_id,
+            league=self.league, team=self.team, nationality=self.nationality,
+            player_type=self.player_type, player_type_override=self.player_type_override,
+            team_override=self.team_override, wbc_team=self.wbc_team, wbc_year=self.wbc_year,
+            is_stats_estimate=self.is_stats_estimate, chart_version=self.chart_version,
+            date_override=self.date_override, command_out_override=self.command_out_override,
+            commands_excluded=self.commands_excluded, is_variable_speed_00_01=self.is_variable_speed_00_01,
+            nerf_by_run_value=self.nerf_by_run_value, regress_small_sample_to_replacement=self.regress_small_sample_to_replacement,
+            image=self.image.model_copy(deep=True),
+        )
+        inputs.update(overrides)
+        return ShowdownPlayerCard(**inputs)
 
 # ------------------------------------------------------------------------
 # VALIDATORS
@@ -1241,13 +1274,18 @@ class ShowdownPlayerCard(BaseModel):
 
         # ADD IN STATIC METRICS FOR 1B
         if is_1b:
-            first_base_minus_1_cutoff = metric.first_base_plus_1_cutoff(set_str=self.set.value, max_year=self.stats_period.last_year)
-            games_required_for_plus_2 = 30 if not self.stats_period.is_multi_year and self.set.year == '2020' else 90
+            first_base_plus_one_cutoff = metric.first_base_plus_1_cutoff(set_str=self.set.value, max_year=self.stats_period.last_year)
+            first_base_minus_1_cutoff = metric.first_base_minus_1_cutoff(max_year=self.stats_period.last_year)
+            games_required_for_non_zero = DefenseMetric.first_base_positive_defense_min_games(max_year=self.stats_period.last_year)
+            games_required_for_plus_2 = DefenseMetric.first_base_plus_2_min_games(
+                max_year=self.stats_period.last_year,
+                is_shortened_season=not self.stats_period.is_multi_year and self.set.year == '2020'
+            )
             if rating > metric.first_base_plus_2_cutoff and games >= games_required_for_plus_2:
                 defense = 2
-            elif rating > first_base_minus_1_cutoff:
+            elif rating > first_base_plus_one_cutoff and games >= games_required_for_non_zero:
                 defense = 1
-            elif rating < first_base_minus_1_cutoff and self.set.is_showdown_bot:
+            elif rating < first_base_minus_1_cutoff and self.set.is_showdown_bot and games >= games_required_for_non_zero:
                 defense = -1
             else:
                 defense = 0
@@ -1892,7 +1930,7 @@ class ShowdownPlayerCard(BaseModel):
             year_list = [y for y in year_list if y <= self.stats_period.last_year]
 
         # SET CONSTANTS
-        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
+        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True, year=self.stats_period.last_year)
         pa = self.stats_for_card.get('pa', 400)
         
         def build_chart(command:int, outs:float) -> Chart:
@@ -5328,32 +5366,26 @@ class ShowdownPlayerCard(BaseModel):
             except Exception as err:
                 self.image.error = str(err)
 
-        # ---- IMAGE FROM GOOGLE DRIVE -----
+        # ---- IMAGE FROM IMAGE LIBRARIES (SHOWDOWN BOT + USER'S GOOGLE DRIVE FOLDERS) -----
+        self.image.source.library_name = None # RESET, RE-RENDERS START FROM A PREVIOUS BUILD'S CARD JSON
         gdrive_file_versions: dict[str, str] = {}
+        drive_client: type[GoogleDriveClient] = GoogleDriveClient
         if player_img_user_uploaded is None:
             is_search_for_universal_img = self.image.parallel != ImageParallel.MYSTERY
             img_components_dict = self._player_image_components_dict()
             if is_search_for_universal_img:
-                
-                # CHECK FOR LOCAL FOLDER 
-                local_folder_path = os.getenv('AUTO_IMAGE_PATH')
+                img_components_dict, gdrive_file_versions, drive_client = self._query_image_libraries_for_auto_player_image_urls(components_dict=img_components_dict)
 
-                if local_folder_path:
-                    # USE LOCAL FOLDER AS DIRECTORY
-                    img_components_dict = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
-                else:
-                    # USE FIREBASE AS DIRECTORY
-                    folder_id = self.set.player_image_gdrive_folder_id
-                    img_components_dict, gdrive_file_versions = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
-            
             # ADD SILHOUETTE IF NECESSARY
-            non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
+            non_empty_components = self._downloaded_components(img_components_dict)
             if len(non_empty_components) == 0:
                 img_components_dict[PlayerImageComponent.SILHOUETTE] = self._template_img_path(f'SIL-{self.player_classification}')
-            
-            player_imgs = self._automated_player_image_layers(component_img_urls_dict=img_components_dict, gdrive_file_versions=gdrive_file_versions)
+
+            player_imgs = self._automated_player_image_layers(component_img_urls_dict=img_components_dict, gdrive_file_versions=gdrive_file_versions, drive_client=drive_client)
             if len(player_imgs) > 0:
                 images_to_paste += player_imgs
+            if drive_client is UserDriveClient and self.image.source.type in [ImageSourceType.GOOGLE_DRIVE, ImageSourceType.LOCAL_CACHE]:
+                self.image.source.type = ImageSourceType.USER_DRIVE
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE THATS NOT TRANSPARENT
         if self.set == Set._2000:
@@ -5365,12 +5397,13 @@ class ShowdownPlayerCard(BaseModel):
 
         return images_to_paste
 
-    def _automated_player_image_layers(self, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str] = None) -> list[tuple[Image.Image, tuple[int,int]]]:
+    def _automated_player_image_layers(self, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str] = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> list[tuple[Image.Image, tuple[int,int]]]:
         """ Download and manipulate player image asset(s) to fit the current set's style.
 
         Args:
           component_img_urls_dict: Dict of image urls per component.
           gdrive_file_versions: Dict of Google Drive file id -> version (md5 checksum or modified time). Used as the local cache key.
+          drive_client: Drive client with access to the matched library's files.
 
         Returns:
           List of tuples that contain a PIL image objects and coordinates to paste them
@@ -5379,7 +5412,7 @@ class ShowdownPlayerCard(BaseModel):
         gdrive_file_versions = gdrive_file_versions or {}
 
         # DOWNLOAD UNCACHED DRIVE FILES IN PARALLEL UP FRONT. DECODING AND LAYERING BELOW STAY SEQUENTIAL.
-        gdrive_downloads = self._download_google_drive_files(component_img_urls_dict=component_img_urls_dict, gdrive_file_versions=gdrive_file_versions)
+        gdrive_downloads = self._download_google_drive_files(component_img_urls_dict=component_img_urls_dict, gdrive_file_versions=gdrive_file_versions, drive_client=drive_client)
 
         player_img_components = []
         is_img_download_error = False
@@ -5397,6 +5430,7 @@ class ShowdownPlayerCard(BaseModel):
                 paste_coordinates = (paste_coordinates[0] + paste_offset[0], paste_coordinates[1] + paste_offset[1])
             if img_url is None and not (img_component.load_source == 'COLOR' and img_component in component_img_urls_dict.keys()):
                 continue
+            is_shown_as_is = False
 
             # CARD SIZING
             card_size = self.set.card_size_bordered if self.image.is_bordered and not img_component.adjust_paste_coordinates_for_bordered else self.set.card_size
@@ -5445,11 +5479,19 @@ class ShowdownPlayerCard(BaseModel):
 
                     # 3. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE OR LOCAL DRIVE.
                     if image is None and img_url in gdrive_file_versions:
-                        image = self._google_drive_image(file_id=img_url, file=gdrive_downloads.pop(img_url, None))
+                        image = self._google_drive_image(file_id=img_url, file=gdrive_downloads.pop(img_url, None), drive_client=drive_client)
                         if image:
                             if cached_image_path:
                                 self._cache_downloaded_image(image=image, path=cached_image_path)
                             self.image.source.type = ImageSourceType.GOOGLE_DRIVE
+
+                    # USER LIBRARY IMAGES AT THE BLEED SIZE GET THE SET'S CROP LIKE SHOWDOWN BOT LIBRARY IMAGES.
+                    # ANY OTHER SIZE IS SHOWN AS IS, LIKE AN UPLOADED IMAGE, SINCE SET CROP WINDOWS ARE OFFSET FROM THE CARD AREA
+                    if image is not None and drive_client is UserDriveClient:
+                        image = image.convert('RGBA')
+                        if image.size != self.set.player_image_bleed_size:
+                            image, paste_coordinates = self._user_uploaded_player_image_crop(image)
+                            is_shown_as_is = True
                 case "COLOR":
                     if self.image.special_edition == SpecialEdition.ASG_LINES:
                         # GET MOST COMMON COLOR FROM ASG LOGO
@@ -5521,11 +5563,12 @@ class ShowdownPlayerCard(BaseModel):
                 image = image.resize(size=new_size, resample=Image.Resampling.LANCZOS)
             
             # CROP IMAGE
-            crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
-            crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
-            image = self._img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
-            if crop_size != card_size:
-                image = image.resize(size=card_size, resample=Image.Resampling.LANCZOS)
+            if not is_shown_as_is:
+                crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
+                crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
+                image = self._img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
+                if crop_size != card_size:
+                    image = image.resize(size=card_size, resample=Image.Resampling.LANCZOS)
 
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
             is_super_season_glow = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.SUPER_SEASON
@@ -5693,7 +5736,43 @@ class ShowdownPlayerCard(BaseModel):
         
         return file_matches_metadata_dict
 
-    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> tuple:
+    def _downloaded_components(self, components_dict:dict[PlayerImageComponent, str]) -> list[PlayerImageComponent]:
+        """Components in the dict that have a matched file to download."""
+        return [typ for typ in self.image_component_ordered_list if components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
+
+    def _query_image_libraries_for_auto_player_image_urls(self, components_dict:dict[PlayerImageComponent, str]) -> tuple[dict[PlayerImageComponent, str], dict[str, str], type[GoogleDriveClient]]:
+        """Search each image library in the user's preferred order and use the first one with a full match.
+
+        Args:
+          components_dict: Dict of all the image types to included in the image.
+
+        Returns:
+          Tuple with the following:
+            Dict of image urls per component (unchanged if no library matched).
+            Dict of file id -> version for the matched library's files.
+            Drive client with access to the matched library's files.
+        """
+        local_folder_path = os.getenv('AUTO_IMAGE_PATH')
+        for library in self.image.source.libraries or [ImageLibrary.showdown_bot()]:
+            file_versions: dict[str, str] = {}
+            if library.is_showdown_bot:
+                drive_client = GoogleDriveClient
+                if local_folder_path:
+                    # USE LOCAL FOLDER AS DIRECTORY
+                    matches = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
+                else:
+                    matches, file_versions = self._query_google_drive_for_auto_player_image_urls(folder_id=self.set.player_image_gdrive_folder_id, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
+            else:
+                drive_client = UserDriveClient
+                matches, file_versions = self._query_google_drive_for_auto_player_image_urls(folder_id=library.folder_id, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year, drive_client=drive_client)
+
+            if len(self._downloaded_components(matches)) > 0:
+                self.image.source.library_name = library.name
+                return (matches, file_versions, drive_client)
+
+        return (components_dict, {}, GoogleDriveClient)
+
+    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -5704,6 +5783,7 @@ class ShowdownPlayerCard(BaseModel):
           mlb_id: Unique MLB ID for the player.
           additional_substring_search_list: List of strings to filter down results in case of multiple results.
           year: Year(s) of card.
+          drive_client: Drive client with access to the folder.
 
         Returns:
           Tuple with the following:
@@ -5713,7 +5793,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # GAIN ACCESS TO GOOGLE DRIVE
         file_versions: dict[str, str] = {}
-        file_service = GoogleDriveClient.files_service()
+        file_service = drive_client.files_service()
         if file_service is None:
             # IF NO CREDS, RETURN NONE
             return (components_dict, file_versions)
@@ -5729,7 +5809,7 @@ class ShowdownPlayerCard(BaseModel):
                 if mlb_id:
                     query += f" or name contains '({mlb_id})'"
                 query += ")"
-                response = file_service.list(q=query,pageSize=1000,pageToken=page_token,fields="nextPageToken, files(id, name, md5Checksum, modifiedTime)").execute()
+                response = file_service.list(q=query,pageSize=1000,pageToken=page_token,fields="nextPageToken, files(id, name, md5Checksum, modifiedTime)",supportsAllDrives=True,includeItemsFromAllDrives=True).execute()
                 new_files_list = response.get('files')
                 page_token = response.get('nextPageToken', None)
                 files_metadata = files_metadata + new_files_list
@@ -5739,6 +5819,9 @@ class ShowdownPlayerCard(BaseModel):
                 # IMAGE MAY FAIL TO LOAD SOMETIMES
                 self.image.error = str(err)
                 failure_number += 1
+                if isinstance(err, HttpError) and err.resp.status in [403, 404]:
+                    # FOLDER MISSING OR NO LONGER SHARED (EX: USER UNSHARED THEIR LIBRARY), RETRYING WON'T HELP
+                    break
                 continue
             
         
@@ -5774,7 +5857,11 @@ class ShowdownPlayerCard(BaseModel):
             mlb_id = str(self.mlb_id) if self.mlb_id else 'N/A'
             if (bref_id in file_name or mlb_id in file_name) and num_components_in_filename > 0:
                 component_name = file_name.split('-')[0].upper()
-                component = PlayerImageComponent(component_name)
+                try:
+                    component = PlayerImageComponent(component_name)
+                except ValueError:
+                    # USER LIBRARY FILES CAN HAVE A COMPONENT NAME MID-NAME BUT NOT AS THE PREFIX
+                    continue
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
                 if component == PlayerImageComponent.CUT and len(current_files_for_component) == 0:
                     # COMPONENT IS GLOW OR SHADOW, FIND WHICH ONE AND REPLACE CUT
@@ -5834,13 +5921,18 @@ class ShowdownPlayerCard(BaseModel):
             # EXACT YEAR MATCH
             match_score += 1
         elif is_img_multi_year == False:
-            year_img = float(year_from_img_name)
-            match self.stats_period.team_selection:
-                case TeamSelection.LAST_TEAM: year_self = float(self.stats_period.last_year)
-                case TeamSelection.FIRST_TEAM: year_self = float(self.stats_period.first_year)
-                case _: year_self = float(self.median_year)
-            pct_diff = 1 - (abs(year_img - year_self) / year_self)
-            match_score += pct_diff
+            try:
+                year_img = float(year_from_img_name)
+            except (TypeError, ValueError):
+                # NON-YEAR SEGMENT (EX: USER LIBRARY FILE "CUT-MINE-(bondsba01).png"), NO YEAR CREDIT
+                year_img = None
+            if year_img is not None:
+                match self.stats_period.team_selection:
+                    case TeamSelection.LAST_TEAM: year_self = float(self.stats_period.last_year)
+                    case TeamSelection.FIRST_TEAM: year_self = float(self.stats_period.first_year)
+                    case _: year_self = float(self.median_year)
+                pct_diff = 1 - (abs(year_img - year_self) / year_self)
+                match_score += pct_diff
 
         # ADD TYPE OVERRIDE
         if self.player_type_override:
@@ -6657,13 +6749,14 @@ class ShowdownPlayerCard(BaseModel):
 
         return image
 
-    def _download_google_drive_files(self, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str]) -> dict[str, BytesIO]:
+    def _download_google_drive_files(self, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str], drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> dict[str, BytesIO]:
         """ Concurrently download every Drive image component that isn't already in the local cache.
         Only the raw file bytes are fetched here, so a single full-size image is decoded at a time afterwards.
 
         Args:
           component_img_urls_dict: Dict of image urls per component.
           gdrive_file_versions: Dict of Google Drive file id -> version. Only these ids are Drive files.
+          drive_client: Drive client with access to the files.
 
         Returns:
           Dict of file id -> downloaded file. Failed downloads are omitted.
@@ -6681,26 +6774,27 @@ class ShowdownPlayerCard(BaseModel):
             return {}
 
         with ThreadPoolExecutor(max_workers=len(file_ids)) as executor:
-            files = executor.map(self._download_google_drive_file, file_ids)
+            files = executor.map(lambda file_id: self._download_google_drive_file(file_id=file_id, drive_client=drive_client), file_ids)
             return {file_id: file for file_id, file in zip(file_ids, files) if file is not None}
 
-    def _download_google_drive_file(self, file_id:str) -> Optional[BytesIO]:
+    def _download_google_drive_file(self, file_id:str, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> Optional[BytesIO]:
         """ Download a Google Drive file's raw bytes. Safe to call from multiple threads.
 
         Args:
           file_id: Unique file id for the image.
+          drive_client: Drive client with access to the file.
 
         Returns:
           File contents, or None if the download failed.
         """
 
         # EACH CALL GETS ITS OWN SERVICE, THE UNDERLYING HTTP CLIENT ISN'T THREAD-SAFE
-        file_service = GoogleDriveClient.files_service()
+        file_service = drive_client.files_service()
         if file_id is None or file_service is None:
             return None
 
         try:
-            request = file_service.get_media(fileId=file_id)
+            request = file_service.get_media(fileId=file_id, supportsAllDrives=True)
             file = BytesIO()
             downloader = MediaIoBaseDownload(file, request)
             done = False
@@ -6713,18 +6807,19 @@ class ShowdownPlayerCard(BaseModel):
             self.image.error = str(err)
             return None
 
-    def _google_drive_image(self, file_id:str, file:Optional[BytesIO] = None) -> Optional[Image.Image]:
+    def _google_drive_image(self, file_id:str, file:Optional[BytesIO] = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> Optional[Image.Image]:
         """ Decode a Google Drive image, downloading it first if it wasn't already.
 
         Args:
           file_id: Unique file id for the image.
           file: Already downloaded file contents, if available.
+          drive_client: Drive client with access to the file.
 
         Returns:
           PIL Image for the file, or None if it couldn't be loaded.
         """
 
-        file = file or self._download_google_drive_file(file_id=file_id)
+        file = file or self._download_google_drive_file(file_id=file_id, drive_client=drive_client)
         if file is None:
             return None
 
@@ -7018,7 +7113,6 @@ class ShowdownPlayerCard(BaseModel):
             destination_path=full_path
         )
         self.image.storage_path = upload_result_data.get('path', None)
-        print("Full image uploaded to Supabase storage with path: ", self.image.storage_path)
 
         # UPLOAD THUMBNAIL
         thumb_filename = self._thumbnail_file_name

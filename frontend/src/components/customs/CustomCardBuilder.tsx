@@ -35,6 +35,7 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
@@ -49,12 +50,14 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages
+    FaImages, FaGoogleDrive, FaListOl
 } from 'react-icons/fa';
 import {
     FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
+import ImageLibraryOrderHint from './ImageLibraryOrderHint';
+import Set2026Notice from './Set2026Notice';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
 // ----------------------------------
@@ -175,6 +178,8 @@ type loadingStatusContent = {
 // ----------------------------------
 
 const STORAGE_KEY = 'customCardFormSettings-V2';
+/** Bump when the 2026 notice content changes so previously dismissed users see it again. */
+const SET_2026_NOTICE_KEY = 'customCardBuilder2026Phase2Notice';
 
 /** Save form settings to localStorage */
 const saveFormSettings = (formData: CustomCardFormState) => {
@@ -237,7 +242,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
     const [is2026NoticeDismissed, setIs2026NoticeDismissed] = useState(
-        () => localStorage.getItem('customCardBuilderCuratedNotice') === 'true'
+        () => localStorage.getItem(SET_2026_NOTICE_KEY) === 'true'
     );
     const previewSectionRef = useRef<HTMLDivElement>(null);
     const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
@@ -1104,6 +1109,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
+            <WhatsNewBanner
+                storageKey="customCardBuilderWhatsNew_v4.42"
+                version="4.42"
+                features={[
+                    { icon: <FaGoogleDrive />, text: 'Image Libraries: connect your own Google Drive folder of player images' },
+                    { icon: <FaListOl />, text: 'Choose whether Auto images check your folders or Showdown Bot first in Account settings' },
+                    { icon: <FaImage />, text: "Cards now show where their player image came from" },
+                ]}
+            />
+
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
             <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
                 {([
@@ -1255,30 +1270,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 <div className="space-y-4 pb-6 @2xl:pb-96 @2xl:w-76">
                                     <>
                                         {!is2026NoticeDismissed && (
-                                            <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug text-blue-100 bg-linear-to-br from-blue-500 via-blue-700 to-red-700 shadow-lg shadow-blue-900/40">
-                                                <button
-                                                    onClick={() => {
-                                                        localStorage.setItem('customCardBuilderCuratedNotice', 'true');
-                                                        setIs2026NoticeDismissed(true);
-                                                    }}
-                                                    aria-label="Dismiss"
-                                                    className="absolute top-2 right-2 text-blue-300 hover:text-white transition-colors cursor-pointer"
-                                                >
-                                                    <FaXmark size={20} />
-                                                </button>
-                                                <p>10/4 Update: Round 1 of 2026 set adjustments are complete. Expect charts to fully be stabilized by October 15th.</p>
-                                                <p className="mt-1.5">
-                                                    We have also added a new mechanism called "Curated" chart selections, where a certain chart can be promoted to V1 in rare and particular cases. Read more{' '}
-                                                    <a
-                                                        href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#curated-chart-selections"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="underline text-white hover:text-blue-200 cursor-pointer"
-                                                    >
-                                                        here
-                                                    </a>.
-                                                </p>
-                                            </div>
+                                            <Set2026Notice
+                                                onDismiss={() => {
+                                                    localStorage.setItem(SET_2026_NOTICE_KEY, 'true');
+                                                    setIs2026NoticeDismissed(true);
+                                                }}
+                                            />
                                         )}
 
                                         <div className="@container flex flex-row items-end gap-1">
@@ -1464,6 +1461,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         <FormSection 
                                             title='Image' 
                                             icon={<FaImage />} 
+                                            isNew={true}
                                             isOpenByDefault={sectionStates['Image']}
                                             onToggle={() => toggleSection('Image')}
                                             childrenWhenClosed={sectionWhenClosed('Image')}
@@ -1476,6 +1474,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 selectedOption={form.image_source}
                                                 onChange={(value) => setForm({ ...form, image_source: value })}
                                             />
+                                            {form.image_source === 'AUTO' && <ImageLibraryOrderHint className="col-span-full -mt-1" />}
 
                                             {/* Source Specific Options */}
                                             <FormDropdown
