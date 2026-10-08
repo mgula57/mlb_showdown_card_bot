@@ -1274,17 +1274,18 @@ class ShowdownPlayerCard(BaseModel):
 
         # ADD IN STATIC METRICS FOR 1B
         if is_1b:
-            first_base_minus_1_cutoff = metric.first_base_plus_1_cutoff(set_str=self.set.value, max_year=self.stats_period.last_year)
-            games_required_for_positive = DefenseMetric.first_base_positive_defense_min_games(max_year=self.stats_period.last_year)
+            first_base_plus_one_cutoff = metric.first_base_plus_1_cutoff(set_str=self.set.value, max_year=self.stats_period.last_year)
+            first_base_minus_1_cutoff = metric.first_base_minus_1_cutoff(max_year=self.stats_period.last_year)
+            games_required_for_non_zero = DefenseMetric.first_base_positive_defense_min_games(max_year=self.stats_period.last_year)
             games_required_for_plus_2 = DefenseMetric.first_base_plus_2_min_games(
                 max_year=self.stats_period.last_year,
                 is_shortened_season=not self.stats_period.is_multi_year and self.set.year == '2020'
             )
             if rating > metric.first_base_plus_2_cutoff and games >= games_required_for_plus_2:
                 defense = 2
-            elif rating > first_base_minus_1_cutoff and games >= games_required_for_positive:
+            elif rating > first_base_plus_one_cutoff and games >= games_required_for_non_zero:
                 defense = 1
-            elif rating < first_base_minus_1_cutoff and self.set.is_showdown_bot and games >= games_required_for_positive:
+            elif rating < first_base_minus_1_cutoff and self.set.is_showdown_bot and games >= games_required_for_non_zero:
                 defense = -1
             else:
                 defense = 0
