@@ -1,0 +1,708 @@
+{
+  "2000": {
+    "chart": {
+      "command": 11,
+      "is_command_out_anomaly": true,
+      "outs": 4,
+      "outs_full": 4,
+      "ranges": {
+        "1B": "10\u201314",
+        "1B+": "\u2014",
+        "2B": "15\u201317",
+        "3B": "\u2014",
+        "BB": "5\u20139",
+        "FB": "3\u20134",
+        "GB": "1\u20132",
+        "HR": "18\u201320",
+        "SO": "\u2014"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 5,
+        "1B+": 0,
+        "2B": 3,
+        "3B": 0,
+        "BB": 5,
+        "FB": 2,
+        "GB": 2,
+        "HR": 3,
+        "SO": 0
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 600,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 70.99,
+        "COMMAND": 150.0,
+        "DEFENSE-1B": 0.0,
+        "DEFENSE-LF/RF": 22.5,
+        "HOME_RUNS": 129.387,
+        "ONBASE": 108.816,
+        "SLUGGING": 91.872,
+        "SPEED": 30.0
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.75,
+      "decay_start": 500,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 104.7027,
+      "2B": 55.7009,
+      "3B": 0.0,
+      "AB": 584.5706,
+      "BB": 95.4294,
+      "FB": 120.9301,
+      "G": 157.0,
+      "GB": 154.2162,
+      "H": 204.2608,
+      "HR": 43.8573,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 22.8065,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 87.357,
+      "batting_avg": 0.3494,
+      "g": 157.0,
+      "onbase_perc": 0.4375,
+      "onbase_plus_slugging": 1.1073,
+      "onbase_plus_slugging_plus": 199.0,
+      "slugging_perc": 0.6698
+    },
+    "selected_command_outs": "11-4",
+    "speed": {
+      "letter": "B",
+      "speed": 15
+    }
+  },
+  "2001": {
+    "chart": {
+      "command": 11,
+      "is_command_out_anomaly": false,
+      "outs": 3,
+      "outs_full": 3,
+      "ranges": {
+        "1B": "9\u201314",
+        "1B+": "\u2014",
+        "2B": "15\u201317",
+        "3B": "\u2014",
+        "BB": "4\u20138",
+        "FB": "3",
+        "GB": "1\u20132",
+        "HR": "18\u201320",
+        "SO": "\u2014"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 6,
+        "1B+": 0,
+        "2B": 3,
+        "3B": 0,
+        "BB": 5,
+        "FB": 1,
+        "GB": 2,
+        "HR": 3,
+        "SO": 0
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 650,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 63.344,
+        "COMMAND": 70.0,
+        "DEFENSE-1B": 30.0,
+        "DEFENSE-LF/RF": 0.0,
+        "HOME_RUNS": 56.936,
+        "ONBASE": 145.878,
+        "SLUGGING": 258.413,
+        "SPEED": 27.5
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.9,
+      "decay_start": 550,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 116.3004,
+      "2B": 54.7907,
+      "3B": 0.196,
+      "AB": 587.3779,
+      "BB": 92.6221,
+      "FB": 124.4912,
+      "G": 157.0,
+      "GB": 150.6339,
+      "H": 215.4217,
+      "HR": 44.1345,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 23.7314,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 78.0996,
+      "batting_avg": 0.3668,
+      "g": 157.0,
+      "onbase_perc": 0.4497,
+      "onbase_plus_slugging": 1.1358,
+      "onbase_plus_slugging_plus": 207.0,
+      "slugging_perc": 0.6861
+    },
+    "selected_command_outs": "11-3",
+    "speed": {
+      "letter": "B",
+      "speed": 15
+    }
+  },
+  "2002": {
+    "chart": {
+      "command": 14,
+      "is_command_out_anomaly": false,
+      "outs": 6.93,
+      "outs_full": 7,
+      "ranges": {
+        "1B": "12\u201316",
+        "1B+": "\u2014",
+        "2B": "17\u201318",
+        "3B": "\u2014",
+        "BB": "8\u201311",
+        "FB": "4\u20137",
+        "GB": "1\u20133",
+        "HR": "19+",
+        "SO": "\u2014"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 4.95,
+        "1B+": 0,
+        "2B": 1.98,
+        "3B": 0,
+        "BB": 3.96,
+        "FB": 3.96,
+        "GB": 2.97,
+        "HR": 2.18,
+        "SO": 0.0
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 520,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 32.785,
+        "COMMAND": 50.0,
+        "DEFENSE-1B": 21.328,
+        "DEFENSE-LF/RF": 21.328,
+        "HOME_RUNS": 88.69,
+        "ONBASE": 97.894,
+        "SLUGGING": 195.706,
+        "SPEED": 10.714
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.99,
+      "decay_start": 500,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 113.0894,
+      "2B": 45.819,
+      "3B": 0.1595,
+      "AB": 589.6362,
+      "BB": 90.3638,
+      "FB": 159.177,
+      "G": 157.0,
+      "GB": 146.7692,
+      "H": 203.0496,
+      "HR": 43.9818,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 23.115,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 62.5254,
+      "batting_avg": 0.3444,
+      "g": 157.0,
+      "onbase_perc": 0.4283,
+      "onbase_plus_slugging": 1.0747,
+      "onbase_plus_slugging_plus": 187.0,
+      "slugging_perc": 0.6464
+    },
+    "selected_command_outs": "14-7",
+    "speed": {
+      "letter": "B",
+      "speed": 13
+    }
+  },
+  "2003": {
+    "chart": {
+      "command": 13,
+      "is_command_out_anomaly": false,
+      "outs": 4.875,
+      "outs_full": 5,
+      "ranges": {
+        "1B": "10\u201315",
+        "1B+": "\u2014",
+        "2B": "16\u201318",
+        "3B": "\u2014",
+        "BB": "6\u20139",
+        "FB": "4\u20135",
+        "GB": "2\u20133",
+        "HR": "19+",
+        "SO": "1"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 5.85,
+        "1B+": 0,
+        "2B": 2.925,
+        "3B": 0,
+        "BB": 3.9,
+        "FB": 1.95,
+        "GB": 1.95,
+        "HR": 2.45,
+        "SO": 0.975
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [
+      "S"
+    ],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 640,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 104.137,
+        "DEFENSE-1B": 21.328,
+        "DEFENSE-LF/RF": 21.328,
+        "HOME_RUNS": 51.534,
+        "ICON-S": 15.0,
+        "ONBASE": 170.014,
+        "SLUGGING": 252.341,
+        "SPEED": 0.0
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.7,
+      "decay_start": 500,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 125.3874,
+      "2B": 57.0902,
+      "3B": 0.923,
+      "AB": 593.5734,
+      "BB": 86.4266,
+      "FB": 126.3849,
+      "G": 157.0,
+      "GB": 148.3909,
+      "H": 224.1075,
+      "HR": 40.7069,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 12.3362,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 87.3539,
+      "batting_avg": 0.3776,
+      "g": 157.0,
+      "onbase_perc": 0.4533,
+      "onbase_plus_slugging": 1.1359,
+      "onbase_plus_slugging_plus": 201.0,
+      "slugging_perc": 0.6826
+    },
+    "selected_command_outs": "13-5",
+    "speed": {
+      "letter": "C",
+      "speed": 10
+    }
+  },
+  "2004": {
+    "chart": {
+      "command": 14,
+      "is_command_out_anomaly": false,
+      "outs": 5.85,
+      "outs_full": 6,
+      "ranges": {
+        "1B": "11\u201316",
+        "1B+": "\u2014",
+        "2B": "17\u201318",
+        "3B": "\u2014",
+        "BB": "7\u201310",
+        "FB": "5\u20136",
+        "GB": "2\u20134",
+        "HR": "19+",
+        "SO": "1"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 5.85,
+        "1B+": 0,
+        "2B": 1.95,
+        "3B": 0,
+        "BB": 3.9,
+        "FB": 1.95,
+        "GB": 2.925,
+        "HR": 2.45,
+        "SO": 0.975
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [
+      "S"
+    ],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 660,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 87.306,
+        "DEFENSE-1B": 26.25,
+        "DEFENSE-LF/RF": 26.25,
+        "HOME_RUNS": 48.994,
+        "ICON-S": 15.0,
+        "ONBASE": 181.685,
+        "SLUGGING": 278.193,
+        "SPEED": 0.0
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.6,
+      "decay_start": 500,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 127.8621,
+      "2B": 42.9563,
+      "3B": 0.6713,
+      "AB": 590.8986,
+      "BB": 89.1014,
+      "FB": 125.5262,
+      "G": 157.0,
+      "GB": 159.3396,
+      "H": 215.9634,
+      "HR": 44.4736,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 10.9086,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 84.1608,
+      "batting_avg": 0.3655,
+      "g": 157.0,
+      "onbase_perc": 0.4454,
+      "onbase_plus_slugging": 1.1116,
+      "onbase_plus_slugging_plus": 197.0,
+      "slugging_perc": 0.6662
+    },
+    "selected_command_outs": "14-6",
+    "speed": {
+      "letter": "C",
+      "speed": 10
+    }
+  },
+  "2005": {
+    "chart": {
+      "command": 13,
+      "is_command_out_anomaly": false,
+      "outs": 4.875,
+      "outs_full": 5,
+      "ranges": {
+        "1B": "10\u201315",
+        "1B+": "\u2014",
+        "2B": "16\u201318",
+        "3B": "\u2014",
+        "BB": "6\u20139",
+        "FB": "4\u20135",
+        "GB": "2\u20133",
+        "HR": "19+",
+        "SO": "1"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 5.85,
+        "1B+": 0,
+        "2B": 2.925,
+        "3B": 0,
+        "BB": 3.9,
+        "FB": 1.95,
+        "GB": 1.95,
+        "HR": 2.45,
+        "SO": 0.975
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [
+      "S"
+    ],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 630,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 67.219,
+        "DEFENSE-1B": 24.375,
+        "DEFENSE-LF/RF": 24.375,
+        "HOME_RUNS": 40.303,
+        "ICON-S": 15.0,
+        "ONBASE": 169.66,
+        "SLUGGING": 291.888,
+        "SPEED": 0.0
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.6,
+      "decay_start": 400,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 122.5,
+      "2B": 56.0871,
+      "3B": 0.7603,
+      "AB": 595.3387,
+      "BB": 84.6613,
+      "FB": 128.7128,
+      "G": 157.0,
+      "GB": 150.1525,
+      "H": 219.9648,
+      "HR": 40.6173,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 13.9876,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 87.521,
+      "batting_avg": 0.3695,
+      "g": 157.0,
+      "onbase_perc": 0.4447,
+      "onbase_plus_slugging": 1.1156,
+      "onbase_plus_slugging_plus": 196.0,
+      "slugging_perc": 0.6709
+    },
+    "selected_command_outs": "13-5",
+    "speed": {
+      "letter": "C",
+      "speed": 10
+    }
+  },
+  "CLASSIC": {
+    "chart": {
+      "command": 11,
+      "is_command_out_anomaly": false,
+      "outs": 3,
+      "outs_full": 3,
+      "ranges": {
+        "1B": "9\u201314",
+        "1B+": "\u2014",
+        "2B": "15\u201317",
+        "3B": "\u2014",
+        "BB": "4\u20138",
+        "FB": "3",
+        "GB": "1\u20132",
+        "HR": "18\u201320",
+        "SO": "\u2014"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 6,
+        "1B+": 0,
+        "2B": 3,
+        "3B": 0,
+        "BB": 5,
+        "FB": 1,
+        "GB": 2,
+        "HR": 3,
+        "SO": 0
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [
+      "S"
+    ],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 640,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 63.563,
+        "COMMAND": 70.0,
+        "DEFENSE-1B": 19.688,
+        "DEFENSE-LF/RF": 19.688,
+        "HOME_RUNS": 57.133,
+        "ONBASE": 146.382,
+        "SLUGGING": 259.306,
+        "SPEED": 0.0
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.9,
+      "decay_start": 550,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 116.3004,
+      "2B": 54.7907,
+      "3B": 0.196,
+      "AB": 587.3779,
+      "BB": 92.6221,
+      "FB": 124.4912,
+      "G": 157.0,
+      "GB": 150.6339,
+      "H": 215.4217,
+      "HR": 44.1345,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 23.7314,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 78.0996,
+      "batting_avg": 0.3668,
+      "g": 157.0,
+      "onbase_perc": 0.4497,
+      "onbase_plus_slugging": 1.1358,
+      "onbase_plus_slugging_plus": 207.0,
+      "slugging_perc": 0.6861
+    },
+    "selected_command_outs": "11-3",
+    "speed": {
+      "letter": "C",
+      "speed": 10
+    }
+  },
+  "EXPANDED": {
+    "chart": {
+      "command": 13,
+      "is_command_out_anomaly": false,
+      "outs": 4.875,
+      "outs_full": 5,
+      "ranges": {
+        "1B": "10\u201315",
+        "1B+": "\u2014",
+        "2B": "16\u201318",
+        "3B": "\u2014",
+        "BB": "6\u20139",
+        "FB": "4\u20135",
+        "GB": "2\u20133",
+        "HR": "19+",
+        "SO": "1"
+      },
+      "sb": 0.0,
+      "values": {
+        "1B": 5.85,
+        "1B+": 0,
+        "2B": 2.925,
+        "3B": 0,
+        "BB": 3.9,
+        "FB": 1.95,
+        "GB": 1.95,
+        "HR": 2.45,
+        "SO": 0.975
+      }
+    },
+    "command_out_selection": null,
+    "hand": "R",
+    "icons": [
+      "S"
+    ],
+    "ip": 0,
+    "player_sub_type": "position_player",
+    "player_type": "Hitter",
+    "points": 630,
+    "points_breakdown": {
+      "breakdowns": {
+        "AVERAGE": 67.507,
+        "DEFENSE-1B": 21.328,
+        "DEFENSE-LF/RF": 21.328,
+        "HOME_RUNS": 40.475,
+        "ICON-S": 15.0,
+        "ONBASE": 170.387,
+        "SLUGGING": 293.138,
+        "SPEED": 0.0
+      },
+      "command_out_multiplier": 1.0,
+      "decay_rate": 0.6,
+      "decay_start": 400,
+      "ip_multiplier": 1.0
+    },
+    "positions_and_defense": {
+      "1B": 1,
+      "LF/RF": 1
+    },
+    "projected": {
+      "1B": 122.5,
+      "2B": 56.0871,
+      "3B": 0.7603,
+      "AB": 595.3387,
+      "BB": 84.6613,
+      "FB": 128.7128,
+      "G": 157.0,
+      "GB": 150.1525,
+      "H": 219.9648,
+      "HR": 40.6173,
+      "IBB": 12.0,
+      "PA": 685,
+      "PU": 13.9876,
+      "SF": 5.0,
+      "SH": 0.0,
+      "SO": 87.521,
+      "batting_avg": 0.3695,
+      "g": 157.0,
+      "onbase_perc": 0.4447,
+      "onbase_plus_slugging": 1.1156,
+      "onbase_plus_slugging_plus": 196.0,
+      "slugging_perc": 0.6709
+    },
+    "selected_command_outs": "13-5",
+    "speed": {
+      "letter": "C",
+      "speed": 10
+    }
+  }
+}

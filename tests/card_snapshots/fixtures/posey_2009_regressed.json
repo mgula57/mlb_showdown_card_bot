@@ -1,0 +1,1441 @@
+{
+  "bref_id": "poseybu01",
+  "bref_url": "https://www.baseball-reference.com/players/p/poseybu01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "STEROID ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": true,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "NL",
+  "name": "Buster Posey",
+  "nationality": "US",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": true,
+  "stats": {
+    "1B": 2,
+    "2B": 0,
+    "3B": 0,
+    "AB": 17,
+    "BB": 0,
+    "CS": 0,
+    "FB": 4.11,
+    "G": 7,
+    "GB": 6.11,
+    "GIDP": 0,
+    "GO/AO": 1.25,
+    "H": 2,
+    "HBP": 0,
+    "HR": 0,
+    "IBB": 0,
+    "IF/FB": 0.16,
+    "PA": 17,
+    "PU": 0.78,
+    "R": 1,
+    "RBI": 0,
+    "SB": 0,
+    "SF": 0,
+    "SH": 0,
+    "SO": 4,
+    "TB": 2,
+    "accolades": {},
+    "age": 22,
+    "award_summary": "",
+    "bWAR": -0.1,
+    "batting_avg": 0.118,
+    "bref_id": "poseybu01",
+    "bref_url": "https://www.baseball-reference.com/players/p/poseybu01.shtml",
+    "dWAR": 0.0,
+    "game_logs": [
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2009-09-11",
+        "player_game_span": "8-GF",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 2,
+        "H": 1,
+        "PA": 2,
+        "date": "2009-09-19",
+        "player_game_span": "7-GF",
+        "team_ID": "SFG"
+      },
+      {
+        "GIDP": "",
+        "date": "2009-09-22",
+        "player_game_span": "8-GF",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "SO": 2,
+        "date": "2009-09-25",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2009-09-26",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2009-10-02",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "2009-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      }
+    ],
+    "hand": "Right",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": false,
+    "is_hr_leader": false,
+    "is_rookie": true,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "NL",
+    "name": "Buster Posey",
+    "nationality": "US",
+    "onbase_perc": 0.118,
+    "onbase_plus_slugging": 0.236,
+    "onbase_plus_slugging_plus": -38,
+    "outs_above_avg": {},
+    "pos_season": "/2H",
+    "positions": {
+      "C": {
+        "drs": 0.0,
+        "g": 7,
+        "tzr": 0.0
+      }
+    },
+    "postseason_game_logs": [
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "SB": 1,
+        "SO": 1,
+        "date": "2010-10-07",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2010-10-08",
+        "player_game_span": "CG(11)",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "SO": 1,
+        "date": "2010-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2010-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2010-10-16",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "2010-10-17",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 2,
+        "date": "2010-10-19",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "2B": 2,
+        "AB": 5,
+        "H": 4,
+        "PA": 5,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2010-10-20",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2010-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2010-10-23",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2010-10-27",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2010-10-28",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2010-10-30",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2010-10-31",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2010-11-01",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2012-10-06",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "PA": 4,
+        "date": "2012-10-07",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2012-10-09",
+        "player_game_span": "CG(10)",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "date": "2012-10-10",
+        "player_game_span": "GS-9",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 4,
+        "date": "2012-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2012-10-14",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "2012-10-15",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "2012-10-17",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2012-10-18",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 2,
+        "date": "2012-10-19",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2012-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2012-10-22",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2012-10-24",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "2012-10-25",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 2,
+        "date": "2012-10-27",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "SO": 2,
+        "date": "2012-10-28",
+        "player_game_span": "CG(10)",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2014-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "CS": 1,
+        "GIDP": 1,
+        "H": 1,
+        "HBP": 1,
+        "PA": 5,
+        "RBI": 1,
+        "date": "2014-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 6,
+        "BB": 1,
+        "H": 3,
+        "IBB": 1,
+        "PA": 7,
+        "date": "2014-10-04",
+        "player_game_span": "CG(18)",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2014-10-06",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2014-10-07",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2014-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2014-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2014-10-14",
+        "player_game_span": "CG(10)",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 3,
+        "SF": 1,
+        "SO": 1,
+        "date": "2014-10-15",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2014-10-16",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "2014-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2014-10-22",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2014-10-24",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2014-10-25",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "2014-10-26",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "GIDP": 1,
+        "PA": 3,
+        "date": "2014-10-28",
+        "player_game_span": "GS-7",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 2,
+        "date": "2014-10-29",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "2016-10-05",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2016-10-07",
+        "player_game_span": "GS-9",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2016-10-08",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "H": 3,
+        "PA": 6,
+        "R": 1,
+        "RBI": 1,
+        "date": "2016-10-10",
+        "player_game_span": "CG(13)",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2016-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2021-10-08",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "SO": 1,
+        "date": "2021-10-09",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 2,
+        "date": "2021-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2021-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 2,
+        "date": "2021-10-14",
+        "player_game_span": "CG",
+        "team_ID": "SFG"
+      }
+    ],
+    "rOBA": 0.216,
+    "rbat_plus": 7,
+    "rookie_status_year": 2010,
+    "slugging_perc": 0.118,
+    "sprint_speed": null,
+    "team_ID": "SFG",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 2009,
+    "years_played": [
+      "2009",
+      "2010",
+      "2011",
+      "2012",
+      "2013",
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2021"
+    ]
+  },
+  "stats_period": {
+    "display_text": "2009",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Local Cache",
+    "stats": {
+      "1B": 2.104,
+      "2B": 0.622,
+      "3B": 0.069,
+      "AB": 17,
+      "BB": 1.468,
+      "CS": 0,
+      "FB": 4.11,
+      "G": 7,
+      "GB": 6.11,
+      "GIDP": 0,
+      "GO/AO": 1.25,
+      "H": 3.155,
+      "HBP": 0.142,
+      "HR": 0.36,
+      "IBB": 0,
+      "IF/FB": 0.16,
+      "PA": 17,
+      "PU": 0.78,
+      "R": 1,
+      "RBI": 0,
+      "SB": 0,
+      "SF": 0,
+      "SH": 0,
+      "SO": 3.079,
+      "TB": 4.995,
+      "_replacement_shrink_full_sample_pa": 600.0,
+      "_replacement_shrink_real_pa": 17.0,
+      "_replacement_shrink_real_weight": 0.028,
+      "accolades": {},
+      "age": 22,
+      "award_summary": "",
+      "bWAR": -0.1,
+      "batting_avg": 0.186,
+      "bref_id": "poseybu01",
+      "bref_url": "https://www.baseball-reference.com/players/p/poseybu01.shtml",
+      "dWAR": 0.0,
+      "game_logs": [
+        {
+          "AB": 1,
+          "PA": 1,
+          "SO": 1,
+          "date": "2009-09-11",
+          "player_game_span": "8-GF",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 2,
+          "H": 1,
+          "PA": 2,
+          "date": "2009-09-19",
+          "player_game_span": "7-GF",
+          "team_ID": "SFG"
+        },
+        {
+          "GIDP": "",
+          "date": "2009-09-22",
+          "player_game_span": "8-GF",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "PA": 3,
+          "SO": 2,
+          "date": "2009-09-25",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "SO": 1,
+          "date": "2009-09-26",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "R": 1,
+          "date": "2009-10-02",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "PA": 3,
+          "date": "2009-10-03",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        }
+      ],
+      "hand": "Right",
+      "hand_throw": "Right",
+      "is_above_hr_threshold": false,
+      "is_above_sb_threshold": false,
+      "is_above_so_threshold": false,
+      "is_above_w_threshold": false,
+      "is_hof": false,
+      "is_hr_leader": false,
+      "is_rookie": true,
+      "is_sb_leader": false,
+      "is_so_leader": false,
+      "lg_ID": "NL",
+      "name": "Buster Posey",
+      "nationality": "US",
+      "onbase_perc": 0.256,
+      "onbase_plus_slugging": 0.55,
+      "onbase_plus_slugging_plus": -38,
+      "outs_above_avg": {},
+      "pos_season": "/2H",
+      "positions": {
+        "C": {
+          "drs": 0.0,
+          "g": 7,
+          "tzr": 0.0
+        }
+      },
+      "postseason_game_logs": [
+        {
+          "2B": 1,
+          "AB": 4,
+          "H": 2,
+          "PA": 4,
+          "R": 1,
+          "SB": 1,
+          "SO": 1,
+          "date": "2010-10-07",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "BB": 1,
+          "GIDP": 1,
+          "H": 1,
+          "PA": 5,
+          "R": 1,
+          "SO": 1,
+          "date": "2010-10-08",
+          "player_game_span": "CG(11)",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "BB": 1,
+          "H": 2,
+          "PA": 5,
+          "SO": 1,
+          "date": "2010-10-10",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "R": 1,
+          "SO": 2,
+          "date": "2010-10-11",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "R": 1,
+          "SO": 2,
+          "date": "2010-10-16",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "PA": 4,
+          "date": "2010-10-17",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "SO": 2,
+          "date": "2010-10-19",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "2B": 2,
+          "AB": 5,
+          "H": 4,
+          "PA": 5,
+          "RBI": 2,
+          "SO": 1,
+          "date": "2010-10-20",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "PA": 4,
+          "RBI": 1,
+          "SO": 1,
+          "date": "2010-10-21",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "BB": 1,
+          "IBB": 1,
+          "PA": 5,
+          "SO": 1,
+          "date": "2010-10-23",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 5,
+          "H": 1,
+          "PA": 5,
+          "RBI": 1,
+          "SO": 2,
+          "date": "2010-10-27",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "R": 1,
+          "SO": 2,
+          "date": "2010-10-28",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "H": 1,
+          "PA": 4,
+          "SO": 1,
+          "date": "2010-10-30",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "HR": 1,
+          "PA": 4,
+          "R": 1,
+          "RBI": 1,
+          "SO": 1,
+          "date": "2010-10-31",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 2,
+          "PA": 4,
+          "date": "2010-11-01",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 5,
+          "H": 2,
+          "HR": 1,
+          "PA": 5,
+          "R": 1,
+          "RBI": 1,
+          "SO": 2,
+          "date": "2012-10-06",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 2,
+          "BB": 2,
+          "PA": 4,
+          "date": "2012-10-07",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "R": 1,
+          "SO": 2,
+          "date": "2012-10-09",
+          "player_game_span": "CG(10)",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "BB": 1,
+          "PA": 5,
+          "date": "2012-10-10",
+          "player_game_span": "GS-9",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "HR": 1,
+          "PA": 4,
+          "R": 1,
+          "RBI": 4,
+          "date": "2012-10-11",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "PA": 4,
+          "SO": 1,
+          "date": "2012-10-14",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 5,
+          "H": 1,
+          "PA": 5,
+          "SO": 2,
+          "date": "2012-10-15",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 2,
+          "BB": 2,
+          "H": 1,
+          "IBB": 1,
+          "PA": 4,
+          "date": "2012-10-17",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "date": "2012-10-18",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "SO": 2,
+          "date": "2012-10-19",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "RBI": 1,
+          "SO": 1,
+          "date": "2012-10-21",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "BB": 1,
+          "H": 1,
+          "PA": 5,
+          "R": 1,
+          "date": "2012-10-22",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 2,
+          "PA": 4,
+          "RBI": 1,
+          "SO": 1,
+          "date": "2012-10-24",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "H": 1,
+          "PA": 4,
+          "date": "2012-10-25",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "SO": 2,
+          "date": "2012-10-27",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "HR": 1,
+          "PA": 4,
+          "R": 1,
+          "RBI": 2,
+          "SO": 2,
+          "date": "2012-10-28",
+          "player_game_span": "CG(10)",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 5,
+          "H": 2,
+          "PA": 5,
+          "R": 1,
+          "RBI": 1,
+          "date": "2014-10-01",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "CS": 1,
+          "GIDP": 1,
+          "H": 1,
+          "HBP": 1,
+          "PA": 5,
+          "RBI": 1,
+          "date": "2014-10-03",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 6,
+          "BB": 1,
+          "H": 3,
+          "IBB": 1,
+          "PA": 7,
+          "date": "2014-10-04",
+          "player_game_span": "CG(18)",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "SO": 1,
+          "date": "2014-10-06",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 2,
+          "PA": 4,
+          "date": "2014-10-07",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 5,
+          "H": 1,
+          "PA": 5,
+          "R": 1,
+          "date": "2014-10-11",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "BB": 1,
+          "PA": 5,
+          "SO": 1,
+          "date": "2014-10-12",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "R": 1,
+          "date": "2014-10-14",
+          "player_game_span": "CG(10)",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "H": 2,
+          "PA": 5,
+          "R": 1,
+          "RBI": 3,
+          "SF": 1,
+          "SO": 1,
+          "date": "2014-10-15",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "SO": 1,
+          "date": "2014-10-16",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 5,
+          "H": 1,
+          "PA": 5,
+          "date": "2014-10-21",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "SO": 1,
+          "date": "2014-10-22",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "RBI": 1,
+          "date": "2014-10-24",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 2,
+          "H": 1,
+          "IBB": 1,
+          "PA": 5,
+          "R": 1,
+          "RBI": 1,
+          "date": "2014-10-25",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "GIDP": 1,
+          "H": 1,
+          "PA": 4,
+          "date": "2014-10-26",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "GIDP": 1,
+          "PA": 3,
+          "date": "2014-10-28",
+          "player_game_span": "GS-7",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "SO": 2,
+          "date": "2014-10-29",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 3,
+          "BB": 1,
+          "IBB": 1,
+          "PA": 4,
+          "date": "2016-10-05",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "2B": 1,
+          "AB": 4,
+          "H": 2,
+          "PA": 4,
+          "date": "2016-10-07",
+          "player_game_span": "GS-9",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "SO": 1,
+          "date": "2016-10-08",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 5,
+          "BB": 1,
+          "H": 3,
+          "PA": 6,
+          "R": 1,
+          "RBI": 1,
+          "date": "2016-10-10",
+          "player_game_span": "CG(13)",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 2,
+          "BB": 1,
+          "PA": 4,
+          "RBI": 1,
+          "SF": 1,
+          "date": "2016-10-11",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "HR": 1,
+          "PA": 4,
+          "R": 1,
+          "RBI": 2,
+          "SO": 1,
+          "date": "2021-10-08",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "2B": 1,
+          "AB": 4,
+          "H": 3,
+          "PA": 4,
+          "SO": 1,
+          "date": "2021-10-09",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "SO": 2,
+          "date": "2021-10-11",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "AB": 4,
+          "PA": 4,
+          "date": "2021-10-12",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        },
+        {
+          "2B": 1,
+          "AB": 4,
+          "H": 1,
+          "PA": 4,
+          "SO": 2,
+          "date": "2021-10-14",
+          "player_game_span": "CG",
+          "team_ID": "SFG"
+        }
+      ],
+      "rOBA": 0.216,
+      "rbat_plus": 7,
+      "rookie_status_year": 2010,
+      "slugging_perc": 0.294,
+      "sprint_speed": null,
+      "team_ID": "SFG",
+      "type": "Hitter",
+      "warnings": [],
+      "year_ID": 2009,
+      "years_played": [
+        "2009",
+        "2010",
+        "2011",
+        "2012",
+        "2013",
+        "2014",
+        "2015",
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2021"
+      ]
+    },
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "2009",
+    "year_list": [
+      2009
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "SFG",
+  "year": "2009"
+}
