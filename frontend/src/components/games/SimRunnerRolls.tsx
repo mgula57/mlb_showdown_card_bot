@@ -1,7 +1,7 @@
 /**
  * @fileoverview The dice behind a sim's baserunning tests — steal attempts (before the pitch),
- * extra-base sends (after the ball is in play) and double-play turns (on the swing) — docked in
- * the field's bottom-left corner. Each attempt plays out as the sim's own math:
+ * extra-base sends (after the ball is in play) and double-play turns (on the swing) — floated
+ * over the middle of the diamond. Each attempt plays out as the sim's own math:
  *
  *   1. the die tumbles beside the defense rating (arm / OF / IF),
  *   2. when it lands, the two fold together into one total that counts up from the defense,

@@ -752,10 +752,16 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     </div>
                 )}
 
-                {/* Sim steal / extra-base dice, in the corner the defense summary holds for a real
-                    game (a sim has no defense alignment, so the two never compete). */}
+                {/* Sim steal / extra-base / double-play dice, floated over the middle of the diamond
+                    (the mound) for the length of the beat so the roll is where the eye already is.
+                    Above every marker (z-30), below the play prompt (z-40); keyed on the beat so
+                    each new roll pops in fresh. */}
                 {transition?.runnerRolls && (
-                    <div className="absolute bottom-0 left-0 z-30">
+                    <div
+                        key={`runner-rolls-${transition.toIndex}`}
+                        className="absolute z-30 -translate-x-1/2 -translate-y-1/2 result-pop"
+                        style={atPercent(DEFENSE_SPOTS.pitcher)}
+                    >
                         <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                     </div>
                 )}
