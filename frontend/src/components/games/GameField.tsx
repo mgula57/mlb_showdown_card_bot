@@ -662,8 +662,8 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     : taggedOut ? "opacity-50 scale-90 grayscale"
                                     : "opacity-100 scale-100";
 
-                        // The hitter this play resolves — they carry the swing die (and the advantage
-                        // glow) with them as they leave the plate.
+                        // The hitter this play resolves — they carry the advantage glow with them as
+                        // they leave the plate (the swing die stays at the plate, below).
                         const isPendingBatter = pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId);
 
                         return (
@@ -693,12 +693,20 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     detailStat1Category={occ.spot === "plate" ? "hr" : "hr"}
                                     hasAdvantage={advantage === "hitter" && isPendingBatter}
                                 />
-                                {isPendingBatter && (
-                                    <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
-                                )}
                             </div>
                         );
                     })}
+
+                    {/* The swing die stays put at the plate (same width as a marker, so the dock
+                        lines up) rather than riding the hitter around the bases. */}
+                    {presentOccupants.some((occ) => pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId)) && (
+                        <div
+                            className="absolute -translate-x-1/2 -translate-y-1/2 w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 h-px pointer-events-none"
+                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: 2 }}
+                        >
+                            <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
+                        </div>
+                    )}
 
                     <ResultFlash play={pendingPlay} phase={phase} transition={transition} />
 
