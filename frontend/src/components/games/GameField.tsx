@@ -690,6 +690,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     tone="offense"
                                     hideCommand={occ.spot !== "plate"}
                                     hideTeamPoints={occ.spot !== "plate"}
+                                    showSpeedBadge={occ.spot !== "plate"}
                                     detailStat1Category={occ.spot === "plate" ? "hr" : "hr"}
                                     hasAdvantage={advantage === "hitter" && isPendingBatter}
                                 />

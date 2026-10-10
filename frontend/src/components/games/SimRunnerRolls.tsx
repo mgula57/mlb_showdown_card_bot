@@ -2,8 +2,8 @@
  * @fileoverview The dice behind a sim's runner-only beats — steal attempts (before the pitch) and
  * extra-base sends (after the ball is in play) — docked in the field's bottom-left corner, where
  * the plate appearance's own dice used to live. Each attempt reads top to bottom as the sim's own
- * test: the defense, plus the die, versus the runner's speed. The runner is shown as their full
- * card; SAFE / OUT is revealed once the die has landed.
+ * test: the defense, plus the die, versus the runner's card (with the speed being tested pinned
+ * inside it). SAFE / OUT is revealed in the header once the die has landed.
  */
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { RunnerRoll } from "../../domain/timeline";
@@ -29,36 +29,48 @@ export default function SimRunnerRolls({ rolls, beatId, phase, speed, cardMap, o
     const isRevealed = phase !== "pitch";
 
     return (
-        <div className="flex items-start gap-4 rounded-md border border-(--divider) bg-(--background-secondary)/30 px-3 py-2 backdrop-blur-sm">
+        <div className="flex flex-col divide-y divide-(--divider) rounded-lg border border-(--divider) bg-(--background-secondary)/80 shadow-lg backdrop-blur-sm">
             {rolls.map((attempt, index) => {
                 const hasOdds = attempt.defense != null && attempt.target != null;
+                const title = `${attempt.kind === "steal" ? "Steal" : "Extra Base"} · ${BASE_NAMES[attempt.base + 1] ?? ""}`;
                 return (
-                    <div key={`${attempt.runner.id}-${index}`} className="flex flex-col items-center gap-2">
-                        {/* Row 1: defense  +  die. Out when the total beats the runner's speed below. */}
-                        <div className="flex items-center gap-3">
+                    <div key={`${attempt.runner.id}-${index}`} className="flex flex-col gap-1.5 px-2.5 py-2">
+                        {/* Header: what's being attempted, and the verdict once the die has landed. */}
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-[9px] font-bold uppercase leading-none tracking-wider text-(--text-secondary)">{title}</span>
+                            <span
+                                className={`
+                                    rounded px-1.5 py-0.5 text-[9px] font-black uppercase leading-none tracking-wider text-white
+                                    ${attempt.isSafe ? "bg-(--green)" : "bg-(--red)"}
+                                    ${isRevealed ? "" : "invisible"}
+                                `}
+                            >
+                                {attempt.isSafe ? "Safe" : "Out"}
+                            </span>
+                        </div>
+
+                        {/* The test: defense + die vs the runner's speed (base bonus included, shown on their card). */}
+                        <div className="flex items-center gap-2">
                             {hasOdds && (
-                                <span className="flex flex-col items-center gap-0.5 rounded-md border border-(--divider) bg-(--background-primary)/60 px-2 py-1 shadow-sm">
-                                    <span className="text-[8px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">
-                                        {attempt.kind === "steal" ? "Arm" : "OF"}
+                                <>
+                                    <span className="flex flex-col items-center gap-0.5 rounded-md bg-(--background-primary)/60 px-1.5 py-1">
+                                        <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">
+                                            {attempt.kind === "steal" ? "Arm" : "OF"}
+                                        </span>
+                                        <span className="text-xs font-black leading-none text-(--text-primary)">{attempt.defense}</span>
                                     </span>
-                                    <span className="text-sm font-black leading-none text-(--primary)">{attempt.defense}</span>
-                                </span>
+                                    <span className="text-xs font-black leading-none text-(--tertiary)">+</span>
+                                </>
                             )}
-                            {hasOdds && <span className="text-sm font-black leading-none text-(--secondary)">+</span>}
                             <RollDie
                                 value={attempt.roll}
-                                label={`${attempt.kind === "steal" ? "Steal" : "Extra"} ${BASE_NAMES[attempt.base + 1] ?? ""}`.trim()}
+                                label="Roll"
                                 playId={`${beatId}-${index}`}
                                 phase={phase}
                                 speed={speed}
                                 staggerIndex={index}
                             />
-                        </div>
-
-                        {hasOdds && <span className="text-[9px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">vs</span>}
-
-                        {/* Row 2: the runner's card, and the speed (with base bonus) being tested. */}
-                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">vs</span>
                             <FieldMarker
                                 player={attempt.runner}
                                 role="H"
@@ -66,13 +78,9 @@ export default function SimRunnerRolls({ rolls, beatId, phase, speed, cardMap, o
                                 onCardSelect={onCardSelect}
                                 isLoadingCards={isLoadingCards}
                                 tone="offense"
+                                statBadge={hasOdds ? { label: "Spd", value: attempt.target! } : undefined}
                             />
-                            {hasOdds && <span className="whitespace-nowrap text-[11px] font-black leading-none text-(--primary)">SPD {attempt.target}</span>}
                         </div>
-
-                        <span className={`text-[9px] font-black uppercase leading-none tracking-wider ${isRevealed ? (attempt.isSafe ? "text-(--green)" : "text-(--red)") : "invisible"}`}>
-                            {attempt.isSafe ? "Safe" : "Out"}
-                        </span>
                     </div>
                 );
             })}
