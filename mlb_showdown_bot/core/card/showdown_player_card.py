@@ -36,6 +36,7 @@ from .utils import showdown_constants as sc, colors
 from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, convert_year_string_to_list, total_ip_for_calculations, traditional_round
 
 from .stats.accolade import Accolade
+from .stats.special_accolade import SpecialAccolades
 from .stats.metrics import DefenseMetric
 from .stats.stats_period import StatsPeriod, StatsPeriodType, TeamSelection
 from .stats.real_vs_projected_stat import RealVsProjectedStat
@@ -1869,6 +1870,18 @@ class ShowdownPlayerCard(BaseModel):
             fWAR = self.stats_for_card.get('fWAR', None)
             if fWAR:
                 accolades_rank_and_priority_tuples.append( (f"{fWAR} fWAR", 59, default_stat_priority) )
+
+        # -- PART 3: SPECIAL ACCOLADES --
+        # PINNED AHEAD OF EVERYTHING ELSE (EX: 40 HR / 40 SB, 56 GAME STREAK)
+        special_accolades = SpecialAccolades(
+            bref_id=self.bref_id,
+            years=self.stats_period.year_list,
+            stats=self.stats_for_card,
+            is_pitcher=self.is_pitcher,
+        )
+        superseded = special_accolades.superseded_accolades
+        accolades_rank_and_priority_tuples = [at for at in accolades_rank_and_priority_tuples if at[0] not in superseded]
+        accolades_rank_and_priority_tuples += [(feat.label, index, feat.priority) for index, feat in enumerate(special_accolades.feats)]
 
         sorted_tuples = sorted(accolades_rank_and_priority_tuples, key=lambda t: (t[2],t[1]))
         sorted_accolades = [tup[0] for tup in sorted_tuples]
