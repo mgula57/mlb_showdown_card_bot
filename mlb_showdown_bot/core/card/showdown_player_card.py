@@ -675,7 +675,9 @@ class ShowdownPlayerCard(BaseModel):
         if self.stats_period.is_multi_year:
             if self.stats_period.is_full_career:
                 # USE MEDIAN YEAR OF YEARS PLAYED
-                years_played_ints = [int(year) for year in self.stats_for_card['years_played']]
+                # STATS PERIOD STATS (EX: POSTSEASON) MAY NOT BE MERGED WITH FULL STATS YET, FALL BACK TO FULL STATS
+                years_played = self.stats_for_card.get('years_played') or self.stats.get('years_played', [])
+                years_played_ints = [int(year) for year in years_played]
             elif '-' in self.year:
                 # RANGE OF YEARS
                 years = self.year.split('-')
@@ -1218,6 +1220,15 @@ class ShowdownPlayerCard(BaseModel):
         
         return Position(position)
 
+    @property
+    def is_defense_regressed_to_median(self) -> bool:
+        """True if small-medium defensive samples should be regressed towards the position's median.
+        Applies to 2026+ seasons, except while the season is still in progress (players haven't had time to build a full sample)."""
+        last_year = self.stats_period.last_year
+        if last_year is None or last_year < 2026:
+            return False
+        return not self.stats_period.includes_season_in_progress
+
     def _convert_to_in_game_defense(self, position:Position, rating:float, metric:DefenseMetric, games:int) -> int:
         """Converts the best available fielding metric to in game defense at a position.
            Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
@@ -1237,12 +1248,15 @@ class ShowdownPlayerCard(BaseModel):
         is_1b = position == Position._1B
 
         # CUTS DOWN SMALL SAMPLE SIZES, WHERE PLAYERS HAVE PLAYED < 30 GAMES
+        # FOR COMPLETED 2026+ SEASONS, REGRESS SMALL-MEDIUM SAMPLES (< 100 GAMES) TOWARDS AVERAGE (0),
+        # KEEPING THEIR IN-GAME DEFENSE NEAR THE POSITION'S MEDIAN
         if not metric.is_rate_stat:
 
             # CALCULATE RATING PER 150 GAMES
             rating = rating / games * 150
 
-            small_sample_reduction = min((games / 30), 1.0)
+            full_sample_games = 100 if self.is_defense_regressed_to_median else 30
+            small_sample_reduction = min((games / full_sample_games), 1.0)
             rating *= small_sample_reduction
 
         # FOR DEFENSIVE OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX

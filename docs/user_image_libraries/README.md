@@ -156,7 +156,7 @@ Download [`templates/ShowdownBotPlayerImageTemplate.psd`](templates/ShowdownBotP
 
 ![Photoshop template setup](images/ILRM-Photoshop.png)
 
-To make a new player, duplicate the example group, swap in your photo, and follow the steps below.
+To make a new player, create a new folder next to the Bonds example and follow the steps below.
 
 > **Important:** The auto-positioning only happens at **exactly** `1950 x 2730`. Any other size is shown as is, bleed and all, so the player looks zoomed out. If you worked at a larger size, resize to exactly `1950 x 2730` before exporting.
 
@@ -178,6 +178,8 @@ Every set's crop is built around this framing, so stick to it:
 - **Head:** just inside the **top** guide, centered on the middle guide.
 - **Feet:** on the **bottom** guide.
 - **Body:** centered left to right, inside the side guides.
+
+> **Don't see the guides?** Photoshop may have them hidden. Turn them on with **View > Show > Guides** (`Ctrl+;` on Windows, `Cmd+;` on Mac). If they're still missing, make sure **View > Extras** is checked too.
 
 Some sets crop the lower legs on purpose, so don't shrink the player to fit every set. Everything outside the guides is bleed: keep the photo running all the way to the canvas edge, so sets that show part of the bleed get real background instead of empty space.
 
@@ -278,5 +280,6 @@ The highest score wins. On a tie, the **shorter file name** wins.
 | Double outline on Classic or Expanded | The `CUT` doesn't line up with the `BG` (moved, resized, or trimmed on export). |
 | Player looks zoomed out or small (advanced) | The bleed image isn't exactly `1950 x 2730`, so it's shown as is. |
 | Head cut off or player too high/low on some sets (advanced) | The player isn't framed head-at-top-guide, feet-at-bottom-guide. |
+| Guides don't show up in the template (advanced) | They're hidden. In Photoshop, turn on **View > Show > Guides** and **View > Extras**. |
 | "Folder not found" when connecting | The folder isn't shared with the bot's email, or your work or school account blocks outside sharing. |
 | "Shared with edit access" | Change the bot's role on the folder to **Viewer**. |

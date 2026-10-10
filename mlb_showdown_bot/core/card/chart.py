@@ -1651,12 +1651,12 @@ class Chart(BaseModel):
         player_year_avg_obp *= (1 + wotc_set_adjustment_factor)
         adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
         pct_diff_obp = self.__pct_diff(player_year_avg_obp, wotc_set_year_obp)
-        y_int_adjustment_mutliplier = 8.0 if self.is_pitcher else 2.0 # MANUALLY DEFINED MULTIPLE TO ADJUST Y-INTERCEPT. HIGHER MULTIPLIER MEANS STAYING CLOSER TO WOTC SET
+        y_int_adjustment_multiplier = 8.0 if self.is_pitcher else 2.0 # MANUALLY DEFINED MULTIPLE TO ADJUST Y-INTERCEPT. HIGHER MULTIPLIER MEANS STAYING CLOSER TO WOTC SET
         if year and year >= 2026:
-            # AFTER 2026, REDUCE THE Y-INT ADJUSTMENT. PITCHERS KEEP A LARGER ADJUSTMENT TO SLIGHTLY BUFF THEIR COMMAND ON EXPANDED SETS.
-            y_int_adjustment_mutliplier = 4.0 if self.is_pitcher else 1.0
+            # AFTER 2026, PITCHERS KEEP A LARGER ADJUSTMENT TO SLIGHTLY BUFF THEIR COMMAND ON EXPANDED SETS.
+            y_int_adjustment_multiplier = 8.0 if self.is_pitcher else 0.5
 
-        adjusted_y_int = y_int - (pct_diff_obp * (-1 if self.is_hitter else 1) * y_int_adjustment_mutliplier) 
+        adjusted_y_int = y_int - (pct_diff_obp * (-1 if self.is_hitter else 1) * y_int_adjustment_multiplier) 
         command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, adjusted_y_int, real_obp)
         
         return command_adjusted_to_era
@@ -1793,7 +1793,7 @@ class Chart(BaseModel):
         if self.is_hitter and self.is_expanded and self.set not in ['2002'] and self.year and self.year >= 2026:
             match self.set:
                 case '2002': pass
-                case 'EXPANDED': wotc_set_adjustment_factor -= 0.08 # MAKE EVEN STRONGER FOR SIM REALISM
+                case 'EXPANDED': wotc_set_adjustment_factor -= 0.085 # MAKE EVEN STRONGER FOR SIM REALISM
                 case _: wotc_set_adjustment_factor -= 0.025
         
         # ADJUST OUTS BASED ON OBP
@@ -1819,17 +1819,18 @@ class Chart(BaseModel):
             updated_values[category] = round(updated_values[category] * (1 + category_pct_diff_vs_wotc), 4)
 
         
-        if self.is_pitcher and self.year and self.year >= 2026:
-            # 2026+ PITCHER OPPONENT: SHIFT SOME HR TO 2B. BUFFS HITTER HR AND REDUCES HITTER 2B WHILE KEEPING PROJECTIONS ACCURATE
-            # 2002 IS EXCLUDED, ALREADY HAD A REALISTIC SPLIT
-            if self.is_expanded and self.set not in ['2002', '2003']:
-                hr_values_shifted = round(updated_values[ChartCategory.HR] * 0.15, 4)
+        if self.year and self.year >= 2026:
+            # 2026+ 2004/2005/EXPANDED: SHIFT SOME OPPONENT HR TO 2B, BUFFING HR AND REDUCING 2B ON THE PLAYER'S CHART WHILE KEEPING PROJECTIONS ACCURATE
+            # 2002/2003 ARE EXCLUDED, ALREADY HAD A REALISTIC SPLIT
+            if self.set in ['2004', '2005', 'EXPANDED']:
+                hr_values_shifted = round(updated_values[ChartCategory.HR] * 0.30, 4)
                 updated_values[ChartCategory.HR] = round(updated_values[ChartCategory.HR] - hr_values_shifted, 4)
                 updated_values[ChartCategory._2B] = round(updated_values[ChartCategory._2B] + hr_values_shifted, 4)
 
             # REMOVE 3B FROM PITCHER OPPONENT. 1B ABSORBS THE REMAINDER BELOW
-            updated_values[ChartCategory._3B] = 0
-        
+            if self.is_pitcher:
+                updated_values[ChartCategory._3B] = 0
+
         # ADJUST 1B TO MAKE SURE THE TOTAL EQUALS 20
         remaining_values = 20 - sum(updated_values.values())
         if remaining_values != 0:
