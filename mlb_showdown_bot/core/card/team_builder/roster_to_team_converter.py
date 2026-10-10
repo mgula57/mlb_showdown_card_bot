@@ -23,6 +23,7 @@ class RosterBuildDiagnostics:
     max_roster_size: Optional[int]
     no_card_id: list[str] = field(default_factory=list)
     below_playing_time: list[str] = field(default_factory=list)
+    relaxed_playing_time: list[str] = field(default_factory=list)
     left_off: list[str] = field(default_factory=list)
     rotation_shortfall: Optional[str] = None
     unfilled_positions: list[str] = field(default_factory=list)
@@ -41,6 +42,11 @@ class RosterBuildDiagnostics:
                 f"{len(self.below_playing_time)} card(s) under the {RosterToTeamConverter.MIN_PLAYING_TIME_FRACTION:.0%} "
                 f"playing-time cutoff: {', '.join(self.below_playing_time)}"
             )
+        if self.relaxed_playing_time:
+            lines.append(
+                f"{len(self.relaxed_playing_time)} card(s) under the playing-time cutoff added back to fill the roster: "
+                f"{', '.join(self.relaxed_playing_time)}"
+            )
         if self.left_off:
             lines.append(f"{len(self.left_off)} eligible card(s) left off: {', '.join(self.left_off)}")
         if self.rotation_shortfall:
@@ -51,7 +57,7 @@ class RosterBuildDiagnostics:
             if eligible < self.max_roster_size:
                 lines.append(
                     f"only {eligible} of {self.pool_size} pooled card(s) are eligible, below the "
-                    f"{self.max_roster_size}-man roster limit -- nothing is backfilled"
+                    f"{self.max_roster_size}-man roster limit even with the playing-time cutoff relaxed"
                 )
         return lines
 
@@ -113,8 +119,6 @@ class RosterToTeamConverter:
         protected_ids = set(self.forced_positions) | set(self.forced_batting_order)
         if self.forced_starting_pitcher_id:
             protected_ids.add(self.forced_starting_pitcher_id)
-        self.input_cards = cards
-        self.cards = self._filter_by_playing_time([c for c in cards if c.card_id], protected_ids=protected_ids)
         self.team_id = team_id
         self.name = name
         self.abbreviation = abbreviation
@@ -122,6 +126,11 @@ class RosterToTeamConverter:
         self.secondary_color = secondary_color
         self.season = season
         self.source = source
+        self.input_cards = cards
+        identified = [c for c in cards if c.card_id]
+        self.cards = self._filter_by_playing_time(identified, protected_ids=protected_ids)
+        self.relaxed_cards = self._relax_playing_time(identified, kept=self.cards)
+        self.cards += self.relaxed_cards
 
     @staticmethod
     def _playing_time_groups(
@@ -147,6 +156,15 @@ class RosterToTeamConverter:
         return max((measure(c) for c in group), default=0.0) * cls.MIN_PLAYING_TIME_FRACTION
 
     @classmethod
+    def _playing_time_measures(cls, cards: list[ExploreDataRecord]) -> list[tuple[ExploreDataRecord, float, float, str]]:
+        """(card, playing time, its role's cutoff, unit) for every card -- see _playing_time_groups."""
+        measures = []
+        for group, measure, unit in cls._playing_time_groups(cards):
+            threshold = cls._playing_time_threshold(group, measure)
+            measures += [(c, measure(c), threshold, unit) for c in group]
+        return measures
+
+    @classmethod
     def _filter_by_playing_time(
         cls, cards: list[ExploreDataRecord], protected_ids: set[str],
     ) -> list[ExploreDataRecord]:
@@ -157,11 +175,27 @@ class RosterToTeamConverter:
         mid-season or one with thin, injury-riddled depth, rather than excluding everyone (or no
         one) against a fixed number.
         """
-        kept: list[ExploreDataRecord] = []
-        for group, measure, _ in cls._playing_time_groups(cards):
-            threshold = cls._playing_time_threshold(group, measure)
-            kept += [c for c in group if c.card_id in protected_ids or measure(c) >= threshold]
-        return kept
+        return [
+            c for c, measure, threshold, _ in cls._playing_time_measures(cards)
+            if c.card_id in protected_ids or measure >= threshold
+        ]
+
+    def _relax_playing_time(self, cards: list[ExploreDataRecord], kept: list[ExploreDataRecord]) -> list[ExploreDataRecord]:
+        """Cameo cards to add back when the filtered pool can't fill the season's roster limit.
+
+        Every kept card is rostered up to the cap (lineup + bench take all hitters, rotation +
+        bullpen all pitchers), so the shortfall is simply the cap minus the kept count. It's made
+        up with the cameos closest to their role's cutoff first; a full pool adds nothing.
+        """
+        max_roster_size = self._max_roster_size(self.season)
+        shortfall = (max_roster_size or 0) - len(kept)
+        if shortfall <= 0:
+            return []
+        kept_ids = {c.card_id for c in kept}
+        cameos = [(c, measure / threshold) for c, measure, threshold, _ in self._playing_time_measures(cards)
+                  if c.card_id not in kept_ids and threshold > 0]
+        cameos.sort(key=lambda pair: pair[1], reverse=True)
+        return [c for c, _ in cameos[:shortfall]]
 
     @staticmethod
     def _max_roster_size(season: Optional[int]) -> Optional[int]:
@@ -475,13 +509,14 @@ class RosterToTeamConverter:
         kept_ids = {c.card_id for c in self.cards}
 
         # Thresholds are recomputed over the same card_id'd pool _filter_by_playing_time saw.
-        below_playing_time = []
-        for group, measure, unit in self._playing_time_groups([c for c in self.input_cards if c.card_id]):
-            threshold = self._playing_time_threshold(group, measure)
-            below_playing_time += [
-                f"{c.name} ({measure(c):g} {unit} < {threshold:.1f})"
-                for c in group if c.card_id not in kept_ids
-            ]
+        relaxed_ids = {c.card_id for c in self.relaxed_cards}
+        below_playing_time, relaxed_playing_time = [], []
+        for c, measure, threshold, unit in self._playing_time_measures([c for c in self.input_cards if c.card_id]):
+            label = f"{c.name} ({measure:g} {unit} < {threshold:.1f})"
+            if c.card_id in relaxed_ids:
+                relaxed_playing_time.append(label)
+            elif c.card_id not in kept_ids:
+                below_playing_time.append(label)
 
         # Rotation slots only go to SP-tagged cards, so a short rotation is a pool fact, not a trim.
         starters = [c for c in self.cards if c.player_type == 'PITCHER' and Position.SP in (c.positions_list or [])]
@@ -509,6 +544,7 @@ class RosterToTeamConverter:
             )
 
         return RosterBuildDiagnostics(
+            relaxed_playing_time=relaxed_playing_time,
             rotation_shortfall=rotation_shortfall,
             unfilled_positions=unfilled_positions,
             pool_size=len(self.input_cards),
