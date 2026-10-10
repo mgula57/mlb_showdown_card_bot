@@ -527,6 +527,58 @@
 
 .sim-die-shadow { animation: sim-die-shadow 900ms cubic-bezier(0.33, 0, 0.3, 1) forwards; }
 
+/* Baserunning roll math (SimRunnerRolls). Once the die lands, the defense chip and the die fold
+   toward each other and a total pops in between them (with a ring bursting off it); on the result
+   beat the total squares off against the runner's speed - the winner flares in `--roll-accent`,
+   the loser shakes and dims. Every duration divides by `--roll-speed` (the playback speed, set on
+   the row) so the choreography keeps pace at 2x/4x the way the phase beats do. */
+@keyframes roll-fold-left {
+    to { transform: translateX(4px) scale(0.86); opacity: 0.45; }
+}
+@keyframes roll-fold-right {
+    to { transform: translateX(-4px) scale(0.86); opacity: 0.45; }
+}
+.roll-fold-left  { animation: roll-fold-left  calc(280ms / var(--roll-speed, 1)) cubic-bezier(0.5, 0, 0.2, 1) forwards; }
+.roll-fold-right { animation: roll-fold-right calc(280ms / var(--roll-speed, 1)) cubic-bezier(0.5, 0, 0.2, 1) forwards; }
+
+@keyframes roll-total-pop {
+    0%   { transform: translateX(-12px) scale(0.3); opacity: 0; filter: blur(2px); }
+    55%  { transform: translateX(0) scale(1.22);    opacity: 1; filter: blur(0); }
+    78%  { transform: scale(0.94); }
+    100% { transform: scale(1); opacity: 1; }
+}
+.roll-total-pop { display: inline-block; animation: roll-total-pop calc(320ms / var(--roll-speed, 1)) cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+
+@keyframes roll-total-ring {
+    0%   { transform: scale(0.7); opacity: 0.9; }
+    100% { transform: scale(2);   opacity: 0; }
+}
+.roll-total-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid var(--roll-accent, var(--live));
+    pointer-events: none;
+    animation: roll-total-ring calc(520ms / var(--roll-speed, 1)) ease-out forwards;
+}
+
+@keyframes roll-clash-win {
+    0%   { transform: scale(1);    box-shadow: 0 0 0 0 transparent; }
+    40%  { transform: scale(1.14); box-shadow: 0 0 16px 4px var(--roll-accent, var(--live)); }
+    100% { transform: scale(1);    box-shadow: 0 0 8px 1px var(--roll-accent, var(--live)); }
+}
+.roll-clash-win { animation: roll-clash-win calc(440ms / var(--roll-speed, 1)) ease-out forwards; }
+
+@keyframes roll-clash-lose {
+    0%   { transform: translateX(0);    opacity: 1;    filter: grayscale(0); }
+    20%  { transform: translateX(-3px); }
+    40%  { transform: translateX(3px); }
+    60%  { transform: translateX(-2px); }
+    80%  { transform: translateX(1px); }
+    100% { transform: translateX(0);    opacity: 0.55; filter: grayscale(0.6); }
+}
+.roll-clash-lose { animation: roll-clash-lose calc(380ms / var(--roll-speed, 1)) ease-in-out calc(100ms / var(--roll-speed, 1)) both; }
+
 /* Light sweeping across the progress fill, so the bar still reads as working through the setup
    phases that hold it at a fixed width. Needs `overflow: hidden` on the element it's applied to. */
 @keyframes sim-progress-sheen {

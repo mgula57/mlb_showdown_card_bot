@@ -491,8 +491,8 @@ class RunnerRef(BaseModel):
 
 
 class RunnerRollLog(BaseModel):
-    """One baserunning dice roll within a plate appearance - a steal attempt or an extra-base send
-    - so a replay can show the die alongside the runner-only beat it drives. `base` is the base the
+    """One baserunning dice roll within a plate appearance - a steal attempt, an extra-base send, or
+    a double-play turn - so a replay can show the die alongside the beat it drives. `base` is the base the
     runner was on when they went (the one they ran FROM); `result` is `Result` value "safe"/"out"."""
     runner_id: str
     runner: str
@@ -500,7 +500,8 @@ class RunnerRollLog(BaseModel):
     roll: int
     result: str
     # WHAT THE ROLL WAS COMPARED AGAINST: OUT WHEN `defense + roll > target`. `defense` IS THE
-    # CATCHER'S ARM (STEAL) OR THE OUTFIELD DEFENSE (EXTRA BASE); `target` IS THE RUNNER'S SPEED
+    # CATCHER'S ARM (STEAL), THE OUTFIELD DEFENSE (EXTRA BASE) OR THE INFIELD DEFENSE (DOUBLE PLAY,
+    # WHERE THE "RUNNER" IS THE BATTER, `base` 0); `target` IS THE RUNNER'S SPEED
     # INCLUDING THE BASE BONUS. 0 ON LOGS WRITTEN BEFORE THESE EXISTED.
     defense: int = 0
     target: int = 0
@@ -547,6 +548,8 @@ class GameLogEntry(BaseModel):
     # THE DICE BEHIND THOSE TWO BASERUNNING BEATS. A "SINGLE+" FREE STEAL HAS NO ROLL AND ISN'T LISTED.
     steal_rolls: list[RunnerRollLog] = Field(default_factory=list)
     advance_rolls: list[RunnerRollLog] = Field(default_factory=list)
+    # THE DOUBLE-PLAY TURN ON A GROUND BALL, WHEN ONE WAS ATTEMPTED. "out" = THE DP WAS TURNED.
+    double_play_roll: Optional[RunnerRollLog] = None
 
 
 class InningLineScore(BaseModel):

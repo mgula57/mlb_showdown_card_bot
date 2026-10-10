@@ -328,6 +328,7 @@ class Game:
                     ),
                     steal_rolls=[self._runner_roll_log(r) for r in plate_appearance.steal_attempts if r.roll],
                     advance_rolls=[self._runner_roll_log(r) for r in plate_appearance.advance_attempts],
+                    double_play_roll=self._runner_roll_log(plate_appearance.double_play_roll) if plate_appearance.double_play_roll and plate_appearance.double_play_roll.runner else None,
                 )
                 if collect_log:
                     self.logs.append(log_entry)
@@ -409,7 +410,7 @@ class Game:
 
     @staticmethod
     def _runner_roll_log(roll) -> RunnerRollLog:
-        """A steal/extra-base `Roll` as its log row. `roll.base` is where the runner went FROM."""
+        """A steal/extra-base/double-play `Roll` as its log row. `roll.base` is where the runner went FROM."""
         return RunnerRollLog(runner_id=roll.runner.id, runner=roll.runner.name, base=roll.base, roll=roll.roll, result=roll.result.value, defense=roll.defense, target=roll.target)
 
     @staticmethod

@@ -163,6 +163,9 @@ export type SimGameLogEntryJson = {
     /** The dice behind the steal and extra-base beats above. Absent on older logs. */
     steal_rolls?: SimRunnerRollJson[];
     advance_rolls?: SimRunnerRollJson[];
+    /** The double-play turn on a ground ball, when one was attempted ("out" = turned). Absent on
+     *  older logs. */
+    double_play_roll?: SimRunnerRollJson | null;
 };
 
 /** `base` is the base the runner ran FROM; `result` is "safe" | "out". */
@@ -668,6 +671,8 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             home: hasAdvanceLeg ? homeAfterSwing : entry.home_score,
             runs: hasAdvanceLeg ? swingRuns : runsScored,
             isHomeRun,
+            // A ground-ball DP turn resolves on the swing itself, so its die rides this beat.
+            runnerRolls: toRunnerRolls("double_play", entry.double_play_roll ? [entry.double_play_roll] : undefined),
         });
 
         if (hasAdvanceLeg) {
