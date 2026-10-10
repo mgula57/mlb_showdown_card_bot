@@ -247,7 +247,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                     No games scheduled for this day.
                 </div>
             ) : (
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
+                <div className={`grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4 ${sortedGames.length === 1 ? "md:max-w-md" : ""}`}>
                     {sortedGames.map((game) => {
                         return (
                             <GameItem
