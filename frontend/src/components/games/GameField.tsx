@@ -754,7 +754,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 {/* Sim steal / extra-base dice, in the corner the defense summary holds for a real
                     game (a sim has no defense alignment, so the two never compete). */}
                 {transition?.runnerRolls && (
-                    <div className="absolute bottom-0 left-0">
+                    <div className="absolute bottom-0 left-0 z-30">
                         <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                     </div>
                 )}

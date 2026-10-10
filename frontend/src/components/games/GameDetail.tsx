@@ -10,7 +10,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { Tabs as TabButtons, type TabItem } from '../shared/Tabs';
 import { fromBoxscoreDetail, fromGamePlays } from "../../domain/adapters/fromMlbApi";
 import { fromSimGame } from "../../domain/adapters/fromSim";
-import { startGameSim, type SimGameRecord, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
+import { fetchGameSimCount, startGameSim, type SimGameRecord, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
 import { useAuth } from "../auth/AuthContext";
 import GameSimSetupModal from "./GameSimSetupModal";
 import GameSimHistoryModal from "./GameSimHistoryModal";
@@ -31,6 +31,7 @@ import ProbableStartingPitchers from "./detail/ProbableStartingPitchers";
 import BattingTable from "./detail/BattingTable";
 import PitchingTable from "./detail/PitchingTable";
 import GameInfo from "./detail/GameInfo";
+import TopBarButton from "./detail/TopBarButton";
 import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
 import { FaClockRotateLeft, FaListUl, FaStar } from "react-icons/fa6";
 
@@ -46,6 +47,8 @@ const MOBILE_TABS: TabItem<MobileTab>[] = [
 ];
 
 const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
+
+const OUTLINE_BUTTON_CLASS = "rounded-lg border border-(--divider) px-2.5 py-1.5 text-(--secondary) hover:text-(--primary)";
 
 type GameDetailProps = {
     gamePk: number;
@@ -92,6 +95,16 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     // The post-game recap covers the field once a game is final; the scoreboard's center toggle
     // tucks it away until the user brings it back (or loads a different sim, which earns a fresh recap).
     const [isRecapDismissed, setIsRecapDismissed] = useState(false);
+    // Stored sims of this game, for the badge on "Past Sims". Null until loaded (or if it fails -
+    // the badge is a nicety, so a failed count just leaves it off).
+    const [simCount, setSimCount] = useState<number | null>(null);
+    useEffect(() => {
+        let isCancelled = false;
+        fetchGameSimCount(gamePk)
+            .then((count) => { if (!isCancelled) setSimCount(count); })
+            .catch(() => { if (!isCancelled) setSimCount(null); });
+        return () => { isCancelled = true; };
+    }, [gamePk]);
 
     const {
         boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
@@ -175,6 +188,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         if (!token) throw new Error("Sign in to simulate a game.");
         const { result } = await startGameSim(gamePk, payload, token);
         setSimResult(result);
+        setSimCount((count) => (count ?? 0) + 1);
         setSimError(null);
         setShowSimSetup(false);
         setSimRunId((n) => n + 1);
@@ -204,16 +218,17 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
        game's own. Full-bleed at the top of the page rather than inside a panel — it is a
        statement about the whole view, not about the box score. */
     const simBannerTokens = bannerTokens(home.team.secondary_color ?? '#374151');
+    const simLeftTokens = bannerTokens(away.team.primary_color ?? '#374151');
 
     // The field is the mobile backdrop, so it only leads the layout once there's a live
     // situation to put on it. Before first pitch and after the final out, the panels are the page.
     const hasLiveField = true;
 
     /* Linescore, box score and game info. On desktop this is the scrolling right column; on
-       mobile it rides in the bottom sheet over the field, below the play-by-play panel. Box score
-       tables stay reading the raw, CURRENT boxscore regardless of playback position — the
-       timeline freezes them (see `GameTimeline.frozen`) rather than reconstructing per-play
-       cumulative stats, so there's nothing playback-aware to swap in here. */
+       mobile it rides in the bottom sheet over the field, below the play-by-play panel. A real
+       game's tables read the raw, CURRENT boxscore regardless of playback position (the MLB
+       timeline freezes them — see `GameTimeline.frozen`); a sim's read `activeView`, which carries
+       a box score rebuilt per frame. */
     const boxScorePanels = (activeView: typeof view, hideResult: boolean) => (
         <div className="@container space-y-4">
             <GameLinescore game={activeView} />
@@ -224,9 +239,9 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
             )}
 
-            {/* A sim's box score can't be rebuilt play-by-play (it's frozen at the final line), so
-                while the user is watching the replay we hide it outright rather than spoil the
-                result — it comes back once the cursor reaches the end. */}
+            {/* A sim's box score is rebuilt play by play (it rides on `activeView`), except for a
+                legacy log with no player ids — that one is frozen at the final line, so while the
+                user is watching the replay we hide it outright rather than spoil the result. */}
             {hideResult ? (
                 <div className="rounded-xl border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
                     <div className="text-xs font-semibold text-(--primary)">Box score hidden during replay</div>
@@ -258,7 +273,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 <div className="grid gap-4 @[820px]:grid-cols-2 min-w-0">
                     {(['away', 'home'] as const).map((side) => {
                         const team = side === 'away' ? away : home;
-                        const simSide = view[side].boxscore;
+                        const simSide = activeView[side].boxscore;
                         return (
                             <Tabs.Content key={side} value={side} forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
                                 {simResult && simSide ? (
@@ -276,9 +291,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             </Tabs.Root>
             )}
 
-            {/* Hidden alongside the box score during a sim replay - same reasoning as above: it
-                reads off the frozen final boxscore, not the playback cursor, so it comes back
-                once the replay reaches the end. */}
+            {/* The real feed's game notes - hidden only alongside a frozen sim box score above. */}
             {!hideResult && <GameInfo away={away} home={home} />}
         </div>
     );
@@ -293,7 +306,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             bufferedCount={bufferedBoxscore ? fromGamePlays(bufferedBoxscore.plays ?? []).length - realPlays.length : 0}
             onApplyBuffer={bufferedBoxscore ? applyBuffer : undefined}
         >
-            {({ activeView, activePlays, playbackBar, playbackControls, playbackState, isReplaying }) => {
+            {({ activeView, activePlays, playbackBar, playbackControls, playbackState, isReplaying, isBoxscoreFrozen }) => {
                 /* `ScoreHeader` reads `detailedState` off the `GameView` it's given, so the sim/
                    finished-game label computed above rides along on a shallow-copied view rather
                    than as a prop. It's a no-op on every non-terminal playback frame — those report
@@ -334,7 +347,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                    it and shouldn't see the final score or box score. `isReplaying` goes false only
                    once the cursor sits on the last frame (played to the end, or "Skip to result"). */
                 const simMidReplay = !!simResult && isReplaying;
-                const panels = boxScorePanels(activeView, simMidReplay);
+                const panels = boxScorePanels(activeView, simMidReplay && isBoxscoreFrozen);
 
                 /* The recap waits for the final frame to finish animating, so the last out still
                    plays out on the field before it fades back behind the summary. */
@@ -370,52 +383,44 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
                 const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : undefined;
 
-                const modeBanner = simResult ? (
-                    <ModeBanner
-                        primaryColor={away.team.primary_color ?? '#374151'}
-                        secondaryColor={home.team.secondary_color ?? '#374151'}
-                        label={simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM'}
-                        detail={
-                            simResult.is_takeover && simResult.setup.start_state
-                                ? `— took over in the ${simResult.setup.start_state.is_top ? 'top' : 'bottom'} of the ${ordinal(simResult.setup.start_state.inning)}`
-                                : '— played from the first pitch'
-                        }
-                    >
-                        <div className="flex items-center gap-2">
+                /* In a sim the mode strip is the page's own top bar (see below) rather than a
+                   separate banner, so only the controls are built here. */
+                const simLabel = simResult ? (simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM') : null;
+                const simDetail = simResult
+                    ? (simResult.is_takeover && simResult.setup.start_state
+                        ? `— took over in the ${simResult.setup.start_state.is_top ? 'top' : 'bottom'} of the ${ordinal(simResult.setup.start_state.inning)}`
+                        : '— played from the first pitch')
+                    : null;
+                const simButtonClass = `rounded-lg px-2 py-1 h-7 ${simBannerTokens.btnClass}`;
+                const simControls = simResult ? (
+                        <div className="flex min-w-0 items-center gap-2">
                             {/* The sim already opens parked on the first pitch, so this is a
                                 one-click "start playing": from frame 0 it reads "Watch"; once the
                                 cursor has moved it becomes "Restart" and jumps back to the top. */}
-                            <button
-                                type="button"
+                            <TopBarButton
+                                label={playbackState.cursor === 0 ? 'Watch' : 'Restart'}
+                                shortLabel={playbackState.cursor === 0 ? 'Play' : 'Restart'}
                                 onClick={() => {
                                     playbackControls.seekToStart();
                                     playbackControls.play();
                                 }}
-                                className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
-                            >
-                                {playbackState.cursor === 0 ? 'Watch' : 'Restart'}
-                            </button>
+                                className={simButtonClass}
+                            />
                             {/* Only while mid-replay — jumps the cursor to the end so the final
                                 score, box score and last play all resolve at once. */}
                             {simMidReplay && (
-                                <button
-                                    type="button"
-                                    onClick={() => playbackControls.seekToLive()}
-                                    className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
-                                >
-                                    Skip to result
-                                </button>
+                                <TopBarButton label="Skip to result" shortLabel="Skip to end" onClick={() => playbackControls.seekToLive()} className={simButtonClass} />
                             )}
-                            <button
-                                type="button"
+                            <TopBarButton
+                                label="Exit Sim"
+                                shortLabel="Exit"
                                 onClick={() => { setSimResult(null); setShowPlaybackControls(false); setIsRecapDismissed(false); }}
-                                className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
-                            >
-                                Exit Sim
-                            </button>
+                                className={simButtonClass}
+                            />
                         </div>
-                    </ModeBanner>
-                ) : (isReviewing || showPlaybackControls) ? (
+                ) : null;
+
+                const modeBanner = simResult ? null : (isReviewing || showPlaybackControls) ? (
                     <ModeBanner
                         primaryColor={away.team.primary_color ?? '#374151'}
                         secondaryColor={home.team.secondary_color ?? '#374151'}
@@ -440,12 +445,21 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
                 return (
                     <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
-                        <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
+                        <div
+                            className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${simResult ? '' : 'bg-(--background-primary)'}`}
+                            style={simResult ? { background: `linear-gradient(to right, ${away.team.primary_color ?? '#374151'}, ${home.team.secondary_color ?? '#374151'})` } : undefined}
+                        >
                             <BackButton onBack={onBack} />
                             <div className="flex items-center gap-2">
-                                <h1 className="hidden sm:inline text-[20px] font-black text-(--text-primary)">Showdown Live</h1>
+                                <h1 className={`hidden sm:inline text-[20px] font-black ${simResult ? 'drop-shadow-sm' : 'text-(--text-primary)'}`} style={simResult ? { color: simLeftTokens.fill } : undefined}>Showdown Live</h1>
                                 <BetaBadge />
                             </div>
+                            {simResult && (
+                                <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold drop-shadow-sm" style={{ color: simLeftTokens.fill }}>
+                                    {simLabel}
+                                    <span className="hidden md:inline font-normal ml-4">{simDetail}</span>
+                                </span>
+                            )}
 
                             {simError && <span className="text-[11px] text-(--red)">{simError}</span>}
                             {isRefreshing && (
@@ -454,43 +468,34 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                 </svg>
                             )}
-                            <div className="ml-auto flex items-center gap-2">
+                            <div className="ml-auto flex min-w-0 items-center gap-2">
+                                {simControls}
 
                                 {/* Enters replay: reveals the transport bar and, on a live game,
                                     freezes the live cursor so you can scrub back. Once active the
                                     colored REPLAY banner takes over — its "Exit Replay" is the way
                                     out — so this button hides to keep a single, obvious control. */}
                                 {!isReviewing && !showPlaybackControls && !isNotStarted && (
-                                    <button
-                                        type="button"
-                                        onClick={enterReplay}
-                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg border border-(--divider) px-2.5 py-1.5 text-[11px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
-                                    >
-                                        <FaClockRotateLeft size={12} />
-                                        Replay
-                                    </button>
+                                    <TopBarButton label="Replay" icon={<FaClockRotateLeft size={12} />} onClick={enterReplay} className={OUTLINE_BUTTON_CLASS} />
                                 )}
                                 {/* Independent of `canSimulate` - a finished game can still have
                                     sims run against it while it was live/upcoming, worth revisiting. */}
                                 {!simResult && (
-                                    <button
-                                        type="button"
+                                    <TopBarButton
+                                        label="Past Sims"
+                                        icon={<FaListUl size={12} />}
+                                        badge={simCount ?? undefined}
                                         onClick={() => { setSimError(null); setShowSimHistory(true); }}
-                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg border border-(--divider) px-2.5 py-1.5 text-[11px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
-                                    >
-                                        <FaListUl size={12} />
-                                        Past Sims
-                                    </button>
+                                        className={OUTLINE_BUTTON_CLASS}
+                                    />
                                 )}
                                 {canSimulate && !simResult && (
-                                    <button
-                                        type="button"
+                                    <TopBarButton
+                                        label="Simulate"
+                                        icon={<FaTerminal />}
                                         onClick={() => { setSimError(null); setShowSimSetup(true); }}
-                                        className="flex items-center gap-x-1 cursor-pointer rounded-lg animated-showdown-gradient px-3 py-1.5 text-[11px] font-bold text-white transition-opacity hover:opacity-90"
-                                    >
-                                        <FaTerminal />
-                                        Simulate
-                                    </button>
+                                        className="rounded-lg animated-showdown-gradient px-3 py-1.5 text-white hover:opacity-90"
+                                    />
                                 )}
                             </div>
                         </div>

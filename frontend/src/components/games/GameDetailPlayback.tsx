@@ -41,6 +41,9 @@ type PlaybackRenderProps = {
     /** The transport strip, pre-built with this game's frame count/frozen flags wired in — mount
      *  it directly rather than re-deriving those props. */
     playbackBar: ReactNode;
+    /** False when the timeline carries a per-frame box score (a sim with player ids on its log),
+     *  so the box score panels can follow `activeView` instead of hiding until the end. */
+    isBoxscoreFrozen: boolean;
     /** True once the cursor has been moved off the live/final edge — the signal for whether to
      *  show REPLAY chrome (a finished real game) or dim the "Watch" affordance (a sim). */
     isReplaying: boolean;
@@ -105,8 +108,8 @@ export default function GameDetailPlayback({
             frameCount={timeline.frames.length}
             bufferedCount={bufferedCount}
             onSkipToLive={handleSkipToLive}
-            // A sim hides its box score entirely mid-replay (see GameDetail) and shows the true
-            // final once the cursor reaches the end, so the "current totals" caveat never applies.
+            // A sim either rebuilds its box score per frame or hides it mid-replay (see GameDetail),
+            // so the "current totals" caveat never applies.
             isBoxscoreFrozen={timeline.frozen.boxscore && !simResult}
         />
     );
@@ -117,6 +120,7 @@ export default function GameDetailPlayback({
         playbackState,
         playbackControls,
         playbackBar,
+        isBoxscoreFrozen: timeline.frozen.boxscore,
         isReplaying: playbackState.cursor < timeline.liveIndex,
     });
 }
