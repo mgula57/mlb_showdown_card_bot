@@ -1,0 +1,1946 @@
+{
+  "bref_id": "suzukic01",
+  "bref_url": "https://www.baseball-reference.com/players/s/suzukic01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "STEROID ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "AL",
+  "name": "Ichiro Suzuki",
+  "nationality": "JP",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 225,
+    "2B": 24,
+    "3B": 5,
+    "AB": 704,
+    "BB": 53,
+    "CS": 11,
+    "FB": 102.38,
+    "G": 161,
+    "GB": 249.91,
+    "GIDP": 6,
+    "GO/AO": 2.27,
+    "H": 262,
+    "HBP": 4,
+    "HR": 8,
+    "IBB": 19,
+    "IF/FB": 0.07,
+    "PA": 762,
+    "PU": 7.71,
+    "R": 101,
+    "RBI": 60,
+    "SB": 36,
+    "SF": 3,
+    "SH": 2,
+    "SO": 63,
+    "TB": 320,
+    "accolades": {
+      "H": [
+        "2004 AL 262 (1ST)"
+      ],
+      "SB": [
+        "2004 AL 36 (2ND)"
+      ],
+      "TB": [
+        "2004 AL 320 (6TH)"
+      ],
+      "WAR": [
+        "2004 AL 9.2 (1ST)"
+      ],
+      "allstar": [
+        "2004 (CF)"
+      ],
+      "awards": [
+        "2004 AL BATTING TITLE"
+      ],
+      "batting_avg": [
+        "2004 AL .372 (1ST)"
+      ],
+      "gold_gloves": [
+        "2004 AL (OF)"
+      ],
+      "mvp": [
+        "2004 AL (7, 25%)"
+      ],
+      "onbase_perc": [
+        "2004 AL .414 (2ND)"
+      ]
+    },
+    "age": 30,
+    "award_summary": "AS,MVP-7,GG",
+    "bWAR": 9.2,
+    "batting_avg": 0.372,
+    "bref_id": "suzukic01",
+    "bref_url": "https://www.baseball-reference.com/players/s/suzukic01.shtml",
+    "dWAR": 2.5,
+    "game_logs": [
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2004-04-06",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "CS": 1,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2004-04-07",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-04-08",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-04-09",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2004-04-10",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "H": 2,
+        "PA": 6,
+        "R": 1,
+        "RBI": 2,
+        "date": "2004-04-11",
+        "player_game_span": "CG(10)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "CS": 1,
+        "H": 2,
+        "PA": 5,
+        "date": "2004-04-13",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SO": 2,
+        "date": "2004-04-14",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-04-15",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "2004-04-16",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SB": 1,
+        "SO": 1,
+        "date": "2004-04-17",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "SB": 1,
+        "date": "2004-04-18",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "H": 2,
+        "PA": 7,
+        "date": "2004-04-19",
+        "player_game_span": "CG(14)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "SB": 1,
+        "date": "2004-04-20",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "2004-04-21",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-04-22",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 2,
+        "H": 2,
+        "PA": 6,
+        "R": 3,
+        "SO": 1,
+        "date": "2004-04-23",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-04-24",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2004-04-25",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SB": 1,
+        "SO": 2,
+        "date": "2004-04-27",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "2004-04-28",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-04-29",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2004-04-30",
+        "player_game_span": "CG(10)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2004-05-01",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "3B": 1,
+        "AB": 5,
+        "BB": 1,
+        "H": 2,
+        "PA": 6,
+        "R": 3,
+        "RBI": 1,
+        "SB": 1,
+        "SO": 1,
+        "date": "2004-05-02",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 8,
+        "CS": 1,
+        "H": 3,
+        "PA": 8,
+        "date": "2004-05-04",
+        "player_game_span": "CG(16)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-05-05",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-05-06",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2004-05-07",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-05-08",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "2004-05-09",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "H": 1,
+        "PA": 6,
+        "R": 2,
+        "RBI": 1,
+        "date": "2004-05-11",
+        "player_game_span": "CG(11)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-05-12",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "CS": 1,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-05-13",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2004-05-14",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "BB": 2,
+        "H": 3,
+        "IBB": 2,
+        "PA": 7,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-05-15",
+        "player_game_span": "CG(13)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-05-16",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-05-18",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-05-19",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 3,
+        "RBI": 3,
+        "date": "2004-05-20",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "date": "2004-05-21",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "2004-05-22",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2004-05-23",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "H": 1,
+        "PA": 6,
+        "date": "2004-05-25",
+        "player_game_span": "CG(12)",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 4,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "SB": 1,
+        "date": "2004-05-26",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2004-05-27",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "SB": 1,
+        "date": "2004-05-28",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SB": 1,
+        "date": "2004-05-29",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "H": 1,
+        "PA": 6,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2004-05-30",
+        "player_game_span": "CG(12)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HBP": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SB": 1,
+        "date": "2004-05-31",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-06-01",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-06-02",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2004-06-04",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 2,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2004-06-05",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "SB": 1,
+        "SO": 1,
+        "date": "2004-06-06",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-06-07",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "2004-06-08",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-06-09",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "SB": 1,
+        "date": "2004-06-11",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "2004-06-12",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-06-13",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "2004-06-15",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "HBP": 1,
+        "PA": 4,
+        "SB": 2,
+        "date": "2004-06-16",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-06-17",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2004-06-18",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-06-19",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2004-06-20",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2004-06-22",
+        "player_game_span": "GS-8",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2004-06-23",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "3B": 1,
+        "AB": 7,
+        "BB": 2,
+        "H": 1,
+        "IBB": 2,
+        "PA": 9,
+        "RBI": 3,
+        "date": "2004-06-24",
+        "player_game_span": "CG(18)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-06-25",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 2,
+        "date": "2004-06-26",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-06-27",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "PA": 5,
+        "SB": 1,
+        "date": "2004-06-28",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-06-29",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "date": "2004-06-30",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 2,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "date": "2004-07-01",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-07-02",
+        "player_game_span": "GS-8",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "2004-07-03",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-07-04",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SB": 1,
+        "date": "2004-07-06",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "2004-07-07",
+        "player_game_span": "GS-8",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-07-08",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2004-07-09",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2004-07-11",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-07-15",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "SO": 1,
+        "date": "2004-07-16",
+        "player_game_span": "GS-8",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2004-07-17",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2004-07-18",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 6,
+        "R": 1,
+        "SO": 1,
+        "date": "2004-07-19",
+        "player_game_span": "CG(11)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "H": 4,
+        "PA": 6,
+        "R": 1,
+        "SB": 4,
+        "date": "2004-07-20",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "CS": 1,
+        "H": 4,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-07-21",
+        "player_game_span": "CG(10)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2004-07-22",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "SO": 1,
+        "date": "2004-07-23",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 2,
+        "date": "2004-07-24",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2004-07-25",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "CS": 1,
+        "H": 3,
+        "PA": 5,
+        "RBI": 1,
+        "date": "2004-07-26",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SO": 2,
+        "date": "2004-07-27",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-07-28",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 7,
+        "H": 5,
+        "PA": 7,
+        "R": 2,
+        "date": "2004-07-29",
+        "player_game_span": "CG(13)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-07-30",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "H": 3,
+        "HR": 1,
+        "PA": 6,
+        "R": 3,
+        "RBI": 1,
+        "date": "2004-07-31",
+        "player_game_span": "CG(11)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "date": "2004-08-01",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "3B": 1,
+        "AB": 5,
+        "H": 5,
+        "PA": 5,
+        "R": 2,
+        "date": "2004-08-03 (1)",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2004-08-03 (2)",
+        "player_game_span": "7-GF",
+        "team_ID": "SEA"
+      },
+      {
+        "3B": 1,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2004-08-04",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "H": 3,
+        "PA": 6,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2004-08-05",
+        "player_game_span": "CG(11)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 5,
+        "date": "2004-08-06",
+        "player_game_span": "CG(10)",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 2,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-08-07",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-08-08",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "2004-08-10",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-08-11",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SO": 2,
+        "date": "2004-08-12",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "2004-08-13",
+        "player_game_span": "GS-8",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2004-08-14",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SB": 2,
+        "date": "2004-08-15",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 4,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 5,
+        "date": "2004-08-17",
+        "player_game_span": "GS-7",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 1,
+        "HBP": 1,
+        "PA": 2,
+        "date": "2004-08-18",
+        "player_game_span": "GS-3",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "2004-08-20",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "3B": 1,
+        "AB": 7,
+        "H": 4,
+        "PA": 7,
+        "R": 2,
+        "RBI": 2,
+        "SB": 1,
+        "date": "2004-08-21",
+        "player_game_span": "CG(11)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "2004-08-22",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "2004-08-23",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-08-24",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2004-08-25",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2004-08-26",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-08-27",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2004-08-28 (1)",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "H": 3,
+        "PA": 6,
+        "R": 2,
+        "SB": 1,
+        "SO": 3,
+        "date": "2004-08-28 (2)",
+        "player_game_span": "CG(12)",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 3,
+        "RBI": 1,
+        "date": "2004-08-29",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "RBI": 2,
+        "date": "2004-08-31",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "IBB": 1,
+        "PA": 4,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-09-01",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SB": 1,
+        "date": "2004-09-02",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2004-09-03",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 5,
+        "PA": 5,
+        "R": 3,
+        "RBI": 1,
+        "date": "2004-09-04",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2004-09-05",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-09-06",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SB": 1,
+        "date": "2004-09-08",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-09-09",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2004-09-10",
+        "player_game_span": "GS-8",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2004-09-11",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-09-12",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "date": "2004-09-13",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2004-09-14",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 2,
+        "date": "2004-09-15",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 2,
+        "BB": 3,
+        "IBB": 2,
+        "PA": 5,
+        "date": "2004-09-16",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2004-09-17",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-09-18",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-09-19",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "date": "2004-09-20",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 5,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-09-21",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 6,
+        "BB": 1,
+        "H": 4,
+        "IBB": 1,
+        "PA": 7,
+        "R": 3,
+        "RBI": 1,
+        "date": "2004-09-22",
+        "player_game_span": "GS-9",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "IBB": 1,
+        "PA": 6,
+        "R": 2,
+        "RBI": 1,
+        "SF": 1,
+        "SO": 1,
+        "date": "2004-09-24",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 2,
+        "date": "2004-09-25",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-09-26",
+        "player_game_span": "GS-9",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2004-09-27",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-09-28",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "HBP": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-09-29",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2004-09-30",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 2,
+        "SB": 1,
+        "SO": 1,
+        "date": "2004-10-01",
+        "player_game_span": "GS-9",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-10-02",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2004-10-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SEA"
+      }
+    ],
+    "hand": "Left",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": true,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "AL",
+    "name": "Ichiro Suzuki",
+    "nationality": "JP",
+    "onbase_perc": 0.414,
+    "onbase_plus_slugging": 0.869,
+    "onbase_plus_slugging_plus": 130,
+    "outs_above_avg": {},
+    "pos_season": "*9/DH",
+    "positions": {
+      "DH": {
+        "drs": null,
+        "g": 3,
+        "tzr": null
+      },
+      "OF": {
+        "drs": 30.0,
+        "g": 158,
+        "tzr": 27.0
+      },
+      "RF": {
+        "drs": 30.0,
+        "g": 158,
+        "tzr": 27.0
+      }
+    },
+    "postseason_game_logs": [
+      {
+        "2B": 1,
+        "AB": 4,
+        "CS": 1,
+        "H": 3,
+        "PA": 4,
+        "date": "2001-10-09",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SB": 1,
+        "date": "2001-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2001-10-13",
+        "player_game_span": "GS-9",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2001-10-14",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 4,
+        "CS": 1,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "2001-10-15",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "2001-10-17",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "2001-10-18",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 2,
+        "SB": 1,
+        "SO": 1,
+        "date": "2001-10-20",
+        "player_game_span": "GS-8",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "SB": 1,
+        "SO": 2,
+        "date": "2001-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "date": "2001-10-22",
+        "player_game_span": "CG",
+        "team_ID": "SEA"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "CS": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "SO": 2,
+        "date": "2012-10-07",
+        "player_game_span": "CG",
+        "team_ID": "NYY"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "date": "2012-10-08",
+        "player_game_span": "CG",
+        "team_ID": "NYY"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "2012-10-10",
+        "player_game_span": "CG(12)",
+        "team_ID": "NYY"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 6,
+        "SO": 1,
+        "date": "2012-10-11",
+        "player_game_span": "CG(13)",
+        "team_ID": "NYY"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2012-10-12",
+        "player_game_span": "CG",
+        "team_ID": "NYY"
+      },
+      {
+        "AB": 6,
+        "H": 4,
+        "HR": 1,
+        "PA": 6,
+        "R": 1,
+        "RBI": 2,
+        "date": "2012-10-13",
+        "player_game_span": "CG(12)",
+        "team_ID": "NYY"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2012-10-14",
+        "player_game_span": "CG",
+        "team_ID": "NYY"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SO": 1,
+        "date": "2012-10-16",
+        "player_game_span": "CG",
+        "team_ID": "NYY"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2012-10-18",
+        "player_game_span": "CG",
+        "team_ID": "NYY"
+      }
+    ],
+    "rOBA": 0.398,
+    "rbat_plus": 138,
+    "rookie_status_year": 2001,
+    "slugging_perc": 0.455,
+    "sprint_speed": null,
+    "team_ID": "SEA",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 2004,
+    "years_played": [
+      "2001",
+      "2002",
+      "2003",
+      "2004",
+      "2005",
+      "2006",
+      "2007",
+      "2008",
+      "2009",
+      "2010",
+      "2011",
+      "2012",
+      "2013",
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019"
+    ]
+  },
+  "stats_period": {
+    "display_text": "2004",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "2004",
+    "year_list": [
+      2004
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "SEA",
+  "year": "2004"
+}

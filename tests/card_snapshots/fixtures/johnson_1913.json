@@ -1,0 +1,193 @@
+{
+  "bref_id": "johnswa01",
+  "bref_url": "https://www.baseball-reference.com/players/j/johnswa01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "DEAD BALL ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "MLB",
+  "name": "Walter Johnson",
+  "nationality": "US",
+  "player_type": "Pitcher",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 187,
+    "2B": 28,
+    "3B": 8,
+    "AB": 1221,
+    "BB": 47,
+    "CS": 0,
+    "FB": 250.99,
+    "G": 48,
+    "GB": 448.2,
+    "GIDP": 0,
+    "GO/AO": 1.5,
+    "GS": 36,
+    "H": 232,
+    "HBP": 9,
+    "HR": 9,
+    "IBB": 0,
+    "IF/FB": 0.16,
+    "IP": 346.0,
+    "IP/GS": 8.6,
+    "PA": 1286,
+    "PU": 47.81,
+    "R": 56,
+    "ROE": 0,
+    "SB": 0,
+    "SF": 0,
+    "SH": 17,
+    "SO": 243,
+    "SV": 2,
+    "TB": 303,
+    "W": 36,
+    "accolades": {
+      "CG": [
+        "1913 AL 29 (1ST)"
+      ],
+      "IP": [
+        "1913 AL 346.0 (1ST)"
+      ],
+      "SHO": [
+        "1913 AL 11 (1ST)"
+      ],
+      "SO_p": [
+        "1913 AL 243 (1ST)"
+      ],
+      "W": [
+        "1913 AL 36 (1ST)"
+      ],
+      "WAR": [
+        "1913 AL 16.5 (1ST)"
+      ],
+      "awards": [
+        "1913 AL MVP",
+        "1913 AL PITCHING TITLE",
+        "1913 AL TRIPLE CROWN"
+      ],
+      "earned_run_avg": [
+        "1913 AL 1.14 (1ST)"
+      ],
+      "earned_run_avg_plus": [
+        "1913 AL 259 (1ST)"
+      ],
+      "fip": [
+        "1913 AL 1.90 (1ST)"
+      ],
+      "mvp": [
+        "1913 AL (1, 84%)"
+      ],
+      "strikeouts_per_nine": [
+        "1913 AL 6.321 (1ST)"
+      ],
+      "whip": [
+        "1913 AL 0.780 (1ST)"
+      ],
+      "win_loss_perc": [
+        "1913 AL .837 (1ST)"
+      ]
+    },
+    "award_summary": "MVP-1",
+    "bWAR": "15.1",
+    "batters_faced": 1281,
+    "batting_avg": 0.19,
+    "batting_avg_bip": 0.23,
+    "bref_id": "johnswa01",
+    "bref_url": "https://www.baseball-reference.com/players/j/johnswa01.shtml",
+    "dWAR": "0.0",
+    "earned_run_avg": 1.14,
+    "fip": 1.9,
+    "hand": "Right",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": true,
+    "is_above_w_threshold": true,
+    "is_hof": true,
+    "is_hr_leader": true,
+    "is_rookie": false,
+    "is_sv_leader": false,
+    "name": "Walter Johnson",
+    "nationality": "US",
+    "onbase_perc": 0.221,
+    "onbase_plus_slugging": 0.469,
+    "onbase_plus_slugging_vs_lg": 50,
+    "onbase_plus_slugging_vs_total": 100,
+    "positions": {
+      "CF": {
+        "drs": null,
+        "g": 1,
+        "tzr": null
+      },
+      "OF": {
+        "drs": null,
+        "g": 1,
+        "tzr": null
+      },
+      "P": {
+        "drs": null,
+        "g": 48,
+        "tzr": null
+      }
+    },
+    "rookie_status_year": 1907,
+    "slugging_perc": 0.248,
+    "split_name": "1913 Totals",
+    "strikeouts_per_base_on_balls": 6.08,
+    "strikeouts_per_nine": 6.32,
+    "team_ID": "WSH",
+    "type": "Pitcher",
+    "warnings": [],
+    "whip": 0.78,
+    "years_played": [
+      "1907",
+      "1908",
+      "1909",
+      "1910",
+      "1911",
+      "1912",
+      "1913",
+      "1914",
+      "1915",
+      "1916",
+      "1917",
+      "1918",
+      "1919",
+      "1920",
+      "1921",
+      "1922",
+      "1923",
+      "1924",
+      "1925",
+      "1926",
+      "1927"
+    ]
+  },
+  "stats_period": {
+    "display_text": "1913",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "1913",
+    "year_list": [
+      1913
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "WSH",
+  "year": "1913"
+}

@@ -301,6 +301,16 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
                         bref_id = db.fetch_bref_id_for_mlb_id(player_data.id)
                     normalized_player_stats.add_bref_id(bref_id)
 
+                # MLB API ONLY HAS AWARD WINNERS, NOT VOTING PLACEMENTS (EX: 2ND IN MVP)
+                # GRAB FROM THE CACHED BREF SNAPSHOT IF AVAILABLE
+                if stats_period.is_mlb:
+                    try:
+                        with PostgresDB(is_archive=True) as db:
+                            award_voting_results = db.fetch_bref_award_voting(seasons=stats_period.year_list, mlb_ids=[player_data.id])
+                        normalized_player_stats.inject_award_voting(award_voting_results)
+                    except Exception as e:
+                        print(f"Failed to inject award voting: {e}")
+
                 if stats_period.is_mlb and stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
                     statcast_api_client = StatcastAPIClient()
                     sprint_speed_data = statcast_api_client.fetch_sprint_speed_for_player(stats_period=stats_period, player_id=player_data.id)
@@ -818,6 +828,14 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
             print("Error fetching Fangraphs defensive stats: ", e)
     print("Found Fangraphs defensive stats for players: ", len(fielding_stats_list))
 
+    # MLB API only has award winners, not voting placements (ex: 2nd in MVP). Grab from the cached BREF snapshot.
+    award_voting_results = []
+    try:
+        with PostgresDB(is_archive=True) as award_voting_db:
+            award_voting_results = award_voting_db.fetch_bref_award_voting(seasons=years, mlb_ids=[p.id for p in player_stats.players if p.id])
+    except Exception as e:
+        print("Error fetching cached award voting: ", e)
+
     # Generate cards for each player
     final_cards: list[dict] = []
     errors: list[tuple[str, str]] = []
@@ -868,6 +886,9 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
                     # Inject bref_id from pre-fetched lookup if enabled
                     if inject_bref_ids and not normalized_player_stats.bref_id:
                         normalized_player_stats.add_bref_id(mlb_id_to_bref.get(player_data.id))
+
+                    if stats_period.is_mlb:
+                        normalized_player_stats.inject_award_voting(award_voting_results)
 
                     if normalized_player_stats.is_missing_stats:
                         print(f"Skipping card generation for {player_data.full_name} ({normalized_player_stats.type.value}) in {years[0]} due to missing stats.")

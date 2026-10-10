@@ -1,0 +1,2714 @@
+{
+  "bref_id": "pujolal01",
+  "bref_url": "https://www.baseball-reference.com/players/p/pujolal01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "STEROID ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "NL",
+  "name": "Albert Pujols",
+  "nationality": "DO",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 117,
+    "2B": 51,
+    "3B": 1,
+    "AB": 591,
+    "BB": 89,
+    "CS": 1,
+    "FB": 130.28,
+    "G": 157,
+    "GB": 153.96,
+    "GIDP": 13,
+    "GO/AO": 1.04,
+    "H": 212,
+    "HBP": 10,
+    "HR": 43,
+    "IBB": 12,
+    "IF/FB": 0.12,
+    "PA": 685,
+    "PU": 17.76,
+    "R": 137,
+    "RBI": 124,
+    "SB": 5,
+    "SF": 5,
+    "SH": 0,
+    "SO": 65,
+    "TB": 394,
+    "accolades": {
+      "2B": [
+        "2003 NL 51 (1ST)"
+      ],
+      "H": [
+        "2003 NL 212 (1ST)"
+      ],
+      "HR": [
+        "2003 NL 43 (4TH)"
+      ],
+      "R": [
+        "2003 NL 137 (1ST)"
+      ],
+      "RBI": [
+        "2003 NL 124 (4TH)"
+      ],
+      "TB": [
+        "2003 NL 394 (1ST)"
+      ],
+      "WAR": [
+        "2003 NL 8.7 (2ND)"
+      ],
+      "allstar": [
+        "2003 (LF)"
+      ],
+      "awards": [
+        "2003 NL BATTING TITLE",
+        "2003 NL HANK AARON AWARD",
+        "2003 MAJOR LEAGUE PLAYER OF THE YEAR"
+      ],
+      "batting_avg": [
+        "2003 NL .359 (1ST)"
+      ],
+      "mvp": [
+        "2003 NL (2, 68%)"
+      ],
+      "onbase_perc": [
+        "2003 NL .439 (3RD)"
+      ],
+      "onbase_plus_slugging": [
+        "2003 NL 1.106 (2ND)"
+      ],
+      "onbase_plus_slugging_plus": [
+        "2003 NL 187 (2ND)"
+      ],
+      "silver_sluggers": [
+        "2003 NL (OF)"
+      ],
+      "slugging_perc": [
+        "2003 NL .667 (3RD)"
+      ]
+    },
+    "age": 23,
+    "award_summary": "AS,MVP-2,SS",
+    "bWAR": 8.7,
+    "batting_avg": 0.359,
+    "bref_id": "pujolal01",
+    "bref_url": "https://www.baseball-reference.com/players/p/pujolal01.shtml",
+    "dWAR": -0.8,
+    "game_logs": [
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-03-31",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-04-02",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 3,
+        "SO": 1,
+        "date": "2003-04-03",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 6,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-04-04",
+        "player_game_span": "CG(12)",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2003-04-05",
+        "player_game_span": "8-9",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "date": "2003-04-08",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "2003-04-09",
+        "player_game_span": "GS-6",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "2003-04-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2003-04-11",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2003-04-12",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 2,
+        "SO": 1,
+        "date": "2003-04-13",
+        "player_game_span": "GS-7",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "HBP": 1,
+        "PA": 5,
+        "date": "2003-04-14",
+        "player_game_span": "GS-7",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 5,
+        "R": 2,
+        "RBI": 2,
+        "SF": 1,
+        "date": "2003-04-16",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "BB": 1,
+        "PA": 1,
+        "date": "2003-04-18",
+        "player_game_span": "8-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2003-04-19",
+        "player_game_span": "9-GF",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2003-04-20",
+        "player_game_span": "8-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2003-04-22",
+        "player_game_span": "9-GF",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2003-04-23",
+        "player_game_span": "8-8",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "date": "2003-04-24",
+        "player_game_span": "GS-6",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "HR": 1,
+        "PA": 3,
+        "R": 1,
+        "RBI": 2,
+        "date": "2003-04-25",
+        "player_game_span": "GS-6",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "date": "2003-04-26",
+        "player_game_span": "GS-6",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "BB": 1,
+        "PA": 3,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2003-04-27",
+        "player_game_span": "GS-6",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 3,
+        "RBI": 2,
+        "date": "2003-04-29",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 2,
+        "PA": 4,
+        "R": 3,
+        "RBI": 3,
+        "date": "2003-04-30",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-05-01",
+        "player_game_span": "CG(10)",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "RBI": 1,
+        "date": "2003-05-02",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "HR": 1,
+        "PA": 3,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2003-05-03",
+        "player_game_span": "GS-7",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2003-05-04",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "2003-05-05",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "2003-05-06",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "2003-05-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "SO": 2,
+        "date": "2003-05-08",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "2003-05-09",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "date": "2003-05-10",
+        "player_game_span": "CG(10)",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "2003-05-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2003-05-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2003-05-15",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-05-16",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "CS": 1,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-05-17",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 1,
+        "date": "2003-05-18",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-05-19",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-05-20",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HBP": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 4,
+        "SO": 1,
+        "date": "2003-05-21",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-05-22",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 6,
+        "H": 5,
+        "PA": 6,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2003-05-23",
+        "player_game_span": "CG(10)",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-05-24",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "2003-05-25",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 3,
+        "RBI": 2,
+        "date": "2003-05-26",
+        "player_game_span": "GS-7",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-05-27",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "IBB": 1,
+        "PA": 4,
+        "date": "2003-05-28",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2003-05-29",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2003-05-30",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 3,
+        "H": 3,
+        "HBP": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "2003-05-31",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2003-06-01",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-06-03",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "2003-06-04",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 2,
+        "SF": 1,
+        "date": "2003-06-05",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 4,
+        "PA": 5,
+        "RBI": 4,
+        "date": "2003-06-06",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2003-06-07",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-06-08",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "date": "2003-06-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "2003-06-11",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "BB": 2,
+        "IBB": 1,
+        "PA": 7,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-06-12",
+        "player_game_span": "CG(13)",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-06-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-06-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "HBP": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-06-15",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-06-16",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 6,
+        "H": 2,
+        "HR": 1,
+        "PA": 6,
+        "R": 2,
+        "RBI": 4,
+        "SO": 1,
+        "date": "2003-06-17",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "BB": 1,
+        "H": 4,
+        "PA": 6,
+        "R": 3,
+        "date": "2003-06-18",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "date": "2003-06-19",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "2003-06-20",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 5,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 3,
+        "RBI": 4,
+        "date": "2003-06-21",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-06-22",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 6,
+        "BB": 1,
+        "H": 3,
+        "PA": 7,
+        "R": 1,
+        "date": "2003-06-24",
+        "player_game_span": "CG(14)",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "date": "2003-06-25",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 4,
+        "PA": 5,
+        "R": 2,
+        "date": "2003-06-26",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2003-06-27",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 6,
+        "R": 1,
+        "date": "2003-06-28",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 6,
+        "H": 4,
+        "HR": 2,
+        "PA": 6,
+        "R": 2,
+        "RBI": 3,
+        "date": "2003-06-29",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2003-06-30",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2003-07-01",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-07-02",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 4,
+        "SF": 1,
+        "date": "2003-07-03",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "HR": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-07-04",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 3,
+        "date": "2003-07-05",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-07-06",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2003-07-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2003-07-08",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "2003-07-09",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SB": 1,
+        "date": "2003-07-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2003-07-11",
+        "player_game_span": "8-GF",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "H": 3,
+        "HR": 1,
+        "IBB": 1,
+        "PA": 6,
+        "R": 2,
+        "RBI": 4,
+        "date": "2003-07-12",
+        "player_game_span": "CG(11)",
+        "team_ID": "STL"
+      },
+      {
+        "HBP": 1,
+        "PA": 1,
+        "date": "2003-07-13",
+        "player_game_span": "GS-1",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2003-07-17",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-07-18",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-07-19",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "HBP": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 3,
+        "RBI": 2,
+        "SB": 1,
+        "date": "2003-07-20",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-07-21",
+        "player_game_span": "CG(10)",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2003-07-22",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-07-23",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 2,
+        "date": "2003-07-25",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 5,
+        "H": 4,
+        "PA": 5,
+        "R": 3,
+        "RBI": 4,
+        "date": "2003-07-26",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-07-27",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2003-07-28",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2003-07-29",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-07-30",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2003-07-31",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-08-01",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-08-02",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-08-03",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-08-05",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-08-06",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-08-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2003-08-08",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2003-08-09",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2003-08-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-08-11",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 3,
+        "RBI": 3,
+        "date": "2003-08-12",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 3,
+        "date": "2003-08-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2003-08-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "3B": 1,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-08-15",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 3,
+        "H": 1,
+        "PA": 5,
+        "date": "2003-08-16",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "2003-08-22",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "HBP": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 2,
+        "date": "2003-08-23",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2003-08-24",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 1,
+        "date": "2003-08-26",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 2,
+        "BB": 1,
+        "H": 2,
+        "HBP": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2003-08-27",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "PA": 4,
+        "date": "2003-08-28",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-08-29",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "SB": 1,
+        "SO": 1,
+        "date": "2003-08-30",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 2,
+        "PA": 4,
+        "R": 2,
+        "RBI": 5,
+        "date": "2003-08-31",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "SO": 1,
+        "date": "2003-09-01",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "BB": 2,
+        "PA": 7,
+        "SO": 2,
+        "date": "2003-09-02 (1)",
+        "player_game_span": "CG(15)",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-09-02 (2)",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "date": "2003-09-03",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SB": 1,
+        "date": "2003-09-04",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2003-09-05",
+        "player_game_span": "CG(12)",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 3,
+        "H": 2,
+        "HR": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "date": "2003-09-06",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "HBP": 1,
+        "PA": 5,
+        "R": 2,
+        "date": "2003-09-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2003-09-09",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HBP": 1,
+        "HR": 2,
+        "PA": 5,
+        "R": 2,
+        "RBI": 3,
+        "date": "2003-09-10",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2003-09-11",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "SO": 1,
+        "date": "2003-09-12",
+        "player_game_span": "GS-6",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "PA": 4,
+        "date": "2003-09-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2003-09-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "HR": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-09-15",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 3,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2003-09-16",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "date": "2003-09-17",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2003-09-18",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "2003-09-19",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "BB": 2,
+        "H": 1,
+        "HR": 1,
+        "IBB": 1,
+        "PA": 7,
+        "R": 1,
+        "RBI": 1,
+        "date": "2003-09-20",
+        "player_game_span": "CG(13)",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 1,
+        "BB": 3,
+        "PA": 4,
+        "R": 2,
+        "date": "2003-09-21",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "date": "2003-09-23",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2003-09-24",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "SO": 2,
+        "date": "2003-09-26",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "SO": 1,
+        "date": "2003-09-27",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "SO": 2,
+        "date": "2003-09-28",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      }
+    ],
+    "hand": "Right",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": true,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": false,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "NL",
+    "name": "Albert Pujols",
+    "nationality": "DO",
+    "onbase_perc": 0.439,
+    "onbase_plus_slugging": 1.106,
+    "onbase_plus_slugging_plus": 187,
+    "outs_above_avg": {},
+    "pos_season": "*73/HD",
+    "positions": {
+      "1B": {
+        "drs": 5.0,
+        "g": 62,
+        "tzr": 4.0
+      },
+      "DH": {
+        "drs": null,
+        "g": 1,
+        "tzr": null
+      },
+      "LF": {
+        "drs": -4.0,
+        "g": 113,
+        "tzr": 10.0
+      },
+      "OF": {
+        "drs": -4.0,
+        "g": 113,
+        "tzr": 10.0
+      }
+    },
+    "postseason_game_logs": [
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2001-10-09",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2001-10-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "2001-10-12",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2001-10-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2001-10-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "3B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "RBI": 2,
+        "date": "2002-10-01",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2002-10-03",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2002-10-05",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2002-10-09",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 2,
+        "date": "2002-10-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "2002-10-12",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HBP": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "2002-10-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2002-10-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 1,
+        "date": "2004-10-05",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2004-10-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2004-10-09",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 4,
+        "date": "2004-10-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2004-10-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 1,
+        "date": "2004-10-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-10-16",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 3,
+        "date": "2004-10-17",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-10-18",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "BB": 1,
+        "H": 3,
+        "HR": 1,
+        "PA": 6,
+        "R": 3,
+        "RBI": 2,
+        "date": "2004-10-20",
+        "player_game_span": "CG(12)",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2004-10-21",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "HBP": 1,
+        "IBB": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "2004-10-23",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "2004-10-24",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-10-26",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2004-10-27",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 4,
+        "R": 2,
+        "date": "2005-10-04",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2005-10-06",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 2,
+        "AB": 3,
+        "BB": 2,
+        "H": 2,
+        "IBB": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2005-10-08",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2005-10-12",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2005-10-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2005-10-15",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "SF": 1,
+        "SO": 1,
+        "date": "2005-10-16",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 3,
+        "SO": 1,
+        "date": "2005-10-17",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2005-10-19",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2006-10-03",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "GIDP": 1,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2006-10-05",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "PA": 4,
+        "SO": 2,
+        "date": "2006-10-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "2006-10-08",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2006-10-12",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 3,
+        "date": "2006-10-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2006-10-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2006-10-15",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "HR": 1,
+        "IBB": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2006-10-17",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "IBB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2006-10-18",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "IBB": 2,
+        "PA": 4,
+        "date": "2006-10-19",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2006-10-21",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "2006-10-22",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "HBP": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2006-10-24",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "IBB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2006-10-26",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2006-10-27",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "IBB": 2,
+        "PA": 5,
+        "date": "2009-10-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "2009-10-08",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2009-10-10",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2011-10-01",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 5,
+        "CS": 1,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 2,
+        "date": "2011-10-02",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 3,
+        "AB": 5,
+        "H": 4,
+        "PA": 5,
+        "R": 1,
+        "SB": 1,
+        "date": "2011-10-04",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "2011-10-05",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2011-10-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2011-10-09",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 3,
+        "AB": 5,
+        "H": 4,
+        "HR": 1,
+        "PA": 5,
+        "R": 3,
+        "RBI": 5,
+        "date": "2011-10-10",
+        "player_game_span": "GS-9",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 2,
+        "BB": 2,
+        "H": 2,
+        "IBB": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2011-10-12",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2011-10-13",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2011-10-14",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2011-10-16",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "HBP": 1,
+        "IBB": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "2011-10-19",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2011-10-20",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 6,
+        "H": 5,
+        "HR": 3,
+        "PA": 6,
+        "R": 4,
+        "RBI": 6,
+        "date": "2011-10-22",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2011-10-23",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 3,
+        "IBB": 3,
+        "PA": 5,
+        "SO": 1,
+        "date": "2011-10-24",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 6,
+        "R": 1,
+        "SO": 1,
+        "date": "2011-10-27",
+        "player_game_span": "CG(11)",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "HBP": 1,
+        "PA": 4,
+        "R": 2,
+        "SO": 1,
+        "date": "2011-10-28",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "date": "2014-10-02",
+        "player_game_span": "CG(11)",
+        "team_ID": "LAA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2014-10-03",
+        "player_game_span": "CG(11)",
+        "team_ID": "LAA"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "2014-10-05",
+        "player_game_span": "CG",
+        "team_ID": "LAA"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2021-10-06",
+        "player_game_span": "9-GF",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 2,
+        "H": 2,
+        "PA": 2,
+        "date": "2021-10-11",
+        "player_game_span": "GS-5",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2021-10-12",
+        "player_game_span": "8-9",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2021-10-16",
+        "player_game_span": "GS-9",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2021-10-17",
+        "player_game_span": "6-6",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2021-10-19",
+        "player_game_span": "6-7",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2021-10-20",
+        "player_game_span": "7-7",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "SO": 1,
+        "date": "2021-10-21",
+        "player_game_span": "CG",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 2,
+        "PA": 2,
+        "SO": 2,
+        "date": "2021-10-23",
+        "player_game_span": "5-GF",
+        "team_ID": "LAD"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "PA": 4,
+        "date": "2022-10-07",
+        "player_game_span": "CG",
+        "team_ID": "STL"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SO": 1,
+        "date": "2022-10-08",
+        "player_game_span": "GS-8",
+        "team_ID": "STL"
+      }
+    ],
+    "rOBA": 0.47,
+    "rbat_plus": 194,
+    "rookie_status_year": 2001,
+    "slugging_perc": 0.667,
+    "sprint_speed": null,
+    "team_ID": "STL",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 2003,
+    "years_played": [
+      "2001",
+      "2002",
+      "2003",
+      "2004",
+      "2005",
+      "2006",
+      "2007",
+      "2008",
+      "2009",
+      "2010",
+      "2011",
+      "2012",
+      "2013",
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022"
+    ]
+  },
+  "stats_period": {
+    "display_text": "2003",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "2003",
+    "year_list": [
+      2003
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "STL",
+  "year": "2003"
+}

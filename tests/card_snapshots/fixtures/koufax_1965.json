@@ -1,0 +1,187 @@
+{
+  "bref_id": "koufasa01",
+  "bref_url": "https://www.baseball-reference.com/players/k/koufasa01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "EXPANSION ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "NL",
+  "name": "Sandy Koufax",
+  "nationality": "US",
+  "player_type": "Pitcher",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 154,
+    "2B": 29,
+    "3B": 7,
+    "AB": 1205,
+    "BB": 76,
+    "CS": 4,
+    "FB": 299.4,
+    "G": 43,
+    "GB": 254.45,
+    "GIDP": 13,
+    "GO/AO": 0.73,
+    "GS": 41,
+    "H": 216,
+    "HBP": 5,
+    "HR": 26,
+    "IBB": 4,
+    "IF/FB": 0.141,
+    "IP": 335.2,
+    "IP/GS": 8.1,
+    "PA": 1297,
+    "PA_unknown": 1,
+    "PU": 49.15,
+    "R": 90,
+    "ROE": 18,
+    "SB": 16,
+    "SF": 3,
+    "SH": 13,
+    "SO": 382,
+    "SV": 2,
+    "TB": 337,
+    "W": 26,
+    "accolades": {
+      "CG": [
+        "1965 NL 27 (1ST)"
+      ],
+      "IP": [
+        "1965 NL 335.7 (1ST)"
+      ],
+      "SHO": [
+        "1965 NL 8 (2ND)"
+      ],
+      "SO_p": [
+        "1965 NL 382 (1ST)"
+      ],
+      "W": [
+        "1965 NL 26 (1ST)"
+      ],
+      "WAR": [
+        "1965 NL 8.6 (4TH)"
+      ],
+      "allstar": [
+        "1965"
+      ],
+      "awards": [
+        "1965 NL BABE RUTH AWARD",
+        "1965 WS MVP",
+        "1965 NL TSN PITCHER OF THE YEAR",
+        "1965 AP ALL-STAR",
+        "1965 NL TSN ALL-STAR",
+        "1965 MAJOR LEAGUE PLAYER OF THE YEAR",
+        "1965 CY YOUNG",
+        "1965 NL TRIPLE CROWN",
+        "1965 NL PITCHING TITLE"
+      ],
+      "cyyoung": [
+        "1965 ML (1, 100%)"
+      ],
+      "earned_run_avg": [
+        "1965 NL 2.04 (1ST)"
+      ],
+      "earned_run_avg_plus": [
+        "1965 NL 160 (3RD)"
+      ],
+      "fip": [
+        "1965 NL 1.93 (1ST)"
+      ],
+      "mvp": [
+        "1965 NL (2, 63%)"
+      ],
+      "strikeouts_per_nine": [
+        "1965 NL 10.242 (1ST)"
+      ],
+      "whip": [
+        "1965 NL 0.855 (1ST)"
+      ],
+      "win_loss_perc": [
+        "1965 NL .765 (1ST)"
+      ]
+    },
+    "age": 29,
+    "award_summary": "AS,CYA-1,MVP-2",
+    "bWAR": "8.1",
+    "batters_faced": 1297,
+    "batting_avg": 0.179,
+    "batting_avg_bip": 0.238,
+    "bref_id": "koufasa01",
+    "bref_url": "https://www.baseball-reference.com/players/k/koufasa01.shtml",
+    "dWAR": "0.0",
+    "earned_run_avg": 2.04,
+    "fip": 1.93,
+    "hand": "Left",
+    "hand_throw": "Left",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": true,
+    "is_above_w_threshold": true,
+    "is_hof": true,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_so_leader": true,
+    "is_sv_leader": false,
+    "lg_ID": "NL",
+    "name": "Sandy Koufax",
+    "nationality": "US",
+    "onbase_perc": 0.227,
+    "onbase_plus_slugging": 0.507,
+    "positions": {
+      "P": {
+        "drs": null,
+        "g": 43,
+        "tzr": null
+      }
+    },
+    "rookie_status_year": 1956,
+    "slugging_perc": 0.28,
+    "strikeouts_per_nine": 10.24,
+    "team_ID": "LAD",
+    "type": "Pitcher",
+    "warnings": [],
+    "whip": 0.855,
+    "year_ID": 1965,
+    "years_played": [
+      "1955",
+      "1956",
+      "1957",
+      "1958",
+      "1959",
+      "1960",
+      "1961",
+      "1962",
+      "1963",
+      "1964",
+      "1965",
+      "1966"
+    ]
+  },
+  "stats_period": {
+    "display_text": "1965",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "1965",
+    "year_list": [
+      1965
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "LAD",
+  "year": "1965"
+}

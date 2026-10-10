@@ -1,0 +1,192 @@
+{
+  "bref_id": "mayswi01",
+  "bref_url": "https://www.baseball-reference.com/players/m/mayswi01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "EXPANSION ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "NL",
+  "name": "Willie Mays",
+  "nationality": "US",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 99,
+    "2B": 36,
+    "3B": 5,
+    "AB": 621,
+    "BB": 82,
+    "CS": 2,
+    "FB": 169.85,
+    "G": 162,
+    "GB": 151.38,
+    "GIDP": 19,
+    "GO/AO": 0.82,
+    "H": 189,
+    "HBP": 4,
+    "HR": 49,
+    "IBB": 11,
+    "IF/FB": 0.08,
+    "PA": 706,
+    "PU": 14.77,
+    "R": 130,
+    "RBI": 141,
+    "SB": 18,
+    "SF": 3,
+    "SH": 0,
+    "SO": 85,
+    "TB": 382,
+    "accolades": {
+      "2B": [
+        "1962 NL 36 (2ND)"
+      ],
+      "BB": [
+        "1962 NL 78 (4TH)"
+      ],
+      "H": [
+        "1962 NL 189 (8TH)"
+      ],
+      "HR": [
+        "1962 NL 49 (1ST)"
+      ],
+      "R": [
+        "1962 NL 130 (2ND)"
+      ],
+      "RBI": [
+        "1962 NL 141 (2ND)"
+      ],
+      "SB": [
+        "1962 NL 18 (7TH)"
+      ],
+      "TB": [
+        "1962 NL 382 (1ST)"
+      ],
+      "WAR": [
+        "1962 NL 10.5 (1ST)"
+      ],
+      "allstar": [
+        "1962-1 (CF)",
+        "1962-2 (CF)"
+      ],
+      "awards": [
+        "1962 AP ALL-STAR",
+        "1962 NL TSN ALL-STAR"
+      ],
+      "gold_gloves": [
+        "1962 NL (OF)"
+      ],
+      "mvp": [
+        "1962 NL (2, 72%)"
+      ],
+      "onbase_perc": [
+        "1962 NL .384 (7TH)"
+      ],
+      "onbase_plus_slugging": [
+        "1962 NL .999 (3RD)"
+      ],
+      "onbase_plus_slugging_plus": [
+        "1962 NL 165 (3RD)"
+      ],
+      "slugging_perc": [
+        "1962 NL .615 (3RD)"
+      ]
+    },
+    "age": 31,
+    "award_summary": "AS,AS,MVP-2,GG",
+    "bWAR": "10.5",
+    "batting_avg": 0.304,
+    "bref_id": "mayswi01",
+    "bref_url": "https://www.baseball-reference.com/players/m/mayswi01.shtml",
+    "dWAR": "2.1",
+    "hand": "Right",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": true,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": true,
+    "is_hr_leader": true,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "NL",
+    "name": "Willie Mays",
+    "nationality": "US",
+    "onbase_perc": 0.384,
+    "onbase_plus_slugging": 0.999,
+    "onbase_plus_slugging_plus": 165,
+    "outs_above_avg": {},
+    "pos_season": "*8/H",
+    "positions": {
+      "CF": {
+        "drs": null,
+        "g": 161,
+        "tzr": 20.0
+      },
+      "OF": {
+        "drs": null,
+        "g": 161,
+        "tzr": 20.0
+      }
+    },
+    "rookie_status_year": 1951,
+    "slugging_perc": 0.615,
+    "sprint_speed": null,
+    "team_ID": "SFG",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 1962,
+    "years_played": [
+      "1948",
+      "1951",
+      "1952",
+      "1954",
+      "1955",
+      "1956",
+      "1957",
+      "1958",
+      "1959",
+      "1960",
+      "1961",
+      "1962",
+      "1963",
+      "1964",
+      "1965",
+      "1966",
+      "1967",
+      "1968",
+      "1969",
+      "1970",
+      "1971",
+      "1972",
+      "1973"
+    ]
+  },
+  "stats_period": {
+    "display_text": "1962",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "1962",
+    "year_list": [
+      1962
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "SFG",
+  "year": "1962"
+}
