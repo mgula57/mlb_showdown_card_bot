@@ -1367,7 +1367,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="teams"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6">
+                                        <div className="px-3 lg:px-0 lg:pt-3 lg:pr-6">
                                             {selectedTeam && (
                                                 <ShowdownTeamPanel
                                                     showdownTeam={selectedRoster}

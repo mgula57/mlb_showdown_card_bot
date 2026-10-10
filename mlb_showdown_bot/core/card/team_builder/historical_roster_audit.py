@@ -97,6 +97,29 @@ class HistoricalRosterAuditor:
             issues.append(f"{result.resolved_bench} BE (min {t.min_bench})")
         return result
 
+    def audit_slots(self, season: int, team_id: int, abbreviation: str, name: str, slots: list[dict]) -> HistoricalRosterAuditResult:
+        """Audit freshly composed roster slots (build-historical's rows) before they're stored.
+
+        Builds the same row shape fetch_historical_roster_audit_rows returns, treating every slot
+        as resolved -- the slots were composed from the build set's own cards.
+        """
+        positions = [s['roster_position'] for s in slots]
+        field_positions = {p for p in positions if p in FIELD_POSITIONS}
+        total = len(slots)
+        return self.audit_row({
+            'season': season,
+            'team_id': team_id,
+            'abbreviation': abbreviation,
+            'name': name,
+            'recorded_roster_count': total,
+            'stored_total': total,
+            'resolved_total': total,
+            'resolved_field_positions': sorted(field_positions),
+            'resolved_starters': sum(p.startswith('SP') for p in positions),
+            'resolved_bullpen': sum(p in ('RP', 'CL') for p in positions),
+            'resolved_bench': positions.count('BE'),
+        })
+
     def audit(self, rows: list[dict]) -> list[HistoricalRosterAuditResult]:
         return [self.audit_row(r) for r in rows]
 

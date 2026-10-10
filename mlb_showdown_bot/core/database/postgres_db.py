@@ -2056,14 +2056,57 @@ class PostgresDB:
         row.setdefault('updated_at', row.get('modified_date'))
         return ExploreDataRecord(**row)
 
+    # Players on a team's Active list in the season's most recent dim_roster_history snapshot.
+    # Params: (season, season, team_id as text).
+    _LATEST_ACTIVE_ROSTER_CTE = """
+        WITH latest_roster AS (
+            SELECT player_id, full_name
+            FROM internal.dim_roster_history
+            WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM internal.dim_roster_history WHERE season = %s)
+                AND season = %s
+                AND team_id = %s
+                AND status = 'Active'
+        )
+    """
+
+    @staticmethod
+    def _season_card_year(season: int) -> int:
+        """For MLB seasons before May 1st, cards are still built from the prior year's stats."""
+        return season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
+
+    def fetch_active_roster_players_without_cards(self, season: int, showdown_set: str, team_id: int) -> list[str]:
+        """Names of players on the team's latest Active roster snapshot with no card_bot card for the set.
+
+        Those players are silently absent from fetch_team_season_card_pool's snapshot path, so
+        build-historical uses this to explain a short roster. Empty unless the season is still in
+        progress, since only an in-progress season's pool is built from snapshots.
+        """
+        if self.connection is None or not StatsPeriod.is_season_in_progress(season):
+            return []
+        card_year = self._season_card_year(season)
+        query = sql.SQL(self._LATEST_ACTIVE_ROSTER_CTE + """
+            SELECT COALESCE(latest_roster.full_name, latest_roster.player_id) AS name
+            FROM latest_roster
+            WHERE NOT EXISTS (
+                SELECT 1 FROM card_bot AS cards
+                WHERE cards.mlb_id::text = latest_roster.player_id
+                    AND cards.year = %s AND cards.showdown_set = %s
+            )
+            ORDER BY name
+        """)
+        rows = self.execute_query(query=query, filter_values=(season, season, str(team_id), card_year, showdown_set))
+        return [row['name'] for row in rows]
+
     def fetch_team_season_card_pool(self, season: int, showdown_set: str, team_id: int, team_abbr: Optional[str] = None, sport_id: int = 1) -> list[ExploreDataRecord]:
         """Fetch card records for every player on a team's roster in a given season.
 
         Used to construct an on-the-fly team builder Team for an MLB/WBC team.
         Sources, in priority order:
           1. WBC (sport_id 51): card_wbc filtered by wbc_team_id + wbc_season.
-          2. MLB season with roster snapshots: latest internal.dim_roster_history snapshot joined to card_bot.
-          3. Historical MLB season (no snapshot rows): card_bot filtered by the team's bref abbreviation + year.
+          2. MLB season in progress: latest internal.dim_roster_history Active snapshot joined to card_bot.
+          3. Finished MLB season: card_bot filtered by the team's bref abbreviation + year -- the whole
+             season's pool, with a traded player only on the team he finished with (a card's team_id
+             is the player's final team). Also the fallback when an in-progress season has no snapshots.
 
         Args:
             season: The season (year) of the roster.
@@ -2088,30 +2131,23 @@ class PostgresDB:
             rows = self.execute_query(query=query, filter_values=(team_id, season, showdown_set))
             return [self._wbc_row_to_explore_record(row) for row in rows]
 
-        # For MLB seasons before May 1st, cards are still built from the prior year's stats
-        card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
-
-        roster_history_query = sql.SQL("""
-            WITH latest_roster AS (
-                SELECT player_id
-                FROM internal.dim_roster_history
-                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM internal.dim_roster_history WHERE season = %s)
-                    AND season = %s
-                    AND team_id = %s
-                    AND status = 'Active'
+        # The latest snapshot is only "the roster" while the season is live -- once it's over, it
+        # would drop everyone who left mid-season. Without team_abbr it's the only path available.
+        if StatsPeriod.is_season_in_progress(season) or not team_abbr:
+            roster_history_query = sql.SQL(self._LATEST_ACTIVE_ROSTER_CTE + """
+                SELECT cards.*, 'BOT' AS source
+                FROM card_bot AS cards
+                JOIN latest_roster ON cards.mlb_id::text = latest_roster.player_id
+                WHERE cards.year = %s AND cards.showdown_set = %s
+            """)
+            rows = self.execute_query(
+                query=roster_history_query,
+                filter_values=(season, season, str(team_id), self._season_card_year(season), showdown_set),
             )
-            SELECT cards.*, 'BOT' AS source
-            FROM card_bot AS cards
-            JOIN latest_roster ON cards.mlb_id::text = latest_roster.player_id
-            WHERE cards.year = %s AND cards.showdown_set = %s
-        """)
-        rows = self.execute_query(query=roster_history_query, filter_values=(season, season, str(team_id), card_year, showdown_set))
-        if rows:
-            return [ExploreDataRecord(**row) for row in rows]
+            if rows or not team_abbr:
+                return [ExploreDataRecord(**row) for row in rows]
 
-        # Historical fallback: no roster snapshots for this season, use the cards' own team assignment.
-        if not team_abbr:
-            return []
+        # Card team assignment: finished seasons, or an in-progress season with no snapshots yet.
         # The MLB API reports a franchise's modern abbreviation for every season, but the archive
         # stores the era-correct one (1998 Tampa Bay is TBD, not TBR), so resolve backwards first.
         bref_team = Team.map_from_mlb_api_team(team_abbr, year=season).for_year(season)
@@ -2241,8 +2277,7 @@ class PostgresDB:
         mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
         if not mlb_ids:
             return [], meta_rows
-        # Before May 1st the season's cards are still built from the prior year's stats.
-        card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
+        card_year = self._season_card_year(season)
         query = sql.SQL("""
             SELECT cards.*, 'BOT' AS source
             FROM card_bot AS cards
@@ -2615,8 +2650,7 @@ class PostgresDB:
         mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
         if not mlb_ids:
             return [], meta_rows
-        # Before May 1st the season's cards are still built from the prior year's stats.
-        card_year = season - 1 if datetime.now().date() < datetime(season, 5, 1).date() else season
+        card_year = self._season_card_year(season)
         query = sql.SQL("""
             SELECT cards.*, 'BOT' AS source
             FROM card_bot AS cards

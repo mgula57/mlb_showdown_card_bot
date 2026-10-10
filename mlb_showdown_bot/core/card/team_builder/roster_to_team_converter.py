@@ -1,4 +1,5 @@
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Callable, Optional
 
 from .team import (
     Team, TeamSource, CardSource, TeamRosterSlot, Lineup, LineupSlot, PitcherAssignment,
@@ -8,6 +9,51 @@ from .autofill import OFFENSE_POSITIONS
 from .lineup import LineupBuilder, LineupCandidate
 from ...database.postgres_db import ExploreDataRecord
 from ...shared.player_position import Position, PositionSlot
+
+
+@dataclass
+class RosterBuildDiagnostics:
+    """Why a composed roster holds fewer cards than its input pool (see RosterToTeamConverter.diagnose).
+
+    Every input card ends up either on the roster or in exactly one of the dropped lists, each
+    entry a human-readable "Name (reason)" string.
+    """
+    pool_size: int
+    roster_size: int
+    max_roster_size: Optional[int]
+    no_card_id: list[str] = field(default_factory=list)
+    below_playing_time: list[str] = field(default_factory=list)
+    left_off: list[str] = field(default_factory=list)
+    rotation_shortfall: Optional[str] = None
+    unfilled_positions: list[str] = field(default_factory=list)
+
+    @property
+    def is_short(self) -> bool:
+        return self.max_roster_size is not None and self.roster_size < self.max_roster_size
+
+    def reasons(self) -> list[str]:
+        """Explanations for every card that didn't make the roster, plus why a short roster is short."""
+        lines = []
+        if self.no_card_id:
+            lines.append(f"{len(self.no_card_id)} card(s) without a card_id: {', '.join(self.no_card_id)}")
+        if self.below_playing_time:
+            lines.append(
+                f"{len(self.below_playing_time)} card(s) under the {RosterToTeamConverter.MIN_PLAYING_TIME_FRACTION:.0%} "
+                f"playing-time cutoff: {', '.join(self.below_playing_time)}"
+            )
+        if self.left_off:
+            lines.append(f"{len(self.left_off)} eligible card(s) left off: {', '.join(self.left_off)}")
+        if self.rotation_shortfall:
+            lines.append(self.rotation_shortfall)
+        lines += self.unfilled_positions
+        if self.is_short:
+            eligible = self.pool_size - len(self.no_card_id) - len(self.below_playing_time)
+            if eligible < self.max_roster_size:
+                lines.append(
+                    f"only {eligible} of {self.pool_size} pooled card(s) are eligible, below the "
+                    f"{self.max_roster_size}-man roster limit -- nothing is backfilled"
+                )
+        return lines
 
 
 class RosterToTeamConverter:
@@ -32,6 +78,12 @@ class RosterToTeamConverter:
     # either excludes everyone on a rebuilding/injury-riddled roster or (mid-season) a team that
     # simply hasn't played many games yet.
     MIN_PLAYING_TIME_FRACTION = 0.15
+
+    # Once the rotation's starters are picked (by games started), SP1..SP5 are ordered by a
+    # weighted blend of workload and quality -- each scaled against the best of the selected
+    # starters -- so a high-volume back-end arm doesn't front the rotation over the ace.
+    ROTATION_ORDER_GS_WEIGHT = 0.5
+    ROTATION_ORDER_POINTS_WEIGHT = 0.5
 
     def __init__(
         self,
@@ -61,6 +113,7 @@ class RosterToTeamConverter:
         protected_ids = set(self.forced_positions) | set(self.forced_batting_order)
         if self.forced_starting_pitcher_id:
             protected_ids.add(self.forced_starting_pitcher_id)
+        self.input_cards = cards
         self.cards = self._filter_by_playing_time([c for c in cards if c.card_id], protected_ids=protected_ids)
         self.team_id = team_id
         self.name = name
@@ -70,42 +123,45 @@ class RosterToTeamConverter:
         self.season = season
         self.source = source
 
+    @staticmethod
+    def _playing_time_groups(
+        cards: list[ExploreDataRecord],
+    ) -> list[tuple[list[ExploreDataRecord], Callable[[ExploreDataRecord], float], str]]:
+        """Split cards into (group, playing-time measure, unit label) per role for _filter_by_playing_time.
+
+        Hitters are measured in PA (falling back to G for older data without PA on record),
+        starters in IP, and relievers in G (appearances) -- each the natural unit for that role.
+        """
+        hitters = [c for c in cards if c.player_type != 'PITCHER']
+        pitchers = [c for c in cards if c.player_type == 'PITCHER']
+        starters = [c for c in pitchers if Position.SP in (c.positions_list or [])]
+        relievers = [c for c in pitchers if Position.SP not in (c.positions_list or [])]
+        return [
+            (hitters, lambda c: c.pa if c.pa is not None else (c.g or 0), 'PA'),
+            (starters, lambda c: c.real_ip or 0.0, 'IP'),
+            (relievers, lambda c: c.g or 0, 'G'),
+        ]
+
+    @classmethod
+    def _playing_time_threshold(cls, group: list[ExploreDataRecord], measure: Callable[[ExploreDataRecord], float]) -> float:
+        return max((measure(c) for c in group), default=0.0) * cls.MIN_PLAYING_TIME_FRACTION
+
     @classmethod
     def _filter_by_playing_time(
         cls, cards: list[ExploreDataRecord], protected_ids: set[str],
     ) -> list[ExploreDataRecord]:
         """Drop cameo-sample cards relative to the team's own most-used player at each role.
 
-        Hitters are indexed off the team's max PA (falling back to G for older data without PA
-        on record), starters off the team's max IP, and relievers off the team's max G
-        (appearances) -- each the natural playing-time unit for that role. A card survives if it
-        clears MIN_PLAYING_TIME_FRACTION of that team-specific max, so the cutoff scales down
-        automatically for a team assembled mid-season or one with thin, injury-riddled depth,
-        rather than excluding everyone (or no one) against a fixed number.
+        A card survives if it clears MIN_PLAYING_TIME_FRACTION of the team's max for its role
+        (see _playing_time_groups), so the cutoff scales down automatically for a team assembled
+        mid-season or one with thin, injury-riddled depth, rather than excluding everyone (or no
+        one) against a fixed number.
         """
-        hitters = [c for c in cards if c.player_type != 'PITCHER']
-        pitchers = [c for c in cards if c.player_type == 'PITCHER']
-        starters = [c for c in pitchers if Position.SP in (c.positions_list or [])]
-        relievers = [c for c in pitchers if Position.SP not in (c.positions_list or [])]
-
-        def _hitter_measure(card: ExploreDataRecord) -> float:
-            return card.pa if card.pa is not None else (card.g or 0)
-
-        def _starter_measure(card: ExploreDataRecord) -> float:
-            return card.real_ip or 0.0
-
-        def _reliever_measure(card: ExploreDataRecord) -> float:
-            return card.g or 0
-
-        def _keep(group: list[ExploreDataRecord], measure) -> list[ExploreDataRecord]:
-            threshold = max((measure(c) for c in group), default=0.0) * cls.MIN_PLAYING_TIME_FRACTION
-            return [c for c in group if c.card_id in protected_ids or measure(c) >= threshold]
-
-        return (
-            _keep(hitters, _hitter_measure)
-            + _keep(starters, _starter_measure)
-            + _keep(relievers, _reliever_measure)
-        )
+        kept: list[ExploreDataRecord] = []
+        for group, measure, _ in cls._playing_time_groups(cards):
+            threshold = cls._playing_time_threshold(group, measure)
+            kept += [c for c in group if c.card_id in protected_ids or measure(c) >= threshold]
+        return kept
 
     @staticmethod
     def _max_roster_size(season: Optional[int]) -> Optional[int]:
@@ -133,6 +189,20 @@ class RosterToTeamConverter:
     @staticmethod
     def _by_games_started(card: ExploreDataRecord) -> tuple:
         return (card.gs or 0, card.real_ip or 0.0, card.points or 0)
+
+    def _order_rotation(self, rotation_cards: list[ExploreDataRecord]) -> list[ExploreDataRecord]:
+        """Order the already-selected starters SP1..SPn by weighted, max-normalized GS and points."""
+        max_gs = max((c.gs or 0 for c in rotation_cards), default=0) or 1
+        max_points = max((c.points or 0 for c in rotation_cards), default=0) or 1
+
+        def _score(card: ExploreDataRecord) -> tuple:
+            weighted = (
+                self.ROTATION_ORDER_GS_WEIGHT * (card.gs or 0) / max_gs
+                + self.ROTATION_ORDER_POINTS_WEIGHT * (card.points or 0) / max_points
+            )
+            return (weighted, *self._by_games_started(card))
+
+        return sorted(rotation_cards, key=_score, reverse=True)
 
     @staticmethod
     def _by_saves(card: ExploreDataRecord) -> tuple:
@@ -312,6 +382,7 @@ class RosterToTeamConverter:
         # ROTATION: starters by games started -> SP1..SPn, sized to however many the
         # pool actually has (capped by the number of role slots the UI supports)
         rotation_cards = sorted(starters, key=self._by_games_started, reverse=True)[:self.MAX_ROTATION_SLOTS]
+        rotation_cards = self._order_rotation(rotation_cards)
 
         # If the real starting pitcher is known (All-Star game), pin them to SP1 regardless of
         # season role — even a reliever-by-season who got the ASG start belongs at the front.
@@ -392,6 +463,63 @@ class RosterToTeamConverter:
             lineups=[Lineup(name=DEFAULT_LINEUP_NAME, index=0, slots=lineup_slots)],
             rotation=rotation,
             **team_kwargs,
+        )
+
+    def diagnose(self, team: Optional[Team] = None) -> RosterBuildDiagnostics:
+        """Account for every input card that didn't make the composed roster, and why.
+
+        Pass an already-built `team` to avoid composing it twice.
+        """
+        team = team or self.build()
+        rostered_ids = {s.card_id for s in team.roster}
+        kept_ids = {c.card_id for c in self.cards}
+
+        # Thresholds are recomputed over the same card_id'd pool _filter_by_playing_time saw.
+        below_playing_time = []
+        for group, measure, unit in self._playing_time_groups([c for c in self.input_cards if c.card_id]):
+            threshold = self._playing_time_threshold(group, measure)
+            below_playing_time += [
+                f"{c.name} ({measure(c):g} {unit} < {threshold:.1f})"
+                for c in group if c.card_id not in kept_ids
+            ]
+
+        # Rotation slots only go to SP-tagged cards, so a short rotation is a pool fact, not a trim.
+        starters = [c for c in self.cards if c.player_type == 'PITCHER' and Position.SP in (c.positions_list or [])]
+        rotation_shortfall = None
+        if len(starters) < self.MAX_ROTATION_SLOTS:
+            filtered_sp = [c.name for c in self.input_cards if c.card_id and c.card_id not in kept_ids
+                           and c.player_type == 'PITCHER' and Position.SP in (c.positions_list or [])]
+            rotation_shortfall = (
+                f"only {len(starters)} SP-eligible pitcher(s) after filtering (rotation needs {self.MAX_ROTATION_SLOTS}); "
+                f"the rest are tagged RP/CL" + (f"; filtered SP cameo(s): {', '.join(filtered_sp)}" if filtered_sp else "")
+            )
+
+        # Lineup positions nobody could fill, plus any filtered cameo who was eligible there.
+        filled = {s.field_position for lineup in team.lineups for s in lineup.slots}
+        unfilled_positions = []
+        for position in OFFENSE_POSITIONS:
+            if position in filled:
+                continue
+            slot = PositionSlot('CA' if position == 'C' else position)
+            cameos = [c.name for c in self.input_cards if c.card_id and c.card_id not in kept_ids
+                      and c.player_type != 'PITCHER' and self._pos_matches(c, slot)]
+            unfilled_positions.append(
+                f"no eligible hitter left for {position}"
+                + (f"; filtered cameo(s) who could play it: {', '.join(cameos)}" if cameos else "")
+            )
+
+        return RosterBuildDiagnostics(
+            rotation_shortfall=rotation_shortfall,
+            unfilled_positions=unfilled_positions,
+            pool_size=len(self.input_cards),
+            roster_size=len(team.roster),
+            max_roster_size=self._max_roster_size(self.season),
+            no_card_id=[c.name or '?' for c in self.input_cards if not c.card_id],
+            below_playing_time=below_playing_time,
+            left_off=[
+                f"{c.name} ({'P' if c.player_type == 'PITCHER' else 'H'}, {c.g or 0} G)"
+                for c in self.cards if c.card_id not in rostered_ids
+            ],
         )
 
     def build_api_dict(self) -> dict:

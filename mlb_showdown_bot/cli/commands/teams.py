@@ -102,6 +102,7 @@ def build_historical_teams(
     sport_id: int = typer.Option(1, "--sport-id", help="MLB Stats API sport id (1 = MLB)"),
     showdown_set: str = typer.Option("EXPANDED", "--set", "-s", help="Reference set whose cards drive the playing-time sort"),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Print each composed roster without writing to DB"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Print build diagnostics (dropped/left-off cards) for every team, not just flagged ones"),
     env: str = typer.Option("dev", "--env", "-e", help="Database environment: dev | prod"),
 ):
     """Pre-process historical team rosters into internal.dim_historical_team / dim_historical_roster.
@@ -115,6 +116,10 @@ def build_historical_teams(
     unlike its abbreviation - e.g. id 144 covers both the 1955 Milwaukee Braves and the current
     Atlanta Braves). A plain abbreviation is resolved against the *current* season's teams first,
     so `--teams ATL` still pulls every Braves season back to 1901.
+
+    Each composed roster is checked with the same rules as `teams audit-historical` (for the
+    --set it was built from); flagged or skipped teams print the reasons cards were dropped, and
+    a summary of every flagged team is printed at the end.
     """
     try:
         showdown_set_enum = Set(showdown_set)
@@ -131,6 +136,19 @@ def build_historical_teams(
     db = PostgresDB(is_archive=(env.lower() == "prod"))
     if not dry_run:
         db.build_historical_team_tables()
+
+    auditor = HistoricalRosterAuditor()
+    flagged: list[tuple[int, str, list[str]]] = []
+
+    def _report(season_year: int, team_abbr: str, issues: list[str], reasons: list[str]) -> None:
+        if issues:
+            flagged.append((season_year, team_abbr, issues))
+            typer.secho(f"  ⚠ [{season_year}] {team_abbr}: {'; '.join(issues)}", fg=typer.colors.YELLOW, err=True)
+        elif verbose and reasons:
+            typer.echo(f"  [{season_year}] {team_abbr}: ok")
+        if issues or verbose:
+            for reason in reasons:
+                typer.echo(f"      - {reason}", err=bool(issues))
 
     total_teams = 0
     total_slots = 0
@@ -160,16 +178,27 @@ def build_historical_teams(
                 team_abbr=team_abbr,
                 sport_id=sport_id,
             )
+            # Active-roster players with no card never reach the pool, so they're reported separately.
+            no_card_reasons = []
+            uncarded = db.fetch_active_roster_players_without_cards(
+                season=season_year, showdown_set=showdown_set_enum.value, team_id=api_team.id,
+            )
+            if uncarded:
+                no_card_reasons.append(
+                    f"{len(uncarded)} active-roster player(s) have no {showdown_set_enum.value} card: {', '.join(uncarded)}"
+                )
             if not cards:
+                _report(season_year, team_abbr, [f"skipped — no {showdown_set_enum.value} cards in the team's card pool"], no_card_reasons)
                 continue
 
-            composed = RosterToTeamConverter(
+            converter = RosterToTeamConverter(
                 cards=cards,
                 team_id=f"mlb-{sport_id}-{api_team.id}-{season_year}-{showdown_set_enum.value}",
                 name=api_team.name or team_abbr,
                 abbreviation=team_abbr,
                 season=season_year,
-            ).build()
+            )
+            composed = converter.build()
 
             # Slots are stored by (mlb_id, player_type) so any set's cards can be resolved against
             # them later — player_type keeps a two-way player's pitching and hitting slots distinct.
@@ -192,8 +221,21 @@ def build_historical_teams(
                 for i, slot in enumerate(composed.roster)
                 if slot.card_id in mlb_id_by_card_id
             ]
+
+            reasons = no_card_reasons + converter.diagnose(composed).reasons()
+            no_mlb_id = [
+                f"{name_by_card_id.get(slot.card_id)} ({slot.roster_position})"
+                for slot in composed.roster if slot.card_id not in mlb_id_by_card_id
+            ]
+            if no_mlb_id:
+                reasons.append(f"{len(no_mlb_id)} rostered card(s) dropped for missing mlb_id: {', '.join(no_mlb_id)}")
+
             if not rows:
+                _report(season_year, team_abbr, ["skipped — no composed slots have an mlb_id"], reasons)
                 continue
+            audit = auditor.audit_slots(
+                season=season_year, team_id=api_team.id, abbreviation=team_abbr, name=api_team.name or '', slots=rows,
+            )
 
             if dry_run:
                 typer.echo(f"\n  [{season_year}] {api_team.name} ({team_abbr}) — {len(rows)} slots")
@@ -216,6 +258,7 @@ def build_historical_teams(
                     'roster_count': len(rows),
                 })
                 db.upsert_historical_roster_rows(season=season_year, sport_id=sport_id, team_id=api_team.id, rows=rows)
+            _report(season_year, team_abbr, audit.issues, reasons)
 
             season_teams += 1
             season_slots += len(rows)
@@ -227,6 +270,13 @@ def build_historical_teams(
     db.close_connection()
     suffix = " (dry run — nothing written)" if dry_run else ""
     typer.echo(f"\nDone. {total_teams} team(s), {total_slots} roster slot(s) across {len(seasons)} season(s).{suffix}")
+    if flagged:
+        table = PrettyTable(["season", "team", "issues"])
+        table.align = "l"
+        for season_year, team_abbr, issues in flagged:
+            table.add_row([season_year, team_abbr, "; ".join(issues)])
+        typer.secho(f"\n{len(flagged)} team(s) flagged (see reasons above):", fg=typer.colors.YELLOW, err=True)
+        typer.echo(table, err=True)
 
 
 @app.command("audit-historical")
