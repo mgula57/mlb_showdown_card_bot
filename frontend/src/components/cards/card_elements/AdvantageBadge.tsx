@@ -7,7 +7,7 @@ export default function AdvantageBadge() {
     return (
         <span
             aria-label="Won the advantage"
-            className="pointer-events-none absolute -bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-(--advantage) px-1.5 py-px text-[8px] font-black uppercase leading-none tracking-wider text-black shadow-sm"
+            className="advantage-badge-pop pointer-events-none absolute -bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-(--advantage) px-1.5 py-px text-[8px] font-black uppercase leading-none tracking-wider text-black shadow-sm"
         >
             ADV
         </span>

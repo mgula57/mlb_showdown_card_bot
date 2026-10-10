@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import date
 from random import Random
 from typing import Callable, Optional
@@ -35,6 +36,16 @@ _ORDINAL_SUFFIXES = {1: "st", 2: "nd", 3: "rd"}
 # HITTING ONE MEANS THE PLAY LOOP CAN NO LONGER END THE INNING - A LOGIC BUG, NOT A LONG GAME.
 _MAX_PLATE_APPEARANCES_PER_GAME = 2000
 _MAX_PLATE_APPEARANCES_PER_HALF_INNING = 150
+
+
+@dataclass(frozen=True)
+class _GoAheadRun:
+    """The run that put `team` in front - the moment the official scorer's pitchers of record are
+    read off. `winning_pitcher_id` is `team`'s pitcher of record (on the mound for them when their
+    offense went ahead); `losing_pitcher_id` is the opponent pitcher charged with that run."""
+    team: object
+    winning_pitcher_id: str
+    losing_pitcher_id: str
 
 
 def _ordinal(n: int) -> str:
@@ -168,6 +179,11 @@ class Game:
         self.start_state = start_state
 
         self.logs = []
+        # EVERY LEAD TAKEN DURING THE SIMULATED PORTION, IN ORDER, AND THE PITCHERS CHARGED WITH A
+        # BLOWN SAVE - BOTH RECORDED PLAY BY PLAY IN `_track_lead_changes`, SINCE A LEAD CAN CHANGE
+        # HANDS MID-STINT WHERE ENTRY/EXIT SCORE SNAPSHOTS NEVER SEE IT.
+        self._go_ahead_runs: list[_GoAheadRun] = []
+        self._blown_save_ids: set[str] = set()
 
         if start_state is None:
             self.innings = [Inning(inning=1, is_top=True)]
@@ -250,6 +266,7 @@ class Game:
             inning.outs += plate_appearance.outs
 
             if plate_appearance.runs_scored:
+                self._track_lead_changes(team_hitting=team_hitting, team_pitching=team_pitching, plate_appearance=plate_appearance)
                 inning.runs += plate_appearance.runs_scored
                 team_hitting.current_game_stats.add_stat(StatCategory.RUNS_SCORED, plate_appearance.runs_scored)
                 team_pitching.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, plate_appearance.runs_scored)
@@ -311,6 +328,7 @@ class Game:
                     ),
                     steal_rolls=[self._runner_roll_log(r) for r in plate_appearance.steal_attempts if r.roll],
                     advance_rolls=[self._runner_roll_log(r) for r in plate_appearance.advance_attempts],
+                    double_play_roll=self._runner_roll_log(plate_appearance.double_play_roll) if plate_appearance.double_play_roll and plate_appearance.double_play_roll.runner else None,
                 )
                 if collect_log:
                     self.logs.append(log_entry)
@@ -392,7 +410,7 @@ class Game:
 
     @staticmethod
     def _runner_roll_log(roll) -> RunnerRollLog:
-        """A steal/extra-base `Roll` as its log row. `roll.base` is where the runner went FROM."""
+        """A steal/extra-base/double-play `Roll` as its log row. `roll.base` is where the runner went FROM."""
         return RunnerRollLog(runner_id=roll.runner.id, runner=roll.runner.name, base=roll.base, roll=roll.roll, result=roll.result.value, defense=roll.defense, target=roll.target)
 
     @staticmethod
@@ -422,54 +440,76 @@ class Game:
         """Outs this pitcher recorded in this game, from his per-game statline."""
         return int(round(team.stats.stats_for_id(pitcher.id).stat(StatCategory.IP) * 3))
 
+    def _track_lead_changes(self, team_hitting, team_pitching, plate_appearance: PlateAppearance) -> None:
+        """Walk this plate appearance's runs one at a time (called BEFORE they're added to the
+        score) and record the go-ahead run if the hitting team took the lead, plus a blown save if
+        the pitcher on the mound let a save-situation lead slip to a tie or worse."""
+        margin = int(team_hitting.current_game_stats.stat(StatCategory.RUNS_SCORED)) - int(team_pitching.current_game_stats.stat(StatCategory.RUNS_SCORED))
+        pitcher = team_pitching.current_pitcher()
+        for run_index in range(int(plate_appearance.runs_scored)):
+            margin += 1
+            if margin == 0 and self._entered_in_save_situation(team_pitching, pitcher):
+                self._blown_save_ids.add(pitcher.id)
+            if margin == 1:
+                # A runner's `pitcher_id` is who put him on - an inherited runner's run is charged
+                # to the previous pitcher, not the one on the mound.
+                runners = plate_appearance.runners_scored
+                charged_id = runners[run_index].pitcher_id if run_index < len(runners) else pitcher.id
+                self._go_ahead_runs.append(_GoAheadRun(
+                    team=team_hitting,
+                    winning_pitcher_id=team_hitting.current_pitcher().id,
+                    losing_pitcher_id=charged_id or pitcher.id,
+                ))
+
+    @staticmethod
+    def _entered_in_save_situation(team, pitcher: SimPitcher) -> bool:
+        """A reliever (not the starter) who took the mound protecting a one-to-three-run lead."""
+        entry_margin = pitcher.team_runs_at_entry - pitcher.opp_runs_at_entry
+        return bool(team._pitchers_used) and pitcher is not team._pitchers_used[0] and 1 <= entry_margin <= 3
+
+    @staticmethod
+    def _pitcher_game_outs(team, pitcher: SimPitcher) -> int:
+        """Outs this pitcher recorded in this game, from his per-game statline."""
+        return int(round(team.stats.stats_for_id(pitcher.id).stat(StatCategory.IP) * 3))
+
     def _award_pitcher_decisions(self) -> None:
         """Assign W / L / SV / BS to the pitchers of record and merge them into each team's
         per-game stats, so they roll up into the season totals exactly like every other pitching
         stat (`Season` merges `team.stats` after each game).
 
-        The engine keeps only each pitcher's entry score (`SimPitcher.team_runs_at_entry` /
-        `opp_runs_at_entry`, snapshotted in `SimTeam.mark_pitcher_entered`) and the final score,
-        not an inning-by-inning lead history, so these follow the official-scorer rules only as
-        far as that allows:
-          - Winning pitcher: the winning team's pitcher on the mound when it took the lead it
-            never gave back. If that is the starter but he failed to complete five innings, the
-            win goes to the winning team's most effective reliever (most outs, then fewest runs).
-          - Losing pitcher: the losing team's pitcher on the mound when it fell behind for good.
+        Follows the official-scorer rules off the lead changes `_track_lead_changes` recorded:
+          - Winning pitcher: the winning team's pitcher of record when it took the lead it never
+            gave back. If that is the starter but he failed to complete five innings, the win goes
+            to the winning team's most effective reliever (most outs, then fewest runs).
+          - Losing pitcher: the pitcher charged with that go-ahead run.
           - Save: the winning team's finisher, when he is not the winning pitcher, entered with
-            the lead, and either protected a margin of three or fewer or recorded 9+ outs.
-          - Blown save: any reliever who entered protecting a margin of one to three and left
-            with it gone (tied or trailing). Independent of the win - a pitcher can blow a save
-            and still be credited the win.
+            the lead, never blew it, and either protected a margin of three or fewer or recorded
+            9+ outs.
+          - Blown save: a reliever who entered protecting a one-to-three-run lead and allowed the
+            tying run. Independent of the win - a pitcher can blow a save and still be credited it.
+
+        A takeover whose final lead was already in place at the handoff has no go-ahead run in
+        the simulated portion; that case falls back to reading the pitchers' entry scores.
         """
         home_score, away_score = int(self.home_team_final_score), int(self.away_team_final_score)
         if home_score == away_score:
             return
 
-        for team, own_final, opp_final in (
-            (self.home_team, home_score, away_score),
-            (self.away_team, away_score, home_score),
-        ):
+        winning_team = self.home_team if home_score > away_score else self.away_team
+        go_ahead = next((run for run in reversed(self._go_ahead_runs) if run.team is winning_team), None)
+
+        for team in (self.home_team, self.away_team):
             if not team._pitchers_used:
                 continue
-            decisions = self._decisions_for_side(team, own_final - opp_final)
+            decisions = self._decisions_for_side(team, is_winner=team is winning_team, go_ahead=go_ahead)
             for pitcher_id, totals in decisions.items():
                 team.stats.update_individual_stats(id=pitcher_id, stats=Stats(id=pitcher_id, totals=totals))
 
-    def _decisions_for_side(self, team, final_margin: int) -> dict[str, dict[str, float]]:
+    def _decisions_for_side(self, team, is_winner: bool, go_ahead: Optional[_GoAheadRun]) -> dict[str, dict[str, float]]:
         """{pitcher_id: {stat: 1, ...}} of the W / L / SV / BS charged to one team's staff."""
         pitchers: list[SimPitcher] = team._pitchers_used
-
-        # (pitcher, run margin at entry, run margin at exit) per stint, all from this team's
-        # perspective. A stint's exit margin is the next pitcher's entry margin; the last
-        # pitcher's exit is the final margin.
-        stints: list[tuple[SimPitcher, int, int]] = []
-        for i, pitcher in enumerate(pitchers):
-            entry = pitcher.team_runs_at_entry - pitcher.opp_runs_at_entry
-            exit_margin = (
-                pitchers[i + 1].team_runs_at_entry - pitchers[i + 1].opp_runs_at_entry
-                if i + 1 < len(pitchers) else final_margin
-            )
-            stints.append((pitcher, entry, exit_margin))
+        by_id = {pitcher.id: pitcher for pitcher in pitchers}
+        entry_margin = lambda p: p.team_runs_at_entry - p.opp_runs_at_entry
 
         decisions: dict[str, dict[str, float]] = {}
 
@@ -477,29 +517,33 @@ class Game:
             bucket = decisions.setdefault(pitcher_id, {})
             bucket[category.value] = bucket.get(category.value, 0) + 1
 
-        # BLOWN SAVES - EITHER SIDE. A RELIEVER (NOT THE STARTER) WHO ENTERED PROTECTING A
-        # ONE-TO-THREE-RUN LEAD AND LEFT WITH IT GONE.
-        for index, (pitcher, entry, exit_margin) in enumerate(stints):
-            if index > 0 and 1 <= entry <= 3 and exit_margin <= 0:
+        for pitcher in pitchers:
+            if pitcher.id in self._blown_save_ids:
                 award(pitcher.id, StatCategory.BLOWN_SAVES)
 
-        if final_margin > 0:
-            # WINNING PITCHER: THE LAST ARM THAT ENTERED WHILE NOT AHEAD (THE STARTER ALWAYS
-            # QUALIFIES - HE ENTERS 0-0). REASSIGNED OFF A SUB-FIVE-INNING STARTER.
-            record_idx = max((i for i, (_, entry, _) in enumerate(stints) if entry <= 0), default=0)
-            winner = stints[record_idx][0]
-            if record_idx == 0 and len(pitchers) > 1 and self._pitcher_game_outs(team, winner) < 15:
+        if is_winner:
+            if go_ahead is not None and go_ahead.winning_pitcher_id in by_id:
+                winner = by_id[go_ahead.winning_pitcher_id]
+            else:
+                # FALLBACK: THE LAST ARM THAT ENTERED WHILE NOT AHEAD (THE STARTER ALWAYS QUALIFIES).
+                winner = next((p for p in reversed(pitchers) if entry_margin(p) <= 0), pitchers[0])
+            if winner is pitchers[0] and len(pitchers) > 1 and self._pitcher_game_outs(team, winner) < 15:
                 winner = max(pitchers[1:], key=lambda p: (self._pitcher_game_outs(team, p), -p.runs_allowed))
             award(winner.id, StatCategory.WINS)
 
-            finisher, finisher_entry, _ = stints[-1]
-            if (len(pitchers) > 1 and finisher.id != winner.id and finisher_entry > 0
+            finisher = pitchers[-1]
+            finisher_entry = entry_margin(finisher)
+            if (len(pitchers) > 1 and finisher.id != winner.id and finisher.id not in self._blown_save_ids
+                    and finisher_entry > 0
                     and (finisher_entry <= 3 or self._pitcher_game_outs(team, finisher) >= 9)):
                 award(finisher.id, StatCategory.SAVES)
         else:
-            # LOSING PITCHER: THE LAST ARM THAT ENTERED WHILE NOT BEHIND.
-            record_idx = max((i for i, (_, entry, _) in enumerate(stints) if entry >= 0), default=0)
-            award(stints[record_idx][0].id, StatCategory.LOSSES)
+            if go_ahead is not None and go_ahead.losing_pitcher_id in by_id:
+                loser = by_id[go_ahead.losing_pitcher_id]
+            else:
+                # FALLBACK: THE LAST ARM THAT ENTERED WHILE NOT BEHIND.
+                loser = next((p for p in reversed(pitchers) if entry_margin(p) >= 0), pitchers[0])
+            award(loser.id, StatCategory.LOSSES)
 
         return decisions
 

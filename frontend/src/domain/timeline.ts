@@ -56,13 +56,15 @@ export type TransitionSeverity = "quiet" | "notable" | "big";
 /** The dice behind a sim's runner-only beat: one steal attempt (before the pitch) or extra-base
  *  send (after the ball is in play). `base` is the base the runner ran FROM (1-3). */
 export type RunnerRoll = {
-    kind: "steal" | "advance";
+    /** `double_play`: the turn on a ground ball — the "runner" is the batter racing to first. */
+    kind: "steal" | "advance" | "double_play";
     runner: PlayerRef;
     base: number;
     roll: number;
     isSafe: boolean;
     /** What the roll was weighed against — out when `defense + roll > target`. `defense` is the
-     *  catcher's arm (steal) or the outfield defense (extra base); `target` is the runner's speed
+     *  catcher's arm (steal), the outfield defense (extra base) or the infield defense (double
+     *  play); `target` is the runner's speed
      *  including the base bonus. Unset on logs from before these were recorded. */
     defense?: number;
     target?: number;

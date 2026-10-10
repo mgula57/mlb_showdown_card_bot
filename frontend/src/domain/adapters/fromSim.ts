@@ -24,6 +24,7 @@ import {
     type RunnerMove,
     type RunnerSpot,
 } from "../timeline";
+import { SimBoxscoreAccumulator } from "./simBoxscore";
 
 export type SimTeamIdentityJson = {
     abbreviation: string;
@@ -162,6 +163,9 @@ export type SimGameLogEntryJson = {
     /** The dice behind the steal and extra-base beats above. Absent on older logs. */
     steal_rolls?: SimRunnerRollJson[];
     advance_rolls?: SimRunnerRollJson[];
+    /** The double-play turn on a ground ball, when one was attempted ("out" = turned). Absent on
+     *  older logs. */
+    double_play_roll?: SimRunnerRollJson | null;
 };
 
 /** `base` is the base the runner ran FROM; `result` is "safe" | "out". */
@@ -440,6 +444,28 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
     const scheduledInnings = view.linescore?.scheduledInnings ?? 9;
     const finalErrors = { away: view.linescore?.away.errors ?? 0, home: view.linescore?.home.errors ?? 0 };
     const accumulator = new LinescoreAccumulator(scheduledInnings, finalErrors);
+    // Box score lines rebuilt per play, so a game in progress shows its lines as of the cursor.
+    // Needs the final box as the roster template, plus a current-format log: player ids, who
+    // scored (`scored`), and the post-steal snapshot (`bases_after_steal`, which arrived with the
+    // `retired` reasons). An older log can't attribute runs/steals to a player, so it stays
+    // frozen at the final line (and is hidden mid-replay).
+    const canRebuildBoxscore = !!view.away.boxscore && !!view.home.boxscore && log.length > 0
+        && log.every((e) => !!e.hitter_id && !!e.pitcher_id && e.scored !== undefined && e.bases_detail !== undefined && e.bases_after_steal !== undefined);
+    const boxscoreAccumulator = canRebuildBoxscore
+        ? SimBoxscoreAccumulator.fromFinal(
+            { away: view.away.boxscore!, home: view.home.boxscore! },
+            log,
+            startState ? { inning: startState.inning, isTop: startState.is_top, outs: startState.outs, runners: startState.runners.runners } : undefined,
+        )
+        : null;
+    // The final frame keeps the engine's own box (with W / L / SV notes) rather than the rebuild.
+    const sidesFor = (away: number, home: number, isFinal: boolean): Pick<GameView, "away" | "home"> => {
+        const box = !isFinal && boxscoreAccumulator ? boxscoreAccumulator.snapshot() : null;
+        return {
+            away: { ...view.away, score: away, isWinner: isFinal ? view.away.isWinner : undefined, ...(box ? { boxscore: box.away } : {}) },
+            home: { ...view.home, score: home, isWinner: isFinal ? view.home.isWinner : undefined, ...(box ? { boxscore: box.home } : {}) },
+        };
+    };
     // W / L / SV are the result — only the final frame carries them, matching the MLB timeline.
     const baseView = (overrides: Partial<GameView>): GameView => ({
         ...view, isReplay: true, ...overrides,
@@ -491,8 +517,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             runners: { bases: prevBases, scored: [], retired: [], batter },
             view: baseView({
                 state: "LIVE",
-                away: { ...view.away, score: startState?.away.runs_scored ?? 0, isWinner: undefined },
-                home: { ...view.home, score: startState?.home.runs_scored ?? 0, isWinner: undefined },
+                ...sidesFor(startState?.away.runs_scored ?? 0, startState?.home.runs_scored ?? 0, false),
                 linescore: accumulator.snapshot(),
                 situation: {
                     inning, isTop, inningLabel: ordinal(inning), outs: startState?.outs ?? 0,
@@ -646,6 +671,8 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             home: hasAdvanceLeg ? homeAfterSwing : entry.home_score,
             runs: hasAdvanceLeg ? swingRuns : runsScored,
             isHomeRun,
+            // A ground-ball DP turn resolves on the swing itself, so its die rides this beat.
+            runnerRolls: toRunnerRolls("double_play", entry.double_play_roll ? [entry.double_play_roll] : undefined),
         });
 
         if (hasAdvanceLeg) {
@@ -675,6 +702,9 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
             if (leg.play || (isLastLeg && hasAdvanceLeg)) {
                 accumulator.apply(inning, isTop, leg.away, leg.home, leg.play ? isHit : false);
             }
+            // The box score takes the whole plate appearance on its swing beat — the engine
+            // credits a PA's stats as one unit, so there's no per-beat split to mirror.
+            if (leg.play) boxscoreAccumulator?.apply(entry);
 
             const moves = buildRunnerMoves({
                 prevBases: legCursor, nextBases: leg.bases, scored: leg.scored, retired: leg.retired, batter: leg.moveBatter,
@@ -709,8 +739,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 },
                 view: baseView({
                     state: legKind === "FINAL" ? "FINAL" : "LIVE",
-                    away: { ...view.away, score: leg.away, isWinner: legKind === "FINAL" ? view.away.isWinner : undefined },
-                    home: { ...view.home, score: leg.home, isWinner: legKind === "FINAL" ? view.home.isWinner : undefined },
+                    ...sidesFor(leg.away, leg.home, legKind === "FINAL"),
                     linescore: accumulator.snapshot(),
                     situation: {
                         inning, isTop, inningLabel: ordinal(inning), outs: leg.outs,
@@ -740,8 +769,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
                 },
                 view: baseView({
                     state: "LIVE",
-                    away: { ...view.away, score: entry.away_score, isWinner: undefined },
-                    home: { ...view.home, score: entry.home_score, isWinner: undefined },
+                    ...sidesFor(entry.away_score, entry.home_score, false),
                     linescore: accumulator.snapshot(),
                     situation: {
                         inning: breakInning, isTop: breakIsTop, inningLabel: ordinal(breakInning), outs: 0,
@@ -763,6 +791,6 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
         frames,
         liveIndex: frames.length - 1,
         hasRunnerIdentity,
-        frozen: { boxscore: true, defense: true },
+        frozen: { boxscore: !boxscoreAccumulator, defense: true },
     };
 };

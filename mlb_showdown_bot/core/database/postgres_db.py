@@ -10315,7 +10315,18 @@ class PostgresDB:
     _SIM_GAME_LIST_COLUMNS = """
         g.sim_id, g.user_id, g.game_pk, g.season, g.showdown_set, g.game_date,
         g.away_abbr, g.home_abbr, g.away_score, g.home_score,
-        g.is_takeover, g.takeover_inning, g.seed, g.created_at
+        g.is_takeover, g.takeover_inning, g.seed, g.created_at,
+        p.username AS creator_username,
+        us.avatar_url AS creator_avatar_url,
+        us.default_primary_color AS creator_primary_color,
+        us.default_secondary_color AS creator_secondary_color
+    """
+
+    # Pairs with `_SIM_GAME_LIST_COLUMNS` - every query selecting those columns must also carry
+    # these joins so the creator's username/avatar resolve (both keyed by the auth user id as text).
+    _SIM_GAME_LIST_JOINS = """
+        LEFT JOIN public.profiles p ON p.id::text = g.user_id
+        LEFT JOIN internal.user_settings us ON us.user_id = g.user_id
     """
 
     def build_sim_game_table(self) -> None:
@@ -10403,6 +10414,7 @@ class PostgresDB:
             SELECT {self._SIM_GAME_LIST_COLUMNS}, g.result,
                    (g.user_id IS NOT DISTINCT FROM %s) AS is_own
               FROM internal.sim_game g
+              {self._SIM_GAME_LIST_JOINS}
              WHERE g.sim_id = %s::uuid
             """,
             (user_id, sim_id),
@@ -10417,6 +10429,7 @@ class PostgresDB:
             f"""
             SELECT {self._SIM_GAME_LIST_COLUMNS}, (g.user_id IS NOT DISTINCT FROM %s) AS is_own
               FROM internal.sim_game g
+              {self._SIM_GAME_LIST_JOINS}
              WHERE g.game_pk = %s
              ORDER BY g.created_at DESC
              LIMIT %s
@@ -10424,6 +10437,16 @@ class PostgresDB:
             (user_id, int(game_pk), limit),
         )
         return self._stringify_sim_game_ids(rows)
+
+    def count_sim_games_for_game(self, game_pk: int) -> int:
+        """How many simulations of one real game have been stored (uncapped, unlike the list)."""
+        if not self.connection:
+            return 0
+        rows = self.execute_query(
+            "SELECT COUNT(*) AS count FROM internal.sim_game WHERE game_pk = %s",
+            (int(game_pk),),
+        )
+        return int(rows[0]['count']) if rows else 0
 
     @staticmethod
     def _stringify_sim_game_ids(rows: list[dict]) -> list[dict]:
