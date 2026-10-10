@@ -405,6 +405,10 @@ class PlayerStatsArchive:
         
         db.upload_to_card_data(showdown_cards=showdown_cards, batch_size=1000)
 
+        # TARGETED REBUILD: REPLACE THE PLAYERS' EXISTING CARDS RATHER THAN ADDING A NEW VERSION ALONGSIDE THEM
+        if player_id_list:
+            db.delete_superseded_card_versions(showdown_cards)
+
         if refresh_explore:
             db.refresh_explore_views()
 

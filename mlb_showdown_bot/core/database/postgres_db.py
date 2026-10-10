@@ -7023,11 +7023,9 @@ class PostgresDB:
                 batch_data = []
                 for showdown in batch:
                     card_data = showdown.as_json()
-                    
+
                     # Clean up the data for JSON storage
-                    bref_or_mlb_id = str(showdown.mlb_id) if showdown.mlb_id else showdown.bref_id
-                    id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
-                    player_id = "-".join(id_fields).lower()
+                    player_id = self._dim_card_player_id(showdown)
                     card_data['player_id'] = player_id
                     card_data['name'] = unidecode(card_data['name'])
                     card_data['id'] = "-".join([player_id, showdown.set.value])
@@ -7038,8 +7036,9 @@ class PostgresDB:
                 insert_query = """
                     INSERT INTO internal.dim_card (id, player_id, showdown_set, version, card_data) 
                     VALUES %s
-                    ON CONFLICT (player_id, showdown_set, version) 
+                    ON CONFLICT (id) 
                     DO UPDATE SET 
+                        version = EXCLUDED.version,
                         card_data = EXCLUDED.card_data,
                         modified_date = NOW()
                 """
@@ -7063,6 +7062,28 @@ class PostgresDB:
             raise
         finally:
             cursor.close()
+
+    @staticmethod
+    def _dim_card_player_id(showdown: ShowdownPlayerCard) -> str:
+        """dim_card.player_id for a card (matches player_season_stats.id, which card_bot uses as its id)."""
+        bref_or_mlb_id = str(showdown.mlb_id) if showdown.mlb_id else showdown.bref_id
+        id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
+        return "-".join(id_fields).lower()
+
+    def delete_superseded_card_versions(self, showdown_cards: list[ShowdownPlayerCard]) -> None:
+        """Remove older-version card_bot rows for the given cards' player/set. dim_card holds one row
+        per card id (the upsert overwrites its version), but card_bot keys on version, so a rebuild
+        under a newer card version would otherwise leave the old row alongside the new one."""
+        if self.connection is None or not showdown_cards:
+            return
+        keys = list({(self._dim_card_player_id(c), c.set.value, c.version) for c in showdown_cards})
+        with self.connection.cursor() as cursor:
+            execute_values(cursor, """
+                DELETE FROM card_bot b
+                USING (VALUES %s) AS k(player_id, showdown_set, version)
+                WHERE b.id = k.player_id AND b.showdown_set = k.showdown_set AND b.showdown_bot_version <> k.version
+            """, keys, page_size=len(keys))
+            print(f"✓ Removed {cursor.rowcount} superseded card_bot rows")
 
     # Rate stats: averaged across years (rates don't compound). Everything else is a counting stat and is summed.
     _RATE_STAT_NAMES = [

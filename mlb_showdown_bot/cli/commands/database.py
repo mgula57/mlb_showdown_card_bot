@@ -89,8 +89,9 @@ def database_update(
         if run_player_cards:
             player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
             player_stats_archive.generate_showdown_player_cards(
-                publish_to_postgres=publish_to_postgres, 
-                refresh_explore=refresh_explore, 
+                publish_to_postgres=publish_to_postgres,
+                env=env,
+                refresh_explore=refresh_explore,
                 sets=showdown_set_list,
                 ignore_minimums=ignore_minimums,
                 player_id_list=parsed_player_id_list

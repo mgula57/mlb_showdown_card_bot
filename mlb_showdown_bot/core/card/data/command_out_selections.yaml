@@ -37,3 +37,41 @@
   outs: 8
   added_in: "4.5"
   note: 13 Onbase / 8 Out chart matches his OPS closely and is more representative of his overall performance.
+
+# ---------------------------------
+# Johan Santana 2004
+# ---------------------------------
+- key: santajo02-2004-04-05
+  player_id: santajo02
+  year: "2004"
+  sets: ["2004", "2005"]
+  command: 6
+  outs: 17
+  added_in: "4.5"
+  note: "Matches the original WOTC version, and the 6 control / 17 Out puts him properly as the #1 pitcher in the AL."
+
+
+# ---------------------------------
+# Alex Rodriguez 1996
+# ---------------------------------
+- key: rodrial01-1996-04-05-EXP
+  player_id: rodrial01
+  year: "1996"
+  sets: ["2004", "2005", "EXPANDED"]
+  command: 13
+  outs: 7
+  added_in: "4.5"
+  note: The 12 Onbase / 6 Out chart underrated his OBP too much, the 13 Onbase / 7 Out chart provides a more accurate representation.
+
+
+# ---------------------------------
+# Hank Greenberg 1940
+# ---------------------------------
+- key: greenha01-1940-05
+  player_id: greenha01
+  year: "1940"
+  sets: ["2005"]
+  command: 13
+  outs: 6
+  added_in: "4.5"
+  note: 13 Onbase / 6 Out gives better HR representation, and has the same expected OPS as the 12 Onbase / 4 Out chart.
