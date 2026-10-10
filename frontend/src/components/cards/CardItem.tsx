@@ -11,6 +11,7 @@ import LiveIcon from "../shared/icons/LiveIcon";
 import type { CardItemActionButton } from './CardItemCompact';
 import { formatYear } from "../../functions/formatters";
 import CardIcon from "./card_elements/CardIcon";
+import PointsEstimateComparison from "./card_elements/PointsEstimateComparison";
 
 /**
  * Props for the CardItem component
@@ -190,22 +191,6 @@ export const CardItem = ({
         cardPositionsAndDefenseString,
     ].filter(Boolean); // Remove undefined values
 
-    const renderPointsComparison = (estPoints:number, diffPoints:number) => {
-        const absoluteDifference = Math.abs(diffPoints);
-        const differenceSign = diffPoints > 0 ? '▲' : '▼';
-        return (
-            <div className="flex items-center">
-                EST: {estPoints}
-                {diffPoints !== 0 && (
-                    <span className={`ml-0.5 text-[8px] ${diffPoints > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
-                        {differenceSign}
-                        {absoluteDifference}
-                    </span>
-                )}
-            </div>
-        );
-    }
-
     return (
         <div className={`${className} relative`}>
             {hasAdvantage && <AdvantageBadge />}
@@ -336,7 +321,7 @@ export const CardItem = ({
                                 </span>
                             )}
                             {cardPointsEstimated && cardPoints && (
-                                renderPointsComparison(cardPointsEstimated, cardPointsDiffEstimatedVsActual || 0)
+                                <PointsEstimateComparison estimated={cardPointsEstimated} diff={cardPointsDiffEstimatedVsActual || 0} />
                             )}
                             {metadataArray.map((meta, index) => (
                                 <div key={index} className={`${isRedacted ? 'redacted' : ''}`}>{meta}</div>

@@ -40,6 +40,7 @@ import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonLis
 import { PlayModal } from './sim/PlayModal';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
+import PointsEstimateComparison from '../cards/card_elements/PointsEstimateComparison';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
@@ -859,23 +860,29 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         : null;
 
     const pointsBreakdown = useMemo(() => {
-        const pts = (id: string) => cardMap[id]?.points ?? 0;
-        // Exclude the starting pitcher's synthetic "batting" slot (field_position: 'SP') —
-        // he's already counted under `rotation` below, so including him here double-counts him.
-        const lineup = defaultLineup.slots
-            .filter(s => s.field_position !== 'SP')
-            .reduce((sum, s) => sum + pts(s.card_id), 0);
-        const bench  = draft.roster
-            .filter(s => s.roster_position === 'BE')
-            .reduce((sum, s) => sum + Math.round(pts(s.card_id) * draft.bench_pts_multiplier), 0);
-        const rotation = draft.rotation
-            .filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role))
-            .reduce((sum, r) => sum + pts(r.card_id), 0);
-        const bullpen  = draft.rotation
-            .filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role))
-            .reduce((sum, r) => sum + pts(r.card_id), 0);
-        return { lineup, bench, rotation, bullpen, total: lineup + bench + rotation + bullpen };
+        const breakdown = (pts: (id: string) => number) => {
+            // Exclude the starting pitcher's synthetic "batting" slot (field_position: 'SP') —
+            // he's already counted under `rotation` below, so including him here double-counts him.
+            const lineup = defaultLineup.slots
+                .filter(s => s.field_position !== 'SP')
+                .reduce((sum, s) => sum + pts(s.card_id), 0);
+            const bench  = draft.roster
+                .filter(s => s.roster_position === 'BE')
+                .reduce((sum, s) => sum + Math.round(pts(s.card_id) * draft.bench_pts_multiplier), 0);
+            const rotation = draft.rotation
+                .filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role))
+                .reduce((sum, r) => sum + pts(r.card_id), 0);
+            const bullpen  = draft.rotation
+                .filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role))
+                .reduce((sum, r) => sum + pts(r.card_id), 0);
+            return { lineup, bench, rotation, bullpen, total: lineup + bench + rotation + bullpen };
+        };
+        const actual = breakdown(id => cardMap[id]?.points ?? 0);
+        // Cards without an estimate (non-WOTC) fall back to their actual points, so they don't skew the diff.
+        const estimatedTotal = breakdown(id => cardMap[id]?.points_estimated ?? cardMap[id]?.points ?? 0).total;
+        return { ...actual, estimatedTotal };
     }, [draft, cardMap, defaultLineup]);
+    const hasWotcCards = draft.roster.some(s => s.card_source === CardSource.WOTC);
 
     // Pace indicator shown in the drafting banner: how many points are left under the
     // budget and, spread across the remaining empty roster slots, roughly how much that
@@ -1454,6 +1461,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <span className={`text-[12px] lg:text-[13px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
                                 {`${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS`}
                             </span>
+                            {hasWotcCards && (
+                                <PointsEstimateComparison
+                                    estimated={pointsBreakdown.estimatedTotal}
+                                    diff={pointsBreakdown.estimatedTotal - pointsBreakdown.total}
+                                    className="shrink-0 text-nowrap text-[11px] lg:text-[12px] font-bold text-(--text-secondary)"
+                                    diffClassName="text-[10px] lg:text-[11px]"
+                                />
+                            )}
                             <div className="hidden @[350px]:flex gap-1.5 items-center text-nowrap">
                                 {([
                                     { label: 'LINEUP', value: pointsBreakdown.lineup, bucket: rosterProgress.buckets.lineup },
@@ -2039,7 +2054,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     showdownSet={draft.allowed_sets?.[0] ?? '2000'}
                     teamPoints={pointsBreakdown.total}
                     rosterCount={draft.roster.length}
-                    hasWotcCards={draft.roster.some(s => s.card_source === CardSource.WOTC)}
+                    hasWotcCards={hasWotcCards}
                     token={token}
                     presetChallenge={challenge}
                     onCancel={() => setShowPlayModal(false)}
