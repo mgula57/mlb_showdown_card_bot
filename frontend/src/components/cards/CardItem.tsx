@@ -6,7 +6,7 @@ import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
 import { useTheme, imageForSet } from "../shared/SiteSettingsContext";
 import { CardSource } from "../../types/cardSource";
-import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles, FaCircleDot } from 'react-icons/fa6';
+import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles } from 'react-icons/fa6';
 import LiveIcon from "../shared/icons/LiveIcon";
 import type { CardItemActionButton } from './CardItemCompact';
 import { formatYear } from "../../functions/formatters";

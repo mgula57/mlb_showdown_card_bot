@@ -37,3 +37,15 @@
   outs: 8
   added_in: "4.5"
   note: 13 Onbase / 8 Out chart matches his OPS closely and is more representative of his overall performance.
+
+# ---------------------------------
+# Hank Greenberg 1940
+# ---------------------------------
+- key: greenha01-1940-05
+  player_id: greenha01
+  year: "1940"
+  sets: ["2005"]
+  command: 13
+  outs: 6
+  added_in: "4.5"
+  note: 13 Onbase / 6 Out gives better HR representation, and has the same expected OPS as the 12 Onbase / 4 Out chart.
