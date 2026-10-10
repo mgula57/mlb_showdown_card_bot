@@ -1,0 +1,114 @@
+# CARD SNAPSHOT CASES
+#
+# Real players whose cards are guarded by `tests/test_card_snapshots.py`. Each case is rebuilt in every Set.
+# `kwargs` are passed straight to `generate_card()` by `capture_fixtures.py` (run once, locally, with DB access)
+# to capture the card's inputs into `fixtures/<id>.json`. Tests run offline from those fixtures.
+#
+# To add a case: append it here, run `python tests/card_snapshots/capture_fixtures.py --missing`,
+# then `pytest tests/test_card_snapshots.py --update-snapshots` and commit the new fixture + snapshot.
+
+# ---------------------------------
+# ERAS
+# ---------------------------------
+- id: ruth_1921
+  note: Live-ball era slugger, OF
+  kwargs: {name: ruthba01, year: "1921"}
+- id: johnson_1913
+  note: Dead-ball era SP ace
+  kwargs: {name: johnswa01, year: "1913"}
+- id: koufax_1965
+  note: 1960s low-offense SP
+  kwargs: {name: koufasa01, year: "1965"}
+- id: mays_1962
+  note: 1960s CF, power + speed
+  kwargs: {name: mayswi01, year: "1962"}
+- id: bonds_2001
+  note: Steroid era extreme OBP/HR, LF
+  kwargs: {name: bondsba01, year: "2001"}
+- id: pedro_2000
+  note: Steroid era SP ace
+  kwargs: {name: martipe02, year: "2000"}
+- id: trout_2016
+  note: Statcast era CF
+  kwargs: {name: troutmi01, year: "2016"}
+- id: judge_2024
+  note: Pitch clock era slugger
+  kwargs: {name: judgeaa01, year: "2024"}
+- id: skubal_2025
+  note: Pitch clock era SP
+  kwargs: {name: skubata01, year: "2025"}
+- id: crow_armstrong_2026
+  note: MLB API datasource + curated command/out selection (2001, CLASSIC)
+  kwargs: {name: crowape01, year: "2026"}
+
+# ---------------------------------
+# POSITIONS / ARCHETYPES
+# ---------------------------------
+- id: molina_2013
+  note: Catcher defense
+  kwargs: {name: molinya01, year: "2013"}
+- id: jeter_1999
+  note: SS
+  kwargs: {name: jeterde01, year: "1999"}
+- id: pujols_2003
+  note: 1B
+  kwargs: {name: pujolal01, year: "2003"}
+- id: ortiz_2016
+  note: DH, low speed
+  kwargs: {name: ortizda01, year: "2016"}
+- id: ichiro_2004
+  note: Contact/speed RF, low power
+  kwargs: {name: suzukic01, year: "2004"}
+- id: hamilton_2015
+  note: Elite speed, weak bat
+  kwargs: {name: hamilbi02, year: "2015"}
+- id: rivera_2004
+  note: Closer
+  kwargs: {name: riverma01, year: "2004"}
+- id: hader_2018
+  note: Multi-inning reliever
+  kwargs: {name: haderjo01, year: "2018"}
+- id: degrom_2018
+  note: Modern SP ace
+  kwargs: {name: degroja01, year: "2018"}
+- id: ohtani_2023_hitter
+  note: Two-way player, hitter side
+  kwargs: {name: ohtansh01, year: "2023", player_type_override: "HITTER"}
+- id: ohtani_2023_pitcher
+  note: Two-way player, pitcher side
+  kwargs: {name: ohtansh01, year: "2023", player_type_override: "PITCHER"}
+
+# ---------------------------------
+# SAMPLE SIZES
+# ---------------------------------
+- id: freeman_2020
+  note: 60 game season
+  kwargs: {name: freemfr01, year: "2020"}
+- id: posey_2009
+  note: Small sample hitter (17 PA)
+  kwargs: {name: poseybu01, year: "2009"}
+- id: posey_2009_regressed
+  note: Small sample hitter regressed toward replacement level
+  kwargs: {name: poseybu01, year: "2009", regress_small_sample_to_replacement: true}
+- id: degrom_2022
+  note: Low IP SP
+  kwargs: {name: degroja01, year: "2022"}
+
+# ---------------------------------
+# STATS PERIODS
+# ---------------------------------
+- id: gwynn_career
+  note: Full career hitter
+  kwargs: {name: gwynnto01, year: "CAREER"}
+- id: maddux_career
+  note: Full career pitcher
+  kwargs: {name: maddugr01, year: "CAREER"}
+- id: bonds_2001_2004
+  note: Multi-year range
+  kwargs: {name: bondsba01, year: "2001-2004"}
+- id: ortiz_2004_postseason
+  note: Postseason period
+  kwargs: {name: ortizda01, year: "2004", stats_period_type: "POST"}
+- id: trout_2016_split
+  note: Split period (BREF)
+  kwargs: {name: troutmi01, year: "2016", stats_period_type: "SPLIT", split: "vs LHP"}

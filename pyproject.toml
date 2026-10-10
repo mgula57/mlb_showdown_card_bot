@@ -58,7 +58,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pip-chill>=1.0.1"
+    "pip-chill>=1.0.1",
+    "pytest>=8.0"
 ]
 
 [project.urls]

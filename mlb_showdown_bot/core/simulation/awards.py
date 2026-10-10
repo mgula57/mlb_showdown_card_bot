@@ -148,11 +148,28 @@ class AwardsBuilder:
             card_source=self.result.config.card_sources.get(real_card_id(stats.id), CardSource.BOT.value),
         )
 
+    @property
+    def _playing_time_denominator(self) -> int:
+        """Schedule length MVP playing time is measured against.
+
+        A `merge_real_stats` resume's stat lines cover the whole regular season (real portion +
+        simulated remainder), so they're measured against the full schedule - the same reasoning
+        `Season._build_result` uses for its qualifying thresholds. That's also what keeps a
+        postseason-only resume working at all: it simulates zero regular-season games, so its
+        `schedule_length` is 0 and would zero out every MVP score, leaving the award to whoever
+        happens to be listed first.
+        """
+        config = self.result.config
+        if config.resume_from_real_season and config.merge_real_stats:
+            return self.result.original_schedule_length or self.result.schedule_length
+        return self.result.schedule_length
+
     def _mvp_score(self, stats: Stats) -> float:
         league_stats = self.result.league_totals.get(PlayerType.HITTER.value)
         wrc_plus = stats.stat(StatCategory.wRC_PLUS, league_stats=league_stats, woba_weights=self.result.woba_weights)
         games = stats.stat(StatCategory.G)
-        playing_time_pct = (games / self.result.schedule_length) if self.result.schedule_length else 0
+        denominator = self._playing_time_denominator
+        playing_time_pct = (games / denominator) if denominator else 0
         net_steals = stats.stat(StatCategory.SB) - stats.stat(StatCategory.CS)
         defense_bonus = self._DEFENSE_BOOST_PER_POINT * stats.defense
         baserunning_bonus = self._NET_SB_BOOST_PER_STEAL * net_steals

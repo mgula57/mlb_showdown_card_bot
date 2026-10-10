@@ -1,0 +1,170 @@
+{
+  "bref_id": "degroja01",
+  "bref_url": "https://www.baseball-reference.com/players/d/degroja01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "STATCAST ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "NL",
+  "name": "Jacob deGrom",
+  "nationality": "US",
+  "player_type": "Pitcher",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 112,
+    "2B": 27,
+    "3B": 3,
+    "AB": 776,
+    "BB": 51,
+    "CS": 8,
+    "FB": 133.63,
+    "G": 32,
+    "GB": 189.04,
+    "GIDP": 13,
+    "GO/AO": 1.16,
+    "GS": 32,
+    "H": 152,
+    "HBP": 5,
+    "HR": 10,
+    "IBB": 3,
+    "IF/FB": 0.18,
+    "IP": 217.0,
+    "IP/GS": 6.8,
+    "PA": 835,
+    "PA_unknown": "",
+    "PU": 29.33,
+    "R": 48,
+    "ROE": 7,
+    "SB": 15,
+    "SF": 5,
+    "SH": 3,
+    "SO": 269,
+    "SV": 0,
+    "TB": 215,
+    "W": 10,
+    "accolades": {
+      "CG": [
+        "2018 NL 1 (5TH)"
+      ],
+      "IP": [
+        "2018 NL 217.0 (2ND)"
+      ],
+      "SO_p": [
+        "2018 NL 269 (2ND)"
+      ],
+      "WAR": [
+        "2018 NL 9.9 (1ST)"
+      ],
+      "allstar": [
+        "2018"
+      ],
+      "awards": [
+        "2018 NL CY YOUNG",
+        "2018 NL PITCHING TITLE",
+        "2018 NL TSN PITCHER OF THE YEAR"
+      ],
+      "cyyoung": [
+        "2018 NL (1, 99%)"
+      ],
+      "earned_run_avg": [
+        "2018 NL 1.70 (1ST)"
+      ],
+      "earned_run_avg_plus": [
+        "2018 NL 218 (1ST)"
+      ],
+      "fip": [
+        "2018 NL 1.98 (1ST)"
+      ],
+      "mvp": [
+        "2018 NL (5, 34%)"
+      ],
+      "strikeouts_per_nine": [
+        "2018 NL 11.157 (2ND)"
+      ],
+      "whip": [
+        "2018 NL 0.912 (2ND)"
+      ]
+    },
+    "age": 30,
+    "award_summary": "AS,CYA-1,MVP-5",
+    "bWAR": "9.5",
+    "batters_faced": 835,
+    "batting_avg": 0.196,
+    "batting_avg_bip": 0.283,
+    "bref_id": "degroja01",
+    "bref_url": "https://www.baseball-reference.com/players/d/degroja01.shtml",
+    "dWAR": "0.0",
+    "earned_run_avg": 1.7,
+    "fip": 1.98,
+    "hand": "Right",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": true,
+    "is_above_w_threshold": false,
+    "is_hof": false,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_so_leader": false,
+    "is_sv_leader": false,
+    "lg_ID": "NL",
+    "name": "Jacob deGrom",
+    "nationality": "US",
+    "onbase_perc": 0.244,
+    "onbase_plus_slugging": 0.521,
+    "positions": {
+      "P": {
+        "drs": 5.0,
+        "g": 32,
+        "tzr": null
+      }
+    },
+    "rookie_status_year": 2014,
+    "slugging_perc": 0.277,
+    "strikeouts_per_nine": 11.16,
+    "team_ID": "NYM",
+    "type": "Pitcher",
+    "warnings": [],
+    "whip": 0.912,
+    "year_ID": 2018,
+    "years_played": [
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023"
+    ]
+  },
+  "stats_period": {
+    "display_text": "2018",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "2018",
+    "year_list": [
+      2018
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "NYM",
+  "year": "2018"
+}

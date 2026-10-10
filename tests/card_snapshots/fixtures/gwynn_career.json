@@ -1,0 +1,4552 @@
+{
+  "bref_id": "gwynnto01",
+  "bref_url": "https://www.baseball-reference.com/players/g/gwynnto01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "FREE AGENCY ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "NL",
+  "name": "Tony Gwynn",
+  "nationality": "US",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 2378,
+    "2B": 543,
+    "3B": 85,
+    "AB": 9288,
+    "BB": 814,
+    "CS": 125,
+    "FB": 2072.62,
+    "G": 2440,
+    "GB": 3244.84,
+    "GIDP": 259,
+    "GO/AO": 1.4325,
+    "H": 3141,
+    "HBP": 24,
+    "HR": 135,
+    "IBB": 203,
+    "IF/FB": 0.085,
+    "PA": 10232,
+    "PU": 192.54,
+    "R": 1383,
+    "RBI": 1138,
+    "SB": 319,
+    "SF": 85,
+    "SH": 45,
+    "SO": 434,
+    "TB": 4259,
+    "accolades": {
+      "2B": [
+        "1986 NL 33 (9TH)",
+        "1987 NL 36 (8TH)",
+        "1993 NL 41 (4TH)",
+        "1994 NL 35 (3RD)",
+        "1995 NL 33 (10TH)",
+        "1997 NL 49 (2ND)"
+      ],
+      "3B": [
+        "1984 NL 10 (8TH)",
+        "1986 NL 7 (5TH)",
+        "1987 NL 13 (2ND)",
+        "1989 NL 7 (9TH)",
+        "1990 NL 10 (2ND)",
+        "1991 NL 11 (2ND)"
+      ],
+      "BB": [
+        "1987 NL 82 (10TH)"
+      ],
+      "H": [
+        "1984 NL 213 (1ST)",
+        "1985 NL 197 (3RD)",
+        "1986 NL 211 (1ST)",
+        "1987 NL 218 (1ST)",
+        "1988 NL 163 (10TH)",
+        "1989 NL 203 (1ST)",
+        "1990 NL 177 (8TH)",
+        "1991 NL 168 (10TH)",
+        "1993 NL 175 (10TH)",
+        "1994 NL 165 (1ST)",
+        "1995 NL 197 (1ST)",
+        "1997 NL 220 (1ST)"
+      ],
+      "R": [
+        "1985 NL 90 (9TH)",
+        "1986 NL 107 (1ST)",
+        "1987 NL 119 (4TH)",
+        "1994 NL 79 (8TH)",
+        "1997 NL 97 (10TH)"
+      ],
+      "RBI": [
+        "1997 NL 119 (6TH)"
+      ],
+      "SB": [
+        "1986 NL 37 (9TH)",
+        "1987 NL 56 (2ND)",
+        "1989 NL 40 (6TH)"
+      ],
+      "TB": [
+        "1984 NL 269 (8TH)",
+        "1986 NL 300 (3RD)",
+        "1987 NL 301 (7TH)",
+        "1989 NL 256 (9TH)",
+        "1994 NL 238 (8TH)",
+        "1997 NL 324 (7TH)"
+      ],
+      "WAR": [
+        "1984 NL 6.3 (6TH)",
+        "1986 NL 6.7 (3RD)",
+        "1987 NL 8.6 (1ST)",
+        "1991 NL 5.6 (9TH)"
+      ],
+      "allstar": [
+        "1984 (LF)",
+        "1985 (LF)",
+        "1986 (LF)",
+        "1987",
+        "1989 (RF)",
+        "1990",
+        "1991 (CF)",
+        "1992 (RF)",
+        "1993",
+        "1994 (CF)",
+        "1995 (RF)",
+        "1996",
+        "1997 (DH)",
+        "1998 (RF)",
+        "1999"
+      ],
+      "awards": [
+        "1984 NL BATTING TITLE",
+        "1984 AP ALL-STAR",
+        "1984 NL TSN ALL-STAR",
+        "1986 NL TSN ALL-STAR",
+        "1987 NL BATTING TITLE",
+        "1987 NL TSN ALL-STAR",
+        "1988 NL BATTING TITLE",
+        "1989 NL BATTING TITLE",
+        "1989 NL TSN ALL-STAR",
+        "1994 AP ALL-STAR",
+        "1994 NL TSN ALL-STAR",
+        "1994 NL BATTING TITLE",
+        "1995 AP ALL-STAR",
+        "1995 NL BATTING TITLE",
+        "1995 BRANCH RICKEY AWARD",
+        "1996 NL BATTING TITLE",
+        "1997 NL BATTING TITLE",
+        "1997 AP ALL-STAR",
+        "1997 NL TSN ALL-STAR",
+        "1998 LOU GEHRIG MEMORIAL AWARD",
+        "1999 ROBERTO CLEMENTE AWARD"
+      ],
+      "batting_avg": [
+        "1984 NL .351 (1ST)",
+        "1985 NL .317 (4TH)",
+        "1986 NL .329 (3RD)",
+        "1987 NL .370 (1ST)",
+        "1988 NL .313 (1ST)",
+        "1989 NL .336 (1ST)",
+        "1990 NL .309 (8TH)",
+        "1991 NL .317 (3RD)",
+        "1992 NL .317 (5TH)",
+        "1993 NL .358 (2ND)",
+        "1994 NL .394 (1ST)",
+        "1995 NL .368 (1ST)",
+        "1996 NL .353 (1ST)**",
+        "1997 NL .372 (1ST)",
+        "1998 NL .321 (9TH)"
+      ],
+      "gold_gloves": [
+        "1986 NL (OF)",
+        "1987 NL (OF)",
+        "1989 NL (OF)",
+        "1990 NL (OF)",
+        "1991 NL (OF)"
+      ],
+      "mvp": [
+        "1984 NL (3, 55%)",
+        "1985 NL (23, 0%)",
+        "1986 NL (9, 10%)",
+        "1987 NL (8, 22%)",
+        "1988 NL (11, 9%)",
+        "1989 NL (8, 17%)",
+        "1991 NL (16, 1%)",
+        "1993 NL (21, 1%)",
+        "1994 NL (7, 28%)",
+        "1995 NL (9, 18%)",
+        "1997 NL (6, 28%)",
+        "1998 NL (15, 2%)"
+      ],
+      "onbase_perc": [
+        "1984 NL .410 (2ND)",
+        "1986 NL .381 (5TH)",
+        "1987 NL .447 (2ND)",
+        "1988 NL .373 (5TH)",
+        "1989 NL .389 (7TH)",
+        "1993 NL .398 (8TH)",
+        "1994 NL .454 (1ST)",
+        "1995 NL .404 (4TH)",
+        "1996 NL .400 (9TH)**",
+        "1997 NL .409 (9TH)"
+      ],
+      "onbase_plus_slugging": [
+        "1984 NL .853 (7TH)",
+        "1986 NL .848 (8TH)",
+        "1987 NL .958 (5TH)",
+        "1993 NL .895 (9TH)",
+        "1994 NL 1.022 (4TH)",
+        "1997 NL .957 (7TH)"
+      ],
+      "onbase_plus_slugging_plus": [
+        "1984 NL 141 (7TH)",
+        "1986 NL 135 (7TH)",
+        "1987 NL 158 (3RD)",
+        "1993 NL 138 (9TH)",
+        "1994 NL 169 (4TH)",
+        "1995 NL 137 (10TH)",
+        "1997 NL 156 (6TH)"
+      ],
+      "silver_sluggers": [
+        "1984 NL (OF)",
+        "1986 NL (OF)",
+        "1987 NL (OF)",
+        "1989 NL (OF)",
+        "1994 NL (OF)",
+        "1995 NL (OF)",
+        "1997 NL (OF)"
+      ],
+      "slugging_perc": [
+        "1994 NL .568 (10TH)",
+        "1997 NL .547 (9TH)"
+      ]
+    },
+    "age": 41,
+    "award_summary": "AS,MVP-3,SS,AS,MVP-23,AS,MVP-9,GG,SS,AS,MVP-8,GG,SS,MVP-11,AS,GG,AS,MVP-16,GG,AS,AS,MVP-21,AS,MVP-7,SS,AS,MVP-9,SS,AS,MVP-6,SS,AS,MVP-15",
+    "bWAR": 69.3,
+    "batting_avg": 0.3382,
+    "bref_id": "gwynnto01",
+    "bref_url": "https://www.baseball-reference.com/players/g/gwynnto01.shtml",
+    "dWAR": -7.5,
+    "game_logs": [
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 3,
+        "date": "1998-03-31",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-04-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-04-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 2,
+        "H": 3,
+        "PA": 6,
+        "R": 4,
+        "RBI": 2,
+        "date": "1998-04-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-04-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-04-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-04-07",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-04-08",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1998-04-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1998-04-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 2,
+        "PA": 3,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-04-11",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "date": "1998-04-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-04-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1998-04-15",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1998-04-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 2,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-04-18",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "SO": 1,
+        "date": "1998-04-21",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-04-22",
+        "player_game_span": "GS-12",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "HBP": 1,
+        "PA": 4,
+        "date": "1998-04-23",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "1998-04-25",
+        "player_game_span": "12-12",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-04-26",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-04-27",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 5,
+        "HR": 1,
+        "PA": 5,
+        "R": 3,
+        "RBI": 2,
+        "date": "1998-04-28",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SO": 1,
+        "date": "1998-04-30",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "BB": 1,
+        "H": 3,
+        "IBB": 1,
+        "PA": 6,
+        "R": 1,
+        "date": "1998-05-01",
+        "player_game_span": "CG(11)",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-05-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "1998-05-03",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "SB": 1,
+        "date": "1998-05-04",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "H": 1,
+        "PA": 3,
+        "R": 2,
+        "date": "1998-05-05",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-05-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-05-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-05-08",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "1998-05-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-05-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1998-05-11",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1998-05-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-05-14 (1)",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 4,
+        "date": "1998-05-14 (2)",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "1998-05-15",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "PA": 1,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1998-05-17",
+        "player_game_span": "7-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SB": 1,
+        "date": "1998-05-19",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "1998-05-20 (1)",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "1998-05-21",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-05-22",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "1998-05-23",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "GIDP": 1,
+        "PA": 1,
+        "date": "1998-05-24",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "1998-05-25",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 2,
+        "PA": 4,
+        "RBI": 3,
+        "SF": 1,
+        "date": "1998-05-27",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "1998-05-29",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 2,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-05-30",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 2,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 3,
+        "date": "1998-05-31",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "1998-06-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-06-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-06-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "1998-06-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 2,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-06-05",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1998-06-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-06-07",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "1998-06-08",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "PA": 1,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1998-06-12",
+        "player_game_span": "6-7",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 2,
+        "PA": 3,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-06-16",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 6,
+        "date": "1998-06-17",
+        "player_game_span": "CG(12)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "GIDP": 1,
+        "PA": 5,
+        "date": "1998-06-18",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "1998-06-19",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "BB": 1,
+        "IBB": 1,
+        "PA": 1,
+        "date": "1998-06-20",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 3,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-06-21",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-06-22",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "1998-06-23",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 2,
+        "date": "1998-06-24",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "SF": 1,
+        "SO": 1,
+        "date": "1998-06-25",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "date": "1998-06-26",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-06-27",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-06-28",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "1998-06-30",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-07-01",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "1998-07-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 3,
+        "IBB": 1,
+        "PA": 5,
+        "date": "1998-07-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "date": "1998-07-04",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "1998-07-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "1998-07-09",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "PA": 5,
+        "date": "1998-07-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "1998-07-11",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "1998-07-12",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "1998-07-13",
+        "player_game_span": "8-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-07-14",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-07-15",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "HR": 2,
+        "PA": 5,
+        "R": 2,
+        "RBI": 3,
+        "date": "1998-07-17",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-07-18",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "SF": 1,
+        "date": "1998-07-19",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1998-07-20",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-07-21",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "1998-07-22",
+        "player_game_span": "8-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "CS": 1,
+        "PA": 3,
+        "SO": 1,
+        "date": "1998-07-23",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-07-24",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-07-25",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "1998-07-26",
+        "player_game_span": "9-10",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-07-28",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 3,
+        "AB": 5,
+        "H": 4,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-07-29",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-07-30",
+        "player_game_span": "GS-10",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-07-31",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-08-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-08-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "1998-08-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-08-04",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "RBI": 1,
+        "date": "1998-08-05",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "1998-08-11",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "date": "1998-08-12",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-09-01",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-09-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "SO": 1,
+        "date": "1998-09-04",
+        "player_game_span": "GS-4",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "1998-09-05",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 2,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SF": 1,
+        "SO": 1,
+        "date": "1998-09-06",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "1998-09-07",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "HR": 1,
+        "PA": 3,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-09-08",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "1998-09-13",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-09-14",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 2,
+        "date": "1998-09-15",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-09-16",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-09-17",
+        "player_game_span": "GS-10",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "1998-09-18",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "RBI": 2,
+        "date": "1998-09-19",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-09-20",
+        "player_game_span": "CG(11)",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-09-22",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-09-23",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "1998-09-25",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-09-26",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SB": 1,
+        "date": "1998-09-27",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1999-04-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "date": "1999-04-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "CS": 1,
+        "H": 2,
+        "PA": 4,
+        "date": "1999-04-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "GIDP": 1,
+        "HBP": 1,
+        "PA": 3,
+        "date": "1999-04-08",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1999-04-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-04-10",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1999-04-11",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "BB": 1,
+        "H": 3,
+        "PA": 6,
+        "R": 2,
+        "date": "1999-04-12",
+        "player_game_span": "CG(11)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "SO": 1,
+        "date": "1999-04-15",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "SB": 1,
+        "date": "1999-04-16",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-04-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "HBP": 1,
+        "PA": 4,
+        "R": 1,
+        "date": "1999-04-18",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "date": "1999-04-19",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "CS": 1,
+        "H": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "1999-04-20",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1999-04-21",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 3,
+        "date": "1999-04-23",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-04-24",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 5,
+        "SB": 1,
+        "SO": 2,
+        "date": "1999-04-25",
+        "player_game_span": "CG(11)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "1999-04-27",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "RBI": 1,
+        "date": "1999-04-28",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-04-29",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1999-04-30",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-05-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1999-05-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "1999-05-03",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "date": "1999-05-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1999-05-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "1999-05-08",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1999-05-09",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-05-10",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "PA": 1,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1999-05-12",
+        "player_game_span": "7-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-05-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-05-15",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-05-16",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-05-18",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1999-05-19",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "1999-05-20",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "GIDP": 1,
+        "PA": 1,
+        "date": "1999-05-21",
+        "player_game_span": "GS-2",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-06-12",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-06-13",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "1999-06-15",
+        "player_game_span": "GS-2",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "1999-06-16",
+        "player_game_span": "9-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "1999-06-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-06-18",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "date": "1999-06-19",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "PA": 5,
+        "SO": 1,
+        "date": "1999-07-19",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1999-07-20",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1999-07-22",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 2,
+        "PA": 4,
+        "date": "1999-07-23",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1999-07-24",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1999-07-25",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-07-26",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SB": 1,
+        "date": "1999-07-27",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "1999-07-28",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "GIDP": 2,
+        "PA": 4,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1999-07-30",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-07-31",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 3,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 2,
+        "date": "1999-08-01",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "RBI": 2,
+        "date": "1999-08-02",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1999-08-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 4,
+        "date": "1999-08-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "date": "1999-08-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 4,
+        "PA": 5,
+        "R": 1,
+        "date": "1999-08-06",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1999-08-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "1999-08-08",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1999-08-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "date": "1999-08-10",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 2,
+        "RBI": 1,
+        "date": "1999-08-11",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1999-08-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "HR": 2,
+        "PA": 5,
+        "R": 3,
+        "RBI": 4,
+        "date": "1999-08-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "date": "1999-08-15",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "1999-08-16",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1999-08-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "RBI": 1,
+        "date": "1999-08-18",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-08-20",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-08-21",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1999-08-22",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 2,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "date": "1999-08-23",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "GIDP": 1,
+        "PA": 3,
+        "date": "1999-08-24",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-08-26",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 2,
+        "PA": 5,
+        "R": 2,
+        "date": "1999-08-27",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SB": 1,
+        "date": "1999-08-28",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 3,
+        "RBI": 1,
+        "date": "1999-08-29",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "date": "1999-08-31",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "SO": 1,
+        "date": "1999-09-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 3,
+        "date": "1999-09-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1999-09-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "1999-09-05",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 3,
+        "date": "1999-09-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-09-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "1999-09-08",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-09-09",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-09-10",
+        "player_game_span": "GS-4",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "date": "1999-09-11",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SB": 1,
+        "date": "1999-09-12",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-09-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "date": "1999-09-14",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 2,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "SB": 1,
+        "date": "1999-09-15",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "SB": 1,
+        "date": "1999-09-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1999-09-18",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1999-09-19",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "date": "1999-09-20",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "H": 1,
+        "IBB": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "1999-09-21",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "PA": 3,
+        "date": "1999-09-22",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1999-09-24",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1999-09-25",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 2,
+        "date": "1999-09-29 (1)",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 4,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1999-09-29 (2)",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1999-09-30",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "HR": 1,
+        "PA": 4,
+        "R": 2,
+        "RBI": 2,
+        "date": "1999-10-01",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "1999-10-02",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "1999-10-03",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "HBP": 1,
+        "PA": 4,
+        "date": "2000-04-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 3,
+        "RBI": 1,
+        "date": "2000-04-08",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2000-04-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2000-04-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "PA": 1,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2000-04-18",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2000-04-19",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "PA": 4,
+        "date": "2000-04-21",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2000-04-22",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "SF": 1,
+        "date": "2000-04-23",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2000-04-25",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "R": 1,
+        "date": "2000-04-26",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2000-04-27",
+        "player_game_span": "9-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2000-04-28",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "2000-05-16",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "PA": 4,
+        "date": "2000-05-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 3,
+        "PA": 3,
+        "R": 1,
+        "RBI": 1,
+        "date": "2000-05-19",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "PA": 4,
+        "date": "2000-05-22",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "HR": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "2000-05-23",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "date": "2000-05-24",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 2,
+        "AB": 3,
+        "BB": 1,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "date": "2000-05-26",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "SO": 1,
+        "date": "2000-05-27",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2000-05-29",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "date": "2000-05-31",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "date": "2000-06-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "2000-06-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "date": "2000-06-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "IBB": 2,
+        "PA": 5,
+        "date": "2000-06-05",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2000-06-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 3,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2000-06-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "RBI": 2,
+        "date": "2000-06-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2000-06-11",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "CS": 1,
+        "H": 1,
+        "PA": 5,
+        "RBI": 1,
+        "date": "2000-06-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "2000-06-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "date": "2000-06-16",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 1,
+        "date": "2000-06-17",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2000-06-23",
+        "player_game_span": "10-10",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "2001-04-02",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 1,
+        "date": "2001-04-04",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2001-04-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 2,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 1,
+        "RBI": 1,
+        "date": "2001-04-07",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "date": "2001-04-10",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "RBI": 1,
+        "date": "2001-04-11",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2001-04-12",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2001-04-13",
+        "player_game_span": "9-10",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "2001-04-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "RBI": 1,
+        "date": "2001-04-15",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "3B": 1,
+        "AB": 5,
+        "H": 3,
+        "PA": 5,
+        "date": "2001-04-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "date": "2001-04-18",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-04-19",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "date": "2001-04-20",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "SB": 1,
+        "date": "2001-05-08",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "PA": 2,
+        "date": "2001-05-09",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2001-07-03",
+        "player_game_span": "7-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-07-04",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-07-05",
+        "player_game_span": "8-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-07-06",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-07-08",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-07-13",
+        "player_game_span": "6-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 1,
+        "PA": 3,
+        "SO": 1,
+        "date": "2001-07-15",
+        "player_game_span": "GS-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-07-18",
+        "player_game_span": "GS-3",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "SO": 1,
+        "date": "2001-07-19",
+        "player_game_span": "GS-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-07-21",
+        "player_game_span": "6-7",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 2,
+        "date": "2001-07-22",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "BB": 1,
+        "PA": 1,
+        "date": "2001-07-23",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 2,
+        "date": "2001-07-25",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-07-27",
+        "player_game_span": "4-4",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-07-29",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-07-31",
+        "player_game_span": "8-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 1,
+        "date": "2001-08-01",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 1,
+        "date": "2001-08-05",
+        "player_game_span": "7-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "GIDP": 1,
+        "PA": 1,
+        "date": "2001-08-07",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "BB": 1,
+        "PA": 1,
+        "date": "2001-08-08",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "BB": 1,
+        "PA": 1,
+        "date": "2001-08-09",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 2,
+        "HR": 1,
+        "PA": 3,
+        "R": 2,
+        "RBI": 2,
+        "date": "2001-08-11",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-08-12",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2001-08-16",
+        "player_game_span": "7-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-08-17",
+        "player_game_span": "8-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-08-19",
+        "player_game_span": "9-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-08-22",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-08-24",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-08-29",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-08-30",
+        "player_game_span": "4-4",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-08-31 (1)",
+        "player_game_span": "5-6",
+        "team_ID": "SDP"
+      },
+      {
+        "BB": 1,
+        "PA": 1,
+        "date": "2001-08-31 (2)",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-01",
+        "player_game_span": "8-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2001-09-02",
+        "player_game_span": "11-12",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-03",
+        "player_game_span": "8-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-04",
+        "player_game_span": "4-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-05",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-07",
+        "player_game_span": "6-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-08",
+        "player_game_span": "10-10",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-09",
+        "player_game_span": "5-5",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-09-19",
+        "player_game_span": "10-10",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-21",
+        "player_game_span": "7-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 2,
+        "date": "2001-09-22",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2001-09-23",
+        "player_game_span": "7-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-24",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-25",
+        "player_game_span": "9-9",
+        "team_ID": "SDP"
+      },
+      {
+        "BB": 1,
+        "PA": 1,
+        "date": "2001-09-26",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "date": "2001-09-27",
+        "player_game_span": "8-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-28",
+        "player_game_span": "7-7",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-09-29",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "SO": 1,
+        "date": "2001-09-30",
+        "player_game_span": "9-9",
+        "team_ID": "SDP"
+      },
+      {
+        "BB": 1,
+        "PA": 1,
+        "date": "2001-10-04",
+        "player_game_span": "6-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-10-05",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 1,
+        "H": 1,
+        "PA": 1,
+        "RBI": 1,
+        "date": "2001-10-06",
+        "player_game_span": "6-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 1,
+        "PA": 1,
+        "date": "2001-10-07",
+        "player_game_span": "9-GF",
+        "team_ID": "SDP"
+      }
+    ],
+    "hand": "L",
+    "hand_throw": "L",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": true,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": true,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "NL",
+    "name": "Tony Gwynn",
+    "nationality": "US",
+    "onbase_perc": 0.3882,
+    "onbase_plus_slugging": 0.8467,
+    "onbase_plus_slugging_plus": 129.8,
+    "outs_above_avg": {},
+    "pos_season": "H9/D",
+    "positions": {
+      "CF": {
+        "g": 157,
+        "position": "CF",
+        "tzr": -11.0
+      },
+      "DH": {
+        "g": 15,
+        "position": "DH"
+      },
+      "LF": {
+        "g": 51,
+        "position": "LF",
+        "tzr": 4.0
+      },
+      "OF": {
+        "g": 2326,
+        "position": "OF",
+        "tzr": 5.0
+      },
+      "RF": {
+        "g": 2144,
+        "position": "RF",
+        "tzr": 12.0
+      }
+    },
+    "postseason_game_logs": [
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1984-10-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "1984-10-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1984-10-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "1984-10-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "SB": 1,
+        "date": "1984-10-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "SO": 1,
+        "date": "1984-10-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SB": 1,
+        "date": "1996-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1996-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "1996-10-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "SO": 1,
+        "date": "1998-09-29",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1998-10-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-10-04",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "date": "1998-10-07",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-08",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "1998-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 2,
+        "date": "1998-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "1998-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "date": "1998-10-14",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-10-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-18",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-10-20",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1984-10-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "1984-10-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1984-10-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "1984-10-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "SB": 1,
+        "date": "1984-10-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "SO": 1,
+        "date": "1984-10-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SB": 1,
+        "date": "1996-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1996-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "1996-10-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "SO": 1,
+        "date": "1998-09-29",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1998-10-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-10-04",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "date": "1998-10-07",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-08",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "1998-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 2,
+        "date": "1998-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "1998-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "date": "1998-10-14",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-10-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-18",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-10-20",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1984-10-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "1984-10-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1984-10-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "1984-10-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "SB": 1,
+        "date": "1984-10-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "SO": 1,
+        "date": "1984-10-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SB": 1,
+        "date": "1996-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1996-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "1996-10-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "SO": 1,
+        "date": "1998-09-29",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1998-10-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-10-04",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "date": "1998-10-07",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-08",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "1998-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 2,
+        "date": "1998-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "1998-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "date": "1998-10-14",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-10-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-18",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-10-20",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "date": "1984-10-02",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 3,
+        "PA": 4,
+        "R": 1,
+        "date": "1984-10-04",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "H": 1,
+        "IBB": 1,
+        "PA": 5,
+        "R": 2,
+        "RBI": 1,
+        "SF": 1,
+        "date": "1984-10-06",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 2,
+        "RBI": 2,
+        "SO": 1,
+        "date": "1984-10-07",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 2,
+        "BB": 2,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "SB": 1,
+        "date": "1984-10-09",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "CS": 1,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "R": 1,
+        "SO": 1,
+        "date": "1984-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1984-10-13",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "SO": 1,
+        "date": "1984-10-14",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "SB": 1,
+        "date": "1996-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1996-10-03",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 1,
+        "PA": 5,
+        "SO": 2,
+        "date": "1996-10-05",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 3,
+        "H": 1,
+        "PA": 3,
+        "R": 1,
+        "SO": 1,
+        "date": "1998-09-29",
+        "player_game_span": "GS-6",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "RBI": 1,
+        "date": "1998-10-01",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "PA": 4,
+        "RBI": 1,
+        "SO": 1,
+        "date": "1998-10-03",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "date": "1998-10-04",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "H": 2,
+        "PA": 5,
+        "RBI": 1,
+        "date": "1998-10-07",
+        "player_game_span": "CG(10)",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "GIDP": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-08",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 3,
+        "BB": 1,
+        "IBB": 1,
+        "PA": 4,
+        "date": "1998-10-10",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "2B": 1,
+        "AB": 4,
+        "H": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "SO": 2,
+        "date": "1998-10-11",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "PA": 5,
+        "date": "1998-10-12",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 5,
+        "GIDP": 1,
+        "H": 2,
+        "PA": 5,
+        "date": "1998-10-14",
+        "player_game_span": "GS-9",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 3,
+        "HR": 1,
+        "PA": 4,
+        "R": 1,
+        "RBI": 2,
+        "date": "1998-10-17",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "BB": 1,
+        "H": 1,
+        "PA": 5,
+        "date": "1998-10-18",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "R": 1,
+        "RBI": 1,
+        "date": "1998-10-20",
+        "player_game_span": "GS-8",
+        "team_ID": "SDP"
+      },
+      {
+        "AB": 4,
+        "H": 2,
+        "PA": 4,
+        "date": "1998-10-21",
+        "player_game_span": "CG",
+        "team_ID": "SDP"
+      }
+    ],
+    "primary_datasource": "bref",
+    "rookie_status_year": 1982,
+    "slugging_perc": 0.4585,
+    "team_ID": "SDP",
+    "team_games_played_dict": {
+      "SDP": 2440
+    },
+    "team_id_list": [
+      "SDP"
+    ],
+    "type": "Hitter",
+    "year_ID": "CAREER",
+    "years_played": [
+      "1982",
+      "1983",
+      "1984",
+      "1985",
+      "1986",
+      "1987",
+      "1988",
+      "1989",
+      "1990",
+      "1991",
+      "1992",
+      "1993",
+      "1994",
+      "1995",
+      "1996",
+      "1997",
+      "1998",
+      "1999",
+      "2000",
+      "2001"
+    ]
+  },
+  "stats_period": {
+    "display_text": "CAREER",
+    "is_full_career": true,
+    "is_multi_year": true,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "GAMES_PLAYED",
+    "type": "REGULAR",
+    "year": "CAREER",
+    "year_list": [
+      1982,
+      1983,
+      1984,
+      1985,
+      1986,
+      1987,
+      1988,
+      1989,
+      1990,
+      1991,
+      1992,
+      1993,
+      1994,
+      1995,
+      1996,
+      1997,
+      1998,
+      1999,
+      2000,
+      2001
+    ],
+    "year_type": "FULL_CAREER"
+  },
+  "team": "SDP",
+  "year": "CAREER"
+}

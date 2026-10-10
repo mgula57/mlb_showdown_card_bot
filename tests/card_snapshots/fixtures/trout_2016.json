@@ -1,0 +1,181 @@
+{
+  "bref_id": "troutmi01",
+  "bref_url": "https://www.baseball-reference.com/players/t/troutmi01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "STATCAST ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "AL",
+  "name": "Mike Trout",
+  "nationality": "US",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 107,
+    "2B": 32,
+    "3B": 5,
+    "AB": 549,
+    "BB": 127,
+    "CS": 7,
+    "FB": 108.82,
+    "G": 159,
+    "GB": 109.99,
+    "GIDP": 5,
+    "GO/AO": 0.94,
+    "H": 173,
+    "HBP": 11,
+    "HR": 29,
+    "IBB": 12,
+    "IF/FB": 0.07,
+    "PA": 681,
+    "PU": 8.19,
+    "R": 123,
+    "RBI": 100,
+    "SB": 30,
+    "SF": 5,
+    "SH": 0,
+    "SO": 137,
+    "TB": 302,
+    "accolades": {
+      "3B": [
+        "2016 AL 5 (10TH)"
+      ],
+      "BB": [
+        "2016 AL 116 (1ST)"
+      ],
+      "R": [
+        "2016 AL 123 (1ST)"
+      ],
+      "SB": [
+        "2016 AL 30 (2ND)"
+      ],
+      "WAR": [
+        "2016 AL 10.5 (1ST)"
+      ],
+      "allstar": [
+        "2016 (CF)"
+      ],
+      "awards": [
+        "2016 AL MVP"
+      ],
+      "batting_avg": [
+        "2016 AL .315 (5TH)"
+      ],
+      "mvp": [
+        "2016 AL (1, 85%)"
+      ],
+      "onbase_perc": [
+        "2016 AL .441 (1ST)"
+      ],
+      "onbase_plus_slugging": [
+        "2016 AL .991 (2ND)"
+      ],
+      "onbase_plus_slugging_plus": [
+        "2016 AL 173 (1ST)"
+      ],
+      "silver_sluggers": [
+        "2016 AL (OF)"
+      ],
+      "slugging_perc": [
+        "2016 AL .550 (4TH)"
+      ]
+    },
+    "age": 24,
+    "award_summary": "AS,MVP-1,SS",
+    "bWAR": "10.5",
+    "batting_avg": 0.315,
+    "bref_id": "troutmi01",
+    "bref_url": "https://www.baseball-reference.com/players/t/troutmi01.shtml",
+    "dWAR": "1.0",
+    "hand": "Right",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": false,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "AL",
+    "name": "Mike Trout",
+    "nationality": "US",
+    "onbase_perc": 0.441,
+    "onbase_plus_slugging": 0.991,
+    "onbase_plus_slugging_plus": 173,
+    "outs_above_avg": {
+      "CF": -2.961,
+      "OF": -2.961
+    },
+    "pos_season": "*8D/H",
+    "positions": {
+      "CF": {
+        "drs": 6.0,
+        "g": 148,
+        "oaa": -2.961,
+        "tzr": -1.0
+      },
+      "DH": {
+        "drs": null,
+        "g": 11,
+        "tzr": null
+      },
+      "OF": {
+        "drs": 6.0,
+        "g": 148,
+        "oaa": -2.961,
+        "tzr": -1.0
+      }
+    },
+    "rookie_status_year": 2012,
+    "slugging_perc": 0.55,
+    "sprint_speed": 29.0,
+    "team_ID": "LAA",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 2016,
+    "years_played": [
+      "2011",
+      "2012",
+      "2013",
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023"
+    ]
+  },
+  "stats_period": {
+    "display_text": "2016",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "2016",
+    "year_list": [
+      2016
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "LAA",
+  "year": "2016"
+}

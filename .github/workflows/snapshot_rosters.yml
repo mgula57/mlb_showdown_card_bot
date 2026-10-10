@@ -37,6 +37,11 @@ jobs:
           showdown_bot database snapshot_fangraphs_fielding \
             --season 2026
 
+      - name: Snapshot BREF award voting (MVP/CYA/ROY placements)
+        run: |
+          showdown_bot database snapshot_bref_award_voting \
+            --seasons 2026
+
       - name: Snapshot 2026 rosters and generate cards
         run: |
           showdown_bot database snapshot_rosters \
