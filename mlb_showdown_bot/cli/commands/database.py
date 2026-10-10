@@ -225,6 +225,40 @@ def snapshot_fangraphs_fielding(
     with PostgresDB(is_archive=env.lower() == "prod") as db:
         db.store_fangraphs_fielding_stats(season=season, data=fielding_stats)
 
+# -------------------------------
+# MARK: - Baseball Reference
+# -------------------------------
+@app.command("snapshot_bref_award_voting")
+def snapshot_bref_award_voting(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    seasons: str = typer.Option(..., "--seasons", "-s", help="Season(s) to fetch award voting for. Ex: '2026' or '2020-2025'"),
+):
+    """Fetch MVP, Cy Young, and Rookie of the Year voting placements from Baseball Reference and store a snapshot in Postgres DB.
+
+    MLB API cards only know award winners, so these placements fill in accolades like "2ND IN AL MVP".
+    Seasons without published voting are skipped, and a snapshot is only added when placements change.
+    If BREF blocks the request, this emits a GitHub Actions warning annotation instead of failing the step.
+    """
+    from ...core.card.stats.award_voting import BaseballReferenceAwardVotingScraper
+
+    scraper = BaseballReferenceAwardVotingScraper()
+    for i, season in enumerate(convert_year_string_to_list(seasons)):
+        # BE POLITE TO BREF WHEN BACKFILLING MULTIPLE SEASONS
+        if i > 0:
+            time.sleep(6)
+        print(f"Fetching award voting from Baseball Reference for {season}...")
+        try:
+            results = scraper.fetch(season=season)
+        except TimeoutError as e:
+            print(
+                f"::warning title=BREF award voting snapshot skipped::{e}. "
+                f"Run 'showdown_bot database snapshot_bref_award_voting --seasons {season} --env prod' manually to refresh it."
+            )
+            continue
+
+        with PostgresDB(is_archive=env.lower() == "prod") as db:
+            db.store_bref_award_voting(season=season, results=results)
+
 @app.command("store_leaderboard_stats_fangraphs")
 def store_leaderboard_stats_fangraphs(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),

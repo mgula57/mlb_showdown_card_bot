@@ -133,6 +133,9 @@ export const CardItem = ({
     const { isDark } = useTheme();
     const isRedacted = cardId === null || cardId === undefined;
 
+    // Some older seasons had 2 All-Star games, which yields duplicate 'AS' entries
+    const awardList = (cardAwardList ?? []).filter((award, index, list) => award !== 'AS' || list.indexOf(award) === index);
+
     const hasPtsMultiplier = !!cardPtsMultiplier && cardPtsMultiplier !== 1 && cardPoints != null;
     const effectivePoints = hasPtsMultiplier ? Math.round(cardPoints! * cardPtsMultiplier!) : cardPoints;
     
@@ -371,11 +374,11 @@ export const CardItem = ({
                         })()}
 
                         {/* AWARDS: NEW WAY */}
-                        {cardAwardList && cardAwardList.length > 0 && (
+                        {awardList.length > 0 && (
                             <div className="font-semibold underline">
-                                {cardAwardList.map((stat, index) => (
+                                {awardList.map((stat, index) => (
                                     <span key={index} className="font-semibold underline">
-                                        {stat}{index < (cardAwardList.length || 0) - 1 ? ',' : ''}
+                                        {stat}{index < awardList.length - 1 ? ',' : ''}
                                     </span>
                                 ))}
                             </div>

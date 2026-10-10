@@ -1,0 +1,34 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [master, dev]
+  push:
+    branches: [master, dev]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      # Offline tests only (no DB/network/secrets). Files are listed explicitly because some scripts
+      # in tests/ parse CLI args at import time or need the archive DB.
+      # Card snapshot failures mean a formula changed card output: if intentional, run
+      # `pytest tests/test_card_snapshots.py --update-snapshots` locally and commit the snapshot diff.
+      - name: Run tests
+        run: pytest tests/test_card_snapshots.py tests/test_command_out_selections.py -q

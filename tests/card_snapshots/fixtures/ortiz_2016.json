@@ -1,0 +1,182 @@
+{
+  "bref_id": "ortizda01",
+  "bref_url": "https://www.baseball-reference.com/players/o/ortizda01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "STATCAST ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "AL",
+  "name": "David Ortiz",
+  "nationality": "DO",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 82,
+    "2B": 48,
+    "3B": 1,
+    "AB": 537,
+    "BB": 82,
+    "CS": 0,
+    "FB": 119.87,
+    "G": 151,
+    "GB": 130.78,
+    "GIDP": 22,
+    "GO/AO": 0.96,
+    "H": 169,
+    "HBP": 2,
+    "HR": 38,
+    "IBB": 15,
+    "IF/FB": 0.12,
+    "PA": 626,
+    "PU": 16.35,
+    "R": 79,
+    "RBI": 127,
+    "SB": 2,
+    "SF": 7,
+    "SH": 0,
+    "SO": 86,
+    "TB": 333,
+    "accolades": {
+      "2B": [
+        "2016 AL 48 (1ST)"
+      ],
+      "BB": [
+        "2016 AL 80 (8TH)"
+      ],
+      "HR": [
+        "2016 AL 38 (8TH)"
+      ],
+      "RBI": [
+        "2016 AL 127 (1ST)"
+      ],
+      "TB": [
+        "2016 AL 333 (7TH)"
+      ],
+      "allstar": [
+        "2016 (DH)"
+      ],
+      "awards": [
+        "2016 EDGAR MARTINEZ AWARD",
+        "2016 AL HANK AARON AWARD"
+      ],
+      "batting_avg": [
+        "2016 AL .315 (6TH)"
+      ],
+      "mvp": [
+        "2016 AL (6, 35%)"
+      ],
+      "onbase_perc": [
+        "2016 AL .401 (3RD)"
+      ],
+      "onbase_plus_slugging": [
+        "2016 AL 1.021 (1ST)"
+      ],
+      "onbase_plus_slugging_plus": [
+        "2016 AL 164 (2ND)"
+      ],
+      "silver_sluggers": [
+        "2016 AL (DH)"
+      ],
+      "slugging_perc": [
+        "2016 AL .620 (1ST)"
+      ]
+    },
+    "age": 40,
+    "award_summary": "AS,MVP-6,SS",
+    "bWAR": "5.2",
+    "batting_avg": 0.315,
+    "bref_id": "ortizda01",
+    "bref_url": "https://www.baseball-reference.com/players/o/ortizda01.shtml",
+    "dWAR": "-1.2",
+    "hand": "Left",
+    "hand_throw": "Left",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": true,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "AL",
+    "name": "David Ortiz",
+    "nationality": "DO",
+    "onbase_perc": 0.401,
+    "onbase_plus_slugging": 1.021,
+    "onbase_plus_slugging_plus": 164,
+    "outs_above_avg": {
+      "1B": 0.156
+    },
+    "pos_season": "*DH/3",
+    "positions": {
+      "1B": {
+        "drs": 1.0,
+        "g": 1,
+        "oaa": 0.156,
+        "tzr": 0.0
+      },
+      "DH": {
+        "drs": null,
+        "g": 140,
+        "tzr": null
+      }
+    },
+    "rookie_status_year": 1998,
+    "slugging_perc": 0.62,
+    "sprint_speed": 23.5,
+    "team_ID": "BOS",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 2016,
+    "years_played": [
+      "1997",
+      "1998",
+      "1999",
+      "2000",
+      "2001",
+      "2002",
+      "2003",
+      "2004",
+      "2005",
+      "2006",
+      "2007",
+      "2008",
+      "2009",
+      "2010",
+      "2011",
+      "2012",
+      "2013",
+      "2014",
+      "2015",
+      "2016"
+    ]
+  },
+  "stats_period": {
+    "display_text": "2016",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "2016",
+    "year_list": [
+      2016
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "BOS",
+  "year": "2016"
+}

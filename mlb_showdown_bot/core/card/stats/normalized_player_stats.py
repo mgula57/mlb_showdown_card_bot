@@ -13,6 +13,7 @@ from ...shared.team import Team as ShowdownTeam
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague, TeamSelection
 from .datasource import Datasource
+from .award_voting import AwardVotingResult
 
 # -------------------------------
 # MARK: - Normalized Player Stats Model
@@ -263,6 +264,38 @@ class NormalizedPlayerStats(BaseModel):
         for pos, oaa in oaa_stats.items():
             if pos in self.positions:
                 self.positions[pos].oaa = oaa
+
+    def inject_award_voting(self, award_voting_results: List[AwardVotingResult]) -> None:
+        """Injects bref award voting placements (MVP/CYA/ROY) into award_summary and accolades, matching the bref archive format.
+        Used for MLB API cards, which only know award winners and not voting placements."""
+        player_results = [
+            r for r in (award_voting_results or [])
+            if (self.mlb_id and r.mlb_id == self.mlb_id) or (self.bref_id and r.bref_id == self.bref_id)
+        ]
+        if len(player_results) == 0:
+            return
+
+        # AWARD SUMMARY (EX: "AS,MVP-2,SS")
+        # MLB API ALREADY ADDS 1ST PLACE FINISHES (DEDUPED), SO TAKE THE MAX COUNT OF EACH ENTRY ACROSS BOTH SOURCES
+        existing_awards = [a for a in (self.award_summary or '').split(',') if a]
+        voting_awards = [r.award_summary_abbr for r in player_results]
+        final_awards: List[str] = []
+        for award in sorted(set(existing_awards + voting_awards)):
+            final_awards += [award] * max(existing_awards.count(award), voting_awards.count(award))
+        self.award_summary = ','.join(final_awards)
+
+        # ACCOLADES (EX: {'mvp': ['2025 AL (2, 80%)']})
+        # REPLACE MLB API WINNER ENTRIES THAT HAVE NO PLACEMENT (EX: "2025 AL")
+        accolades = self.accolades or {}
+        for result in player_results:
+            key = result.award.accolade_key
+            if not key:
+                continue
+            existing = [a for a in accolades.get(key, []) if a != f"{result.season} {result.league}"]
+            if result.accolade_str not in existing:
+                existing.append(result.accolade_str)
+            accolades[key] = existing
+        self.accolades = accolades
 
     def as_dict(self) -> Dict[str, Any]:
         """Returns a dictionary representation of the model, including aliases"""

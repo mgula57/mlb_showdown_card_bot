@@ -87,6 +87,7 @@ from .classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord, Showdown
 # INTERNAL
 from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Expansion, SpecialEdition, Set, StatsPeriod, StatsPeriodType, __version__, Position, WBCTeam, StatHighlightsType
 from ..card.stats.normalized_player_stats import Datasource
+from ..card.stats.award_voting import AwardVotingResult
 from ..card.command_out_selections import StoredCardSelectionRecord
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
@@ -9119,6 +9120,131 @@ class PostgresDB:
             return []
         finally:
             cursor.close()
+
+    def store_bref_award_voting(self, season: int, results: list[AwardVotingResult]) -> None:
+        """Append a snapshot of Baseball Reference award voting placements (MVP, CYA, ROY) to the database.
+
+        Used so MLB API card generation can show voting placements (ex: "2ND IN AL MVP"), which the MLB API doesn't provide.
+
+        Mirrors store_fangraphs_fielding_stats (every snapshot shares one snapshot_date), except a new snapshot
+        is only appended when the placements differ from the latest one, since voting rarely changes once published.
+
+        Args:
+            season: The season these placements are for.
+            results: Placements as returned from BaseballReferenceAwardVotingScraper.fetch().
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return
+
+        if len(results) == 0:
+            print(f"No award voting results for {season}, skipping snapshot.")
+            return
+
+        cursor = self.connection.cursor()
+        table_name = "internal.dim_bref_award_voting"
+
+        create_table_sql = f'''
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id VARCHAR(255),
+                bref_id VARCHAR(50),
+                player_name VARCHAR(255),
+                team VARCHAR(50),
+                season INT,
+                league VARCHAR(10),
+                award VARCHAR(10),
+                rank INT,
+                points_won FLOAT,
+                votes_first FLOAT,
+                share_pct INT,
+                snapshot_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        '''
+        index_sql = f'''
+            CREATE INDEX IF NOT EXISTS idx_bref_award_voting_season_snapshot_date
+            ON {table_name} (season, snapshot_date);
+        '''
+
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(index_sql)
+            self.connection.commit()
+        except Exception as e:
+            traceback.print_exc()
+            print(f"ERROR creating {table_name} table: {e}")
+            return
+
+        # SKIP IF NOTHING CHANGED SINCE THE LATEST SNAPSHOT
+        def comparison_key(r: AwardVotingResult) -> tuple:
+            return (r.league, r.award.value, r.rank, r.bref_id, r.points_won, r.votes_first, r.share_pct)
+        latest_results = self.fetch_bref_award_voting(seasons=[season])
+        if latest_results and sorted(map(comparison_key, latest_results)) == sorted(map(comparison_key, results)):
+            print(f"Award voting for {season} is unchanged since the latest snapshot, skipping.")
+            cursor.close()
+            return
+
+        insert_sql = f'''
+            INSERT INTO {table_name} (
+                id, bref_id, player_name, team, season, league, award, rank, points_won, votes_first, share_pct, snapshot_date, modified_date
+            )
+            VALUES %s
+        '''
+        snapshot_timestamp = datetime.now()
+        rows = [
+            (r.id, r.bref_id, r.player_name, r.team, r.season, r.league, r.award.value, r.rank, r.points_won, r.votes_first, r.share_pct, snapshot_timestamp)
+            for r in results
+        ]
+
+        try:
+            execute_values(cursor, insert_sql, rows, template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())", page_size=500)
+            self.connection.commit()
+            print(f"✓ Successfully stored {len(rows)} award voting placements for {season} (snapshot_date={snapshot_timestamp}).")
+        except Exception as e:
+            traceback.print_exc()
+            print(f"ERROR storing award voting placements: {e}")
+            self.connection.rollback()
+        finally:
+            cursor.close()
+
+    def fetch_bref_award_voting(self, seasons: list[int], mlb_ids: Optional[list[int]] = None) -> list[AwardVotingResult]:
+        """Fetch award voting placements from the latest snapshot of each season.
+
+        mlb_id is joined from internal.dim_player_id_map so MLB API players can be matched without a bref_id.
+
+        Args:
+            seasons: Seasons to fetch.
+            mlb_ids: Optional list of MLB player ids to filter to.
+
+        Returns:
+            List of AwardVotingResult, or an empty list if none are cached / on error.
+        """
+        if self.connection is None or not seasons:
+            return []
+
+        table_name = "internal.dim_bref_award_voting"
+        mlb_id_filter = "AND id_map.mlb_id = ANY(%s)" if mlb_ids else ""
+        query_sql = f'''
+            SELECT v.*, id_map.mlb_id
+            FROM {table_name} v
+            JOIN (
+                SELECT season, MAX(snapshot_date) AS snapshot_date
+                FROM {table_name}
+                WHERE season = ANY(%s)
+                GROUP BY season
+            ) latest USING (season, snapshot_date)
+            LEFT JOIN LATERAL (
+                SELECT mlb_id FROM internal.dim_player_id_map m WHERE m.bref_id = v.bref_id LIMIT 1
+            ) id_map ON TRUE
+            WHERE 1=1 {mlb_id_filter}
+        '''
+        filter_values = (list(seasons), list(mlb_ids)) if mlb_ids else (list(seasons),)
+        try:
+            results = self.execute_query(query=query_sql, filter_values=filter_values)
+            return [AwardVotingResult(**row) for row in results]
+        except Exception as e:
+            print(f"ERROR fetching award voting for seasons {seasons}: {e}")
+            return []
 
 # -----------------------------------------------------------------------
 # MLB API ADDITIONS

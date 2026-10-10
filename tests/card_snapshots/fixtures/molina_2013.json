@@ -1,0 +1,159 @@
+{
+  "bref_id": "molinya01",
+  "bref_url": "https://www.baseball-reference.com/players/m/molinya01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "POST STEROID ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "NL",
+  "name": "Yadier Molina",
+  "nationality": "PR",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 105,
+    "2B": 44,
+    "3B": 0,
+    "AB": 505,
+    "BB": 33,
+    "CS": 2,
+    "FB": 127.61,
+    "G": 136,
+    "GB": 143.21,
+    "GIDP": 14,
+    "GO/AO": 1.01,
+    "H": 161,
+    "HBP": 3,
+    "HR": 12,
+    "IBB": 4,
+    "IF/FB": 0.1,
+    "PA": 541,
+    "PU": 14.18,
+    "R": 68,
+    "RBI": 80,
+    "SB": 3,
+    "SF": 3,
+    "SH": 0,
+    "SO": 55,
+    "TB": 241,
+    "accolades": {
+      "2B": [
+        "2013 NL 44 (2ND)"
+      ],
+      "WAR": [
+        "2013 NL 6.2 (10TH)"
+      ],
+      "allstar": [
+        "2013 (C)"
+      ],
+      "awards": [
+        "2013 NL WILSON DEF PLAYER"
+      ],
+      "batting_avg": [
+        "2013 NL .319 (4TH)"
+      ],
+      "gold_gloves": [
+        "2013 NL (C)"
+      ],
+      "mvp": [
+        "2013 NL (3, 52%)"
+      ],
+      "silver_sluggers": [
+        "2013 NL (C)"
+      ]
+    },
+    "age": 30,
+    "award_summary": "AS,MVP-3,GG,SS",
+    "bWAR": "6.2",
+    "batting_avg": 0.319,
+    "bref_id": "molinya01",
+    "bref_url": "https://www.baseball-reference.com/players/m/molinya01.shtml",
+    "dWAR": "2.7",
+    "hand": "Right",
+    "hand_throw": "Right",
+    "is_above_hr_threshold": false,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": false,
+    "is_hr_leader": false,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "NL",
+    "name": "Yadier Molina",
+    "nationality": "PR",
+    "onbase_perc": 0.359,
+    "onbase_plus_slugging": 0.836,
+    "onbase_plus_slugging_plus": 129,
+    "outs_above_avg": {},
+    "pos_season": "*2/3H",
+    "positions": {
+      "1B": {
+        "drs": 0.0,
+        "g": 5,
+        "tzr": -1.0
+      },
+      "C": {
+        "drs": 30.0,
+        "g": 131,
+        "tzr": 13.0
+      }
+    },
+    "rookie_status_year": 2004,
+    "slugging_perc": 0.477,
+    "sprint_speed": null,
+    "team_ID": "STL",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 2013,
+    "years_played": [
+      "2004",
+      "2005",
+      "2006",
+      "2007",
+      "2008",
+      "2009",
+      "2010",
+      "2011",
+      "2012",
+      "2013",
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022"
+    ]
+  },
+  "stats_period": {
+    "display_text": "2013",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "2013",
+    "year_list": [
+      2013
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "STL",
+  "year": "2013"
+}

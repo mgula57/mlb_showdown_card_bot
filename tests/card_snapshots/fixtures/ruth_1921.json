@@ -1,0 +1,198 @@
+{
+  "bref_id": "ruthba01",
+  "bref_url": "https://www.baseball-reference.com/players/r/ruthba01.shtml",
+  "build_on_init": true,
+  "chart_version": 1,
+  "commands_excluded": [],
+  "disable_cache_cleaning": false,
+  "era": "LIVE BALL ERA",
+  "ignore_cache": false,
+  "image": {
+    "edition": "NONE",
+    "expansion": "BS",
+    "parallel": "NONE",
+    "special_edition": "NONE"
+  },
+  "is_stats_estimate": false,
+  "is_variable_speed_00_01": false,
+  "is_wotc": false,
+  "league": "AL",
+  "name": "Babe Ruth",
+  "nationality": "US",
+  "player_type": "Hitter",
+  "regress_small_sample_to_replacement": false,
+  "stats": {
+    "1B": 85,
+    "2B": 44,
+    "3B": 16,
+    "AB": 540,
+    "BB": 149,
+    "CS": 13,
+    "FB": 96.54,
+    "G": 152,
+    "GB": 150.06,
+    "GIDP": 0,
+    "GO/AO": 1.43,
+    "H": 204,
+    "HBP": 4,
+    "HR": 59,
+    "IBB": 0,
+    "IF/FB": 0.08,
+    "PA": 693,
+    "PU": 8.4,
+    "R": 177,
+    "RBI": 168,
+    "SB": 17,
+    "SF": 0,
+    "SH": 4,
+    "SO": 81,
+    "TB": 457,
+    "accolades": {
+      "2B": [
+        "1921 AL 44 (2ND)"
+      ],
+      "3B": [
+        "1921 AL 16 (4TH)"
+      ],
+      "BB": [
+        "1921 AL 145 (1ST)"
+      ],
+      "H": [
+        "1921 AL 204 (6TH)"
+      ],
+      "HR": [
+        "1921 AL 59 (1ST)"
+      ],
+      "R": [
+        "1921 AL 177 (1ST)"
+      ],
+      "RBI": [
+        "1921 AL 168 (1ST)"
+      ],
+      "SB": [
+        "1921 AL 17 (8TH)"
+      ],
+      "TB": [
+        "1921 AL 457 (1ST)"
+      ],
+      "WAR": [
+        "1921 AL 12.6 (1ST)"
+      ],
+      "batting_avg": [
+        "1921 AL .378 (3RD)"
+      ],
+      "onbase_perc": [
+        "1921 AL .512 (1ST)"
+      ],
+      "onbase_plus_slugging": [
+        "1921 AL 1.359 (1ST)"
+      ],
+      "onbase_plus_slugging_plus": [
+        "1921 AL 239 (1ST)"
+      ],
+      "slugging_perc": [
+        "1921 AL .846 (1ST)"
+      ]
+    },
+    "age": 26,
+    "award_summary": "",
+    "bWAR": "12.9",
+    "batting_avg": 0.378,
+    "bref_id": "ruthba01",
+    "bref_url": "https://www.baseball-reference.com/players/r/ruthba01.shtml",
+    "dWAR": "0.0",
+    "hand": "Left",
+    "hand_throw": "Left",
+    "is_above_hr_threshold": true,
+    "is_above_sb_threshold": false,
+    "is_above_so_threshold": false,
+    "is_above_w_threshold": false,
+    "is_hof": true,
+    "is_hr_leader": true,
+    "is_rookie": false,
+    "is_sb_leader": false,
+    "is_so_leader": false,
+    "lg_ID": "AL",
+    "name": "Babe Ruth",
+    "nationality": "US",
+    "onbase_perc": 0.512,
+    "onbase_plus_slugging": 1.358,
+    "onbase_plus_slugging_plus": 239,
+    "outs_above_avg": {},
+    "pos_season": "*78/31H",
+    "positions": {
+      "1B": {
+        "drs": null,
+        "g": 2,
+        "tzr": null
+      },
+      "CF": {
+        "drs": null,
+        "g": 20,
+        "tzr": null
+      },
+      "LF": {
+        "drs": null,
+        "g": 132,
+        "tzr": null
+      },
+      "OF": {
+        "drs": null,
+        "g": 152,
+        "tzr": null
+      },
+      "P": {
+        "drs": null,
+        "g": 2,
+        "tzr": null
+      }
+    },
+    "rookie_status_year": 1915,
+    "slugging_perc": 0.846,
+    "sprint_speed": null,
+    "team_ID": "NYY",
+    "type": "Hitter",
+    "warnings": [],
+    "year_ID": 1921,
+    "years_played": [
+      "1914",
+      "1915",
+      "1916",
+      "1917",
+      "1918",
+      "1919",
+      "1920",
+      "1921",
+      "1922",
+      "1923",
+      "1924",
+      "1925",
+      "1926",
+      "1927",
+      "1928",
+      "1929",
+      "1930",
+      "1931",
+      "1932",
+      "1933",
+      "1934",
+      "1935"
+    ]
+  },
+  "stats_period": {
+    "display_text": "1921",
+    "is_full_career": false,
+    "is_multi_year": false,
+    "league": "MLB",
+    "source": "Archive",
+    "team_selection": "LAST_TEAM",
+    "type": "REGULAR",
+    "year": "1921",
+    "year_list": [
+      1921
+    ],
+    "year_type": "SINGLE_YEAR"
+  },
+  "team": "NYY",
+  "year": "1921"
+}
