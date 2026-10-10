@@ -405,16 +405,29 @@ class StatsPeriod(BaseModel):
         except: year = None
         if year is None: return False
 
+        return self.is_season_in_progress(year=year)
+
+    @property
+    def includes_season_in_progress(self) -> bool:
+        """
+        Returns True if any year in the stats period (ex: last year of a multi-year range) is a season still in progress.
+        """
+        if self.last_year is None: return False
+        return self.is_season_in_progress(year=self.last_year)
+
+    @staticmethod
+    def is_season_in_progress(year:int) -> bool:
+        """
+        Returns True if the given year is the current year and its regular season has not ended yet.
+        """
         today = date.today()
-        match today.year:
-            case 2026:
-                # Season ends on September 27th
-                return year == today.year and today.month <= 9 and today.day <= 27
-            case _:
-                # Assume season ending on September 30th
-                return year == today.year and today.month <= 9 and today.day <= 30
-        
-        return False
+        if year != today.year: return False
+
+        match year:
+            case 2026: season_end_date = date(year=year, month=9, day=27)
+            case _: season_end_date = date(year=year, month=9, day=30) # ASSUME SEASON ENDING ON SEPTEMBER 30TH
+
+        return today <= season_end_date
 
     @property
     def first_year(self) -> Optional[int]:
