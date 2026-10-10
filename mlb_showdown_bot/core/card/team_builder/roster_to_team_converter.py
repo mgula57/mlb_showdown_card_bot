@@ -350,7 +350,7 @@ class RosterToTeamConverter:
             eligible = {
                 pos: [
                     c for c in hitters
-                    if c.card_id not in used_ids and self._pos_matches(c, PositionSlot('CA' if pos == 'C' else pos))
+                    if c.card_id not in used_ids and self._pos_matches(c, self._slot(pos))
                 ]
                 for pos in remaining_positions
             }
@@ -362,7 +362,53 @@ class RosterToTeamConverter:
                 assignment[position] = picked
                 used_ids.add(picked.card_id)
 
+        for position in [p for p in OFFENSE_POSITIONS if p not in assignment]:
+            self._fill_by_shifting(position, assignment, hitters, used_ids)
+
         return assignment
+
+    @staticmethod
+    def _slot(position: str) -> PositionSlot:
+        return PositionSlot('CA' if position == 'C' else position)
+
+    def _fill_by_shifting(
+        self, position: str, assignment: dict[str, ExploreDataRecord], hitters: list[ExploreDataRecord], used_ids: set[str],
+    ) -> None:
+        """Fill an empty lineup position by shifting already-placed hitters along a chain.
+
+        Passes 1-2 are greedy, so a versatile player can be locked into his most-played position
+        while the only other hole he could cover goes empty (e.g. 2025 PIT: Triolo at SS leaves
+        3B open, though Gonzales can play SS and Valdez 2B). Breadth-first search finds the
+        shortest chain of moves -- a placed hitter slides into the open position, his old spot
+        becomes the new opening -- ending with an unused hitter; the best one by games played wins
+        among those at the shortest depth. Forced (All-Star) positions are never moved.
+        """
+        forced_ids = set(self.forced_positions)
+        # came_from[opening] = (position the mover fills, mover) -- mover vacates `opening`.
+        came_from: dict[str, Optional[tuple[str, ExploreDataRecord]]] = {position: None}
+        frontier = [position]
+        while frontier:
+            fillers = [
+                (opening, c) for opening in frontier for c in hitters
+                if c.card_id not in used_ids and self._pos_matches(c, self._slot(opening))
+            ]
+            if fillers:
+                opening, filler = max(fillers, key=lambda pair: self._by_games_played(pair[1]))
+                assignment[opening] = filler
+                used_ids.add(filler.card_id)
+                while came_from[opening] is not None:
+                    target, mover = came_from[opening]
+                    assignment[target] = mover
+                    opening = target
+                return
+            next_frontier = []
+            for opening in frontier:
+                for held, card in assignment.items():
+                    if held in came_from or card.card_id in forced_ids or not self._pos_matches(card, self._slot(opening)):
+                        continue
+                    came_from[held] = (opening, card)
+                    next_frontier.append(held)
+            frontier = next_frontier
 
     def build(self) -> Team:
         hitters = [c for c in self.cards if c.player_type != 'PITCHER']
