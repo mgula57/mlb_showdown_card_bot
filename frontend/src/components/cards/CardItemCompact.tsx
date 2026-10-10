@@ -54,6 +54,13 @@ type CardItemCompactProps = {
     backgroundSettings?: string;
     /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
     hasAdvantage?: boolean;
+    /** A stat shown in place of the command badge, always visible — e.g. the runner's tested speed on a sim steal. */
+    statBadge?: CardItemStatBadge;
+};
+
+export type CardItemStatBadge = {
+    label: string;
+    value: string | number;
 };
 
 // =============================================================================
@@ -102,7 +109,8 @@ export const CardItemCompact = ({
     liveIp,
     accentColor,
     backgroundSettings,
-    hasAdvantage
+    hasAdvantage,
+    statBadge,
 }: CardItemCompactProps) => {
 
     const { isDark } = useTheme();
@@ -163,7 +171,13 @@ export const CardItemCompact = ({
             `}
         >
             {hasAdvantage && <AdvantageBadge />}
-            {!hideCommand && (
+            {/* A stat badge takes the command's slot — e.g. the runner's tested speed on a sim steal. */}
+            {statBadge ? (
+                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-md bg-(--background-primary)/60 px-1.5 py-1">
+                    <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{statBadge.label}</span>
+                    <span className="text-xs font-black leading-none text-(--text-primary)">{statBadge.value}</span>
+                </div>
+            ) : !hideCommand && (
                 <CardCommand
                     isPitcher={card?.is_pitcher || false}
                     primaryColor={primaryColor}
@@ -261,7 +275,7 @@ export const CardItemCompact = ({
             </div>
 
             {/* Absolute positioned elements */}
-            {!hideDetails && !isRedacted && !hideCommand && (
+            {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
                 <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
                 </div>
@@ -337,9 +351,10 @@ type CardItemCompactFromCardProps = {
     accentColor?: string;
     backgroundSettings?: string;
     hasAdvantage?: boolean;
+    statBadge?: CardItemStatBadge;
 };
 
-export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings, hasAdvantage }: CardItemCompactFromCardProps) => {
+export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings, hasAdvantage, statBadge }: CardItemCompactFromCardProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -385,6 +400,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideD
             accentColor={accentColor}
             backgroundSettings={backgroundSettings}
             hasAdvantage={hasAdvantage}
+            statBadge={statBadge}
         />
     );
 };

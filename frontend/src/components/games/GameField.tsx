@@ -662,8 +662,8 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     : taggedOut ? "opacity-50 scale-90 grayscale"
                                     : "opacity-100 scale-100";
 
-                        // The hitter this play resolves — they carry the swing die (and the advantage
-                        // glow) with them as they leave the plate.
+                        // The hitter this play resolves — they carry the advantage glow with them as
+                        // they leave the plate (the swing die stays at the plate, below).
                         const isPendingBatter = pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId);
 
                         return (
@@ -690,15 +690,24 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     tone="offense"
                                     hideCommand={occ.spot !== "plate"}
                                     hideTeamPoints={occ.spot !== "plate"}
+                                    showSpeedBadge={occ.spot !== "plate"}
                                     detailStat1Category={occ.spot === "plate" ? "hr" : "hr"}
                                     hasAdvantage={advantage === "hitter" && isPendingBatter}
                                 />
-                                {isPendingBatter && (
-                                    <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
-                                )}
                             </div>
                         );
                     })}
+
+                    {/* The swing die stays put at the plate (same width as a marker, so the dock
+                        lines up) rather than riding the hitter around the bases. */}
+                    {presentOccupants.some((occ) => pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId)) && (
+                        <div
+                            className="absolute -translate-x-1/2 -translate-y-1/2 w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 h-px pointer-events-none"
+                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: 2 }}
+                        >
+                            <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
+                        </div>
+                    )}
 
                     <ResultFlash play={pendingPlay} phase={phase} transition={transition} />
 
@@ -743,10 +752,16 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     </div>
                 )}
 
-                {/* Sim steal / extra-base dice, in the corner the defense summary holds for a real
-                    game (a sim has no defense alignment, so the two never compete). */}
+                {/* Sim steal / extra-base / double-play dice, floated over the middle of the diamond
+                    (the mound) for the length of the beat so the roll is where the eye already is.
+                    Above every marker (z-30), below the play prompt (z-40); keyed on the beat so
+                    each new roll pops in fresh. */}
                 {transition?.runnerRolls && (
-                    <div className="absolute bottom-0 left-0">
+                    <div
+                        key={`runner-rolls-${transition.toIndex}`}
+                        className="absolute z-30 -translate-x-1/2 -translate-y-1/2 result-pop"
+                        style={atPercent(DEFENSE_SPOTS.pitcher)}
+                    >
                         <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                     </div>
                 )}

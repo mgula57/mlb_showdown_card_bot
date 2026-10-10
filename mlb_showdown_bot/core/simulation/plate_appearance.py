@@ -73,8 +73,8 @@ class Roll:
         # OR ADVANCE MUTATES `runner.base` IMMEDIATELY, SO READING IT BACK LATER (AS THE
         # PLAY-BY-PLAY NARRATION DOES) WOULD REPORT WHERE THEY ENDED UP, NOT WHERE THEY RAN FROM.
         self.base = base
-        # STEAL / EXTRA-BASE ROLLS ONLY: THE DEFENSE THE ROLL WAS ADDED TO (CATCHER ARM, OR OUTFIELD
-        # DEFENSE) AND THE RUNNER'S EFFECTIVE SPEED (SPEED + BASE BONUS) IT WAS COMPARED AGAINST -
+        # STEAL / EXTRA-BASE / DOUBLE-PLAY ROLLS ONLY: THE DEFENSE THE ROLL WAS ADDED TO (CATCHER ARM,
+        # OUTFIELD OR INFIELD DEFENSE) AND THE RUNNER'S EFFECTIVE SPEED (SPEED + BASE BONUS) IT WAS COMPARED AGAINST -
         # OUT WHEN `defense + roll > target`. 0 ON EVERY OTHER ROLL.
         self.defense = defense
         self.target = target
@@ -193,7 +193,9 @@ class PlateAppearance:
         dice_roll = self.__random_dice_roll()
         double_play_result = Result.OUT if ( (infield_defense + dice_roll) > self.hitter.speed ) else Result.SAFE
         runner = self.runners.runner_for_base(1)
-        self.double_play_roll = Roll(roll=dice_roll, result=double_play_result, runner=runner)
+        # `base=0`: THE BATTER RUNNING FROM HOME TO FIRST. `defense`/`target` MIRROR THE TEST ABOVE
+        # SO A REPLAY CAN SHOW THE ROLL THE SAME WAY IT SHOWS A STEAL OR AN EXTRA-BASE SEND.
+        self.double_play_roll = Roll(roll=dice_roll, result=double_play_result, runner=runner, base=0, defense=infield_defense, target=self.hitter.speed)
         self.outs += int(double_play_result.is_out)
 
         # `Runners.move` provisionally puts the hitter on first pending this roll (see the DP branch

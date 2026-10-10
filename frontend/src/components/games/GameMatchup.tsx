@@ -28,6 +28,9 @@ type GameMatchupProps = {
     hideStatlines?: boolean;
     /** Sim only — which side's card to highlight as having won the advantage roll. */
     advantage?: AdvantageSide;
+    /** Sim only — the chart result the swing landed on; lit up on the advantage card's chart
+     *  (the chart the swing was rolled against). */
+    swingResult?: string;
 };
 
 /**
@@ -51,7 +54,7 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
 }
 
 function MatchupSide({
-    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect, hideTrend, hasAdvantage,
+    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect, hideTrend, hasAdvantage, chartHighlight,
 }: {
     label: string;
     player?: PlayerRef;
@@ -63,6 +66,7 @@ function MatchupSide({
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
     hideTrend?: boolean;
     hasAdvantage?: boolean;
+    chartHighlight?: string;
 }) {
     return (
         <div className="min-w-0 space-y-1.5">
@@ -84,7 +88,7 @@ function MatchupSide({
                 isCompact ? (
                     <CardItemCompactFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} />
                 ) : (
-                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} />
+                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
                 )
             ) : isLoadingCards ? (
                 <CardItemSkeleton className="w-full" />
@@ -103,7 +107,7 @@ function MatchupSide({
     );
 }
 
-export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, hideStatlines = false, advantage: advantageSide }: GameMatchupProps) {
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, hideStatlines = false, advantage: advantageSide, swingResult }: GameMatchupProps) {
     const situation = game.situation;
     if (!situation) return null;
 
@@ -136,6 +140,7 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
                         summary={pitcherSummary}
                         advantage={pitcherAdvantage}
                         hasAdvantage={advantageSide === "pitcher"}
+                        chartHighlight={advantageSide === "pitcher" ? swingResult : undefined}
                         isLoadingCards={isLoadingCards}
                         onCardSelect={onCardSelect}
                         isCompact={isCompactCards}
@@ -149,6 +154,7 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
                         summary={batterSummary}
                         advantage={pitcherAdvantage != null ? 100 - pitcherAdvantage : undefined}
                         hasAdvantage={advantageSide === "hitter"}
+                        chartHighlight={advantageSide === "hitter" ? swingResult : undefined}
                         isLoadingCards={isLoadingCards}
                         onCardSelect={onCardSelect}
                         isCompact={isCompactCards}

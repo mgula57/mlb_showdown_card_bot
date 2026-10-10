@@ -117,6 +117,11 @@ export type SimGameRecord = {
     seed: number | null;
     created_at: string;
     is_own: boolean;
+    /** Who ran it — null for an anonymous sim (or a user with no profile/settings row). */
+    creator_username: string | null;
+    creator_avatar_url: string | null;
+    creator_primary_color: string | null;
+    creator_secondary_color: string | null;
     result?: SimGameResult;
 };
 
@@ -171,6 +176,14 @@ export async function fetchGameSimResult(simId: string, token?: string): Promise
     const res = await fetch(`${API_BASE}/sim/game/result/${simId}`, { headers });
     if (!res.ok) await parseError(res, "Failed to load simulated game");
     return res.json();
+}
+
+/** How many simulations of one real game have been stored. */
+export async function fetchGameSimCount(gamePk: number): Promise<number> {
+    const res = await fetch(`${API_BASE}/sim/game/${gamePk}/count`);
+    if (!res.ok) await parseError(res, "Failed to load simulation count");
+    const data = await res.json();
+    return data.count ?? 0;
 }
 
 /** Previous simulations of one real game, newest first. */

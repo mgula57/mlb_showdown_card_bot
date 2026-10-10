@@ -83,6 +83,8 @@ type CardItemProps = {
     actionButton?: CardItemActionButton;
     /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
     hasAdvantage?: boolean;
+    /** Sim only — the chart result the swing landed on (e.g. "1b+"); that cell lights up. */
+    chartHighlight?: string;
 };
 
 /**
@@ -123,7 +125,7 @@ export const CardItem = ({
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
     cardChartRanges, cardLeague, cardSource,
-    onClick, className, isSelected, actionButton, hasAdvantage
+    onClick, className, isSelected, actionButton, hasAdvantage, chartHighlight
 }: CardItemProps) => {
 
     const { isDark } = useTheme();
@@ -350,6 +352,7 @@ export const CardItem = ({
                         secondaryColor={colorStylingSecondary.backgroundColor}
                         team={cardTeam}
                         cellClassName="min-w-6 md:min-w-8"
+                        highlightResult={chartHighlight}
                     />
                 </div>
 
@@ -480,9 +483,11 @@ type CardItemFromCardProps = {
     sourceOverride?: CardSource;
     /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
     hasAdvantage?: boolean;
+    /** Sim only — the chart result the swing landed on (e.g. "1b+"); that cell lights up. */
+    chartHighlight?: string;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride, hasAdvantage }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride, hasAdvantage, chartHighlight }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -530,6 +535,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             isSelected={isSelected}
             actionButton={actionButton}
             hasAdvantage={hasAdvantage}
+            chartHighlight={chartHighlight}
         />
     );
 }
