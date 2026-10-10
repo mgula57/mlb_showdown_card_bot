@@ -382,6 +382,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                    after it the cursor has moved on to the next plate appearance. */
                 const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
                 const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : undefined;
+                const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
 
                 /* In a sim the mode strip is the page's own top bar (see below) rather than a
                    separate banner, so only the controls are built here. */
@@ -599,6 +600,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                         onCardSelect={setSelectedCard}
                                                         hideStatlines={isReplaying}
                                                         advantage={advantage}
+                                                        swingResult={swingResult}
                                                     />
                                                 )}
                                             </div>
