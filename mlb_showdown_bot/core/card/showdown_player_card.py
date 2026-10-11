@@ -493,6 +493,22 @@ class ShowdownPlayerCard(BaseModel):
         
         return None
 
+    @field_validator('command_out_override', mode='before')
+    def parse_command_out_override(cls, command_out_override: str | tuple | list | None) -> tuple[int, int] | None:
+        """Translate string inputs into a (command, outs) tuple.
+        EX: "12-6", "(12,6)", "12,6" -> (12, 6)
+        """
+        if command_out_override is None or not isinstance(command_out_override, str):
+            return command_out_override
+
+        if len(command_out_override.strip()) == 0:
+            return None
+
+        values = re.findall(r'\d+', command_out_override)
+        if len(values) != 2:
+            raise ValueError(f"command_out_override '{command_out_override}' must contain exactly 2 numbers (ex: '12-6', '(12,6)', '12,6')")
+        return (int(values[0]), int(values[1]))
+
     def extract_player_nicknames_list(self) -> list[str]:
         """Use nicknames csv file to check if the player has nicknames available."""
         
