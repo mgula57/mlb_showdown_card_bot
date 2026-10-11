@@ -39,7 +39,8 @@ export function challengeRestrictionsLabel(challenge: ChallengeInstance): string
     if (hand?.length) parts.push(`${hand.join('/')} bats`);
     const minYear = pf.min_year as number | undefined;
     const maxYear = pf.max_year as number | undefined;
-    if (minYear != null || maxYear != null) parts.push(`${minYear ?? 'Any'}–${maxYear ?? 'Any'}`);
+    if (minYear != null && minYear === maxYear) parts.push(String(minYear));
+    else if (minYear != null || maxYear != null) parts.push(`${minYear ?? 'Any'}–${maxYear ?? 'Any'}`);
     const organization = pf.organization as string[] | undefined;
     if (organization?.length) parts.push(organization.join('/'));
     const league = pf.league as string[] | undefined;
