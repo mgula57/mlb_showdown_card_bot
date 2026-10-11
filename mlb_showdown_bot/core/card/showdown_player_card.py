@@ -1976,8 +1976,9 @@ class ShowdownPlayerCard(BaseModel):
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True, year=self.stats_period.last_year)
         pa = self.stats_for_card.get('pa', 400)
         
-        def build_chart(command:int, outs:float) -> Chart:
+        def build_chart(command:int, outs:float, is_outlier_reduction_disabled:bool=False) -> Chart:
             return Chart(
+                is_outlier_reduction_disabled=is_outlier_reduction_disabled,
                 command=command,
                 outs=outs,
                 opponent=opponent,
@@ -2022,16 +2023,22 @@ class ShowdownPlayerCard(BaseModel):
 
         # IF A COMBO IS FORCED (MANUAL OVERRIDE OR CURATED SELECTION), PROMOTE IT TO VERSION 1
         # KEEPS ITS TRUE ACCURACY SO THE BREAKDOWN REFLECTS THE COST OF THE CHOICE
+        # CURATED SELECTIONS ARE INTENTIONAL, SO THEY SKIP OUTLIER ACCURACY REDUCTIONS
         forced_command_outs = self.forced_command_outs
         if forced_command_outs:
             forced_command, forced_outs = forced_command_outs
             forced_concat = f"{forced_command}-{forced_outs}"
+            is_curated = self.command_out_selection is not None
             forced_chart = next((c for c in charts if c.command_outs_concat == forced_concat), None)
-            if forced_chart is None:
-                slot_worth = next((c.sub_21_per_slot_worth for c in charts if c.command == forced_command), charts[0].sub_21_per_slot_worth)
-                forced_chart = build_chart(command=forced_command, outs=forced_outs * slot_worth)
-            else:
+            if forced_chart is not None:
                 charts.remove(forced_chart)
+            if forced_chart is None or is_curated:
+                if forced_chart is not None:
+                    forced_outs_value = forced_chart.outs
+                else:
+                    slot_worth = next((c.sub_21_per_slot_worth for c in charts if c.command == forced_command), charts[0].sub_21_per_slot_worth)
+                    forced_outs_value = forced_outs * slot_worth
+                forced_chart = build_chart(command=forced_command, outs=forced_outs_value, is_outlier_reduction_disabled=is_curated)
             charts.insert(0, forced_chart)
 
         best_chart = charts[offset]
