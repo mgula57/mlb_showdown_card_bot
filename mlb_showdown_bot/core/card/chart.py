@@ -1171,6 +1171,12 @@ class Chart(BaseModel):
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_per_400_pa = self.projected_stats_per_400_pa
         weights = self.accuracy_stat_weights
+
+        # CURATED CHARTS IGNORE COMMAND ACCURACY. ZERO ITS WEIGHT AND RESCALE THE REST SO WEIGHTS STILL SUM TO 1
+        command_weight = weights.get(Stat.COMMAND, 0)
+        if self.is_outlier_reduction_disabled and 0 < command_weight < 1:
+            weights = { stat: (0.0 if stat == Stat.COMMAND else weight / (1 - command_weight)) for stat, weight in weights.items() }
+
         actuals_dict = dict( ChainMap({'command': self.command_estimated}, self.stats_per_400_pa) )
         measurements_dict = dict( ChainMap({'command': self.command}, in_game_stats_per_400_pa) )
         self.__calculate_accuracy_breakdown(

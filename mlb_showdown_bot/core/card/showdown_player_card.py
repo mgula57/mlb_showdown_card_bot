@@ -3923,6 +3923,11 @@ class ShowdownPlayerCard(BaseModel):
         logo_img_with_text.paste(era_txt_color, era_text_paste_location, era_text)
         logo_img_with_text.paste(era_txt_color, (-5, 330), version_text)
 
+        # CHART VERSION (EX: CV2), OPPOSITE THE BOT VERSION. ONLY SHOWN FOR NON-V1 CHARTS
+        if self.chart_version != 1:
+            chart_version_text = self._text_image(text=f"CV{self.chart_version}", size=(img_width, 125), font=version_text_font, alignment="left")
+            logo_img_with_text.paste(era_txt_color, (5, 330), chart_version_text)
+
         # RESIZE FINAL TIME AND ADD BORDER RADIUS
         logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
         logo_size = int(logo_size[0] * 0.80), int(logo_size[1] * 0.80)
