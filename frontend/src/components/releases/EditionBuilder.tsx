@@ -192,6 +192,18 @@ const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
 /** Per-viewer Build Method panel width, saved once they drag the divider. */
 const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
 
+type BuildMethod = 'algorithm' | 'manual';
+/** Per-viewer, per-edition Algorithm/Manual tab, so returning to an edition reopens the last-used method. */
+const buildMethodStorageKey = (editionId: string) => `releaseBuilder.buildMethod.${editionId}`;
+
+function loadSavedBuildMethod(editionId: string): BuildMethod {
+    try {
+        return localStorage.getItem(buildMethodStorageKey(editionId)) === 'manual' ? 'manual' : 'algorithm';
+    } catch {
+        return 'algorithm';
+    }
+}
+
 function loadSavedBuildPanelWidth(): number | null {
     try {
         const saved = Number(localStorage.getItem(BUILD_PANEL_WIDTH_STORAGE_KEY));
@@ -222,9 +234,13 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     }, [showNumberingSettings]);
 
     // Left/right split resize
-    const [buildMethod, setBuildMethod] = useState<'algorithm' | 'manual'>('algorithm');
+    const [buildMethod, setBuildMethod] = useState<BuildMethod>(() => loadSavedBuildMethod(edition.id));
+    function handleBuildMethodChange(method: BuildMethod) {
+        setBuildMethod(method);
+        try { localStorage.setItem(buildMethodStorageKey(edition.id), method); } catch { /* storage unavailable */ }
+    }
     const [blueprintSlot, setBlueprintSlot] = useState<HTMLDivElement | null>(null);
-    const [buildPanelWidth, setBuildPanelWidth] = useState<number>(() => loadSavedBuildPanelWidth() ?? DEFAULT_BUILD_PANEL_WIDTH.algorithm);
+    const [buildPanelWidth, setBuildPanelWidth] = useState<number>(() => loadSavedBuildPanelWidth() ?? DEFAULT_BUILD_PANEL_WIDTH[buildMethod]);
     // Summary mounts lazily on first open, then stays mounted so its filters/WOTC comparison survive tab switches.
     const [summaryMounted, setSummaryMounted] = useState(false);
     const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
@@ -571,7 +587,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                         </div>
                         <Tabs.Root
                             value={buildMethod}
-                            onValueChange={v => setBuildMethod(v as 'algorithm' | 'manual')}
+                            onValueChange={v => handleBuildMethodChange(v as BuildMethod)}
                             className="flex flex-col flex-1 min-h-0"
                         >
                             <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
