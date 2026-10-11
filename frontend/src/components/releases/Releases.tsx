@@ -25,7 +25,7 @@ type OpenRelease = {
 };
 
 export default function Releases() {
-    const { session } = useAuth();
+    const { session, loading: authLoading } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
     const token = session?.access_token;
@@ -53,9 +53,9 @@ export default function Releases() {
     // Load the releases list lazily — only when viewing the list, so a direct visit to a
     // release URL opens the release without first loading every release.
     useEffect(() => {
-        if (!isOnReleaseBuilder || releaseIdFromUrl || listLoaded) return;
+        if (authLoading || !isOnReleaseBuilder || releaseIdFromUrl || listLoaded) return;
         loadReleases();
-    }, [isOnReleaseBuilder, releaseIdFromUrl, listLoaded, token]);
+    }, [authLoading, isOnReleaseBuilder, releaseIdFromUrl, listLoaded, token]);
 
     const activeOpenRelease = releaseIdFromUrl ? openReleases[releaseIdFromUrl] : undefined;
     const isActiveReleaseMounted = !!activeOpenRelease;
@@ -70,20 +70,25 @@ export default function Releases() {
         setOpenReleases({});
     }, [userId]);
 
-    // When the URL addresses a release that isn't mounted yet, fetch and mount it.
+    // When the URL addresses a release that isn't mounted yet, fetch and mount it. Waits for the
+    // auth session to restore first — on a page reload the token isn't available on the first
+    // render, and an unpublished release fetched anonymously 404s and bounces back to the list.
     useEffect(() => {
         // This page stays mounted while hidden, so leaving the route must not touch open releases.
-        if (!isOnReleaseBuilder || !releaseIdFromUrl || openReleases[releaseIdFromUrl]) return;
+        if (authLoading || !isOnReleaseBuilder || !releaseIdFromUrl || openReleases[releaseIdFromUrl]) return;
 
+        let cancelled = false;
         fetchRelease(releaseIdFromUrl, token ?? undefined)
             .then(release => {
+                if (cancelled) return;
                 const readOnly = !token || release.created_by !== session?.user?.id;
                 mountRelease(release, readOnly);
             })
             .catch(() => {
-                navigate('/release-builder', { replace: true });
+                if (!cancelled) navigate('/release-builder', { replace: true });
             });
-    }, [releaseIdFromUrl, isOnReleaseBuilder, token]);
+        return () => { cancelled = true; };
+    }, [authLoading, releaseIdFromUrl, isOnReleaseBuilder, token]);
 
     // Bare release URL (no edition slug) → restore the edition last viewed in that release.
     useEffect(() => {
