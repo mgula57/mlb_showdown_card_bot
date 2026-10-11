@@ -312,7 +312,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
 
     return (
         <div className="relative flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 pb-20 flex flex-col gap-5">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 pb-24 flex flex-col gap-5">
             {blueprintSlot && createPortal(blueprintDropdown, blueprintSlot)}
             {activeBlueprint && (
                 <p className="text-[11px] text-(--text-tertiary) shrink-0 -mb-2">{activeBlueprint.description}</p>
@@ -489,10 +489,10 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             disabled={!token || !isDirty || saving}
             aria-label="Save algorithm settings"
             title={isDirty ? 'Save settings' : 'Settings saved'}
-            className="absolute bottom-3 right-20 w-14 h-14 rounded-full flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold shadow-lg
+            className="absolute bottom-3 right-22 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
                 border border-(--divider) bg-(--background-secondary) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
-            {saving ? <FaSpinner className="animate-spin" /> : (isDirty ? <FaFloppyDisk /> : <FaCheck />)}
+            {saving ? <FaSpinner className="animate-spin text-[18px]" /> : (isDirty ? <FaFloppyDisk className="text-[18px]" /> : <FaCheck className="text-[18px]" />)}
             {saving ? '…' : (isDirty ? 'Save' : 'Saved')}
         </button>
 
@@ -501,10 +501,10 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             onClick={handleRun}
             disabled={!canRun}
             aria-label="Run algorithm"
-            className="absolute bottom-3 right-3 w-14 h-14 rounded-full flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold shadow-lg
+            className="absolute bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
                 bg-linear-to-r from-blue-500 to-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
-            {status === 'running' ? <FaSpinner className="animate-spin" /> : <FaWandMagicSparkles />}
+            {status === 'running' ? <FaSpinner className="animate-spin text-[18px]" /> : <FaWandMagicSparkles className="text-[18px]" />}
             {status === 'running' ? '…' : 'Run'}
         </button>
         </div>
