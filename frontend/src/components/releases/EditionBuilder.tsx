@@ -15,12 +15,15 @@ import CompactSelect from '../shared/CompactSelect';
 import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import FormEnabler from '../customs/FormEnabler';
+import { formSectionSummary } from '../customs/FormSectionSummary';
+import { EditionStyleModal } from './EditionStyleModal';
+import { parseEditionStyle, editionStyleSummary } from './editionStyle';
 import {
     groupAndSortCards, takeFromGroups, POOL_GROUP_OPTIONS, POOL_SORT_OPTIONS, POOL_SORT_DEFAULT_DIRECTION,
     type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
 } from './poolGrouping';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn } from 'react-icons/fa6';
+import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette } from 'react-icons/fa6';
 
 /** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
 const MIN_POOL_PANEL_WIDTH = 280;
@@ -221,6 +224,8 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     const [numbering, setNumbering] = useState<NumberingSettings>(() => parseNumberingSettings(edition.attributes));
     const [editingNumbers, setEditingNumbers] = useState<Record<string, string>>({});
     const [showNumberingSettings, setShowNumberingSettings] = useState(false);
+    const [showStyleModal, setShowStyleModal] = useState(false);
+    const styleSummary = useMemo(() => editionStyleSummary(parseEditionStyle(edition.attributes)), [edition.attributes]);
     const numberingSettingsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -537,8 +542,20 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                     </span>
                 </div>
 
+                {!readOnly && (
+                    <button
+                        type="button"
+                        onClick={() => setShowStyleModal(true)}
+                        title="Default card style for this edition"
+                        className="ml-auto flex items-center gap-2 min-h-9 px-3 py-1.5 rounded-lg border border-(--divider) text-[13px] font-bold text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                    >
+                        <FaPalette className="text-[12px] shrink-0" /> Card Style
+                        {formSectionSummary(styleSummary)}
+                    </button>
+                )}
+
                 {saving && (
-                    <span className="ml-auto flex items-center gap-1 text-[11px] text-(--text-tertiary)">
+                    <span className={`${readOnly ? 'ml-auto' : ''} flex items-center gap-1 text-[11px] text-(--text-tertiary)`}>
                         <FaSpinner className="animate-spin text-[10px]" /> Saving…
                     </span>
                 )}
@@ -984,6 +1001,16 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                     </Tabs.Root>
                 </div>
             </div>
+
+            {showStyleModal && (
+                <EditionStyleModal
+                    releaseId={releaseId}
+                    edition={edition}
+                    token={token}
+                    onClose={() => setShowStyleModal(false)}
+                    onEditionUpdated={onEditionUpdated}
+                />
+            )}
 
             {/* Player Pool card detail */}
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>

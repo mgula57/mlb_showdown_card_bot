@@ -58,6 +58,9 @@ import {
 import CardBuildIcon from './CardBuildIcon';
 import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import Set2026Notice from './Set2026Notice';
+import { SetStyleFields, ImageStyleFields, NewBadge } from './CardStyleFields';
+import { setStyleSummary, imageStyleSummary } from './cardStyle';
+import { formSectionSummary } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
 // ----------------------------------
@@ -157,13 +160,6 @@ const isMultiYearInput = (year: string): boolean => {
     if (!trimmed) return false;
     return trimmed.toUpperCase() === 'CAREER' || trimmed.includes('-') || trimmed.includes('+');
 };
-
-/** Small pill badge used to flag newly added options/fields */
-const NewBadge = () => (
-    <span className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-(--red) text-white uppercase tracking-wide">
-        New
-    </span>
-);
 
 type loadingStatusContent = {
     message: string;
@@ -273,9 +269,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         || isProcessingCard
     )
     const isMultiYear = isMultiYearInput(form.year);
-    // Hiding the split/date text banner only applies to non-Base Set expansions (Trading Deadline, Pennant Run)
-    // or the All-Star Game / Postseason editions.
-    const canHideSplitDateText = form.expansion !== 'BS' || form.edition === 'ASG' || form.edition === 'POST';
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
     const getImagePreview = (): string | null => {
@@ -288,22 +281,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 return null;
         }
     };
-    const publicImagePath = (imageName:string): string => {
-        return `/images/card/${imageName}.png`;
-    };
 
 
 
     // ---------------------------------
     // MARK: Form Options
     // ---------------------------------
-
-    // Expansion options
-    const expansionOptions: SelectOption[] = [
-        { label: "Base Set", value: "BS", image: publicImagePath('expansion-bs') },
-        { label: "Trading Deadline", value: "TD", image: publicImagePath('expansion-td'), 'borderColor': 'border-red-600' },
-        { label: "Pennant Run", value: "PR", image: publicImagePath('expansion-pr'), 'borderColor': 'border-blue-900' },
-    ]
 
     // Stats Period Options
     const statsPeriodOptions: SelectOption[] = [
@@ -325,49 +308,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { 'value': 'FIRST_TEAM', 'label': 'First Team' },
     ]
 
-    // Edition Options
-    const editionOptions: SelectOption[] = [
-        { 'value': 'NONE', 'label': 'None', 'symbol': '―' },
-        { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': publicImagePath('edition-cc'), 'borderColor': 'border-amber-800' },
-        { 'value': 'SS', 'label': 'Super Season', 'image': publicImagePath('edition-ss'), 'borderColor': 'border-red-500' },
-        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400' },
-        { 'value': 'RS', 'label': 'Rookie Season', 'image': publicImagePath('edition-rs'), 'borderColor': 'border-red-800' },
-        { 'value': 'HOL', 'label': 'Holiday', 'symbol': '🎄', 'borderColor': 'border-green-600' },
-        { 'value': 'NAT', 'label': 'Nationality', 'symbol': '🌍', 'borderColor': 'border-blue-500' },
-        { 'value': 'WBC', 'label': 'WBC', 'image': publicImagePath('edition-wbc'), 'borderColor': 'border-red-700' },
-        { 'value': 'POST', 'label': 'Postseason', 'image': publicImagePath('edition-post'), 'borderColor': 'border-blue-800' },
-    ]
-
     // Image Source Options
     const imageSourceOptions: SelectOption[] = [
         { 'value': 'AUTO', 'label': 'Auto', 'symbol': '⚙️' },
         { 'value': 'LINK', 'label': 'Link', 'symbol': '🔗' },
         { 'value': 'UPLOAD', 'label': 'Upload', 'symbol': '📤' },
-    ]
-
-    // Image Parallel Options
-    const imageParallelOptions: SelectOption[] = [
-        { "label": "Base", "value": "NONE", 'symbol': '―' },
-        { "label": "Rainbow Foil", "value": "RF", 'symbol': '🌈' },
-        { "label": "Team Color Blast", "value": "TCB", 'symbol': '💥' },
-        { "label": "Galaxy", "value": "GALAXY", 'symbol': '🌌' },
-        { "label": "Gold", "value": "GOLD", "borderColor": "border-yellow-300", 'symbol': '🟡' },
-        { "label": "Gold Rush", "value": "GOLDRUSH", 'symbol': '✨' },
-        { "label": "Gold Frame", "value": "GF", 'symbol': '🖼️' },
-        { "label": "Sapphire", "value": "SPH", 'symbol': '💎' },
-        { "label": "Black and White", "value": "B&W", 'symbol': '📰' },
-        { "label": "Radial", "value": "RAD", 'symbol': '☀' },
-        { "label": "Comic Book Hero", "value": "CB", 'symbol': '🦸' },
-        { "label": "White Smoke", "value": "WS", 'symbol': '💨' },
-        { "label": "Flames", "value": "FLAMES", 'symbol': '🔥' },
-        { "label": "Mystery", "value": "MYSTERY", 'symbol': '❓' },
-        { "label": "Moonlight", "value": "MOONLIGHT", 'symbol': '🌙' },
-    ]
-
-    const imageColoringOptions: SelectOption[] = [
-        { "label": "Primary Color", "value": "PRIMARY" },
-        { "label": "Secondary Color", "value": "SECONDARY" },
-        { "label": "Multi-Color", "value": "MULTI" },
     ]
 
     const chartVersionOptions: SelectOption[] = [
@@ -390,26 +335,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { "value": "POST STEROID ERA", "label": "Post-Steroid (2010-2014)" },
         { "value": "STATCAST ERA", "label": "Statcast (2015-2022)" },
         { "value": "PITCH CLOCK ERA", "label": "Pitch Clock (2023+)" },
-    ]
-
-    const statHighlightsTypeOptions: SelectOption[] = [
-        { "label": "None", "value": "NONE" },
-        { "label": "Classic", "value": "CLASSIC" },
-        { "label": "Modern", "value": "MODERN" },
-        { "label": "All", "value": "ALL" },
-    ]
-
-    const nicknameIndexOptions: SelectOption[] = [
-        { "label": "None", "value": "NONE" },
-        { "label": "Nickname 1", "value": "1" },
-        { "label": "Nickname 2", "value": "2" },
-        { "label": "Nickname 3", "value": "3" },
-    ]
-
-    const outerGlowOptions: SelectOption[] = [
-        { "label": "Glow 1x", "value": "1" },
-        { "label": "Glow 2x", "value": "2" },
-        { "label": "Glow 3x", "value": "3" },
     ]
 
     // ----------------------------------
@@ -487,51 +412,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 break;
 
             case 'set':
-                if (form.expansion !== FORM_DEFAULTS.expansion) {
-                    const expansionOption = expansionOptions.find(opt => opt.value === form.expansion);
-                    summaries.push(expansionOption || { label: 'Expansion', value: form.expansion });
-                }
-                if (form.edition !== FORM_DEFAULTS.edition) {
-                    const editionOption = editionOptions.find(opt => opt.value === form.edition);
-                    summaries.push(editionOption || { label: 'Edition', value: form.edition });
-                }
-                if (form.set_number) summaries.push({ label: 'Set Number', value: form.set_number });
-
-                if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
-                if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
-                if (form.disable_display_text_on_card) summaries.push({ value: "Hide Date Text", borderColor: 'border-green-500' });
+                summaries.push(...setStyleSummary(form, FORM_DEFAULTS, form.set_number));
                 break;
-                
+
             case 'image':
                 if (form.image_source !== FORM_DEFAULTS.image_source) {
                     const sourceOption = imageSourceOptions.find(opt => opt.value === form.image_source);
                     summaries.push(sourceOption || { label: 'Source', value: form.image_source });
                 }
-                if (form.image_source === FORM_DEFAULTS.image_source && form.image_parallel !== FORM_DEFAULTS.image_parallel) {
-                    const parallelOption = imageParallelOptions.find(opt => opt.value === form.image_parallel);
-                    summaries.push(parallelOption || { label: 'Parallel', value: form.image_parallel });
-                }
-                if (form.image_coloring !== FORM_DEFAULTS.image_coloring) {
-                    const coloringOption = imageColoringOptions.find(opt => opt.value === form.image_coloring);
-                    summaries.push({ ...(coloringOption || { value: form.image_coloring }), label: 'Coloring' });
-                }
-                if (form.image_glow_multiplier !== FORM_DEFAULTS.image_glow_multiplier) {
-                    const glowOption = outerGlowOptions.find(opt => opt.value === form.image_glow_multiplier);
-                    summaries.push({ ...(glowOption || { value: form.image_glow_multiplier }), label: 'Glow' });
-                }
-                if (form.stat_highlights_type && form.stat_highlights_type !== FORM_DEFAULTS.stat_highlights_type) {
-                    const statsOption = statHighlightsTypeOptions.find(opt => opt.value === form.stat_highlights_type);
-                    summaries.push({ ...(statsOption || { value: form.stat_highlights_type }), label: 'Real Stats' });
-                }
-                if (form.nickname_index && form.nickname_index !== FORM_DEFAULTS.nickname_index) {
-                    const nicknameOption = nicknameIndexOptions.find(opt => opt.value === form.nickname_index);
-                    summaries.push({ ...(nicknameOption || { value: form.nickname_index }), label: 'Nickname' });
-                }
-                if (form.is_bordered !== FORM_DEFAULTS.is_bordered) summaries.push({ value: 'ADD BORDER', borderColor: 'border-green-500' });
-                if (form.is_dark_mode !== FORM_DEFAULTS.is_dark_mode) summaries.push({ value: 'DARK MODE', borderColor: 'border-green-500' });
-                if (form.hide_team_logo !== FORM_DEFAULTS.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-green-500' });
+                summaries.push(...imageStyleSummary(form, FORM_DEFAULTS, form.image_source === FORM_DEFAULTS.image_source));
                 break;
-                
+
             case 'chart':
                 if (form.chart_version !== FORM_DEFAULTS.chart_version) {
                     const chartOption = chartVersionOptions.find(opt => opt.value === form.chart_version);
@@ -550,53 +441,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         return summaries;
     };
 
-    const sectionWhenClosed = (sectionName: string) => {
-
-        const summaryItems = getSectionSummary(sectionName);
-
-        if (summaryItems.length === 0) {
-            return undefined;
-        }
-        return (
-            <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
-                {summaryItems.map(item => (
-                    <div key={item.label} className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
-                        <span className="font-semibold">{item.icon}</span>
-                        {(() => {
-                            const label = item.label?.toLowerCase()
-                            var prefix = "";
-                            var suffix = "";
-                            var value = item.value || "";
-                            if (label === "name") {
-                                return <span style={{ textTransform: 'capitalize' }}>{item.value}</span>;
-                            }
-                            if (item.image && item.label === "Showdown Set") {
-                                return <img src={item.image} alt={item.label} className="w-12 object-contain h-5" />;
-                            }
-                            if (item.image) {
-                                return <img src={item.image} alt={item.label} className="w-5 h-5" />;
-                            }
-                            if (item.icon) {
-                                return <span className="w-5 h-5" >{item.icon}</span>;
-                            }
-                            if (item.symbol) {
-                                return <span className="w-5 h-5" >{item.symbol}</span>;
-                            }
-                            switch (label) {
-                                case "set number": prefix = "#"; break;
-                                case "coloring": suffix = " COLOR"; break;
-                                case "glow": suffix = "X"; prefix = "GLOW "; break;
-                                case "nickname": prefix = "NICKNAME "; break;
-                                case "chart version": prefix = "CHART "; break;
-                                case "real stats": prefix = "SHOW "; suffix = " STATS"; break;
-                            }
-                            return <span className={`${item.borderColor || 'text-(--tertiary)'}`}>{prefix}{value}{suffix}</span>;
-                        })()}
-                    </div>
-                ))}
-            </div>
-        );
-    };
+    const sectionWhenClosed = (sectionName: string) => formSectionSummary(getSectionSummary(sectionName));
 
     // ---------------------------------
     // MARK: Build Processing
@@ -1404,55 +1249,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
                                         >
-                                            <FormDropdown
-                                                label="Expansion"
-                                                options={expansionOptions}
-                                                selectedOption={form.expansion}
-                                                onChange={(value) => setForm({
-                                                    ...form,
-                                                    expansion: value,
-                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
-                                                    // Don't carry a TRUE value forward if it's no longer applicable.
-                                                    ...(!(value !== 'BS' || form.edition === 'ASG' || form.edition === 'POST') && { disable_display_text_on_card: false }),
-                                                })}
-                                            />
-
-                                            <FormDropdown
-                                                label="Edition"
-                                                options={editionOptions}
-                                                selectedOption={form.edition}
-                                                onChange={(value) => setForm({
-                                                    ...form,
-                                                    edition: value,
-                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
-                                                    // Don't carry a TRUE value forward if it's no longer applicable.
-                                                    ...(!(form.expansion !== 'BS' || value === 'ASG' || value === 'POST') && { disable_display_text_on_card: false }),
-                                                })}
-                                            />
-
-                                            <FormInput
-                                                label="Set Number"
-                                                className='col-span-full'
-                                                value={form.set_number || ''}
-                                                onChange={(value) => setForm({ ...form, set_number: value || '' })}
-                                                isClearable={true}
-                                            />
-
-                                            <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
-                                            <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
-
-                                            <FormEnabler
-                                                label={
-                                                    <span className="inline-flex items-center gap-1.5">
-                                                        Hide Date Text <NewBadge />
-                                                        <InfoTooltip text="Removes the banner that normally shows the split or date range used for this card's stats (e.g. 'First Half' or '2023-05-01 to 2023-10-01'). Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition, since those already communicate the card's context without it." />
-                                                    </span>
+                                            <SetStyleFields
+                                                values={form}
+                                                onChange={(patch) => setForm({ ...form, ...patch })}
+                                                afterEdition={
+                                                    <FormInput
+                                                        label="Set Number"
+                                                        className='col-span-full'
+                                                        value={form.set_number || ''}
+                                                        onChange={(value) => setForm({ ...form, set_number: value || '' })}
+                                                        isClearable={true}
+                                                    />
                                                 }
-                                                className='col-span-full'
-                                                isEnabled={form.disable_display_text_on_card || false}
-                                                onChange={(isEnabled) => setForm({ ...form, disable_display_text_on_card: !isEnabled })}
-                                                isDisabled={!canHideSplitDateText}
-                                                disabledReason='Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition'
                                             />
 
                                         </FormSection>
@@ -1477,13 +1285,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             {form.image_source === 'AUTO' && <ImageLibraryOrderHint className="col-span-full -mt-1" />}
 
                                             {/* Source Specific Options */}
-                                            <FormDropdown
-                                                label="Image Parallel"
-                                                className={`col-span-full ${form.image_source === 'AUTO' ? '' : 'hidden'}`}
-                                                options={imageParallelOptions}
-                                                selectedOption={form.image_parallel}
-                                                onChange={(value) => setForm({ ...form, image_parallel: value })}
-                                            />
                                             <FormInput
                                                 label="Image URL"
                                                 className={`col-span-full ${form.image_source === 'LINK' ? '' : 'hidden'}`}
@@ -1526,39 +1327,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 </div>
                                             )}
 
-                                            <FormDropdown
-                                                label="Image Coloring"
-                                                options={imageColoringOptions}
-                                                selectedOption={form.image_coloring}
-                                                onChange={(value) => setForm({ ...form, image_coloring: value })}
-                                                className='text-nowrap'
+                                            <ImageStyleFields
+                                                values={form}
+                                                onChange={(patch) => setForm({ ...form, ...patch })}
+                                                hideParallel={form.image_source !== 'AUTO'}
                                             />
-
-                                            <FormDropdown
-                                                label="Outer Glow"
-                                                options={outerGlowOptions}
-                                                selectedOption={form.image_glow_multiplier}
-                                                onChange={(value) => setForm({ ...form, image_glow_multiplier: value })}
-                                            />
-
-                                            {/* Extras */}
-                                            <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
-                                            <FormDropdown
-                                                label="Show Real Stats?"
-                                                options={statHighlightsTypeOptions}
-                                                selectedOption={form.stat_highlights_type || 'NONE'}
-                                                onChange={(value) => setForm({ ...form, stat_highlights_type: value })}
-                                            />
-                                            <FormDropdown
-                                                label="Show Nickname?"
-                                                options={nicknameIndexOptions}
-                                                selectedOption={form.nickname_index || 'NONE'}
-                                                onChange={(value) => setForm({ ...form, nickname_index: value })}
-                                            />
-                                            <FormEnabler label='Add Border' isEnabled={form.is_bordered} onChange={(isEnabled) => setForm({ ...form, is_bordered: !isEnabled })} />
-                                            <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
-                                            <FormEnabler label='Remove Team' className='col-span-full' isEnabled={form.hide_team_logo} onChange={(isEnabled) => setForm({ ...form, hide_team_logo: !isEnabled })} />
-
 
                                         </FormSection>
 
