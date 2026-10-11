@@ -44,7 +44,30 @@ export function challengeRestrictionsLabel(challenge: ChallengeInstance): string
     if (organization?.length) parts.push(organization.join('/'));
     const league = pf.league as string[] | undefined;
     if (league?.length) parts.push(league.join('/'));
-    const minSpeedHitters = pf.min_speed_hitters as number | undefined;
-    if (minSpeedHitters != null) parts.push(`Hitters ${minSpeedHitters}+ SPD`);
+    parts.push(...hitterFilterLabels(pf));
     return parts.length ? parts.join(', ') : null;
+}
+
+const FIELDING_GROUP_LABELS: Record<string, string> = { if: 'IF', of: 'OF', ca: 'C' };
+
+/** Labels for the hitters-only `min_`/`max_` filters (`min_speed_hitters`,
+ *  `min_fielding_if_hitters`, `min_chart_hr_hitters`, ...), e.g. "Hitters 18+ SPD". */
+function hitterFilterLabels(pf: Record<string, unknown>): string[] {
+    const labels: string[] = [];
+    for (const [key, value] of Object.entries(pf)) {
+        const match = /^(min|max)_(.+)_hitters$/.exec(key);
+        if (!match || value == null) continue;
+        const [, bound, base] = match;
+        const amount = bound === 'min' ? `${value}+` : `≤${value}`;
+        let stat: string;
+        if (base === 'speed') stat = 'SPD';
+        else if (base === 'fielding' || base.startsWith('fielding_')) {
+            const group = FIELDING_GROUP_LABELS[base.replace('fielding_', '')];
+            stat = group ? `${group} fielding` : 'fielding';
+        }
+        else if (base.startsWith('chart_')) stat = `${base.replace('chart_', '').toUpperCase()} chart slots`;
+        else stat = base.toUpperCase();
+        labels.push(`Hitters ${amount} ${stat}`);
+    }
+    return labels;
 }

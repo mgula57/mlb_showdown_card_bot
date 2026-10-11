@@ -952,6 +952,17 @@ class PostgresDB:
             if value is None:
                 continue
 
+            # Hitters-only variant of any other filter (e.g. min_speed_hitters, min_fielding_if_hitters,
+            # min_chart_hr_hitters) - pitchers pass automatically. Without it, a hitter-themed rule
+            # like a speed or infield-defense floor would wipe out every pitcher (all speed 10, no
+            # fielding ratings) and leave a challenge roster unfillable.
+            if key.endswith('_hitters'):
+                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_hitters'): value})
+                if base_clauses:
+                    filter_clauses.append(sql.SQL("(player_type = 'PITCHER' OR ({}))").format(sql.SQL(" AND ").join(base_clauses)))
+                    filter_values.extend(base_values)
+                continue
+
             # Fielding min/max — applies as an OR across every position the player is rated at
             # (e.g. min_fielding=3 matches a player who is +3 or better at ANY of their listed
             # positions), since there's no single "fielding" column. `min_fielding_if`/`_of`/`_ca`
@@ -997,13 +1008,6 @@ class PostgresDB:
                     FROM (SELECT chart_ranges->>%s AS r) AS x) {comparison} %s
                 """).format(comparison=sql.SQL(comparison)))
                 filter_values.append(category)
-                filter_values.append(value)
-                continue
-
-            # Hitter-only speed floor - pitchers all carry a placeholder speed of 10, so a plain
-            # `min_speed` would wipe out every pitcher (and make a challenge roster unfillable).
-            if key == 'min_speed_hitters':
-                filter_clauses.append(sql.SQL("(player_type = 'PITCHER' OR speed >= %s)"))
                 filter_values.append(value)
                 continue
 
