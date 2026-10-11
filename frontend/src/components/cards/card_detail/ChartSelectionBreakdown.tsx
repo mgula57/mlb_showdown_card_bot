@@ -57,7 +57,7 @@ function AccuracyBar({ row, blurred, isSelected, isPicked, barFloor }: { row: Ch
                 />
                 {(isPicked || isOutlier) && (
                     <div className="absolute inset-y-0 left-0 flex items-center gap-1 pointer-events-none">
-                        {isPicked && <BarBadge label="picked" shortLabel="pk" color={PICKED_COLOR} />}
+                        {isPicked && <BarBadge label="curated" shortLabel="cu" color={PICKED_COLOR} />}
                         {isOutlier && <BarBadge label="outlier" shortLabel="ol" color={OUTLIER_COLOR} />}
                     </div>
                 )}
