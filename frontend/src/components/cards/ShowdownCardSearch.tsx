@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDatabase";
+import { type CardDatabaseRecord, fetchCardData, IMAGE_MATCH_TYPE_OPTIONS } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
@@ -2065,12 +2065,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 <FormSection title="Image Attributes" icon={<FaImage />} isOpenByDefault={true}>
                                     <MultiSelect
                                         label="Auto Image Classification"
-                                        options={[
-                                            { value: 'exact', label: 'Exact Match (Year + Team)' },
-                                            { value: 'team match', label: 'Team Match (Different Year)' },
-                                            { value: 'year match', label: 'Year Match (Different Team)' },
-                                            { value: 'no match', label: 'No Match' },
-                                        ]}
+                                        options={IMAGE_MATCH_TYPE_OPTIONS}
                                         selections={filtersForEditing.image_match_type}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
                                         disabled={isFilterLocked('image_match_type')}

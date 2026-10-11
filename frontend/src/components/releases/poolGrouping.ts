@@ -1,7 +1,8 @@
 import type { ReleaseCard } from '../../api/releases';
+import { IMAGE_MATCH_TYPE_OPTIONS } from '../../api/card_db/cardDatabase';
 import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './SummaryCharts';
 
-export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip';
+export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'image_match';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'year' | 'command' | 'speed' | 'ip'
     | 'obp' | 'ops' | 'ops_plus' | 'era' | 'whip';
 export type PoolSortDirection = 'asc' | 'desc';
@@ -20,6 +21,7 @@ export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy }[] = [
     { label: 'Command', value: 'command' },
     { label: 'Speed', value: 'speed' },
     { label: 'IP', value: 'ip' },
+    { label: 'Image Match', value: 'image_match' },
 ];
 
 export const POOL_SORT_OPTIONS: { label: string; value: PoolSortBy }[] = [
@@ -193,6 +195,14 @@ function compareBySort(a: ReleaseCard, b: ReleaseCard, sortBy: PoolSortBy): numb
     }
 }
 
+const IMAGE_MATCH_LABELS = IMAGE_MATCH_TYPE_OPTIONS.map(o => o.label);
+
+/** Auto image match label; missing values (older snapshots) count as No Match. */
+function imageMatchLabel(card: ReleaseCard): string {
+    const type = card.card_snapshot.image_match_type ?? 'no match';
+    return IMAGE_MATCH_TYPE_OPTIONS.find(o => o.value === type)?.label ?? type;
+}
+
 const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     team: { keyFn: franchiseTeam, compareKeys: (a, b) => a.localeCompare(b) },
     league: { keyFn: card => card.card_snapshot.league || 'Unknown', compareKeys: (a, b) => a.localeCompare(b) },
@@ -213,6 +223,7 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     command: { keyFn: commandGroupLabel, compareKeys: compareCommandGroupKeys },
     speed: sideStatGrouper(SIDE_STATS.speed),
     ip: sideStatGrouper(SIDE_STATS.ip),
+    image_match: { keyFn: imageMatchLabel, compareKeys: (a, b) => IMAGE_MATCH_LABELS.indexOf(a) - IMAGE_MATCH_LABELS.indexOf(b) },
 };
 
 /** Sorts `cards` and splits them into labelled groups (a single unlabelled group when not grouping).

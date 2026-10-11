@@ -14,6 +14,16 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // MARK: - TYPES & INTERFACES
 // =============================================================================
 
+export type ImageMatchType = 'exact' | 'team match' | 'year match' | 'no match';
+
+/** Auto image classifications, best match first. */
+export const IMAGE_MATCH_TYPE_OPTIONS: { value: ImageMatchType; label: string }[] = [
+    { value: 'exact', label: 'Exact Match (Year + Team)' },
+    { value: 'team match', label: 'Team Match (Different Year)' },
+    { value: 'year match', label: 'Year Match (Different Team)' },
+    { value: 'no match', label: 'No Match' },
+];
+
 /**
  * Represents a card record from the database with both stats and card data
  */
@@ -117,7 +127,7 @@ export type CardDatabaseRecord = {
     wbc_team?: string | null;
 
     // Auto Images
-    image_match_type: 'exact' | 'team match' | 'year match' | 'no match';
+    image_match_type: ImageMatchType;
     image_ids?: string[] | null;
 
     // Updated
