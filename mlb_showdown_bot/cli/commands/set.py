@@ -4,6 +4,8 @@ import time
 # Import business logic
 from ...core.set_builder.showdown_bot_set import ShowdownBotSet, PointBucket
 from ...core.set_builder.wotc_set_profile import WotcSetProfile
+from ...core.set_builder.release_importer import ReleaseImporter
+from ...core.database.postgres_db import PostgresDB
 
 app = typer.Typer()
 
@@ -104,6 +106,25 @@ def set_builder(
             time_str = f"{hours}h {minutes}m {seconds:.1f}s"
         
         print(f"\n✅ Set Builder operation completed in {time_str}")
+
+
+@app.command("import_release")
+def import_release(
+    json_path: str = typer.Argument(..., help="Path to a set export JSON (from `set build --export_data`)."),
+    release_name: str = typer.Option(..., "--name", "-n", help="Release name. An existing release you own with this name is updated in place."),
+    user_id: str = typer.Option(..., "--user_id", "-u", help="Supabase user id that owns the release."),
+    base_edition_name: str = typer.Option("Base Set", "--base_edition_name", "-b", help="Edition name for the non-expansion cards. Expansions are named by their code (e.g. CC)."),
+    publish: bool = typer.Option(False, "--publish", "-p", help="Publish the editions so the release is publicly visible."),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to write to (dev or prod)."),
+):
+    """Load a locally built set export into the Release Builder, one edition per image edition."""
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    if db.connection is None:
+        raise typer.Exit(code=1)
+    importer = ReleaseImporter(json_path=json_path, release_name=release_name, user_id=user_id, db=db, base_edition_name=base_edition_name, publish=publish)
+    release_id = importer.run()
+    db.close_connection()
+    print(f"\n✅ Release ready: /release-builder/{release_id}")
 
 
 # Make set builder the default command
