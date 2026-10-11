@@ -36,6 +36,8 @@ export type ReleaseCard = {
     source_card_id: string | null;
     source_card_type: string | null;
     card_snapshot: CardDatabaseRecord;
+    /** User labels, e.g. "FOIL" to track which cards will be printed as foils. Stored uppercase. */
+    tags: string[];
 };
 
 export type ReleaseEdition = {
@@ -66,6 +68,7 @@ export type ReleaseEditionCreatePayload = {
         source_card_id?: string | null;
         source_card_type?: string | null;
         card_snapshot: CardDatabaseRecord;
+        tags?: string[];
     }>;
 };
 

@@ -2,7 +2,7 @@ import type { ReleaseCard } from '../../api/releases';
 import { IMAGE_MATCH_TYPE_OPTIONS } from '../../api/card_db/cardDatabase';
 import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './SummaryCharts';
 
-export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'image_match';
+export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'image_match' | 'tag';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'year' | 'command' | 'speed' | 'ip'
     | 'obp' | 'ops' | 'ops_plus' | 'era' | 'whip';
 export type PoolSortDirection = 'asc' | 'desc';
@@ -22,6 +22,7 @@ export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy }[] = [
     { label: 'Speed', value: 'speed' },
     { label: 'IP', value: 'ip' },
     { label: 'Image Match', value: 'image_match' },
+    { label: 'Tag', value: 'tag' },
 ];
 
 export const POOL_SORT_OPTIONS: { label: string; value: PoolSortBy }[] = [
@@ -94,7 +95,8 @@ function compareCommandGroupKeys(a: string, b: string): number {
     return left.side - right.side || right.command - left.command;
 }
 
-type GroupKeyer = { keyFn: (card: ReleaseCard) => string; compareKeys: (a: string, b: string) => number };
+/** `keyFn` may return several keys to place a card in more than one group (e.g. one per tag). */
+type GroupKeyer = { keyFn: (card: ReleaseCard) => string | string[]; compareKeys: (a: string, b: string) => number };
 
 /** Stats that only apply to one side (Speed/OBP/OPS to hitters, IP/ERA/WHIP to pitchers); `null` for
  * cards the stat doesn't apply to, or whose real-life stat is missing from the snapshot. */
@@ -203,6 +205,13 @@ function imageMatchLabel(card: ReleaseCard): string {
     return IMAGE_MATCH_TYPE_OPTIONS.find(o => o.value === type)?.label ?? type;
 }
 
+const UNTAGGED_LABEL = 'Untagged';
+
+/** Tags alphabetically, Untagged last. */
+function compareTagGroupKeys(a: string, b: string): number {
+    return Number(a === UNTAGGED_LABEL) - Number(b === UNTAGGED_LABEL) || a.localeCompare(b);
+}
+
 const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     team: { keyFn: franchiseTeam, compareKeys: (a, b) => a.localeCompare(b) },
     league: { keyFn: card => card.card_snapshot.league || 'Unknown', compareKeys: (a, b) => a.localeCompare(b) },
@@ -224,6 +233,8 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     speed: sideStatGrouper(SIDE_STATS.speed),
     ip: sideStatGrouper(SIDE_STATS.ip),
     image_match: { keyFn: imageMatchLabel, compareKeys: (a, b) => IMAGE_MATCH_LABELS.indexOf(a) - IMAGE_MATCH_LABELS.indexOf(b) },
+    // A card with several tags appears in each tag's group
+    tag: { keyFn: card => card.tags.length > 0 ? card.tags : UNTAGGED_LABEL, compareKeys: compareTagGroupKeys },
 };
 
 /** Sorts `cards` and splits them into labelled groups (a single unlabelled group when not grouping).
@@ -247,8 +258,9 @@ export function groupAndSortCards(cards: ReleaseCard[], groupBy: PoolGroupBy, so
     const { keyFn, compareKeys } = GROUPERS[groupBy];
     const byKey = new Map<string, ReleaseCard[]>();
     for (const card of sorted) {
-        const key = keyFn(card);
-        byKey.set(key, [...(byKey.get(key) ?? []), card]);
+        for (const key of [keyFn(card)].flat()) {
+            byKey.set(key, [...(byKey.get(key) ?? []), card]);
+        }
     }
     return [...byKey.entries()]
         .sort(([a], [b]) => compareKeys(a, b))

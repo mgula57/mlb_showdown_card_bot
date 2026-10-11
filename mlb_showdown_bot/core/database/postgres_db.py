@@ -6667,6 +6667,10 @@ class PostgresDB:
                 ALTER TABLE internal.release_cards
                     ALTER COLUMN card_number DROP NOT NULL;
             """)
+            cur.execute("""
+                ALTER TABLE internal.release_cards
+                    ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+            """)
             # edition_id lookups (card lists, card_count, delete-and-replace on save) are covered by
             # unique_card_number (edition_id, card_number)
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_edition_id;")
@@ -6806,7 +6810,8 @@ class PostgresDB:
                         'card_number',      rc.card_number,
                         'source_card_id',   rc.source_card_id,
                         'source_card_type', rc.source_card_type,
-                        'card_snapshot',    rc.card_snapshot
+                        'card_snapshot',    rc.card_snapshot,
+                        'tags',             rc.tags
                     ) ORDER BY rc.card_number
                 ) FILTER (WHERE rc.id IS NOT NULL),
                 '[]'::json
@@ -6918,14 +6923,28 @@ class PostgresDB:
                 card.get('source_card_type'),
                 extras.Json(card['card_snapshot']),
                 card.get('card_number'),
+                PostgresDB._normalize_release_card_tags(card.get('tags')),
             )
             for card in cards
         ]
         execute_values(cur, """
             INSERT INTO internal.release_cards
-                (edition_id, source_card_id, source_card_type, card_snapshot, card_number)
+                (edition_id, source_card_id, source_card_type, card_snapshot, card_number, tags)
             VALUES %s
         """, batch)
+
+    _RELEASE_CARD_TAG_MAX_LENGTH = 24
+
+    @staticmethod
+    def _normalize_release_card_tags(tags) -> list[str]:
+        """Uppercase, trim, and de-dupe (order preserved) user tags like 'FOIL'."""
+        if not isinstance(tags, list):
+            return []
+        normalized = [
+            str(tag).strip().upper()[:PostgresDB._RELEASE_CARD_TAG_MAX_LENGTH]
+            for tag in tags if isinstance(tag, str) and tag.strip()
+        ]
+        return list(dict.fromkeys(normalized))
 
     @staticmethod
     def _generate_unique_slug(cur, table: str, name: str) -> str:

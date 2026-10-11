@@ -17,6 +17,7 @@ import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import FormEnabler from '../customs/FormEnabler';
 import { formSectionSummary } from '../customs/FormSectionSummary';
 import { EditionStyleModal } from './EditionStyleModal';
+import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
 import { parseEditionStyle, editionStyleSummary } from './editionStyle';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
 import {
@@ -184,6 +185,7 @@ function buildReleaseCardsFromPreview(players: AlgorithmPreviewPlayer[]): Releas
         source_card_id: record.id,
         source_card_type: record.source,
         card_snapshot: record,
+        tags: [],
     }));
 }
 
@@ -317,6 +319,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                     source_card_id: c.source_card_id,
                     source_card_type: c.source_card_type,
                     card_snapshot: c.card_snapshot,
+                    tags: c.tags,
                 })),
             }, token);
             setCards(updated.cards);
@@ -382,6 +385,8 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
         [displayCards, groupBy, sortBy, sortDirection]
     );
     const visibleGroups = useMemo(() => takeFromGroups(poolGroups, visibleCount), [poolGroups, visibleCount]);
+    // Can exceed the pool size when a card sits in several groups (e.g. grouping by tag)
+    const poolGroupedCardCount = useMemo(() => poolGroups.reduce((sum, g) => sum + g.cards.length, 0), [poolGroups]);
     useEffect(() => { setVisibleCount(POOL_PAGE_SIZE); }, [previewResult, groupBy, sortBy, sortDirection]);
     const poolSentinelRef = useCallback((node: HTMLDivElement | null) => {
         if (!node) return;
@@ -409,7 +414,10 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
      * any currently-persisted card (manual or from a prior algorithm run — provenance isn't tracked). */
     function handleReplaceAllFromPreview() {
         if (!previewResult) return;
-        const newCards = buildReleaseCardsFromPreview(previewResult.players);
+        // Cards that survive the replace keep their tags
+        const existingTags = new Map(cards.map(c => [c.source_card_id, c.tags]));
+        const newCards = buildReleaseCardsFromPreview(previewResult.players)
+            .map(c => ({ ...c, tags: existingTags.get(c.source_card_id) ?? c.tags }));
         const newSourceIds = new Set(newCards.map(c => c.source_card_id));
         const droppedCount = cards.filter(c => !newSourceIds.has(c.source_card_id)).length;
         if (droppedCount > 0) {
@@ -432,12 +440,24 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
             source_card_id: record.id,
             source_card_type: record.source,
             card_snapshot: record,
+            tags: [],
         };
         persist(applyNumberingIfNeeded([...cards, newCard]));
     }
 
     function handleRemoveCard(cardId: string) {
         persist(applyNumberingIfNeeded(cards.filter(c => c.id !== cardId)));
+    }
+
+    // Saves replace every card row (new ids), so the open detail card is matched by its source card.
+    const detailCardTags = detailCard
+        ? (cards.find(c => c.source_card_id === detailCard.source_card_id)?.tags ?? detailCard.tags)
+        : [];
+    const editionTags = useMemo(() => [...new Set(cards.flatMap(c => c.tags))].sort(), [cards]);
+
+    function handleDetailCardTagsChange(tags: string[]) {
+        if (!detailCard) return;
+        persist(cards.map(c => c.source_card_id === detailCard.source_card_id ? { ...c, tags } : c));
     }
 
     function handleNumberInputChange(cardId: string, value: string) {
@@ -939,7 +959,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                         </span>
                                                     </div>
                                                 )}
-                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3' : 'grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-1.5'}>
+                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-6' : 'grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4'}>
                                                     {group.cards.map(card => {
                                                         const cardProps = {
                                                             card: card.card_snapshot,
@@ -982,10 +1002,14 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                                 )}
                                                             </div>
                                                             {/* Hovering the remove button outlines the card it removes. */}
-                                                            <div className={`flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-red-500/80 ${showFullCards ? 'rounded-xl max-w-[400px]' : 'rounded-lg'}`}>
+                                                            <div className={`relative flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-red-500/80 ${showFullCards ? 'rounded-xl max-w-100' : 'rounded-lg'}`}>
                                                                 {showFullCards
                                                                     ? <CardItemFromCardDatabaseRecord {...cardProps} />
                                                                     : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}
+                                                                {card.tags.length > 0 && (
+                                                                    // Overlaid on the bottom edge (like the top-edge badges) so tags don't change row height
+                                                                    <div className="absolute -bottom-1 left-1 translate-y-1/2 z-10 pointer-events-none"><ReleaseCardTagChips tags={card.tags} /></div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         );
@@ -995,7 +1019,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                         ))}
                                     </div>
                                 )}
-                                {visibleCount < displayCards.length && (
+                                {visibleCount < poolGroupedCardCount && (
                                     <div key={visibleCount} ref={poolSentinelRef} className="h-8" />
                                 )}
                             </div>
@@ -1026,7 +1050,18 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
 
             {/* Player Pool card detail */}
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>
+                <Modal
+                    onClose={() => setDetailCard(null)}
+                    isVisible={!!detailCard}
+                    footer={detailCard && (detailCardTags.length > 0 || (!readOnly && !previewResult)) ? (
+                        <ReleaseCardTagsEditor
+                            tags={detailCardTags}
+                            editionTags={editionTags}
+                            readOnly={readOnly || !!previewResult}
+                            onChange={handleDetailCardTagsChange}
+                        />
+                    ) : undefined}
+                >
                     <CardDetail
                         showdownBotCardData={detailCard?.card_snapshot.card_data ? { card: detailCard.card_snapshot.card_data } as ShowdownBotCardAPIResponse : undefined}
                         cardId={detailCard?.card_snapshot.card_id}

@@ -100,6 +100,7 @@ class ShowdownPlayerCard(BaseModel):
     is_wotc: bool = False
     nerf_by_run_value: Optional[float] = None
     regress_small_sample_to_replacement: bool = False
+    tags: Optional[list[str]] = None # USER LABELS FOR TRACKING (EX: 'FOIL' FOR CARDS THAT WILL BE PRINTED AS FOILS)
     
     # ENVIRONMENT
     build_on_init: bool = True

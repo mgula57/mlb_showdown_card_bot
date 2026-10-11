@@ -487,6 +487,9 @@ export type ShowdownBotCard = {
     /** Flag indicating if the card is a WOTC card */
     is_wotc?: boolean;
 
+    /** User labels for tracking, e.g. "FOIL" for cards that will be printed as foils */
+    tags?: string[] | null;
+
     /** Data quality and edge case warnings */
     warnings: string[];
     is_errata?: boolean | null;

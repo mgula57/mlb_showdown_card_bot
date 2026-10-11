@@ -96,6 +96,7 @@ class ReleaseImporter:
                 'source_card_id': snapshot['id'],
                 'source_card_type': snapshot['source'],
                 'card_snapshot': snapshot,
+                'tags': card.get('tags') or [],
             })
         return edition_cards
 
