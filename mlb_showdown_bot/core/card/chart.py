@@ -270,6 +270,7 @@ class Chart(BaseModel):
     command_accuracy_weight: float = 1.0
     command_accuracy_weight_fn: Optional[Callable[[int], float]] = Field(default=None, exclude=True) # TAKES OUTS_FULL, OVERRIDES COMMAND_ACCURACY_WEIGHT ONCE OUTS ARE KNOWN
     command_out_accuracy_weight: float = 1.0
+    is_outlier_reduction_disabled: bool = False # CURATED CHARTS ARE INTENTIONAL, SO SKIP OUTLIER ACCURACY REDUCTIONS
     accuracy: float = 1.0
     accuracy_breakdown: dict[Stat, ChartAccuracyBreakdown] = {}
     is_command_out_anomaly: bool = False
@@ -1170,6 +1171,12 @@ class Chart(BaseModel):
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_per_400_pa = self.projected_stats_per_400_pa
         weights = self.accuracy_stat_weights
+
+        # CURATED CHARTS IGNORE COMMAND ACCURACY. ZERO ITS WEIGHT AND RESCALE THE REST SO WEIGHTS STILL SUM TO 1
+        command_weight = weights.get(Stat.COMMAND, 0)
+        if self.is_outlier_reduction_disabled and 0 < command_weight < 1:
+            weights = { stat: (0.0 if stat == Stat.COMMAND else weight / (1 - command_weight)) for stat, weight in weights.items() }
+
         actuals_dict = dict( ChainMap({'command': self.command_estimated}, self.stats_per_400_pa) )
         measurements_dict = dict( ChainMap({'command': self.command}, in_game_stats_per_400_pa) )
         self.__calculate_accuracy_breakdown(
@@ -1189,11 +1196,11 @@ class Chart(BaseModel):
         outs = self.outs_full
 
         # ADJUST HIGH COMMAND HIGH OUTS
-        if self.is_high_command_high_outs:
+        if self.is_high_command_high_outs and not self.is_outlier_reduction_disabled:
             self.command_out_accuracy_weight = 0.925
 
         # USE LINEAR DECAY TO REDUCE ACCURACY FOR OUTLIERS
-        if self.is_outside_out_bounds and not self.is_elite_command_out_chart and not self.is_super_low_rated_command_out_chart and not self.is_high_command_high_outs:
+        if self.is_outside_out_bounds and not self.is_outlier_reduction_disabled and not self.is_elite_command_out_chart and not self.is_super_low_rated_command_out_chart and not self.is_high_command_high_outs:
 
             # ADJUST DECAY RATES
             decay_rate = 0.0275
@@ -1279,7 +1286,7 @@ class Chart(BaseModel):
             onbase_upper_bound = 14 if self.is_expanded else 11
             onbase_lower_bound = 10 if self.is_expanded else 6
             is_out_of_bounds = (self.outs_full < out_low_bound and self.command < onbase_upper_bound) or (self.outs_full > out_high_bound and self.command > onbase_lower_bound)
-            is_reduction = self.is_hitter and is_out_of_bounds and not is_boosted_command_accuracy and accuracy_non_command < 0.99
+            is_reduction = self.is_hitter and is_out_of_bounds and not self.is_outlier_reduction_disabled and not is_boosted_command_accuracy and accuracy_non_command < 0.99
             if is_reduction:
                 command_chart_accuracy.adjustment_pct = 0.925
                 command_chart_accuracy.calculate_accuracy_attributes()

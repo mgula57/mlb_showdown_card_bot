@@ -312,7 +312,12 @@ class Postseason:
             case PostseasonFormat.CHAMPIONSHIP_SERIES:
                 # BEST TEAMS IN EACH DIVISION (2 DIVISIONS) GO TO LCS
                 for league in self.standings.leagues:
-                    division_winners = self.standings.top_teams(num_teams=2, divisions=self.standings.divisions(leagues=[league]))
+                    # ONE TEAM PER DIVISION, NOT THE LEAGUE'S TOP 2 RECORDS - OTHERWISE A DIVISION
+                    # WINNER CAN BE SHUT OUT BY TWO BETTER CLUBS FROM THE OTHER DIVISION.
+                    # A SINGLE-DIVISION LEAGUE (E.G. A TOURNAMENT) FALLS BACK TO ITS TOP 2 RECORDS.
+                    division_winners = self.standings.division_leaders_list(league=league)
+                    if len(division_winners) < 2:
+                        division_winners = self.standings.top_teams(num_teams=2, divisions=self.standings.divisions(leagues=[league]))
                     team_championship_series_1 = division_winners[0]
                     team_championship_series_2 = division_winners[1]
                     team_championship_series_1.playoff_seeding = 1
