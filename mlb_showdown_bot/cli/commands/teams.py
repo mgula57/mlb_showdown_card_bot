@@ -230,6 +230,11 @@ def build_historical_teams(
             if no_mlb_id:
                 reasons.append(f"{len(no_mlb_id)} rostered card(s) dropped for missing mlb_id: {', '.join(no_mlb_id)}")
 
+            # Slots are keyed by mlb_id, so a card without one can't be stored. Surface it rather
+            # than silently writing a short roster.
+            dropped = [name_by_card_id.get(slot.card_id) or slot.card_id for slot in composed.roster if slot.card_id not in mlb_id_by_card_id]
+            if dropped:
+                typer.echo(f"  [{season_year}] {team_abbr}: dropped {len(dropped)}/{len(composed.roster)} slot(s) with no mlb_id: {', '.join(dropped)}", err=True)
             if not rows:
                 _report(season_year, team_abbr, ["skipped — no composed slots have an mlb_id"], reasons)
                 continue
