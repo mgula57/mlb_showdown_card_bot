@@ -915,6 +915,7 @@ class PostgresDB:
                 (card_result->'chart'->>'command')::int AS command,
                 (card_result->'chart'->>'outs_full')::int AS outs,
                 (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
+                CASE WHEN (card_result->'chart'->>'is_pitcher')::boolean THEN 'PITCHER' ELSE 'HITTER' END AS player_type,
                 (card_result->'speed'->>'speed')::int AS speed,
                 (card_result->>'ip')::int AS ip,
                 (card_result->>'hand') AS hand,
@@ -996,6 +997,13 @@ class PostgresDB:
                     FROM (SELECT chart_ranges->>%s AS r) AS x) {comparison} %s
                 """).format(comparison=sql.SQL(comparison)))
                 filter_values.append(category)
+                filter_values.append(value)
+                continue
+
+            # Hitter-only speed floor - pitchers all carry a placeholder speed of 10, so a plain
+            # `min_speed` would wipe out every pitcher (and make a challenge roster unfillable).
+            if key == 'min_speed_hitters':
+                filter_clauses.append(sql.SQL("(player_type = 'PITCHER' OR speed >= %s)"))
                 filter_values.append(value)
                 continue
 
@@ -5475,6 +5483,7 @@ class PostgresDB:
                         'command',         COALESCE(cb.command, cw.command),
                         'outs',            COALESCE(cb.outs, cw.outs),
                         'speed',           COALESCE(cb.speed, cw.speed),
+                        'player_type',     COALESCE(cb.player_type, cw.player_type),
                         'onbase_perc',     COALESCE(cb.real_onbase_perc, cw.real_onbase_perc),
                         'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc),
                         'team',            COALESCE(cb.team, cw.team),
@@ -5497,12 +5506,12 @@ class PostgresDB:
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year,
+            SELECT points, command, outs, speed, player_type, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year,
                    positions_and_defense, chart_ranges
             FROM card_bot  WHERE card_id = r.card_id LIMIT 1
         ) cb ON r.card_source = 'BOT'
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year AS year,
+            SELECT points, command, outs, speed, player_type, real_onbase_perc, real_slugging_perc, team, hand, year AS year,
                    positions_and_defense, chart_ranges
             FROM card_wotc WHERE card_id = r.card_id LIMIT 1
         ) cw ON r.card_source = 'WOTC'

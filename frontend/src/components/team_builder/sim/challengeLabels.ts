@@ -44,5 +44,7 @@ export function challengeRestrictionsLabel(challenge: ChallengeInstance): string
     if (organization?.length) parts.push(organization.join('/'));
     const league = pf.league as string[] | undefined;
     if (league?.length) parts.push(league.join('/'));
+    const minSpeedHitters = pf.min_speed_hitters as number | undefined;
+    if (minSpeedHitters != null) parts.push(`Hitters ${minSpeedHitters}+ SPD`);
     return parts.length ? parts.join(', ') : null;
 }

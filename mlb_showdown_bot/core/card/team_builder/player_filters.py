@@ -35,7 +35,8 @@ class PlayerFilterSet(BaseModel):
     (best rating across every position the card is rated at, or - with a `_if`/`_of`/`_ca` suffix,
     e.g. `min_fielding_if` - narrowed to one coarse defensive group: infield, outfield, or catcher)
     and `min_chart_*`/`max_chart_*` (chart slot count for a category) - since both are meaningful
-    eligibility rules for a challenge (e.g. a defense-first or strikeout-heavy themed template).
+    eligibility rules for a challenge (e.g. a defense-first or strikeout-heavy themed template),
+    plus `min_speed_hitters` (a speed floor that exempts pitchers).
     The rest of the SQL builder's special cases (`positions`/`icons`/`awards`/`is_hof`) aren't, so
     they're still left as plain generic keys here.
     """
@@ -69,6 +70,14 @@ class PlayerFilterSet(BaseModel):
                     return f"card {card.get('card_id', '?')} has {count} {category} chart slots, under the minimum of {value}"
                 if not is_min and count > value:
                     return f"card {card.get('card_id', '?')} has {count} {category} chart slots, over the maximum of {value}"
+            elif key == 'min_speed_hitters':
+                # Mirrors the SQL builder's `(player_type = 'PITCHER' OR speed >= %s)` - pitchers
+                # all carry a placeholder speed of 10, so they're exempt.
+                if str(card.get('player_type') or '').upper() == 'PITCHER':
+                    continue
+                speed = card.get('speed')
+                if speed is None or float(speed) < float(value):
+                    return f"card {card.get('card_id', '?')} does not meet the minimum hitter speed of {value}"
             elif key.startswith('min_'):
                 # Mirrors fetch_card_list's `({field} >= %s OR {field} IS NULL)` - a missing field
                 # passes the min check (matches the picker's own query semantics).
