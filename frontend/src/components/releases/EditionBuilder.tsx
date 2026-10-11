@@ -18,6 +18,7 @@ import FormEnabler from '../customs/FormEnabler';
 import { formSectionSummary } from '../customs/FormSectionSummary';
 import { EditionStyleModal } from './EditionStyleModal';
 import { parseEditionStyle, editionStyleSummary } from './editionStyle';
+import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
 import {
     groupAndSortCards, takeFromGroups, POOL_GROUP_OPTIONS, POOL_SORT_OPTIONS, POOL_SORT_DEFAULT_DIRECTION,
     type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
@@ -225,7 +226,8 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     const [editingNumbers, setEditingNumbers] = useState<Record<string, string>>({});
     const [showNumberingSettings, setShowNumberingSettings] = useState(false);
     const [showStyleModal, setShowStyleModal] = useState(false);
-    const styleSummary = useMemo(() => editionStyleSummary(parseEditionStyle(edition.attributes)), [edition.attributes]);
+    const editionStyle = useMemo(() => parseEditionStyle(edition.attributes), [edition.attributes]);
+    const styleSummary = useMemo(() => editionStyleSummary(editionStyle), [editionStyle]);
     const numberingSettingsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -248,7 +250,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     const [buildPanelWidth, setBuildPanelWidth] = useState<number>(() => loadSavedBuildPanelWidth() ?? DEFAULT_BUILD_PANEL_WIDTH[buildMethod]);
     // Summary mounts lazily on first open, then stays mounted so its filters/WOTC comparison survive tab switches.
     const [summaryMounted, setSummaryMounted] = useState(false);
-    const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
+    const [detailCard, setDetailCard] = useState<ReleaseCard | null>(null);
     const isResizing = useRef(false);
     const hasManuallyResized = useRef(loadSavedBuildPanelWidth() !== null);
     const splitContainerRef = useRef<HTMLDivElement>(null);
@@ -343,6 +345,16 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
         [previewResult]
     );
     const displayCards = previewCards ?? cards;
+
+    // The detail modal renders the release card as it will print: edition style + formatted set
+    // number. BOT snapshots don't embed card_data, so CardDetail hydrates those by card_id.
+    const detailStyleOverrides = useMemo<CardStyleOverrides | undefined>(() => {
+        if (!detailCard) return undefined;
+        const setNumber = numbering.mode === 'none' || detailCard.card_number === null
+            ? null
+            : formatCardNumber(detailCard.card_number, displayCards.length, numbering.zeroPad, numbering.prefix);
+        return { style: editionStyle, setNumber };
+    }, [detailCard, editionStyle, numbering, displayCards.length]);
 
     // The pool can be hundreds of cards, so the grid renders in pages and loads more as the
     // user scrolls to the sentinel below it.
@@ -931,7 +943,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                                     {group.cards.map(card => {
                                                         const cardProps = {
                                                             card: card.card_snapshot,
-                                                            onClick: () => setDetailCard(card.card_snapshot),
+                                                            onClick: () => setDetailCard(card),
                                                         };
                                                         return (
                                                         <div key={card.id} className="group/row flex items-center gap-1.5">
@@ -1016,10 +1028,11 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
             <div className={detailCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>
                     <CardDetail
-                        showdownBotCardData={detailCard?.card_data ? { card: detailCard.card_data } as ShowdownBotCardAPIResponse : undefined}
-                        cardId={detailCard?.card_id}
+                        showdownBotCardData={detailCard?.card_snapshot.card_data ? { card: detailCard.card_snapshot.card_data } as ShowdownBotCardAPIResponse : undefined}
+                        cardId={detailCard?.card_snapshot.card_id}
+                        styleOverrides={detailStyleOverrides}
                         hideTrendGraphs={true}
-                        context="explore"
+                        context="release"
                         parent="modal"
                     />
                 </Modal>

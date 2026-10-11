@@ -9,7 +9,7 @@
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, useMemo, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { FaPlus, FaWandMagicSparkles } from 'react-icons/fa6';
@@ -29,6 +29,7 @@ import { BaselineOpponentBreakdown } from './card_detail/BaselineOpponentBreakdo
 
 // API integration
 import { generateCardImage, fetchCardById, fetchSeasonStatRanges } from '../../api/showdownBotCard';
+import { applyCardStyleOverrides, type CardStyleOverrides } from './cardStyleOverrides';
 
 // Performance visualization
 import ChartPlayerPointsTrend from './card_detail/ChartPlayerPointsTrend';
@@ -56,8 +57,9 @@ type CardDetailProps = {
     hideTrendGraphs?: boolean;
     /** Loading state for the main card data */
     isLoading?: boolean;
-    /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail' | 'sim_result';
+    /** Usage context: 'custom' for card builder, 'explore' for database browser, 'release' for a
+     * Release Builder card */
+    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail' | 'sim_result' | 'release';
     parent?: string;
     showdownSetForPlaceholder?: string; // Used to determine placeholder image when card image is not available
     /** A simulated season's statline (`SimStatLine.stats`) — adds a SIM column to "Card vs Real
@@ -80,6 +82,9 @@ type CardDetailProps = {
      * a different set. Selecting a new card elsewhere always discards this — it only affects the
      * currently displayed card, not any persisted preference. */
     enableSetSwitcher?: boolean;
+    /** Renders the card with this styling instead of its own (e.g. a release edition's style and
+     * set number), generating a fresh image. Applies to both `showdownBotCardData` and `cardId` cards. */
+    styleOverrides?: CardStyleOverrides;
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
@@ -121,7 +126,16 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false, styleOverrides }: CardDetailProps) {
+    const withStyleOverrides = (data: ShowdownBotCardAPIResponse | null | undefined) => (
+        styleOverrides && data?.card ? { ...data, card: applyCardStyleOverrides(data.card, styleOverrides) } : data
+    );
+    const showdownBotCardData = useMemo(
+        () => withStyleOverrides(showdownBotCardDataProp),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [showdownBotCardDataProp, styleOverrides]
+    );
+
 
     const { session } = useAuth();
     const customizeCard = useCustomizeCard();
@@ -141,7 +155,12 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     // the parent handed us a new card every time the parent re-renders after a local set switch
     // (e.g. a background session refresh when the browser tab regains focus), re-fetching the
     // stale prop id and silently reverting the user's chosen set.
-    const handledCardIdPropRef = useRef<string | undefined>(cardId);
+    // Mounting with only a `cardId` (no data) must still fetch it, so it starts unhandled then.
+    const handledCardIdPropRef = useRef<string | undefined>(showdownBotCardDataProp?.card ? cardId : undefined);
+    // The style overrides last rendered, and the unstyled card last fetched by id — so new
+    // overrides re-render (and regenerate the image) without refetching.
+    const appliedStyleOverridesRef = useRef<CardStyleOverrides | undefined>(undefined);
+    const fetchedCardRef = useRef<ShowdownBotCardAPIResponse | null>(null);
 
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
@@ -198,7 +217,11 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                     (enableSetSwitcher || internalCardData?.card?.set === showdownBotCardData?.card?.set)
                 );
             console.log("CardDetail: Checking for prop data update, isSameCard =", isSameCard);
-            if (!isSameCard) {
+            // isSameCard is true on mount (internal state starts from the prop). Styled cards never
+            // carry a matching image, so new overrides (incl. the first) count as a new card.
+            const styleOverridesChanged = styleOverrides !== appliedStyleOverridesRef.current;
+            appliedStyleOverridesRef.current = styleOverrides;
+            if (!isSameCard || styleOverridesChanged) {
                 setInternalCardData(showdownBotCardData);
                 setSetSwitchError(null);
 
@@ -222,6 +245,15 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
         }
 
         // Case 2: No data but cardId provided - fetch it from DB
+        const styleOverridesChanged = styleOverrides !== appliedStyleOverridesRef.current;
+        appliedStyleOverridesRef.current = styleOverrides;
+        if (cardId && cardId === handledCardIdPropRef.current && styleOverridesChanged && fetchedCardRef.current) {
+            // Same card, new styling: restyle the already-fetched card and regenerate its image
+            const cardResponse = withStyleOverrides(fetchedCardRef.current);
+            setInternalCardData(cardResponse);
+            if (cardResponse?.card) handleGenerateImage(cardResponse);
+            return;
+        }
         if (cardId && cardId !== handledCardIdPropRef.current) {
             handledCardIdPropRef.current = cardId;
             setIsLoadingFromId(true);
@@ -229,7 +261,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {
-                        const cardResponse = data as ShowdownBotCardAPIResponse;
+                        fetchedCardRef.current = data as ShowdownBotCardAPIResponse;
+                        const cardResponse = withStyleOverrides(fetchedCardRef.current) as ShowdownBotCardAPIResponse;
                         setSetSwitchError(null);
 
                         // Show chart data immediately; the image (if missing) fills in afterwards
@@ -254,7 +287,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             return;
         }
 
-    }, [showdownBotCardData, cardId]);
+    }, [showdownBotCardData, cardId, styleOverrides]);
 
     // Image Generation State
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);

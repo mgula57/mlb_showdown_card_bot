@@ -4751,7 +4751,8 @@ class PostgresDB:
             ("sim_lobby",                 self.build_sim_lobby_tables),
             ("challenge tables",          self.build_challenge_tables),
             ("sim_game",                  self.build_sim_game_table),
-            ("historical team tables",    self.build_historical_team_tables),
+            ("releases",                  self.build_releases_table),
+            ("historical team tables",   self.build_historical_team_tables),
             ("era team tables",           self.build_era_team_tables),
             ("card_bot indexes",          self.build_card_bot_indexes),
             ("card_wotc indexes",         self.build_card_wotc_indexes),
@@ -6609,9 +6610,16 @@ class PostgresDB:
                     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                 );
             """)
+            # get_releases: a user's releases, newest first
+            cur.execute("DROP INDEX IF EXISTS internal.idx_releases_created_by;")
             cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_releases_created_by
-                    ON internal.releases (created_by);
+                CREATE INDEX IF NOT EXISTS idx_releases_created_by_updated_at
+                    ON internal.releases (created_by, updated_at DESC);
+            """)
+            # get_public_releases: newest first
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_releases_updated_at
+                    ON internal.releases (updated_at DESC);
             """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_releases_is_official
@@ -6634,9 +6642,12 @@ class PostgresDB:
                     CONSTRAINT unique_release_edition_name UNIQUE (release_id, name)
                 );
             """)
+            # release_id lookups are covered by unique_release_edition_name (release_id, name)
+            cur.execute("DROP INDEX IF EXISTS internal.idx_release_editions_release_id;")
+            # "has a published edition" EXISTS checks in get_release / get_public_releases
             cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_release_editions_release_id
-                    ON internal.release_editions (release_id);
+                CREATE INDEX IF NOT EXISTS idx_release_editions_published_release_id
+                    ON internal.release_editions (release_id) WHERE is_published;
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS internal.release_cards (
@@ -6656,18 +6667,15 @@ class PostgresDB:
                 ALTER TABLE internal.release_cards
                     ALTER COLUMN card_number DROP NOT NULL;
             """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_release_cards_edition_id
-                    ON internal.release_cards (edition_id);
-            """)
+            # edition_id lookups (card lists, card_count, delete-and-replace on save) are covered by
+            # unique_card_number (edition_id, card_number)
+            cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_edition_id;")
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_release_cards_source
                     ON internal.release_cards (source_card_id, source_card_type);
             """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_release_cards_snapshot_team
-                    ON internal.release_cards USING GIN ((card_snapshot -> 'team'));
-            """)
+            # Unused by any query, and every save rewrites the edition's cards - not worth the write cost
+            cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_snapshot_team;")
 
     _RELEASE_BASE_SELECT = """
         SELECT
