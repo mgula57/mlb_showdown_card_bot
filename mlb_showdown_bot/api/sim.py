@@ -1717,6 +1717,18 @@ def get_sim_game_history(game_pk: int):
         return jsonify({'error': str(exc)}), 500
 
 
+@sim_bp.route('/sim/game/<int:game_pk>/count', methods=['GET'])
+def get_sim_game_count(game_pk: int):
+    """How many stored simulations one real game has - the badge on the "Past Sims" button."""
+    try:
+        with PostgresDB() as db:
+            count = db.count_sim_games_for_game(game_pk)
+        return jsonify({'count': count}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @sim_bp.route('/sim/jobs/<job_id>', methods=['GET'])
 @require_auth
 def get_sim_job(job_id: str):

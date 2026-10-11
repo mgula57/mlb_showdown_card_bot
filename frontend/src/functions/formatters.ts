@@ -76,3 +76,13 @@ export function relativeTime(iso: string): string {
     if (days < 30) return `${days}d ago`;
     return new Date(iso).toLocaleDateString();
 }
+
+/** Up to two initials from a username or email - split on the separators those usually carry. */
+export function userInitials(name: string | null | undefined): string {
+    return (name ?? '')
+        .split(/[@._-]/)
+        .filter(Boolean)
+        .map((part) => part[0].toUpperCase())
+        .join('')
+        .slice(0, 2);
+}

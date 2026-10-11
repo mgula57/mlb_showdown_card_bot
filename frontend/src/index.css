@@ -497,6 +497,77 @@
 .card-advantage {
     box-shadow: 0 0 0 2px var(--advantage), 0 0 16px 2px color-mix(in srgb, var(--advantage) 55%, transparent);
     transition: box-shadow 200ms ease-out;
+    /* Claims the advantage with a bump and a flare, then settles into a slow breathing glow. */
+    animation:
+        card-advantage-claim 520ms cubic-bezier(0.3, 1.3, 0.5, 1),
+        card-advantage-breathe 1.8s ease-in-out 520ms infinite;
+}
+
+/* A band of advantage-colored light sweeping across the card as it claims the edge. Background
+   position rather than a transform, so it needs no `overflow: hidden` on the card. */
+.card-advantage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(110deg, transparent 35%, color-mix(in srgb, var(--advantage) 45%, transparent) 50%, transparent 65%);
+    background-size: 250% 100%;
+    background-repeat: no-repeat;
+    animation: card-advantage-sheen 750ms ease-out 60ms both;
+}
+
+@keyframes card-advantage-claim {
+    0%   { transform: scale(1);     box-shadow: 0 0 0 0 var(--advantage), 0 0 0 0 transparent; }
+    35%  { transform: scale(1.025); box-shadow: 0 0 0 3px var(--advantage), 0 0 30px 8px color-mix(in srgb, var(--advantage) 70%, transparent); }
+    100% { transform: scale(1);     box-shadow: 0 0 0 2px var(--advantage), 0 0 16px 2px color-mix(in srgb, var(--advantage) 55%, transparent); }
+}
+
+@keyframes card-advantage-breathe {
+    0%, 100% { box-shadow: 0 0 0 2px var(--advantage), 0 0 16px 2px color-mix(in srgb, var(--advantage) 55%, transparent); }
+    50%      { box-shadow: 0 0 0 2px var(--advantage), 0 0 24px 6px color-mix(in srgb, var(--advantage) 35%, transparent); }
+}
+
+@keyframes card-advantage-sheen {
+    from { background-position: 130% 0; opacity: 1; }
+    to   { background-position: -30% 0; opacity: 0; }
+}
+
+.advantage-badge-pop { animation: advantage-badge-pop 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+/* `transform` only - the badge's horizontal centering is Tailwind 4's separate `translate`
+   property, which composes with this rather than being overwritten by it. */
+@keyframes advantage-badge-pop {
+    0%   { opacity: 0; transform: translateY(6px) scale(0.4); }
+    60%  { opacity: 1; transform: translateY(-2px) scale(1.2); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* The chart cell a sim swing landed on (`CardChart` `highlightResult`): it takes the advantage
+   color (over the team-colored out cells' inline background, hence `!important`), flashes with an
+   inset ring, and its label pops; every other cell dims so the eye goes straight to it. Delayed a
+   beat so it reads as following the card's claim. */
+.chart-cell-landed {
+    background-color: var(--advantage) !important;
+    color: #000 !important;
+    animation: chart-cell-land 650ms ease-out 180ms both;
+}
+.chart-cell-landed > * { animation: chart-cell-label-pop 450ms cubic-bezier(0.3, 1.6, 0.5, 1) 180ms both; }
+.chart-cell-dimmed { opacity: 0.4; transition: opacity 250ms ease-out; }
+
+@keyframes chart-cell-land {
+    0%   { box-shadow: inset 0 0 0 0 #000;   filter: brightness(1); }
+    30%  { box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.55); filter: brightness(1.35); }
+    100% { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35); filter: brightness(1); }
+}
+@keyframes chart-cell-label-pop {
+    0%   { transform: scale(0.6); }
+    55%  { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-advantage, .card-advantage::after, .advantage-badge-pop,
+    .chart-cell-landed, .chart-cell-landed > * { animation: none; }
 }
 
 /* Sim progress dice — a pair of d20s tossed on a loop while a season simulates, as a nod to the
@@ -526,6 +597,58 @@
 }
 
 .sim-die-shadow { animation: sim-die-shadow 900ms cubic-bezier(0.33, 0, 0.3, 1) forwards; }
+
+/* Baserunning roll math (SimRunnerRolls). Once the die lands, the defense chip and the die fold
+   toward each other and a total pops in between them (with a ring bursting off it); on the result
+   beat the total squares off against the runner's speed - the winner flares in `--roll-accent`,
+   the loser shakes and dims. Every duration divides by `--roll-speed` (the playback speed, set on
+   the row) so the choreography keeps pace at 2x/4x the way the phase beats do. */
+@keyframes roll-fold-left {
+    to { transform: translateX(4px) scale(0.86); opacity: 0.45; }
+}
+@keyframes roll-fold-right {
+    to { transform: translateX(-4px) scale(0.86); opacity: 0.45; }
+}
+.roll-fold-left  { animation: roll-fold-left  calc(280ms / var(--roll-speed, 1)) cubic-bezier(0.5, 0, 0.2, 1) forwards; }
+.roll-fold-right { animation: roll-fold-right calc(280ms / var(--roll-speed, 1)) cubic-bezier(0.5, 0, 0.2, 1) forwards; }
+
+@keyframes roll-total-pop {
+    0%   { transform: translateX(-12px) scale(0.3); opacity: 0; filter: blur(2px); }
+    55%  { transform: translateX(0) scale(1.22);    opacity: 1; filter: blur(0); }
+    78%  { transform: scale(0.94); }
+    100% { transform: scale(1); opacity: 1; }
+}
+.roll-total-pop { display: inline-block; animation: roll-total-pop calc(320ms / var(--roll-speed, 1)) cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+
+@keyframes roll-total-ring {
+    0%   { transform: scale(0.7); opacity: 0.9; }
+    100% { transform: scale(2);   opacity: 0; }
+}
+.roll-total-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid var(--roll-accent, var(--live));
+    pointer-events: none;
+    animation: roll-total-ring calc(520ms / var(--roll-speed, 1)) ease-out forwards;
+}
+
+@keyframes roll-clash-win {
+    0%   { transform: scale(1);    box-shadow: 0 0 0 0 transparent; }
+    40%  { transform: scale(1.14); box-shadow: 0 0 16px 4px var(--roll-accent, var(--live)); }
+    100% { transform: scale(1);    box-shadow: 0 0 8px 1px var(--roll-accent, var(--live)); }
+}
+.roll-clash-win { animation: roll-clash-win calc(440ms / var(--roll-speed, 1)) ease-out forwards; }
+
+@keyframes roll-clash-lose {
+    0%   { transform: translateX(0);    opacity: 1;    filter: grayscale(0); }
+    20%  { transform: translateX(-3px); }
+    40%  { transform: translateX(3px); }
+    60%  { transform: translateX(-2px); }
+    80%  { transform: translateX(1px); }
+    100% { transform: translateX(0);    opacity: 0.55; filter: grayscale(0.6); }
+}
+.roll-clash-lose { animation: roll-clash-lose calc(380ms / var(--roll-speed, 1)) ease-in-out calc(100ms / var(--roll-speed, 1)) both; }
 
 /* Light sweeping across the progress fill, so the bar still reads as working through the setup
    phases that hold it at a fixed width. Needs `overflow: hidden` on the element it's applied to. */

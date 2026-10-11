@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { LoadingStatusToast } from '../shared/LoadingStatusToast';
 import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
+import { userInitials } from '../../functions/formatters';
 
 // ---------------------------------------------------------------------------
 // AccountAvatar — reusable avatar image / initials / fallback icon
@@ -28,13 +29,6 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
     label,
 }) => {
     const { user, username, userSettings } = useAuth();
-
-    const getUserInitials = () => {
-        if (!user) return '';
-        const nameSource = username || user.email || '';
-        const nameParts = nameSource.split(/[@._-]/).filter(Boolean);
-        return nameParts.map(part => part[0].toUpperCase()).join('').slice(0, 2);
-    };
 
     return (
         <div className={`relative inline-flex ${className}`}>
@@ -69,7 +63,7 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
                             className="font-semibold text-white select-none"
                             style={{ fontSize: `${Math.round(size * 6 * 0.35)}px` }}
                         >
-                            {getUserInitials()}
+                            {userInitials(username || user.email)}
                         </span>
                     )
                 ) : (

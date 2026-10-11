@@ -13,6 +13,9 @@ type CardChartProps = {
     /** Optional CSS class name for customizing cell sizing */
     cellClassName?: string;
     className?: string;
+    /** Result key (e.g. "1b+", case-insensitive) a sim swing landed on — that cell lights up and
+     *  the rest of the chart dims. Ignored when no cell matches. */
+    highlightResult?: string;
 };
 
 /**
@@ -33,7 +36,7 @@ type CardChartProps = {
  * />
  * ```
  */
-export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className }: CardChartProps) {
+export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className, highlightResult }: CardChartProps) {
     // Extract chart data with fallback to empty object
     const chartData = chartRanges || {};
     const showdownSetValue = showdownSet || '2001';
@@ -110,19 +113,26 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
         };
     };
 
+    const highlightKey = highlightResult?.toLowerCase();
+    const hasHighlight = !!highlightKey && Object.keys(chartDataToRender).some((key) => key.toLowerCase() === highlightKey);
+
     return (
         <div className={`inline-flex rounded-lg overflow-hidden text-xs font-semibold border border-form-element ${className || ''}`}>
             {Object.entries(chartDataToRender).map(([key, value], index) => {
                 const colorInfo = getColorClass(key, index);
+                const isHighlighted = hasHighlight && key.toLowerCase() === highlightKey;
+                // Keyed on the highlight so the landing animation replays for every new swing.
+                const highlightClass = !hasHighlight ? '' : isHighlighted ? 'chart-cell-landed' : 'chart-cell-dimmed';
                 
                 return (
                     <div
-                        key={key}
+                        key={isHighlighted ? `${key}-landed` : key}
                         className={`
                             ${cellClassName || 'min-w-8 sm:min-w-11'}
                             px-1 py-1 text-center text-primary
                             ${colorInfo.className}
                             border-r border-form-element last:border-r-0
+                            ${highlightClass}
                         `}
                         style={colorInfo.backgroundColor ? {
                             backgroundColor: colorInfo.backgroundColor,

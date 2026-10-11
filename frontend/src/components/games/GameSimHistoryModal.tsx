@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FaSpinner, FaTerminal } from 'react-icons/fa6';
 import { Modal } from '../shared/Modal';
+import { UserAvatar } from '../shared/UserAvatar';
 import { ordinal } from '../../functions/formatters';
 import { fetchGameSimHistory, fetchGameSimResult, type SimGameRecord } from '../../api/simGame';
 
@@ -88,6 +89,18 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
                             <div className="text-sm font-semibold text-(--primary)">
                                 {row.away_abbr} {row.away_score} – {row.home_abbr} {row.home_score}
                             </div>
+                            {row.creator_username && (
+                                <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-(--primary)">
+                                    <UserAvatar
+                                        name={row.creator_username}
+                                        avatarUrl={row.creator_avatar_url}
+                                        primaryColor={row.creator_primary_color}
+                                        secondaryColor={row.creator_secondary_color}
+                                        size={18}
+                                    />
+                                    <span className="truncate">{row.is_own ? 'You' : `@${row.creator_username}`}</span>
+                                </div>
+                            )}
                             <div className="mt-0.5 text-[11px] text-(--secondary)">
                                 {formatCreatedAt(row.created_at)}
                                 {' · '}

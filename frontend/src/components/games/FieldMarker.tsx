@@ -5,7 +5,7 @@
 import { resolveCardKey } from "../../domain/players";
 import type { PlayerRef } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse, ShowdownBotCardCompact } from "../../api/showdownBotCard";
-import { CardItemCompact, CardItemCompactFromCard } from "../cards/CardItemCompact";
+import { CardItemCompact, CardItemCompactFromCard, type CardItemStatBadge } from "../cards/CardItemCompact";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -22,7 +22,7 @@ const TONE_ACCENT: Record<"offense" | "defense", string | undefined> = {
  * placeholder card while the real one is still being fetched. */
 export default function FieldMarker({
     player, role, cardMap, onCardSelect, isLoadingCards, tone,
-    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings, hasAdvantage,
+    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings, hasAdvantage, statBadge, showSpeedBadge = false,
 }: {
     player: PlayerRef;
     role: "H" | "P";
@@ -39,6 +39,9 @@ export default function FieldMarker({
     /** Optional background settings for the card container, e.g., "bg-secondary" */
     backgroundSettings?: string;
     hasAdvantage?: boolean;
+    statBadge?: CardItemStatBadge;
+    /** Show the card's own speed in the stat badge slot (e.g. a runner on base). An explicit `statBadge` wins. */
+    showSpeedBadge?: boolean;
 }) {
     if (!player.name) {
         return <span className="block h-3 w-3 rotate-45 rounded-xs bg-(--live) shadow-sm" />;
@@ -47,6 +50,9 @@ export default function FieldMarker({
     const response = cardMap[resolveCardKey(player.id, role) ?? ""];
     const accentColor = TONE_ACCENT[tone];
     const showDetails = detailStat1Category != null;
+    const cardSpeed = response?.card?.speed.speed;
+    const resolvedStatBadge = statBadge
+        ?? (showSpeedBadge && cardSpeed != null ? { label: "Spd", value: cardSpeed } : undefined);
 
     const placeholderCard: ShowdownBotCardCompact = {
         id: `${player.id}-${role}`,
@@ -84,6 +90,7 @@ export default function FieldMarker({
                     accentColor={accentColor}
                     backgroundSettings={backgroundSettings}
                     hasAdvantage={hasAdvantage}
+                    statBadge={resolvedStatBadge}
                 />
             ) : (
                 <CardItemCompact
@@ -95,6 +102,7 @@ export default function FieldMarker({
                     accentColor={accentColor}
                     backgroundSettings={backgroundSettings}
                     hasAdvantage={hasAdvantage}
+                    statBadge={resolvedStatBadge}
                 />
             )}
         </div>

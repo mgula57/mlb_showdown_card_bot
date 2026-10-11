@@ -7531,11 +7531,9 @@ class PostgresDB:
                 batch_data = []
                 for showdown in batch:
                     card_data = showdown.as_json()
-                    
+
                     # Clean up the data for JSON storage
-                    bref_or_mlb_id = str(showdown.mlb_id) if showdown.mlb_id else showdown.bref_id
-                    id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
-                    player_id = "-".join(id_fields).lower()
+                    player_id = self._dim_card_player_id(showdown)
                     card_data['player_id'] = player_id
                     card_data['name'] = unidecode(card_data['name'])
                     card_data['id'] = "-".join([player_id, showdown.set.value])
@@ -7546,8 +7544,9 @@ class PostgresDB:
                 insert_query = """
                     INSERT INTO internal.dim_card (id, player_id, showdown_set, version, card_data) 
                     VALUES %s
-                    ON CONFLICT (player_id, showdown_set, version) 
+                    ON CONFLICT (id) 
                     DO UPDATE SET 
+                        version = EXCLUDED.version,
                         card_data = EXCLUDED.card_data,
                         modified_date = NOW()
                 """
@@ -7571,6 +7570,28 @@ class PostgresDB:
             raise
         finally:
             cursor.close()
+
+    @staticmethod
+    def _dim_card_player_id(showdown: ShowdownPlayerCard) -> str:
+        """dim_card.player_id for a card (matches player_season_stats.id, which card_bot uses as its id)."""
+        bref_or_mlb_id = str(showdown.mlb_id) if showdown.mlb_id else showdown.bref_id
+        id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
+        return "-".join(id_fields).lower()
+
+    def delete_superseded_card_versions(self, showdown_cards: list[ShowdownPlayerCard]) -> None:
+        """Remove older-version card_bot rows for the given cards' player/set. dim_card holds one row
+        per card id (the upsert overwrites its version), but card_bot keys on version, so a rebuild
+        under a newer card version would otherwise leave the old row alongside the new one."""
+        if self.connection is None or not showdown_cards:
+            return
+        keys = list({(self._dim_card_player_id(c), c.set.value, c.version) for c in showdown_cards})
+        with self.connection.cursor() as cursor:
+            execute_values(cursor, """
+                DELETE FROM card_bot b
+                USING (VALUES %s) AS k(player_id, showdown_set, version)
+                WHERE b.id = k.player_id AND b.showdown_set = k.showdown_set AND b.showdown_bot_version <> k.version
+            """, keys, page_size=len(keys))
+            print(f"✓ Removed {cursor.rowcount} superseded card_bot rows")
 
     # Rate stats: averaged across years (rates don't compound). Everything else is a counting stat and is summed.
     _RATE_STAT_NAMES = [
@@ -10802,7 +10823,18 @@ class PostgresDB:
     _SIM_GAME_LIST_COLUMNS = """
         g.sim_id, g.user_id, g.game_pk, g.season, g.showdown_set, g.game_date,
         g.away_abbr, g.home_abbr, g.away_score, g.home_score,
-        g.is_takeover, g.takeover_inning, g.seed, g.created_at
+        g.is_takeover, g.takeover_inning, g.seed, g.created_at,
+        p.username AS creator_username,
+        us.avatar_url AS creator_avatar_url,
+        us.default_primary_color AS creator_primary_color,
+        us.default_secondary_color AS creator_secondary_color
+    """
+
+    # Pairs with `_SIM_GAME_LIST_COLUMNS` - every query selecting those columns must also carry
+    # these joins so the creator's username/avatar resolve (both keyed by the auth user id as text).
+    _SIM_GAME_LIST_JOINS = """
+        LEFT JOIN public.profiles p ON p.id::text = g.user_id
+        LEFT JOIN internal.user_settings us ON us.user_id = g.user_id
     """
 
     def build_sim_game_table(self) -> None:
@@ -10890,6 +10922,7 @@ class PostgresDB:
             SELECT {self._SIM_GAME_LIST_COLUMNS}, g.result,
                    (g.user_id IS NOT DISTINCT FROM %s) AS is_own
               FROM internal.sim_game g
+              {self._SIM_GAME_LIST_JOINS}
              WHERE g.sim_id = %s::uuid
             """,
             (user_id, sim_id),
@@ -10904,6 +10937,7 @@ class PostgresDB:
             f"""
             SELECT {self._SIM_GAME_LIST_COLUMNS}, (g.user_id IS NOT DISTINCT FROM %s) AS is_own
               FROM internal.sim_game g
+              {self._SIM_GAME_LIST_JOINS}
              WHERE g.game_pk = %s
              ORDER BY g.created_at DESC
              LIMIT %s
@@ -10911,6 +10945,16 @@ class PostgresDB:
             (user_id, int(game_pk), limit),
         )
         return self._stringify_sim_game_ids(rows)
+
+    def count_sim_games_for_game(self, game_pk: int) -> int:
+        """How many simulations of one real game have been stored (uncapped, unlike the list)."""
+        if not self.connection:
+            return 0
+        rows = self.execute_query(
+            "SELECT COUNT(*) AS count FROM internal.sim_game WHERE game_pk = %s",
+            (int(game_pk),),
+        )
+        return int(rows[0]['count']) if rows else 0
 
     @staticmethod
     def _stringify_sim_game_ids(rows: list[dict]) -> list[dict]:
