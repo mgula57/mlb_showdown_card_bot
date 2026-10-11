@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaChevronDown } from 'react-icons/fa6';
+import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaChevronDown, FaFloppyDisk, FaCheck } from 'react-icons/fa6';
 import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, WotcSetProfile } from '../../api/releases';
 import { fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
 import { showdownSets } from '../shared/SiteSettingsContext';
@@ -22,6 +22,7 @@ type AlgorithmBuilderProps = {
     token?: string;
     defaultShowdownSet?: string | null;
     onPreviewResult: (result: AlgorithmPreviewResult) => void;
+    onEditionUpdated: (edition: ReleaseEdition) => void;
     /** Header element the Blueprint dropdown is portaled into (next to the Build Method label). */
     blueprintSlot?: HTMLElement | null;
 };
@@ -194,8 +195,12 @@ function parseAlgorithmSettings(attributes: Record<string, unknown>, defaultShow
     };
 }
 
-export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, onPreviewResult, blueprintSlot }: AlgorithmBuilderProps) {
+export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, onPreviewResult, onEditionUpdated, blueprintSlot }: AlgorithmBuilderProps) {
     const [config, setConfig] = useState<AlgorithmConfig>(() => parseAlgorithmSettings(edition.attributes, defaultShowdownSet));
+    // Last config persisted to the edition — the Save button is enabled only while `config` differs from it
+    const [savedConfig, setSavedConfig] = useState<AlgorithmConfig>(config);
+    const [saving, setSaving] = useState(false);
+    const isDirty = useMemo(() => JSON.stringify(config) !== JSON.stringify(savedConfig), [config, savedConfig]);
     const [activeBlueprintId, setActiveBlueprintId] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -259,15 +264,31 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         setActiveBlueprintId(blueprint.id);
     }
 
+    async function handleSave() {
+        if (!token || saving) return;
+        const toSave = config;
+        setSaving(true);
+        setError(null);
+        try {
+            const updated = await updateEdition(releaseId, edition.id, { attributes: { algorithm: toSave } }, token);
+            setSavedConfig(toSave);
+            onEditionUpdated(updated);
+        } catch (err: any) {
+            setError(err.message ?? 'Failed to save algorithm settings.');
+        } finally {
+            setSaving(false);
+        }
+    }
+
     async function handleRun() {
         if (!token || !canRun) return;
+        if (isDirty) handleSave();
         setStatus('running');
         setError(null);
         try {
             const result = await previewAlgorithm(releaseId, edition.id, config, token, { rerun_cards: isAdmin && rerunCards });
             onPreviewResult(result);
             setStatus('idle');
-            updateEdition(releaseId, edition.id, { attributes: { ...edition.attributes, algorithm: config } }, token).catch(() => {});
         } catch (err: any) {
             setStatus('error');
             setError(err.message ?? 'Failed to run algorithm.');
@@ -461,6 +482,19 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             )}
 
         </div>
+
+        <button
+            type="button"
+            onClick={handleSave}
+            disabled={!token || !isDirty || saving}
+            aria-label="Save algorithm settings"
+            title={isDirty ? 'Save settings' : 'Settings saved'}
+            className="absolute bottom-3 right-20 w-14 h-14 rounded-full flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold shadow-lg
+                border border-(--divider) bg-(--background-secondary) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+        >
+            {saving ? <FaSpinner className="animate-spin" /> : (isDirty ? <FaFloppyDisk /> : <FaCheck />)}
+            {saving ? '…' : (isDirty ? 'Save' : 'Saved')}
+        </button>
 
         <button
             type="button"

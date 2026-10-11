@@ -6871,7 +6871,11 @@ class PostgresDB:
             if not cur.fetchone():
                 return False
             if fields:
-                set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+                # JSONB fields merge top-level keys so saving one setting (e.g. numbering) doesn't clobber another (e.g. algorithm)
+                set_clause = ', '.join([
+                    f"{k} = COALESCE({k}, '{{}}'::jsonb) || %s" if k in PostgresDB._EDITION_JSONB_FIELDS else f"{k} = %s"
+                    for k in fields.keys()
+                ])
                 values = [PostgresDB._serialize_edition_field(k, v) for k, v in fields.items()]
                 cur.execute(
                     f"UPDATE internal.release_editions SET {set_clause}, updated_at = NOW() WHERE id = %s",

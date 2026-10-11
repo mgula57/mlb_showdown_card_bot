@@ -437,7 +437,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
         if (!token) return;
         try {
             const updated = await updateEdition(releaseId, edition.id, {
-                attributes: { ...edition.attributes, numbering: next },
+                attributes: { numbering: next },
             }, token);
             onEditionUpdated(updated);
         } catch (err: any) {
@@ -589,6 +589,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                     token={token}
                                     defaultShowdownSet={defaultShowdownSet}
                                     onPreviewResult={setPreviewResult}
+                                    onEditionUpdated={onEditionUpdated}
                                     blueprintSlot={blueprintSlot}
                                 />
                             </Tabs.Content>
