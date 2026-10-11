@@ -517,6 +517,10 @@ def refresh_player_id_table(
     db.update_player_id_table(data)
     print("✅ player_id_master table refreshed.")
 
+    print("Backfilling missing mlb_ids from player_id_master...")
+    db.backfill_mlb_ids_from_id_map()
+    print("✅ mlb_ids backfilled.")
+
 
 @app.command("snapshot_rosters")
 def snapshot_rosters(

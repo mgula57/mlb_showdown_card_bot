@@ -3615,6 +3615,29 @@ class PostgresDB:
             if cursor:
                 cursor.close()
 
+    def backfill_mlb_ids_from_id_map(self) -> None:
+        """Fill NULL mlb_ids on player_season_stats and card_bot from internal.dim_player_id_map.
+
+        BREF-scraped seasons are stored without an mlb_id, and anything keyed by mlb_id (e.g.
+        historical rosters) silently drops those players. modified_date is left alone so this
+        doesn't trigger a card_bot incremental refresh; card_bot is patched directly instead.
+        """
+        if self.connection is None:
+            print("No database connection available for backfilling MLB IDs.")
+            return
+
+        with self.connection.cursor() as cursor:
+            for table in ("player_season_stats", "card_bot"):
+                cursor.execute(sql.SQL("""
+                    UPDATE {table} AS t
+                    SET mlb_id = id_map.mlb_id
+                    FROM internal.dim_player_id_map AS id_map
+                    WHERE t.mlb_id IS NULL
+                        AND id_map.mlb_id IS NOT NULL
+                        AND id_map.bref_id = t.bref_id
+                """).format(table=sql.Identifier(table)))
+                print(f"  → Backfilled mlb_id on {cursor.rowcount} {table} row(s).")
+
     def fetch_mlb_ids_from_bref_ids(self, bref_ids: List[str]) -> Optional[dict[str, int]]:
         """Fetch the MLB ID corresponding to a given bref_id from the dim_player_id_map table."""
         
@@ -3936,7 +3959,7 @@ class PostgresDB:
                 player_season_stats.id,
                 player_season_stats.year,
                 player_season_stats.bref_id,
-                player_season_stats.mlb_id,
+                coalesce(player_season_stats.mlb_id, id_map.mlb_id) as mlb_id,
                 unaccent(player_season_stats.name) as name,
                 player_season_stats.player_type,
                 player_season_stats.player_type_override,
@@ -4102,6 +4125,8 @@ class PostgresDB:
             from player_season_stats
             join internal.dim_card as dim_card
                 on player_season_stats.id = dim_card.player_id
+            left join internal.dim_player_id_map as id_map
+                on id_map.bref_id = player_season_stats.bref_id
             left join internal.dim_team_years as team_years
                 on team_years.year = player_season_stats.year 
                 and team_years.team = player_season_stats.team_id
@@ -4395,7 +4420,9 @@ class PostgresDB:
                 DO UPDATE SET
                     year = EXCLUDED.year,
                     bref_id = EXCLUDED.bref_id,
-                    mlb_id = EXCLUDED.mlb_id,
+                    -- NEVER CLOBBER A KNOWN MLB ID WITH NULL: OLDER player_season_stats ROWS LACK IT, AND
+                    -- AN IMAGE-TRIGGERED REFRESH WOULD OTHERWISE WIPE IT (DROPS PLAYERS FROM HISTORICAL ROSTERS)
+                    mlb_id = COALESCE(EXCLUDED.mlb_id, card_bot.mlb_id),
                     name = EXCLUDED.name,
                     player_type = EXCLUDED.player_type,
                     player_type_override = EXCLUDED.player_type_override,
