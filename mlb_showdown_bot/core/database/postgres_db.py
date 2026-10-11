@@ -915,6 +915,7 @@ class PostgresDB:
                 (card_result->'chart'->>'command')::int AS command,
                 (card_result->'chart'->>'outs_full')::int AS outs,
                 (card_result->'chart'->>'is_pitcher')::boolean AS is_pitcher,
+                CASE WHEN (card_result->'chart'->>'is_pitcher')::boolean THEN 'PITCHER' ELSE 'HITTER' END AS player_type,
                 (card_result->'speed'->>'speed')::int AS speed,
                 (card_result->>'ip')::int AS ip,
                 (card_result->>'hand') AS hand,
@@ -949,6 +950,17 @@ class PostgresDB:
 
         for key, value in filters.items():
             if value is None:
+                continue
+
+            # Hitters-only variant of any other filter (e.g. min_speed_hitters, min_fielding_if_hitters,
+            # min_chart_hr_hitters) - pitchers pass automatically. Without it, a hitter-themed rule
+            # like a speed or infield-defense floor would wipe out every pitcher (all speed 10, no
+            # fielding ratings) and leave a challenge roster unfillable.
+            if key.endswith('_hitters'):
+                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_hitters'): value})
+                if base_clauses:
+                    filter_clauses.append(sql.SQL("(player_type = 'PITCHER' OR ({}))").format(sql.SQL(" AND ").join(base_clauses)))
+                    filter_values.extend(base_values)
                 continue
 
             # Fielding min/max — applies as an OR across every position the player is rated at
@@ -3607,6 +3619,29 @@ class PostgresDB:
             if cursor:
                 cursor.close()
 
+    def backfill_mlb_ids_from_id_map(self) -> None:
+        """Fill NULL mlb_ids on player_season_stats and card_bot from internal.dim_player_id_map.
+
+        BREF-scraped seasons are stored without an mlb_id, and anything keyed by mlb_id (e.g.
+        historical rosters) silently drops those players. modified_date is left alone so this
+        doesn't trigger a card_bot incremental refresh; card_bot is patched directly instead.
+        """
+        if self.connection is None:
+            print("No database connection available for backfilling MLB IDs.")
+            return
+
+        with self.connection.cursor() as cursor:
+            for table in ("player_season_stats", "card_bot"):
+                cursor.execute(sql.SQL("""
+                    UPDATE {table} AS t
+                    SET mlb_id = id_map.mlb_id
+                    FROM internal.dim_player_id_map AS id_map
+                    WHERE t.mlb_id IS NULL
+                        AND id_map.mlb_id IS NOT NULL
+                        AND id_map.bref_id = t.bref_id
+                """).format(table=sql.Identifier(table)))
+                print(f"  → Backfilled mlb_id on {cursor.rowcount} {table} row(s).")
+
     def fetch_mlb_ids_from_bref_ids(self, bref_ids: List[str]) -> Optional[dict[str, int]]:
         """Fetch the MLB ID corresponding to a given bref_id from the dim_player_id_map table."""
         
@@ -3928,7 +3963,7 @@ class PostgresDB:
                 player_season_stats.id,
                 player_season_stats.year,
                 player_season_stats.bref_id,
-                player_season_stats.mlb_id,
+                coalesce(player_season_stats.mlb_id, id_map.mlb_id) as mlb_id,
                 unaccent(player_season_stats.name) as name,
                 player_season_stats.player_type,
                 player_season_stats.player_type_override,
@@ -4094,6 +4129,8 @@ class PostgresDB:
             from player_season_stats
             join internal.dim_card as dim_card
                 on player_season_stats.id = dim_card.player_id
+            left join internal.dim_player_id_map as id_map
+                on id_map.bref_id = player_season_stats.bref_id
             left join internal.dim_team_years as team_years
                 on team_years.year = player_season_stats.year 
                 and team_years.team = player_season_stats.team_id
@@ -4387,7 +4424,9 @@ class PostgresDB:
                 DO UPDATE SET
                     year = EXCLUDED.year,
                     bref_id = EXCLUDED.bref_id,
-                    mlb_id = EXCLUDED.mlb_id,
+                    -- NEVER CLOBBER A KNOWN MLB ID WITH NULL: OLDER player_season_stats ROWS LACK IT, AND
+                    -- AN IMAGE-TRIGGERED REFRESH WOULD OTHERWISE WIPE IT (DROPS PLAYERS FROM HISTORICAL ROSTERS)
+                    mlb_id = COALESCE(EXCLUDED.mlb_id, card_bot.mlb_id),
                     name = EXCLUDED.name,
                     player_type = EXCLUDED.player_type,
                     player_type_override = EXCLUDED.player_type_override,
@@ -5475,6 +5514,7 @@ class PostgresDB:
                         'command',         COALESCE(cb.command, cw.command),
                         'outs',            COALESCE(cb.outs, cw.outs),
                         'speed',           COALESCE(cb.speed, cw.speed),
+                        'player_type',     COALESCE(cb.player_type, cw.player_type),
                         'onbase_perc',     COALESCE(cb.real_onbase_perc, cw.real_onbase_perc),
                         'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc),
                         'team',            COALESCE(cb.team, cw.team),
@@ -5497,12 +5537,12 @@ class PostgresDB:
         FROM internal.user_teams t
         LEFT JOIN internal.user_team_roster r ON r.team_id = t.team_id
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year,
+            SELECT points, command, outs, speed, player_type, real_onbase_perc, real_slugging_perc, team, hand, year::text AS year,
                    positions_and_defense, chart_ranges
             FROM card_bot  WHERE card_id = r.card_id LIMIT 1
         ) cb ON r.card_source = 'BOT'
         LEFT JOIN LATERAL (
-            SELECT points, command, outs, speed, real_onbase_perc, real_slugging_perc, team, hand, year AS year,
+            SELECT points, command, outs, speed, player_type, real_onbase_perc, real_slugging_perc, team, hand, year AS year,
                    positions_and_defense, chart_ranges
             FROM card_wotc WHERE card_id = r.card_id LIMIT 1
         ) cw ON r.card_source = 'WOTC'
