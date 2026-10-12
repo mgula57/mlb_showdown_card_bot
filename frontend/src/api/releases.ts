@@ -35,6 +35,11 @@ export type Release = {
     editions: ReleaseEditionSummary[];
     /** List endpoints only: up to 3 rendered card images, first edition first, then highest points. */
     preview_images?: ReleasePreviewImage[];
+    /** Creator's profile username (null if they haven't set one). */
+    creator_username?: string | null;
+    /** Distinct Showdown sets across the release's cards (published editions only in public lists).
+     * List endpoints only. */
+    showdown_sets?: string[];
     created_at: string;
     updated_at: string;
 };

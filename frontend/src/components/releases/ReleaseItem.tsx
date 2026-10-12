@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Release, ReleasePreviewImage } from '../../api/releases';
 import { cardImagePublicUrl } from '../../api/supabase';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { ShowdownSetLogos } from '../shared/ShowdownSetLogos';
 import { FaLayerGroup } from 'react-icons/fa6';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
@@ -10,9 +10,9 @@ const TILE_FRAME = 'w-full sm:w-52 aspect-3/4 rounded-xl';
 
 /** Fan placement per image count: index 0 (first edition's highest-points card) sits in front. */
 const FAN_LAYOUTS: Record<number, Array<{ x: number; y: number; rotate: number }>> = {
-    1: [{ x: 0, y: 0, rotate: 0 }],
-    2: [{ x: 28, y: 0, rotate: 6 }, { x: -28, y: 4, rotate: -6 }],
-    3: [{ x: 0, y: 0, rotate: 0 }, { x: -58, y: 7, rotate: -10 }, { x: 58, y: 7, rotate: 10 }],
+    1: [{ x: 0, y: 12, rotate: 0 }],
+    2: [{ x: 28, y: 12, rotate: 6 }, { x: -28, y: 20, rotate: -6 }],
+    3: [{ x: 0, y: 12, rotate: 0 }, { x: -58, y: 20, rotate: -10 }, { x: 58, y: 20, rotate: 10 }],
 };
 
 type ReleaseItemProps = {
@@ -20,13 +20,15 @@ type ReleaseItemProps = {
     onClick: () => void;
 };
 
-/** Release tile for the Release Builder list: a fan of the release's rendered card images over its
- *  name, default set, and edition/card counts. Falls back to a set icon when nothing is rendered yet. */
+/** Release tile for the Release Builder list: a fan of the release's rendered card images under the
+ *  logos of every set it includes, over its name, creator, and edition/card counts. Falls back to a
+ *  set icon when nothing is rendered yet. */
 export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
     const totalCards = release.editions.reduce((sum, e) => sum + e.card_count, 0);
     const editionCount = release.editions.length;
     const images = (release.preview_images ?? []).slice(0, 3);
-    const setImage = release.default_showdown_set ? imageForSet(release.default_showdown_set) : undefined;
+    // Sets actually in the release's cards; before any cards are added, the default set it was created with
+    const sets = release.showdown_sets?.length ? release.showdown_sets : [release.default_showdown_set];
 
     return (
         <button
@@ -40,16 +42,20 @@ export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
                 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
             `}
         >
-            {release.is_official && (
-                <span className="absolute top-0 left-0 z-30 text-[9px] font-black rounded-br-md px-1.5 py-0.5 leading-none tracking-wide bg-(--secondary) text-(--background-primary)">
-                    OFFICIAL
-                </span>
-            )}
-            {setImage && (
-                <div className="absolute top-0 right-0 z-30 rounded-bl-md p-1 bg-black/50">
-                    <img src={setImage} alt={release.default_showdown_set ?? ''} loading="lazy" className="h-4 w-auto object-contain" />
-                </div>
-            )}
+            {/* Official badge + every included set, wrapping onto a second row when there are many */}
+            <div className="absolute top-0 inset-x-0 z-30 flex items-start justify-between gap-1 pointer-events-none">
+                {release.is_official ? (
+                    <span className="shrink-0 text-[9px] font-black rounded-br-md px-1.5 py-0.5 leading-none tracking-wide bg-(--secondary) text-(--background-primary)">
+                        OFFICIAL
+                    </span>
+                ) : <span />}
+                <ShowdownSetLogos
+                    sets={sets}
+                    heightClass="h-5"
+                    abbreviatedHeightClass="h-4"
+                    className="flex flex-wrap items-center justify-end gap-1 rounded-bl-md p-1 bg-black/20"
+                />
+            </div>
 
             {/* Card fan */}
             <div className="relative flex-1 min-h-0">
@@ -73,9 +79,14 @@ export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
 
             {/* Details */}
             <div className="relative z-20 flex flex-col gap-1 p-2.5 pt-0">
-                <div className="text-[15px] leading-tight font-black text-(--text-primary) line-clamp-2">
+                <div className="text-[18px] leading-[1.05] font-black uppercase tracking-tight text-(--text-primary) line-clamp-2">
                     {release.name}
                 </div>
+                {release.creator_username && (
+                    <div className="text-[11px] font-semibold text-(--text-tertiary) truncate">
+                        by {release.creator_username}
+                    </div>
+                )}
                 {release.description && (
                     <div className="text-[10px] font-semibold text-(--text-secondary) line-clamp-1">
                         {release.description}

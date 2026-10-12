@@ -6757,10 +6757,25 @@ class PostgresDB:
             ), '[]'::json) AS preview_images,
     """
 
+    # Distinct Showdown sets across the release's cards, for the list tiles' set logos.
+    # `{edition_filter}` limits which editions count (like `_RELEASE_PREVIEW_IMAGES_COLUMN`).
+    _RELEASE_SHOWDOWN_SETS_COLUMN = """
+            COALESCE((
+                SELECT array_agg(DISTINCT rc.card_snapshot->>'showdown_set')
+                  FROM internal.release_editions pe
+                  JOIN internal.release_cards rc ON rc.edition_id = pe.id
+                 WHERE pe.release_id = r.id
+                   AND rc.card_snapshot->>'showdown_set' IS NOT NULL
+                   {edition_filter}
+            ), ARRAY[]::text[]) AS showdown_sets,
+    """
+
+    # Profiles are keyed by the auth user id as text; a subquery keeps it out of the GROUP BY
     _RELEASE_SELECT_TEMPLATE = """
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
+            (SELECT p.username FROM public.profiles p WHERE p.id::text = r.created_by) AS creator_username,
             {extra_columns}
             COALESCE(
                 json_agg(
@@ -6782,11 +6797,14 @@ class PostgresDB:
 
     @classmethod
     def _release_list_select(cls, published_only: bool) -> str:
-        """`_RELEASE_BASE_SELECT` plus `preview_images`, drawn only from published editions when
-        `published_only` (lists other users see)."""
+        """`_RELEASE_BASE_SELECT` plus `preview_images` and `showdown_sets`, drawn only from
+        published editions when `published_only` (lists other users see)."""
         edition_filter = 'AND pe.is_published' if published_only else ''
-        preview_images = cls._RELEASE_PREVIEW_IMAGES_COLUMN.format(edition_filter=edition_filter)
-        return cls._RELEASE_SELECT_TEMPLATE.format(extra_columns=preview_images)
+        extra_columns = (
+            cls._RELEASE_PREVIEW_IMAGES_COLUMN.format(edition_filter=edition_filter)
+            + cls._RELEASE_SHOWDOWN_SETS_COLUMN.format(edition_filter=edition_filter)
+        )
+        return cls._RELEASE_SELECT_TEMPLATE.format(extra_columns=extra_columns)
 
     def get_releases(self, user_id: str) -> list[dict]:
         """Return all releases created by user_id, newest first. Editions are metadata-only (no cards)."""

@@ -12,7 +12,7 @@ import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
 import CompactSelect from '../shared/CompactSelect';
-import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
+import { ShowdownSetLogos } from '../shared/ShowdownSetLogos';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import FormEnabler from '../customs/FormEnabler';
 import { formSectionSummary } from '../customs/FormSectionSummary';
@@ -384,11 +384,6 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             return !prev;
         });
     }
-    // Distinct Showdown sets in the pool, in the site's set order, for the icons in the pool tab bar.
-    const poolSets = useMemo(() => {
-        const present = new Set(displayCards.map(c => c.card_snapshot.showdown_set));
-        return showdownSets.map(s => s.value).filter(set => present.has(set));
-    }, [displayCards]);
 
     const poolGroups = useMemo(
         () => groupAndSortCards(displayCards, groupBy, sortBy, sortDirection),
@@ -705,17 +700,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
                                 <FaChartColumn className="text-[10px] mr-1.5" /> Summary
                             </Tabs.Trigger>
-                            {poolSets.length > 0 && (
-                                <div className="flex items-center gap-1 ml-auto shrink-0">
-                                    {poolSets.map(set => {
-                                        const useAbbreviated = poolSets.length >= 2;
-                                        const image = imageForSet(set, useAbbreviated);
-                                        return image ? (
-                                            <img key={set} src={image} alt={set} title={set} className={`${useAbbreviated ? 'h-4.5' : 'h-5.5'} w-auto object-contain`} />
-                                        ) : null;
-                                    })}
-                                </div>
-                            )}
+                            <ShowdownSetLogos
+                                sets={displayCards.map(c => c.card_snapshot.showdown_set)}
+                                heightClass="h-5.5"
+                                abbreviatedHeightClass="h-4.5"
+                                className="flex items-center gap-1 ml-auto shrink-0"
+                            />
                         </Tabs.List>
 
                         <Tabs.Content value="cards" className="flex-1 min-h-0 flex flex-col focus:outline-none">

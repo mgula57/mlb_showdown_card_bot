@@ -206,9 +206,9 @@ export default function Releases() {
                     <button
                         type="button"
                         onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                        className="flex items-center gap-[2.5px] px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
                     >
-                        <FaPlus className="text-[10px]" />
+                        <FaPlus className="text-[10px] mr-1" />
                         New
                         <span className="hidden sm:inline">Release</span>
                     </button>
