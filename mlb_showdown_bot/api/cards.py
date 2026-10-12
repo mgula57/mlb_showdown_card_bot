@@ -9,6 +9,7 @@ from .user_settings import optional_user_id
 from .image_libraries import UserImageLibraries
 from ..core.card.card_generation import generate_card, generate_cards
 from ..core.card.showdown_player_card import ShowdownPlayerCard
+from ..core.card.images import DEFAULT_RENDER_FILE_FORMAT
 from ..core.utils.ttl_cache import TTLCache
 
 cards_bp = Blueprint('cards', __name__)
@@ -101,6 +102,7 @@ def build_image_for_card():
         card = ShowdownPlayerCard(**card_json)
 
         card.image.output_folder_path = "static/output"
+        card.image.file_format = DEFAULT_RENDER_FILE_FORMAT
         card.image.source.set_libraries(UserImageLibraries.for_card_build(optional_user_id()))
 
         with PostgresDB() as db:

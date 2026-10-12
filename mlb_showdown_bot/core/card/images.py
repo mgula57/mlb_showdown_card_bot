@@ -574,6 +574,42 @@ class ImageColoring(str, Enum):
     MULTI = "MULTI"
 
 # ---------------------------------------
+# MARK: IMAGE FILE FORMAT
+# ---------------------------------------
+
+class ImageFileFormat(str, Enum):
+    """File format the final card image is saved as."""
+
+    PNG = "PNG"
+    JPEG = "JPEG"
+
+    @classmethod
+    def _missing_(cls, value):
+        # Accept CLI-style input like "jpg" or "png"
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            return cls.JPEG if normalized == 'JPG' else cls.__members__.get(normalized)
+        return None
+
+    @property
+    def extension(self) -> str:
+        return 'jpg' if self == ImageFileFormat.JPEG else 'png'
+
+    @property
+    def save_kwargs(self) -> dict:
+        """PIL save options. JPEG keeps full-resolution color (4:4:4 subsampling): PIL's default
+        4:2:0 visibly smears saturated edges like team colors and red text. At quality 95 the
+        average color difference vs PNG is below what's perceptible, at ~1/3 the file size."""
+        if self == ImageFileFormat.JPEG:
+            return {'format': 'JPEG', 'quality': 95, 'subsampling': 0, 'optimize': True}
+        return {'format': 'PNG'}
+
+# Format new card images are rendered in. `ShowdownImage.file_format` itself stays PNG by default,
+# since it describes an already-rendered image and cards stored before JPEG (archive rows, cloud
+# uploads) were PNG; every rendering entry point sets this explicitly instead.
+DEFAULT_RENDER_FILE_FORMAT = ImageFileFormat.JPEG
+
+# ---------------------------------------
 # MARK: SHOWDOWN IMAGE
 # ---------------------------------------
 
@@ -586,6 +622,7 @@ class ShowdownImage(BaseModel):
     special_edition: SpecialEdition = SpecialEdition.NONE
     output_folder_path: Optional[str] = None
     output_file_name: Optional[str] = None
+    file_format: ImageFileFormat = ImageFileFormat.PNG
     set_name: Optional[str] = None
     set_year: Optional[int] = None
     set_number: Optional[str] = None
