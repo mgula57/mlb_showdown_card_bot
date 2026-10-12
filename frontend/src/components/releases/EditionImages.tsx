@@ -220,9 +220,32 @@ function StatusFilterChip({ status, count, isActive, onClick }: { status: Releas
     );
 }
 
+/** "~4 min left" style label for a rough ETA. */
+function formatEta(seconds: number): string {
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 1) return '<1 min left';
+    if (minutes < 60) return `~${minutes} min left`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return `~${hours} hr${rest > 0 ? ` ${rest} min` : ''} left`;
+}
+
 function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }) {
     const processed = job.completed + job.failed;
-    if (isImageJobActive(job)) {
+    const isActive = isImageJobActive(job);
+
+    // Pace is measured from the first progress this view saw to the latest, using the job's server
+    // timestamps (bumped on each card) so poll timing doesn't skew it.
+    const [paceStart, setPaceStart] = useState<{ jobId: string; processed: number; at: number } | null>(null);
+    if (isActive && job.total > 0 && paceStart?.jobId !== job.id) {
+        setPaceStart({ jobId: job.id, processed, at: Date.parse(job.updated_at) });
+    }
+    const pacedCards = paceStart?.jobId === job.id ? processed - paceStart.processed : 0;
+    const etaSeconds = pacedCards > 0 && paceStart
+        ? ((Date.parse(job.updated_at) - paceStart.at) / 1000 / pacedCards) * (job.total - processed)
+        : null;
+
+    if (isActive) {
         const percent = job.total > 0 ? Math.round((processed / job.total) * 100) : 0;
         return (
             <div className="flex flex-col gap-1">
@@ -230,6 +253,9 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
                     <FaSpinner className="animate-spin text-[11px]" />
                     {job.total > 0 ? `Rendering ${processed} of ${job.total}` : 'Starting render…'}
                     {job.failed > 0 && <span className="text-red-400">· {job.failed} failed</span>}
+                    {etaSeconds !== null && processed < job.total && (
+                        <span className="font-normal text-(--text-tertiary)">· {formatEta(etaSeconds)}</span>
+                    )}
                 </div>
                 <div className="h-1.5 rounded-full bg-(--background-quaternary) overflow-hidden">
                     <div className="h-full bg-(--secondary) transition-[width] duration-500" style={{ width: `${percent}%` }} />
