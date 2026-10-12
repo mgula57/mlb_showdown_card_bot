@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Release, ReleasePreviewImage } from '../../api/releases';
 import { cardImagePublicUrl } from '../../api/supabase';
 import { ShowdownSetLogos } from '../shared/ShowdownSetLogos';
@@ -9,11 +9,28 @@ import { FaLayerGroup } from 'react-icons/fa6';
 const TILE_FRAME = 'w-full sm:w-52 aspect-3/4 rounded-xl';
 
 /** Fan placement per image count: index 0 (first edition's highest-points card) sits in front. */
-const FAN_LAYOUTS: Record<number, Array<{ x: number; y: number; rotate: number }>> = {
+const FAN_LAYOUTS: Record<number, FanPlacement[]> = {
     1: [{ x: 0, y: 12, rotate: 0 }],
     2: [{ x: 28, y: 12, rotate: 6 }, { x: -28, y: 20, rotate: -6 }],
     3: [{ x: 0, y: 12, rotate: 0 }, { x: -58, y: 20, rotate: -10 }, { x: 58, y: 20, rotate: 10 }],
 };
+
+type FanPlacement = { x: number; y: number; rotate: number };
+
+/** Hovering a tile fans its cards open a little: side cards spread and tilt further, every card
+ *  lifts and grows slightly, and a lone card tips to one side. */
+const FAN_HOVER = { spread: 1.18, tilt: 1.5, lift: 6, scale: 1.04, loneCardTilt: -3, staggerMs: 40 };
+
+const fanTransform = ({ x, y, rotate }: FanPlacement, scale = 1): string =>
+    `translateX(calc(-50% + ${x}%)) translateY(${y}%) rotate(${rotate}deg) scale(${scale})`;
+
+function hoveredPlacement(placement: FanPlacement, cardCount: number): FanPlacement {
+    return {
+        x: placement.x * FAN_HOVER.spread,
+        y: placement.y - FAN_HOVER.lift,
+        rotate: cardCount === 1 ? FAN_HOVER.loneCardTilt : placement.rotate * FAN_HOVER.tilt,
+    };
+}
 
 type ReleaseItemProps = {
     release: Release;
@@ -35,7 +52,7 @@ export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
             type="button"
             onClick={onClick}
             className={`
-                ${TILE_FRAME} relative overflow-hidden flex flex-col text-left
+                ${TILE_FRAME} group relative overflow-hidden flex flex-col text-left
                 border-2 border-(--divider) bg-(--background-secondary)
                 [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
                 [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
@@ -53,7 +70,7 @@ export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
                     sets={sets}
                     heightClass="h-5"
                     abbreviatedHeightClass="h-4"
-                    className="flex flex-wrap items-center justify-end gap-1 rounded-bl-md p-1 bg-black/20"
+                    className="flex flex-wrap items-center justify-end gap-1 rounded-bl-md p-1 bg-(--background-primary)/30"
                 />
             </div>
 
@@ -61,7 +78,7 @@ export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
             <div className="relative flex-1 min-h-0">
                 {images.length > 0 ? (
                     images.map((image, i) => (
-                        <FannedCardImage key={image.thumbnail_path} image={image} placement={FAN_LAYOUTS[images.length][i]} zIndex={images.length - i} />
+                        <FannedCardImage key={image.thumbnail_path} image={image} index={i} cardCount={images.length} />
                     ))
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-(--text-tertiary)">
@@ -101,18 +118,28 @@ export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
     );
 }
 
-function FannedCardImage({ image, placement, zIndex }: { image: ReleasePreviewImage; placement: { x: number; y: number; rotate: number }; zIndex: number }) {
+/** One card in the fan. Rest/hover transforms are passed as CSS variables so the tile's hover
+ *  (`group-hover`) can animate between them; only on devices that hover, and not with reduced motion. */
+function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewImage; index: number; cardCount: number }) {
+    const placement = FAN_LAYOUTS[cardCount][index];
+    const style = {
+        zIndex: cardCount - index,
+        '--fan-rest': fanTransform(placement),
+        '--fan-hover': fanTransform(hoveredPlacement(placement, cardCount), FAN_HOVER.scale),
+        transitionDelay: `${index * FAN_HOVER.staggerMs}ms`,
+    } as CSSProperties;
     return (
         <img
             src={cardImagePublicUrl(image.thumbnail_path)}
             alt={image.name ?? ''}
             loading="lazy"
             draggable={false}
-            className="absolute left-1/2 top-[8%] w-[48%] h-auto select-none drop-shadow-lg"
-            style={{
-                zIndex,
-                transform: `translateX(calc(-50% + ${placement.x}%)) translateY(${placement.y}%) rotate(${placement.rotate}deg)`,
-            }}
+            className="
+                absolute left-1/2 top-[8%] w-[48%] h-auto select-none drop-shadow-lg
+                [transform:var(--fan-rest)] transition-transform duration-300 ease-out motion-reduce:transition-none
+                [@media(hover:hover)]:motion-safe:group-hover:[transform:var(--fan-hover)]
+            "
+            style={style}
         />
     );
 }

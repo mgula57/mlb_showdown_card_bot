@@ -6678,6 +6678,12 @@ class PostgresDB:
                 ALTER TABLE internal.release_cards
                     ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
             """)
+            # User-chosen slot (1 = front) on the release's list tile; NULL leaves it to the default pick
+            cur.execute("""
+                ALTER TABLE internal.release_cards
+                    ADD COLUMN IF NOT EXISTS preview_rank SMALLINT
+                    CHECK (preview_rank BETWEEN 1 AND 3);
+            """)
             # edition_id lookups (card lists, card_count, delete-and-replace on save) are covered by
             # unique_card_number (edition_id, card_number)
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_edition_id;")
@@ -6732,16 +6738,17 @@ class PostgresDB:
                     ON internal.release_image_jobs (edition_id, created_at DESC);
             """)
 
-    # Release list tiles show off up to 3 rendered card images: first edition (by name, matching the
-    # edition tabs) first, then highest points. `{edition_filter}` limits which editions they draw from.
+    # Release list tiles show off up to 3 rendered card images: cards the user ranked (preview_rank 1-3)
+    # first, then the first edition (by name, matching the edition tabs), then highest points.
+    # `{edition_filter}` limits which editions they draw from.
     _RELEASE_PREVIEW_IMAGES_COLUMN = """
             COALESCE((
                 SELECT json_agg(
                            json_build_object('thumbnail_path', p.thumbnail_path, 'name', p.name)
-                           ORDER BY p.edition_name, p.points DESC NULLS LAST
+                           ORDER BY p.preview_rank NULLS LAST, p.edition_name, p.points DESC NULLS LAST
                        )
                   FROM (
-                    SELECT i.thumbnail_path, rc.card_snapshot->>'name' AS name, pe.name AS edition_name,
+                    SELECT i.thumbnail_path, rc.card_snapshot->>'name' AS name, rc.preview_rank, pe.name AS edition_name,
                            CASE WHEN jsonb_typeof(rc.card_snapshot->'points') = 'number'
                                 THEN (rc.card_snapshot->>'points')::numeric END AS points
                       FROM internal.release_editions pe
@@ -6751,7 +6758,7 @@ class PostgresDB:
                      WHERE pe.release_id = r.id
                        AND i.thumbnail_path IS NOT NULL
                        {edition_filter}
-                     ORDER BY edition_name, points DESC NULLS LAST
+                     ORDER BY rc.preview_rank NULLS LAST, edition_name, points DESC NULLS LAST
                      LIMIT 3
                   ) p
             ), '[]'::json) AS preview_images,
@@ -6915,7 +6922,8 @@ class PostgresDB:
                         'source_card_id',   rc.source_card_id,
                         'source_card_type', rc.source_card_type,
                         'card_snapshot',    rc.card_snapshot,
-                        'tags',             rc.tags
+                        'tags',             rc.tags,
+                        'preview_rank',     rc.preview_rank
                     ) ORDER BY rc.card_number
                 ) FILTER (WHERE rc.id IS NOT NULL),
                 '[]'::json
@@ -7228,6 +7236,7 @@ class PostgresDB:
         cur.execute("DELETE FROM internal.release_cards WHERE edition_id = %s", (edition_id,))
         if not cards:
             return
+        preview_ranks = PostgresDB._normalize_release_card_preview_ranks(cards)
         batch = [
             (
                 edition_id,
@@ -7236,14 +7245,33 @@ class PostgresDB:
                 extras.Json(card['card_snapshot']),
                 card.get('card_number'),
                 PostgresDB._normalize_release_card_tags(card.get('tags')),
+                preview_rank,
             )
-            for card in cards
+            for card, preview_rank in zip(cards, preview_ranks)
         ]
         execute_values(cur, """
             INSERT INTO internal.release_cards
-                (edition_id, source_card_id, source_card_type, card_snapshot, card_number, tags)
+                (edition_id, source_card_id, source_card_type, card_snapshot, card_number, tags, preview_rank)
             VALUES %s
         """, batch)
+
+    _RELEASE_CARD_MAX_PREVIEW_RANK = 3
+
+    @staticmethod
+    def _normalize_release_card_preview_ranks(cards: list) -> list[int | None]:
+        """Each card's list-tile slot (1-3), dropping out-of-range values and repeats (first card keeps it)."""
+        used: set[int] = set()
+        ranks: list[int | None] = []
+        for card in cards:
+            rank = card.get('preview_rank')
+            valid = (
+                isinstance(rank, int) and not isinstance(rank, bool)
+                and 1 <= rank <= PostgresDB._RELEASE_CARD_MAX_PREVIEW_RANK and rank not in used
+            )
+            if valid:
+                used.add(rank)
+            ranks.append(rank if valid else None)
+        return ranks
 
     _RELEASE_CARD_TAG_MAX_LENGTH = 24
 

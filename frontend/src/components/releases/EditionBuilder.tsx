@@ -19,6 +19,7 @@ import { formSectionSummary } from '../customs/FormSectionSummary';
 import { EditionStyleModal } from './EditionStyleModal';
 import { EditionImages } from './EditionImages';
 import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
+import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { parseEditionStyle, editionStyleSummary } from './editionStyle';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
 import {
@@ -188,6 +189,7 @@ function buildReleaseCardsFromPreview(players: AlgorithmPreviewPlayer[]): Releas
         source_card_type: record.source,
         card_snapshot: record,
         tags: [],
+        preview_rank: null,
     }));
 }
 
@@ -330,6 +332,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     source_card_type: c.source_card_type,
                     card_snapshot: c.card_snapshot,
                     tags: c.tags,
+                    preview_rank: c.preview_rank,
                 })),
             }, token);
             setCards(updated.cards);
@@ -419,10 +422,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
      * any currently-persisted card (manual or from a prior algorithm run — provenance isn't tracked). */
     function handleReplaceAllFromPreview() {
         if (!previewResult) return;
-        // Cards that survive the replace keep their tags
-        const existingTags = new Map(cards.map(c => [c.source_card_id, c.tags]));
-        const newCards = buildReleaseCardsFromPreview(previewResult.players)
-            .map(c => ({ ...c, tags: existingTags.get(c.source_card_id) ?? c.tags }));
+        // Cards that survive the replace keep their tags and preview rank
+        const existingCards = new Map(cards.map(c => [c.source_card_id, c]));
+        const newCards = buildReleaseCardsFromPreview(previewResult.players).map(c => {
+            const existing = existingCards.get(c.source_card_id);
+            return existing ? { ...c, tags: existing.tags, preview_rank: existing.preview_rank } : c;
+        });
         const newSourceIds = new Set(newCards.map(c => c.source_card_id));
         const droppedCount = cards.filter(c => !newSourceIds.has(c.source_card_id)).length;
         if (droppedCount > 0) {
@@ -446,6 +451,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             source_card_type: record.source,
             card_snapshot: record,
             tags: [],
+            preview_rank: null,
         };
         persist(applyNumberingIfNeeded([...cards, newCard]));
     }
@@ -455,15 +461,29 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
 
     // Saves replace every card row (new ids), so the open detail card is matched by its source card.
-    const detailCardTags = detailCard
-        ? (cards.find(c => c.source_card_id === detailCard.source_card_id)?.tags ?? detailCard.tags)
-        : [];
+    const detailCardCurrent = detailCard
+        ? (cards.find(c => c.source_card_id === detailCard.source_card_id) ?? detailCard)
+        : null;
+    const detailCardTags = detailCardCurrent?.tags ?? [];
+    const detailCardPreviewRank = detailCardCurrent?.preview_rank ?? null;
     const editionTags = useMemo(() => [...new Set(cards.flatMap(c => c.tags))].sort(), [cards]);
 
     function handleDetailCardTagsChange(tags: string[]) {
         if (!detailCard) return;
         persist(cards.map(c => c.source_card_id === detailCard.source_card_id ? { ...c, tags } : c));
     }
+
+    /** Each slot belongs to one card per edition, so taking one clears it from whichever card held it. */
+    function handlePreviewRankChange(sourceCardId: string | null, previewRank: number | null) {
+        persist(cards.map(c => {
+            if (c.source_card_id === sourceCardId) return { ...c, preview_rank: previewRank };
+            return previewRank !== null && c.preview_rank === previewRank ? { ...c, preview_rank: null } : c;
+        }));
+    }
+    const previewRanks = useMemo(
+        () => new Map(cards.flatMap(c => c.source_card_id && c.preview_rank ? [[c.source_card_id, c.preview_rank] as const] : [])),
+        [cards]
+    );
 
     function handleNumberInputChange(cardId: string, value: string) {
         setEditingNumbers(prev => ({ ...prev, [cardId]: value }));
@@ -591,7 +611,15 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             {/* Images step: mounts on first open, then stays mounted (hidden) so a running render keeps reporting */}
             {imagesMounted && (
                 <div className={`flex-col flex-1 min-h-0 ${step === 'images' ? 'flex' : 'hidden'}`}>
-                    <EditionImages releaseId={releaseId} releaseName={releaseName} edition={edition} readOnly={readOnly} token={token} />
+                    <EditionImages
+                        releaseId={releaseId}
+                        releaseName={releaseName}
+                        edition={edition}
+                        readOnly={readOnly}
+                        token={token}
+                        previewRanks={previewRanks}
+                        onPreviewRankChange={handlePreviewRankChange}
+                    />
                 </div>
             )}
 
@@ -999,9 +1027,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                 {showFullCards
                                                                     ? <CardItemFromCardDatabaseRecord {...cardProps} />
                                                                     : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}
-                                                                {card.tags.length > 0 && (
+                                                                {(card.tags.length > 0 || card.preview_rank) && (
                                                                     // Overlaid on the bottom edge (like the top-edge badges) so tags don't change row height
-                                                                    <div className="absolute -bottom-1 left-1 translate-y-1/2 z-10 pointer-events-none"><ReleaseCardTagChips tags={card.tags} /></div>
+                                                                    <div className="absolute -bottom-1 left-1 translate-y-1/2 z-10 pointer-events-none flex items-center gap-1">
+                                                                        {card.preview_rank && <ReleaseCardPreviewRankBadge rank={card.preview_rank} />}
+                                                                        <ReleaseCardTagChips tags={card.tags} />
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -1046,13 +1077,20 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 <Modal
                     onClose={() => setDetailCard(null)}
                     isVisible={!!detailCard}
-                    footer={detailCard && (detailCardTags.length > 0 || (!readOnly && !previewResult)) ? (
-                        <ReleaseCardTagsEditor
-                            tags={detailCardTags}
-                            editionTags={editionTags}
-                            readOnly={readOnly || !!previewResult}
-                            onChange={handleDetailCardTagsChange}
-                        />
+                    footer={detailCard && (detailCardTags.length > 0 || detailCardPreviewRank || (!readOnly && !previewResult)) ? (
+                        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 w-full">
+                            <ReleaseCardTagsEditor
+                                tags={detailCardTags}
+                                editionTags={editionTags}
+                                readOnly={readOnly || !!previewResult}
+                                onChange={handleDetailCardTagsChange}
+                            />
+                            <ReleaseCardPreviewRankPicker
+                                rank={detailCardPreviewRank}
+                                readOnly={readOnly || !!previewResult}
+                                onChange={rank => detailCard && handlePreviewRankChange(detailCard.source_card_id, rank)}
+                            />
+                        </div>
                     ) : undefined}
                 >
                     <CardDetail

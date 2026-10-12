@@ -33,7 +33,8 @@ export type Release = {
     slug: string;
     default_showdown_set: string | null;
     editions: ReleaseEditionSummary[];
-    /** List endpoints only: up to 3 rendered card images, first edition first, then highest points. */
+    /** List endpoints only: up to 3 rendered card images — user-ranked cards (`preview_rank`) first,
+     * then first edition first, then highest points. */
     preview_images?: ReleasePreviewImage[];
     /** Creator's profile username (null if they haven't set one). */
     creator_username?: string | null;
@@ -52,6 +53,8 @@ export type ReleaseCard = {
     card_snapshot: CardDatabaseRecord;
     /** User labels, e.g. "FOIL" to track which cards will be printed as foils. Stored uppercase. */
     tags: string[];
+    /** User-chosen slot (1-3, 1 = front) on the release's list tile; null leaves it to the default pick. */
+    preview_rank: number | null;
 };
 
 export type ReleaseEdition = {
@@ -83,6 +86,7 @@ export type ReleaseEditionCreatePayload = {
         source_card_type?: string | null;
         card_snapshot: CardDatabaseRecord;
         tags?: string[];
+        preview_rank?: number | null;
     }>;
 };
 

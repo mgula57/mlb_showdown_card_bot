@@ -66,7 +66,7 @@ export function ReleaseCardTagsEditor({ tags, editionTags, readOnly, onChange }:
     }
 
     return (
-        <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-col gap-2 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Tags</span>
                 <ReleaseCardTagChips tags={tags} onRemove={tag => onChange(tags.filter(t => t !== tag))} />

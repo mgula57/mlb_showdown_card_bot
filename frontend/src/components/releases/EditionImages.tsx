@@ -5,6 +5,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { cardImagePublicUrl } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
+import { ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { buildZipEntries, editionZipFileName, useEditionZipDownload, type ZipDownloadState } from './editionZipDownload';
 import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 
@@ -29,11 +30,14 @@ type EditionImagesProps = {
     edition: ReleaseEdition;
     readOnly: boolean;
     token?: string;
+    /** Release-tile slot (1-3) by source card id, for cards that have one. */
+    previewRanks: Map<string, number>;
+    onPreviewRankChange: (sourceCardId: string, rank: number | null) => void;
 };
 
 /** Step 2 of the Edition Builder: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
-export function EditionImages({ releaseId, releaseName, edition, readOnly, token }: EditionImagesProps) {
+export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [requesting, setRequesting] = useState(false);
@@ -216,6 +220,9 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                     canRender={!readOnly && !!token && !jobActive && detail.status !== 'rendered'}
                     isRendering={jobActive && detail.status !== 'rendered'}
                     onRender={() => handleRender([detail.source_card_id])}
+                    previewRank={previewRanks.get(detail.source_card_id) ?? null}
+                    canEditPreviewRank={!readOnly && !!token}
+                    onPreviewRankChange={rank => onPreviewRankChange(detail.source_card_id, rank)}
                     onClose={() => setDetailImage(null)}
                 />
             )}
@@ -437,10 +444,13 @@ type ReleaseImageDetailModalProps = {
     canRender: boolean;
     isRendering: boolean;
     onRender: () => void;
+    previewRank: number | null;
+    canEditPreviewRank: boolean;
+    onPreviewRankChange: (rank: number | null) => void;
     onClose: () => void;
 };
 
-function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRender, onClose }: ReleaseImageDetailModalProps) {
+function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRender, previewRank, canEditPreviewRank, onPreviewRankChange, onClose }: ReleaseImageDetailModalProps) {
     const fullSrc = image.storage_path ? cardImagePublicUrl(image.storage_path) : null;
     const title = [image.set_number, snapshot?.name ?? image.source_card_id].filter(Boolean).join(' · ');
     return (
@@ -450,13 +460,16 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
             size="md"
             onClose={onClose}
             footer={
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3">
+                    <div className="mr-auto">
+                        <ReleaseCardPreviewRankPicker rank={previewRank} readOnly={!canEditPreviewRank} onChange={onPreviewRankChange} />
+                    </div>
                     {fullSrc && (
                         <a
                             href={fullSrc}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 mr-auto rounded-lg text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
                         >
                             <FaArrowUpRightFromSquare className="text-[11px]" /> Open Full Size
                         </a>
