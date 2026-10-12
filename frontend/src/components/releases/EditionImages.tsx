@@ -311,7 +311,7 @@ function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { s
 function ReleaseImageTileSkeleton() {
     return (
         <div className="flex flex-col gap-1.5 animate-pulse">
-            <div className="aspect-[5/7] rounded-lg bg-(--background-quaternary)" />
+            <div className="aspect-5/7 rounded-lg bg-(--background-quaternary)" />
             <div className="h-3 w-3/4 rounded bg-(--background-quaternary)" />
         </div>
     );
@@ -329,7 +329,7 @@ function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTi
     const thumbnailSrc = image.thumbnail_path ? cardImagePublicUrl(image.thumbnail_path) : null;
     return (
         <button type="button" onClick={onClick} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer">
-            <div className="relative aspect-[5/7] rounded-lg overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
+            <div className="relative aspect-5/7 rounded-lg overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
                 {thumbnailSrc ? (
                     <CardImageWithSkeleton
                         src={thumbnailSrc}
@@ -421,11 +421,11 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                     <p className="text-[12px] text-red-400 text-center wrap-anywhere">{image.error}</p>
                 )}
                 {fullSrc ? (
-                    <div className="relative w-full max-w-sm aspect-[5/7] rounded-xl overflow-hidden">
+                    <div className="relative w-full max-w-sm aspect-5/7 rounded-xl overflow-hidden">
                         <CardImageWithSkeleton key={fullSrc} src={fullSrc} alt={title} className="w-full h-full object-contain" />
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 w-full max-w-sm aspect-[5/7] rounded-xl border border-dashed border-(--divider) text-(--text-tertiary)">
+                    <div className="flex flex-col items-center justify-center gap-2 w-full max-w-sm aspect-5/7 rounded-xl border border-dashed border-(--divider) text-(--text-tertiary)">
                         <FaImage className="text-3xl opacity-40" />
                         <span className="text-[12px]">Not rendered yet</span>
                     </div>
