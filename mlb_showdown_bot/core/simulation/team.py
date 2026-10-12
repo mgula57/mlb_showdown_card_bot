@@ -4,7 +4,7 @@ from typing import Optional
 
 from ..card.showdown_player_card import ShowdownPlayerCard
 from ..card.team_builder.team import BULLPEN_ROLES, ROTATION_ROLES, Team as BuilderTeam
-from ..shared.player_position import PlayerSubType, PlayerType, PositionSlot
+from ..shared.player_position import PlayerSubType, PlayerType, Position, PositionSlot
 from ..shared.team import Team as ShowdownTeam
 from .game import Game
 from .inning import Inning
@@ -282,7 +282,9 @@ class SimTeam:
           position_player_ids: Every position player available, starters included. The lineup is
             pinned on top of this pool rather than being separate from it, so it may be passed
             whole (a full roster) without pre-subtracting the nine.
-          bullpen_ids: Every available arm. The starter is skipped if it appears here too.
+          bullpen_ids: Every available arm. The starter is skipped if it appears here too. Arms
+            whose card is a starter (the rest of the rotation) are held back as last resorts,
+            only used once every true reliever has been.
         """
 
         lineup_ids = [player_id for player_id, _ in lineup]
@@ -326,7 +328,10 @@ class SimTeam:
             name=abbreviation,
             position_players=position_players,
             rotation=Rotation(players=[starter]),
-            bullpen=Bullpen(players=relievers),
+            bullpen=Bullpen(
+                players=relievers,
+                last_resort_ids={pitcher.id for pitcher in relievers if pitcher.has_position(Position.SP)},
+            ),
             league=league,
             manager=manager,
         )
