@@ -5,6 +5,7 @@ import time
 from flask import Blueprint, request, jsonify
 
 from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, Team
+from mlb_showdown_bot.core.card.images import DEFAULT_RENDER_FILE_FORMAT
 from ..core.database.postgres_db import PostgresDB
 from ..core.utils.ttl_cache import TTLCache
 from .user_settings import require_auth, optional_user_id
@@ -223,6 +224,7 @@ def fetch_card_of_the_day():
         card_json = card_of_the_day.get('card_data')
         card = ShowdownPlayerCard(**card_json)
         card.image.output_folder_path = _CARD_OF_THE_DAY_FOLDER
+        card.image.file_format = DEFAULT_RENDER_FILE_FORMAT
         card.generate_card_image()
         card_of_the_day['card_data'] = card.as_json()
 

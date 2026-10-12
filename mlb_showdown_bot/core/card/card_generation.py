@@ -8,6 +8,7 @@ import ast
 
 # INTERNAL
 from .showdown_player_card import ShowdownPlayerCard, ImageLibrary, ImageSource, ShowdownImage, PlayerType, Team, Edition
+from .images import DEFAULT_RENDER_FILE_FORMAT
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, StatsPeriodLeague
@@ -150,6 +151,8 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
 
         # REMOVE IMAGE PREFIXES FROM KEYS
         kwargs = clean_kwargs(kwargs)
+        if not kwargs.get('file_format'):
+            kwargs['file_format'] = DEFAULT_RENDER_FILE_FORMAT
 
         # RAISE ERROR IF YEAR IS NOT PROVIDED BY USER OR SHUFFLE
         if kwargs.get('year', None) is None:
@@ -858,6 +861,8 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
                 break
             for player_type_override in player_type_overrides:
                 card_kwargs = kwargs.copy()
+                if not card_kwargs.get('file_format'):
+                    card_kwargs['file_format'] = DEFAULT_RENDER_FILE_FORMAT
 
                 # Remove potentially conflicting attributes from kwargs
                 card_kwargs.pop('name', None)

@@ -7112,20 +7112,17 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         name_safe = unidecode.unidecode(self.name).replace(" ", "_").replace("/", "_")
+        extension = self.image.file_format.extension
         if self.image.output_file_name is None:
-            self.image.output_file_name = f'{name_safe}-{str(datetime.now())}.png'
+            self.image.output_file_name = f'{name_safe}-{str(datetime.now())}.{extension}'
         if self.image.set_name:
-            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {name_safe}{img_name_suffix}.png'            
-        
+            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {name_safe}{img_name_suffix}.{extension}'
+
         try:
-            if self.set.convert_final_image_to_rgb:
-                rgb_image = image.convert('RGB')
-                self._release_images(image)
-                image = rgb_image
+            image = self._opaque_final_image(image)
+            image.save(self._output_img_path(self.image.output_file_name), dpi=(300, 300), **self.image.file_format.save_kwargs)
 
-            image.save(self._output_img_path(self.image.output_file_name), dpi=(300, 300))
-
-            # BUILD THE THUMBNAIL FROM THE IN-MEMORY IMAGE SO UPLOAD DOESN'T RE-DECODE THE FULL PNG
+            # BUILD THE THUMBNAIL FROM THE IN-MEMORY IMAGE SO UPLOAD DOESN'T RE-DECODE THE FULL IMAGE
             if self.image.upload_to_supabase:
                 self._save_thumbnail(image=image, path=self._output_img_path(self._thumbnail_file_name))
 
@@ -7193,10 +7190,37 @@ class ShowdownPlayerCard(BaseModel):
             if os.path.exists(thumb_path):
                 os.remove(thumb_path)
 
+    def _opaque_final_image(self, image:Image.Image) -> Image.Image:
+        """Flatten the final card image so it looks the same everywhere it's shown or printed.
+
+        Sets flagged `convert_final_image_to_rgb` drop their alpha as before. Any other transparency
+        (2003's player glow, background specks and streaks, parallel backgrounds, and disclaimer
+        text) is composited onto white: left transparent, it picked up the page behind it, which
+        muddied those cards in dark mode. JPEG can't store alpha at all.
+
+        Takes ownership of `image`: it's released if a new image is returned.
+
+        Args:
+          image: Final composited card image.
+
+        Returns:
+          RGB image.
+        """
+        if image.mode == 'RGB':
+            return image
+        if self.set.convert_final_image_to_rgb or 'A' not in image.getbands():
+            flattened = image.convert('RGB')
+        else:
+            flattened = Image.new('RGB', image.size, colors.WHITE)
+            flattened.paste(image, (0, 0), image.getchannel('A'))
+        self._release_images(image)
+        return flattened
+
     @property
     def _thumbnail_file_name(self) -> str:
         """File name for the card's thumbnail, derived from the full-size output file name."""
-        return self.image.output_file_name.replace('.png', '-thumb.png')
+        root, extension = os.path.splitext(self.image.output_file_name)
+        return f'{root}-thumb{extension}'
 
     def _output_img_path(self, file_name:str) -> str:
         """Local path an output file (card image or thumbnail) is written to and uploaded from.
@@ -7225,7 +7249,7 @@ class ShowdownPlayerCard(BaseModel):
         """
         thumbnail = ImageOps.contain(image, (200, 280), Image.Resampling.LANCZOS)
         try:
-            thumbnail.save(path, dpi=(72, 72), optimize=True)
+            thumbnail.save(path, dpi=(72, 72), **{'optimize': True, **self.image.file_format.save_kwargs})
         finally:
             self._release_images(thumbnail)
 
