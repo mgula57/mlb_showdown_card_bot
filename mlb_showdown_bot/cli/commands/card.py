@@ -27,6 +27,7 @@ def card_main(
     
     # IMAGE
     image_output_folder_path: Optional[str] = typer.Option(None, "--image_output_folder_path", "-o_path", help="Path to folder for card image output"),
+    image_file_format: str = typer.Option("JPEG", "--image_file_format", "-fmt", help="File format for the card image: JPEG/JPG (default, ~1/3 the size of PNG with no visible color change) or PNG (lossless)"),
     expansion: str = typer.Option("BS", "--expansion", "-exp", help="Add optional expansion logo (ex: TD, PR)"),
     edition: str = typer.Option("NONE", "--edition", "-ed", help="Add optional edition (Values: None, Super Season, All-Star Game, Cooperstown Collection, Holiday, Nationality, Rookie Season)"),
     set_num: Optional[str] = typer.Option(None, "--set_num", "-num", help="Assign card a set number"),
