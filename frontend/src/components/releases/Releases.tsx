@@ -256,6 +256,7 @@ export default function Releases() {
                                             key={release.id}
                                             release={release}
                                             onClick={() => openRelease(release, false)}
+                                            showPublishStatus
                                         />
                                     ))}
                                 </div>

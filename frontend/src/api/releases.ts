@@ -92,6 +92,8 @@ export type ReleaseEditionCreatePayload = {
 
 export type ReleaseEditionUpdatePayload = Partial<Omit<ReleaseEditionCreatePayload, 'cards'>> & {
     cards?: ReleaseEditionCreatePayload['cards'];
+    /** Published editions are visible to everyone; a release is listed publicly once any edition is. */
+    is_published?: boolean;
 };
 
 export type AlgorithmPlayerTypeDistribution = {

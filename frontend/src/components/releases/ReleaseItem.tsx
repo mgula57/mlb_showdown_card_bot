@@ -35,14 +35,18 @@ function hoveredPlacement(placement: FanPlacement, cardCount: number): FanPlacem
 type ReleaseItemProps = {
     release: Release;
     onClick: () => void;
+    /** Show the Draft/Published pill — only meaningful on the owner's own releases. */
+    showPublishStatus?: boolean;
 };
 
 /** Release tile for the Release Builder list: a fan of the release's rendered card images under the
  *  logos of every set it includes, over its name, creator, and edition/card counts. Falls back to a
  *  set icon when nothing is rendered yet. */
-export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
+export function ReleaseItem({ release, onClick, showPublishStatus = false }: ReleaseItemProps) {
     const totalCards = release.editions.reduce((sum, e) => sum + e.card_count, 0);
     const editionCount = release.editions.length;
+    // Matches the public list: a release is visible to others once any edition is published
+    const isPublished = release.editions.some(e => e.is_published);
     const images = (release.preview_images ?? []).slice(0, 3);
     // Sets actually in the release's cards; before any cards are added, the default set it was created with
     const sets = release.showdown_sets?.length ? release.showdown_sets : [release.default_showdown_set];
@@ -110,6 +114,11 @@ export function ReleaseItem({ release, onClick }: ReleaseItemProps) {
                     </div>
                 )}
                 <div className="flex items-center gap-1 flex-wrap text-[10px]">
+                    {showPublishStatus && (
+                        <StatPill className={isPublished ? 'bg-green-500/15 text-green-600 dark:text-green-400' : undefined}>
+                            {isPublished ? 'Published' : 'Draft'}
+                        </StatPill>
+                    )}
                     <StatPill>{editionCount} edition{editionCount === 1 ? '' : 's'}</StatPill>
                     <StatPill>{totalCards} card{totalCards === 1 ? '' : 's'}</StatPill>
                 </div>
@@ -144,9 +153,9 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
     );
 }
 
-function StatPill({ children }: { children: ReactNode }) {
+function StatPill({ children, className = 'bg-(--background-tertiary) text-(--text-secondary)' }: { children: ReactNode; className?: string }) {
     return (
-        <span className="font-bold rounded px-1.5 py-0.5 leading-none bg-(--background-tertiary) text-(--text-secondary)">
+        <span className={`font-bold rounded px-1.5 py-0.5 leading-none ${className}`}>
             {children}
         </span>
     );

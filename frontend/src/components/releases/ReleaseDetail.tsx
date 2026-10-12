@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { Release, ReleaseEdition } from '../../api/releases';
 import { fetchEdition, createEdition, updateEdition } from '../../api/releases';
 import { EditionBuilder } from './EditionBuilder';
 import FormInput from '../customs/FormInput';
-import { FaArrowLeft, FaCheck, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { ModeBanner } from '../shared/ModeBanner';
+import { bannerTokens } from '../../functions/colors';
+import { FaArrowLeft, FaCheck, FaEye, FaEyeSlash, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 type ReleaseDetailProps = {
     release: Release;
@@ -17,13 +19,30 @@ type ReleaseDetailProps = {
     token?: string;
 };
 
+/** Owners land in `browse` once a release is published (the view everyone else gets) and in
+ *  `edit` while it's still a draft. Browsing a draft is the pre-publish preview. */
+type ViewMode = 'browse' | 'edit';
+
 const EDITION_TAB_CLASS =
-    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-2 ' +
+    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-2 shrink-0 ' +
     'data-[state=active]:border-(--secondary) data-[state=active]:text-(--text-primary) ' +
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
+const PREVIEW_BANNER = { primary: '#1e3a8a', secondary: '#2563eb' };
+const LIVE_EDIT_BANNER = { primary: '#92400e', secondary: '#d97706' };
+
 export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, token }: ReleaseDetailProps) {
-    const activeEditionId = (release.editions.find(e => e.slug === editionSlug) ?? release.editions[0])?.id ?? null;
+    const isOwner = !readOnly;
+    // Other users can only open published editions — the release itself still lists drafts.
+    const editions = isOwner ? release.editions : release.editions.filter(e => e.is_published);
+    const isPublished = release.editions.some(e => e.is_published);
+    const hasDrafts = release.editions.some(e => !e.is_published);
+
+    const [mode, setMode] = useState<ViewMode>(() => isPublished ? 'browse' : 'edit');
+    const isEditing = isOwner && mode === 'edit';
+    const [publishing, setPublishing] = useState(false);
+
+    const activeEditionId = (editions.find(e => e.slug === editionSlug) ?? editions[0])?.id ?? null;
     const [editionCache, setEditionCache] = useState<Record<string, ReleaseEdition>>({});
     const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +50,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const [editionForm, setEditionForm] = useState<'create' | 'rename' | null>(null);
     const [editionFormName, setEditionFormName] = useState('');
     const [savingEditionForm, setSavingEditionForm] = useState(false);
-    const activeEditionName = release.editions.find(e => e.id === activeEditionId)?.name ?? '';
+    const activeEditionName = editions.find(e => e.id === activeEditionId)?.name ?? '';
 
     useEffect(() => {
         if (!activeEditionId || editionCache[activeEditionId]) return;
@@ -40,6 +59,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             .then(edition => setEditionCache(prev => ({ ...prev, [edition.id]: edition })))
             .catch(err => setError(err.message ?? 'Failed to load edition.'));
     }, [activeEditionId, release.id, token]);
+
+    function changeMode(next: ViewMode) {
+        setMode(next);
+        closeEditionForm();
+    }
 
     function openEditionForm(mode: 'create' | 'rename') {
         setEditionForm(mode);
@@ -89,54 +113,93 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         }
     }
 
-    function handleEditionUpdated(updated: ReleaseEdition) {
-        setEditionCache(prev => ({ ...prev, [updated.id]: updated }));
+    /** Folds several edition saves into the cache and the release in one pass, so concurrent
+     *  saves (e.g. publishing every edition) don't overwrite each other's release update. */
+    function applyEditionUpdates(updates: ReleaseEdition[]) {
+        if (updates.length === 0) return;
+        const byId = new Map(updates.map(u => [u.id, u]));
+        setEditionCache(prev => ({ ...prev, ...Object.fromEntries(byId) }));
         onReleaseUpdated({
             ...release,
-            editions: release.editions.map(e => e.id === updated.id
-                ? { ...e, name: updated.name, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length }
-                : e
-            ).sort((a, b) => a.name.localeCompare(b.name)),
+            editions: release.editions.map(e => {
+                const updated = byId.get(e.id);
+                return updated
+                    ? { ...e, name: updated.name, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length }
+                    : e;
+            }).sort((a, b) => a.name.localeCompare(b.name)),
         });
     }
+
+    function handleEditionUpdated(updated: ReleaseEdition) {
+        applyEditionUpdates([updated]);
+    }
+
+    /** Publishing is release-wide: every edition flips together. */
+    async function handleSetPublished(published: boolean) {
+        if (!token || publishing) return;
+        const targets = release.editions.filter(e => e.is_published !== published);
+        if (targets.length === 0) return;
+        const confirmed = window.confirm(published
+            ? `Publish "${release.name}"? Anyone will be able to browse ${targets.length === 1 ? 'it' : `its ${targets.length} unpublished editions`}.`
+            : `Unpublish "${release.name}"? It will be hidden from everyone but you.`
+        );
+        if (!confirmed) return;
+        setPublishing(true);
+        setError(null);
+        const results = await Promise.allSettled(
+            targets.map(e => updateEdition(release.id, e.id, { is_published: published }, token))
+        );
+        applyEditionUpdates(results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []));
+        const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (failed) {
+            setError(failed.reason?.message ?? `Failed to ${published ? 'publish' : 'unpublish'} release.`);
+        } else {
+            changeMode(published ? 'browse' : 'edit');
+        }
+        setPublishing(false);
+    }
+
+    const previewBannerButton = bannerTokens(PREVIEW_BANNER.secondary).btnClass;
+    const liveEditBannerButton = bannerTokens(LIVE_EDIT_BANNER.secondary).btnClass;
 
     return (
         <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden">
             <Tabs.Root
                 value={activeEditionId ?? undefined}
                 onValueChange={id => {
-                    const edition = release.editions.find(e => e.id === id);
+                    const edition = editions.find(e => e.id === id);
                     if (edition) onEditionChange(edition.slug);
                 }}
                 className="flex flex-col flex-1 min-h-0"
             >
-                {/* Single header row: back + release name on the left, edition tabs on the right. */}
-                <div className="flex items-stretch gap-3 px-4 bg-(--background-secondary) border-b border-(--divider) shrink-0">
-                    <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
+                {/* Desktop: one row — back + name, edition tabs, actions. Mobile: the edition tabs wrap onto their own row. */}
+                <div className="flex flex-wrap md:flex-nowrap items-stretch gap-x-3 px-4 bg-(--background-secondary) border-b border-(--divider) shrink-0">
+                    <button type="button" onClick={onBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
                         <FaArrowLeft />
                     </button>
-                    <div className="flex flex-col justify-center min-w-0 max-w-[40%] py-1.5 shrink-0" title={release.description || undefined}>
+                    <div className="flex flex-col justify-center min-w-0 flex-1 md:flex-none md:max-w-[40%] py-1.5" title={release.description || undefined}>
                         <div className="flex items-center gap-2 min-w-0">
                             <div className="text-lg leading-tight font-black text-(--text-primary) truncate uppercase">{release.name}</div>
-                            {release.is_official && (
-                                <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-(--secondary) text-(--background-primary)">
-                                    OFFICIAL
-                                </span>
-                            )}
+                            {release.is_official && <HeaderBadge className="bg-(--secondary) text-(--background-primary)">OFFICIAL</HeaderBadge>}
+                            {isOwner && !isPublished && <HeaderBadge className="border border-(--divider) text-(--text-tertiary)">DRAFT</HeaderBadge>}
                         </div>
                         {release.description && (
                             <div className="text-[11px] text-(--text-secondary) truncate">{release.description}</div>
                         )}
                     </div>
-                    <div className="w-px my-2.5 bg-(--divider) shrink-0" />
-                    <Tabs.List className="flex items-stretch gap-x-3 flex-1 min-w-0 overflow-x-auto">
-                        {release.editions.map(edition => (
+                    <div className="hidden md:block w-px my-2.5 bg-(--divider) shrink-0" />
+                    <Tabs.List className="order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto border-t border-(--divider) md:border-t-0">
+                        {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {edition.name}
                                 <span className="ml-1.5 text-[10px] text-(--text-tertiary) font-normal py-0.5 bg-(--background-primary) px-1 rounded-md">{edition.card_count}</span>
+                                {/* Only worth flagging per edition when the rest of the release is already public */}
+                                {isOwner && isPublished && !edition.is_published && (
+                                    <span className="ml-1.5 text-[9px] font-black text-(--text-tertiary)">DRAFT</span>
+                                )}
                             </Tabs.Trigger>
                         ))}
-                        {!readOnly && (
+                        {isEditing && (
                             <button
                                 type="button"
                                 onClick={() => openEditionForm('create')}
@@ -145,7 +208,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 <FaPlus className="text-[10px]" /> Edition
                             </button>
                         )}
-                        {!readOnly && activeEditionId && (
+                        {isEditing && activeEditionId && (
                             <button
                                 type="button"
                                 onClick={() => openEditionForm('rename')}
@@ -156,7 +219,56 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             </button>
                         )}
                     </Tabs.List>
+
+                    {isOwner && (
+                        <div className="flex items-center gap-1.5 shrink-0 py-1.5">
+                            {isEditing ? (
+                                <>
+                                    <HeaderButton icon={<FaEye />} label="Preview" collapseLabel onClick={() => changeMode('browse')} title="See this release the way others will" />
+                                    {isPublished && (
+                                        <HeaderButton icon={<FaEyeSlash />} label="Unpublish" collapseLabel busy={publishing} onClick={() => handleSetPublished(false)} title="Hide this release from everyone but you" />
+                                    )}
+                                    {hasDrafts && (
+                                        <HeaderButton icon={<FaGlobe />} label="Publish" tone="primary" busy={publishing} onClick={() => handleSetPublished(true)} title="Make this release visible to everyone" />
+                                    )}
+                                </>
+                            ) : (
+                                <HeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />
+                            )}
+                        </div>
+                    )}
                 </div>
+
+                {isOwner && !isEditing && hasDrafts && (
+                    <ModeBanner
+                        primaryColor={PREVIEW_BANNER.primary}
+                        secondaryColor={PREVIEW_BANNER.secondary}
+                        label="PREVIEW"
+                        detail={isPublished
+                            ? '— editions marked DRAFT are only visible to you until published'
+                            : '— this is how your release will look to others once published'}
+                    >
+                        <BannerButton className={previewBannerButton} onClick={() => changeMode('edit')}>
+                            Back to Editing
+                        </BannerButton>
+                        <BannerButton className={previewBannerButton} onClick={() => handleSetPublished(true)} disabled={publishing}>
+                            {publishing ? <FaSpinner className="animate-spin" /> : <FaGlobe />} Publish
+                        </BannerButton>
+                    </ModeBanner>
+                )}
+
+                {isEditing && isPublished && (
+                    <ModeBanner
+                        primaryColor={LIVE_EDIT_BANNER.primary}
+                        secondaryColor={LIVE_EDIT_BANNER.secondary}
+                        label="EDITING"
+                        detail="— this release is published, so changes are live as soon as they save"
+                    >
+                        <BannerButton className={liveEditBannerButton} onClick={() => changeMode('browse')}>
+                            <FaCheck /> Done
+                        </BannerButton>
+                    </ModeBanner>
+                )}
 
                 {error && (
                     <div className="mx-4 mt-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 shrink-0">
@@ -164,7 +276,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     </div>
                 )}
 
-                {editionForm && (
+                {isEditing && editionForm && (
                     <div className="flex items-center gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
                         <div className="flex-1 max-w-xs">
                             <FormInput
@@ -195,12 +307,12 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     </div>
                 )}
 
-                {release.editions.length === 0 && !editionForm ? (
+                {editions.length === 0 && !(isEditing && editionForm) ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                        {readOnly ? 'This release has no editions yet.' : 'Add an edition to start building your player pool.'}
+                        {isEditing ? 'Add an edition to start building your player pool.' : 'This release has no editions yet.'}
                     </p>
                 ) : (
-                    release.editions.map(edition => (
+                    editions.map(edition => (
                         <Tabs.Content
                             key={edition.id}
                             value={edition.id}
@@ -219,7 +331,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     releaseId={release.id}
                                     releaseName={release.name}
                                     edition={editionCache[edition.id]}
-                                    readOnly={readOnly}
+                                    readOnly={!isEditing}
                                     token={token}
                                     defaultShowdownSet={release.default_showdown_set}
                                     onEditionUpdated={handleEditionUpdated}
@@ -230,5 +342,59 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 )}
             </Tabs.Root>
         </div>
+    );
+}
+
+function HeaderBadge({ className, children }: { className: string; children: ReactNode }) {
+    return (
+        <span className={`text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 ${className}`}>
+            {children}
+        </span>
+    );
+}
+
+const HEADER_BUTTON_TONES = {
+    neutral: 'border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) hover:text-(--text-primary)',
+    primary: 'bg-(--secondary) text-(--background-primary) hover:opacity-90',
+} as const;
+
+type HeaderButtonProps = {
+    icon: ReactNode;
+    label: string;
+    onClick: () => void;
+    tone?: keyof typeof HEADER_BUTTON_TONES;
+    /** Swaps the icon for a spinner and blocks re-entry while an async action is in flight. */
+    busy?: boolean;
+    /** Icon-only below `sm`, so secondary actions don't crowd the release name on phones. */
+    collapseLabel?: boolean;
+    title?: string;
+};
+
+function HeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, collapseLabel = false, title }: HeaderButtonProps) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={busy}
+            title={title ?? label}
+            aria-label={label}
+            className={`flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-3 rounded-lg text-[12px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_BUTTON_TONES[tone]}`}
+        >
+            <span className="text-[12px]">{busy ? <FaSpinner className="animate-spin" /> : icon}</span>
+            <span className={collapseLabel ? 'hidden sm:inline' : ''}>{label}</span>
+        </button>
+    );
+}
+
+function BannerButton({ className, onClick, disabled, children }: { className: string; onClick: () => void; disabled?: boolean; children: ReactNode }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
+        >
+            {children}
+        </button>
     );
 }

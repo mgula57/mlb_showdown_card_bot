@@ -801,7 +801,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                 <>
                     {/* Side by side (1/3 – 2/3) when there's room, stacked otherwise. */}
                     <div className="flex flex-wrap gap-6">
-                        <Section title="Position Group" fit={fits?.parentPosition} className="flex-[1_1_0%] min-w-80">
+                        <Section title="Position Group" fit={fits?.parentPosition} className="flex-[1_1_0%] min-w-[min(20rem,100%)]">
                             <HorizontalBarChart data={breakdowns.parentPosition} emptyMessage="No data yet." minHeight={VERTICAL_CHART_HEIGHT} {...chartProps} />
                         </Section>
 
@@ -809,7 +809,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                             title="Points Distribution"
                             fit={fits?.points}
                             action={<ChartAverage value={String(averages.points)} compareValue={compareAverages && String(compareAverages.points)} />}
-                            className="flex-[2_1_0%] min-w-80"
+                            className="flex-[2_1_0%] min-w-[min(20rem,100%)]"
                         >
                             <VerticalBarChart data={breakdowns.points} emptyMessage="No point data yet." {...chartProps} />
                         </Section>
