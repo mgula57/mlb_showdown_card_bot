@@ -290,6 +290,77 @@ export async function previewAlgorithm(releaseId: string, editionId: string, con
 }
 
 // =============================================================================
+// MARK: - API CALLS: EDITION IMAGES
+// =============================================================================
+
+/** `rendered`: image matches the card's current style/number. `stale`: an older render is shown.
+ * `failed`: the current inputs failed to render. `missing`: never rendered. */
+export type ReleaseCardImageStatus = 'rendered' | 'stale' | 'failed' | 'missing';
+
+export type ReleaseCardImage = {
+    source_card_id: string;
+    /** Set number as printed on the card, e.g. "AS007". */
+    set_number: string | null;
+    status: ReleaseCardImageStatus;
+    /** Paths in the `card_images` bucket (see `cardImagePublicUrl`). Set for rendered and stale images. */
+    storage_path: string | null;
+    thumbnail_path: string | null;
+    error: string | null;
+    rendered_at: string | null;
+};
+
+export type ReleaseImageJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export type ReleaseImageJob = {
+    id: string;
+    edition_id: string;
+    status: ReleaseImageJobStatus;
+    total: number;
+    completed: number;
+    failed: number;
+    error: string | null;
+    created_at: string;
+    updated_at: string;
+    finished_at: string | null;
+};
+
+export type EditionImages = {
+    images: ReleaseCardImage[];
+    /** Latest render job, if one has ever run. */
+    job: ReleaseImageJob | null;
+};
+
+export const isImageJobActive = (job: ReleaseImageJob | null): boolean =>
+    job?.status === 'queued' || job?.status === 'running';
+
+async function editionImagesRequest<T>(releaseId: string, editionId: string, path: string, init: RequestInit, token?: string): Promise<T> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/images${path}`, { ...init, headers });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Edition images request failed: ${res.status}`);
+    }
+    return res.json();
+}
+
+export function fetchEditionImages(releaseId: string, editionId: string, token?: string): Promise<EditionImages> {
+    return editionImagesRequest(releaseId, editionId, '', { method: 'GET' }, token);
+}
+
+/** Starts a background render of missing/out-of-date images (optionally only `sourceCardIds`). */
+export async function renderEditionImages(releaseId: string, editionId: string, token: string, sourceCardIds?: string[]): Promise<ReleaseImageJob> {
+    const body = JSON.stringify(sourceCardIds ? { source_card_ids: sourceCardIds } : {});
+    const { job } = await editionImagesRequest<{ job: ReleaseImageJob }>(releaseId, editionId, '/render', { method: 'POST', body }, token);
+    return job;
+}
+
+export async function cancelEditionImageRender(releaseId: string, editionId: string, token: string): Promise<ReleaseImageJob> {
+    const { job } = await editionImagesRequest<{ job: ReleaseImageJob }>(releaseId, editionId, '/cancel', { method: 'POST' }, token);
+    return job;
+}
+
+// =============================================================================
 // MARK: - API CALLS: WOTC COMPARISON
 // =============================================================================
 

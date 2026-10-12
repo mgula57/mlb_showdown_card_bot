@@ -1,12 +1,22 @@
+import os
+import threading
 import traceback
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
+from ..core.card.images import ImageLibrary
 from ..core.database.postgres_db import PostgresDB
+from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
+from .image_libraries import UserImageLibraries
 from .user_settings import require_auth, optional_user_id
 
 releases_bp = Blueprint('releases', __name__)
+
+# Rendering is CPU- and memory-heavy Pillow work on the web dyno. Per worker process, like the
+# sim cap; `RELEASE_IMAGE_MAX_CONCURRENT` retunes it without a code change.
+_MAX_CONCURRENT_RENDERS = max(1, int(os.environ.get('RELEASE_IMAGE_MAX_CONCURRENT', 1)))
+_render_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_RENDERS)
 
 
 @releases_bp.route('/releases', methods=['GET'])
@@ -85,6 +95,7 @@ def delete_release(release_id: str):
         db.close_connection()
         if not deleted:
             return jsonify({'error': 'Release not found or not owned by user'}), 404
+        ReleaseImageStorage().delete_folder(release_id)
         return jsonify({'success': True}), 200
     except Exception as exc:
         traceback.print_exc()
@@ -154,6 +165,8 @@ def update_edition(release_id: str, edition_id: str):
         if not updated:
             db.close_connection()
             return jsonify({'error': 'Edition not found or not owned by user'}), 404
+        if isinstance(payload.get('cards'), list):
+            _delete_removed_card_images(db, edition_id)
         edition = db.get_edition(edition_id, g.user_id)
         db.close_connection()
         return jsonify(edition), 200
@@ -167,10 +180,11 @@ def update_edition(release_id: str, edition_id: str):
 def delete_edition(release_id: str, edition_id: str):
     try:
         db = PostgresDB()
-        deleted = db.delete_edition(edition_id, g.user_id)
+        deleted_release_id = db.delete_edition(edition_id, g.user_id)
         db.close_connection()
-        if not deleted:
+        if not deleted_release_id:
             return jsonify({'error': 'Edition not found or not owned by user'}), 404
+        ReleaseImageStorage().delete_folder(deleted_release_id, edition_id)
         return jsonify({'success': True}), 200
     except Exception as exc:
         traceback.print_exc()
@@ -230,6 +244,126 @@ def preview_algorithm(release_id: str, edition_id: str):
                 'warnings': showdown_set.warnings,
             },
         }), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+# =============================================================================
+# EDITION IMAGES
+# =============================================================================
+
+def _delete_removed_card_images(db: PostgresDB, edition_id: str) -> None:
+    """After a cards save, drop image rows + files for cards no longer in the edition. Best effort:
+    a failure never fails the save, and leftovers are swept by the next render or the janitor."""
+    try:
+        ReleaseImageStorage().delete(db.delete_release_card_images_not_in_edition(edition_id))
+    except Exception:
+        traceback.print_exc()
+
+
+def _owned_edition(db: PostgresDB, release_id: str, edition_id: str, user_id: str) -> dict | None:
+    """The edition with its cards if it belongs to `release_id` and the user owns that release.
+    `get_edition` alone also returns other users' published editions."""
+    release = db.get_release(release_id, user_id)
+    if release is None or release['created_by'] != user_id:
+        return None
+    edition = db.get_edition(edition_id, user_id)
+    if edition is None or edition['release_id'] != release_id:
+        return None
+    return edition
+
+
+def _run_render_job(job_id: str, edition: dict, image_libraries: list[ImageLibrary], source_card_ids: list[str] | None) -> None:
+    """Worker thread body. Owns a render slot, released when it finishes."""
+    try:
+        with PostgresDB() as db:
+            try:
+                EditionImageRenderer(
+                    db=db, job_id=job_id, edition=edition,
+                    image_libraries=image_libraries, source_card_ids=source_card_ids,
+                ).run()
+                db.finish_release_image_job(job_id)
+            except ReleaseImageJobCancelled:
+                print(f"[release images {job_id}] cancelled")
+            except Exception as exc:
+                traceback.print_exc()
+                db.finish_release_image_job(job_id, error=str(exc)[:500])
+    finally:
+        _render_slots.release()
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/images', methods=['GET'])
+def get_edition_images(release_id: str, edition_id: str):
+    """Each card's image status (rendered / stale / failed / missing) and the latest render job.
+    Visible to anyone who can view the edition."""
+    try:
+        with PostgresDB() as db:
+            edition = db.get_edition(edition_id, optional_user_id())
+            if edition is None or edition['release_id'] != release_id:
+                return jsonify({'error': 'Edition not found'}), 404
+            images = EditionImagePlan(edition).card_statuses(db.get_release_card_images(edition_id))
+            job = db.get_latest_release_image_job(edition_id)
+        return jsonify({'images': images, 'job': job}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/images/render', methods=['POST'])
+@require_auth
+def render_edition_images(release_id: str, edition_id: str):
+    """Queue a background job rendering the edition's missing/out-of-date images. Optional
+    `source_card_ids` limits it to those cards."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        source_card_ids = payload.get('source_card_ids')
+        if source_card_ids is not None and (not isinstance(source_card_ids, list) or not all(isinstance(i, str) for i in source_card_ids)):
+            return jsonify({'error': 'source_card_ids must be a list of strings'}), 400
+
+        with PostgresDB() as db:
+            edition = _owned_edition(db, release_id, edition_id, g.user_id)
+            if edition is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            job_id = db.create_release_image_job(edition_id, g.user_id, dyno=os.environ.get('DYNO'))
+            if job_id is None:
+                return jsonify({'error': 'Images are already rendering for this edition.'}), 409
+            if not _render_slots.acquire(blocking=False):
+                db.finish_release_image_job(job_id, error='Image rendering is busy right now. Try again in a minute.')
+                return jsonify({'error': 'Image rendering is busy right now. Try again in a minute.'}), 429
+            job = db.get_latest_release_image_job(edition_id)
+
+        try:
+            threading.Thread(
+                target=_run_render_job,
+                args=(job_id, edition, UserImageLibraries.for_card_build(g.user_id), source_card_ids),
+                name=f'release-images-{job_id[:8]}', daemon=True,
+            ).start()
+        except Exception as exc:
+            # The worker releases the slot itself, so it's only ours to release if it never started
+            _render_slots.release()
+            with PostgresDB() as db:
+                db.finish_release_image_job(job_id, error=str(exc)[:500])
+            raise
+
+        return jsonify({'job': job}), 202
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/images/cancel', methods=['POST'])
+@require_auth
+def cancel_edition_images(release_id: str, edition_id: str):
+    try:
+        with PostgresDB() as db:
+            if _owned_edition(db, release_id, edition_id, g.user_id) is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            cancelled = db.cancel_release_image_job(edition_id)
+            job = db.get_latest_release_image_job(edition_id)
+        if not cancelled:
+            return jsonify({'error': 'No render in progress.'}), 409
+        return jsonify({'job': job}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

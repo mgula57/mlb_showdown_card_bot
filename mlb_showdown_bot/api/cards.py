@@ -8,7 +8,7 @@ from .utils.data_conversion import convert_form_data_types
 from .user_settings import optional_user_id
 from .image_libraries import UserImageLibraries
 from ..core.card.card_generation import generate_card, generate_cards
-from ..core.card.showdown_player_card import ShowdownPlayerCard
+from ..core.card.card_image_builder import CardImageBuilder
 from ..core.utils.ttl_cache import TTLCache
 
 cards_bp = Blueprint('cards', __name__)
@@ -97,19 +97,10 @@ def build_image_for_card():
         if not payload or 'card' not in payload:
             return jsonify({'error': 'No card data provided'}), 400
 
-        card_json = payload['card']
-        card = ShowdownPlayerCard(**card_json)
-
-        card.image.output_folder_path = "static/output"
-        card.image.source.set_libraries(UserImageLibraries.for_card_build(optional_user_id()))
+        image_libraries = UserImageLibraries.for_card_build(optional_user_id())
 
         with PostgresDB() as db:
-            # CHECK IF CARD HAS BREF ID
-            # IF NOT LOOK IT UP IN DATABASE BY MATCHING TO MLB ID
-            if not card.bref_id and card.mlb_id:
-                bref_id = db.fetch_bref_id_for_mlb_id(card.mlb_id)
-                if bref_id:
-                    card.bref_id = bref_id
+            card = CardImageBuilder(db=db, image_libraries=image_libraries, output_folder_path="static/output").card_from_json(payload['card'])
 
             # PRODUCE IMAGE AND UPDATE DATASET
             card.generate_card_image()

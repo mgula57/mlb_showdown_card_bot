@@ -44,6 +44,7 @@ import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
 import PointsContributionBars from './card_detail/PointsContributionBars';
 import { CardComps } from './card_detail/CardComps';
 import ImageSourceBadge from './card_detail/ImageSourceBadge';
+import { cardImagePublicUrl } from '../../api/supabase';
 
 /**
  * Props for the CardDetail component
@@ -330,9 +331,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
     // Card Calcs
     const image = activeCardData?.card?.image ?? null;
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const cardImagePath: string | null = image?.storage_path
-        ? `${supabaseUrl}/storage/v1/object/public/card_images/${image.storage_path}`
+        ? cardImagePublicUrl(image.storage_path)
         : image?.output_folder_path && image?.output_file_name
             ? `/${image.output_folder_path}/${image.output_file_name}`.replace(/\/\//, '/')
             : null;

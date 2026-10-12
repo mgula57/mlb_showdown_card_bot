@@ -5,6 +5,7 @@ import time
 from ...core.set_builder.showdown_bot_set import ShowdownBotSet, PointBucket
 from ...core.set_builder.wotc_set_profile import WotcSetProfile
 from ...core.set_builder.release_importer import ReleaseImporter
+from ...core.set_builder.release_images import ReleaseImageJanitor
 from ...core.database.postgres_db import PostgresDB
 
 app = typer.Typer()
@@ -125,6 +126,21 @@ def import_release(
     release_id = importer.run()
     db.close_connection()
     print(f"\n✅ Release ready: /release-builder/{release_id}")
+
+
+@app.command("clean_release_images")
+def clean_release_images(
+    dry_run: bool = typer.Option(False, "--dry_run", "-d", help="Only report how many files would be deleted."),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to clean (dev or prod)."),
+):
+    """Delete release images in Supabase storage that no release card image row points to
+    (deleted releases/editions, replaced renders, failed best-effort deletes)."""
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    if db.connection is None:
+        raise typer.Exit(code=1)
+    deleted_count = ReleaseImageJanitor(db=db, dry_run=dry_run).run()
+    db.close_connection()
+    print(f"\n✅ {'Would delete' if dry_run else 'Deleted'} {deleted_count} release image files")
 
 
 # Make set builder the default command

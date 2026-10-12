@@ -6681,6 +6681,50 @@ class PostgresDB:
             # Unused by any query, and every save rewrites the edition's cards - not worth the write cost
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_snapshot_team;")
 
+            # Rendered card images, keyed by source card rather than release_cards.id since every
+            # save replaces the edition's release_cards rows. `render_hash` is the hash of the inputs
+            # behind the stored image; `failed_hash` the inputs whose last render failed.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_card_images (
+                    edition_id      UUID NOT NULL REFERENCES internal.release_editions(id) ON DELETE CASCADE,
+                    source_card_id  TEXT NOT NULL,
+                    render_hash     TEXT,
+                    storage_path    TEXT,
+                    thumbnail_path  TEXT,
+                    rendered_at     TIMESTAMP WITH TIME ZONE,
+                    failed_hash     TEXT,
+                    error           TEXT,
+                    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    PRIMARY KEY (edition_id, source_card_id)
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_image_jobs (
+                    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    edition_id  UUID NOT NULL REFERENCES internal.release_editions(id) ON DELETE CASCADE,
+                    user_id     TEXT NOT NULL,
+                    status      TEXT NOT NULL DEFAULT 'queued',
+                    total       INT  NOT NULL DEFAULT 0,
+                    completed   INT  NOT NULL DEFAULT 0,
+                    failed      INT  NOT NULL DEFAULT 0,
+                    error       TEXT,
+                    dyno        TEXT,
+                    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    finished_at TIMESTAMP WITH TIME ZONE
+                );
+            """)
+            # At most one in-flight job per edition; also drives the stale-job reaper
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_release_image_jobs_active_edition
+                    ON internal.release_image_jobs (edition_id) WHERE status IN ('queued', 'running');
+            """)
+            # get_latest_release_image_job
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_release_image_jobs_edition_created_at
+                    ON internal.release_image_jobs (edition_id, created_at DESC);
+            """)
+
     _RELEASE_BASE_SELECT = """
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
@@ -6898,17 +6942,225 @@ class PostgresDB:
                 self._upsert_release_cards(cur, edition_id, cards)
         return True
 
-    def delete_edition(self, edition_id: str, user_id: str) -> bool:
-        """Delete an edition owned (via its parent release) by user_id. Returns True if deleted."""
+    def delete_edition(self, edition_id: str, user_id: str) -> str | None:
+        """Delete an edition owned (via its parent release) by user_id. Returns its release id if
+        deleted (for cleaning up its image files), else None."""
         if not self.connection:
-            return False
+            return None
         with self.connection.cursor() as cur:
             cur.execute("""
                 DELETE FROM internal.release_editions e
                 USING internal.releases r
                 WHERE e.id = %s AND r.id = e.release_id AND r.created_by = %s
+                RETURNING e.release_id
             """, (edition_id, user_id))
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
+    # -----------------------------------------------------------------------
+    # RELEASE CARD IMAGES
+    # -----------------------------------------------------------------------
+
+    # The image row reads below raise on error rather than going through `execute_query` (which
+    # returns []): storage cleanup treats any file missing from these rows as an orphan to delete.
+
+    def get_release_card_images(self, edition_id: str) -> list[dict]:
+        """Every image row for an edition (see `build_releases_table`)."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT source_card_id, render_hash, storage_path, thumbnail_path, rendered_at, failed_hash, error
+                  FROM internal.release_card_images
+                 WHERE edition_id = %s
+            """, (edition_id,))
+            return [
+                {**dict(row), 'rendered_at': row['rendered_at'].isoformat() if row.get('rendered_at') else None}
+                for row in cur.fetchall()
+            ]
+
+    def get_all_release_card_image_paths(self) -> list[dict]:
+        """Storage paths of every release image row, for the storage janitor."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT storage_path, thumbnail_path FROM internal.release_card_images WHERE storage_path IS NOT NULL")
+            return [dict(row) for row in cur.fetchall()]
+
+    def save_release_card_image(self, edition_id: str, source_card_id: str, render_hash: str, storage_path: str, thumbnail_path: str) -> list[str] | None:
+        """Record a freshly rendered image. Returns the paths of the image it replaced (to delete),
+        or None if the card is no longer in the edition, in which case nothing is written."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            # The CTE reads the row as it was before the upsert
+            cur.execute("""
+                WITH previous AS (
+                    SELECT storage_path, thumbnail_path FROM internal.release_card_images
+                     WHERE edition_id = %(edition_id)s AND source_card_id = %(source_card_id)s
+                )
+                INSERT INTO internal.release_card_images
+                    (edition_id, source_card_id, render_hash, storage_path, thumbnail_path, rendered_at, failed_hash, error, updated_at)
+                SELECT %(edition_id)s, %(source_card_id)s, %(render_hash)s, %(storage_path)s, %(thumbnail_path)s, NOW(), NULL, NULL, NOW()
+                 WHERE EXISTS (
+                     SELECT 1 FROM internal.release_cards
+                      WHERE edition_id = %(edition_id)s AND source_card_id = %(source_card_id)s
+                 )
+                ON CONFLICT (edition_id, source_card_id) DO UPDATE SET
+                    render_hash = EXCLUDED.render_hash, storage_path = EXCLUDED.storage_path,
+                    thumbnail_path = EXCLUDED.thumbnail_path, rendered_at = NOW(),
+                    failed_hash = NULL, error = NULL, updated_at = NOW()
+                RETURNING (SELECT storage_path FROM previous), (SELECT thumbnail_path FROM previous)
+            """, {
+                'edition_id': edition_id, 'source_card_id': source_card_id, 'render_hash': render_hash,
+                'storage_path': storage_path, 'thumbnail_path': thumbnail_path,
+            })
+            row = cur.fetchone()
+            return [path for path in row if path] if row else None
+
+    def record_release_card_image_failure(self, edition_id: str, source_card_id: str, failed_hash: str, error: str) -> None:
+        """Mark a card's current inputs as failed, keeping any earlier image it still has."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                INSERT INTO internal.release_card_images (edition_id, source_card_id, failed_hash, error, updated_at)
+                SELECT %(edition_id)s, %(source_card_id)s, %(failed_hash)s, %(error)s, NOW()
+                 WHERE EXISTS (
+                     SELECT 1 FROM internal.release_cards
+                      WHERE edition_id = %(edition_id)s AND source_card_id = %(source_card_id)s
+                 )
+                ON CONFLICT (edition_id, source_card_id) DO UPDATE SET
+                    failed_hash = EXCLUDED.failed_hash, error = EXCLUDED.error, updated_at = NOW()
+            """, {'edition_id': edition_id, 'source_card_id': source_card_id, 'failed_hash': failed_hash, 'error': error})
+
+    def delete_release_card_images_not_in_edition(self, edition_id: str) -> list[str]:
+        """Drop image rows for cards removed from the edition. Returns their storage paths to delete."""
+        if not self.connection:
+            return []
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                DELETE FROM internal.release_card_images i
+                 WHERE i.edition_id = %s
+                   AND NOT EXISTS (
+                       SELECT 1 FROM internal.release_cards rc
+                        WHERE rc.edition_id = i.edition_id AND rc.source_card_id = i.source_card_id
+                   )
+                RETURNING i.storage_path, i.thumbnail_path
+            """, (edition_id,))
+            return [path for row in cur.fetchall() for path in row if path]
+
+    # -----------------------------------------------------------------------
+    # RELEASE IMAGE JOBS
+    # -----------------------------------------------------------------------
+
+    # A job writes progress after every card (a few seconds each), so this long without a write
+    # means its thread died (e.g. a dyno restart)
+    _RELEASE_IMAGE_JOB_STALE_INTERVAL = '10 minutes'
+
+    _RELEASE_IMAGE_JOB_COLUMNS = "id, edition_id, status, total, completed, failed, error, created_at, updated_at, finished_at"
+
+    @staticmethod
+    def _serialize_release_image_job(row: dict) -> dict:
+        row = dict(row)
+        row['id'] = str(row['id'])
+        row['edition_id'] = str(row['edition_id'])
+        for key in ('created_at', 'updated_at', 'finished_at'):
+            if row.get(key):
+                row[key] = row[key].isoformat()
+        return row
+
+    def create_release_image_job(self, edition_id: str, user_id: str, dyno: str | None = None) -> str | None:
+        """Queue a render job. Returns its id, or None if the edition already has one in flight."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        self.reap_stale_release_image_jobs()
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                INSERT INTO internal.release_image_jobs (edition_id, user_id, dyno)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (edition_id) WHERE status IN ('queued', 'running') DO NOTHING
+                RETURNING id
+            """, (edition_id, user_id, dyno))
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
+    def get_latest_release_image_job(self, edition_id: str) -> dict | None:
+        if not self.connection:
+            return None
+        self.reap_stale_release_image_jobs()
+        rows = self.execute_query(f"""
+            SELECT {self._RELEASE_IMAGE_JOB_COLUMNS}
+              FROM internal.release_image_jobs
+             WHERE edition_id = %s
+             ORDER BY created_at DESC
+             LIMIT 1
+        """, (edition_id,))
+        return self._serialize_release_image_job(rows[0]) if rows else None
+
+    def get_active_release_image_jobs(self) -> list[dict]:
+        """In-flight jobs with their release id (for the storage janitor). Raises on error, like the
+        image row reads above."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        self.reap_stale_release_image_jobs()
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT j.edition_id, e.release_id
+                  FROM internal.release_image_jobs j
+                  JOIN internal.release_editions e ON e.id = j.edition_id
+                 WHERE j.status IN ('queued', 'running')
+            """)
+            return [{'edition_id': str(edition_id), 'release_id': str(release_id)} for edition_id, release_id in cur.fetchall()]
+
+    def update_release_image_job_progress(self, job_id: str, completed: int, failed: int, total: int | None = None) -> bool:
+        """Mark the job running and record progress. Returns False once it has left the
+        queued/running state (cancelled or reaped), telling the worker to stop."""
+        if not self.connection:
+            return True
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                UPDATE internal.release_image_jobs
+                   SET status = 'running', completed = %s, failed = %s, total = COALESCE(%s, total), updated_at = NOW()
+                 WHERE id = %s AND status IN ('queued', 'running')
+            """, (completed, failed, total, job_id))
             return cur.rowcount > 0
+
+    def finish_release_image_job(self, job_id: str, error: str | None = None) -> None:
+        """Terminal update. Leaves a job already cancelled or reaped as it is."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                UPDATE internal.release_image_jobs
+                   SET status = %s, error = %s, updated_at = NOW(), finished_at = NOW()
+                 WHERE id = %s AND status IN ('queued', 'running')
+            """, ('failed' if error else 'succeeded', error, job_id))
+
+    def cancel_release_image_job(self, edition_id: str) -> bool:
+        """Cancel the edition's in-flight job. The worker stops at its next progress write.
+        Ownership is checked by the caller."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                UPDATE internal.release_image_jobs
+                   SET status = 'cancelled', updated_at = NOW(), finished_at = NOW()
+                 WHERE edition_id = %s AND status IN ('queued', 'running')
+            """, (edition_id,))
+            return cur.rowcount > 0
+
+    def reap_stale_release_image_jobs(self) -> None:
+        """Fail in-flight jobs that stopped writing progress (their thread died with its dyno)."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(f"""
+                UPDATE internal.release_image_jobs
+                   SET status = 'failed', error = 'Rendering stopped responding.', updated_at = NOW(), finished_at = NOW()
+                 WHERE status IN ('queued', 'running')
+                   AND updated_at < NOW() - INTERVAL '{self._RELEASE_IMAGE_JOB_STALE_INTERVAL}'
+            """)
 
     @staticmethod
     def _upsert_release_cards(cur, edition_id: str, cards: list) -> None:

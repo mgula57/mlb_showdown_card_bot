@@ -37,3 +37,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * ```
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+/** Public URL of a file in the `card_images` storage bucket (rendered cards and their thumbnails). */
+export const cardImagePublicUrl = (storagePath: string): string =>
+    `${supabaseUrl}/storage/v1/object/public/card_images/${storagePath}`;

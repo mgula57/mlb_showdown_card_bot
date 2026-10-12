@@ -17,6 +17,7 @@ import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import FormEnabler from '../customs/FormEnabler';
 import { formSectionSummary } from '../customs/FormSectionSummary';
 import { EditionStyleModal } from './EditionStyleModal';
+import { EditionImages } from './EditionImages';
 import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
 import { parseEditionStyle, editionStyleSummary } from './editionStyle';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
@@ -199,6 +200,7 @@ const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
 const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
 
 type BuildMethod = 'algorithm' | 'manual';
+type EditionStep = 'pool' | 'images';
 /** Per-viewer, per-edition Algorithm/Manual tab, so returning to an edition reopens the last-used method. */
 const buildMethodStorageKey = (editionId: string) => `releaseBuilder.buildMethod.${editionId}`;
 
@@ -228,6 +230,13 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
     const [editingNumbers, setEditingNumbers] = useState<Record<string, string>>({});
     const [showNumberingSettings, setShowNumberingSettings] = useState(false);
     const [showStyleModal, setShowStyleModal] = useState(false);
+    const [step, setStep] = useState<EditionStep>('pool');
+    // Images mount lazily on first open, then stay mounted so a running render keeps polling
+    const [imagesMounted, setImagesMounted] = useState(false);
+    function handleOpenImagesStep() {
+        setImagesMounted(true);
+        setStep('images');
+    }
     const editionStyle = useMemo(() => parseEditionStyle(edition.attributes), [edition.attributes]);
     const styleSummary = useMemo(() => editionStyleSummary(editionStyle), [editionStyle]);
     const numberingSettingsRef = useRef<HTMLDivElement>(null);
@@ -554,25 +563,9 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
         <div className="flex flex-col flex-1 min-h-0">
             {/* Step indicator */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-(--divider) shrink-0">
-                <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-(--secondary) text-(--background-primary) text-[10px] font-black shrink-0">
-                        1
-                    </span>
-                    <span className="flex items-center gap-1.5 text-[13px] font-bold text-(--text-primary)">
-                         Player Pool
-                    </span>
-                </div>
-
+                <StepButton number={1} label="Player Pool" isActive={step === 'pool'} onClick={() => setStep('pool')} />
                 <div className="w-8 h-px bg-(--divider) shrink-0" />
-
-                <div className="flex items-center gap-2 opacity-50 cursor-not-allowed">
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full border border-(--text-tertiary) text-(--text-tertiary) text-[10px] font-black shrink-0">
-                        2
-                    </span>
-                    <span className="flex items-center gap-1.5 text-[13px] font-semibold text-(--text-tertiary)">
-                        Images
-                    </span>
-                </div>
+                <StepButton number={2} label="Images" isActive={step === 'images'} onClick={handleOpenImagesStep} />
 
                 {!readOnly && (
                     <button
@@ -599,7 +592,15 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                 </div>
             )}
 
-            <div ref={splitContainerRef} className="flex flex-1 min-h-0">
+            {/* Images step: mounts on first open, then stays mounted (hidden) so a running render keeps reporting */}
+            {imagesMounted && (
+                <div className={`flex-col flex-1 min-h-0 ${step === 'images' ? 'flex' : 'hidden'}`}>
+                    <EditionImages releaseId={releaseId} edition={edition} readOnly={readOnly} token={token} />
+                </div>
+            )}
+
+            {/* Player Pool step. Hidden (not unmounted) so the build panel's state survives step switches. */}
+            <div ref={splitContainerRef} className={`flex-1 min-h-0 ${step === 'pool' ? 'flex' : 'hidden'}`}>
                 {/* Collapsed rail for the hidden Build panel */}
                 {!readOnly && buildPanelHidden && (
                     <button
@@ -1073,5 +1074,19 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                 </Modal>
             </div>
         </div>
+    );
+}
+
+function StepButton({ number, label, isActive, onClick }: { number: number; label: string; isActive: boolean; onClick: () => void }) {
+    return (
+        <button type="button" onClick={onClick} className="group flex items-center gap-2 cursor-pointer">
+            <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black shrink-0 transition-colors
+                ${isActive ? 'bg-(--secondary) text-(--background-primary)' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
+                {number}
+            </span>
+            <span className={`text-[13px] transition-colors ${isActive ? 'font-bold text-(--text-primary)' : 'font-semibold text-(--text-tertiary) group-hover:text-(--text-secondary)'}`}>
+                {label}
+            </span>
+        </button>
     );
 }

@@ -6,6 +6,7 @@ import { imageForSet } from "../shared/SiteSettingsContext";
 import type { CustomCardFormState } from "../customs/CustomCardBuilder";
 import { titleCase } from "../../functions/text";
 import { useAuth } from "../auth/AuthContext";
+import { cardImagePublicUrl } from "../../api/supabase";
 
 type CardHistoryProps = {
     history?: CustomCardLogRecord[];
@@ -78,18 +79,16 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
     };
 
     const getImageUrl = (record: CustomCardLogRecord): string | null => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        if (record.thumbnail_storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.thumbnail_storage_path}`;
-        if (record.storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.storage_path}`;
+        if (record.thumbnail_storage_path) return cardImagePublicUrl(record.thumbnail_storage_path);
+        if (record.storage_path) return cardImagePublicUrl(record.storage_path);
         if (record.img_url) return record.img_url;
         if (record.img_name) return `static/output/${record.img_name}`;
         return null;
     };
 
     const getFullImageUrl = (record: CustomCardLogRecord): string | null => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        if (record.storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.storage_path}`;
-        if (record.thumbnail_storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.thumbnail_storage_path}`;
+        if (record.storage_path) return cardImagePublicUrl(record.storage_path);
+        if (record.thumbnail_storage_path) return cardImagePublicUrl(record.thumbnail_storage_path);
         if (record.img_url) return record.img_url;
         if (record.img_name) return `static/output/${record.img_name}`;
         return null;
