@@ -953,7 +953,8 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
                                         {visibleGroups.map(group => (
                                             <div key={group.key} className="flex flex-col gap-2">
                                                 {groupBy !== 'none' && (
-                                                    <div className="flex items-center gap-2 border-t border-(--divider) pt-2">
+                                                    // Sticks to the top of the scrolling grid while its group is in view; -top-3/-mx-3 offset the container's p-3.
+                                                    <div className="sticky -top-3 z-10 -mx-3 px-3 py-2 flex items-center gap-2 border-t border-b border-(--divider) bg-(--background-primary)">
                                                         <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{group.label}</span>
                                                         <span className="text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">
                                                             {poolGroups.find(g => g.key === group.key)?.cards.length}

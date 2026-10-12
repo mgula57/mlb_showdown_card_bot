@@ -18,7 +18,7 @@ type ReleaseDetailProps = {
 };
 
 const EDITION_TAB_CLASS =
-    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-2 -mb-px ' +
+    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-2 ' +
     'data-[state=active]:border-(--secondary) data-[state=active]:text-(--text-primary) ' +
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
@@ -102,31 +102,6 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
     return (
         <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden">
-            <div className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider) shrink-0">
-                <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
-                    <FaArrowLeft />
-                </button>
-                <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                        <div className="text-xl font-black text-(--text-primary) truncate uppercase">{release.name}</div>
-                        {release.is_official && (
-                            <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-(--secondary) text-(--background-primary)">
-                                OFFICIAL
-                            </span>
-                        )}
-                    </div>
-                    {release.description && (
-                        <div className="text-[12px] text-(--text-secondary)">{release.description}</div>
-                    )}
-                </div>
-            </div>
-
-            {error && (
-                <div className="mx-4 mt-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 shrink-0">
-                    {error}
-                </div>
-            )}
-
             <Tabs.Root
                 value={activeEditionId ?? undefined}
                 onValueChange={id => {
@@ -135,9 +110,26 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 }}
                 className="flex flex-col flex-1 min-h-0"
             >
-                <div className="flex items-center gap-3 px-4 pt-2 bg-(--background-secondary) shrink-0">
-                    <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide shrink-0">Editions</span>
-                    <Tabs.List className="flex items-center gap-x-3 border-b border-(--divider) flex-1 min-w-0 overflow-x-auto">
+                {/* Single header row: back + release name on the left, edition tabs on the right. */}
+                <div className="flex items-stretch gap-3 px-4 bg-(--background-secondary) border-b border-(--divider) shrink-0">
+                    <button type="button" onClick={onBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
+                        <FaArrowLeft />
+                    </button>
+                    <div className="flex flex-col justify-center min-w-0 max-w-[40%] py-1.5 shrink-0" title={release.description || undefined}>
+                        <div className="flex items-center gap-2 min-w-0">
+                            <div className="text-lg leading-tight font-black text-(--text-primary) truncate uppercase">{release.name}</div>
+                            {release.is_official && (
+                                <span className="text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 bg-(--secondary) text-(--background-primary)">
+                                    OFFICIAL
+                                </span>
+                            )}
+                        </div>
+                        {release.description && (
+                            <div className="text-[11px] text-(--text-secondary) truncate">{release.description}</div>
+                        )}
+                    </div>
+                    <div className="w-px my-2.5 bg-(--divider) shrink-0" />
+                    <Tabs.List className="flex items-stretch gap-x-3 flex-1 min-w-0 overflow-x-auto">
                         {release.editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {edition.name}
@@ -165,6 +157,12 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         )}
                     </Tabs.List>
                 </div>
+
+                {error && (
+                    <div className="mx-4 mt-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 shrink-0">
+                        {error}
+                    </div>
+                )}
 
                 {editionForm && (
                     <div className="flex items-center gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
