@@ -17,12 +17,13 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..card.card_image_builder import CardImageBuilder
-from ..card.images import ImageLibrary
+from ..card.images import DEFAULT_RENDER_FILE_FORMAT, ImageLibrary
 from ..database.postgres_db import PostgresDB
 from ..supabase import SupabaseClientManager
 
 # Bump when card templates/rendering change enough that every release image should re-render
-RENDER_VERSION = 1
+# (2: JPEG instead of PNG, with 2003 transparency flattened onto white)
+RENDER_VERSION = 2
 
 
 # ---------------------------------------
@@ -270,7 +271,8 @@ class ReleaseImageStorage:
     def image_paths(cls, release_id: str, edition_id: str, spec: ReleaseCardImageSpec) -> tuple[str, str]:
         """(full-size path, thumbnail path). The thumbnail name matches `ShowdownPlayerCard._thumbnail_file_name`."""
         folder = cls.folder(release_id, edition_id)
-        return f"{folder}/{spec.file_stem}.png", f"{folder}/{spec.file_stem}-thumb.png"
+        extension = DEFAULT_RENDER_FILE_FORMAT.extension
+        return f"{folder}/{spec.file_stem}.{extension}", f"{folder}/{spec.file_stem}-thumb.{extension}"
 
     def upload(self, local_path: str, destination_path: str) -> None:
         result = self.manager.upload_file(self.BUCKET, local_path, destination_path, overwrite=True)
