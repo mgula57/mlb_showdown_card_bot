@@ -1455,12 +1455,12 @@ class PlayerStatsNormalizer:
                 stats_with_team, key=lambda s: PlayerStatsNormalizer._season_sort_key(s.year_id), default=None
             )
             combined_data['team_ID'] = year_stats.team_id if year_stats else None
+            # A YEAR'S team_id IS ITS FINAL TEAM, SO USE THE FIRST (CHRONOLOGICAL) KEY OF A TRADED FIRST SEASON
+            if team_selection == TeamSelection.FIRST_TEAM and year_stats and year_stats.team_games_played_dict:
+                combined_data['team_ID'] = next(iter(year_stats.team_games_played_dict))
         else:
-            team_games_played: Dict[str, int] = {}
-            for stats in stats_list:
-                if stats.team_id and stats.G:
-                    team_games_played[stats.team_id] = team_games_played.get(stats.team_id, 0) + stats.G
-            combined_data['team_ID'] = max(team_games_played, key=team_games_played.get) if team_games_played else None
+            # USE PER-TEAM GAMES SO TRADED SEASONS AREN'T FULLY CREDITED TO THE YEAR'S FINAL TEAM
+            combined_data['team_ID'] = max(merged_team_gpd, key=merged_team_gpd.get) if merged_team_gpd else None
         
         # Define aggregation strategies - USE ALIASES for fields that have them
         counting_stats = {

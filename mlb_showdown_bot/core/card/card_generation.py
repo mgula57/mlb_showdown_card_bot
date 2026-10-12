@@ -335,8 +335,13 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
                         ) or []
 
                     # FILTER TO YEARS IN STATS PERIOD
+                    # STATS JSON ONLY HOLDS THE FINAL TEAM + SEASON TOTAL G, SO CARRY OVER THE ROW'S PER-TEAM GAMES FOR TEAM SELECTION
                     stats_yearly_list = [
-                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, year_id=str(d.year), **( d.stats | ({'year_ID': str(d.year)} if d.stats.get('year_ID', None) is None else {}) )) \
+                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, year_id=str(d.year), **(
+                            {'team_games_played_dict': d.chronological_team_games_played_dict or None}
+                            | d.stats
+                            | ({'year_ID': str(d.year)} if d.stats.get('year_ID', None) is None else {})
+                        )) \
                             for d in player_archive_list \
                             if (d.year in baseball_reference_stats.stats_period.year_list or baseball_reference_stats.stats_period.is_full_career) \
                                 and d.stats is not None and len(d.stats) > 0
