@@ -20,6 +20,7 @@ from ..shared.player_position import Position
 from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel, StatHighlightsType, SpecialEdition
 from ..card.card_generation import generate_card
 from ..card.sets import Set
+from ..card.images import DEFAULT_RENDER_FILE_FORMAT
 from ..card.stats.stats_period import TeamSelection
 from ..card.utils.shared_functions import convert_year_string_to_list
 from .selection import (
@@ -526,6 +527,7 @@ class ShowdownBotSet(BaseModel):
             card.image.show_year_text = False
             card.image.stat_highlights_type = StatHighlightsType.ALL if showdown_set in ['EXPANDED', 'CLASSIC'] else StatHighlightsType.NONE
             card.image.output_folder_path = os.path.join(output_folder_path, "images")
+            card.image.file_format = DEFAULT_RENDER_FILE_FORMAT
             card.image.is_bordered = True
             card.image.set_year = 2026
             card.image.is_dark_mode = dark_mode
@@ -556,6 +558,7 @@ class ShowdownBotSet(BaseModel):
                     current_set_number = 1  # Reset set number for new edition
                 card.image.set_number = f"{card.image.edition.value}{str(current_set_number).zfill(2)}"
                 card.image.output_folder_path = os.path.join(output_folder_path, "images")
+                card.image.file_format = DEFAULT_RENDER_FILE_FORMAT
                 card.image.is_bordered = True
                 card.image.set_year = 2026
                 card.image.is_dark_mode = dark_mode

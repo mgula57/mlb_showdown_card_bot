@@ -8,6 +8,7 @@ import ast
 
 # INTERNAL
 from .showdown_player_card import ShowdownPlayerCard, ImageLibrary, ImageSource, ShowdownImage, PlayerType, Team, Edition
+from .images import DEFAULT_RENDER_FILE_FORMAT
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, StatsPeriodLeague
@@ -150,6 +151,8 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
 
         # REMOVE IMAGE PREFIXES FROM KEYS
         kwargs = clean_kwargs(kwargs)
+        if not kwargs.get('file_format'):
+            kwargs['file_format'] = DEFAULT_RENDER_FILE_FORMAT
 
         # RAISE ERROR IF YEAR IS NOT PROVIDED BY USER OR SHUFFLE
         if kwargs.get('year', None) is None:
@@ -335,8 +338,13 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
                         ) or []
 
                     # FILTER TO YEARS IN STATS PERIOD
+                    # STATS JSON ONLY HOLDS THE FINAL TEAM + SEASON TOTAL G, SO CARRY OVER THE ROW'S PER-TEAM GAMES FOR TEAM SELECTION
                     stats_yearly_list = [
-                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, year_id=str(d.year), **( d.stats | ({'year_ID': str(d.year)} if d.stats.get('year_ID', None) is None else {}) )) \
+                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, year_id=str(d.year), **(
+                            {'team_games_played_dict': d.chronological_team_games_played_dict or None}
+                            | d.stats
+                            | ({'year_ID': str(d.year)} if d.stats.get('year_ID', None) is None else {})
+                        )) \
                             for d in player_archive_list \
                             if (d.year in baseball_reference_stats.stats_period.year_list or baseball_reference_stats.stats_period.is_full_career) \
                                 and d.stats is not None and len(d.stats) > 0
@@ -853,6 +861,8 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
                 break
             for player_type_override in player_type_overrides:
                 card_kwargs = kwargs.copy()
+                if not card_kwargs.get('file_format'):
+                    card_kwargs['file_format'] = DEFAULT_RENDER_FILE_FORMAT
 
                 # Remove potentially conflicting attributes from kwargs
                 card_kwargs.pop('name', None)

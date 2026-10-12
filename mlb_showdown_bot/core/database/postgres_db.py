@@ -127,6 +127,13 @@ class PlayerArchive(BaseModel):
     stats_modified_date: Optional[datetime] = None
 
     @property
+    def chronological_team_games_played_dict(self) -> dict[str, int]:
+        """team_games_played_dict ordered by when the player joined each team.
+        JSONB storage sorts keys alphabetically, but team_id_list (an array) keeps the chronological order."""
+        ordered = {team_id: self.team_games_played_dict[team_id] for team_id in (self.team_id_list or []) if team_id in self.team_games_played_dict}
+        return ordered | self.team_games_played_dict
+
+    @property
     def player_subtype(self) -> str:
         if self.player_type == 'HITTER':
             return 'POSITION_PLAYER'
