@@ -9,14 +9,17 @@ import {
     createEdition,
     type Release,
 } from '../../api/releases';
-import { ReleaseCard } from './ReleaseCard';
+import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
 import { ReleaseDetail } from './ReleaseDetail';
 import { NewReleaseModal } from './NewReleaseModal';
-import { FaPlus, FaSpinner } from 'react-icons/fa6';
+import { FaPlus } from 'react-icons/fa6';
 import type { ReleaseCreatePayload } from '../../api/releases';
 
 /** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
  *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
+/** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
+const RELEASE_GRID = 'grid grid-cols-2 sm:flex sm:flex-wrap gap-3';
+
 type OpenRelease = {
     release: Release;
     readOnly: boolean;
@@ -228,9 +231,12 @@ export default function Releases() {
             )}
 
             {loading ? (
-                <div className="flex justify-center py-12">
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                </div>
+                <section className={px}>
+                    <div className="h-3 w-24 rounded bg-(--background-secondary) animate-pulse mb-2" />
+                    <div className={RELEASE_GRID}>
+                        {Array.from({ length: 6 }, (_, i) => <ReleaseItemSkeleton key={i} />)}
+                    </div>
+                </section>
             ) : (
                 <>
                     {/* My Releases */}
@@ -244,9 +250,9 @@ export default function Releases() {
                                     You haven't created any releases yet.
                                 </p>
                             ) : (
-                                <div className="flex flex-col gap-2">
+                                <div className={RELEASE_GRID}>
                                     {userReleases.map(release => (
-                                        <ReleaseCard
+                                        <ReleaseItem
                                             key={release.id}
                                             release={release}
                                             onClick={() => openRelease(release, false)}
@@ -263,9 +269,9 @@ export default function Releases() {
                             <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
                                 Official Releases
                             </div>
-                            <div className="flex flex-col gap-2">
+                            <div className={RELEASE_GRID}>
                                 {officialReleases.map(release => (
-                                    <ReleaseCard
+                                    <ReleaseItem
                                         key={release.id}
                                         release={release}
                                         onClick={() => openRelease(release, true)}

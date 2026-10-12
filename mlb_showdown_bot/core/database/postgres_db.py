@@ -6725,10 +6725,36 @@ class PostgresDB:
                     ON internal.release_image_jobs (edition_id, created_at DESC);
             """)
 
-    _RELEASE_BASE_SELECT = """
+    # Release list tiles show off up to 3 rendered card images: first edition (by name, matching the
+    # edition tabs) first, then highest points. `{edition_filter}` limits which editions they draw from.
+    _RELEASE_PREVIEW_IMAGES_COLUMN = """
+            COALESCE((
+                SELECT json_agg(
+                           json_build_object('thumbnail_path', p.thumbnail_path, 'name', p.name)
+                           ORDER BY p.edition_name, p.points DESC NULLS LAST
+                       )
+                  FROM (
+                    SELECT i.thumbnail_path, rc.card_snapshot->>'name' AS name, pe.name AS edition_name,
+                           CASE WHEN jsonb_typeof(rc.card_snapshot->'points') = 'number'
+                                THEN (rc.card_snapshot->>'points')::numeric END AS points
+                      FROM internal.release_editions pe
+                      JOIN internal.release_cards rc ON rc.edition_id = pe.id
+                      JOIN internal.release_card_images i
+                        ON i.edition_id = pe.id AND i.source_card_id = rc.source_card_id
+                     WHERE pe.release_id = r.id
+                       AND i.thumbnail_path IS NOT NULL
+                       {edition_filter}
+                     ORDER BY edition_name, points DESC NULLS LAST
+                     LIMIT 3
+                  ) p
+            ), '[]'::json) AS preview_images,
+    """
+
+    _RELEASE_SELECT_TEMPLATE = """
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
+            {extra_columns}
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -6745,12 +6771,21 @@ class PostgresDB:
         FROM internal.releases r
         LEFT JOIN internal.release_editions e ON e.release_id = r.id
     """
+    _RELEASE_BASE_SELECT = _RELEASE_SELECT_TEMPLATE.format(extra_columns='')
+
+    @classmethod
+    def _release_list_select(cls, published_only: bool) -> str:
+        """`_RELEASE_BASE_SELECT` plus `preview_images`, drawn only from published editions when
+        `published_only` (lists other users see)."""
+        edition_filter = 'AND pe.is_published' if published_only else ''
+        preview_images = cls._RELEASE_PREVIEW_IMAGES_COLUMN.format(edition_filter=edition_filter)
+        return cls._RELEASE_SELECT_TEMPLATE.format(extra_columns=preview_images)
 
     def get_releases(self, user_id: str) -> list[dict]:
         """Return all releases created by user_id, newest first. Editions are metadata-only (no cards)."""
         if not self.connection:
             return []
-        query = self._RELEASE_BASE_SELECT + """
+        query = self._release_list_select(published_only=False) + """
             WHERE r.created_by = %s
             GROUP BY r.id
             ORDER BY r.updated_at DESC
@@ -6763,7 +6798,7 @@ class PostgresDB:
         """Return releases with at least one published edition, newest first."""
         if not self.connection:
             return []
-        query = self._RELEASE_BASE_SELECT + """
+        query = self._release_list_select(published_only=True) + """
             WHERE EXISTS (
                 SELECT 1 FROM internal.release_editions pe
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE

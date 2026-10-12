@@ -16,6 +16,13 @@ export type ReleaseEditionSummary = {
     card_count: number;
 };
 
+/** A rendered card image shown off on a release's list tile. */
+export type ReleasePreviewImage = {
+    /** Path in the `card_images` bucket (see `cardImagePublicUrl`). */
+    thumbnail_path: string;
+    name: string | null;
+};
+
 export type Release = {
     id: string;
     name: string;
@@ -26,6 +33,8 @@ export type Release = {
     slug: string;
     default_showdown_set: string | null;
     editions: ReleaseEditionSummary[];
+    /** List endpoints only: up to 3 rendered card images, first edition first, then highest points. */
+    preview_images?: ReleasePreviewImage[];
     created_at: string;
     updated_at: string;
 };
