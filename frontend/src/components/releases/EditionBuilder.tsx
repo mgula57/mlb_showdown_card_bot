@@ -37,6 +37,7 @@ const DEFAULT_BUILD_PANEL_WIDTH = { algorithm: 480, manual: 560 } as const;
 
 type EditionBuilderProps = {
     releaseId: string;
+    releaseName: string;
     edition: ReleaseEdition;
     readOnly: boolean;
     token?: string;
@@ -221,7 +222,7 @@ function loadSavedBuildPanelWidth(): number | null {
     }
 }
 
-export function EditionBuilder({ releaseId, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
+export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -595,7 +596,7 @@ export function EditionBuilder({ releaseId, edition, readOnly, token, defaultSho
             {/* Images step: mounts on first open, then stays mounted (hidden) so a running render keeps reporting */}
             {imagesMounted && (
                 <div className={`flex-col flex-1 min-h-0 ${step === 'images' ? 'flex' : 'hidden'}`}>
-                    <EditionImages releaseId={releaseId} edition={edition} readOnly={readOnly} token={token} />
+                    <EditionImages releaseId={releaseId} releaseName={releaseName} edition={edition} readOnly={readOnly} token={token} />
                 </div>
             )}
 

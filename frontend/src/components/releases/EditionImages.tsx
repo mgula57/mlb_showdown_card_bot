@@ -5,7 +5,8 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { cardImagePublicUrl } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
-import { FaArrowUpRightFromSquare, FaCheck, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
+import { buildZipEntries, editionZipFileName, useEditionZipDownload, type ZipDownloadState } from './editionZipDownload';
+import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 
 /** How often to refresh statuses while a render job runs (each card takes a few seconds). */
 const POLL_INTERVAL_MS = 2500;
@@ -23,6 +24,8 @@ const STATUS_ORDER: ReleaseCardImageStatus[] = ['rendered', 'stale', 'missing', 
 
 type EditionImagesProps = {
     releaseId: string;
+    /** Used to name the ZIP download. */
+    releaseName: string;
     edition: ReleaseEdition;
     readOnly: boolean;
     token?: string;
@@ -30,7 +33,7 @@ type EditionImagesProps = {
 
 /** Step 2 of the Edition Builder: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
-export function EditionImages({ releaseId, edition, readOnly, token }: EditionImagesProps) {
+export function EditionImages({ releaseId, releaseName, edition, readOnly, token }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [requesting, setRequesting] = useState(false);
@@ -65,6 +68,9 @@ export function EditionImages({ releaseId, edition, readOnly, token }: EditionIm
         return result;
     }, [images]);
     const needsRenderCount = counts.stale + counts.missing + counts.failed;
+    const zipDownload = useEditionZipDownload();
+    const zipEntries = useMemo(() => buildZipEntries(images, snapshotsById), [images, snapshotsById]);
+    const isZipping = zipDownload.state.status === 'downloading';
     const visibleImages = statusFilter ? images.filter(image => image.status === statusFilter) : images;
     // The detail modal follows its card's latest status (e.g. while a render of it runs)
     const detail = detailImage ? images.find(image => image.source_card_id === detailImage.source_card_id) ?? detailImage : null;
@@ -123,9 +129,21 @@ export function EditionImages({ releaseId, edition, readOnly, token }: EditionIm
                         <div className="h-8 w-64 rounded-lg bg-(--background-quaternary) animate-pulse" />
                     )}
 
-                    {!readOnly && data && (
+                    {data && (
                         <div className="flex items-center gap-2 ml-auto">
-                            {jobActive ? (
+                            {zipEntries.length > 0 && !isZipping && (
+                                <button
+                                    type="button"
+                                    onClick={() => zipDownload.start(zipEntries, editionZipFileName(releaseName, edition.name))}
+                                    disabled={jobActive}
+                                    title={jobActive ? 'Wait for rendering to finish' : 'Download every current full-size image as a ZIP'}
+                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    <FaDownload className="text-[12px]" /> Download ZIP
+                                    <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{zipEntries.length}</span>
+                                </button>
+                            )}
+                            {readOnly ? null : jobActive ? (
                                 <button
                                     type="button"
                                     onClick={handleCancel}
@@ -154,6 +172,10 @@ export function EditionImages({ releaseId, edition, readOnly, token }: EditionIm
                 </div>
 
                 {job && <RenderJobStatus job={job} />}
+
+                {zipDownload.state.status !== 'idle' && (
+                    <ZipDownloadStatus state={zipDownload.state} onCancel={zipDownload.cancel} onDismiss={zipDownload.reset} />
+                )}
 
                 {error && (
                     <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
@@ -257,9 +279,7 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
                         <span className="font-normal text-(--text-tertiary)">· {formatEta(etaSeconds)}</span>
                     )}
                 </div>
-                <div className="h-1.5 rounded-full bg-(--background-quaternary) overflow-hidden">
-                    <div className="h-full bg-(--secondary) transition-[width] duration-500" style={{ width: `${percent}%` }} />
-                </div>
+                <ProgressBar percent={percent} />
             </div>
         );
     }
@@ -281,6 +301,58 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
         );
     }
     return null;
+}
+
+function ProgressBar({ percent }: { percent: number }) {
+    return (
+        <div className="h-1.5 rounded-full bg-(--background-quaternary) overflow-hidden">
+            <div className="h-full bg-(--secondary) transition-[width] duration-500" style={{ width: `${percent}%` }} />
+        </div>
+    );
+}
+
+function ZipDownloadStatus({ state, onCancel, onDismiss }: { state: ZipDownloadState; onCancel: () => void; onDismiss: () => void }) {
+    const failedCount = state.failedNames.length;
+    if (state.status === 'downloading') {
+        const percent = state.total > 0 ? Math.round((state.completed / state.total) * 100) : 0;
+        return (
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
+                    <FaSpinner className="animate-spin text-[11px]" />
+                    Zipping {state.completed} of {state.total}
+                    {failedCount > 0 && <span className="text-red-400">· {failedCount} failed</span>}
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="ml-auto flex items-center gap-1 text-[12px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                    >
+                        <FaXmark className="text-[11px]" /> Cancel
+                    </button>
+                </div>
+                <ProgressBar percent={percent} />
+            </div>
+        );
+    }
+
+    const message = state.status === 'done'
+        ? (failedCount > 0
+            ? `ZIP saved without ${failedCount} image${failedCount === 1 ? '' : 's'} that failed to download: ${state.failedNames.join(', ')}`
+            : `ZIP saved with ${state.total} image${state.total === 1 ? '' : 's'}.`)
+        : state.status === 'cancelled'
+            ? 'ZIP download cancelled.'
+            : `ZIP download failed: ${state.error ?? 'unknown error'}`;
+    const tone = state.status === 'error' || failedCount > 0 ? 'text-amber-500' : 'text-(--text-secondary)';
+    return (
+        <div className={`flex items-start gap-1.5 text-[12px] ${tone}`}>
+            {state.status === 'done' && failedCount === 0
+                ? <FaCheck className="shrink-0 mt-0.5 text-green-500" />
+                : <FaTriangleExclamation className="shrink-0 mt-0.5" />}
+            <span className="flex-1 min-w-0 wrap-anywhere">{message}</span>
+            <button type="button" onClick={onDismiss} title="Dismiss" className="shrink-0 text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer">
+                <FaXmark className="text-[12px]" />
+            </button>
+        </div>
+    );
 }
 
 function StatusBadge({ status }: { status: ReleaseCardImageStatus }) {

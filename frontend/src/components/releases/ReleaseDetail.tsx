@@ -217,6 +217,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             ) : (
                                 <EditionBuilder
                                     releaseId={release.id}
+                                    releaseName={release.name}
                                     edition={editionCache[edition.id]}
                                     readOnly={readOnly}
                                     token={token}

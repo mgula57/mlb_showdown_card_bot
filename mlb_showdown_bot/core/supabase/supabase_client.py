@@ -67,7 +67,8 @@ class SupabaseClientManager:
         file_path: str | Path,
         destination_path: str,
         overwrite: bool = False,
-        content_type: str | None = None
+        content_type: str | None = None,
+        cache_control: str = '3600'
     ) -> dict:
         """
         Upload a file to a Supabase Storage bucket.
@@ -80,6 +81,8 @@ class SupabaseClientManager:
             content_type: MIME type to store the object as. Defaults to a guess
                 from the destination extension; storage3 would otherwise send
                 text/plain, which buckets with allowed_mime_types reject.
+            cache_control: Seconds browsers/CDN may cache the object. Raise it for
+                paths whose content never changes (e.g. content-hashed names).
         
         Returns:
             Dictionary with upload result containing:
@@ -115,7 +118,7 @@ class SupabaseClientManager:
             # Determine file options based on overwrite setting. `upsert` must be a
             # string ("true"/"false") — it's forwarded verbatim as the x-upsert header.
             file_options = {
-                'cacheControl': '3600',
+                'cacheControl': cache_control,
                 'upsert': str(bool(overwrite)).lower()
             }
 

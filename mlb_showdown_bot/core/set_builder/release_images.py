@@ -252,6 +252,9 @@ class ReleaseImageStorage:
 
     BUCKET = 'card_images'
     ROOT = 'releases'
+    # File names include the render hash, so a path's content never changes: cache for a year,
+    # letting repeat views/downloads hit Supabase's cheaper cached egress
+    CACHE_CONTROL_SECONDS = str(365 * 24 * 60 * 60)
 
     def __init__(self) -> None:
         self._manager: Optional[SupabaseClientManager] = None
@@ -275,7 +278,7 @@ class ReleaseImageStorage:
         return f"{folder}/{spec.file_stem}.{extension}", f"{folder}/{spec.file_stem}-thumb.{extension}"
 
     def upload(self, local_path: str, destination_path: str) -> None:
-        result = self.manager.upload_file(self.BUCKET, local_path, destination_path, overwrite=True)
+        result = self.manager.upload_file(self.BUCKET, local_path, destination_path, overwrite=True, cache_control=self.CACHE_CONTROL_SECONDS)
         if not result.get('success'):
             raise RuntimeError(f"Upload failed: {result.get('error')}")
 
