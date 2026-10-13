@@ -72,6 +72,9 @@ class Bullpen(PlayerGroup):
     pitching_log: PitchingLog = Field(default_factory=PitchingLog)
     closer_id: Optional[str] = None            # EXPLICIT CLOSER FROM BUILDER TEAM "CP" ROLE
     role_order: dict[str, int] = {}            # OPTIONAL EXPLICIT BULLPEN RANKING FROM BUILDER ROLES (SU < MR < LONG)
+    # ARMS ONLY USED ONCE EVERY OTHER AVAILABLE RELIEVER IS GONE - E.G. A REAL MLB GAME'S OFF-DAY
+    # STARTERS, WHO SIT ON THE ACTIVE ROSTER BUT AREN'T REALLY PART OF TONIGHT'S BULLPEN.
+    last_resort_ids: set[str] = set()
     _closer: Optional[SimPitcher] = None       # RESOLVED ONCE, SEE `closer`
 
     def __init__(self, **data) -> None:
@@ -86,8 +89,9 @@ class Bullpen(PlayerGroup):
             if explicit_closer:
                 self._closer = explicit_closer
             else:
-                closers = [p for p in self.players if p.has_position(Position.CL)]
-                self._closer = sorted(closers if len(closers) > 0 else self.players, key=lambda x: x.points, reverse=True)[0]
+                relievers = [p for p in self.players if p.id not in self.last_resort_ids] or self.players
+                closers = [p for p in relievers if p.has_position(Position.CL)]
+                self._closer = sorted(closers if len(closers) > 0 else relievers, key=lambda x: x.points, reverse=True)[0]
         return self._closer
 
     @property
@@ -114,6 +118,9 @@ class Bullpen(PlayerGroup):
             available_ids = {p.id for p in self.players if p.id not in unavailable}
 
         available = [pitcher for pitcher in self.players if (pitcher.start_inning is None and pitcher.id in available_ids)]
+        # LAST-RESORT ARMS ONLY COME INTO PLAY ONCE THE REAL BULLPEN IS EXHAUSTED.
+        if self.last_resort_ids:
+            available = [pitcher for pitcher in available if pitcher.id not in self.last_resort_ids] or available
 
         def sort_key(pitcher: SimPitcher):
             if self.role_order:
