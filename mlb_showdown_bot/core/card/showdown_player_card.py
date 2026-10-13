@@ -5546,6 +5546,7 @@ class ShowdownPlayerCard(BaseModel):
                         image = image.convert('RGBA')
                         if image.size != self.set.player_image_bleed_size:
                             image, paste_coordinates = self._user_uploaded_player_image_crop(image)
+                            as_is_size = image.size
                             is_shown_as_is = True
                 case "COLOR":
                     if self.image.special_edition == SpecialEdition.ASG_LINES:
@@ -5618,7 +5619,11 @@ class ShowdownPlayerCard(BaseModel):
                 image = image.resize(size=new_size, resample=Image.Resampling.LANCZOS)
             
             # CROP IMAGE
-            if not is_shown_as_is:
+            if is_shown_as_is:
+                # GLOW/SHADOW PAD THE IMAGE ON EVERY SIDE. RE-CENTER TO THE AS IS SIZE SO IT STAYS ALIGNED WITH THE OTHER LAYERS
+                if image.size != as_is_size:
+                    image = self._img_crop(image, crop_size=as_is_size)
+            else:
                 crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
                 crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
                 image = self._img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
