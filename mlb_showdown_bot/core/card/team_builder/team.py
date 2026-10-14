@@ -72,6 +72,7 @@ class PickSource(str, Enum):
     AUTOFILL  = "AUTOFILL"  # filled by the autofill algorithm
     GUIDED    = "GUIDED"    # picked from a Guided Draft round's offered options
     IMPORTED  = "IMPORTED"  # copied from another team (future)
+    DRAFT     = "DRAFT"     # picked in a league draft
 
 
 class TeamSource(str, Enum):
@@ -79,6 +80,7 @@ class TeamSource(str, Enum):
     OFFICIAL = "official"
     ASG      = "asg"
     MLB      = "mlb"  # synthesized on-the-fly from a real MLB/WBC roster + card archive, never persisted
+    LEAGUE   = "league"  # a member's team in one league season; hidden from personal and community team lists
 
 
 class TeamRosterSlot(BaseModel):

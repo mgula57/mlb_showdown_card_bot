@@ -7,6 +7,7 @@ import secrets
 from pprint import pprint
 import psycopg2
 import traceback
+from contextlib import contextmanager
 from unidecode import unidecode
 from psycopg2.extras import RealDictCursor, execute_values
 from psycopg2 import extensions, extras, pool as psycopg2_pool
@@ -358,6 +359,10 @@ def _is_uuid(value) -> bool:
         return True
     except (ValueError, AttributeError, TypeError):
         return False
+
+
+class _LeagueWriteRejected(Exception):
+    """Raised inside a league write transaction to roll it back when a guard check fails."""
 
 
 # ----------------------------------------------------------------
@@ -1823,6 +1828,12 @@ class PostgresDB:
                     .format(table=sql.Identifier("player_season_stats"))
         return [ArchivePlayingTime(**row) for row in self.execute_query(query=query, filter_values=(tuple(year_list),))]
 
+    # Full card JSON for a release card (alias `rc`). Newer snapshots embed it; older ones are
+    # card_bot rows whose `card_id` points at the archived card in dim_card.
+    _RELEASE_CARD_DATA_FROM = """internal.release_cards rc
+        LEFT JOIN internal.dim_card d ON rc.card_snapshot->'card_data' IS NULL AND d.id = rc.card_snapshot->>'card_id'"""
+    _RELEASE_CARD_DATA_COLUMN = "COALESCE(rc.card_snapshot->'card_data', d.card_data)"
+
     def fetch_cards_for_roster_slots(self, slots: list, strip_diagnostics: bool = False) -> dict[str, ShowdownPlayerCard]:
         """Fetch full card data for team_builder roster slots across card sources.
 
@@ -1857,12 +1868,7 @@ class PostgresDB:
                     case 'CUSTOM':
                         table, id_column, data_column = "internal.log_custom_card_bot", "id::text", "card_result"
                     case 'RELEASE':
-                        # Newer snapshots embed the full card JSON; older ones are card_bot rows
-                        # whose `card_id` points at the archived card in dim_card.
-                        table = """internal.release_cards rc
-                            LEFT JOIN internal.dim_card d ON rc.card_snapshot->'card_data' IS NULL AND d.id = rc.card_snapshot->>'card_id'"""
-                        id_column = "rc.id::text"
-                        data_column = "COALESCE(rc.card_snapshot->'card_data', d.card_data)"
+                        table, id_column, data_column = self._RELEASE_CARD_DATA_FROM, "rc.id::text", self._RELEASE_CARD_DATA_COLUMN
                     case _:
                         continue
 
@@ -4812,6 +4818,7 @@ class PostgresDB:
             ("challenge tables",          self.build_challenge_tables),
             ("sim_game",                  self.build_sim_game_table),
             ("releases",                  self.build_releases_table),
+            ("league tables",             self.build_league_tables),
             ("historical team tables",   self.build_historical_team_tables),
             ("era team tables",           self.build_era_team_tables),
             ("card_bot indexes",          self.build_card_bot_indexes),
@@ -6113,11 +6120,12 @@ class PostgresDB:
             return 'deleted' if cur.rowcount > 0 else None
 
     def get_user_teams(self, user_id: str) -> list[dict]:
-        """Return lightweight summaries for all teams belonging to user_id, newest first."""
+        """Return lightweight summaries for all teams belonging to user_id, newest first. League
+        teams are left out - they're reached through their league, not the personal team list."""
         if not self.connection:
             return []
         query = self._TEAM_SUMMARY_SELECT + """
-            WHERE t.user_id = %s
+            WHERE t.user_id = %s AND t.source IS DISTINCT FROM 'league'
             GROUP BY t.team_id, tp.refs, p.username
             ORDER BY t.updated_at DESC
         """
@@ -11308,6 +11316,517 @@ class PostgresDB:
             return
         with self.connection.cursor() as cur:
             cur.execute("DELETE FROM internal.sim_lobby WHERE status = 'open' AND expires_at IS NOT NULL AND expires_at < NOW()")
+
+    # ----------------------------------------------------------
+    # MARK: - LEAGUES
+    # ----------------------------------------------------------
+
+    def build_league_tables(self) -> None:
+        """Create the league tables: league, league_member, league_season, league_team, league_draft_pick.
+
+        A league team is an ordinary `user_teams` row (source 'league') so lineup editing and sim
+        loading work unchanged; `league_team` just ties it to a member and a season. Seasons are
+        never rewritten once complete, so a league's history reads straight from them.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.league (
+                    league_id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    name                  VARCHAR(80) NOT NULL,
+                    commissioner_user_id  TEXT NOT NULL,
+                    join_code             TEXT NOT NULL UNIQUE,
+                    showdown_set          TEXT NOT NULL,
+                    edition_ids           UUID[] NOT NULL DEFAULT '{}',
+                    settings              JSONB NOT NULL DEFAULT '{}',
+                    status                TEXT NOT NULL DEFAULT 'open',  -- open | active | archived
+                    created_at            TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at            TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_league_commissioner ON internal.league (commissioner_user_id);")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.league_member (
+                    member_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    league_id     UUID NOT NULL REFERENCES internal.league(league_id) ON DELETE CASCADE,
+                    user_id       TEXT,                 -- NULL = BOT SEAT
+                    display_name  VARCHAR(40) NOT NULL,
+                    draft_slot    INT,                  -- 0-BASED, SET WHEN A DRAFT STARTS
+                    joined_at     TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    UNIQUE (league_id, user_id)         -- NULLS ARE DISTINCT, SO ANY NUMBER OF BOTS
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_league_member_user ON internal.league_member (user_id) WHERE user_id IS NOT NULL;")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.league_season (
+                    season_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    league_id         UUID NOT NULL REFERENCES internal.league(league_id) ON DELETE CASCADE,
+                    season_number     INT  NOT NULL,
+                    status            TEXT NOT NULL DEFAULT 'drafting',  -- drafting | setup | regular | postseason | complete
+                    config            JSONB NOT NULL DEFAULT '{}',
+                    seed              BIGINT,
+                    champion_team_id  UUID,
+                    awards            JSONB,
+                    summary           JSONB,
+                    created_at        TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    completed_at      TIMESTAMP WITHOUT TIME ZONE,
+                    UNIQUE (league_id, season_number)
+                );
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.league_team (
+                    season_id  UUID NOT NULL REFERENCES internal.league_season(season_id) ON DELETE CASCADE,
+                    member_id  UUID NOT NULL REFERENCES internal.league_member(member_id) ON DELETE CASCADE,
+                    team_id    UUID NOT NULL UNIQUE REFERENCES internal.user_teams(team_id) ON DELETE CASCADE,
+                    PRIMARY KEY (season_id, member_id)
+                );
+            """)
+
+            # `card_data` freezes the full card at pick time, so it plays the same all season even
+            # if the archive card behind the release snapshot is rebuilt. No FK on release_card_id:
+            # the card may later leave its edition, and the pick must survive that.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.league_draft_pick (
+                    season_id        UUID NOT NULL REFERENCES internal.league_season(season_id) ON DELETE CASCADE,
+                    overall_pick     INT  NOT NULL,     -- 1-BASED
+                    round            INT  NOT NULL,     -- 1-BASED
+                    member_id        UUID NOT NULL REFERENCES internal.league_member(member_id) ON DELETE CASCADE,
+                    release_card_id  UUID NOT NULL,
+                    card_data        JSONB NOT NULL,
+                    is_auto          BOOLEAN NOT NULL DEFAULT FALSE,
+                    picked_at        TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    PRIMARY KEY (season_id, overall_pick),
+                    UNIQUE (season_id, release_card_id)  -- ONE COPY OF A CARD PER LEAGUE SEASON
+                );
+            """)
+            # The same archived card can sit in several of a league's editions under different
+            # release ids; keying uniqueness on the source card too keeps it to one copy.
+            cur.execute("ALTER TABLE internal.league_draft_pick ADD COLUMN IF NOT EXISTS source_card_id TEXT;")
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_league_draft_pick_source
+                    ON internal.league_draft_pick (season_id, source_card_id);
+            """)
+
+    @contextmanager
+    def _transaction(self):
+        """Explicit transaction on the (autocommit) connection, yielding a dict cursor. Commits on
+        a clean exit, rolls back and re-raises otherwise. BEGIN/COMMIT only - never SET or
+        set_session, which would leak onto the shared pooled connection."""
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("BEGIN")
+            try:
+                yield cur
+            except Exception:
+                cur.execute("ROLLBACK")
+                raise
+            cur.execute("COMMIT")
+
+    @staticmethod
+    def _stringify_uuid_fields(row: dict, fields: tuple[str, ...]) -> dict:
+        for field in fields:
+            value = row.get(field)
+            if isinstance(value, list):
+                row[field] = [str(v) for v in value]
+            elif value is not None:
+                row[field] = str(value)
+        return row
+
+    _LEAGUE_UUID_FIELDS = ('league_id', 'edition_ids')
+    _LEAGUE_COLUMNS = "league_id, name, commissioner_user_id, join_code, showdown_set, edition_ids, settings, status, created_at, updated_at"
+
+    def create_league(self, commissioner_user_id: str, commissioner_display_name: str, name: str, join_code: str,
+                      showdown_set: str, edition_ids: list[str], settings: dict) -> str:
+        """Insert a league plus its commissioner as the first member. Returns the league id."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self._transaction() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.league (name, commissioner_user_id, join_code, showdown_set, edition_ids, settings)
+                VALUES (%s, %s, %s, %s, %s::uuid[], %s)
+                RETURNING league_id
+                """,
+                (name, commissioner_user_id, join_code, showdown_set, edition_ids, extras.Json(settings)),
+            )
+            league_id = str(cur.fetchone()['league_id'])
+            cur.execute(
+                "INSERT INTO internal.league_member (league_id, user_id, display_name) VALUES (%s, %s, %s)",
+                (league_id, commissioner_user_id, commissioner_display_name),
+            )
+        return league_id
+
+    def get_league(self, league_id: str) -> dict | None:
+        """One league's row. Membership checks belong to the caller."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"SELECT {self._LEAGUE_COLUMNS} FROM internal.league WHERE league_id = %s::uuid", (league_id,)
+        )
+        return self._stringify_uuid_fields(dict(rows[0]), self._LEAGUE_UUID_FIELDS) if rows else None
+
+    def get_league_by_code(self, join_code: str) -> dict | None:
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"SELECT {self._LEAGUE_COLUMNS} FROM internal.league WHERE join_code = %s", (join_code,)
+        )
+        return self._stringify_uuid_fields(dict(rows[0]), self._LEAGUE_UUID_FIELDS) if rows else None
+
+    def is_league_join_code_taken(self, join_code: str) -> bool:
+        if not self.connection:
+            return False
+        return bool(self.execute_query("SELECT 1 FROM internal.league WHERE join_code = %s", (join_code,)))
+
+    def list_user_leagues(self, user_id: str) -> list[dict]:
+        """Leagues `user_id` belongs to, newest first, with member count and the latest season's
+        number/status (NULL before the first draft starts)."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT l.league_id, l.name, l.commissioner_user_id, l.showdown_set, l.edition_ids, l.settings, l.status,
+                   l.created_at, l.updated_at,
+                   (SELECT COUNT(*) FROM internal.league_member mm WHERE mm.league_id = l.league_id) AS member_count,
+                   s.season_number AS current_season_number, s.status AS current_season_status
+              FROM internal.league l
+              JOIN internal.league_member m ON m.league_id = l.league_id AND m.user_id = %s
+              LEFT JOIN LATERAL (
+                  SELECT season_number, status FROM internal.league_season
+                   WHERE league_id = l.league_id ORDER BY season_number DESC LIMIT 1
+              ) s ON TRUE
+             WHERE l.status <> 'archived'
+             ORDER BY l.updated_at DESC
+            """,
+            (user_id,),
+        )
+        return [self._stringify_uuid_fields(dict(row), self._LEAGUE_UUID_FIELDS) for row in rows]
+
+    def update_league(self, league_id: str, name: str | None = None, settings: dict | None = None,
+                      status: str | None = None) -> None:
+        """Update a league's name, settings (merged into the stored JSONB), and/or status."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.league
+                   SET name       = COALESCE(%s, name),
+                       settings   = settings || COALESCE(%s, '{}'::jsonb),
+                       status     = COALESCE(%s, status),
+                       updated_at = NOW()
+                 WHERE league_id = %s::uuid
+                """,
+                (name, extras.Json(settings) if settings is not None else None, status, league_id),
+            )
+
+    def get_league_members(self, league_id: str) -> list[dict]:
+        """Members in join order (bots last among equals), with their profile username/avatar."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT m.member_id, m.league_id, m.user_id, m.display_name, m.draft_slot, m.joined_at,
+                   p.username, us.avatar_url
+              FROM internal.league_member m
+              LEFT JOIN public.profiles p ON p.id::text = m.user_id
+              LEFT JOIN internal.user_settings us ON us.user_id = m.user_id
+             WHERE m.league_id = %s::uuid
+             ORDER BY m.joined_at ASC, m.user_id NULLS LAST
+            """,
+            (league_id,),
+        )
+        return [self._stringify_uuid_fields(dict(row), ('member_id', 'league_id')) for row in rows]
+
+    def add_league_members(self, league_id: str, members: list[tuple[str | None, str]], max_members: int) -> list[str] | None:
+        """Add `(user_id, display_name)` members (user_id None = bot) if they all fit under
+        `max_members`. Locks the league row so two joins can't both take the last seat. Returns the
+        new member ids, or None when the league is full, not open, or a user is already a member."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        try:
+            with self._transaction() as cur:
+                cur.execute("SELECT status FROM internal.league WHERE league_id = %s::uuid FOR UPDATE", (league_id,))
+                league = cur.fetchone()
+                if league is None or league['status'] != 'open':
+                    raise _LeagueWriteRejected()
+                cur.execute("SELECT COUNT(*) AS n FROM internal.league_member WHERE league_id = %s::uuid", (league_id,))
+                if cur.fetchone()['n'] + len(members) > max_members:
+                    raise _LeagueWriteRejected()
+                member_ids = []
+                for user_id, display_name in members:
+                    cur.execute(
+                        "INSERT INTO internal.league_member (league_id, user_id, display_name) VALUES (%s, %s, %s) RETURNING member_id",
+                        (league_id, user_id, display_name),
+                    )
+                    member_ids.append(str(cur.fetchone()['member_id']))
+                cur.execute("UPDATE internal.league SET updated_at = NOW() WHERE league_id = %s::uuid", (league_id,))
+        except (_LeagueWriteRejected, psycopg2.errors.UniqueViolation):
+            return None
+        return member_ids
+
+    def remove_league_member(self, league_id: str, member_id: str) -> bool:
+        """Remove a member while the league is still open (before any draft). Returns True if removed."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM internal.league_member m
+                 USING internal.league l
+                 WHERE m.member_id = %s::uuid AND m.league_id = %s::uuid
+                   AND l.league_id = m.league_id AND l.status = 'open'
+                """,
+                (member_id, league_id),
+            )
+            return cur.rowcount > 0
+
+    _LEAGUE_SEASON_COLUMNS = "season_id, league_id, season_number, status, config, seed, champion_team_id, awards, summary, created_at, completed_at"
+    _LEAGUE_SEASON_UUID_FIELDS = ('season_id', 'league_id', 'champion_team_id')
+
+    def start_league_season(self, league_id: str, season_number: int, status: str, draft_slots: dict[str, int],
+                            teams: dict[str, dict], seed: int) -> str | None:
+        """Create season `season_number` and one `user_teams` row per member (source 'league'),
+        and set each member's draft slot. `teams` maps member_id -> user_teams column values
+        (name, abbreviation, colors, showdown_set, roster rules); `status` is 'drafting' for a
+        draft, 'setup' when rosters are copied in afterwards. Returns the season id, or None if
+        that season already exists."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        team_columns = ('user_id', 'name', 'abbreviation', 'primary_color', 'secondary_color', 'showdown_set',
+                        'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters')
+        try:
+            with self._transaction() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO internal.league_season (league_id, season_number, status, seed)
+                    VALUES (%s::uuid, %s, %s, %s)
+                    RETURNING season_id
+                    """,
+                    (league_id, season_number, status, seed),
+                )
+                season_id = str(cur.fetchone()['season_id'])
+                for member_id, draft_slot in draft_slots.items():
+                    cur.execute(
+                        "UPDATE internal.league_member SET draft_slot = %s WHERE member_id = %s::uuid AND league_id = %s::uuid",
+                        (draft_slot, member_id, league_id),
+                    )
+                for member_id, team in teams.items():
+                    cur.execute(
+                        f"""
+                        INSERT INTO internal.user_teams ({', '.join(team_columns)}, source, is_public)
+                        VALUES ({', '.join(['%s'] * len(team_columns))}, 'league', FALSE)
+                        RETURNING team_id
+                        """,
+                        tuple(team.get(column) for column in team_columns),
+                    )
+                    team_id = cur.fetchone()['team_id']
+                    cur.execute(
+                        "INSERT INTO internal.league_team (season_id, member_id, team_id) VALUES (%s::uuid, %s::uuid, %s)",
+                        (season_id, member_id, team_id),
+                    )
+                cur.execute(
+                    "UPDATE internal.league SET status = 'active', updated_at = NOW() WHERE league_id = %s::uuid",
+                    (league_id,),
+                )
+        except psycopg2.errors.UniqueViolation:
+            return None
+        return season_id
+
+    def get_league_season(self, league_id: str, season_number: int | None = None) -> dict | None:
+        """A league's season by number, or its latest when `season_number` is None."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT {self._LEAGUE_SEASON_COLUMNS} FROM internal.league_season
+             WHERE league_id = %s::uuid AND (%s::int IS NULL OR season_number = %s::int)
+             ORDER BY season_number DESC
+             LIMIT 1
+            """,
+            (league_id, season_number, season_number),
+        )
+        return self._stringify_uuid_fields(dict(rows[0]), self._LEAGUE_SEASON_UUID_FIELDS) if rows else None
+
+    def update_league_season_status(self, season_id: str, from_status: str, to_status: str) -> bool:
+        """Move a season from `from_status` to `to_status`. False if it wasn't in `from_status`
+        (someone else already moved it)."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE internal.league_season
+                   SET status = %s, completed_at = CASE WHEN %s = 'complete' THEN NOW() ELSE completed_at END
+                 WHERE season_id = %s::uuid AND status = %s
+                """,
+                (to_status, to_status, season_id, from_status),
+            )
+            return cur.rowcount > 0
+
+    def get_league_teams(self, season_id: str) -> list[dict]:
+        """A season's teams with their member and team identity, in draft-slot order."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT lt.season_id, lt.member_id, lt.team_id, m.user_id, m.display_name, m.draft_slot,
+                   t.name, t.abbreviation, t.primary_color, t.secondary_color, t.logo_url
+              FROM internal.league_team lt
+              JOIN internal.league_member m ON m.member_id = lt.member_id
+              JOIN internal.user_teams t ON t.team_id = lt.team_id
+             WHERE lt.season_id = %s::uuid
+             ORDER BY m.draft_slot ASC NULLS LAST, m.joined_at ASC
+            """,
+            (season_id,),
+        )
+        return [self._stringify_uuid_fields(dict(row), ('season_id', 'member_id', 'team_id')) for row in rows]
+
+    def get_league_draft_picks(self, season_id: str, include_card_data: bool = False) -> list[dict]:
+        """A season's picks in order. Without `include_card_data`, each pick carries only the card
+        fields the draft board shows, not the full frozen card."""
+        if not self.connection:
+            return []
+        card_columns = "p.card_data" if include_card_data else """
+                   p.card_data->>'name' AS name, p.card_data->>'year' AS year, p.card_data->>'team' AS team,
+                   (p.card_data->>'points')::float AS points, p.card_data->>'player_type' AS player_type,
+                   p.card_data->'positions_and_defense' AS positions_and_defense"""
+        rows = self.execute_query(
+            f"""
+            SELECT p.overall_pick, p.round, p.member_id, p.release_card_id, p.source_card_id, p.is_auto, p.picked_at, {card_columns}
+              FROM internal.league_draft_pick p
+             WHERE p.season_id = %s::uuid
+             ORDER BY p.overall_pick ASC
+            """,
+            (season_id,),
+        )
+        return [self._stringify_uuid_fields(dict(row), ('member_id', 'release_card_id')) for row in rows]
+
+    # What the draft logic reads off a release card: the same snapshot fields the card search
+    # shows, so draft decisions (bot value, points cap) match what drafters see.
+    _LEAGUE_DRAFT_CARD_COLUMNS = """
+        rc.id::text AS release_card_id, rc.source_card_id,
+        rc.card_snapshot->>'name' AS name,
+        COALESCE((rc.card_snapshot->>'points')::float, 0) AS points,
+        UPPER(rc.card_snapshot->>'player_type') AS player_type,
+        rc.card_snapshot->'positions_and_defense' AS positions_and_defense,
+        COALESCE((rc.card_snapshot->>'is_small_sample_size')::boolean, FALSE) AS is_small_sample_size"""
+
+    def fetch_league_draft_card(self, release_card_id: str, edition_ids: list[str]) -> dict | None:
+        """One release card's draft fields, only if it belongs to one of `edition_ids` (the
+        league's card pool). None when it doesn't, or the card no longer exists."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT {self._LEAGUE_DRAFT_CARD_COLUMNS}
+              FROM internal.release_cards rc
+             WHERE rc.id = %s::uuid AND rc.edition_id = ANY(%s::uuid[])
+            """,
+            (release_card_id, edition_ids),
+        )
+        return dict(rows[0]) if rows else None
+
+    def fetch_league_card_pool(self, season_id: str, edition_ids: list[str]) -> list[dict]:
+        """Every card in the league's editions not drafted yet this season, one row per source
+        card (a card in several editions appears once). Draft fields only, no `card_data`."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT DISTINCT ON (rc.source_card_id) {self._LEAGUE_DRAFT_CARD_COLUMNS}
+              FROM internal.release_cards rc
+             WHERE rc.edition_id = ANY(%s::uuid[])
+               AND NOT EXISTS (
+                   SELECT 1 FROM internal.league_draft_pick p
+                    WHERE p.season_id = %s::uuid
+                      AND (p.release_card_id = rc.id OR p.source_card_id = rc.source_card_id)
+               )
+             ORDER BY rc.source_card_id, rc.card_number NULLS LAST
+            """,
+            (edition_ids, season_id),
+        )
+        return [dict(row) for row in rows]
+
+    def get_league_roster_slots(self, season_id: str) -> list[dict]:
+        """Every league team's current roster slots this season (member_id, card_id, roster_position),
+        with each drafted card's draft points. Read from user_team_roster rather than the picks so
+        a slot the owner moved (e.g. SS to 2B) is counted where it is now."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT lt.member_id, r.card_id, r.roster_position, p.release_card_id IS NOT NULL AS is_drafted,
+                   COALESCE((rc.card_snapshot->>'points')::float, (p.card_data->>'points')::float, 0) AS points
+              FROM internal.league_team lt
+              JOIN internal.user_team_roster r ON r.team_id = lt.team_id
+              LEFT JOIN internal.league_draft_pick p ON p.season_id = lt.season_id AND p.release_card_id::text = r.card_id
+              LEFT JOIN internal.release_cards rc ON rc.id = p.release_card_id
+             WHERE lt.season_id = %s::uuid
+            """,
+            (season_id,),
+        )
+        return [self._stringify_uuid_fields(dict(row), ('member_id',)) for row in rows]
+
+    def record_league_draft_pick(self, season_id: str, overall_pick: int, round: int, member_id: str, team_id: str,
+                                 release_card_id: str, roster_position: str, is_auto: bool) -> bool:
+        """Record one pick and add the card to the member's roster, atomically. The pick's
+        `card_data` (and source card id) are copied from the release card in the same statement,
+        freezing the card as drafted.
+
+        The caller validates the pick against the board as it read it; this re-checks under a
+        lock on the season row that the board hasn't moved since (still drafting, and exactly
+        `overall_pick - 1` picks made) and lets the unique constraints reject a card that's
+        already gone. Returns False when either check fails, so the caller can re-read and retry.
+        """
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        try:
+            with self._transaction() as cur:
+                cur.execute(
+                    """
+                    SELECT s.status,
+                           (SELECT COUNT(*) FROM internal.league_draft_pick p WHERE p.season_id = s.season_id) AS picks_made
+                      FROM internal.league_season s
+                     WHERE s.season_id = %s::uuid
+                       FOR UPDATE
+                    """,
+                    (season_id,),
+                )
+                season = cur.fetchone()
+                if season is None or season['status'] != 'drafting' or season['picks_made'] != overall_pick - 1:
+                    raise _LeagueWriteRejected()
+                cur.execute(
+                    f"""
+                    WITH pick AS (
+                        INSERT INTO internal.league_draft_pick
+                            (season_id, overall_pick, round, member_id, release_card_id, source_card_id, card_data, is_auto)
+                        SELECT %s::uuid, %s, %s, %s::uuid, rc.id, rc.source_card_id, {self._RELEASE_CARD_DATA_COLUMN}, %s
+                          FROM {self._RELEASE_CARD_DATA_FROM}
+                         WHERE rc.id = %s::uuid AND {self._RELEASE_CARD_DATA_COLUMN} IS NOT NULL
+                        RETURNING release_card_id
+                    ), slot AS (
+                        INSERT INTO internal.user_team_roster
+                            (team_id, card_id, card_source, roster_position, sort_order, draft_order, pick_source, updated_at)
+                        SELECT %s::uuid, release_card_id::text, 'RELEASE', %s, %s, %s, 'DRAFT', NOW() FROM pick
+                        RETURNING team_id
+                    )
+                    UPDATE internal.user_teams t SET updated_at = NOW()
+                      FROM slot WHERE t.team_id = slot.team_id
+                    RETURNING t.team_id
+                    """,
+                    (season_id, overall_pick, round, member_id, is_auto, release_card_id,
+                     team_id, roster_position, overall_pick, overall_pick),
+                )
+                if cur.fetchone() is None:  # THE RELEASE CARD (OR ITS CARD DATA) IS GONE
+                    raise _LeagueWriteRejected()
+        except (_LeagueWriteRejected, psycopg2.errors.UniqueViolation):
+            return False
+        return True
 
     # ----------------------------------------------------------
     # MARK: - SIMULATED MLB GAMES
