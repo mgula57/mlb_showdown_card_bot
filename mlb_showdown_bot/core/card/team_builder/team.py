@@ -12,6 +12,7 @@ class CardSource(str, Enum):
     WOTC   = "WOTC"    # card_wotc table (WOTC cards)
     WBC    = "WBC"     # card_wbc table (World Baseball Classic cards)
     CUSTOM = "CUSTOM"  # internal.log_custom_card (user's own generated cards)
+    RELEASE = "RELEASE"  # internal.release_cards (Release Builder edition cards, drafted in leagues)
 
 
 # Sets a team can allow, per card source. WOTC only ever printed 2000-2005 —

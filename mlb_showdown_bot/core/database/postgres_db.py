@@ -1827,7 +1827,7 @@ class PostgresDB:
         """Fetch full card data for team_builder roster slots across card sources.
 
         Args:
-          slots: TeamRosterSlot objects (or dicts) with `card_id` and `card_source` ("BOT", "WOTC", "CUSTOM").
+          slots: TeamRosterSlot objects (or dicts) with `card_id` and `card_source` ("BOT", "WOTC", "CUSTOM", "RELEASE").
           strip_diagnostics: Drop `CARD_DATA_DIAGNOSTIC_KEYS` from the payload. Safe for consumers that
             never render the card-detail UI (the simulation); leave off when the card is served to it.
 
@@ -1856,6 +1856,13 @@ class PostgresDB:
                         table, id_column, data_column = "card_wotc", "card_id", "card_data"
                     case 'CUSTOM':
                         table, id_column, data_column = "internal.log_custom_card_bot", "id::text", "card_result"
+                    case 'RELEASE':
+                        # Newer snapshots embed the full card JSON; older ones are card_bot rows
+                        # whose `card_id` points at the archived card in dim_card.
+                        table = """internal.release_cards rc
+                            LEFT JOIN internal.dim_card d ON rc.card_snapshot->'card_data' IS NULL AND d.id = rc.card_snapshot->>'card_id'"""
+                        id_column = "rc.id::text"
+                        data_column = "COALESCE(rc.card_snapshot->'card_data', d.card_data)"
                     case _:
                         continue
 
@@ -6730,18 +6737,23 @@ class PostgresDB:
                     ADD COLUMN IF NOT EXISTS preview_rank SMALLINT
                     CHECK (preview_rank BETWEEN 1 AND 3);
             """)
-            # edition_id lookups (card lists, card_count, delete-and-replace on save) are covered by
-            # unique_card_number (edition_id, card_number)
+            # edition_id lookups (card lists, card_count) are covered by unique_card_number (edition_id, card_number)
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_edition_id;")
+            # Upsert key for saves, so release_cards.id stays stable while a card stays in its edition
+            # (league rosters reference drafted cards by it)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_release_cards_edition_source
+                    ON internal.release_cards (edition_id, source_card_id);
+            """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_release_cards_source
                     ON internal.release_cards (source_card_id, source_card_type);
             """)
-            # Unused by any query, and every save rewrites the edition's cards - not worth the write cost
+            # Unused by any query, and every save rewrites each kept card's snapshot - not worth the write cost
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_snapshot_team;")
 
-            # Rendered card images, keyed by source card rather than release_cards.id since every
-            # save replaces the edition's release_cards rows. `render_hash` is the hash of the inputs
+            # Rendered card images, keyed by source card rather than release_cards.id (which predates
+            # stable ids on save). `render_hash` is the hash of the inputs
             # behind the stored image; `failed_hash` the inputs whose last render failed.
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS internal.release_card_images (
@@ -7278,10 +7290,29 @@ class PostgresDB:
 
     @staticmethod
     def _upsert_release_cards(cur, edition_id: str, cards: list) -> None:
-        """Replace all cards for an edition in release_cards."""
-        cur.execute("DELETE FROM internal.release_cards WHERE edition_id = %s", (edition_id,))
+        """Make an edition's release_cards match `cards`. Upserts on (edition_id, source_card_id)
+        so a card that stays in the edition keeps its release_cards.id across saves - league
+        rosters reference drafted cards by that id."""
+        # A repeated source card would hit the same row twice in one upsert; first one wins
+        seen_source_ids: set[str] = set()
+        unique_cards = []
+        for card in cards:
+            source_card_id = card.get('source_card_id')
+            if source_card_id and source_card_id in seen_source_ids:
+                continue
+            seen_source_ids.add(source_card_id)
+            unique_cards.append(card)
+        cards = unique_cards
+        kept_source_ids = [card['source_card_id'] for card in cards if card.get('source_card_id')]
+        cur.execute("""
+            DELETE FROM internal.release_cards
+             WHERE edition_id = %s AND (source_card_id IS NULL OR NOT (source_card_id = ANY(%s)))
+        """, (edition_id, kept_source_ids))
         if not cards:
             return
+        # Renumbering can swap two kept cards' numbers, which would trip unique_card_number
+        # row-by-row mid-upsert - clear them first and let the upsert write the new ones
+        cur.execute("UPDATE internal.release_cards SET card_number = NULL WHERE edition_id = %s", (edition_id,))
         preview_ranks = PostgresDB._normalize_release_card_preview_ranks(cards)
         batch = [
             (
@@ -7299,6 +7330,13 @@ class PostgresDB:
             INSERT INTO internal.release_cards
                 (edition_id, source_card_id, source_card_type, card_snapshot, card_number, tags, preview_rank)
             VALUES %s
+            ON CONFLICT (edition_id, source_card_id) DO UPDATE SET
+                source_card_type = EXCLUDED.source_card_type,
+                card_snapshot    = EXCLUDED.card_snapshot,
+                card_number      = EXCLUDED.card_number,
+                tags             = EXCLUDED.tags,
+                preview_rank     = EXCLUDED.preview_rank,
+                updated_at       = NOW()
         """, batch)
 
     _RELEASE_CARD_MAX_PREVIEW_RANK = 3
