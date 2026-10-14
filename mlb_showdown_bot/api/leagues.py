@@ -1,9 +1,14 @@
-"""Leagues: create/join a league over a card pool of Release Builder editions, then draft teams.
+"""Leagues: create/join a league over a card pool of Release Builder editions, draft teams, and
+play seasons of simulated games.
 
-Thin routes over `core/league` (draft rules, bot picks) and the league methods on `PostgresDB`.
+Thin routes over `core/league` (draft rules, bot picks, the season runner) and the league methods
+on `PostgresDB`.
 Every route needs a signed-in user; everything past the join-code preview needs membership.
 """
 
+import random
+import threading
+import time
 import traceback
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -14,7 +19,10 @@ from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 
 from ..core.database.postgres_db import PostgresDB
-from ..core.league import DraftConflict, DraftError, LeagueDraft, LeagueSettings
+from ..core.league import (
+    DraftConflict, DraftError, LeagueDraft, LeagueSeasonError, LeagueSeasonRunner, LeagueSettings, SeasonConfig, SimTarget,
+)
+from .sim import _sim_slots
 from .user_settings import require_auth
 from .utils.join_code import JoinCode
 from .utils.profanity_filter import ProfanityFilter
@@ -42,7 +50,7 @@ def _json_errors(route):
             return jsonify({'error': str(exc)}), exc.status
         except DraftConflict as exc:
             return jsonify({'error': str(exc)}), 409
-        except DraftError as exc:
+        except (DraftError, LeagueSeasonError) as exc:
             return jsonify({'error': str(exc)}), 400
         except Exception as exc:
             traceback.print_exc()
@@ -331,7 +339,9 @@ def start_draft(league_id: str, season_number: int):
             raise _ApiError(f'Season {latest["season_number"]} is still in progress', 409)
 
         manual_order = payload.get('order') if context.settings.draft_order_mode == 'manual' else None
-        LeagueDraft.start(db, context.league, context.members, season_number, manual_order=manual_order)
+        season_id = LeagueDraft.start(db, context.league, context.members, season_number, manual_order=manual_order)
+        if latest:  # A REDRAFT KEEPS LAST SEASON'S SCHEDULE AND POSTSEASON SETTINGS
+            db.update_league_season_config(season_id, latest.get('config') or {})
         draft = LeagueDraft(db, context.league, context.season(db, season_number))
         draft.run_bot_picks()
         return jsonify(_draft_payload(context, draft)), 201
@@ -364,3 +374,187 @@ def make_pick(league_id: str, season_number: int):
         draft.make_pick(context.my_member['member_id'], context.is_commissioner, release_card_id)
         draft.run_bot_picks()
         return jsonify(_draft_payload(context, draft)), 200
+
+
+# ----------------------------------------------------------
+# MARK: - SEASONS
+# ----------------------------------------------------------
+
+def _season_payload(context: _LeagueContext, db: PostgresDB, season: dict) -> dict:
+    return _jsonable({
+        'season': season,
+        'teams': db.get_league_teams(season['season_id']),
+        'is_commissioner': context.is_commissioner,
+    })
+
+
+class _LeagueSimJob:
+    """Plays one sim chunk in a background thread with its own DB connection, reporting progress
+    on the season row (throttled) so the league page can poll it. Shares the MLB sims' per-worker
+    slot so a league chunk and a full MLB season never compete for the same dyno's CPU."""
+
+    PROGRESS_WRITE_INTERVAL_SECONDS = 1.0
+
+    def __init__(self, league: dict, season: dict, target: SimTarget) -> None:
+        self.league = league
+        self.season = season
+        self.target = target
+
+    def start(self) -> None:
+        threading.Thread(target=self._run, name=f"league-sim-{self.season['season_id'][:8]}", daemon=True).start()
+
+    def _run(self) -> None:
+        season_id = self.season['season_id']
+        try:
+            with PostgresDB() as db:
+                last_write = 0.0
+
+                def progress(games_played: int) -> None:
+                    nonlocal last_write
+                    now = time.monotonic()
+                    if now - last_write >= self.PROGRESS_WRITE_INTERVAL_SECONDS:
+                        db.update_league_season_job_progress(season_id, games_played)
+                        last_write = now
+
+                LeagueSeasonRunner(db, self.league, self.season).run(self.target, progress_callback=progress)
+        except LeagueSeasonError as exc:
+            self._fail(season_id, str(exc))
+        except Exception as exc:
+            traceback.print_exc()
+            self._fail(season_id, f"The sim failed: {exc}")
+        finally:
+            _sim_slots.release()
+
+    @staticmethod
+    def _fail(season_id: str, message: str) -> None:
+        with PostgresDB() as db:
+            db.fail_league_season_job(season_id, message)
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>', methods=['GET'])
+@require_auth
+@_json_errors
+def get_season(league_id: str, season_number: int):
+    """A season's status, config, sim progress, and summary (standings, leaders, postseason,
+    awards). Polled by the league page while a chunk runs."""
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id)
+        return jsonify(_season_payload(context, db, context.season(db, season_number))), 200
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/config', methods=['PUT'])
+@require_auth
+@_json_errors
+def update_season_config(league_id: str, season_number: int):
+    """Games per team and the postseason bracket - settable until the regular season starts."""
+    payload = request.get_json(silent=True) or {}
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id, require_commissioner=True)
+        season = context.season(db, season_number)
+        try:
+            config = SeasonConfig(**payload)
+        except ValidationError as exc:
+            raise _ApiError('; '.join(err['msg'] for err in exc.errors()))
+        team_count = len(db.get_league_teams(season['season_id']))
+        if config.postseason.teams > team_count:
+            raise _ApiError(f'A {config.postseason.teams}-team postseason needs at least {config.postseason.teams} teams; this league has {team_count}')
+        if not db.update_league_season_config(season['season_id'], config.model_dump()):
+            raise _ApiError('The schedule is locked once the season starts', 409)
+        return jsonify(_season_payload(context, db, context.season(db, season_number))), 200
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/start', methods=['POST'])
+@require_auth
+@_json_errors
+def start_season(league_id: str, season_number: int):
+    """`setup` -> `regular`: write the schedule. Every lineup and rotation must be filled."""
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id, require_commissioner=True)
+        season = context.season(db, season_number)
+        LeagueSeasonRunner(db, context.league, season).start()
+        return jsonify(_season_payload(context, db, context.season(db, season_number))), 200
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/sim', methods=['POST'])
+@require_auth
+@_json_errors
+def sim_season(league_id: str, season_number: int):
+    """Play a chunk in the background: `{"until": "day" | "week" | "regular_end" | "round" |
+    "postseason_end"}`. Returns at once with the season marked running; poll the season route."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        target = SimTarget(payload.get('until'))
+    except ValueError:
+        raise _ApiError(f"until must be one of: {', '.join(t.value for t in SimTarget)}")
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id, require_commissioner=True)
+        season = context.season(db, season_number)
+        runner = LeagueSeasonRunner(db, context.league, season)
+        if season['status'] not in ('regular', 'postseason'):
+            raise _ApiError("This season isn't being played", 409)
+        runner.validate_rosters()
+        if not _sim_slots.acquire(blocking=False):
+            raise _ApiError('The simulator is busy - try again in a minute', 503)
+        try:
+            if not db.claim_league_season_job(season['season_id'], runner.games_remaining(target)):
+                raise _ApiError('Games are already being simulated for this season', 409)
+            _LeagueSimJob(context.league, season, target).start()
+        except BaseException:
+            _sim_slots.release()
+            raise
+        return jsonify(_season_payload(context, db, context.season(db, season_number))), 202
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/games', methods=['GET'])
+@require_auth
+@_json_errors
+def list_season_games(league_id: str, season_number: int):
+    """The schedule and results, optionally for one `day` or one `team` (schedule key)."""
+    day = request.args.get('day', type=int)
+    team = request.args.get('team')
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id)
+        season = context.season(db, season_number)
+        return jsonify(_jsonable(db.get_league_games(season['season_id'], day=day, team_key=team))), 200
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/games/<int:game_index>', methods=['GET'])
+@require_auth
+@_json_errors
+def get_season_game(league_id: str, season_number: int, game_index: int):
+    """One game with its linescore and box scores."""
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id)
+        game = db.get_league_game(context.season(db, season_number)['season_id'], game_index)
+        if game is None:
+            raise _ApiError('Game not found', 404)
+        return jsonify(_jsonable(game)), 200
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/run_it_back', methods=['POST'])
+@require_auth
+@_json_errors
+def run_it_back(league_id: str):
+    """Start the next season with the same teams: rosters, lineups and frozen cards carry over,
+    straight to `setup`. (To redraft instead, start the next season's draft.)"""
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id, require_commissioner=True)
+        latest = db.get_league_season(league_id)
+        if latest is None or latest['status'] != 'complete':
+            raise _ApiError('Finish the current season first', 409)
+        new_season_id = db.copy_league_season(
+            league_id, latest['season_id'], latest['season_number'] + 1, seed=random.SystemRandom().getrandbits(62),
+        )
+        if new_season_id is None:
+            raise _ApiError('The next season has already started', 409)
+        return jsonify(_season_payload(context, db, context.season(db, latest['season_number'] + 1))), 201
+
+
+@leagues_bp.route('/leagues/<league_id>/history', methods=['GET'])
+@require_auth
+@_json_errors
+def league_history(league_id: str):
+    """Every season, newest first: champion, awards, status."""
+    with PostgresDB() as db:
+        _LeagueContext.load(db, league_id)
+        return jsonify(_jsonable(db.get_league_history(league_id))), 200

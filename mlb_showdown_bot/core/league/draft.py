@@ -387,11 +387,14 @@ class LeagueDraft:
                 )
 
         members_by_id = {m['member_id']: m for m in members}
+        abbreviations = LeagueDraft._unique_abbreviations([members_by_id[member_id]['display_name'] for member_id in ordered])
         teams = {
             member_id: {
                 'user_id': members_by_id[member_id].get('user_id'),
                 'name': f"{members_by_id[member_id]['display_name']}'s Team",
-                'abbreviation': LeagueDraft._abbreviation(members_by_id[member_id]['display_name']),
+                'abbreviation': abbreviations[slot],
+                'primary_color': LeagueDraft.TEAM_COLORS[slot % len(LeagueDraft.TEAM_COLORS)][0],
+                'secondary_color': LeagueDraft.TEAM_COLORS[slot % len(LeagueDraft.TEAM_COLORS)][1],
                 'showdown_set': league['showdown_set'],
                 'pts_limit': settings.pts_cap,
                 'roster_size': settings.roster_size,
@@ -399,7 +402,7 @@ class LeagueDraft:
                 'min_bullpen': settings.min_bullpen,
                 'num_starters': settings.num_starters,
             }
-            for member_id in ordered
+            for slot, member_id in enumerate(ordered)
         }
         season_id = db.start_league_season(
             league_id=league['league_id'],
@@ -426,10 +429,30 @@ class LeagueDraft:
             remaining = [card for card in remaining if card.release_card_id not in used]
         return worst
 
+    # STARTING (PRIMARY, SECONDARY) COLORS, ONE PAIR PER DRAFT SLOT - OWNERS CAN CHANGE THEIRS
+    TEAM_COLORS = [
+        ('rgb(12,35,64)', 'rgb(232,92,38)'), ('rgb(134,38,51)', 'rgb(255,255,255)'), ('rgb(0,90,60)', 'rgb(255,199,44)'),
+        ('rgb(38,38,38)', 'rgb(253,90,30)'), ('rgb(0,45,114)', 'rgb(225,37,49)'), ('rgb(95,37,159)', 'rgb(255,255,255)'),
+        ('rgb(0,116,129)', 'rgb(255,255,255)'), ('rgb(180,32,40)', 'rgb(20,30,60)'), ('rgb(0,51,102)', 'rgb(196,206,212)'),
+        ('rgb(39,37,31)', 'rgb(253,184,39)'), ('rgb(0,48,135)', 'rgb(255,255,255)'), ('rgb(196,30,58)', 'rgb(255,255,255)'),
+    ]
+
     @staticmethod
-    def _abbreviation(display_name: str) -> str:
-        letters = ''.join(ch for ch in display_name.upper() if ch.isalnum())
-        return letters[:3] if len(letters) >= 2 else 'TM'
+    def _unique_abbreviations(display_names: list[str]) -> list[str]:
+        """A distinct 2-4 character abbreviation per team - the season's schedule and stats key
+        teams by it, so two teams can never share one."""
+        taken: set[str] = set()
+        abbreviations = []
+        for display_name in display_names:
+            letters = ''.join(ch for ch in display_name.upper() if ch.isalnum())
+            base = letters[:3] if len(letters) >= 2 else 'TM'
+            abbreviation, n = base, 2
+            while abbreviation in taken:
+                abbreviation = f"{base[:3]}{n}"
+                n += 1
+            taken.add(abbreviation)
+            abbreviations.append(abbreviation)
+        return abbreviations
 
     # MARK: Board
 

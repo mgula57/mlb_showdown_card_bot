@@ -30,10 +30,15 @@ class LeagueTeamGuard:
     def update_error(self, team_id: str, payload: dict) -> Optional[str]:
         """Why this update can't be applied, or None. Strips fields the owner may not change
         from `payload` in place, so a team builder that saves the whole team still works."""
-        if self.context['season_status'] not in self.EDITABLE_SEASON_STATUSES:
-            return "This team can't be edited right now." if self.context['season_status'] != 'drafting' \
-                else "Your team can be edited once the draft is complete."
-        for key in [k for k in payload if k not in self.EDITABLE_FIELDS and k not in ('roster', 'lineups')]:
+        status = self.context['season_status']
+        if status not in self.EDITABLE_SEASON_STATUSES:
+            return "Your team can be edited once the draft is complete." if status == 'drafting' \
+                else "This team can't be edited anymore - its season is over."
+        if self.context.get('job_status') == 'running':
+            return "Games are being simulated right now - try again when they finish."
+        # THE SCHEDULE AND STATS KEY TEAMS BY ABBREVIATION, SO IT'S FIXED ONCE THE SEASON STARTS
+        editable = self.EDITABLE_FIELDS if status == 'setup' else self.EDITABLE_FIELDS - {'abbreviation'}
+        for key in [k for k in payload if k not in editable and k not in ('roster', 'lineups')]:
             payload.pop(key)
         roster = payload.get('roster')
         if roster is not None:

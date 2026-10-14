@@ -11412,6 +11412,40 @@ class PostgresDB:
                     ON internal.league_draft_pick (season_id, source_card_id);
             """)
 
+            # SEASON PLAY: `state` IS THE SIM'S CARRY-OVER BETWEEN CHUNKS (RECORDS, ROTATION
+            # POSITIONS, BULLPEN WORKLOAD, PLAYER STAT TOTALS, THE BRACKET); `job_*` TRACKS THE ONE
+            # CHUNK THAT CAN RUN AT A TIME.
+            cur.execute("""
+                ALTER TABLE internal.league_season
+                    ADD COLUMN IF NOT EXISTS state          JSONB,
+                    ADD COLUMN IF NOT EXISTS job_status     TEXT NOT NULL DEFAULT 'idle',  -- idle | running | failed
+                    ADD COLUMN IF NOT EXISTS job_progress   INT  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS job_total      INT  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS job_error      TEXT,
+                    ADD COLUMN IF NOT EXISTS job_started_at TIMESTAMP WITHOUT TIME ZONE;
+            """)
+
+            # ONE ROW PER GAME. REGULAR-SEASON ROWS ARE WRITTEN UP FRONT WHEN THE SEASON STARTS
+            # (status 'scheduled') AND FILLED IN AS CHUNKS PLAY THEM; POSTSEASON ROWS ARE WRITTEN AS
+            # THEY'RE PLAYED. `result` IS THE GAME'S GameResult (LINESCORE + BOX SCORES, NO LOG).
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.league_game (
+                    season_id     UUID NOT NULL REFERENCES internal.league_season(season_id) ON DELETE CASCADE,
+                    game_index    INT  NOT NULL,
+                    day           INT  NOT NULL,
+                    round         TEXT NOT NULL DEFAULT 'REG',   -- REG | WC | DIV | CS | WS
+                    series_id     TEXT,
+                    home_key      TEXT NOT NULL,                 -- SCHEDULE KEY (TEAM ABBREVIATION)
+                    away_key      TEXT NOT NULL,
+                    home_score    INT,
+                    away_score    INT,
+                    status        TEXT NOT NULL DEFAULT 'scheduled',  -- scheduled | final
+                    result        JSONB,
+                    PRIMARY KEY (season_id, game_index)
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_league_game_day ON internal.league_game (season_id, day);")
+
     @contextmanager
     def _transaction(self):
         """Explicit transaction on the (autocommit) connection, yielding a dict cursor. Commits on
@@ -11590,7 +11624,10 @@ class PostgresDB:
             )
             return cur.rowcount > 0
 
-    _LEAGUE_SEASON_COLUMNS = "season_id, league_id, season_number, status, config, seed, champion_team_id, awards, summary, created_at, completed_at"
+    # `state` (the sim carry-over) is deliberately left out - only the season runner reads it, via
+    # `get_league_season_state`.
+    _LEAGUE_SEASON_COLUMNS = """season_id, league_id, season_number, status, config, seed, champion_team_id, awards, summary,
+        created_at, completed_at, job_status, job_progress, job_total, job_error, job_started_at"""
     _LEAGUE_SEASON_UUID_FIELDS = ('season_id', 'league_id', 'champion_team_id')
 
     def start_league_season(self, league_id: str, season_number: int, status: str, draft_slots: dict[str, int],
@@ -11621,13 +11658,15 @@ class PostgresDB:
                         (draft_slot, member_id, league_id),
                     )
                 for member_id, team in teams.items():
+                    # ONLY THE VALUES GIVEN - AN EXPLICIT NULL WOULD OVERRIDE A COLUMN'S DEFAULT
+                    columns = [column for column in team_columns if team.get(column) is not None]
                     cur.execute(
                         f"""
-                        INSERT INTO internal.user_teams ({', '.join(team_columns)}, source, is_public)
-                        VALUES ({', '.join(['%s'] * len(team_columns))}, 'league', FALSE)
+                        INSERT INTO internal.user_teams ({', '.join(columns)}, source, is_public)
+                        VALUES ({', '.join(['%s'] * len(columns))}, 'league', FALSE)
                         RETURNING team_id
                         """,
-                        tuple(team.get(column) for column in team_columns),
+                        tuple(team[column] for column in columns),
                     )
                     team_id = cur.fetchone()['team_id']
                     cur.execute(
@@ -11656,6 +11695,252 @@ class PostgresDB:
             (league_id, season_number, season_number),
         )
         return self._stringify_uuid_fields(dict(rows[0]), self._LEAGUE_SEASON_UUID_FIELDS) if rows else None
+
+    def get_league_season_state(self, season_id: str) -> dict:
+        if not self.connection:
+            return {}
+        rows = self.execute_query("SELECT state FROM internal.league_season WHERE season_id = %s::uuid", (season_id,))
+        return (rows[0]['state'] or {}) if rows else {}
+
+    def update_league_season_config(self, season_id: str, config: dict) -> bool:
+        """Replace a season's config before its regular season starts (while drafting or in setup)."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.league_season SET config = %s WHERE season_id = %s::uuid AND status IN ('drafting', 'setup')",
+                (extras.Json(config), season_id),
+            )
+            return cur.rowcount > 0
+
+    def start_league_regular_season(self, season_id: str, games: list[dict], state: dict) -> bool:
+        """`setup` -> `regular`: write every regular-season game and the opening sim state.
+        False if the season wasn't in `setup` (someone else already started it)."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        try:
+            with self._transaction() as cur:
+                cur.execute(
+                    "UPDATE internal.league_season SET status = 'regular', state = %s WHERE season_id = %s::uuid AND status = 'setup'",
+                    (extras.Json(state), season_id),
+                )
+                if cur.rowcount == 0:
+                    raise _LeagueWriteRejected()
+                execute_values(cur, """
+                    INSERT INTO internal.league_game (season_id, game_index, day, round, home_key, away_key)
+                    VALUES %s
+                """, [(season_id, g['game_index'], g['day'], 'REG', g['home_key'], g['away_key']) for g in games])
+        except _LeagueWriteRejected:
+            return False
+        return True
+
+    # A CHUNK THAT HASN'T REPORTED PROGRESS IN THIS LONG IS TREATED AS DEAD (ITS WORKER WAS KILLED
+    # WITH THE DYNO), SO THE SEASON ISN'T LOCKED FOREVER.
+    _LEAGUE_JOB_STALE_MINUTES = 10
+
+    def claim_league_season_job(self, season_id: str, total: int) -> bool:
+        """Mark a sim chunk as running. False if one is already running (and not stale)."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE internal.league_season
+                   SET job_status = 'running', job_progress = 0, job_total = %s, job_error = NULL, job_started_at = NOW()
+                 WHERE season_id = %s::uuid
+                   AND status IN ('regular', 'postseason')
+                   AND (job_status <> 'running' OR job_started_at < NOW() - INTERVAL '{self._LEAGUE_JOB_STALE_MINUTES} minutes')
+                """,
+                (total, season_id),
+            )
+            return cur.rowcount > 0
+
+    def update_league_season_job_progress(self, season_id: str, progress: int) -> None:
+        """Bump the running chunk's progress. Also refreshes `job_started_at`, which doubles as a
+        heartbeat for the stale-job check."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.league_season SET job_progress = %s, job_started_at = NOW() WHERE season_id = %s::uuid AND job_status = 'running'",
+                (progress, season_id),
+            )
+
+    def fail_league_season_job(self, season_id: str, error: str) -> None:
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(
+                "UPDATE internal.league_season SET job_status = 'failed', job_error = %s WHERE season_id = %s::uuid",
+                (error[:1000], season_id),
+            )
+
+    def save_league_chunk(self, season_id: str, played: list[dict], status: str, state: dict, summary: dict,
+                          champion_team_id: str | None = None, awards: dict | None = None) -> None:
+        """Write everything one sim chunk produced, atomically: each played game (a scheduled
+        regular-season row is filled in, a postseason row inserted), the new sim state and
+        summary, the season status, and - once it's complete - the champion and awards. Ends the
+        running job."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self._transaction() as cur:
+            if played:
+                execute_values(cur, """
+                    INSERT INTO internal.league_game
+                        (season_id, game_index, day, round, series_id, home_key, away_key, home_score, away_score, status, result)
+                    VALUES %s
+                    ON CONFLICT (season_id, game_index) DO UPDATE SET
+                        home_score = EXCLUDED.home_score, away_score = EXCLUDED.away_score,
+                        status = EXCLUDED.status, result = EXCLUDED.result
+                """, [
+                    (season_id, g['game_index'], g['day'], g['round'], g.get('series_id'), g['home_key'], g['away_key'],
+                     g['home_score'], g['away_score'], 'final', extras.Json(g['result']))
+                    for g in played
+                ], template="(%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)")
+            cur.execute(
+                """
+                UPDATE internal.league_season
+                   SET status = %s, state = %s, summary = %s,
+                       champion_team_id = COALESCE(%s::uuid, champion_team_id),
+                       awards = COALESCE(%s, awards),
+                       completed_at = CASE WHEN %s = 'complete' THEN NOW() ELSE completed_at END,
+                       job_status = 'idle', job_progress = job_total, job_error = NULL
+                 WHERE season_id = %s::uuid
+                """,
+                (status, extras.Json(state), extras.Json(summary), champion_team_id,
+                 extras.Json(awards) if awards is not None else None, status, season_id),
+            )
+
+    _LEAGUE_GAME_LIST_COLUMNS = "game_index, day, round, series_id, home_key, away_key, home_score, away_score, status"
+
+    def get_league_games(self, season_id: str, status: str | None = None, day: int | None = None,
+                         team_key: str | None = None, include_result: bool = False) -> list[dict]:
+        """A season's games in play order, optionally narrowed to a status, a day, or one team."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._LEAGUE_GAME_LIST_COLUMNS}{', result' if include_result else ''}
+              FROM internal.league_game
+             WHERE season_id = %s::uuid
+               AND (%s::text IS NULL OR status = %s::text)
+               AND (%s::int IS NULL OR day = %s::int)
+               AND (%s::text IS NULL OR home_key = %s::text OR away_key = %s::text)
+             ORDER BY game_index
+            """,
+            (season_id, status, status, day, day, team_key, team_key, team_key),
+        )
+        return [dict(row) for row in rows]
+
+    def get_league_game(self, season_id: str, game_index: int) -> dict | None:
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"SELECT {self._LEAGUE_GAME_LIST_COLUMNS}, result FROM internal.league_game WHERE season_id = %s::uuid AND game_index = %s",
+            (season_id, game_index),
+        )
+        return dict(rows[0]) if rows else None
+
+    def get_league_draft_cards(self, season_id: str) -> dict[str, dict]:
+        """release_card_id -> the full card frozen when it was drafted, for every pick this season."""
+        if not self.connection:
+            return {}
+        rows = self.execute_query(
+            "SELECT release_card_id::text AS release_card_id, card_data FROM internal.league_draft_pick WHERE season_id = %s::uuid",
+            (season_id,),
+        )
+        return {row['release_card_id']: row['card_data'] for row in rows}
+
+    def get_league_history(self, league_id: str) -> list[dict]:
+        """Every season of a league, newest first, with its champion's identity."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT s.season_id, s.season_number, s.status, s.awards, s.completed_at, s.champion_team_id,
+                   t.name AS champion_name, t.abbreviation AS champion_abbreviation,
+                   t.primary_color AS champion_primary_color, t.secondary_color AS champion_secondary_color,
+                   m.display_name AS champion_member_name
+              FROM internal.league_season s
+              LEFT JOIN internal.user_teams t ON t.team_id = s.champion_team_id
+              LEFT JOIN internal.league_team lt ON lt.team_id = s.champion_team_id
+              LEFT JOIN internal.league_member m ON m.member_id = lt.member_id
+             WHERE s.league_id = %s::uuid
+             ORDER BY s.season_number DESC
+            """,
+            (league_id,),
+        )
+        return [self._stringify_uuid_fields(dict(row), ('season_id', 'champion_team_id')) for row in rows]
+
+    def copy_league_season(self, league_id: str, from_season_id: str, season_number: int, seed: int) -> str | None:
+        """Run it back: create season `season_number` in `setup` with every team copied from
+        `from_season_id` - a fresh `user_teams` row per member carrying the same identity, roster
+        slots and saved lineups - plus that season's picks, so each card keeps the version frozen
+        when it was drafted. Returns the new season id, or None if that season already exists."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        try:
+            with self._transaction() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO internal.league_season (league_id, season_number, status, seed, config)
+                    SELECT league_id, %s, 'setup', %s, config FROM internal.league_season WHERE season_id = %s::uuid
+                    RETURNING season_id
+                    """,
+                    (season_number, seed, from_season_id),
+                )
+                season_id = str(cur.fetchone()['season_id'])
+                cur.execute(
+                    "SELECT member_id, team_id FROM internal.league_team WHERE season_id = %s::uuid",
+                    (from_season_id,),
+                )
+                for old in cur.fetchall():
+                    cur.execute(
+                        """
+                        INSERT INTO internal.user_teams
+                            (user_id, name, abbreviation, primary_color, secondary_color, showdown_set, logo_url,
+                             pts_limit, roster_size, min_bench, min_bullpen, num_starters, bench_pts_multiplier, source, is_public)
+                        SELECT user_id, name, abbreviation, primary_color, secondary_color, showdown_set, logo_url,
+                               pts_limit, roster_size, min_bench, min_bullpen, num_starters, bench_pts_multiplier, 'league', FALSE
+                          FROM internal.user_teams WHERE team_id = %s
+                        RETURNING team_id
+                        """,
+                        (old['team_id'],),
+                    )
+                    new_team_id = cur.fetchone()['team_id']
+                    cur.execute(
+                        """
+                        INSERT INTO internal.user_team_roster (team_id, card_id, card_source, roster_position, sort_order, draft_order, pick_source, updated_at)
+                        SELECT %s, card_id, card_source, roster_position, sort_order, draft_order, pick_source, NOW()
+                          FROM internal.user_team_roster WHERE team_id = %s
+                        """,
+                        (new_team_id, old['team_id']),
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO internal.user_team_lineups (team_id, lineup_index, lineup_name, card_id, card_source, batting_order, updated_at)
+                        SELECT %s, lineup_index, lineup_name, card_id, card_source, batting_order, NOW()
+                          FROM internal.user_team_lineups WHERE team_id = %s
+                        """,
+                        (new_team_id, old['team_id']),
+                    )
+                    cur.execute(
+                        "INSERT INTO internal.league_team (season_id, member_id, team_id) VALUES (%s::uuid, %s, %s)",
+                        (season_id, old['member_id'], new_team_id),
+                    )
+                cur.execute(
+                    """
+                    INSERT INTO internal.league_draft_pick
+                        (season_id, overall_pick, round, member_id, release_card_id, source_card_id, card_data, is_auto, picked_at)
+                    SELECT %s::uuid, overall_pick, round, member_id, release_card_id, source_card_id, card_data, is_auto, picked_at
+                      FROM internal.league_draft_pick WHERE season_id = %s::uuid
+                    """,
+                    (season_id, from_season_id),
+                )
+                cur.execute("UPDATE internal.league SET updated_at = NOW() WHERE league_id = %s::uuid", (league_id,))
+        except psycopg2.errors.UniqueViolation:
+            return None
+        return season_id
 
     def update_league_season_status(self, season_id: str, from_status: str, to_status: str) -> bool:
         """Move a season from `from_status` to `to_status`. False if it wasn't in `from_status`
@@ -11744,7 +12029,7 @@ class PostgresDB:
             return None
         rows = self.execute_query(
             """
-            SELECT s.league_id, s.season_id, s.season_number, s.status AS season_status, lt.member_id
+            SELECT s.league_id, s.season_id, s.season_number, s.status AS season_status, s.job_status, lt.member_id
               FROM internal.league_team lt
               JOIN internal.league_season s ON s.season_id = lt.season_id
              WHERE lt.team_id = %s::uuid
