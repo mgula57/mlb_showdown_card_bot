@@ -558,6 +558,23 @@ const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
     { label: "Outs", minKey: "min_outs", maxKey: "max_outs", step: 1 },
 ];
 
+/** Position filter options, grouped by player sub-type (group headers in the chip-row dropdown) */
+const POSITION_OPTIONS: { value: string; label: string; group: string }[] = [
+    { value: 'C', label: 'CA', group: 'Infield' },
+    { value: '1B', label: '1B', group: 'Infield' },
+    { value: '2B', label: '2B', group: 'Infield' },
+    { value: '3B', label: '3B', group: 'Infield' },
+    { value: 'SS', label: 'SS', group: 'Infield' },
+    { value: 'IF', label: 'IF', group: 'Infield' },
+    { value: 'LF/RF', label: 'LF/RF', group: 'Outfield' },
+    { value: 'CF', label: 'CF', group: 'Outfield' },
+    { value: 'OF', label: 'OF', group: 'Outfield' },
+    { value: 'DH', label: 'DH', group: 'Designated Hitter' },
+    { value: 'STARTER', label: 'SP', group: 'Pitchers' },
+    { value: 'RELIEVER', label: 'RP', group: 'Pitchers' },
+    { value: 'CLOSER', label: 'CL', group: 'Pitchers' },
+];
+
 /** Fielding range filter — matches if ANY of the player's positions meets the rating (OR) */
 const SHOWDOWN_FIELDING_RANGE_FILTERS: RangeDef[] = [
     { label: "Fielding (Any Position)", minKey: "min_fielding", maxKey: "max_fielding", step: 1 },
@@ -1470,9 +1487,26 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             disableSortDirection={isFilterLocked('sort_direction')}
                         />
 
+                        {/* Positions (always exposed; replaces the positions chip) */}
+                        <SetMultiSelect
+                            className="shrink-0"
+                            variant="pill"
+                            prefix={<><span className="@2xl:hidden">Pos:</span><span className="hidden @2xl:inline">Positions:</span></>}
+                            placeholder="All"
+                            options={POSITION_OPTIONS}
+                            selections={filters.positions ?? []}
+                            onChange={(values) => {
+                                setFilters(prev => ({ ...prev, positions: values }));
+                                setFiltersForEditing(prev => ({ ...prev, positions: values }));
+                            }}
+                            disabled={isFilterLocked('positions')}
+                        />
+
                         {/* Selected Filters — locked ones stay visible but can't be removed */}
                         {/* The last element should add lots of padding */}
                         {Object.entries(filtersWithoutSorting)
+                            // Positions has its own always-visible dropdown in this row
+                            .filter(([key]) => key !== 'positions')
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                             .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                             .map(([key, value]) => {
@@ -1936,27 +1970,18 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     disabled={isFilterLocked('player_type')}
                                 />
 
-                                <MultiSelect
-                                    label="Positions"
-                                    options={[
-                                        { value: 'C', label: 'CA' },
-                                        { value: '1B', label: '1B' },
-                                        { value: '2B', label: '2B' },
-                                        { value: '3B', label: '3B' },
-                                        { value: 'SS', label: 'SS' },
-                                        { value: 'LF/RF', label: 'LF/RF' },
-                                        { value: 'CF', label: 'CF' },
-                                        { value: 'IF', label: 'IF' },
-                                        { value: 'OF', label: 'OF' },
-                                        { value: 'DH', label: 'DH' },
-                                        { value: 'STARTER', label: 'SP' },
-                                        { value: 'RELIEVER', label: 'RP' },
-                                        { value: 'CLOSER', label: 'CL' },
-                                    ]}
-                                    selections={filtersForEditing.positions || []}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, positions: values })}
-                                    disabled={isFilterLocked('positions')}
-                                />
+                                {/* Same grouped dropdown as the chip row's Positions picker */}
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-(--text-primary)">Positions</label>
+                                    <SetMultiSelect
+                                        variant="form"
+                                        placeholder="Select..."
+                                        options={POSITION_OPTIONS}
+                                        selections={filtersForEditing.positions ?? []}
+                                        onChange={(values) => setFiltersForEditing(prev => ({ ...prev, positions: values }))}
+                                        disabled={isFilterLocked('positions')}
+                                    />
+                                </div>
 
                                 <MultiSelect
                                     label="Hand"

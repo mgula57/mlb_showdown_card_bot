@@ -4,11 +4,13 @@
  * options be picked. Options show their logo when they have one, otherwise their label; `group`
  * adds a header above each run of options sharing it. An empty selection falls back to the default
  * set (shown via `defaultImage`), or `placeholder` text when there's no default image.
+ * The `pill` variant renders a compact rounded trigger for the chip row (next to the sort button);
+ * the `form` variant matches `MultiSelect`'s trigger (removable tags) for use inside forms/modals.
  */
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { FaCaretDown, FaCheck } from 'react-icons/fa';
+import { FaCaretDown, FaCheck, FaChevronDown, FaTimes } from 'react-icons/fa';
 
 export type SetMultiSelectOption = { value: string; image?: string; label?: string; group?: string };
 
@@ -23,9 +25,16 @@ type SetMultiSelectProps = {
     placeholder?: string;
     className?: string;
     disabled?: boolean;
+    /** `toolbar` (default) matches the search bar controls; `pill` matches the chip row's sort button;
+     * `form` matches `MultiSelect`'s full-width trigger */
+    variant?: 'toolbar' | 'pill' | 'form';
+    /** Bold label shown before the selection (e.g. "Positions:") */
+    prefix?: ReactNode;
 };
 
-export default function SetMultiSelect({ options, selections, onChange, defaultImage, placeholder, className = '', disabled = false }: SetMultiSelectProps) {
+export default function SetMultiSelect({ options, selections, onChange, defaultImage, placeholder, className = '', disabled = false, variant = 'toolbar', prefix }: SetMultiSelectProps) {
+    const isPill = variant === 'pill';
+    const isForm = variant === 'form';
     const [isOpen, setIsOpen] = useState(false);
     const [menuPos, setMenuPos] = useState({ left: 0, top: 0, minWidth: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -63,34 +72,75 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
 
     return (
         <div className={`relative ${className}`}>
-            <button
-                type="button"
-                ref={buttonRef}
-                disabled={disabled}
-                onClick={() => setIsOpen(open => !open)}
-                className="
-                    h-11 px-3
-                    rounded-xl bg-(--background-secondary) border border-form-element
-                    flex items-center cursor-pointer
-                    hover:bg-(--background-secondary-hover)
-                    disabled:opacity-40 disabled:cursor-not-allowed
-                "
-            >
-                {/* Same footprint as the single-select set dropdown: one w-16 logo (first pick) + "+N" for extras */}
-                {(() => {
-                    const shown = selectedOptions[0];
-                    const image = shown?.image ?? defaultImage;
-                    return (
-                        <>
-                            {image
-                                ? <img src={image} alt={shown?.value ?? 'default set'} className="object-contain object-center h-6 w-16 mr-1" />
-                                : <span className="text-xs whitespace-nowrap truncate max-w-28 md:max-w-56 mr-1">{shown ? (shown.label ?? shown.value) : placeholder}</span>}
-                            {selectedOptions.length > 1 && <span className="text-xs text-secondary whitespace-nowrap">+{selectedOptions.length - 1}</span>}
-                        </>
-                    );
-                })()}
-                <FaCaretDown className={`ml-1 opacity-75 ${isOpen ? 'rotate-180' : ''}`} size={16} />
-            </button>
+            {isForm ? (
+                // Mirrors MultiSelect's trigger: full width, removable tags, chevron
+                <button
+                    type="button"
+                    ref={buttonRef}
+                    disabled={disabled}
+                    onClick={() => setIsOpen(open => !open)}
+                    className={`
+                        w-full flex items-center justify-between px-3 py-2 min-h-10
+                        border border-form-element rounded-lg
+                        bg-(--background-primary) text-(--text-primary)
+                        hover:border-(--tertiary) focus:outline-none focus:ring-2 focus:ring-primary/20
+                        ${isOpen ? 'border-primary' : ''}
+                        ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                    `}
+                >
+                    <div className="flex flex-wrap gap-1 flex-1 mr-2">
+                        {selectedOptions.length === 0 ? (
+                            <span className="text-(--tertiary)">{placeholder}</span>
+                        ) : selectedOptions.map(option => (
+                            <span key={option.value} className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-md">
+                                {option.label ?? option.value}
+                                {!disabled && (
+                                    <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); toggle(option.value); }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); toggle(option.value); } }}
+                                        className="ml-1 hover:text-primary-dark"
+                                    >
+                                        <FaTimes className="h-3 w-3" />
+                                    </span>
+                                )}
+                            </span>
+                        ))}
+                    </div>
+                    <FaChevronDown className={`h-4 w-4 shrink-0 transition-transform text-(--text-secondary) ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    ref={buttonRef}
+                    disabled={disabled}
+                    onClick={() => setIsOpen(open => !open)}
+                    className={`
+                        ${isPill ? 'px-2 py-1 rounded-full text-sm' : 'h-11 px-3 rounded-xl'}
+                        bg-(--background-secondary) border border-form-element
+                        flex items-center cursor-pointer
+                        hover:bg-(--background-secondary-hover)
+                        disabled:opacity-40 disabled:cursor-not-allowed
+                    `}
+                >
+                    {prefix && <span className="text-primary font-semibold whitespace-nowrap mr-1">{prefix}</span>}
+                    {/* Same footprint as the single-select set dropdown: one w-16 logo (first pick) + "+N" for extras */}
+                    {(() => {
+                        const shown = selectedOptions[0];
+                        const image = shown?.image ?? defaultImage;
+                        return (
+                            <>
+                                {image
+                                    ? <img src={image} alt={shown?.value ?? 'default set'} className="object-contain object-center h-6 w-16 mr-1" />
+                                    : <span className={`${isPill ? '' : 'text-xs'} whitespace-nowrap truncate max-w-28 md:max-w-56 mr-1`}>{shown ? (shown.label ?? shown.value) : placeholder}</span>}
+                                {selectedOptions.length > 1 && <span className={`${isPill ? '' : 'text-xs'} text-secondary whitespace-nowrap`}>+{selectedOptions.length - 1}</span>}
+                            </>
+                        );
+                    })()}
+                    <FaCaretDown className={`ml-1 opacity-75 ${isOpen ? 'rotate-180' : ''}`} size={isPill ? 12 : 16} />
+                </button>
+            )}
 
             {isOpen && !disabled && createPortal(
                 <div
