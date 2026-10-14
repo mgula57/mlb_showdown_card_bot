@@ -1,8 +1,6 @@
 import faulthandler
 import json
 import os
-import random
-import string
 import sys
 import threading
 import time
@@ -26,6 +24,7 @@ from ..core.simulation.season import Season
 from ..core.simulation.summary import SeasonSummaryBuilder
 from ..core.simulation.takeover import TakeoverOptions
 from .user_settings import optional_user_id, require_auth
+from .utils.join_code import JoinCode
 
 sim_bp = Blueprint('sim', __name__)
 
@@ -732,18 +731,11 @@ def start_open_sim():
 # simulation logic. See `Season._build_season_teams`'s `all_takeovers` loop for how N takeovers in
 # one run were already made to work before this existed.
 
-# EXCLUDES VISUALLY AMBIGUOUS CHARACTERS (0/O, 1/I) SINCE A JOIN CODE IS READ ALOUD/TYPED BY HAND.
-_JOIN_CODE_ALPHABET = ''.join(c for c in string.ascii_uppercase + string.digits if c not in 'O0I1')
-_JOIN_CODE_LENGTH = 6
-
-
-def _generate_unique_join_code(db: PostgresDB, attempts: int = 5) -> str:
-    for _ in range(attempts):
-        code = ''.join(random.choices(_JOIN_CODE_ALPHABET, k=_JOIN_CODE_LENGTH))
-        if db.get_sim_lobby_by_code(code) is None:
-            return code
-    # ASTRONOMICALLY UNLIKELY AT ~30^6 COMBINATIONS - THIS IS A CIRCUIT BREAKER, NOT A REAL PATH.
-    raise _RequestError('Could not generate a join code. Try again.', 500)
+def _generate_unique_join_code(db: PostgresDB) -> str:
+    code = JoinCode.generate(lambda code: db.get_sim_lobby_by_code(code) is not None)
+    if code is None:
+        raise _RequestError('Could not generate a join code. Try again.', 500)
+    return code
 
 
 def _lobby_state_payload(db: PostgresDB, lobby: dict) -> dict:
@@ -804,7 +796,7 @@ def join_sim_lobby(code: str):
     same as browsing a challenge before deciding to take it on."""
     try:
         with PostgresDB() as db:
-            lobby = db.get_sim_lobby_by_code(code.strip().upper())
+            lobby = db.get_sim_lobby_by_code(JoinCode.normalize(code))
             if lobby is None:
                 return jsonify({'error': 'Lobby not found or expired.'}), 404
             return jsonify(_lobby_state_payload(db, lobby)), 200

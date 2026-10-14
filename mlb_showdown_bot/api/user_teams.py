@@ -7,6 +7,7 @@ from ..core.database.postgres_db import PostgresDB
 from ..core.card.team_builder.team import Team, DEFAULT_LINEUP_NAME
 from ..core.card.team_builder.autofill import BUCKET_QUERY_FILTERS, autofill_team, fetch_stratified_candidates
 from ..core.card.team_builder.guided import GuidedDraftPlanner
+from ..core.league.team_guard import LeagueTeamGuard
 from ..core.supabase import SupabaseClientManager, upload_to_supabase
 from .user_settings import require_auth, optional_user_id
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
@@ -169,6 +170,11 @@ def update_team(team_id: str):
         if error:
             return jsonify({'error': error}), 400
         with PostgresDB() as db:
+            league_guard = LeagueTeamGuard.for_team(db, team_id)
+            if league_guard:
+                error = league_guard.update_error(team_id, payload)
+                if error:
+                    return jsonify({'error': error}), 409
             updated = db.update_team(team_id, g.user_id, payload)
             if not updated:
                 return jsonify({'error': 'Team not found or not owned by user'}), 404
@@ -184,6 +190,8 @@ def update_team(team_id: str):
 def delete_team(team_id: str):
     try:
         with PostgresDB() as db:
+            if LeagueTeamGuard.for_team(db, team_id):
+                return jsonify({'error': LeagueTeamGuard.MANAGED_BY_LEAGUE_ERROR}), 409
             deleted = db.delete_team(team_id, g.user_id)
         if not deleted:
             return jsonify({'error': 'Team not found or not owned by user'}), 404
@@ -346,6 +354,8 @@ def autofill_team_route(team_id: str):
                 return jsonify({'error': 'pts_target must be a number'}), 400
 
         with PostgresDB() as db:
+            if LeagueTeamGuard.for_team(db, team_id):
+                return jsonify({'error': LeagueTeamGuard.MANAGED_BY_LEAGUE_ERROR}), 409
             loaded = _load_team_for_draft(db, team_id)
             if loaded is None:
                 return jsonify({'error': 'Team not found or access denied'}), 404
@@ -418,6 +428,8 @@ def guided_round_route(team_id: str):
                 return jsonify({'error': 'pts_target must be a number'}), 400
 
         with PostgresDB() as db:
+            if LeagueTeamGuard.for_team(db, team_id):
+                return jsonify({'error': LeagueTeamGuard.MANAGED_BY_LEAGUE_ERROR}), 409
             loaded = _load_team_for_draft(db, team_id)
             if loaded is None:
                 return jsonify({'error': 'Team not found or access denied'}), 404

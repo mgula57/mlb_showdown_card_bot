@@ -372,6 +372,20 @@ class LeagueDraft:
             ordered = member_ids[:]
             random.Random(seed).shuffle(ordered)
 
+        pool = [DraftCard.from_row(row) for row in db.fetch_league_card_pool(None, league['edition_ids'])]
+        if len(pool) < settings.roster_size * len(members):
+            raise DraftError(
+                f"This league's editions have {len(pool)} cards, but {len(members)} teams of {settings.roster_size} "
+                f"need {settings.roster_size * len(members)}. Add editions or shrink the rosters."
+            )
+        if settings.pts_cap:
+            minimum = LeagueDraft.minimum_points_per_team(pool, settings, len(members))
+            if minimum > settings.pts_cap:
+                raise DraftError(
+                    f"The {settings.pts_cap}-point cap is too low for this card pool: {len(members)} full rosters "
+                    f"need at least {round(minimum)} points each. Raise the cap or add editions."
+                )
+
         members_by_id = {m['member_id']: m for m in members}
         teams = {
             member_id: {
@@ -400,6 +414,19 @@ class LeagueDraft:
         return season_id
 
     @staticmethod
+    def minimum_points_per_team(pool: list[DraftCard], settings: LeagueSettings, team_count: int) -> float:
+        """Rough floor on what the priciest of `team_count` rosters costs if every team drafts as
+        cheaply as possible: teams fill one after another from what's left, so later teams pay
+        for the bargains earlier teams took."""
+        remaining = list(pool)
+        worst = 0.0
+        for _ in range(team_count):
+            cost, used = DraftRoster(settings=settings).cheapest_fill(remaining)
+            worst = max(worst, cost)
+            remaining = [card for card in remaining if card.release_card_id not in used]
+        return worst
+
+    @staticmethod
     def _abbreviation(display_name: str) -> str:
         letters = ''.join(ch for ch in display_name.upper() if ch.isalnum())
         return letters[:3] if len(letters) >= 2 else 'TM'
@@ -421,6 +448,38 @@ class LeagueDraft:
             picks=self.db.get_league_draft_picks(season_id),
             rosters=rosters,
         )
+
+    def state(self, viewer_member_id: Optional[str] = None, upcoming_count: Optional[int] = None) -> dict:
+        """The draft as the draft room shows it: teams, picks, who's on the clock, the next
+        picks, and the viewer's open roster needs."""
+        board = self.board()
+        on_the_clock = board.on_the_clock
+        upcoming = board.order.upcoming(board.next_pick, upcoming_count or len(board.teams) * 2)
+        roster = board.rosters.get(viewer_member_id) if viewer_member_id else None
+        return {
+            'status': self.season.get('status'),
+            'total_picks': board.order.total_picks,
+            'rounds': board.order.rounds,
+            'next_pick': None if board.is_complete else board.next_pick,
+            'current_round': None if board.is_complete else board.order.round_for_pick(board.next_pick),
+            'on_the_clock_member_id': on_the_clock['member_id'] if on_the_clock else None,
+            'upcoming': [
+                {'overall_pick': pick, 'round': board.order.round_for_pick(pick), 'member_id': board.teams[slot]['member_id']}
+                for pick, slot in upcoming
+            ],
+            'teams': board.teams,
+            'picks': board.picks,
+            'my_roster': None if roster is None else {
+                'picks_left': roster.picks_left,
+                'points': roster.points,
+                'open_field_positions': roster.open_field_positions,
+                'open_rotation_roles': roster.open_rotation_roles,
+                'bullpen_count': roster.bullpen_count,
+                'bench_count': roster.bench_count,
+                'hard_needs': roster.hard_needs,
+                'slack': roster.slack,
+            },
+        }
 
     def _pool(self) -> list[DraftCard]:
         rows = self.db.fetch_league_card_pool(self.season['season_id'], self.league['edition_ids'])

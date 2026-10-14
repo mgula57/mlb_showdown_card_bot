@@ -11437,7 +11437,8 @@ class PostgresDB:
         return row
 
     _LEAGUE_UUID_FIELDS = ('league_id', 'edition_ids')
-    _LEAGUE_COLUMNS = "league_id, name, commissioner_user_id, join_code, showdown_set, edition_ids, settings, status, created_at, updated_at"
+    # edition_ids::text[] - psycopg2 doesn't parse uuid[] into a list
+    _LEAGUE_COLUMNS = "league_id, name, commissioner_user_id, join_code, showdown_set, edition_ids::text[] AS edition_ids, settings, status, created_at, updated_at"
 
     def create_league(self, commissioner_user_id: str, commissioner_display_name: str, name: str, join_code: str,
                       showdown_set: str, edition_ids: list[str], settings: dict) -> str:
@@ -11489,7 +11490,7 @@ class PostgresDB:
             return []
         rows = self.execute_query(
             """
-            SELECT l.league_id, l.name, l.commissioner_user_id, l.showdown_set, l.edition_ids, l.settings, l.status,
+            SELECT l.league_id, l.name, l.commissioner_user_id, l.showdown_set, l.edition_ids::text[] AS edition_ids, l.settings, l.status,
                    l.created_at, l.updated_at,
                    (SELECT COUNT(*) FROM internal.league_member mm WHERE mm.league_id = l.league_id) AS member_count,
                    s.season_number AS current_season_number, s.status AS current_season_status
@@ -11559,8 +11560,12 @@ class PostgresDB:
                     raise _LeagueWriteRejected()
                 member_ids = []
                 for user_id, display_name in members:
+                    # clock_timestamp(), not NOW(): members added together keep the order they were given
                     cur.execute(
-                        "INSERT INTO internal.league_member (league_id, user_id, display_name) VALUES (%s, %s, %s) RETURNING member_id",
+                        """
+                        INSERT INTO internal.league_member (league_id, user_id, display_name, joined_at)
+                        VALUES (%s, %s, %s, clock_timestamp()) RETURNING member_id
+                        """,
                         (league_id, user_id, display_name),
                     )
                     member_ids.append(str(cur.fetchone()['member_id']))
@@ -11706,6 +11711,57 @@ class PostgresDB:
         )
         return [self._stringify_uuid_fields(dict(row), ('member_id', 'release_card_id')) for row in rows]
 
+    def get_league_edition_summaries(self, edition_ids: list[str], user_id: str) -> list[dict]:
+        """Lightweight rows for the editions `user_id` may build a league from (published, or
+        their own drafts): name, release, card count, and the showdown sets its cards use."""
+        if not self.connection or not edition_ids:
+            return []
+        rows = self.execute_query(
+            """
+            SELECT e.id::text AS edition_id, e.name, r.name AS release_name, e.is_published,
+                   COUNT(rc.id) AS card_count,
+                   ARRAY_REMOVE(ARRAY_AGG(DISTINCT rc.card_snapshot->>'showdown_set'), NULL) AS showdown_sets
+              FROM internal.release_editions e
+              JOIN internal.releases r ON r.id = e.release_id
+              LEFT JOIN internal.release_cards rc ON rc.edition_id = e.id
+             WHERE e.id = ANY(%s::uuid[]) AND (e.is_published OR r.created_by = %s)
+             GROUP BY e.id, r.name
+            """,
+            (edition_ids, user_id),
+        )
+        return [dict(row) for row in rows]
+
+    def get_profile_username(self, user_id: str) -> str | None:
+        if not self.connection:
+            return None
+        rows = self.execute_query("SELECT username FROM public.profiles WHERE id::text = %s", (user_id,))
+        return rows[0]['username'] if rows else None
+
+    def get_league_team_context(self, team_id: str) -> dict | None:
+        """The league season a `user_teams` row belongs to (league_id, season status, member), or
+        None for an ordinary team."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            """
+            SELECT s.league_id, s.season_id, s.season_number, s.status AS season_status, lt.member_id
+              FROM internal.league_team lt
+              JOIN internal.league_season s ON s.season_id = lt.season_id
+             WHERE lt.team_id = %s::uuid
+            """,
+            (team_id,),
+        )
+        return self._stringify_uuid_fields(dict(rows[0]), ('league_id', 'season_id', 'member_id')) if rows else None
+
+    def get_team_roster_cards(self, team_id: str) -> list[tuple[str, str]]:
+        """`(card_source, card_id)` for every slot on a team's roster."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            "SELECT card_source, card_id FROM internal.user_team_roster WHERE team_id = %s::uuid", (team_id,)
+        )
+        return [(row['card_source'], row['card_id']) for row in rows]
+
     # What the draft logic reads off a release card: the same snapshot fields the card search
     # shows, so draft decisions (bot value, points cap) match what drafters see.
     _LEAGUE_DRAFT_CARD_COLUMNS = """
@@ -11731,9 +11787,10 @@ class PostgresDB:
         )
         return dict(rows[0]) if rows else None
 
-    def fetch_league_card_pool(self, season_id: str, edition_ids: list[str]) -> list[dict]:
+    def fetch_league_card_pool(self, season_id: str | None, edition_ids: list[str]) -> list[dict]:
         """Every card in the league's editions not drafted yet this season, one row per source
-        card (a card in several editions appears once). Draft fields only, no `card_data`."""
+        card (a card in several editions appears once). Draft fields only, no `card_data`.
+        `season_id` None = the whole pool, before any season exists."""
         if not self.connection:
             return []
         rows = self.execute_query(
