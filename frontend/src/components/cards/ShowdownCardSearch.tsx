@@ -19,6 +19,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { type CardDatabaseRecord, fetchCardData, IMAGE_MATCH_TYPE_OPTIONS } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Modal } from "../shared/Modal";
 import { useSiteSettings, showdownSets, imageForSet } from "../shared/SiteSettingsContext";
 import {
@@ -114,6 +115,8 @@ type ShowdownCardSearchProps = {
      * filter. Off by default — currently just the Cards explorer.
      */
     enableSetOverride?: boolean;
+    /** Extra controls rendered in the search bar after the Filter button (e.g. the release edition picker) */
+    toolbarSlot?: React.ReactNode;
 };
 
 // =============================================================================
@@ -248,6 +251,9 @@ export interface FilterSelections {
     // WBC
     wbc_team?: string[];
     pro_league?: string[];
+
+    // Release Builder editions (RELEASE source) — required to search that source
+    release_edition_id?: string[];
 }
 
 /**
@@ -283,6 +289,11 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
                 sort_by: "points",
                 sort_direction: "desc",
             };
+        case CardSource.RELEASE:
+            return {
+                sort_by: "card_number",
+                sort_direction: "asc",
+            };
         default:
             return baseDefaults;
     }
@@ -303,21 +314,22 @@ type FilterAvailability = {
 const WOTC_SET_VALUES = ['2000', '2001', '2002', '2003', '2004', '2005'];
 
 const FILTER_AVAILABILITY: FilterAvailability = {
-    // BOT-specific filters (not available for WOTC)
-    is_multi_team: [CardSource.BOT],
-    include_small_sample_size: [CardSource.BOT],
+    // BOT-specific filters (not available for WOTC). Release edition cards are card_bot snapshots,
+    // so they carry the same columns.
+    is_multi_team: [CardSource.BOT, CardSource.RELEASE],
+    include_small_sample_size: [CardSource.BOT, CardSource.RELEASE],
     image_match_type: [CardSource.BOT],
     
     // Real stats filters - only available for BOT since WOTC cards don't have real stats
-    min_pa: [CardSource.BOT],
-    max_pa: [CardSource.BOT],
-    min_real_ip: [CardSource.BOT],
-    max_real_ip: [CardSource.BOT],
-    awards: [CardSource.BOT],
+    min_pa: [CardSource.BOT, CardSource.RELEASE],
+    max_pa: [CardSource.BOT, CardSource.RELEASE],
+    min_real_ip: [CardSource.BOT, CardSource.RELEASE],
+    max_real_ip: [CardSource.BOT, CardSource.RELEASE],
+    awards: [CardSource.BOT, CardSource.RELEASE],
 
     // Organization/League filtering might not make sense for WOTC
-    organization: [CardSource.BOT],
-    league: [CardSource.BOT],
+    organization: [CardSource.BOT, CardSource.RELEASE],
+    league: [CardSource.BOT, CardSource.RELEASE],
     wbc_team: [CardSource.WBC],
     pro_league: [CardSource.WBC],
 
@@ -328,6 +340,8 @@ const FILTER_AVAILABILITY: FilterAvailability = {
 
     // Errata filtering - only for WOTC
     is_errata: [CardSource.WOTC],
+
+    release_edition_id: [CardSource.RELEASE],
 };
 
 /**
@@ -463,6 +477,13 @@ const WOTC_SPECIFIC_SORT_OPTIONS: SelectOption[] = [
 ];
 
 /**
+ * Release Builder edition sort options
+ */
+const RELEASE_SPECIFIC_SORT_OPTIONS: SelectOption[] = [
+    { value: 'card_number', label: 'Card #', icon: <FaHashtag /> },
+];
+
+/**
  * Get available sort options based on the card source
  */
 const getSortOptions = (source: CardSource): SelectOption[] => {
@@ -483,6 +504,12 @@ const getSortOptions = (source: CardSource): SelectOption[] => {
             return [
                 ...WOTC_SPECIFIC_SORT_OPTIONS,
                 ...baseOptions,
+            ];
+        case CardSource.RELEASE:
+            return [
+                ...RELEASE_SPECIFIC_SORT_OPTIONS,
+                ...baseOptions,
+                ...REAL_STATS_SORT_OPTIONS,
             ];
         case CardSource.CUSTOM:
             // A personal card list — only the fields the backend flattens out of card_result
@@ -628,6 +655,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
     ],
     [CardSource.WBC]: [],
     [CardSource.CUSTOM]: [],
+    [CardSource.RELEASE]: [],
 };
 
 // --------------------------------------------
@@ -654,7 +682,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, toolbarSlot }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -695,9 +723,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const effectiveShowdownSet = (showSetOverride ? showdownSetOverride : null) ?? userShowdownSet;
     const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
     const { session } = useAuth();
-    // Only My Customs needs auth — derived so other sources see a stable `undefined` and don't
-    // treat an unrelated session change (e.g. resolving on mount) as a reason to refetch.
-    const authToken = source === CardSource.CUSTOM ? session?.access_token : undefined;
+    // Only My Customs (and Release cards, where owners also see their draft editions) need auth —
+    // derived so other sources see a stable `undefined` and don't treat an unrelated session
+    // change (e.g. resolving on mount) as a reason to refetch.
+    const authToken = source === CardSource.CUSTOM || source === CardSource.RELEASE ? session?.access_token : undefined;
 
     // Separate search from filters
     const [searchText, setSearchText] = useState('');
@@ -755,13 +784,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         if (source === CardSource.WOTC) {
             groups.push({ label: 'WOTC', options: WOTC_SPECIFIC_SORT_OPTIONS });
         }
+        if (source === CardSource.RELEASE) {
+            groups.push({ label: 'Release', options: RELEASE_SPECIFIC_SORT_OPTIONS });
+        }
         groups.push(
             { label: 'Basic', options: BASE_SORT_OPTIONS },
             { label: 'Trends', options: TREND_SORT_OPTIONS },
             { label: 'Defense', options: DEFENSE_SORT_OPTIONS },
             { label: 'Chart Values', options: CHART_VALUES_SORT_OPTIONS },
         );
-        if (source === CardSource.BOT) {
+        if (source === CardSource.BOT || source === CardSource.RELEASE) {
             groups.push({ label: 'Real Stats', options: REAL_STATS_SORT_OPTIONS });
         }
         return groups;
@@ -781,6 +813,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             : showdownCards),
         [showdownCards, excludeSet]
     );
+
+    /** Release cards open on their stored edition image (as printed) rather than a freshly generated one */
+    const releaseImageOverrides = (card: CardDatabaseRecord | null): CardStyleOverrides | undefined =>
+        card?.release_image_path ? { storagePath: card.release_image_path } : undefined;
+    const sidebarStyleOverrides = useMemo(() => releaseImageOverrides(selectedCardForSidebar), [selectedCardForSidebar]);
+    const modalStyleOverrides = useMemo(() => releaseImageOverrides(selectedCardForModal), [selectedCardForModal]);
 
     /** Initial load with nothing to show yet: render card skeletons instead of the spinner overlay */
     const showSkeletons = isLoading && (!displayedCards || displayedCards.length === 0);
@@ -972,6 +1010,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             return;
         }
 
+        // Release cards are always scoped to picked editions — nothing to search until one is chosen.
+        if (source === CardSource.RELEASE && !filters.release_edition_id?.length) {
+            setShowdownCards([]);
+            setHasMore(false);
+            setWarningMessage("Pick a release edition to browse its cards.");
+            setIsLoading(false);
+            setIsLoadingMore(false);
+            return;
+        }
+
         // Cancel any in-flight request so a filter/search change doesn't have to wait for the
         // previous (possibly slow) fetch to finish before its results apply.
         cardsAbortControllerRef.current?.abort();
@@ -992,8 +1040,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const pageLimit = 50;
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
 
-            // Only include the effective set if filters.showdown_set is not already populated
-            const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
+            // Only include the effective set if filters.showdown_set is not already populated.
+            // Release editions fix their own sets, so the header's set doesn't apply there.
+            const showdownSetFilter = (filters.showdown_set && filters.showdown_set.length > 0) || source === CardSource.RELEASE
                 ? {} 
                 : { showdown_set: effectiveShowdownSet };
 
@@ -1247,6 +1296,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             return `HOF?: ${finalValue}`;
         }
 
+        // Shown by the edition picker in the search bar instead of as a chip
+        if (key === 'release_edition_id') return undefined;
+
         if (key === 'showdown_set') {
             const finalValue = Array.isArray(value) ? value.map(s => s.toUpperCase()).join(', ') : value.toUpperCase();
             return `Set: ${finalValue}`;
@@ -1355,6 +1407,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 defaultImage={userDefaultSetImage}
                             />
                         )}
+
+                        {toolbarSlot}
 
                         {/* Showdown Set Override */}
                         {showSetOverride && (
@@ -1497,7 +1551,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             sourceOverride={CardSource.CUSTOM}
                                         />
                                     )}
-                                    {source === CardSource.BOT && (
+                                    {/* Release edition cards are card_bot snapshots — same record shape as BOT */}
+                                    {(source === CardSource.BOT || source === CardSource.RELEASE) && (
                                         <CardItemFromCardDatabaseRecord
                                             card={cardRecord}
                                             onClick={() => handleRowClick(cardRecord)}
@@ -1580,6 +1635,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             <CardDetail
                                 showdownBotCardData={{ card: selectedCardForSidebar?.card_data } as ShowdownBotCardAPIResponse}
                                 cardId={selectedCardForSidebar?.card_id}
+                                styleOverrides={sidebarStyleOverrides}
                                 hideTrendGraphs={true}
                                 context='explore'
                                 parent="sidebar"
@@ -1615,6 +1671,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     <CardDetail
                         showdownBotCardData={selectedCardForModal ? { card: selectedCardForModal.card_data } as ShowdownBotCardAPIResponse : undefined}
                         cardId={selectedCardForModal?.card_id}
+                        styleOverrides={modalStyleOverrides}
                         hideTrendGraphs={true}
                         context='explore'
                         parent="modal"

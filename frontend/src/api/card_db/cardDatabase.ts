@@ -67,6 +67,14 @@ export type CardDatabaseRecord = {
     edition?: string | null;
     set_number?: string | null;
 
+    // Release Builder edition (RELEASE source only)
+    card_number?: number | null;
+    release_edition_id?: string;
+    release_edition_name?: string;
+    release_name?: string;
+    /** `card_images` storage path of the card's rendered edition image, if one exists */
+    release_image_path?: string | null;
+
     // Points
     points: number;
     points_estimated: number;

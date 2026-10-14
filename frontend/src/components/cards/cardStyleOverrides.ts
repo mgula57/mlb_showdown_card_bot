@@ -13,6 +13,9 @@ export type CardStyleOverrides = {
     style?: Partial<CardStyleSettings>;
     /** Set number printed on the card. `null` clears it; omit to keep the card's own. */
     setNumber?: string | null;
+    /** Already-rendered image of the card with these overrides (a `card_images` storage path, e.g. a
+     * release edition's stored render) — shown as-is instead of generating a fresh image. */
+    storagePath?: string | null;
 };
 
 /** Custom Card Builder form field -> `card.image` field, mirroring the backend's `image_` prefix strip.
@@ -32,9 +35,10 @@ const IMAGE_FIELD_CONVERTERS: { [K in Exclude<keyof CardStyleSettings, 'disable_
     hide_team_logo: ['hide_team_logo', v => v],
 };
 
-/** Applies style overrides to a card and clears its rendered image so a fresh one is generated. */
+/** Applies style overrides to a card and clears its rendered image so a fresh one is generated
+ * (or swaps in `storagePath` when the styled image already exists). */
 export function applyCardStyleOverrides(card: ShowdownBotCard, overrides: CardStyleOverrides): ShowdownBotCard {
-    const { style = {}, setNumber } = overrides;
+    const { style = {}, setNumber, storagePath } = overrides;
     const image: Record<string, unknown> = { ...card.image };
     for (const [key, [imageKey, convert]] of Object.entries(IMAGE_FIELD_CONVERTERS)) {
         const value = style[key as keyof CardStyleSettings];
@@ -46,7 +50,7 @@ export function applyCardStyleOverrides(card: ShowdownBotCard, overrides: CardSt
         special_edition: 'NONE',
         output_file_name: null,
         output_folder_path: null,
-        storage_path: null,
+        storage_path: storagePath ?? null,
         thumbnail_storage_path: null,
     });
 

@@ -14,6 +14,8 @@ export const CardSource = {
     WBC: 'WBC',
     /** User's own custom-generated cards (internal.log_custom_card) */
     CUSTOM: 'CUSTOM',
+    /** Cards in Release Builder editions (internal.release_cards snapshots) */
+    RELEASE: 'RELEASE',
 } as const;
 
 /**
@@ -34,6 +36,7 @@ export const CardSourceLabels = {
     [CardSource.WOTC]: 'WOTC Cards',
     [CardSource.WBC]: 'WBC Cards',
     [CardSource.CUSTOM]: 'Customs',
+    [CardSource.RELEASE]: 'Release Cards',
 } as const;
 
 /**

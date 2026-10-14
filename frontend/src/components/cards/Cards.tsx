@@ -8,8 +8,10 @@
 import { useState } from "react";
 import * as Tabs from '@radix-ui/react-tabs';
 import ShowdownBotSearch from "./ShowdownCardSearch";
+import ReleaseCardSearch from "./ReleaseCardSearch";
 import { CardSource, isValidCardSource } from '../../types/cardSource';
 import { FaRobot, FaHatWizard } from "react-icons/fa6";
+import { FaLayerGroup } from "react-icons/fa";
 import { radixTabTriggerClass } from "../shared/tabStyles";
 
 const TAB_TRIGGER_CLASS = radixTabTriggerClass();
@@ -55,6 +57,10 @@ export default function Cards() {
                     <FaHatWizard />
                     WOTC
                 </Tabs.Trigger>
+                <Tabs.Trigger value={CardSource.RELEASE} className={TAB_TRIGGER_CLASS}>
+                    <FaLayerGroup />
+                    Releases
+                </Tabs.Trigger>
                 {/* "My Customs" tab hidden for now — coming soon */}
             </Tabs.List>
 
@@ -75,6 +81,15 @@ export default function Cards() {
                     forceMount
                 >
                     <ShowdownBotSearch source={CardSource.WOTC} enableSetSwitcher />
+                </Tabs.Content>
+            )}
+            {visitedTabs.has(CardSource.RELEASE) && (
+                <Tabs.Content
+                    value={CardSource.RELEASE}
+                    className="focus:outline-none data-[state=inactive]:hidden"
+                    forceMount
+                >
+                    <ReleaseCardSearch />
                 </Tabs.Content>
             )}
         </Tabs.Root>

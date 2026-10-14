@@ -904,6 +904,8 @@ class PostgresDB:
         table = self._CARD_LIST_TABLES.get(source)
         if table:
             return sql.Identifier(table), []
+        if source == 'release':
+            return self._release_card_list_from_clause(filters, user_id)
         if source != 'custom':
             return None
 
@@ -939,6 +941,50 @@ class PostgresDB:
                 ({scope_clause})
         ) sub""").format(scope_clause=scope_clause)
         return from_clause, ([] if is_custom_id_lookup else [user_id])
+
+    def _release_card_list_from_clause(self, filters: dict, user_id: Optional[str]) -> Optional[tuple[sql.Composable, list]]:
+        """FROM target for `source: 'release'` - the cards of the editions in `release_edition_id`
+        (popped from `filters`), limited to published editions plus `user_id`'s own drafts. None when
+        no edition is given, so a release search never scans every release.
+
+        Each card's `card_snapshot` is a serialized card_bot row, so `jsonb_populate_record` against the
+        card_bot row type rebuilds exactly the columns the generic filter/sort logic expects. `id` is the
+        release card's own id (the same card can sit in several editions); `card_id` still points at the
+        live card for detail lookups, `set_number` carries the edition's card number, and
+        `release_image_path` is the card's rendered edition image, if one exists.
+        """
+        edition_ids = filters.pop('release_edition_id', None) or []
+        if isinstance(edition_ids, str):
+            edition_ids = [edition_ids]
+        edition_ids = [str(edition_id) for edition_id in edition_ids if edition_id]
+        if not edition_ids:
+            return None
+
+        from_clause = sql.SQL("""(
+            SELECT
+                card.*,
+                rc.card_number,
+                rc.tags AS release_tags,
+                e.id::text AS release_edition_id,
+                e.name AS release_edition_name,
+                r.name AS release_name,
+                i.storage_path AS release_image_path
+            FROM internal.release_cards rc
+            JOIN internal.release_editions e ON e.id = rc.edition_id
+            JOIN internal.releases r ON r.id = e.release_id
+            -- The edition's stored render (may be stale vs. the current edition style, same as the Images step shows)
+            LEFT JOIN internal.release_card_images i ON i.edition_id = rc.edition_id AND i.source_card_id = rc.source_card_id
+            -- LATERAL so the record is built once per card; `(jsonb_populate_record(...)).*` in the
+            -- select list re-evaluates the function for every one of card_bot's ~90 columns.
+            CROSS JOIN LATERAL jsonb_populate_record(
+                NULL::card_bot,
+                rc.card_snapshot || jsonb_build_object('id', rc.id::text, 'set_number', rc.card_number::text)
+            ) AS card
+            WHERE
+                e.id::text = ANY(%s) AND
+                (e.is_published OR r.created_by = %s)
+        ) sub""")
+        return from_clause, [edition_ids, user_id]
 
     def _card_list_filter_clauses(self, source: str, filters: dict) -> tuple[list[sql.Composable], list]:
         """WHERE clauses (AND-ed by the caller) and their bound values for a card-list `filters`
@@ -1202,7 +1248,7 @@ class PostgresDB:
         """Fetch all card data from the database with support for lists and min/max filtering.
 
         Args:
-          filters: Query filters. `source` picks the table (BOT / WOTC / WBC / CUSTOM), `sort_by`,
+          filters: Query filters. `source` picks the table (BOT / WOTC / WBC / CUSTOM / RELEASE), `sort_by`,
             `sort_direction`, `page` and `limit` drive ordering + pagination, and everything else
             becomes a WHERE clause - see `_card_list_filter_clauses`. Custom-card ownership scoping
             is described on `_card_list_from_clause`.

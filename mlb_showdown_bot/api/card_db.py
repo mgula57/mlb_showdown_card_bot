@@ -34,13 +34,14 @@ def fetch_card_list():
     try:
         payload = request.get_json() or {}
         user_id = optional_user_id()
-        # Custom-card searches are scoped to the requester and must never be cached: the cache
-        # key is just the filter payload, which doesn't encode identity, so caching here would
-        # leak one user's private cards to the next requester with the same filters.
-        is_custom_source = str(payload.get('source', 'BOT')).upper() == 'CUSTOM'
+        # Custom-card and release searches are scoped to the requester and must never be cached: the
+        # cache key is just the filter payload, which doesn't encode identity, so caching here would
+        # leak one user's private cards (or draft release editions) to the next requester with the
+        # same filters. Release editions are also edited in place, so a cached page would go stale.
+        is_uncached_source = str(payload.get('source', 'BOT')).upper() in ('CUSTOM', 'RELEASE')
         cache_key = json.dumps(payload, sort_keys=True)
 
-        if not is_custom_source:
+        if not is_uncached_source:
             cached_result = _card_list_cache.get(cache_key)
             if cached_result is not None:
                 print("Serving card list from cache")
@@ -50,7 +51,7 @@ def fetch_card_list():
             card_data = db.fetch_card_list(filters=payload, user_id=user_id)
             db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=user_id)
 
-        if not is_custom_source:
+        if not is_uncached_source:
             _card_list_cache.set(cache_key, card_data)
         return jsonify(card_data)
 

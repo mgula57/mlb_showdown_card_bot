@@ -426,7 +426,7 @@ export const CardItem = ({
                             <FaWandMagicSparkles className="inline-block w-3 h-3" title="Custom Card" />
                         )}
                         {cardSetNumber && (
-                            <span className="font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
+                            <span className="font-mono font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
                         )}
                         {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
                             <img 

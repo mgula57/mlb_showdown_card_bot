@@ -13,7 +13,7 @@ import { useState, useEffect, useRef, useMemo, memo, type CSSProperties } from '
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { FaPlus, FaWandMagicSparkles } from 'react-icons/fa6';
-import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
+import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
@@ -84,7 +84,8 @@ type CardDetailProps = {
      * currently displayed card, not any persisted preference. */
     enableSetSwitcher?: boolean;
     /** Renders the card with this styling instead of its own (e.g. a release edition's style and
-     * set number), generating a fresh image. Applies to both `showdownBotCardData` and `cardId` cards. */
+     * set number), generating a fresh image unless `storagePath` supplies the already-rendered one.
+     * Applies to both `showdownBotCardData` and `cardId` cards. */
     styleOverrides?: CardStyleOverrides;
 };
 
@@ -136,6 +137,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [showdownBotCardDataProp, styleOverrides]
     );
+    /** True when a card has no image to show yet. A stored override image counts as one — the card
+     * already looks the way the overrides describe, so there's nothing to generate. */
+    const isMissingImage = (card: ShowdownBotCard | null | undefined) =>
+        !!card && !card.image.output_file_name && !styleOverrides?.storagePath;
 
 
     const { session } = useAuth();
@@ -228,8 +233,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
                 // Load image if necessary
                 console.log("Image Output Filename:", showdownBotCardData.card);
-                const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
-                if (isDataWithoutImage && !isGeneratingImage) {
+                if (isMissingImage(showdownBotCardData.card) && !isGeneratingImage) {
                     console.log("Generating image for new prop data...");
                     handleGenerateImage(showdownBotCardData);
                 }
@@ -252,7 +256,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             // Same card, new styling: restyle the already-fetched card and regenerate its image
             const cardResponse = withStyleOverrides(fetchedCardRef.current);
             setInternalCardData(cardResponse);
-            if (cardResponse?.card) handleGenerateImage(cardResponse);
+            if (isMissingImage(cardResponse?.card) && cardResponse) handleGenerateImage(cardResponse);
             return;
         }
         if (cardId && cardId !== handledCardIdPropRef.current) {
@@ -268,8 +272,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
                         // Show chart data immediately; the image (if missing) fills in afterwards
                         setInternalCardData(cardResponse);
-                        const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
-                        if (isDataWithoutImage && !isGeneratingImage) {
+                        if (isMissingImage(cardResponse.card) && !isGeneratingImage) {
                             handleGenerateImage(cardResponse);
                         }
 
