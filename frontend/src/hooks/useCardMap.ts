@@ -45,14 +45,18 @@ export function useCardMap(slots: CardSlotRef[], token?: string | null) {
         setLoading(true);
         (async () => {
             try {
+                const sources = [...bySource];
                 const results = await Promise.all(
-                    [...bySource].map(([src, ids]) => {
+                    sources.map(([src, ids]) => {
                         const key = src === CardSource.BOT ? 'card_id' : 'id';
                         return fetchCardData(src, { [key]: ids, limit: ids.length }, token);
                     }),
                 );
                 if (cancelled) return;
-                const found = Object.fromEntries(results.flat().map(c => [c.card_id, c]));
+                // A release card's roster slot holds its release card `id`; `card_id` is the archive card behind it
+                const found = Object.fromEntries(results.flatMap((cards, i) =>
+                    cards.map(c => [sources[i][0] === CardSource.RELEASE ? c.id : c.card_id, c]),
+                ));
                 // Mark unfound IDs as null to prevent re-fetch on next render
                 const entries = Object.fromEntries(
                     [...toFetch.keys()].map(id => [id, found[id] ?? null]),

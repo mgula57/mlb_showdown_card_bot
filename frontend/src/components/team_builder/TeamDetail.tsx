@@ -32,7 +32,7 @@ import {
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
     FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
-    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh, FaCompass
+    FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh, FaCompass, FaPeopleGroup
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
@@ -60,6 +60,7 @@ const PICK_SOURCE_META: Record<PickSource, { label: string; icon: IconType; clas
     AUTOFILL: { label: 'Autofill', icon: FaWandMagicSparkles, className: 'bg-violet-500/15 text-violet-600 dark:text-violet-300' },
     IMPORTED: { label: 'Imported', icon: FaFileImport,        className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
     GUIDED:   { label: 'Guided',   icon: FaCompass,           className: 'bg-amber-500/15 text-amber-600 dark:text-amber-300' },
+    DRAFT:    { label: 'Drafted',  icon: FaPeopleGroup,       className: 'bg-rose-500/15 text-rose-600 dark:text-rose-300' },
 };
 
 /** Draft panel tab value for Guided Draft — sits alongside the card-source tabs (BOT/WOTC/...). */

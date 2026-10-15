@@ -33,7 +33,7 @@ import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import { FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
 import CardBuildIcon from "../customs/CardBuildIcon";
-import { FaPeopleGroup, FaLayerGroup } from "react-icons/fa6";
+import { FaPeopleGroup, FaLayerGroup, FaTrophy } from "react-icons/fa6";
 import { markNavItemSeen, useNavItemIsNew } from "../../hooks/useSeenNavItems";
 // import { FaDice } from "react-icons/fa6"; // re-add with the Simulate nav item below
 
@@ -163,6 +163,12 @@ export const sideMenuItems: SideMenuItemType[] = [
     //     path: "/simulate",
     //     isNew: true
     // },
+    {
+        text: "Leagues",
+        icon: FaTrophy,      // Trophy icon representing a league championship
+        path: "/leagues",
+        isNew: true
+    },
     {
         text: "Release Builder", // TODO: Update name once ready for public release
         icon: FaLayerGroup,      // Box icon representing a packaged card release/set

@@ -949,8 +949,9 @@ class PostgresDB:
 
     def _release_card_list_from_clause(self, filters: dict, user_id: Optional[str]) -> Optional[tuple[sql.Composable, list]]:
         """FROM target for `source: 'release'` - the cards of the editions in `release_edition_id`
-        (popped from `filters`), limited to published editions plus `user_id`'s own drafts. None when
-        no edition is given, so a release search never scans every release.
+        (popped from `filters`), limited to published editions plus `user_id`'s own drafts, or a
+        direct lookup by release card `id`. None when neither is given, so a release search never
+        scans every release.
 
         Each card's `card_snapshot` is a serialized card_bot row, so `jsonb_populate_record` against the
         card_bot row type rebuilds exactly the columns the generic filter/sort logic expects. `id` is the
@@ -962,8 +963,20 @@ class PostgresDB:
         if isinstance(edition_ids, str):
             edition_ids = [edition_ids]
         edition_ids = [str(edition_id) for edition_id in edition_ids if edition_id]
-        if not edition_ids:
+        # A direct lookup by release card id (hydrating cards already on a roster, e.g. a league
+        # team's drafted cards) skips the edition scope - same trust model as a custom-card id
+        # lookup in `_card_list_from_clause`.
+        lookup_ids = filters.get('id')
+        if isinstance(lookup_ids, str):
+            lookup_ids = [lookup_ids]
+        if not edition_ids and not lookup_ids:
             return None
+        if edition_ids:
+            scope_clause = sql.SQL("e.id::text = ANY(%s) AND (e.is_published OR r.created_by = %s)")
+            scope_values = [edition_ids, user_id]
+        else:
+            scope_clause = sql.SQL("rc.id::text = ANY(%s)")
+            scope_values = [[str(i) for i in lookup_ids]]
 
         from_clause = sql.SQL("""(
             SELECT
@@ -985,11 +998,9 @@ class PostgresDB:
                 NULL::card_bot,
                 rc.card_snapshot || jsonb_build_object('id', rc.id::text, 'set_number', rc.card_number::text)
             ) AS card
-            WHERE
-                e.id::text = ANY(%s) AND
-                (e.is_published OR r.created_by = %s)
-        ) sub""")
-        return from_clause, [edition_ids, user_id]
+            WHERE {scope_clause}
+        ) sub""").format(scope_clause=scope_clause)
+        return from_clause, scope_values
 
     def _card_list_filter_clauses(self, source: str, filters: dict) -> tuple[list[sql.Composable], list]:
         """WHERE clauses (AND-ed by the caller) and their bound values for a card-list `filters`
@@ -5700,18 +5711,18 @@ class PostgresDB:
                         'roster_position', r.roster_position,
                         'draft_order',     r.draft_order,
                         'pick_source',     r.pick_source,
-                        'points',          COALESCE(cb.points, cw.points),
-                        'command',         COALESCE(cb.command, cw.command),
-                        'outs',            COALESCE(cb.outs, cw.outs),
-                        'speed',           COALESCE(cb.speed, cw.speed),
-                        'player_type',     COALESCE(cb.player_type, cw.player_type),
-                        'onbase_perc',     COALESCE(cb.real_onbase_perc, cw.real_onbase_perc),
-                        'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc),
-                        'team',            COALESCE(cb.team, cw.team),
-                        'hand',            COALESCE(cb.hand, cw.hand),
-                        'year',            COALESCE(cb.year, cw.year),
-                        'positions_and_defense', COALESCE(cb.positions_and_defense, cw.positions_and_defense),
-                        'chart_ranges',    COALESCE(cb.chart_ranges, cw.chart_ranges)
+                        'points',          COALESCE(cb.points, cw.points, crl.points),
+                        'command',         COALESCE(cb.command, cw.command, crl.command),
+                        'outs',            COALESCE(cb.outs, cw.outs, crl.outs),
+                        'speed',           COALESCE(cb.speed, cw.speed, crl.speed),
+                        'player_type',     COALESCE(cb.player_type, cw.player_type, crl.player_type),
+                        'onbase_perc',     COALESCE(cb.real_onbase_perc, cw.real_onbase_perc, crl.real_onbase_perc),
+                        'slugging_perc',   COALESCE(cb.real_slugging_perc, cw.real_slugging_perc, crl.real_slugging_perc),
+                        'team',            COALESCE(cb.team, cw.team, crl.team),
+                        'hand',            COALESCE(cb.hand, cw.hand, crl.hand),
+                        'year',            COALESCE(cb.year, cw.year, crl.year),
+                        'positions_and_defense', COALESCE(cb.positions_and_defense, cw.positions_and_defense, crl.positions_and_defense),
+                        'chart_ranges',    COALESCE(cb.chart_ranges, cw.chart_ranges, crl.chart_ranges)
                     ) ORDER BY r.sort_order, r.id
                 ) FILTER (WHERE r.card_id IS NOT NULL),
                 '[]'::json
@@ -5719,8 +5730,8 @@ class PostgresDB:
             COALESCE(SUM(
                 CASE
                     WHEN r.roster_position = 'BE'
-                    THEN COALESCE(cb.points, cw.points, 0) * t.bench_pts_multiplier
-                    ELSE COALESCE(cb.points, cw.points, 0)
+                    THEN COALESCE(cb.points, cw.points, crl.points, 0) * t.bench_pts_multiplier
+                    ELSE COALESCE(cb.points, cw.points, crl.points, 0)
                 END
             ), 0)::int AS total_points,
             COALESCE(MAX(ul.lineups::text)::json, '[]'::json) AS lineups
@@ -5736,6 +5747,17 @@ class PostgresDB:
                    positions_and_defense, chart_ranges
             FROM card_wotc WHERE card_id = r.card_id LIMIT 1
         ) cw ON r.card_source = 'WOTC'
+        -- A LEAGUE TEAM'S DRAFTED RELEASE CARDS: THE SAME FIELDS, READ OFF THE EDITION'S CARD SNAPSHOT
+        LEFT JOIN LATERAL (
+            SELECT (rc.card_snapshot->>'points')::numeric AS points, (rc.card_snapshot->>'command')::numeric AS command,
+                   (rc.card_snapshot->>'outs')::numeric AS outs, (rc.card_snapshot->>'speed')::numeric AS speed,
+                   rc.card_snapshot->>'player_type' AS player_type,
+                   (rc.card_snapshot->>'real_onbase_perc')::numeric AS real_onbase_perc,
+                   (rc.card_snapshot->>'real_slugging_perc')::numeric AS real_slugging_perc,
+                   rc.card_snapshot->>'team' AS team, rc.card_snapshot->>'hand' AS hand, rc.card_snapshot->>'year' AS year,
+                   rc.card_snapshot->'positions_and_defense' AS positions_and_defense, rc.card_snapshot->'chart_ranges' AS chart_ranges
+            FROM internal.release_cards rc WHERE rc.id::text = r.card_id
+        ) crl ON r.card_source = 'RELEASE'
         LEFT JOIN LATERAL (
             SELECT json_agg(g.lineup ORDER BY g.lineup_index) AS lineups
             FROM (
@@ -11977,8 +11999,9 @@ class PostgresDB:
         return [self._stringify_uuid_fields(dict(row), ('season_id', 'member_id', 'team_id')) for row in rows]
 
     def get_league_draft_picks(self, season_id: str, include_card_data: bool = False) -> list[dict]:
-        """A season's picks in order. Without `include_card_data`, each pick carries only the card
-        fields the draft board shows, not the full frozen card."""
+        """A season's picks in order, each with the roster position its card holds now. Without
+        `include_card_data`, each pick carries only the card fields the draft board shows, not the
+        full frozen card."""
         if not self.connection:
             return []
         card_columns = "p.card_data" if include_card_data else """
@@ -11987,8 +12010,12 @@ class PostgresDB:
                    p.card_data->'positions_and_defense' AS positions_and_defense"""
         rows = self.execute_query(
             f"""
-            SELECT p.overall_pick, p.round, p.member_id, p.release_card_id, p.source_card_id, p.is_auto, p.picked_at, {card_columns}
+            SELECT p.overall_pick, p.round, p.member_id, p.release_card_id, p.source_card_id, p.is_auto, p.picked_at,
+                   r.roster_position, {card_columns}
               FROM internal.league_draft_pick p
+              -- WHERE THE CARD SITS ON ITS TEAM NOW (THE OWNER MAY HAVE MOVED IT SINCE THE PICK)
+              LEFT JOIN internal.league_team lt ON lt.season_id = p.season_id AND lt.member_id = p.member_id
+              LEFT JOIN internal.user_team_roster r ON r.team_id = lt.team_id AND r.card_id = p.release_card_id::text
              WHERE p.season_id = %s::uuid
              ORDER BY p.overall_pick ASC
             """,

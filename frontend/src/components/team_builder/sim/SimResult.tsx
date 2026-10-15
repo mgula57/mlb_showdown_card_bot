@@ -52,9 +52,13 @@ type Props = {
     /** Called when the user switches focus club via the header dropdown. The dropdown only
      *  renders for an open sim (`season_games` populated), so this is otherwise unused. */
     onFocusChange?: (abbr: string) => void;
+    /** Set while the season is still being played (a league season between sim chunks): shown in
+     *  place of the final outcome ("Won the World Series", "Missed the playoffs"), which isn't
+     *  known yet. */
+    inProgressLabel?: string;
 };
 
-export function SimResult({ summary, challengeResult, challengeStanding, onOpenChallengeLeaderboard, onRunAgain, onTryAgain, focusAbbr, onFocusChange }: Props) {
+export function SimResult({ summary, challengeResult, challengeStanding, onOpenChallengeLeaderboard, onRunAgain, onTryAgain, focusAbbr, onFocusChange, inProgressLabel }: Props) {
     const identityFor = useIdentity(summary);
     const isOpenSim = (summary.season_games?.length ?? 0) > 0;
     const isResumed = Object.keys(summary.seeded_records ?? {}).length > 0;
@@ -136,7 +140,9 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
     // CALLS WOULD BREAK THE RULES OF HOOKS THE MOMENT IT DID.
     if (!team) return null;
 
-    const outcome = team.is_champion
+    const outcome = inProgressLabel
+        ? inProgressLabel
+        : team.is_champion
         ? 'Won the World Series'
         : postseasonExit
             ? `Lost ${postseasonExit.roundLabel.replace('NL ', '').replace('AL ', ' ')} to ${postseasonExit.opponentAbbr}`
@@ -144,7 +150,9 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 ? 'Made the playoffs'
                 : 'Missed the playoffs';
 
-    const outcomeColor = (team.is_champion || challengeResult === 'passed')
+    const outcomeColor = inProgressLabel
+        ? '--warning'
+        : (team.is_champion || challengeResult === 'passed')
         ? '--success'
         : team.made_playoffs
             ? '--warning'

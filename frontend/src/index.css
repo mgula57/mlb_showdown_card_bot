@@ -254,6 +254,16 @@
     animation: slideOutToRight 0.3s ease-in forwards;
 }
 
+/* League Big Board: the newest pick's card flashes the accent color once when it lands */
+@keyframes league-new-pick {
+    0%, 60% { border-color: var(--secondary); background-color: color-mix(in srgb, var(--secondary) 22%, transparent); }
+    100% { border-color: var(--divider); background-color: var(--background-secondary); }
+}
+
+.league-new-pick {
+    animation: league-new-pick 4s ease-out;
+}
+
 @keyframes card-glow-pulse {
     0%, 100% {
         box-shadow:
