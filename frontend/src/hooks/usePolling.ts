@@ -5,7 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * last good result on screen while each refresh is in flight so polled views never flash a
  * loading state. A response that lands after a newer request started is dropped.
  *
- * `deps` restarts the cycle (and clears the data) when what's being loaded changes.
+ * `deps` restarts the cycle (and clears the data) when what's being loaded changes. Leave out
+ * inputs that change without changing *what* loads - notably the auth token, which Supabase
+ * renews hourly: `load` is always called fresh, so the next request picks the new token up
+ * without blanking the screen.
  */
 export function usePolling<T>(load: () => Promise<T>, intervalMs: number | null, deps: unknown[]) {
     const [data, setData] = useState<T | null>(null);

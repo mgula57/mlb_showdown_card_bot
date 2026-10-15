@@ -5,8 +5,8 @@ import { Modal } from '../../shared/Modal';
 import { Tabs } from '../../shared/Tabs';
 import { CardSource } from '../../../types/cardSource';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
-import { fetchDraft, makeDraftPick, type DraftPayload, type League } from '../../../api/leagues';
-import { usePolling } from '../../../hooks/usePolling';
+import { makeDraftPick, type League } from '../../../api/leagues';
+import { useLeagueDraft } from '../../../hooks/useLeagueDraft';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, errorMessage } from '../leagueUi';
 import { DraftBoard, DraftBoardSkeleton } from './DraftBoard';
@@ -15,7 +15,6 @@ import { DraftHistory } from './DraftHistory';
 import { DraftTeamPanel } from './DraftTeamPanel';
 import { draftView } from './draftView';
 
-const POLL_MS = 2000;
 const LOCKED_FILTERS = ['release_edition_id'];
 
 type MobileTab = 'board' | 'team' | 'history';
@@ -48,15 +47,11 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     const [pickError, setPickError] = useState<string | null>(null);
     const [isLive, setIsLive] = useState(true);
 
-    const { data, setData, error } = usePolling<DraftPayload>(
-        () => fetchDraft(token, league.league_id, seasonNumber),
-        isLive ? POLL_MS : null,
-        [league.league_id, seasonNumber, token],
-    );
+    const { data, setData, error } = useLeagueDraft(token, league.league_id, seasonNumber, isLive);
     const draft = data?.draft ?? null;
     const view = useMemo(() => (draft ? draftView(draft, myMemberId) : null), [draft, myMemberId]);
 
-    // Stop polling once the draft is done, and hand off to season setup
+    // Stop refreshing once the draft is done, and hand off to season setup
     const isComplete = !!view?.isComplete;
     useEffect(() => {
         if (!isComplete) return;
@@ -75,7 +70,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
             setConfirmCard(null);
         } catch (err) {
             setPickError(errorMessage(err));
-            // A 409 means the board moved - the next poll brings it up to date
+            // A 409 means the board moved - the Realtime ping for that pick brings it up to date
         } finally {
             setPicking(null);
         }

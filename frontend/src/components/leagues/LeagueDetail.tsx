@@ -27,7 +27,7 @@ type Props = {
 
 /** One league: header, then Members / Draft / Season / History tabs. */
 export function LeagueDetail({ leagueId, tab, pastSeasonNumber, token, userId, onNavigate, onBack }: Props) {
-    const { data: state, setData, error, refresh } = usePolling<LeagueState>(() => fetchLeague(token, leagueId), POLL_MS, [leagueId, token]);
+    const { data: state, setData, error, refresh } = usePolling<LeagueState>(() => fetchLeague(token, leagueId), POLL_MS, [leagueId]);
     const base = `/leagues/${leagueId}`;
 
     if (!state) {

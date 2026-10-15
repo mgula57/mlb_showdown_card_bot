@@ -287,6 +287,10 @@ export const startDraft = (token: string, leagueId: string, seasonNumber: number
 export const fetchDraft = (token: string, leagueId: string, seasonNumber: number) =>
     request<DraftPayload>(`${seasonPath(leagueId, seasonNumber)}/draft`, token);
 
+/** Realtime channel pinged on every change to a season's draft. Matches `RealtimeBroadcaster.league_draft_topic`. */
+export const leagueDraftTopic = (leagueId: string, seasonNumber: number) => `league-draft:${leagueId}:${seasonNumber}`;
+export const DRAFT_CHANGED_EVENT = 'draft_changed';
+
 /** Draft `releaseCardId`, or let the bot pick (`null`) - the commissioner's way past a stalled seat. */
 export const makeDraftPick = (token: string, leagueId: string, seasonNumber: number, releaseCardId: string | null) =>
     request<DraftPayload>(`${seasonPath(leagueId, seasonNumber)}/draft/pick`, token, {

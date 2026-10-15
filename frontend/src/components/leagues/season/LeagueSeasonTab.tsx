@@ -52,7 +52,7 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
     const { data, setData, error, refresh } = usePolling<SeasonPayload>(
         () => fetchSeason(token, league.league_id, seasonNumber),
         readOnly ? null : isRunning ? RUNNING_POLL_MS : IDLE_POLL_MS,
-        [league.league_id, seasonNumber, token],
+        [league.league_id, seasonNumber],
     );
     const season = data?.season ?? null;
     const teams = data?.teams ?? [];

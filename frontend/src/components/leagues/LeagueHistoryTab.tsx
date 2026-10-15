@@ -12,7 +12,7 @@ type Props = {
 
 /** Every season, newest first: its champion and award winners. Opens a season's full results. */
 export function LeagueHistoryTab({ leagueId, token, onOpenSeason }: Props) {
-    const { data: seasons, error } = usePolling<LeagueHistoryEntry[]>(() => fetchLeagueHistory(token, leagueId), null, [leagueId, token]);
+    const { data: seasons, error } = usePolling<LeagueHistoryEntry[]>(() => fetchLeagueHistory(token, leagueId), null, [leagueId]);
 
     if (error) return <div className={ERROR_BOX_CLASS}>{error}</div>;
     if (!seasons) {

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FaCompress, FaExpand, FaXmark } from 'react-icons/fa6';
 import { TeamChip } from '../../shared/TeamChip';
-import { fetchDraft, fetchLeague, type DraftPayload, type LeagueState } from '../../../api/leagues';
-import { usePolling } from '../../../hooks/usePolling';
+import { fetchLeague, type LeagueState } from '../../../api/leagues';
+import { useLeagueDraft } from '../../../hooks/useLeagueDraft';
 import { leagueTeamIdentity } from '../leagueUi';
 import { DraftBoard } from './DraftBoard';
 import { draftView } from './draftView';
 
-const POLL_MS = 2000;
 // ROUNDS SHOWN AT ONCE - A WINDOW AROUND THE CURRENT ROUND SO THE BOARD NEVER SCROLLS ON A TV
 const VISIBLE_ROUNDS = 6;
 const CONTROLS_HIDE_MS = 3000;
@@ -20,7 +19,7 @@ type Props = {
 
 /**
  * The draft on a TV: full screen, dark, read-only. A big on-the-clock banner and the latest pick
- * over a window of the board around the current round. Polls like the draft room; the only
+ * over a window of the board around the current round. Updates live like the draft room; the only
  * controls (full screen, exit) fade out when the mouse is still.
  */
 export function DraftBigBoard({ leagueId, token, onExit }: Props) {
@@ -35,11 +34,7 @@ export function DraftBigBoard({ leagueId, token, onExit }: Props) {
 
     // THE BOARD SHOWS THE LEAGUE'S CURRENT SEASON'S DRAFT
     const seasonNumber = league?.season?.season_number ?? null;
-    const { data } = usePolling<DraftPayload | null>(
-        () => (seasonNumber === null ? Promise.resolve(null) : fetchDraft(token, leagueId, seasonNumber)),
-        seasonNumber === null ? null : POLL_MS,
-        [leagueId, seasonNumber, token],
-    );
+    const { data } = useLeagueDraft(token, leagueId, seasonNumber);
     const draft = data?.draft ?? null;
     const view = useMemo(() => (draft ? draftView(draft, null) : null), [draft]);
 

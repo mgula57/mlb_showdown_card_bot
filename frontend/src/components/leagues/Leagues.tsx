@@ -53,7 +53,7 @@ export default function Leagues() {
     const { data: leagues, error, refresh } = usePolling<LeagueListItem[]>(
         () => (token ? fetchMyLeagues(token) : Promise.resolve([])),
         null,
-        [token, onList],
+        [!!token, onList],
     );
 
     function openLeague(state: LeagueState) {

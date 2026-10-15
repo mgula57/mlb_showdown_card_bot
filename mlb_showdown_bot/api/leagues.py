@@ -22,6 +22,7 @@ from ..core.database.postgres_db import PostgresDB
 from ..core.league import (
     DraftConflict, DraftError, LeagueDraft, LeagueSeasonError, LeagueSeasonRunner, LeagueSettings, SeasonConfig, SimTarget,
 )
+from ..core.supabase.realtime_broadcast import RealtimeBroadcaster
 from .sim import _sim_slots
 from .user_settings import require_auth
 from .utils.join_code import JoinCode
@@ -150,6 +151,12 @@ def _draft_payload(context: _LeagueContext, draft: LeagueDraft) -> dict:
         'season': draft.season,
         'draft': draft.state(viewer_member_id=my_member['member_id'] if my_member else None),
     })
+
+
+def _draft_changed_payload(context: _LeagueContext, draft: LeagueDraft) -> dict:
+    """`_draft_payload` after a change to the board, pinging open draft rooms to refetch."""
+    RealtimeBroadcaster().league_draft_changed(context.league['league_id'], draft.season['season_number'])
+    return _draft_payload(context, draft)
 
 
 # ----------------------------------------------------------
@@ -344,14 +351,14 @@ def start_draft(league_id: str, season_number: int):
             db.update_league_season_config(season_id, latest.get('config') or {})
         draft = LeagueDraft(db, context.league, context.season(db, season_number))
         draft.run_bot_picks()
-        return jsonify(_draft_payload(context, draft)), 201
+        return jsonify(_draft_changed_payload(context, draft)), 201
 
 
 @leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/draft', methods=['GET'])
 @require_auth
 @_json_errors
 def get_draft(league_id: str, season_number: int):
-    """The draft board - polled by the draft room and the Big Board."""
+    """The draft board - refetched by the draft room and the Big Board on each Realtime ping (and a slow poll)."""
     with PostgresDB() as db:
         context = _LeagueContext.load(db, league_id)
         draft = LeagueDraft(db, context.league, context.season(db, season_number))
@@ -373,7 +380,7 @@ def make_pick(league_id: str, season_number: int):
         draft = LeagueDraft(db, context.league, context.season(db, season_number))
         draft.make_pick(context.my_member['member_id'], context.is_commissioner, release_card_id)
         draft.run_bot_picks()
-        return jsonify(_draft_payload(context, draft)), 200
+        return jsonify(_draft_changed_payload(context, draft)), 200
 
 
 # ----------------------------------------------------------
