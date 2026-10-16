@@ -150,18 +150,20 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     const queueIsPrimary = showQueue && !view.isMyTurn;
     const queueTabLabel = queue.queue.length ? `Queue ${queue.queue.length}` : 'Queue';
     const queuePanel = (
-        <DraftQueuePanel
-            queue={queue.queue}
-            onMove={queue.move}
-            onRemove={queue.remove}
-            onDraft={setConfirmCard}
-            canDraft={canPick}
-            fitsRoster={fitsRoster}
-        />
+        <div className="pt-4">
+            <DraftQueuePanel
+                queue={queue.queue}
+                onMove={queue.move}
+                onRemove={queue.remove}
+                onDraft={setConfirmCard}
+                canDraft={canPick}
+                fitsRoster={fitsRoster}
+            />
+        </div>
     );
 
     const poolPanel = (
-        <div className="min-h-[60vh] rounded-xl border border-(--divider) overflow-hidden">
+        <div className="min-h-[60vh] overflow-hidden">
             <ShowdownCardSearch
                 source={CardSource.RELEASE}
                 defaultFilters={poolFilters}
@@ -208,6 +210,12 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         />
     );
 
+    const draftBoardPanel = (
+        <div className='min-h-[60vh] overflow-hidden'>
+            <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />
+        </div>
+    );
+
     return (
         <>
             <DraftTopBar leading={topBarLeading}>
@@ -227,7 +235,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
 
                 {isDesktop ? (
                     <div className="grid grid-cols-3 gap-4 items-start">
-                        <div className="col-span-2 flex flex-col gap-2 min-w-0">
+                        <div className={`col-span-2 flex flex-col min-w-0 gap-x-2 ${mainTab === 'board' ? 'gap-y-4' : ''}`}>
                             <Tabs<MainTab>
                                 tabs={[
                                     { id: 'pool', label: 'Player Pool', icon: <FaMagnifyingGlass /> },
@@ -241,7 +249,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                             />
                             {mainTab === 'pool' ? poolPanel
                                 : mainTab === 'queue' && showQueue ? queuePanel
-                                : <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />}
+                                : draftBoardPanel}
                         </div>
                         {/* Pinned while the pool / board scrolls, so the team stays in view beside the search */}
                         <div className="sticky top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto scrollbar-hide min-w-0">
@@ -249,7 +257,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-x-3">
                         <Tabs<MobileTab>
                             tabs={[
                                 { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },

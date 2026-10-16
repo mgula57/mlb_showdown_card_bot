@@ -18,8 +18,8 @@ const SIZES = {
     lg: { ring: 44, stroke: 4, ringLabel: 'text-[16px]', name: 'text-[18px]', meta: 'text-[13px]', cap: 'text-[13px]' },
 };
 
-/** A drafting team at a glance: a ring filling toward the points cap (or roster size when
- *  there's no cap) around its pick count, its name and points, and what's left under the cap. */
+/** A drafting team at a glance: a ring of picks made out of the roster size, its name and
+ *  points, and what's left under the cap. */
 export function DraftTeamSummary({ team, points, picksMade, settings, size = 'md', isOnTheClock = false }: Props) {
     const sizing = SIZES[size];
     const cap = settings.pts_cap;
@@ -28,10 +28,10 @@ export function DraftTeamSummary({ team, points, picksMade, settings, size = 'md
 
     return (
         <div className="flex items-center gap-2.5 min-w-0">
-            <span className={isOverCap ? 'text-(--red)' : 'text-(--green)'}>
+            <span className="text-(--green)">
                 <ProgressRing
-                    filled={cap ? points : picksMade}
-                    target={cap ?? settings.roster_size}
+                    filled={picksMade}
+                    target={settings.roster_size}
                     size={sizing.ring}
                     stroke={sizing.stroke}
                     label={<span className={`${sizing.ringLabel} text-(--text-primary)`}>{picksMade}</span>}
