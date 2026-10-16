@@ -76,6 +76,7 @@ export default function ReleaseCardSearch() {
             lockedFilters={LOCKED_FILTERS}
             toolbarSlot={editionPicker}
             enableSetSwitcher
+            enableThumbnailView
         />
     );
 }

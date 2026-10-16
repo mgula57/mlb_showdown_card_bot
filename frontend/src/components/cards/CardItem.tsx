@@ -625,7 +625,7 @@ export function CardItemSkeleton({ className }: { className?: string }) {
 /** A card's corner action. `icon` is a small square in the corner; `prominent` is a filled pill
  *  that adds its label beside the icon once the card is 400px+ wide (the pool grid's cards are
  *  never under 300px, so a lower bar would always show it). */
-function CardActionButton({ action }: { action: CardItemActionButton }) {
+export function CardActionButton({ action }: { action: CardItemActionButton }) {
     const isProminent = action.variant === 'prominent';
     const disabledLabel = action.disabledLabel ?? 'Saving your last pick…';
     const corner = action.placement === 'left' ? '-left-2' : isProminent ? '-right-1' : '-right-1.5';

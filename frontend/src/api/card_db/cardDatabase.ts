@@ -74,6 +74,8 @@ export type CardDatabaseRecord = {
     release_name?: string;
     /** `card_images` storage path of the card's rendered edition image, if one exists */
     release_image_path?: string | null;
+    /** `card_images` storage path of that image's thumbnail (200px wide) */
+    release_thumbnail_path?: string | null;
 
     // Points
     points: number;

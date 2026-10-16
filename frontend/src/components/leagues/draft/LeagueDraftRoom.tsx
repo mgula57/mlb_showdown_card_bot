@@ -183,6 +183,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                 defaultSort={POOL_DEFAULT_SORT}
                 excludeIds={view.draftedIds}
                 disableLocalStorage
+                enableThumbnailView
                 compact
                 toolbarSlot={pendingSlot && (
                     <PendingSlotChip label={pendingSlotLabel(pendingSlot)!} onDismiss={() => setPendingSlot(null)} />

@@ -39,6 +39,7 @@ import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { CardItemFromCardDatabaseRecord, CardItemFromCard, CardItemSkeleton } from "./CardItem";
+import { CardThumbnailFromCardDatabaseRecord, CardThumbnailSkeleton } from "./CardThumbnail";
 import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
@@ -122,6 +123,12 @@ type ShowdownCardSearchProps = {
      * filter. Off by default — currently just the Cards explorer.
      */
     enableSetOverride?: boolean;
+    /**
+     * Adds a toggle in the search bar between the detailed `CardItem` grid and an image grid of
+     * `CardThumbnail`s (remembered per source). Only for sources whose records carry rendered
+     * images - currently RELEASE.
+     */
+    enableThumbnailView?: boolean;
     /** Extra controls rendered in the search bar after the Filter button (e.g. the release edition picker) */
     toolbarSlot?: React.ReactNode;
     /**
@@ -656,6 +663,26 @@ const saveFilters = (filters: FilterSelections, source: CardSource, disableLocal
     }
 };
 
+/** localStorage key for the grid's card view (detailed list vs. thumbnails), suffixed by source */
+const VIEW_MODE_STORAGE_KEY = 'cardSearchViewMode';
+type CardViewMode = 'list' | 'thumbnail';
+
+const loadViewMode = (source: CardSource): CardViewMode => {
+    try {
+        return localStorage.getItem(VIEW_MODE_STORAGE_KEY + ':' + source) === 'thumbnail' ? 'thumbnail' : 'list';
+    } catch {
+        return 'list';
+    }
+};
+
+const saveViewMode = (mode: CardViewMode, source: CardSource) => {
+    try {
+        localStorage.setItem(VIEW_MODE_STORAGE_KEY + ':' + source, mode);
+    } catch {
+        // ignore storage errors
+    }
+};
+
 // Helper used for lazy init so we don't set state in an effect
 const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSelections> = {}, disableLocalStorage = false): FilterSelections =>
     loadSavedFilters(source, defaultFilters, disableLocalStorage) ?? ({ ...getDefaultFilterSelections(source), ...defaultFilters });
@@ -712,7 +739,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, toolbarSlot, defaultSort, secondaryAction }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, enableThumbnailView = false, toolbarSlot, defaultSort, secondaryAction }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -721,6 +748,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [showdownCards, setShowdownCards] = useState<CardDatabaseRecord[] | null>(null);
     /** Loading state for initial data fetch */
     const [isLoading, setIsLoading] = useState(false);
+    /** Detailed `CardItem` grid vs. image thumbnails (only when `enableThumbnailView`) */
+    const [viewMode, setViewMode] = useState<CardViewMode>(() => loadViewMode(source));
+    const isThumbnailView = enableThumbnailView && viewMode === 'thumbnail';
+    const handleViewModeChange = (mode: CardViewMode) => {
+        setViewMode(mode);
+        saveViewMode(mode, source);
+    };
     /** Currently selected card for detail view */
     const [selectedCardForModal, setSelectedCardForModal] = useState<CardDatabaseRecord | null>(null);
     const [selectedCardForSidebar, setSelectedCardForSidebar] = useState<CardDatabaseRecord | null>(null);
@@ -1445,6 +1479,33 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                         {toolbarSlot}
 
+                        {/* List / Thumbnail view toggle */}
+                        {enableThumbnailView && (
+                            <div className="flex shrink-0 h-11 p-1 gap-1 rounded-xl bg-(--background-secondary) border border-form-element">
+                                {([
+                                    { mode: 'list', icon: <FaTableList />, label: 'Detailed view' },
+                                    { mode: 'thumbnail', icon: <FaImage />, label: 'Image view' },
+                                ] as const).map(({ mode, icon, label }) => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        aria-label={label}
+                                        title={label}
+                                        aria-pressed={viewMode === mode}
+                                        onClick={() => handleViewModeChange(mode)}
+                                        className={`
+                                            px-2.5 rounded-lg flex items-center cursor-pointer transition-colors
+                                            ${viewMode === mode
+                                                ? 'bg-(--background-quaternary) text-primary'
+                                                : 'text-(--text-tertiary) hover:text-primary hover:bg-(--background-secondary-hover)'}
+                                        `}
+                                    >
+                                        {icon}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         {/* Showdown Set Override */}
                         {showSetOverride && (
                             <div className="@container shrink-0 w-24 md:w-40">
@@ -1569,10 +1630,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     className="relative flex-1 min-w-0 transition-all duration-300 ease-in-out md:overflow-y-auto"
                     style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
                 >
-                    <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
+                    <div className={`py-2 px-3 grid gap-3 md:gap-4 ${isThumbnailView
+                        ? 'grid-cols-[repeat(auto-fill,minmax(140px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(170px,1fr))]'
+                        : 'grid-cols-[repeat(auto-fit,minmax(300px,1fr))]'}`}
+                    >
                         {/* Skeleton placeholders while loading with no cards yet */}
                         {showSkeletons && Array.from({ length: 30 }, (_, i) => (
-                            <CardItemSkeleton key={`skeleton-${i}`} />
+                            isThumbnailView
+                                ? <CardThumbnailSkeleton key={`skeleton-${i}`} />
+                                : <CardItemSkeleton key={`skeleton-${i}`} />
                         ))}
 
                         {/* Iterate through showdownCards and display each card */}
@@ -1587,7 +1653,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     data-card-id={cardRecord.id}
                                     ref={displayedCards.length === (index + 1) ? lastCardElementRef : null}
                                 >
-                                    {source === CardSource.WOTC && (
+                                    {isThumbnailView && (
+                                        <CardThumbnailFromCardDatabaseRecord
+                                            card={cardRecord}
+                                            onClick={() => handleRowClick(cardRecord)}
+                                            isSelected={selectedCard?.id === cardRecord.id}
+                                            actionButton={resolvedAction}
+                                            secondaryActionButton={resolvedSecondary}
+                                        />
+                                    )}
+                                    {!isThumbnailView && source === CardSource.WOTC && (
                                         <CardItemFromCard
                                             card={cardRecord.card_data}
                                             onClick={() => handleRowClick(cardRecord)}
@@ -1595,7 +1670,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             actionButton={resolvedAction}
                                         />
                                     )}
-                                    {source === CardSource.CUSTOM && (
+                                    {!isThumbnailView && source === CardSource.CUSTOM && (
                                         <CardItemFromCard
                                             card={cardRecord.card_data}
                                             onClick={() => handleRowClick(cardRecord)}
@@ -1605,7 +1680,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         />
                                     )}
                                     {/* Release edition cards are card_bot snapshots — same record shape as BOT */}
-                                    {(source === CardSource.BOT || source === CardSource.RELEASE) && (
+                                    {!isThumbnailView && (source === CardSource.BOT || source === CardSource.RELEASE) && (
                                         <CardItemFromCardDatabaseRecord
                                             card={cardRecord}
                                             onClick={() => handleRowClick(cardRecord)}
@@ -1615,7 +1690,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             ptsChangeField={filters.sort_by === 'points_change_yoy' ? 'points_change_yoy' : 'points_change'}
                                         />
                                     )}
-                                    {source === CardSource.WBC && (
+                                    {!isThumbnailView && source === CardSource.WBC && (
                                         <CardItemFromCardDatabaseRecord
                                             card={cardRecord}
                                             onClick={() => handleRowClick(cardRecord)}

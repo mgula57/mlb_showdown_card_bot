@@ -957,7 +957,8 @@ class PostgresDB:
         card_bot row type rebuilds exactly the columns the generic filter/sort logic expects. `id` is the
         release card's own id (the same card can sit in several editions); `card_id` still points at the
         live card for detail lookups, `set_number` carries the edition's card number, and
-        `release_image_path` is the card's rendered edition image, if one exists.
+        `release_image_path` / `release_thumbnail_path` are the card's rendered edition image and its
+        thumbnail, if one exists.
         """
         edition_ids = filters.pop('release_edition_id', None) or []
         if isinstance(edition_ids, str):
@@ -986,7 +987,8 @@ class PostgresDB:
                 e.id::text AS release_edition_id,
                 e.name AS release_edition_name,
                 r.name AS release_name,
-                i.storage_path AS release_image_path
+                i.storage_path AS release_image_path,
+                i.thumbnail_path AS release_thumbnail_path
             FROM internal.release_cards rc
             JOIN internal.release_editions e ON e.id = rc.edition_id
             JOIN internal.releases r ON r.id = e.release_id
