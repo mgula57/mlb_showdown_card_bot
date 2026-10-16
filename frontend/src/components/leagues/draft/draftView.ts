@@ -1,6 +1,8 @@
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import type { DraftMyRoster, DraftPick, DraftState, LeagueSettings, LeagueTeam } from '../../../api/leagues';
 import { getEligiblePositions } from '../../../domain/roster';
+import { CardSource } from '../../../types/cardSource';
+import type { DepthChartTeam } from '../../team_builder/DepthChartPanel';
 
 export const LINEUP_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 const BULLPEN_POSITIONS = ['RP', 'CL'];
@@ -25,28 +27,38 @@ export function draftView(draft: DraftState, myMemberId: string | null) {
 
 export type DraftView = ReturnType<typeof draftView>;
 
-/** One team's roster as drafted so far, grouped the way the team panel shows it. */
+/** One team's roster as drafted so far, shaped for `DepthChartPanel` (release card ids as card
+ *  ids), plus how many required spots are still open. */
 export function teamRoster(picks: DraftPick[], team: LeagueTeam, settings: LeagueSettings) {
     const mine = picks.filter(pick => pick.member_id === team.member_id);
-    const at = (position: string) => mine.find(pick => pick.roster_position === position) ?? null;
-    const rotationRoles = Array.from({ length: settings.num_starters }, (_, i) => `SP${i + 1}`);
-    const bullpen = mine.filter(pick => BULLPEN_POSITIONS.includes(pick.roster_position ?? ''));
-    const bench = mine.filter(pick => pick.roster_position === 'BE');
+    const ref = (pick: DraftPick) => ({ card_id: pick.release_card_id, card_source: CardSource.RELEASE });
+    const lineupPicks = mine.filter(pick => LINEUP_POSITIONS.includes(pick.roster_position ?? ''));
+    const pitcherPicks = mine.filter(pick => pick.roster_position?.startsWith('SP') || BULLPEN_POSITIONS.includes(pick.roster_position ?? ''));
+    const bullpenCount = mine.filter(pick => BULLPEN_POSITIONS.includes(pick.roster_position ?? '')).length;
+    const benchCount = mine.filter(pick => pick.roster_position === 'BE').length;
+    const rotationCount = pitcherPicks.length - bullpenCount;
 
-    const openLineup = LINEUP_POSITIONS.filter(pos => !at(pos)).length;
-    const openRotation = rotationRoles.filter(role => !at(role)).length;
-    const required = openLineup + openRotation
-        + Math.max(0, settings.min_bullpen - bullpen.length)
-        + Math.max(0, settings.min_bench - bench.length);
+    const depthChart: DepthChartTeam = {
+        roster: mine.map(pick => ({ ...ref(pick), roster_position: pick.roster_position ?? 'BE', draft_order: pick.overall_pick, pick_source: 'DRAFT' })),
+        lineups: [{
+            name: 'Default',
+            index: 0,
+            slots: lineupPicks.map(pick => ({ ...ref(pick), field_position: pick.roster_position!, batting_order: LINEUP_POSITIONS.indexOf(pick.roster_position!) + 1 })),
+        }],
+        rotation: pitcherPicks.map(pick => ({ ...ref(pick), role: pick.roster_position! })),
+        num_starters: settings.num_starters,
+        roster_size: settings.roster_size,
+        min_bench: settings.min_bench,
+        min_bullpen: settings.min_bullpen,
+        bench_pts_multiplier: 1,
+    };
     return {
-        lineup: LINEUP_POSITIONS.map(position => ({ position, pick: at(position) })),
-        rotation: rotationRoles.map(position => ({ position, pick: at(position) })),
-        bullpen,
-        bench,
+        depthChart,
         picksMade: mine.length,
-        picksLeft: settings.roster_size - mine.length,
         /** Spots that still have to be filled (lineup, rotation, bench/bullpen minimums). */
-        required,
+        required: (LINEUP_POSITIONS.length - lineupPicks.length) + (settings.num_starters - rotationCount)
+            + Math.max(0, settings.min_bullpen - bullpenCount)
+            + Math.max(0, settings.min_bench - benchCount),
         points: mine.reduce((total, pick) => total + (pick.points ?? 0), 0),
     };
 }

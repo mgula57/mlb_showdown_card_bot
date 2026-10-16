@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
-import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource, GuidedOption, GuidedFillOrder } from '../../api/userTeams';
+import type { Team, TeamUpdatePayload, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource, GuidedOption, GuidedFillOrder } from '../../api/userTeams';
 import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, DEFAULT_LINEUP_NAME } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
@@ -28,7 +28,7 @@ import { SearchGradientBorder } from '../shared/SearchGradientBorder';
 import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch, { type FilterSelections } from '../cards/ShowdownCardSearch';
 import {
-    FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
+    FaSpinner, FaArrowLeft, FaPlus, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
     FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
@@ -47,6 +47,8 @@ import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts, getEligiblePosit
 import { ToastMessage } from '../shared/ToastMessage';
 import { Modal } from '../shared/Modal';
 import { DraftPositionModal, type DraftPositionOption } from './DraftPositionModal';
+import { type PendingSlot, getSearchFiltersForSlot, pendingSlotLabel, pendingSlotHighlight } from './draftSlot';
+import { PendingSlotChip } from './PendingSlotChip';
 
 /** Cheapest PTS a real showdown card can be — matches the floor of the lowest price band the
  *  server-side autofill pool queries against (`_CANDIDATE_PRICE_BANDS` in autofill.py). Used to
@@ -145,13 +147,6 @@ function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = fal
     );
 }
 
-type PendingSlot =
-    | { kind: 'field'; position: string; current: LineupSlot | null }
-    | { kind: 'rotation'; role: string; current: PitcherAssignment | null }
-    | { kind: 'bench'; current: { card_id: string } | null }
-    | { kind: 'bullpen'; current: { card_id: string } | null }
-    | { kind: 'roster' };
-
 type TeamDetailProps = {
     team: Team;
     onSave: (updates: TeamUpdatePayload) => Promise<void>;
@@ -184,30 +179,6 @@ type TeamDetailProps = {
     onArchive?: (archived: boolean) => void | Promise<void>;
 };
 
-
-function getSearchFiltersForSlot(slot: PendingSlot | null): Partial<FilterSelections> {
-    if (!slot) return {};
-    if (slot.kind === 'field') {
-        if (slot.position === 'SP') return { positions: ['STARTER'] };
-        const posMap: Record<string, string[]> = {
-            C: ['C'], '1B': ['1B'], '2B': ['2B'], '3B': ['3B'],
-            SS: ['SS'], LF: ['LF/RF'], RF: ['LF/RF'], CF: ['CF'], DH: ['DH'],
-        };
-        const positions = posMap[slot.position];
-        return { ...(positions ? { positions } : {}), player_type: ['HITTER'] };
-    }
-    if (slot.kind === 'rotation') {
-        if (slot.role.startsWith('SP')) return { positions: ['STARTER'] };
-        return { positions: ['RELIEVER', 'CLOSER'] };
-    }
-    if (slot.kind === 'bullpen') {
-        return { positions: ['RELIEVER', 'CLOSER'] };
-    }
-    if (slot.kind === 'bench') {
-        return { player_type: ['HITTER'] };
-    }
-    return {};
-}
 
 function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[] {
     const lines: string[] = [];
@@ -835,13 +806,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         handleConfirmPosition(option.roster_position, option.card, 'GUIDED');
     }
 
+    const pendingHighlight = pendingSlotHighlight(pendingSlot);
     const activeFieldPosition = guidedPosition && (FIELD_POSITIONS as readonly string[]).includes(guidedPosition) ? guidedPosition
-        : pendingSlot?.kind === 'field' ? pendingSlot.position : null;
+        : pendingHighlight.activePosition;
     const activeRole = guidedPosition && !(FIELD_POSITIONS as readonly string[]).includes(guidedPosition) ? guidedPosition
-        : pendingSlot?.kind === 'rotation' ? pendingSlot.role
-        : pendingSlot?.kind === 'bullpen' ? 'RP'
-        : pendingSlot?.kind === 'bench' ? 'BE'
-        : null;
+        : pendingHighlight.activeRole;
 
     const pointsBreakdown = useMemo(() => {
         const breakdown = (pts: (id: string) => number) => {
@@ -1020,13 +989,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return [...ids];
     }, [draft.roster, draft.lineups, draft.rotation]);
 
-    const pendingLabel = pendingSlot
-        ? pendingSlot.kind === 'field'    ? `Filling: ${pendingSlot.position}`
-        : pendingSlot.kind === 'rotation' ? `Filling: ${pendingSlot.role}`
-        : pendingSlot.kind === 'bullpen'  ? (pendingSlot.current ? 'Replacing bullpen arm' : 'Adding to Bullpen')
-        : pendingSlot.kind === 'bench'    ? (pendingSlot.current ? 'Replacing bench player' : 'Adding to Bench')
-        : 'Adding to roster'
-        : null;
+    const pendingLabel = pendingSlotLabel(pendingSlot);
 
     const allowedSources = useMemo(
         () => activeSources({ allowed_card_sources: draft.allowed_card_sources })
@@ -1127,18 +1090,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <FitsMyRosterToggle enabled={fitsRosterEnabled} onToggle={() => setFitsRosterEnabled(v => !v)} />
                 )}
                 {pendingLabel && draftMode === 'search' && (
-                    <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        {pendingLabel}
-                        <button
-                            type="button"
-                            onClick={() => setPendingSlot(null)}
-                            className="hover:opacity-70 cursor-pointer"
-                            aria-label="Cancel filling"
-                        >
-                            <FaXmark className="text-[10px]" />
-                        </button>
-                    </span>
+                    <PendingSlotChip label={pendingLabel} onDismiss={() => setPendingSlot(null)} />
                 )}
             </div>
         </div>
@@ -2230,20 +2182,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, draftMode, onTabChang
                             <FitsMyRosterToggle enabled={fitsRosterToggle.enabled} onToggle={fitsRosterToggle.onToggle} />
                         )}
                         {pendingLabel && !isGuided && (
-                            <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                                {pendingLabel}
-                                {onDismissPending && (
-                                    <button
-                                        type="button"
-                                        onClick={onDismissPending}
-                                        className="hover:opacity-70 cursor-pointer"
-                                        aria-label="Cancel filling"
-                                    >
-                                        <FaXmark className="text-[10px]" />
-                                    </button>
-                                )}
-                            </span>
+                            <PendingSlotChip label={pendingLabel} onDismiss={onDismissPending} />
                         )}
                     </div>
                 </Tabs.List>

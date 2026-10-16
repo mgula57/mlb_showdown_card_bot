@@ -1,21 +1,75 @@
 import { useState } from 'react';
+import { FaClipboardList, FaRing } from 'react-icons/fa6';
 import CustomSelect from '../../shared/CustomSelect';
-import type { DraftPick, DraftState, LeagueSettings } from '../../../api/leagues';
+import { Tabs } from '../../shared/Tabs';
+import { DepthChartPanel } from '../../team_builder/DepthChartPanel';
+import { FieldView, type FieldViewRosterData } from '../../team_builder/FieldView';
+import { type PendingSlot, pendingSlotHighlight } from '../../team_builder/draftSlot';
+import { benchBullpenSlotCounts, effectiveBenchBullpenMinimums } from '../../../domain/roster';
+import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
+import type { DraftState, LeagueSettings } from '../../../api/leagues';
 import { teamRoster } from './draftView';
 
 type Props = {
     draft: DraftState;
     settings: LeagueSettings;
     myMemberId: string | null;
+    /** Drafted cards by release card id (`useCardMap`). */
+    cards: Record<string, CardDatabaseRecord | null>;
+    isLoadingCards: boolean;
+    /** The slot being filled, highlighted on my roster. */
+    pendingSlot: PendingSlot | null;
+    /** Clicking an empty slot on my own roster starts filling it. Omit to keep the roster display only. */
+    onFillSlot?: (slot: PendingSlot) => void;
 };
 
-/** A team's roster as drafted so far, by position, with what it still needs. Defaults to the
- *  viewer's team; any team can be picked to scout. */
-export function DraftTeamPanel({ draft, settings, myMemberId }: Props) {
+type RosterView = 'field' | 'depth';
+
+/** A team's roster as drafted so far, as the team builder's field view or depth chart, with what
+ *  it still needs. Defaults to the viewer's team; any team can be picked to scout. */
+export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCards, pendingSlot, onFillSlot }: Props) {
     const [memberId, setMemberId] = useState<string>(myMemberId ?? draft.teams[0]?.member_id ?? '');
+    const [rosterView, setRosterView] = useState<RosterView>('field');
     const team = draft.teams.find(t => t.member_id === memberId) ?? draft.teams[0];
     if (!team) return null;
     const roster = teamRoster(draft.picks, team, settings);
+    const { depthChart } = roster;
+    const lineup = depthChart.lineups[0];
+
+    // My own roster's empty slots can be clicked to search for a fit, like the team builder.
+    // Picks are final, so a filled slot is never offered for replacing.
+    const fill = team.member_id === myMemberId ? onFillSlot : undefined;
+    const canFill = !!fill;
+    const highlight = canFill ? pendingSlotHighlight(pendingSlot) : { activePosition: null, activeRole: null };
+    const slotHandlers = {
+        onSlotClick: (position: string, current: unknown) => { if (fill && !current) fill({ kind: 'field', position, current: null }); },
+        onRoleClick: (role: string, current: unknown) => { if (fill && !current) fill({ kind: 'rotation', role, current: null }); },
+        onBullpenClick: (current: unknown) => { if (fill && !current) fill({ kind: 'bullpen', current: null }); },
+        onBenchClick: (current: unknown) => { if (fill && !current) fill({ kind: 'bench', current: null }); },
+    };
+
+    // Same bench / bullpen row counts the depth chart works out, so both views show the open spots
+    const bucketMins = effectiveBenchBullpenMinimums(depthChart);
+    const benchCount = depthChart.roster.filter(slot => slot.roster_position === 'BE').length;
+    const bullpenCount = depthChart.rotation.filter(slot => !slot.role.startsWith('SP')).length;
+    const fieldRosterData: FieldViewRosterData = {
+        roster: depthChart.roster,
+        rotation: depthChart.rotation,
+        benchPtsMultiplier: depthChart.bench_pts_multiplier,
+        minBench: bucketMins.bench,
+        minBullpen: bucketMins.bullpen,
+        maxRotation: depthChart.num_starters,
+        draftSlots: benchBullpenSlotCounts({
+            rosterSize: depthChart.roster_size,
+            rosterCount: depthChart.roster.length,
+            lineup: { filled: lineup.slots.length, target: 9 },
+            rotation: { filled: depthChart.rotation.length - bullpenCount, target: depthChart.num_starters },
+            bench: { filled: benchCount, target: bucketMins.bench },
+            bullpen: { filled: bullpenCount, target: bucketMins.bullpen },
+            benchMin: depthChart.min_bench,
+            bullpenMin: depthChart.min_bullpen,
+        }),
+    };
 
     return (
         <div className="flex flex-col gap-3">
@@ -34,56 +88,47 @@ export function DraftTeamPanel({ draft, settings, myMemberId }: Props) {
                     <span className="shrink-0 text-[10px] font-bold text-(--success) uppercase tracking-wide">Required spots filled</span>
                 )}
             </div>
-            <div className="text-[11px] text-(--text-tertiary)">
-                {roster.picksMade}/{settings.roster_size} picks · {roster.points} pts{settings.pts_cap ? ` of ${settings.pts_cap}` : ''}
-            </div>
-
-            <RosterGroup title="Lineup" filled={roster.lineup.filter(s => s.pick).length} total={roster.lineup.length}>
-                {roster.lineup.map(({ position, pick }) => <RosterRow key={position} position={position} pick={pick} />)}
-            </RosterGroup>
-            <RosterGroup title="Rotation" filled={roster.rotation.filter(s => s.pick).length} total={roster.rotation.length}>
-                {roster.rotation.map(({ position, pick }) => <RosterRow key={position} position={position} pick={pick} />)}
-            </RosterGroup>
-            <RosterGroup title="Bullpen" filled={roster.bullpen.length} total={settings.min_bullpen} isMinimum>
-                {roster.bullpen.map(pick => <RosterRow key={pick.release_card_id} position={pick.roster_position ?? 'RP'} pick={pick} />)}
-            </RosterGroup>
-            <RosterGroup title="Bench" filled={roster.bench.length} total={settings.min_bench} isMinimum>
-                {roster.bench.map(pick => <RosterRow key={pick.release_card_id} position="BE" pick={pick} />)}
-            </RosterGroup>
-        </div>
-    );
-}
-
-function RosterGroup({ title, filled, total, isMinimum = false, children }: { title: string; filled: number; total: number; isMinimum?: boolean; children: React.ReactNode }) {
-    return (
-        <div className="flex flex-col rounded-xl border border-(--divider) overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-(--background-tertiary)">
-                <span className="text-[12px] font-black text-(--text-primary)">{title}</span>
-                <span className={`text-[11px] font-bold tabular-nums ${filled >= total ? 'text-(--success)' : 'text-(--text-secondary)'}`}>
-                    {filled}/{total}{isMinimum ? '+' : ''}
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-(--text-tertiary)">
+                    {roster.picksMade}/{settings.roster_size} picks · {roster.points} pts{settings.pts_cap ? ` of ${settings.pts_cap}` : ''}
                 </span>
+                <Tabs<RosterView>
+                    tabs={[
+                        { id: 'field', label: 'Field', icon: <FaRing /> },
+                        { id: 'depth', label: 'Depth Chart', icon: <FaClipboardList /> },
+                    ]}
+                    value={rosterView}
+                    onChange={setRosterView}
+                    size="sm"
+                />
             </div>
-            <div className="flex flex-col divide-y divide-(--divider)">
-                {children}
-                {isMinimum && filled < total && Array.from({ length: total - filled }, (_, i) => (
-                    <RosterRow key={`open-${i}`} position={title === 'Bench' ? 'BE' : 'RP'} pick={null} />
-                ))}
-            </div>
-        </div>
-    );
-}
 
-function RosterRow({ position, pick }: { position: string; pick: DraftPick | null }) {
-    return (
-        <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] bg-(--background-secondary)">
-            <span className="w-8 shrink-0 font-black text-(--text-tertiary)">{position}</span>
-            {pick ? (
-                <>
-                    <span className="flex-1 min-w-0 font-bold text-(--text-primary) truncate">{pick.name}</span>
-                    <span className="shrink-0 tabular-nums text-(--text-secondary)">{pick.points}</span>
-                </>
+            {/* Empty rows stay visible so the open spots read at a glance; they're clickable only on my own roster. */}
+            {rosterView === 'field' ? (
+                <FieldView
+                    key={team.member_id}
+                    lineup={lineup}
+                    cardMap={cards}
+                    rosterData={fieldRosterData}
+                    isLoadingCards={isLoadingCards}
+                    readOnly={!canFill}
+                    emptySlotsOnly
+                    {...highlight}
+                    {...slotHandlers}
+                />
             ) : (
-                <span className="flex-1 text-(--text-tertiary) italic">Empty</span>
+                <div className="-mx-4">
+                    <DepthChartPanel
+                        key={team.member_id}
+                        team={depthChart}
+                        cardMap={cards}
+                        isLoadingCards={isLoadingCards}
+                        slotPickingDisabled={!canFill}
+                        emptySlotsOnly
+                        {...highlight}
+                        {...slotHandlers}
+                    />
+                </div>
             )}
         </div>
     );

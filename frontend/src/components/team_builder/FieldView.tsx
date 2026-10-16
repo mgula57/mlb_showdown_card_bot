@@ -52,6 +52,9 @@ type FieldViewProps = {
     onBullpenClick?: (current: PitcherAssignment | null) => void;
     onRoleClick?: (role: string, current: PitcherAssignment | null) => void;
     readOnly?: boolean;
+    /** Only empty slots can be clicked to fill - filled cards get no "Replace" action (a league
+     *  draft, where picks are final). */
+    emptySlotsOnly?: boolean;
     activePosition?: string | null;
     /** Rotation role ('SP2') being filled, or 'RP' / 'BE' to highlight the next open bullpen /
      *  bench row (those rows are interchangeable, so only the first open one lights up). */
@@ -104,7 +107,7 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
 }
 
 export function FieldView({
-    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, activePosition, activeRole,
+    lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, emptySlotsOnly = false, activePosition, activeRole,
     rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
     simStatsMap, simStatsTooltip, notFoundLabels, scrollTarget,
@@ -333,9 +336,9 @@ export function FieldView({
                                         className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
                                         fieldPosition={pos}
                                         detailStat1Category={detailStat1Category}
-                                        onClick={() => openDetail(card, () => onSlotClick(pos, slot))}
+                                        onClick={() => openDetail(card, emptySlotsOnly ? undefined : () => onSlotClick(pos, slot))}
                                         isSelected={isActive}
-                                        actionButton={!readOnly ? {
+                                        actionButton={!readOnly && !emptySlotsOnly ? {
                                             icon: <FaPencil />,
                                             onClick: () => onSlotClick(pos, slot),
                                             label: 'Replace card',
@@ -369,6 +372,7 @@ export function FieldView({
 
             {sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier, placeholderLabel }) => {
                 const filledCount = roles.filter(r => getCard(r)).length;
+                const onReplace = emptySlotsOnly ? undefined : onItemClick;
                 return (
                     <div key={label} className="border-t border-(--divider)" onClick={onItemClick ? e => e.stopPropagation() : undefined}>
                         <SectionHeader variant="overlay" label={label} filledCount={filledCount} maxPlayers={maxPlayers} total={total} kpis={kpis} />
@@ -392,10 +396,10 @@ export function FieldView({
                                                     card={card}
                                                     className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
                                                     ptsMultiplier={ptsMultiplier}
-                                                    onClick={() => openDetail(card, onItemClick ? () => onItemClick(role) : undefined)}
-                                                    actionButton={onItemClick ? {
+                                                    onClick={() => openDetail(card, onReplace ? () => onReplace(role) : undefined)}
+                                                    actionButton={onReplace ? {
                                                         icon: <FaPencil />,
-                                                        onClick: () => onItemClick(role),
+                                                        onClick: () => onReplace(role),
                                                         label: 'Replace card',
                                                         placement: 'left',
                                                     } : undefined}

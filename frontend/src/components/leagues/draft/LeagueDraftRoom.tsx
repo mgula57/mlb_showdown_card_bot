@@ -3,6 +3,8 @@ import { FaHandPointer, FaSpinner } from 'react-icons/fa6';
 import ShowdownCardSearch, { type FilterSelections } from '../../cards/ShowdownCardSearch';
 import { Tabs } from '../../shared/Tabs';
 import { DraftPositionModal, type DraftPositionOption } from '../../team_builder/DraftPositionModal';
+import { type PendingSlot, getSearchFiltersForSlot, pendingSlotHighlight, pendingSlotLabel } from '../../team_builder/draftSlot';
+import { PendingSlotChip } from '../../team_builder/PendingSlotChip';
 import { CardSource } from '../../../types/cardSource';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import { makeDraftPick, type League } from '../../../api/leagues';
@@ -44,6 +46,8 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     const [sideTab, setSideTab] = useState<SideTab>('team');
     const [boardMode, setBoardMode] = useState<BoardMode>('picks');
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
+    // The empty slot on my roster the drafter clicked - narrows the player pool to cards that fit it
+    const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
     // The roster position being drafted into (or 'auto' / 'any' for an auto-pick / unslotted pick)
     const [picking, setPicking] = useState<string | null>(null);
     const [pickError, setPickError] = useState<string | null>(null);
@@ -56,7 +60,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         () => (draft?.picks ?? []).map(pick => ({ card_id: pick.release_card_id, card_source: CardSource.RELEASE })),
         [draft?.picks],
     );
-    const { cardMap } = useCardMap(pickSlots, token);
+    const { cardMap, loading: cardsLoading } = useCardMap(pickSlots, token);
 
     // Stop refreshing once the draft is done, and hand off to season setup
     const isComplete = !!view?.isComplete;
@@ -67,7 +71,17 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isComplete]);
 
-    const poolFilters = useMemo<Partial<FilterSelections>>(() => ({ release_edition_id: league.edition_ids }), [league.edition_ids]);
+    const poolFilters = useMemo<Partial<FilterSelections>>(
+        () => ({ release_edition_id: league.edition_ids, ...getSearchFiltersForSlot(pendingSlot) }),
+        [league.edition_ids, pendingSlot],
+    );
+
+    /** A click on an empty slot of my roster: open the player pool filtered to what fits it. */
+    function fillSlot(slot: PendingSlot) {
+        setPendingSlot(slot);
+        setBoardMode('pool');
+        setMobileTab('board');
+    }
 
     /** Draft `releaseCardId` into `rosterPosition` (null: the first open spot it fits), or
      *  auto-pick when `releaseCardId` is null. */
@@ -77,6 +91,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         try {
             setData(await makeDraftPick(token, league.league_id, seasonNumber, releaseCardId, rosterPosition));
             setConfirmCard(null);
+            setPendingSlot(null);
         } catch (err) {
             setPickError(errorMessage(err));
             // A 409 means the board moved - the Realtime ping for that pick brings it up to date
@@ -94,10 +109,14 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         );
     }
 
-    // Where the card picked from the pool can go, with its points impact
+    // Where the card picked from the pool can go, with its points impact - the clicked slot first
     const myRoster = draft.my_roster;
+    const { activePosition, activeRole } = pendingSlotHighlight(pendingSlot);
+    const targetPosition = activePosition ?? activeRole;
     const confirmOptions: DraftPositionOption[] = confirmCard && myRoster
-        ? legalDraftSlots(confirmCard, myRoster, league.settings).map(position => {
+        ? legalDraftSlots(confirmCard, myRoster, league.settings)
+            .sort((a, b) => Number(b === targetPosition) - Number(a === targetPosition))
+            .map(position => {
             const projected = myRoster.points + confirmCard.points;
             return {
                 position,
@@ -128,6 +147,9 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                         excludeIds={view.draftedIds}
                         disableLocalStorage
                         compact
+                        toolbarSlot={pendingSlot && (
+                            <PendingSlotChip label={pendingSlotLabel(pendingSlot)!} onDismiss={() => setPendingSlot(null)} />
+                        )}
                         actionButton={{
                             icon: <FaHandPointer />,
                             label: view.isMyTurn ? 'Draft' : 'Not your pick',
@@ -140,7 +162,17 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         </div>
     );
 
-    const teamPanel = <DraftTeamPanel draft={draft} settings={league.settings} myMemberId={myMemberId} />;
+    const teamPanel = (
+        <DraftTeamPanel
+            draft={draft}
+            settings={league.settings}
+            myMemberId={myMemberId}
+            cards={cardMap}
+            isLoadingCards={cardsLoading}
+            pendingSlot={pendingSlot}
+            onFillSlot={view.isComplete ? undefined : fillSlot}
+        />
+    );
     const historyPanel = <DraftHistory draft={draft} view={view} />;
 
     return (
