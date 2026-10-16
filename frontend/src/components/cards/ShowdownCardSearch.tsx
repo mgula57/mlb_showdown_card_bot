@@ -95,7 +95,14 @@ type ShowdownCardSearchProps = {
         onClick: (card: CardDatabaseRecord) => void;
         /** Greys out the button and blocks clicks everywhere it's rendered (grid, sidebar, modal) — e.g. while a previous pick is still saving. */
         disabled?: boolean;
+        /** Why it's disabled - the tooltip on the grid button. */
+        disabledLabel?: string;
+        /** `prominent`: a filled pill with `label` beside the icon on cards wide enough (see `CardItemActionButton`). */
+        variant?: CardItemActionButton['variant'];
     };
+    /** A second per-card action in each card's top-left corner (e.g. add to / remove from a draft
+     *  queue) - resolved per card so it can reflect that card's state. */
+    secondaryAction?: (card: CardDatabaseRecord) => CardItemActionButton | undefined;
     /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
     excludeIds?: string[];
     /**
@@ -117,6 +124,12 @@ type ShowdownCardSearchProps = {
     enableSetOverride?: boolean;
     /** Extra controls rendered in the search bar after the Filter button (e.g. the release edition picker) */
     toolbarSlot?: React.ReactNode;
+    /**
+     * Overrides the source's default sort - what the search starts on and resets back to. Unlike
+     * `defaultFilters`, the user can still change it (e.g. the league draft pool leads with
+     * points, where a release otherwise sorts by card number).
+     */
+    defaultSort?: Pick<FilterSelections, 'sort_by' | 'sort_direction'>;
 };
 
 // =============================================================================
@@ -699,7 +712,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, toolbarSlot }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, toolbarSlot, defaultSort, secondaryAction }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -750,7 +763,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
 
     // Filters
-    const defaultFiltersForSource = { ...getDefaultFilterSelections(source), ...defaultFilters };
+    // The source's defaults, with the caller's sort (if any) in place of the source's own
+    const sourceDefaults = useMemo(
+        () => ({ ...getDefaultFilterSelections(source), ...defaultSort }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [source, defaultSort?.sort_by, defaultSort?.sort_direction],
+    );
+    const defaultFiltersForSource = { ...sourceDefaults, ...defaultFilters };
     // Every provided default filter is seeded and re-applied whenever `defaultFilters` changes.
     const seededDefaultFilters = useMemo(
         () => Object.fromEntries(Object.entries(defaultFilters).filter(([, value]) => value !== undefined)) as Partial<FilterSelections>,
@@ -766,8 +785,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...seededDefaultFilters }),
         [seededDefaultFilters]
     );
-    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
-    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
+    const [filters, setFilters] = useState<FilterSelections>(() => getInitialFilters(source, { ...defaultSort, ...defaultFilters }, disableLocalStorage));
+    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(() => getInitialFilters(source, { ...defaultSort, ...defaultFilters }, disableLocalStorage));
     // Nothing picked → the search uses the header's set, so show that set as the selection
     // (when it's one WOTC printed; Classic/Expanded fall back to the "(Default)" display).
     const wotcSetSelections = filters.showdown_set?.length
@@ -921,7 +940,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         const removedKeys = Object.keys(prevSeedRef.current).filter(k => !(k in seededDefaultFilters));
         prevSeedRef.current = seededDefaultFilters;
         const reseed = (prev: FilterSelections): FilterSelections => {
-            const sourceDefaults = getDefaultFilterSelections(source);
             const cleared = { ...prev } as FilterSelections;
             for (const k of removedKeys) {
                 cleared[k as keyof FilterSelections] = sourceDefaults[k as keyof FilterSelections] as never;
@@ -936,7 +954,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             const next = reseed(prev);
             return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
         });
-    }, [applyLockedFilters, seededDefaultFilters, source]);
+    }, [applyLockedFilters, seededDefaultFilters, sourceDefaults]);
 
     // On initial load
     useEffect(() => {
@@ -1200,7 +1218,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     const handleApplyQuickFilter = (rawFilters: Record<string, unknown>) => {
         const next = applyLockedFilters({
-            ...getDefaultFilterSelections(source),
+            ...sourceDefaults,
             ...(rawFilters as Partial<FilterSelections>),
         });
         setFilters(next);
@@ -1560,8 +1578,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {/* Iterate through showdownCards and display each card */}
                         {displayedCards?.map((cardRecord, index) => {
                             const resolvedAction: CardItemActionButton | undefined = actionButton
-                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, disabled: actionButton.disabled, onClick: () => actionButton.onClick(cardRecord) }
+                                ? { ...actionButton, onClick: () => actionButton.onClick(cardRecord) }
                                 : undefined;
+                            const resolvedSecondary = secondaryAction?.(cardRecord);
                             return (
                                 <div
                                     key={cardRecord.id}
@@ -1592,6 +1611,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             onClick={() => handleRowClick(cardRecord)}
                                             isSelected={selectedCard?.id === cardRecord.id}
                                             actionButton={resolvedAction}
+                                            secondaryActionButton={resolvedSecondary}
                                             ptsChangeField={filters.sort_by === 'points_change_yoy' ? 'points_change_yoy' : 'points_change'}
                                         />
                                     )}

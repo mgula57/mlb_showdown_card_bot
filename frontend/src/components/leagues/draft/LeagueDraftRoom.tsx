@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaHandPointer, FaListOl, FaMagnifyingGlass, FaSpinner, FaTableCells, FaUsers } from 'react-icons/fa6';
+import { FaBookmark, FaHandPointer, FaListOl, FaMagnifyingGlass, FaRegBookmark, FaSpinner, FaTableCells, FaUsers } from 'react-icons/fa6';
 import ShowdownCardSearch, { type FilterSelections } from '../../cards/ShowdownCardSearch';
 import { Tabs } from '../../shared/Tabs';
 import { DraftPositionModal, type DraftPositionOption } from '../../team_builder/DraftPositionModal';
@@ -10,19 +10,24 @@ import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import { makeDraftPick, type League } from '../../../api/leagues';
 import { useLeagueDraft } from '../../../hooks/useLeagueDraft';
 import { useCardMap } from '../../../hooks/useCardMap';
+import { useDraftQueue } from '../../../hooks/useDraftQueue';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, errorMessage } from '../leagueUi';
 import { DraftBoard, DraftBoardSkeleton } from './DraftBoard';
 import { DraftHeader } from './DraftHeader';
 import { DraftHistory } from './DraftHistory';
+import { DraftQueuePanel } from './DraftQueuePanel';
 import { DraftTeamPanel } from './DraftTeamPanel';
 import { draftView, legalDraftSlots } from './draftView';
 
 const LOCKED_FILTERS = ['release_edition_id'];
+// The pool leads with the best cards, not a release's card-number order
+const POOL_DEFAULT_SORT = { sort_by: 'points', sort_direction: 'desc' };
+const NO_IDS: string[] = [];
 
 // One "picks" view everywhere: the grid on desktop (it needs the width), the newest-first list on phones
-type MainTab = 'pool' | 'board';
-type MobileTab = 'pool' | 'team' | 'picks';
+type MainTab = 'pool' | 'queue' | 'board';
+type MobileTab = 'pool' | 'queue' | 'team' | 'picks';
 
 type Props = {
     league: League;
@@ -61,6 +66,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         [draft?.picks],
     );
     const { cardMap, loading: cardsLoading } = useCardMap(pickSlots, token);
+    const queue = useDraftQueue(league.league_id, seasonNumber, view?.draftedIds ?? NO_IDS);
 
     // Stop refreshing once the draft is done, and hand off to season setup
     const isComplete = !!view?.isComplete;
@@ -130,12 +136,29 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         })
         : [];
 
+    const canPick = view.isMyTurn && !view.isComplete && picking === null;
+    const fitsRoster = (card: CardDatabaseRecord) => !!myRoster && legalDraftSlots(card, myRoster, league.settings).length > 0;
+    // Spectators (not in the league) and finished drafts have nothing to queue
+    const showQueue = !!myMemberId && !view.isComplete;
+    const queueTabLabel = queue.queue.length ? `Queue ${queue.queue.length}` : 'Queue';
+    const queuePanel = (
+        <DraftQueuePanel
+            queue={queue.queue}
+            onMove={queue.move}
+            onRemove={queue.remove}
+            onDraft={setConfirmCard}
+            canDraft={canPick}
+            fitsRoster={fitsRoster}
+        />
+    );
+
     const poolPanel = (
         <div className="min-h-[60vh] rounded-xl border border-(--divider) overflow-hidden">
             <ShowdownCardSearch
                 source={CardSource.RELEASE}
                 defaultFilters={poolFilters}
                 lockedFilters={LOCKED_FILTERS}
+                defaultSort={POOL_DEFAULT_SORT}
                 excludeIds={view.draftedIds}
                 disableLocalStorage
                 compact
@@ -144,10 +167,21 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                 )}
                 actionButton={{
                     icon: <FaHandPointer />,
-                    label: view.isMyTurn ? 'Draft' : 'Not your pick',
+                    label: 'Draft',
+                    variant: 'prominent',
                     onClick: card => setConfirmCard(card),
-                    disabled: !view.isMyTurn || view.isComplete || picking !== null,
+                    disabled: !canPick,
+                    disabledLabel: view.isComplete ? 'The draft is over' : !view.isMyTurn ? 'Not your pick' : undefined,
                 }}
+                secondaryAction={showQueue ? card => {
+                    const isQueued = queue.isQueued(card.id);
+                    return {
+                        icon: isQueued ? <FaBookmark className="text-amber-500" /> : <FaRegBookmark />,
+                        label: isQueued ? 'Remove from queue' : 'Add to queue',
+                        placement: 'left',
+                        onClick: () => queue.toggle(card),
+                    };
+                } : undefined}
             />
         </div>
     );
@@ -183,6 +217,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                         <Tabs<MainTab>
                             tabs={[
                                 { id: 'pool', label: 'Player Pool', icon: <FaMagnifyingGlass /> },
+                                ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
                                 { id: 'board', label: 'Draft Board', icon: <FaTableCells /> },
                             ]}
                             value={mainTab}
@@ -190,7 +225,9 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                             fullWidth
                             size="sm"
                         />
-                        {mainTab === 'pool' ? poolPanel : <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />}
+                        {mainTab === 'pool' ? poolPanel
+                            : mainTab === 'queue' && showQueue ? queuePanel
+                            : <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />}
                     </div>
                     {/* Pinned while the pool / board scrolls, so the team stays in view beside the search */}
                     <div className="sticky top-16 max-h-[calc(100dvh-5rem)] overflow-y-auto scrollbar-hide min-w-0">
@@ -202,6 +239,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                     <Tabs<MobileTab>
                         tabs={[
                             { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },
+                            ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
                             { id: 'team', label: 'Team', icon: <FaUsers /> },
                             { id: 'picks', label: 'Picks', icon: <FaListOl /> },
                         ]}
@@ -209,7 +247,10 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                         onChange={setMobileTab}
                         fullWidth
                     />
-                    {mobileTab === 'pool' ? poolPanel : mobileTab === 'team' ? teamPanel : <DraftHistory draft={draft} view={view} />}
+                    {mobileTab === 'pool' ? poolPanel
+                        : mobileTab === 'queue' && showQueue ? queuePanel
+                        : mobileTab === 'team' ? teamPanel
+                        : <DraftHistory draft={draft} view={view} />}
                 </div>
             )}
 

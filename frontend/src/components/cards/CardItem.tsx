@@ -86,6 +86,8 @@ type CardItemProps = {
     isSelected?: boolean;
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    /** A second action, usually `placement: 'left'` so it sits in the top-left corner (e.g. Queue). */
+    secondaryActionButton?: CardItemActionButton;
     /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
     hasAdvantage?: boolean;
     /** Sim only — the chart result the swing landed on (e.g. "1b+"); that cell lights up. */
@@ -130,7 +132,7 @@ export const CardItem = ({
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
     cardChartRanges, cardLeague, cardSource, cardStatus,
-    onClick, className, isSelected, actionButton, hasAdvantage, chartHighlight
+    onClick, className, isSelected, actionButton, secondaryActionButton, hasAdvantage, chartHighlight
 }: CardItemProps) => {
 
     const { isDark } = useTheme();
@@ -194,28 +196,12 @@ export const CardItem = ({
     ].filter(Boolean); // Remove undefined values
 
     return (
-        <div className={`${className} relative`}>
+        // A size container only for a prominent action (it sizes its label off the card's width) -
+        // elsewhere it could collapse a card sitting in a shrink-to-fit layout
+        <div className={`${className} relative ${actionButton?.variant === 'prominent' ? '@container' : ''}`}>
             {hasAdvantage && <AdvantageBadge />}
-            {actionButton && (
-                <button
-                    type="button"
-                    disabled={actionButton.disabled}
-                    aria-label={actionButton.disabled ? 'Saving your last pick…' : actionButton.label}
-                    title={actionButton.disabled ? 'Saving your last pick…' : undefined}
-                    onClick={(e) => { e.stopPropagation(); if (!actionButton.disabled) actionButton.onClick(); }}
-                    className={`
-                        absolute -top-1.5 ${actionButton.placement === 'left' ? 'left-1.5' : '-right-1.5'} z-5
-                        flex items-center justify-center
-                        p-1 ${actionButton.label ? 'rounded-lg' : 'rounded-full'}
-                        transition-colors
-                        ${actionButton.disabled
-                            ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
-                            : `${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'} text-(--text-tertiary) hover:bg-(--background-quaternary) hover:text-(--text-primary) cursor-pointer`}
-                    `}
-                >
-                    {actionButton.icon}
-                </button>
-            )}
+            {actionButton && <CardActionButton action={actionButton} />}
+            {secondaryActionButton && <CardActionButton action={secondaryActionButton} />}
             <div
                 className={`
                     ${className}
@@ -552,6 +538,7 @@ type CardItemFromCardDatabaseRecordProps = {
     ptsChangeField?: 'points_change' | 'points_change_yoy';
     /** Optional action button shown in the top-right corner */
     actionButton?: CardItemActionButton;
+    secondaryActionButton?: CardItemActionButton;
     /** Effective points multiplier (e.g. bench multiplier). When set and != 1, shows the original points crossed out next to the effective value. */
     cardPtsMultiplier?: number;
     /** Overrides `card.stat_highlights_list` (the card's own real-life highlights) — e.g. a
@@ -563,7 +550,7 @@ type CardItemFromCardDatabaseRecordProps = {
     awardListOverride?: string[];
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, ptsChangeField = 'points_change', actionButton, cardPtsMultiplier, statHighlightsOverride, awardListOverride }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, ptsChangeField = 'points_change', actionButton, secondaryActionButton, cardPtsMultiplier, statHighlightsOverride, awardListOverride }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -609,6 +596,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             className={className}
             isSelected={isSelected}
             actionButton={actionButton}
+            secondaryActionButton={secondaryActionButton}
         />
     );
 }
@@ -631,5 +619,35 @@ export function CardItemSkeleton({ className }: { className?: string }) {
                 <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:300ms]" />
             </div>
         </div>
+    );
+}
+
+/** A card's corner action. `icon` is a small square in the corner; `prominent` is a filled pill
+ *  that adds its label beside the icon once the card is wide enough to fit it. */
+function CardActionButton({ action }: { action: CardItemActionButton }) {
+    const isProminent = action.variant === 'prominent';
+    const disabledLabel = action.disabledLabel ?? 'Saving your last pick…';
+    const corner = action.placement === 'left' ? '-left-2' : isProminent ? '-right-1' : '-right-1.5';
+    const shape = isProminent
+        ? 'gap-1.5 px-2.5 py-1 @[260px]:px-3 @[260px]:py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide shadow-md'
+        : `p-1 ${action.label ? 'rounded-lg' : 'rounded-full'}`;
+    const colors = action.disabled
+        ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
+        : isProminent
+            ? `${action.bgColorClass ?? 'animated-showdown-gradient'} text-white hover:brightness-110 hover:scale-105 active:scale-95 cursor-pointer`
+            : `${action.bgColorClass ? action.bgColorClass : 'bg-tertiary border'} text-(--text-tertiary) hover:bg-(--background-quaternary) hover:text-(--text-primary) cursor-pointer`;
+
+    return (
+        <button
+            type="button"
+            disabled={action.disabled}
+            aria-label={action.disabled ? disabledLabel : action.label}
+            title={action.disabled ? disabledLabel : undefined}
+            onClick={(e) => { e.stopPropagation(); if (!action.disabled) action.onClick(); }}
+            className={`absolute -top-2 ${corner} z-5 flex items-center justify-center transition-all ${shape} ${colors}`}
+        >
+            {action.icon}
+            {isProminent && action.label && <span className="hidden @[260px]:inline">{action.label}</span>}
+        </button>
     );
 }

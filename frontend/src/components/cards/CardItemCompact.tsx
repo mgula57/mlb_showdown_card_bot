@@ -24,6 +24,11 @@ export type CardItemActionButton = {
     placement?: 'left' | 'right'; // Optionally change which side the button appears on
     /** Greys out the button and blocks clicks — e.g. while a previous pick is still saving. */
     disabled?: boolean;
+    /** Tooltip / aria-label while disabled. Defaults to "Saving your last pick…". */
+    disabledLabel?: string;
+    /** `prominent` (full-size cards only): a filled pill that shows `label` beside the icon when
+     *  the card is wide enough - for the page's main action, e.g. Draft. Defaults to `icon`. */
+    variant?: 'icon' | 'prominent';
 };
 
 type CardItemCompactProps = {
@@ -303,8 +308,8 @@ export const CardItemCompact = ({
                 <button
                     type="button"
                     disabled={actionButton.disabled}
-                    aria-label={actionButton.disabled ? 'Saving your last pick…' : actionButton.label}
-                    title={actionButton.disabled ? 'Saving your last pick…' : undefined}
+                    aria-label={actionButton.disabled ? actionButton.disabledLabel ?? 'Saving your last pick…' : actionButton.label}
+                    title={actionButton.disabled ? actionButton.disabledLabel ?? 'Saving your last pick…' : undefined}
                     onClick={(e) => { e.stopPropagation(); if (!actionButton.disabled) actionButton.onClick(); }}
                     className={`
                         absolute -top-2 ${actionButton.placement === 'left' ? '-left-2' : '-right-2'}
