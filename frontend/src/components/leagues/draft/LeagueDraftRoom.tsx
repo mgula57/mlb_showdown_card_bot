@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FaBookmark, FaHandPointer, FaListOl, FaMagnifyingGlass, FaRegBookmark, FaSpinner, FaTableCells, FaUsers } from 'react-icons/fa6';
 import ShowdownCardSearch, { type FilterSelections } from '../../cards/ShowdownCardSearch';
 import { Tabs } from '../../shared/Tabs';
@@ -14,7 +14,7 @@ import { useDraftQueue } from '../../../hooks/useDraftQueue';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, errorMessage } from '../leagueUi';
 import { DraftBoard, DraftBoardSkeleton } from './DraftBoard';
-import { DraftHeader } from './DraftHeader';
+import { DraftClock, DraftClockSkeleton, DraftPickStrip, DraftPickStripSkeleton, DraftTopBar } from './DraftHeader';
 import { DraftHistory } from './DraftHistory';
 import { DraftQueuePanel } from './DraftQueuePanel';
 import { DraftTeamPanel } from './DraftTeamPanel';
@@ -24,6 +24,7 @@ const LOCKED_FILTERS = ['release_edition_id'];
 // The pool leads with the best cards, not a release's card-number order
 const POOL_DEFAULT_SORT = { sort_by: 'points', sort_direction: 'desc' };
 const NO_IDS: string[] = [];
+const CONTENT_CLASS = 'flex-1 w-full max-w-[1800px] mx-auto px-4 sm:px-6 py-3 flex flex-col gap-3';
 
 // One "picks" view everywhere: the grid on desktop (it needs the width), the newest-first list on phones
 type MainTab = 'pool' | 'queue' | 'board';
@@ -35,18 +36,21 @@ type Props = {
     token: string;
     myMemberId: string | null;
     isCommissioner: boolean;
+    /** Back button / title the page puts at the start of the top bar, ahead of the draft status. */
+    topBarLeading: ReactNode;
     onOpenBigBoard: () => void;
     /** The draft just finished - the league page moves on to season setup. */
     onComplete: () => void;
 };
 
 /**
- * The live draft: header (on the clock, last pick, upcoming picks) over the room. On desktop the
+ * The live draft: the top bar (who's on the clock, actions) and a strip of past / upcoming picks
+ * over the room. On desktop the
  * main 2/3 toggles Player Pool / Draft Board with the drafter's team pinned beside it, so a slot
  * clicked on the team filters the pool right next to it. On phones Pool / Team / Picks are tabs,
  * with picks as a list since the grid is too wide for a phone.
  */
-export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCommissioner, onOpenBigBoard, onComplete }: Props) {
+export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCommissioner, topBarLeading, onOpenBigBoard, onComplete }: Props) {
     const isDesktop = useMediaQuery('(min-width: 768px)');
     const [mobileTab, setMobileTab] = useState<MobileTab>('pool');
     const [mainTab, setMainTab] = useState<MainTab>('pool');
@@ -110,11 +114,14 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     }
 
     if (!draft || !view) {
-        return error ? <div className={ERROR_BOX_CLASS}>{error}</div> : (
-            <div className="flex flex-col gap-3">
-                <div className="h-28 rounded-2xl bg-(--background-secondary) animate-pulse" />
-                <DraftBoardSkeleton />
-            </div>
+        return (
+            <>
+                <DraftTopBar leading={topBarLeading}>{!error && <DraftClockSkeleton />}</DraftTopBar>
+                {!error && <DraftPickStripSkeleton />}
+                <div className={CONTENT_CLASS}>
+                    {error ? <div className={ERROR_BOX_CLASS}>{error}</div> : <DraftBoardSkeleton />}
+                </div>
+            </>
         );
     }
 
@@ -140,6 +147,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     const fitsRoster = (card: CardDatabaseRecord) => !!myRoster && legalDraftSlots(card, myRoster, league.settings).length > 0;
     // Spectators (not in the league) and finished drafts have nothing to queue
     const showQueue = !!myMemberId && !view.isComplete;
+    const queueIsPrimary = showQueue && !view.isMyTurn;
     const queueTabLabel = queue.queue.length ? `Queue ${queue.queue.length}` : 'Queue';
     const queuePanel = (
         <DraftQueuePanel
@@ -165,7 +173,8 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                 toolbarSlot={pendingSlot && (
                     <PendingSlotChip label={pendingSlotLabel(pendingSlot)!} onDismiss={() => setPendingSlot(null)} />
                 )}
-                actionButton={{
+                // One main action per card: Draft while I'm up, otherwise Queue (spectators keep the disabled Draft)
+                actionButton={queueIsPrimary ? undefined : {
                     icon: <FaHandPointer />,
                     label: 'Draft',
                     variant: 'prominent',
@@ -173,12 +182,13 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                     disabled: !canPick,
                     disabledLabel: view.isComplete ? 'The draft is over' : !view.isMyTurn ? 'Not your pick' : undefined,
                 }}
-                secondaryAction={showQueue ? card => {
+                secondaryAction={queueIsPrimary ? card => {
                     const isQueued = queue.isQueued(card.id);
                     return {
-                        icon: isQueued ? <FaBookmark className="text-amber-500" /> : <FaRegBookmark />,
-                        label: isQueued ? 'Remove from queue' : 'Add to queue',
-                        placement: 'left',
+                        icon: isQueued ? <FaBookmark /> : <FaRegBookmark />,
+                        label: isQueued ? 'Queued' : 'Queue',
+                        variant: 'prominent',
+                        bgColorClass: isQueued ? 'bg-amber-500' : 'bg-neutral-500',
                         onClick: () => queue.toggle(card),
                     };
                 } : undefined}
@@ -199,85 +209,90 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     );
 
     return (
-        <div className="flex flex-col gap-3">
-            <DraftHeader
-                draft={draft}
-                view={view}
-                myMemberId={myMemberId}
-                isCommissioner={isCommissioner}
-                autoPicking={picking === 'auto'}
-                onAutoPick={() => pick(null)}
-                onOpenBigBoard={onOpenBigBoard}
-            />
-            {pickError && !confirmCard && <div className={ERROR_BOX_CLASS}>{pickError}</div>}
+        <>
+            <DraftTopBar leading={topBarLeading}>
+                <DraftClock
+                    draft={draft}
+                    view={view}
+                    myMemberId={myMemberId}
+                    isCommissioner={isCommissioner}
+                    autoPicking={picking === 'auto'}
+                    onAutoPick={() => pick(null)}
+                    onOpenBigBoard={onOpenBigBoard}
+                />
+            </DraftTopBar>
+            <DraftPickStrip draft={draft} view={view} myMemberId={myMemberId} />
+            <div className={CONTENT_CLASS}>
+                {pickError && !confirmCard && <div className={ERROR_BOX_CLASS}>{pickError}</div>}
 
-            {isDesktop ? (
-                <div className="grid grid-cols-3 gap-4 items-start">
-                    <div className="col-span-2 flex flex-col gap-2 min-w-0">
-                        <Tabs<MainTab>
-                            tabs={[
-                                { id: 'pool', label: 'Player Pool', icon: <FaMagnifyingGlass /> },
-                                ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
-                                { id: 'board', label: 'Draft Board', icon: <FaTableCells /> },
-                            ]}
-                            value={mainTab}
-                            onChange={setMainTab}
-                            fullWidth
-                            size="sm"
-                        />
-                        {mainTab === 'pool' ? poolPanel
-                            : mainTab === 'queue' && showQueue ? queuePanel
-                            : <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />}
-                    </div>
-                    {/* Pinned while the pool / board scrolls, so the team stays in view beside the search */}
-                    <div className="sticky top-16 max-h-[calc(100dvh-5rem)] overflow-y-auto scrollbar-hide min-w-0">
-                        {teamPanel}
-                    </div>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-3">
-                    <Tabs<MobileTab>
-                        tabs={[
-                            { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },
-                            ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
-                            { id: 'team', label: 'Team', icon: <FaUsers /> },
-                            { id: 'picks', label: 'Picks', icon: <FaListOl /> },
-                        ]}
-                        value={mobileTab}
-                        onChange={setMobileTab}
-                        fullWidth
-                    />
-                    {mobileTab === 'pool' ? poolPanel
-                        : mobileTab === 'queue' && showQueue ? queuePanel
-                        : mobileTab === 'team' ? teamPanel
-                        : <DraftHistory draft={draft} view={view} />}
-                </div>
-            )}
-
-            {confirmCard && (
-                <DraftPositionModal
-                    card={confirmCard}
-                    options={confirmOptions}
-                    onSelect={position => pick(confirmCard.id, position)}
-                    onClose={() => { setConfirmCard(null); setPickError(null); }}
-                    savingPosition={picking}
-                    disabled={!view.isMyTurn}
-                >
-                    {!view.isMyTurn ? (
-                        <p className="text-[12px] text-(--text-secondary)">It's no longer your pick.</p>
-                    ) : confirmOptions.length === 0 && (
-                        // Nothing fits - the server only allows this when no card left in the pool fits either
-                        <div className="flex flex-col items-start gap-2">
-                            <p className="text-[12px] text-(--text-secondary)">No open spot on your roster fits this card. If nothing left in the pool fits either, it can be drafted out of position.</p>
-                            <button type="button" onClick={() => pick(confirmCard.id)} disabled={picking !== null} className={PRIMARY_BUTTON_CLASS}>
-                                {picking === 'any' ? <FaSpinner className="animate-spin" /> : <FaHandPointer />}
-                                Draft anyway
-                            </button>
+                {isDesktop ? (
+                    <div className="grid grid-cols-3 gap-4 items-start">
+                        <div className="col-span-2 flex flex-col gap-2 min-w-0">
+                            <Tabs<MainTab>
+                                tabs={[
+                                    { id: 'pool', label: 'Player Pool', icon: <FaMagnifyingGlass /> },
+                                    ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
+                                    { id: 'board', label: 'Draft Board', icon: <FaTableCells /> },
+                                ]}
+                                value={mainTab}
+                                onChange={setMainTab}
+                                fullWidth
+                                size="sm"
+                            />
+                            {mainTab === 'pool' ? poolPanel
+                                : mainTab === 'queue' && showQueue ? queuePanel
+                                : <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />}
                         </div>
-                    )}
-                    {pickError && <div className={ERROR_BOX_CLASS}>{pickError}</div>}
-                </DraftPositionModal>
-            )}
-        </div>
+                        {/* Pinned while the pool / board scrolls, so the team stays in view beside the search */}
+                        <div className="sticky top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto scrollbar-hide min-w-0">
+                            {teamPanel}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        <Tabs<MobileTab>
+                            tabs={[
+                                { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },
+                                ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
+                                { id: 'team', label: 'Team', icon: <FaUsers /> },
+                                { id: 'picks', label: 'Picks', icon: <FaListOl /> },
+                            ]}
+                            value={mobileTab}
+                            onChange={setMobileTab}
+                            fullWidth
+                        />
+                        {mobileTab === 'pool' ? poolPanel
+                            : mobileTab === 'queue' && showQueue ? queuePanel
+                            : mobileTab === 'team' ? teamPanel
+                            : <DraftHistory draft={draft} view={view} />}
+                    </div>
+                )}
+
+                {confirmCard && (
+                    <DraftPositionModal
+                        card={confirmCard}
+                        options={confirmOptions}
+                        onSelect={position => pick(confirmCard.id, position)}
+                        onClose={() => { setConfirmCard(null); setPickError(null); }}
+                        savingPosition={picking}
+                        disabled={!view.isMyTurn}
+                    >
+                        {!view.isMyTurn ? (
+                            <p className="text-[12px] text-(--text-secondary)">It's no longer your pick.</p>
+                        ) : confirmOptions.length === 0 && (
+                            // Nothing fits - the server only allows this when no card left in the pool fits either
+                            <div className="flex flex-col items-start gap-2">
+                                <p className="text-[12px] text-(--text-secondary)">No open spot on your roster fits this card. If nothing left in the pool fits either, it can be drafted out of position.</p>
+                                <button type="button" onClick={() => pick(confirmCard.id)} disabled={picking !== null} className={PRIMARY_BUTTON_CLASS}>
+                                    {picking === 'any' ? <FaSpinner className="animate-spin" /> : <FaHandPointer />}
+                                    Draft anyway
+                                </button>
+                            </div>
+                        )}
+                        {pickError && <div className={ERROR_BOX_CLASS}>{pickError}</div>}
+                    </DraftPositionModal>
+                )}
+            </div>
+        </>
     );
 }

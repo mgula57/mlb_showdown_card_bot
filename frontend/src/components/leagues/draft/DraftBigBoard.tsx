@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FaCompress, FaExpand, FaXmark } from 'react-icons/fa6';
+import { FaBaseball, FaCompress, FaExpand, FaTableCells, FaXmark } from 'react-icons/fa6';
 import { TeamChip } from '../../shared/TeamChip';
-import { fetchLeague, type LeagueState } from '../../../api/leagues';
+import { Tabs } from '../../shared/Tabs';
+import { fetchLeague, type DraftState, type LeagueSettings, type LeagueState } from '../../../api/leagues';
 import { useLeagueDraft } from '../../../hooks/useLeagueDraft';
+import { useCardMap } from '../../../hooks/useCardMap';
+import { CardSource } from '../../../types/cardSource';
 import { leagueTeamIdentity } from '../leagueUi';
 import { DraftBoard } from './DraftBoard';
-import { draftView } from './draftView';
+import { DraftTeamFieldView, DraftTeamFieldViewSkeleton } from './DraftTeamFieldView';
+import { DraftTeamSummary } from './DraftTeamSummary';
+import { draftView, teamRoster, type DraftView } from './draftView';
 
 // ROUNDS SHOWN AT ONCE - A WINDOW AROUND THE CURRENT ROUND SO THE BOARD NEVER SCROLLS ON A TV
 const VISIBLE_ROUNDS = 6;
 const CONTROLS_HIDE_MS = 3000;
+
+type BigBoardView = 'board' | 'teams';
 
 type Props = {
     leagueId: string;
@@ -27,6 +34,7 @@ export function DraftBigBoard({ leagueId, token, onExit }: Props) {
     const [league, setLeague] = useState<LeagueState | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
+    const [boardView, setBoardView] = useState<BigBoardView>('board');
 
     useEffect(() => {
         fetchLeague(token, leagueId).then(setLeague).catch(() => {});
@@ -37,6 +45,12 @@ export function DraftBigBoard({ leagueId, token, onExit }: Props) {
     const { data } = useLeagueDraft(token, leagueId, seasonNumber);
     const draft = data?.draft ?? null;
     const view = useMemo(() => (draft ? draftView(draft, null) : null), [draft]);
+    const settings = league?.league.settings ?? null;
+    const pickSlots = useMemo(
+        () => (draft?.picks ?? []).map(pick => ({ card_id: pick.release_card_id, card_source: CardSource.RELEASE })),
+        [draft?.picks],
+    );
+    const { cardMap, loading: cardsLoading } = useCardMap(pickSlots, token);
 
     // Try for full screen right away (the Big Board button click still counts as the gesture)
     useEffect(() => {
@@ -111,17 +125,51 @@ export function DraftBigBoard({ leagueId, token, onExit }: Props) {
                 )}
             </div>
 
-            {/* Board */}
-            <div className="flex-1 min-h-0">
-                {draft && view ? (
-                    <DraftBoard draft={draft} view={view} myMemberId={null} size="big" rounds={rounds} />
-                ) : (
-                    <div className="h-full rounded-[1.5vh] bg-(--background-secondary) animate-pulse" />
-                )}
-            </div>
+            {boardView === 'board' ? (
+                <div className="flex-1 min-h-0 flex gap-[1.5vh]">
+                    <div className="w-[20vw] shrink-0 overflow-y-auto scrollbar-hide">
+                        {draft && view && settings
+                            ? <TeamStandings draft={draft} view={view} settings={settings} />
+                            : <div className="h-full rounded-[1.5vh] bg-(--background-secondary) animate-pulse" />}
+                    </div>
+                    <div className="flex-1 min-w-0 min-h-0">
+                        {draft && view ? (
+                            <DraftBoard draft={draft} view={view} myMemberId={null} size="big" rounds={rounds} />
+                        ) : (
+                            <div className="h-full rounded-[1.5vh] bg-(--background-secondary) animate-pulse" />
+                        )}
+                    </div>
+                </div>
+            ) : (
+                <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide grid grid-cols-2 2xl:grid-cols-3 content-start gap-[1.5vh]">
+                    {draft && view && settings
+                        ? view.teams.map(team => (
+                            <DraftTeamFieldView
+                                key={team.member_id}
+                                team={team}
+                                picks={draft.picks}
+                                settings={settings}
+                                cards={cardMap}
+                                isLoadingCards={cardsLoading}
+                                isOnTheClock={draft.on_the_clock_member_id === team.member_id}
+                            />
+                        ))
+                        : Array.from({ length: 4 }, (_, i) => <DraftTeamFieldViewSkeleton key={i} />)}
+                </div>
+            )}
 
             {/* Controls - fade when the mouse is still */}
-            <div className={`fixed top-[2vh] right-[2vh] flex gap-2 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`fixed top-[2vh] right-[2vh] flex items-center gap-2 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <Tabs<BigBoardView>
+                    tabs={[
+                        { id: 'board', label: 'Board', icon: <FaTableCells /> },
+                        { id: 'teams', label: 'Teams', icon: <FaBaseball /> },
+                    ]}
+                    value={boardView}
+                    onChange={setBoardView}
+                    size="sm"
+                    className="rounded-lg bg-(--background-tertiary) px-1"
+                />
                 <button
                     type="button"
                     onClick={() => (isFullscreen ? document.exitFullscreen() : rootRef.current?.requestFullscreen())?.catch(() => {})}
@@ -133,6 +181,26 @@ export function DraftBigBoard({ leagueId, token, onExit }: Props) {
                     <FaXmark /> Close
                 </button>
             </div>
+        </div>
+    );
+}
+
+/** Every team in draft order with its points so far, beside the board. */
+function TeamStandings({ draft, view, settings }: { draft: DraftState; view: DraftView; settings: LeagueSettings }) {
+    return (
+        <div className="flex flex-col gap-[1vh]">
+            {view.teams.map(team => {
+                const roster = teamRoster(draft.picks, team, settings);
+                const isOnTheClock = draft.on_the_clock_member_id === team.member_id;
+                return (
+                    <div
+                        key={team.member_id}
+                        className={`rounded-[1.2vh] border px-3 py-2 bg-(--background-secondary) ${isOnTheClock ? 'border-(--secondary) ring-2 ring-(--secondary)' : 'border-(--divider)'}`}
+                    >
+                        <DraftTeamSummary team={team} points={roster.points} picksMade={roster.picksMade} settings={settings} isOnTheClock={isOnTheClock} />
+                    </div>
+                );
+            })}
         </div>
     );
 }

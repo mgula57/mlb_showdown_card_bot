@@ -3,12 +3,11 @@ import { FaClipboardList, FaRing } from 'react-icons/fa6';
 import CustomSelect from '../../shared/CustomSelect';
 import { Tabs } from '../../shared/Tabs';
 import { DepthChartPanel } from '../../team_builder/DepthChartPanel';
-import { FieldView, type FieldViewRosterData } from '../../team_builder/FieldView';
+import { FieldView } from '../../team_builder/FieldView';
 import { type PendingSlot, pendingSlotHighlight } from '../../team_builder/draftSlot';
-import { benchBullpenSlotCounts, effectiveBenchBullpenMinimums } from '../../../domain/roster';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import type { DraftState, LeagueSettings } from '../../../api/leagues';
-import { teamRoster } from './draftView';
+import { fieldRosterData, teamRoster } from './draftView';
 
 type Props = {
     draft: DraftState;
@@ -48,28 +47,7 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
         onBenchClick: (current: unknown) => { if (fill && !current) fill({ kind: 'bench', current: null }); },
     };
 
-    // Same bench / bullpen row counts the depth chart works out, so both views show the open spots
-    const bucketMins = effectiveBenchBullpenMinimums(depthChart);
-    const benchCount = depthChart.roster.filter(slot => slot.roster_position === 'BE').length;
-    const bullpenCount = depthChart.rotation.filter(slot => !slot.role.startsWith('SP')).length;
-    const fieldRosterData: FieldViewRosterData = {
-        roster: depthChart.roster,
-        rotation: depthChart.rotation,
-        benchPtsMultiplier: depthChart.bench_pts_multiplier,
-        minBench: bucketMins.bench,
-        minBullpen: bucketMins.bullpen,
-        maxRotation: depthChart.num_starters,
-        draftSlots: benchBullpenSlotCounts({
-            rosterSize: depthChart.roster_size,
-            rosterCount: depthChart.roster.length,
-            lineup: { filled: lineup.slots.length, target: 9 },
-            rotation: { filled: depthChart.rotation.length - bullpenCount, target: depthChart.num_starters },
-            bench: { filled: benchCount, target: bucketMins.bench },
-            bullpen: { filled: bullpenCount, target: bucketMins.bullpen },
-            benchMin: depthChart.min_bench,
-            bullpenMin: depthChart.min_bullpen,
-        }),
-    };
+    const fieldRoster = fieldRosterData(depthChart);
 
     return (
         <div className="flex flex-col gap-3">
@@ -109,7 +87,7 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
                     key={team.member_id}
                     lineup={lineup}
                     cardMap={cards}
-                    rosterData={fieldRosterData}
+                    rosterData={fieldRoster}
                     isLoadingCards={isLoadingCards}
                     readOnly={!canFill}
                     emptySlotsOnly

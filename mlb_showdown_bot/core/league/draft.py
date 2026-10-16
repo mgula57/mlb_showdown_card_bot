@@ -491,7 +491,7 @@ class LeagueDraft:
         picks, and the viewer's open roster needs."""
         board = self.board()
         on_the_clock = board.on_the_clock
-        upcoming = board.order.upcoming(board.next_pick, upcoming_count or len(board.teams) * 2)
+        upcoming = board.order.upcoming(board.next_pick, upcoming_count or len(board.teams) * 4)
         roster = board.rosters.get(viewer_member_id) if viewer_member_id else None
         return {
             'status': self.season.get('status'),

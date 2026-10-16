@@ -198,7 +198,7 @@ export const CardItem = ({
     return (
         // A size container only for a prominent action (it sizes its label off the card's width) -
         // elsewhere it could collapse a card sitting in a shrink-to-fit layout
-        <div className={`${className} relative ${actionButton?.variant === 'prominent' ? '@container' : ''}`}>
+        <div className={`${className} relative ${actionButton?.variant === 'prominent' || secondaryActionButton?.variant === 'prominent' ? '@container' : ''}`}>
             {hasAdvantage && <AdvantageBadge />}
             {actionButton && <CardActionButton action={actionButton} />}
             {secondaryActionButton && <CardActionButton action={secondaryActionButton} />}

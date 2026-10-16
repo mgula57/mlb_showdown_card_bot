@@ -1,8 +1,9 @@
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import type { DraftMyRoster, DraftPick, DraftState, LeagueSettings, LeagueTeam } from '../../../api/leagues';
-import { getEligiblePositions } from '../../../domain/roster';
+import { benchBullpenSlotCounts, effectiveBenchBullpenMinimums, getEligiblePositions } from '../../../domain/roster';
 import { CardSource } from '../../../types/cardSource';
 import type { DepthChartTeam } from '../../team_builder/DepthChartPanel';
+import type { FieldViewRosterData } from '../../team_builder/FieldView';
 
 export const LINEUP_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 const BULLPEN_POSITIONS = ['RP', 'CL'];
@@ -60,6 +61,33 @@ export function teamRoster(picks: DraftPick[], team: LeagueTeam, settings: Leagu
             + Math.max(0, settings.min_bullpen - bullpenCount)
             + Math.max(0, settings.min_bench - benchCount),
         points: mine.reduce((total, pick) => total + (pick.points ?? 0), 0),
+    };
+}
+
+/** A drafted roster as `FieldView`'s roster data, with the same bench / bullpen row counts the
+ *  depth chart works out so both views show the open spots. */
+export function fieldRosterData(depthChart: DepthChartTeam): FieldViewRosterData {
+    const lineup = depthChart.lineups[0];
+    const bucketMins = effectiveBenchBullpenMinimums(depthChart);
+    const benchCount = depthChart.roster.filter(slot => slot.roster_position === 'BE').length;
+    const bullpenCount = depthChart.rotation.filter(slot => !slot.role.startsWith('SP')).length;
+    return {
+        roster: depthChart.roster,
+        rotation: depthChart.rotation,
+        benchPtsMultiplier: depthChart.bench_pts_multiplier,
+        minBench: bucketMins.bench,
+        minBullpen: bucketMins.bullpen,
+        maxRotation: depthChart.num_starters,
+        draftSlots: benchBullpenSlotCounts({
+            rosterSize: depthChart.roster_size,
+            rosterCount: depthChart.roster.length,
+            lineup: { filled: lineup.slots.length, target: 9 },
+            rotation: { filled: depthChart.rotation.length - bullpenCount, target: depthChart.num_starters },
+            bench: { filled: benchCount, target: bucketMins.bench },
+            bullpen: { filled: bullpenCount, target: bucketMins.bullpen },
+            benchMin: depthChart.min_bench,
+            bullpenMin: depthChart.min_bullpen,
+        }),
     };
 }
 

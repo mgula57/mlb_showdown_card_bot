@@ -1,6 +1,10 @@
+import { useMemo, useState } from 'react';
 import { FaChevronDown, FaChevronUp, FaHandPointer, FaRegBookmark, FaXmark } from 'react-icons/fa6';
 import { CardItemCompactFromCardDatabaseRecord } from '../../cards/CardItemCompact';
+import { CardDetail } from '../../cards/CardDetail';
+import { Modal } from '../../shared/Modal';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
+import type { ShowdownBotCardAPIResponse } from '../../../api/showdownBotCard';
 import { SECTION_LABEL_CLASS } from '../leagueUi';
 
 type Props = {
@@ -16,8 +20,15 @@ type Props = {
 
 const ICON_BUTTON_CLASS = 'flex items-center justify-center text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-20 disabled:pointer-events-none cursor-pointer';
 
-/** The drafter's ranked queue: draft straight from it, reorder it, or drop players. */
+/** The drafter's ranked queue: draft straight from it, reorder it, drop players, or tap one for
+ *  its full card. */
 export function DraftQueuePanel({ queue, onMove, onRemove, onDraft, canDraft, fitsRoster }: Props) {
+    const [detailCard, setDetailCard] = useState<CardDatabaseRecord | null>(null);
+    const detailStyleOverrides = useMemo(
+        () => (detailCard?.release_image_path ? { storagePath: detailCard.release_image_path } : undefined),
+        [detailCard],
+    );
+
     return (
         <section className="flex flex-col gap-2">
             <div className={SECTION_LABEL_CLASS}>Queue{queue.length ? ` · ${queue.length}` : ''}</div>
@@ -34,7 +45,7 @@ export function DraftQueuePanel({ queue, onMove, onRemove, onDraft, canDraft, fi
                             <li key={card.id} className="flex items-center gap-1.5">
                                 <span className="w-5 shrink-0 text-right text-[11px] font-black tabular-nums text-(--text-tertiary)">{index + 1}</span>
                                 <div className={`flex-1 min-w-0 ${fits ? '' : 'opacity-50'}`} title={fits ? undefined : 'No open spot on your roster fits this card'}>
-                                    <CardItemCompactFromCardDatabaseRecord card={card} />
+                                    <CardItemCompactFromCardDatabaseRecord card={card} onClick={() => setDetailCard(card)} />
                                 </div>
                                 <div className="flex flex-col shrink-0">
                                     <button type="button" onClick={() => onMove(card.id, -1)} disabled={index === 0} className={ICON_BUTTON_CLASS} aria-label="Move up">
@@ -64,6 +75,23 @@ export function DraftQueuePanel({ queue, onMove, onRemove, onDraft, canDraft, fi
                     })}
                 </ol>
             )}
+
+            {/* Kept mounted and only hidden (same as GuidedDraftPanel): CardDetail fetches by
+                `cardId` only when that prop changes after mount */}
+            <div className={detailCard ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={() => setDetailCard(null)} isVisible={!!detailCard}>
+                    <CardDetail
+                        showdownBotCardData={detailCard ? { card: detailCard.card_data } as ShowdownBotCardAPIResponse : undefined}
+                        cardId={detailCard?.card_id}
+                        styleOverrides={detailStyleOverrides}
+                        hideTrendGraphs={true}
+                        context="explore"
+                        parent="modal"
+                        onDraft={detailCard ? () => { onDraft(detailCard); setDetailCard(null); } : undefined}
+                        draftDisabled={!canDraft}
+                    />
+                </Modal>
+            </div>
         </section>
     );
 }
