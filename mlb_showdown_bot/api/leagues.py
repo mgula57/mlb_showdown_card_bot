@@ -369,16 +369,18 @@ def get_draft(league_id: str, season_number: int):
 @require_auth
 @_json_errors
 def make_pick(league_id: str, season_number: int):
-    """Draft `release_card_id` for the team on the clock, or `auto: true` to let the bot pick
-    (the commissioner's way past a stalled seat). Bot seats then pick until a human is up."""
+    """Draft `release_card_id` (into `roster_position`, if given) for the team on the clock, or
+    `auto: true` to let the bot pick (the commissioner's way past a stalled seat). Bot seats then
+    pick until a human is up."""
     payload = request.get_json(silent=True) or {}
     release_card_id = None if payload.get('auto') else payload.get('release_card_id')
+    roster_position = None if payload.get('auto') else payload.get('roster_position')
     if not release_card_id and not payload.get('auto'):
         raise _ApiError('release_card_id is required')
     with PostgresDB() as db:
         context = _LeagueContext.load(db, league_id)
         draft = LeagueDraft(db, context.league, context.season(db, season_number))
-        draft.make_pick(context.my_member['member_id'], context.is_commissioner, release_card_id)
+        draft.make_pick(context.my_member['member_id'], context.is_commissioner, release_card_id, roster_position)
         draft.run_bot_picks()
         return jsonify(_draft_changed_payload(context, draft)), 200
 

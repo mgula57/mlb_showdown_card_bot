@@ -290,6 +290,19 @@ check("m0 is back on the clock at pick 5", starters_draft.board().on_the_clock['
 check("third starter for a 2-man rotation is rejected", raises(lambda: starters_draft.make_pick('m0', False, 'STARTER-20'), DraftError))
 check("auto-pick for a human seat fills a need", starters_draft.make_pick('m0', True, None)['is_auto'])
 
+# CHOSEN ROSTER POSITION
+chosen_db = FakeLeagueDB(build_pool(seed=11), member_count=2, human_slots=(0, 1))
+chosen_draft = make_draft(chosen_db, default_settings.model_dump())
+fresh = DraftRoster(settings=default_settings)
+ss_card = DraftCard.from_row(card_row('x', 'SS', 100))
+check("legal slots for an SS: SS, DH, bench", fresh.legal_slots(ss_card) == ['SS', 'DH', 'BE'], str(fresh.legal_slots(ss_card)))
+check("legal slots for an IF include every infield spot", {'1B', '2B', '3B', 'SS'} <= set(fresh.legal_slots(DraftCard.from_row(card_row('y', 'IF', 100)))))
+check("a hitter can't be drafted at a spot it can't play", raises(lambda: chosen_draft.make_pick('m0', False, 'SS-0', 'C'), DraftError))
+check("a hitter can be drafted at DH by choice", chosen_draft.make_pick('m0', False, 'SS-0', 'DH')['roster_position'] == 'DH')
+check("a hitter can be drafted to the bench by choice", chosen_draft.make_pick('m1', False, 'C-0', 'BE')['roster_position'] == 'BE')
+check("a starter can't be drafted into the bullpen", raises(lambda: chosen_draft.make_pick('m1', False, 'STARTER-0', 'RP'), DraftError))
+check("a starter can take a chosen rotation role", chosen_draft.make_pick('m1', False, 'STARTER-0', 'SP2')['roster_position'] == 'SP2')
+
 # ----------------------------------------------------------
 
 if failures:

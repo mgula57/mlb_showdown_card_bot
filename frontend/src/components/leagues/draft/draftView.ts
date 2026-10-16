@@ -1,4 +1,6 @@
-import type { DraftPick, DraftState, LeagueSettings, LeagueTeam } from '../../../api/leagues';
+import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
+import type { DraftMyRoster, DraftPick, DraftState, LeagueSettings, LeagueTeam } from '../../../api/leagues';
+import { getEligiblePositions } from '../../../domain/roster';
 
 export const LINEUP_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 const BULLPEN_POSITIONS = ['RP', 'CL'];
@@ -47,6 +49,19 @@ export function teamRoster(picks: DraftPick[], team: LeagueTeam, settings: Leagu
         required,
         points: mine.reduce((total, pick) => total + (pick.points ?? 0), 0),
     };
+}
+
+/** Roster positions the drafter may choose for `card`: an open spot it can play, or a bench /
+ *  bullpen spot while under the minimum or with picks to spare. Mirrors
+ *  `DraftRoster.legal_slots` in mlb_showdown_bot/core/league/draft.py - keep the two in sync. */
+export function legalDraftSlots(card: CardDatabaseRecord, roster: DraftMyRoster, settings: LeagueSettings): string[] {
+    if (roster.picks_left <= 0) return [];
+    const hasSlack = roster.slack > 0;
+    return getEligiblePositions(card, settings.num_starters).filter(position => {
+        if (position === 'BE') return roster.bench_count < settings.min_bench || hasSlack;
+        if (position === 'RP') return roster.bullpen_count < settings.min_bullpen || hasSlack;
+        return roster.open_field_positions.includes(position) || roster.open_rotation_roles.includes(position);
+    });
 }
 
 /** "Aaron Judge" -> "A. Judge", for tight board cells. */

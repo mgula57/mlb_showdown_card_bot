@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource, GuidedOption, GuidedFillOrder } from '../../api/userTeams';
-import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS, DEFAULT_LINEUP_NAME } from '../../api/userTeams';
+import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, DEFAULT_LINEUP_NAME } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
@@ -39,14 +39,14 @@ import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
 import { PlayModal } from './sim/PlayModal';
 import { SimSeasonRow } from './sim/SimSeasonRow';
-import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import PointsEstimateComparison from '../cards/card_elements/PointsEstimateComparison';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
-import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
+import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts, getEligiblePositions } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
 import { Modal } from '../shared/Modal';
+import { DraftPositionModal, type DraftPositionOption } from './DraftPositionModal';
 
 /** Cheapest PTS a real showdown card can be — matches the floor of the lowest price band the
  *  server-side autofill pool queries against (`_CANDIDATE_PRICE_BANDS` in autofill.py). Used to
@@ -250,23 +250,6 @@ function getSettingsChanges(original: Team, pending: TeamUpdatePayload): string[
     if ('player_filters' in pending)
         lines.push('Player filters updated');
     return lines;
-}
-
-function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): string[] {
-    if (card.is_pitcher) {
-        if ('STARTER' in card.positions_and_defense) return ROTATION_ROLES.slice(0, Math.min(numStarters, MAX_STARTERS));
-        // The bullpen is free-form — every reliever is a generic 'RP', no closer slot.
-        return ['RP'];
-    }
-    const positions = Object.keys(card.positions_and_defense);
-    const expanded = positions.flatMap(pos => {
-        if (pos === 'CA') return ['C'];  // showdown notation → roster/lineup slot key
-        if (pos === 'LF/RF') return ['LF', 'RF'];
-        if (pos === 'IF') return ['1B', '2B', '3B', 'SS'];
-        if (pos === 'OF') return ['LF', 'CF', 'RF'];
-        return [pos];
-    });
-    return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, onToggleLike, challenge, isNewTeam = false, justCopied = false, onArchive }: TeamDetailProps) {
@@ -1351,12 +1334,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return pointsBreakdown.total + addedPts - removedPts;
     };
 
-    // Eligible positions split into groups for the confirmation modal
-    const confirmPositions = confirmCard ? getEligiblePositions(confirmCard, draft.num_starters) : [];
-    const confirmFieldPositions   = confirmPositions.filter(p => !([...ROTATION_ROLES, ...BULLPEN_ROLES] as string[]).includes(p));
-    const confirmRotationPositions = confirmPositions.filter(p => (ROTATION_ROLES as readonly string[]).includes(p));
-    const confirmBullpenPositions  = confirmPositions.filter(p => (BULLPEN_ROLES as readonly string[]).includes(p));
-
     /** Name of the player currently holding `position`, if the pick would replace someone.
      *  Mirrors handleConfirmPosition: 'BE' appends (no replacement); every other slot
      *  swaps out whatever roster entry currently holds that roster_position. */
@@ -1366,20 +1343,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         return slot ? cardMap[slot.card_id]?.name ?? null : null;
     };
 
-    const renderPositionButton = (pos: string) => {
-        const projected = projectedTotalForPosition(pos);
-        return (
-            <PositionButton
-                key={pos}
-                label={pos}
-                onClick={() => handleConfirmPosition(pos)}
-                currentPts={pointsBreakdown.total}
-                projectedPts={projected}
-                overLimit={draft.pts_limit != null && projected > draft.pts_limit}
-                replacingName={replacedPlayerName(pos)}
-            />
-        );
-    };
+    // Eligible positions for the confirmation modal, each with its points impact
+    const confirmOptions: DraftPositionOption[] = confirmCard
+        ? getEligiblePositions(confirmCard, draft.num_starters).map(position => {
+            const projected = projectedTotalForPosition(position);
+            return {
+                position,
+                currentPts: pointsBreakdown.total,
+                projectedPts: projected,
+                overLimit: draft.pts_limit != null && projected > draft.pts_limit,
+                replacingName: replacedPlayerName(position),
+            };
+        })
+        : [];
 
     return (
         <div className={`flex flex-col ${embedded ? '' : 'lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden'}`}>
@@ -1976,63 +1952,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
             {/* Confirmation modal: choose which position to assign the picked card */}
             {confirmCard && (
-                <div
-                    // `pointer-events-auto` is required: this modal renders as a sibling of the
-                    // draft-search SlideOver, which pins `body { pointer-events: none }` while
-                    // open. Without it, touches on mobile fall through to the panel underneath.
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto"
-                    onClick={() => setConfirmCard(null)}
-                >
-                    <div
-                        className="bg-(--background-primary) rounded-2xl w-full max-w-md shadow-2xl border border-(--divider) overflow-hidden"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-(--divider)">
-                            <div>
-                                <div className="text-[13px] font-bold text-(--text-primary)">Choose a position</div>
-                                <div className="text-[11px] text-(--text-secondary) mt-0.5">Where should this card be placed?</div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setConfirmCard(null)}
-                                className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors mt-0.5"
-                            >
-                                <FaXmark className="text-[13px]" />
-                            </button>
-                        </div>
-
-                        {/* Card preview */}
-                        <div className="px-4 py-3 border-b border-(--divider)">
-                            <CardItemFromCardDatabaseRecord card={confirmCard} />
-                        </div>
-
-                        {/* Position buttons */}
-                        <div className="px-4 py-3 flex flex-col gap-2">
-                            {confirmFieldPositions.length > 0 && (
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
-                                    {confirmFieldPositions.map(renderPositionButton)}
-                                </div>
-                            )}
-                            {confirmRotationPositions.length > 0 && (
-                                <>
-                                    <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Rotation</div>
-                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
-                                        {confirmRotationPositions.map(renderPositionButton)}
-                                    </div>
-                                </>
-                            )}
-                            {confirmBullpenPositions.length > 0 && (
-                                <>
-                                    <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Bullpen</div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {confirmBullpenPositions.map(renderPositionButton)}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                <DraftPositionModal
+                    card={confirmCard}
+                    options={confirmOptions}
+                    onSelect={position => handleConfirmPosition(position)}
+                    onClose={() => setConfirmCard(null)}
+                />
             )}
 
             {showPublishModal && token && (
@@ -2379,38 +2304,5 @@ function SetupStepChips({ step, onStep, settingsDone, color }: {
             <FaArrowRight className="text-[9px] opacity-40 shrink-0" style={{ color }} />
             {chip('draft', 'Drafting', null, false)}
         </span>
-    );
-}
-
-function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, replacingName }: {
-    label: string;
-    onClick: () => void;
-    currentPts?: number;
-    projectedPts?: number;
-    overLimit?: boolean;
-    /** When set, this pick replaces an existing player — shown under the label. */
-    replacingName?: string | null;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className="flex flex-col items-center justify-between gap-0.5 px-3 py-2 rounded-lg text-[12px] font-bold
-                bg-(--background-secondary) border border-(--divider)
-                text-(--text-primary) hover:border-(--secondary) hover:text-(--secondary)
-                transition-colors"
-        >
-            {label}
-            {replacingName && (
-                <span className="text-[9px] font-semibold text-(--text-tertiary) normal-case">
-                    Replaces {replacingName}
-                </span>
-            )}
-            {currentPts != null && projectedPts != null && (
-                <span className={`text-[10px] font-semibold tabular-nums ${overLimit ? 'text-red-500' : 'text-(--text-tertiary)'}`}>
-                    {currentPts} → {projectedPts}
-                </span>
-            )}
-        </button>
     );
 }

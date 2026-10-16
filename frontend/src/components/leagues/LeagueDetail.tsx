@@ -1,17 +1,18 @@
-import { FaClockRotateLeft, FaListOl, FaUsers, FaCalendarDays } from 'react-icons/fa6';
+import { useEffect } from 'react';
+import { FaClockRotateLeft, FaListOl, FaUsers, FaCalendarDays, FaArrowRightToBracket } from 'react-icons/fa6';
 import BackButton from '../shared/BackButton';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import { fetchLeague, type LeagueState } from '../../api/leagues';
 import { usePolling } from '../../hooks/usePolling';
-import { ERROR_BOX_CLASS, SEASON_STATUS_LABEL } from './leagueUi';
+import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SEASON_STATUS_LABEL } from './leagueUi';
 import { LeagueMembersTab } from './LeagueMembersTab';
 import { LeagueHistoryTab } from './LeagueHistoryTab';
-import { LeagueDraftRoom } from './draft/LeagueDraftRoom';
+import { LeagueDraftScreen } from './draft/LeagueDraftScreen';
 import { LeagueSeasonTab } from './season/LeagueSeasonTab';
 
 const POLL_MS = 10000;
 
-export type LeagueTab = 'members' | 'draft' | 'season' | 'history';
+export type LeagueTab = 'members' | 'season' | 'history';
 
 type Props = {
     leagueId: string;
@@ -19,16 +20,27 @@ type Props = {
     tab: LeagueTab | null;
     /** A past season opened from History (`/leagues/:id/seasons/:n`). */
     pastSeasonNumber: number | null;
+    /** The full-screen draft room is open (`/leagues/:id/draft`). */
+    isDraftOpen: boolean;
     token: string;
     userId?: string;
     onNavigate: (path: string, replace?: boolean) => void;
     onBack: () => void;
 };
 
-/** One league: header, then Members / Draft / Season / History tabs. */
-export function LeagueDetail({ leagueId, tab, pastSeasonNumber, token, userId, onNavigate, onBack }: Props) {
+/** One league: header, then Members / Season / History tabs. The draft opens as its own
+ *  full-screen page, joined from the header once the commissioner starts it. */
+export function LeagueDetail({ leagueId, tab, pastSeasonNumber, isDraftOpen, token, userId, onNavigate, onBack }: Props) {
     const { data: state, setData, error, refresh } = usePolling<LeagueState>(() => fetchLeague(token, leagueId), POLL_MS, [leagueId]);
     const base = `/leagues/${leagueId}`;
+    const season = state?.season ?? null;
+
+    // No draft to show until the commissioner starts one
+    const hasNoDraft = isDraftOpen && !!state && !season;
+    useEffect(() => {
+        if (hasNoDraft) onNavigate(base, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasNoDraft]);
 
     if (!state) {
         return (
@@ -39,23 +51,36 @@ export function LeagueDetail({ leagueId, tab, pastSeasonNumber, token, userId, o
         );
     }
 
-    const { league, season, is_commissioner: isCommissioner, my_member_id: myMemberId } = state;
+    const { league, is_commissioner: isCommissioner, my_member_id: myMemberId } = state;
+
+    if (isDraftOpen && season) {
+        return (
+            <LeagueDraftScreen
+                state={state}
+                token={token}
+                onBack={() => onNavigate(base)}
+                onOpenBigBoard={() => onNavigate(`${base}/board`)}
+                onComplete={refresh}
+            />
+        );
+    }
+
+    const isDrafting = season?.status === 'drafting';
     const tabs: TabItem<LeagueTab>[] = [
         { id: 'members', label: 'Members', icon: <FaUsers /> },
         ...(season ? [
-            { id: 'draft' as const, label: 'Draft', icon: <FaListOl /> },
             { id: 'season' as const, label: 'Season', icon: <FaCalendarDays /> },
             { id: 'history' as const, label: 'History', icon: <FaClockRotateLeft /> },
         ] : []),
     ];
-    const defaultTab: LeagueTab = !season ? 'members' : season.status === 'drafting' ? 'draft' : 'season';
+    const defaultTab: LeagueTab = !season || isDrafting ? 'members' : 'season';
     const activeTab = tab && tabs.some(t => t.id === tab) ? tab : defaultTab;
 
     return (
         <div className="flex flex-col gap-4 py-4 px-4 sm:px-8 max-w-4xl lg:max-w-7xl mx-auto w-full">
             <div className="flex items-start gap-3">
                 <BackButton onBack={onBack} label="" />
-                <div className="min-w-0">
+                <div className="flex-1 min-w-0">
                     <h1 className="text-[20px] font-black text-(--text-primary) truncate">{league.name}</h1>
                     <p className="text-[12px] text-(--text-secondary)">
                         Set {league.showdown_set}
@@ -63,6 +88,16 @@ export function LeagueDetail({ leagueId, tab, pastSeasonNumber, token, userId, o
                         {isCommissioner ? ' · You run this league' : ''}
                     </p>
                 </div>
+                {/* Joinable once the commissioner starts the draft; the finished board stays viewable */}
+                {isDrafting ? (
+                    <button type="button" onClick={() => onNavigate(`${base}/draft`)} className={`${PRIMARY_BUTTON_CLASS} shrink-0`}>
+                        <FaArrowRightToBracket className="text-[11px]" /> Join Draft
+                    </button>
+                ) : season && (
+                    <button type="button" onClick={() => onNavigate(`${base}/draft`)} className={`${SECONDARY_BUTTON_CLASS} shrink-0`}>
+                        <FaListOl className="text-[11px]" /> <span className="hidden sm:inline">Draft</span> Results
+                    </button>
+                )}
             </div>
 
             {pastSeasonNumber !== null ? (
@@ -89,20 +124,8 @@ export function LeagueDetail({ leagueId, tab, pastSeasonNumber, token, userId, o
                             token={token}
                             userId={userId}
                             onStateChange={setData}
-                            onDraftStarted={async () => { await refresh(); onNavigate(`${base}/draft`, true); }}
+                            onDraftStarted={async () => { await refresh(); onNavigate(`${base}/draft`); }}
                             onLeft={onBack}
-                        />
-                    )}
-                    {activeTab === 'draft' && season && (
-                        <LeagueDraftRoom
-                            key={season.season_number}
-                            league={league}
-                            seasonNumber={season.season_number}
-                            token={token}
-                            myMemberId={myMemberId}
-                            isCommissioner={isCommissioner}
-                            onOpenBigBoard={() => onNavigate(`${base}/board`)}
-                            onComplete={refresh}
                         />
                     )}
                     {activeTab === 'season' && season && (

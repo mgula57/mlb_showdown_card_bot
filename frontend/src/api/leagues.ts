@@ -292,10 +292,14 @@ export const leagueDraftTopic = (leagueId: string, seasonNumber: number) => `lea
 export const DRAFT_CHANGED_EVENT = 'draft_changed';
 
 /** Draft `releaseCardId`, or let the bot pick (`null`) - the commissioner's way past a stalled seat. */
-export const makeDraftPick = (token: string, leagueId: string, seasonNumber: number, releaseCardId: string | null) =>
+/** Draft `releaseCardId` (into `rosterPosition`, or the first open spot it fits when omitted),
+ *  or auto-pick when `releaseCardId` is null. */
+export const makeDraftPick = (token: string, leagueId: string, seasonNumber: number, releaseCardId: string | null, rosterPosition?: string | null) =>
     request<DraftPayload>(`${seasonPath(leagueId, seasonNumber)}/draft/pick`, token, {
         method: 'POST',
-        body: releaseCardId ? { release_card_id: releaseCardId } : { auto: true },
+        body: releaseCardId
+            ? { release_card_id: releaseCardId, ...(rosterPosition ? { roster_position: rosterPosition } : {}) }
+            : { auto: true },
     });
 
 // Seasons

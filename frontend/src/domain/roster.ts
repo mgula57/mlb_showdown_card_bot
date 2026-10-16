@@ -6,6 +6,8 @@
  * `TeamIdentity` projection so a roster and an MLB team can render through the same `TeamChip`.
  */
 import type { Team } from "../api/userTeams";
+import { ROTATION_ROLES, MAX_STARTERS } from "../api/userTeams";
+import type { CardDatabaseRecord } from "../api/card_db/cardDatabase";
 import type { TeamIdentity } from "./team";
 
 export type RosterView = Team;
@@ -93,4 +95,26 @@ export function benchBullpenSlotCounts(args: {
         bullpen: rowsFor(args.bullpen, args.bullpenMin,
             fixedDeficit + deficit(args.benchMin, args.bench.filled)),
     };
+}
+
+/**
+ * Every roster position `card` could be drafted into, in roster-slot notation (C, not CA):
+ * the field spots its positions cover plus DH and bench for hitters; the rotation roles for a
+ * starter; the generic 'RP' for any other pitcher.
+ */
+export function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): string[] {
+    if (card.is_pitcher) {
+        if ('STARTER' in card.positions_and_defense) return ROTATION_ROLES.slice(0, Math.min(numStarters, MAX_STARTERS));
+        // The bullpen is free-form — every reliever is a generic 'RP', no closer slot.
+        return ['RP'];
+    }
+    const positions = Object.keys(card.positions_and_defense);
+    const expanded = positions.flatMap(pos => {
+        if (pos === 'CA') return ['C'];  // showdown notation → roster/lineup slot key
+        if (pos === 'LF/RF') return ['LF', 'RF'];
+        if (pos === 'IF') return ['1B', '2B', '3B', 'SS'];
+        if (pos === 'OF') return ['LF', 'CF', 'RF'];
+        return [pos];
+    });
+    return [...new Set([...expanded, 'DH', 'BE'])];
 }

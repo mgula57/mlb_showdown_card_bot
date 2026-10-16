@@ -3,7 +3,8 @@
  * page. URL shape:
  *   /leagues                         list
  *   /leagues/join/:code              list + the join modal, prefilled (an invite link)
- *   /leagues/:id[/members|draft|season|history]
+ *   /leagues/:id[/members|season|history]
+ *   /leagues/:id/draft               the full-screen draft room
  *   /leagues/:id/seasons/:n          a past season's results
  *   /leagues/:id/board               the TV Big Board for the current draft
  */
@@ -21,12 +22,12 @@ import { NewLeagueModal } from './NewLeagueModal';
 import { JoinLeagueModal } from './JoinLeagueModal';
 import { DraftBigBoard } from './draft/DraftBigBoard';
 
-const LEAGUE_TABS: LeagueTab[] = ['members', 'draft', 'season', 'history'];
+const LEAGUE_TABS: LeagueTab[] = ['members', 'season', 'history'];
 const px = 'px-4 sm:px-8';
 
 type Route =
     | { kind: 'list'; joinCode: string | null }
-    | { kind: 'league'; leagueId: string; tab: LeagueTab | null; pastSeasonNumber: number | null }
+    | { kind: 'league'; leagueId: string; tab: LeagueTab | null; pastSeasonNumber: number | null; isDraftOpen: boolean }
     | { kind: 'board'; leagueId: string };
 
 function parseRoute(pathname: string): Route {
@@ -34,9 +35,9 @@ function parseRoute(pathname: string): Route {
     if (root !== 'leagues' || !first) return { kind: 'list', joinCode: null };
     if (first === 'join') return { kind: 'list', joinCode: second ?? null };
     if (second === 'board') return { kind: 'board', leagueId: first };
-    if (second === 'seasons' && third && /^\d+$/.test(third)) return { kind: 'league', leagueId: first, tab: null, pastSeasonNumber: Number(third) };
+    if (second === 'seasons' && third && /^\d+$/.test(third)) return { kind: 'league', leagueId: first, tab: null, pastSeasonNumber: Number(third), isDraftOpen: false };
     const tab = LEAGUE_TABS.includes(second as LeagueTab) ? second as LeagueTab : null;
-    return { kind: 'league', leagueId: first, tab, pastSeasonNumber: null };
+    return { kind: 'league', leagueId: first, tab, pastSeasonNumber: null, isDraftOpen: second === 'draft' };
 }
 
 export default function Leagues() {
@@ -83,6 +84,7 @@ export default function Leagues() {
                 leagueId={route.leagueId}
                 tab={route.tab}
                 pastSeasonNumber={route.pastSeasonNumber}
+                isDraftOpen={route.isDraftOpen}
                 token={token}
                 userId={userId}
                 onNavigate={(path, replace) => navigate(path, { replace })}

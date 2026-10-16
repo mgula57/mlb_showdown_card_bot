@@ -181,6 +181,20 @@ class DraftRoster:
             return need
         return depth if depth and self.slack > 0 else None
 
+    def legal_slots(self, card: DraftCard) -> list[str]:
+        """Every roster position the drafter may choose for `card` now: an open spot it can
+        play, or a bench/bullpen spot while under the minimum or with picks to spare."""
+        if self.picks_left <= 0:
+            return []
+        if card.is_starter:
+            return self.open_rotation_roles
+        if card.is_pitcher:
+            return ['RP'] if self.bullpen_count < self.settings.min_bullpen or self.slack > 0 else []
+        slots = [pos for pos in self.open_field_positions if card.can_play(pos)]
+        if self.bench_count < self.settings.min_bench or self.slack > 0:
+            slots.append('BE')
+        return slots
+
     def fills_need(self, card: DraftCard) -> bool:
         return self._need_and_depth_slot(card)[0] is not None
 
@@ -533,9 +547,12 @@ class LeagueDraft:
 
     # MARK: Picks
 
-    def make_pick(self, acting_member_id: Optional[str], is_commissioner: bool, release_card_id: Optional[str]) -> dict:
+    def make_pick(self, acting_member_id: Optional[str], is_commissioner: bool, release_card_id: Optional[str],
+                  roster_position: Optional[str] = None) -> dict:
         """Draft `release_card_id` for the team on the clock, or let the bot choose when it's
-        None (an auto-pick). Only the member on the clock, or the commissioner, may pick.
+        None (an auto-pick). `roster_position` is the drafter's chosen spot (one of
+        `DraftRoster.legal_slots`); without one the card takes the first open spot it fits.
+        Only the member on the clock, or the commissioner, may pick.
         Raises DraftError for a disallowed pick and DraftConflict if the board moved meanwhile."""
         if self.season.get('status') != 'drafting':
             raise DraftError("This season isn't drafting.")
@@ -557,7 +574,9 @@ class LeagueDraft:
             raise DraftError(f"{card.name} has already been drafted.")
 
         roster = board.rosters[team['member_id']]
-        slot = roster.slot_for(card)
+        if roster_position is not None and roster_position not in roster.legal_slots(card):
+            raise DraftError(f"{card.name} can't be drafted into {roster_position}.")
+        slot = roster_position or roster.slot_for(card)
         pool: Optional[list[DraftCard]] = None
         if slot is None:
             pool = self._pool()
