@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaHandPointer, FaSpinner } from 'react-icons/fa6';
+import { FaHandPointer, FaListOl, FaMagnifyingGlass, FaSpinner, FaTableCells, FaUsers } from 'react-icons/fa6';
 import ShowdownCardSearch, { type FilterSelections } from '../../cards/ShowdownCardSearch';
 import { Tabs } from '../../shared/Tabs';
 import { DraftPositionModal, type DraftPositionOption } from '../../team_builder/DraftPositionModal';
@@ -20,9 +20,9 @@ import { draftView, legalDraftSlots } from './draftView';
 
 const LOCKED_FILTERS = ['release_edition_id'];
 
-type MobileTab = 'board' | 'team' | 'history';
-type SideTab = 'team' | 'history';
-type BoardMode = 'picks' | 'pool';
+// One "picks" view everywhere: the grid on desktop (it needs the width), the newest-first list on phones
+type MainTab = 'pool' | 'board';
+type MobileTab = 'pool' | 'team' | 'picks';
 
 type Props = {
     league: League;
@@ -36,15 +36,15 @@ type Props = {
 };
 
 /**
- * The live draft: header (on the clock, last pick, upcoming picks) over the board. On desktop the
- * board takes 2/3 of the width with Team / History tabbed beside it; on phones Board / Team /
- * History are tabs. The board area toggles between the pick grid and the player pool.
+ * The live draft: header (on the clock, last pick, upcoming picks) over the room. On desktop the
+ * main 2/3 toggles Player Pool / Draft Board with the drafter's team pinned beside it, so a slot
+ * clicked on the team filters the pool right next to it. On phones Pool / Team / Picks are tabs,
+ * with picks as a list since the grid is too wide for a phone.
  */
 export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCommissioner, onOpenBigBoard, onComplete }: Props) {
     const isDesktop = useMediaQuery('(min-width: 768px)');
-    const [mobileTab, setMobileTab] = useState<MobileTab>('board');
-    const [sideTab, setSideTab] = useState<SideTab>('team');
-    const [boardMode, setBoardMode] = useState<BoardMode>('picks');
+    const [mobileTab, setMobileTab] = useState<MobileTab>('pool');
+    const [mainTab, setMainTab] = useState<MainTab>('pool');
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
     // The empty slot on my roster the drafter clicked - narrows the player pool to cards that fit it
     const [pendingSlot, setPendingSlot] = useState<PendingSlot | null>(null);
@@ -67,6 +67,9 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     useEffect(() => {
         if (!isComplete) return;
         setIsLive(false);
+        // Nothing left to draft - lead with the results
+        setMainTab('board');
+        setMobileTab('picks');
         onComplete();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isComplete]);
@@ -79,8 +82,8 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     /** A click on an empty slot of my roster: open the player pool filtered to what fits it. */
     function fillSlot(slot: PendingSlot) {
         setPendingSlot(slot);
-        setBoardMode('pool');
-        setMobileTab('board');
+        setMainTab('pool');
+        setMobileTab('pool');
     }
 
     /** Draft `releaseCardId` into `rosterPosition` (null: the first open spot it fits), or
@@ -127,38 +130,25 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         })
         : [];
 
-    const boardArea = (
-        <div className="flex flex-col gap-2 min-w-0">
-            <Tabs<BoardMode>
-                tabs={[{ id: 'picks', label: 'Picks' }, { id: 'pool', label: 'Player Pool' }]}
-                value={boardMode}
-                onChange={setBoardMode}
-                fullWidth
-                size="sm"
+    const poolPanel = (
+        <div className="min-h-[60vh] rounded-xl border border-(--divider) overflow-hidden">
+            <ShowdownCardSearch
+                source={CardSource.RELEASE}
+                defaultFilters={poolFilters}
+                lockedFilters={LOCKED_FILTERS}
+                excludeIds={view.draftedIds}
+                disableLocalStorage
+                compact
+                toolbarSlot={pendingSlot && (
+                    <PendingSlotChip label={pendingSlotLabel(pendingSlot)!} onDismiss={() => setPendingSlot(null)} />
+                )}
+                actionButton={{
+                    icon: <FaHandPointer />,
+                    label: view.isMyTurn ? 'Draft' : 'Not your pick',
+                    onClick: card => setConfirmCard(card),
+                    disabled: !view.isMyTurn || view.isComplete || picking !== null,
+                }}
             />
-            {boardMode === 'picks' ? (
-                <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />
-            ) : (
-                <div className="min-h-[60vh] rounded-xl border border-(--divider) overflow-hidden">
-                    <ShowdownCardSearch
-                        source={CardSource.RELEASE}
-                        defaultFilters={poolFilters}
-                        lockedFilters={LOCKED_FILTERS}
-                        excludeIds={view.draftedIds}
-                        disableLocalStorage
-                        compact
-                        toolbarSlot={pendingSlot && (
-                            <PendingSlotChip label={pendingSlotLabel(pendingSlot)!} onDismiss={() => setPendingSlot(null)} />
-                        )}
-                        actionButton={{
-                            icon: <FaHandPointer />,
-                            label: view.isMyTurn ? 'Draft' : 'Not your pick',
-                            onClick: card => setConfirmCard(card),
-                            disabled: !view.isMyTurn || view.isComplete || picking !== null,
-                        }}
-                    />
-                </div>
-            )}
         </div>
     );
 
@@ -173,7 +163,6 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
             onFillSlot={view.isComplete ? undefined : fillSlot}
         />
     );
-    const historyPanel = <DraftHistory draft={draft} view={view} />;
 
     return (
         <div className="flex flex-col gap-3">
@@ -190,27 +179,37 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
 
             {isDesktop ? (
                 <div className="grid grid-cols-3 gap-4 items-start">
-                    <div className="col-span-2 min-w-0">{boardArea}</div>
-                    <div className="flex flex-col gap-3 min-w-0">
-                        <Tabs<SideTab>
-                            tabs={[{ id: 'team', label: 'Team' }, { id: 'history', label: 'History' }]}
-                            value={sideTab}
-                            onChange={setSideTab}
+                    <div className="col-span-2 flex flex-col gap-2 min-w-0">
+                        <Tabs<MainTab>
+                            tabs={[
+                                { id: 'pool', label: 'Player Pool', icon: <FaMagnifyingGlass /> },
+                                { id: 'board', label: 'Draft Board', icon: <FaTableCells /> },
+                            ]}
+                            value={mainTab}
+                            onChange={setMainTab}
                             fullWidth
                             size="sm"
                         />
-                        {sideTab === 'team' ? teamPanel : historyPanel}
+                        {mainTab === 'pool' ? poolPanel : <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />}
+                    </div>
+                    {/* Pinned while the pool / board scrolls, so the team stays in view beside the search */}
+                    <div className="sticky top-16 max-h-[calc(100dvh-5rem)] overflow-y-auto scrollbar-hide min-w-0">
+                        {teamPanel}
                     </div>
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
                     <Tabs<MobileTab>
-                        tabs={[{ id: 'board', label: 'Board' }, { id: 'team', label: 'Team' }, { id: 'history', label: 'History' }]}
+                        tabs={[
+                            { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },
+                            { id: 'team', label: 'Team', icon: <FaUsers /> },
+                            { id: 'picks', label: 'Picks', icon: <FaListOl /> },
+                        ]}
                         value={mobileTab}
                         onChange={setMobileTab}
                         fullWidth
                     />
-                    {mobileTab === 'board' ? boardArea : mobileTab === 'team' ? teamPanel : historyPanel}
+                    {mobileTab === 'pool' ? poolPanel : mobileTab === 'team' ? teamPanel : <DraftHistory draft={draft} view={view} />}
                 </div>
             )}
 

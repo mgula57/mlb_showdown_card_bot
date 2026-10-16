@@ -1,3 +1,4 @@
+import { FaRobot } from 'react-icons/fa6';
 import { TeamChip } from '../../shared/TeamChip';
 import { CardItemCompactFromCardDatabaseRecord } from '../../cards/CardItemCompact';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
@@ -81,7 +82,10 @@ export function DraftBoard({ draft, view, myMemberId, size = 'normal', rounds, c
 function PickHeader({ pick }: { pick: DraftPick }) {
     return (
         <div className="flex items-center justify-between gap-1 text-(--text-tertiary)">
-            <span className="tabular-nums">#{pick.overall_pick}</span>
+            <span className="flex items-center gap-1 tabular-nums">
+                #{pick.overall_pick}
+                {pick.is_auto && <FaRobot title="Auto-pick" />}
+            </span>
             <span className="font-bold">{pickPositionLabel(pick)}</span>
         </div>
     );
