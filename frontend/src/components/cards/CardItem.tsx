@@ -623,13 +623,14 @@ export function CardItemSkeleton({ className }: { className?: string }) {
 }
 
 /** A card's corner action. `icon` is a small square in the corner; `prominent` is a filled pill
- *  that adds its label beside the icon once the card is wide enough to fit it. */
+ *  that adds its label beside the icon once the card is 400px+ wide (the pool grid's cards are
+ *  never under 300px, so a lower bar would always show it). */
 function CardActionButton({ action }: { action: CardItemActionButton }) {
     const isProminent = action.variant === 'prominent';
     const disabledLabel = action.disabledLabel ?? 'Saving your last pick…';
     const corner = action.placement === 'left' ? '-left-2' : isProminent ? '-right-1' : '-right-1.5';
     const shape = isProminent
-        ? 'gap-1.5 px-2.5 py-1 @[260px]:px-3 @[260px]:py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide shadow-md'
+        ? 'gap-1.5 px-2.5 py-1 @[400px]:px-3 @[400px]:py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide shadow-md'
         : `p-1 ${action.label ? 'rounded-lg' : 'rounded-full'}`;
     const colors = action.disabled
         ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
@@ -647,7 +648,7 @@ function CardActionButton({ action }: { action: CardItemActionButton }) {
             className={`absolute -top-2 ${corner} z-5 flex items-center justify-center transition-all ${shape} ${colors}`}
         >
             {action.icon}
-            {isProminent && action.label && <span className="hidden @[260px]:inline">{action.label}</span>}
+            {isProminent && action.label && <span className="hidden @[400px]:inline">{action.label}</span>}
         </button>
     );
 }
