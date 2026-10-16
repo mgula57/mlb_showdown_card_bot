@@ -24,7 +24,11 @@ const LOCKED_FILTERS = ['release_edition_id'];
 // The pool leads with the best cards, not a release's card-number order
 const POOL_DEFAULT_SORT = { sort_by: 'points', sort_direction: 'desc' };
 const NO_IDS: string[] = [];
-const CONTENT_CLASS = 'flex-1 w-full max-w-[1800px] mx-auto px-4 sm:px-6 py-3 flex flex-col gap-3';
+const CONTENT_CLASS = 'flex-1 w-full max-w-[1800px] mx-auto py-3 md:py-0 flex flex-col gap-3';
+// Desktop drops the content's vertical padding so the team column runs flush top to bottom; the rest re-adds it
+const DESKTOP_PY_CLASS = 'md:py-3';
+// Side gutter, applied per element so the team's field view can run to the screen edge
+const GUTTER_CLASS = 'px-4 sm:px-6';
 
 // One "picks" view everywhere: the grid on desktop (it needs the width), the newest-first list on phones
 type MainTab = 'pool' | 'queue' | 'board';
@@ -119,7 +123,9 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                 <DraftTopBar leading={topBarLeading}>{!error && <DraftClockSkeleton />}</DraftTopBar>
                 {!error && <DraftPickStripSkeleton />}
                 <div className={CONTENT_CLASS}>
-                    {error ? <div className={ERROR_BOX_CLASS}>{error}</div> : <DraftBoardSkeleton />}
+                    <div className={`${GUTTER_CLASS} ${DESKTOP_PY_CLASS}`}>
+                        {error ? <div className={ERROR_BOX_CLASS}>{error}</div> : <DraftBoardSkeleton />}
+                    </div>
                 </div>
             </>
         );
@@ -150,7 +156,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     const queueIsPrimary = showQueue && !view.isMyTurn;
     const queueTabLabel = queue.queue.length ? `Queue ${queue.queue.length}` : 'Queue';
     const queuePanel = (
-        <div className="pt-4">
+        <div className={`pt-4 ${GUTTER_CLASS}`}>
             <DraftQueuePanel
                 queue={queue.queue}
                 onMove={queue.move}
@@ -163,7 +169,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     );
 
     const poolPanel = (
-        <div className="min-h-[60vh] overflow-hidden">
+        <div className={`min-h-[60vh] overflow-hidden ${GUTTER_CLASS}`}>
             <ShowdownCardSearch
                 source={CardSource.RELEASE}
                 defaultFilters={poolFilters}
@@ -199,19 +205,22 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
     );
 
     const teamPanel = (
-        <DraftTeamPanel
-            draft={draft}
-            settings={league.settings}
-            myMemberId={myMemberId}
-            cards={cardMap}
-            isLoadingCards={cardsLoading}
-            pendingSlot={pendingSlot}
-            onFillSlot={view.isComplete ? undefined : fillSlot}
-        />
+        <div className="pt-4">
+            <DraftTeamPanel
+                headerClassName={GUTTER_CLASS}
+                draft={draft}
+                settings={league.settings}
+                myMemberId={myMemberId}
+                cards={cardMap}
+                isLoadingCards={cardsLoading}
+                pendingSlot={pendingSlot}
+                onFillSlot={view.isComplete ? undefined : fillSlot}
+            />
+        </div>
     );
 
     const draftBoardPanel = (
-        <div className='min-h-[60vh] overflow-hidden'>
+        <div className={`min-h-[60vh] overflow-hidden ${GUTTER_CLASS}`}>
             <DraftBoard draft={draft} view={view} myMemberId={myMemberId} cards={cardMap} />
         </div>
     );
@@ -231,48 +240,53 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
             </DraftTopBar>
             <DraftPickStrip draft={draft} view={view} myMemberId={myMemberId} />
             <div className={CONTENT_CLASS}>
-                {pickError && !confirmCard && <div className={ERROR_BOX_CLASS}>{pickError}</div>}
+                {pickError && !confirmCard && <div className={`${GUTTER_CLASS} md:pt-3`}><div className={ERROR_BOX_CLASS}>{pickError}</div></div>}
 
                 {isDesktop ? (
-                    <div className="grid grid-cols-3 gap-4 items-start">
-                        <div className={`col-span-2 flex flex-col min-w-0 gap-x-2 ${mainTab === 'board' ? 'gap-y-4' : ''}`}>
-                            <Tabs<MainTab>
-                                tabs={[
-                                    { id: 'pool', label: 'Player Pool', icon: <FaMagnifyingGlass /> },
-                                    ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
-                                    { id: 'board', label: 'Draft Board', icon: <FaTableCells /> },
-                                ]}
-                                value={mainTab}
-                                onChange={setMainTab}
-                                fullWidth
-                                size="sm"
-                            />
+                    <div className="grid grid-cols-3 items-start">
+                        <div className={`col-span-2 flex flex-col min-w-0 gap-x-2 py-3 ${mainTab === 'board' ? 'gap-y-4' : ''}`}>
+                            <div className={GUTTER_CLASS}>
+                                <Tabs<MainTab>
+                                    tabs={[
+                                        { id: 'pool', label: 'Player Pool', icon: <FaMagnifyingGlass /> },
+                                        ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
+                                        { id: 'board', label: 'Draft Board', icon: <FaTableCells /> },
+                                    ]}
+                                    value={mainTab}
+                                    onChange={setMainTab}
+                                    fullWidth
+                                    size="sm"
+                                />
+                            </div>
                             {mainTab === 'pool' ? poolPanel
                                 : mainTab === 'queue' && showQueue ? queuePanel
                                 : draftBoardPanel}
                         </div>
-                        {/* Pinned while the pool / board scrolls, so the team stays in view beside the search */}
-                        <div className="sticky top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto scrollbar-hide min-w-0">
+                        {/* Pinned while the pool / board scrolls, so the team stays in view beside the search.
+                            Its own surface + divider sets it apart from the main column; full viewport height so the panel doesn't end mid-page. */}
+                        <div className="sticky top-14 h-[calc(100dvh-3.5rem)] overflow-y-auto scrollbar-hide min-w-0 border-l border-(--divider) bg-(--background-secondary)">
                             {teamPanel}
                         </div>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-x-3">
-                        <Tabs<MobileTab>
-                            tabs={[
-                                { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },
-                                ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
-                                { id: 'team', label: 'Team', icon: <FaUsers /> },
-                                { id: 'picks', label: 'Picks', icon: <FaListOl /> },
-                            ]}
-                            value={mobileTab}
-                            onChange={setMobileTab}
-                            fullWidth
-                        />
+                        <div className={GUTTER_CLASS}>
+                            <Tabs<MobileTab>
+                                tabs={[
+                                    { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },
+                                    ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
+                                    { id: 'team', label: 'Team', icon: <FaUsers /> },
+                                    { id: 'picks', label: 'Picks', icon: <FaListOl /> },
+                                ]}
+                                value={mobileTab}
+                                onChange={setMobileTab}
+                                fullWidth
+                            />
+                        </div>
                         {mobileTab === 'pool' ? poolPanel
                             : mobileTab === 'queue' && showQueue ? queuePanel
                             : mobileTab === 'team' ? teamPanel
-                            : <DraftHistory draft={draft} view={view} />}
+                            : <div className={GUTTER_CLASS}><DraftHistory draft={draft} view={view} /></div>}
                     </div>
                 )}
 

@@ -20,13 +20,15 @@ type Props = {
     pendingSlot: PendingSlot | null;
     /** Clicking an empty slot on my own roster starts filling it. Omit to keep the roster display only. */
     onFillSlot?: (slot: PendingSlot) => void;
+    /** Side gutter for the team picker / summary rows - the field view itself runs edge to edge. */
+    headerClassName?: string;
 };
 
 type RosterView = 'field' | 'depth';
 
 /** A team's roster as drafted so far, as the team builder's field view or depth chart, with what
  *  it still needs. Defaults to the viewer's team; any team can be picked to scout. */
-export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCards, pendingSlot, onFillSlot }: Props) {
+export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCards, pendingSlot, onFillSlot, headerClassName = '' }: Props) {
     const [memberId, setMemberId] = useState<string>(myMemberId ?? draft.teams[0]?.member_id ?? '');
     const [rosterView, setRosterView] = useState<RosterView>('field');
     const team = draft.teams.find(t => t.member_id === memberId) ?? draft.teams[0];
@@ -51,7 +53,7 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className={`flex items-center justify-between gap-2 ${headerClassName}`}>
                 <CustomSelect
                     value={team.member_id}
                     onChange={setMemberId}
@@ -66,7 +68,7 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
                     <span className="shrink-0 text-[10px] font-bold text-(--success) uppercase tracking-wide">Required spots filled</span>
                 )}
             </div>
-            <div className="flex items-center justify-between gap-2">
+            <div className={`flex items-center justify-between gap-2 ${headerClassName}`}>
                 <span className="text-[11px] text-(--text-tertiary)">
                     {roster.picksMade}/{settings.roster_size} picks · {roster.points} pts{settings.pts_cap ? ` of ${settings.pts_cap}` : ''}
                 </span>
@@ -95,18 +97,16 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
                     {...slotHandlers}
                 />
             ) : (
-                <div className="-mx-4">
-                    <DepthChartPanel
-                        key={team.member_id}
-                        team={depthChart}
-                        cardMap={cards}
-                        isLoadingCards={isLoadingCards}
-                        slotPickingDisabled={!canFill}
-                        emptySlotsOnly
-                        {...highlight}
-                        {...slotHandlers}
-                    />
-                </div>
+                <DepthChartPanel
+                    key={team.member_id}
+                    team={depthChart}
+                    cardMap={cards}
+                    isLoadingCards={isLoadingCards}
+                    slotPickingDisabled={!canFill}
+                    emptySlotsOnly
+                    {...highlight}
+                    {...slotHandlers}
+                />
             )}
         </div>
     );
