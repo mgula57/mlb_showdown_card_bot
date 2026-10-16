@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { FaCaretDown } from 'react-icons/fa6';
+import { FloatingActionButton, type FloatingSide } from './FloatingActionButton';
 
 type SlideOverProps = {
     isOpen: boolean;
@@ -11,16 +12,18 @@ type SlideOverProps = {
      * (not part of the scrollable content).
      */
     handleContent?: React.ReactNode;
+    /** Corner for the floating dismiss button - match the button that opened the panel. */
+    dismissSide?: FloatingSide;
 };
 
 /**
  * Full-height mobile slideover: hidden until triggered, then slides up from the
  * bottom over a blurred/translucent backdrop. Unlike BottomSheet there's no drag
  * gesture or peek snap point — it's either open (~90% of the screen) or closed.
- * Dismiss via the backdrop or the floating circular button in the bottom-right
- * corner. Hidden on lg+ (use the desktop panel instead).
+ * Dismiss via the backdrop or the floating circular button in a bottom corner
+ * (right unless `dismissSide` says otherwise). Hidden on lg+ (use the desktop panel instead).
  */
-export function SlideOver({ isOpen, onClose, title, children, handleContent }: SlideOverProps) {
+export function SlideOver({ isOpen, onClose, title, children, handleContent, dismissSide = 'right' }: SlideOverProps) {
     // Lock the background while open, same reasoning as BottomSheet's expanded lock:
     // `overflow: hidden` alone isn't reliable on mobile Safari, so pin the body and
     // cut pointer-events to everything except the panel/backdrop themselves.
@@ -83,22 +86,9 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
                 </div>
             </div>
 
-            {/* Floating circular dismiss button, bottom-right of the screen. A larger halo sits
-                behind it so the button stays legible over busy scrolling content (e.g. a wall
-                of card results) — both its blur and its tint feather out via a radial mask
-                rather than cutting off in a hard circle, so it reads as a soft glow rather than
-                a visible disc. */}
+            {/* Floating circular dismiss button, in the same corner as the button that opened the panel */}
             {isOpen && (
-                <div
-                    className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none"
-                    style={{
-                        background: 'radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0) 72%)',
-                        backdropFilter: 'blur(16px)',
-                        WebkitBackdropFilter: 'blur(16px)',
-                        maskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                        WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                    }}
-                >
+                <FloatingActionButton side={dismissSide}>
                     <button
                         type="button"
                         onClick={onClose}
@@ -113,7 +103,7 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
                     >
                         <FaCaretDown className="text-[24px]" />
                     </button>
-                </div>
+                </FloatingActionButton>
             )}
         </>
     );

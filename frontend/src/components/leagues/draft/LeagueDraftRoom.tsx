@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { FaBookmark, FaHandPointer, FaListOl, FaMagnifyingGlass, FaRegBookmark, FaSpinner, FaTableCells, FaUsers } from 'react-icons/fa6';
+import { FaBookmark, FaHandPointer, FaListOl, FaMagnifyingGlass, FaRegBookmark, FaSpinner, FaTableCells } from 'react-icons/fa6';
 import ShowdownCardSearch, { type FilterSelections } from '../../cards/ShowdownCardSearch';
+import { SlideOver } from '../../shared/SlideOver';
 import { Tabs } from '../../shared/Tabs';
 import { DraftPositionModal, type DraftPositionOption } from '../../team_builder/DraftPositionModal';
 import { type PendingSlot, getSearchFiltersForSlot, pendingSlotHighlight, pendingSlotLabel } from '../../team_builder/draftSlot';
@@ -17,6 +18,7 @@ import { DraftBoard, DraftBoardSkeleton } from './DraftBoard';
 import { DraftClock, DraftClockSkeleton, DraftPickStrip, DraftPickStripSkeleton, DraftTopBar } from './DraftHeader';
 import { DraftHistory } from './DraftHistory';
 import { DraftQueuePanel } from './DraftQueuePanel';
+import { DraftTeamFab } from './DraftTeamFab';
 import { DraftTeamPanel } from './DraftTeamPanel';
 import { draftView, legalDraftSlots } from './draftView';
 
@@ -30,9 +32,10 @@ const DESKTOP_PY_CLASS = 'md:py-3';
 // Side gutter, applied per element so the team's field view can run to the screen edge
 const GUTTER_CLASS = 'px-4 sm:px-6';
 
-// One "picks" view everywhere: the grid on desktop (it needs the width), the newest-first list on phones
+// One "picks" view everywhere: the grid on desktop (it needs the width), the newest-first list on phones.
+// Phones keep the teams in a sheet opened from a floating button rather than a tab.
 type MainTab = 'pool' | 'queue' | 'board';
-type MobileTab = 'pool' | 'queue' | 'team' | 'picks';
+type MobileTab = 'pool' | 'queue' | 'picks';
 
 type Props = {
     league: League;
@@ -51,12 +54,14 @@ type Props = {
  * The live draft: the top bar (who's on the clock, actions) and a strip of past / upcoming picks
  * over the room. On desktop the
  * main 2/3 toggles Player Pool / Draft Board with the drafter's team pinned beside it, so a slot
- * clicked on the team filters the pool right next to it. On phones Pool / Team / Picks are tabs,
- * with picks as a list since the grid is too wide for a phone.
+ * clicked on the team filters the pool right next to it. On phones Pool / Queue / Picks are tabs,
+ * with picks as a list since the grid is too wide for a phone, and the teams slide up in a sheet
+ * from a floating button so they can be checked without leaving the pool.
  */
 export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCommissioner, topBarLeading, onOpenBigBoard, onComplete }: Props) {
     const isDesktop = useMediaQuery('(min-width: 768px)');
     const [mobileTab, setMobileTab] = useState<MobileTab>('pool');
+    const [isTeamSheetOpen, setIsTeamSheetOpen] = useState(false);
     const [mainTab, setMainTab] = useState<MainTab>('pool');
     const [confirmCard, setConfirmCard] = useState<CardDatabaseRecord | null>(null);
     // The empty slot on my roster the drafter clicked - narrows the player pool to cards that fit it
@@ -98,6 +103,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         setPendingSlot(slot);
         setMainTab('pool');
         setMobileTab('pool');
+        setIsTeamSheetOpen(false);
     }
 
     /** Draft `releaseCardId` into `rosterPosition` (null: the first open spot it fits), or
@@ -275,7 +281,6 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                                 tabs={[
                                     { id: 'pool', label: 'Pool', icon: <FaMagnifyingGlass /> },
                                     ...(showQueue ? [{ id: 'queue' as const, label: queueTabLabel, icon: <FaBookmark /> }] : []),
-                                    { id: 'team', label: 'Team', icon: <FaUsers /> },
                                     { id: 'picks', label: 'Picks', icon: <FaListOl /> },
                                 ]}
                                 value={mobileTab}
@@ -285,8 +290,21 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                         </div>
                         {mobileTab === 'pool' ? poolPanel
                             : mobileTab === 'queue' && showQueue ? queuePanel
-                            : mobileTab === 'team' ? teamPanel
                             : <div className={GUTTER_CLASS}><DraftHistory draft={draft} view={view} /></div>}
+                        {/* Clears the floating teams button so the last card's actions stay tappable */}
+                        <div className="h-20 shrink-0" />
+                        {!isTeamSheetOpen && !confirmCard && (
+                            <DraftTeamFab
+                                draft={draft}
+                                settings={league.settings}
+                                myMemberId={myMemberId}
+                                isMyTurn={view.isMyTurn && !view.isComplete}
+                                onClick={() => setIsTeamSheetOpen(true)}
+                            />
+                        )}
+                        <SlideOver isOpen={isTeamSheetOpen} onClose={() => setIsTeamSheetOpen(false)} dismissSide="left">
+                            <div className="pb-24">{teamPanel}</div>
+                        </SlideOver>
                     </div>
                 )}
 

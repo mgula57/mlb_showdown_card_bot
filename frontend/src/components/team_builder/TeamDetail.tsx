@@ -25,6 +25,7 @@ import { ProgressRing } from './ProgressRing';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { SlideOver } from '../shared/SlideOver';
 import { SearchGradientBorder } from '../shared/SearchGradientBorder';
+import { FloatingActionButton } from '../shared/FloatingActionButton';
 import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch, { type FilterSelections } from '../cards/ShowdownCardSearch';
 import {
@@ -1827,20 +1828,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {showEditControls && !isLg && setupStep === 'draft' && (
                 <>
                     {/* Search FAB — hidden while the slideover is open, since the slideover's
-                        own dismiss button occupies the same corner. A larger halo sits behind
-                        it (same treatment as SlideOver's dismiss button) so it stays legible
-                        over busy content, fading out via a radial mask rather than a hard edge. */}
+                        own dismiss button occupies the same corner. */}
                     {!pendingSlot && !guidedDocked && (
-                        <div
-                            className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none"
-                            style={{
-                                background: 'radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0) 72%)',
-                                backdropFilter: 'blur(16px)',
-                                WebkitBackdropFilter: 'blur(16px)',
-                                maskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                                WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                            }}
-                        >
+                        <FloatingActionButton>
                             <SearchGradientBorder rounded="rounded-full" className="pointer-events-auto shadow-lg">
                                 <button
                                     type="button"
@@ -1855,7 +1845,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     <FaMagnifyingGlass className="text-[16px]" />
                                 </button>
                             </SearchGradientBorder>
-                        </div>
+                        </FloatingActionButton>
                     )}
 
                     {guidedDocked && (
