@@ -23,6 +23,30 @@ export const toTeamIdentity = (team: RosterView): TeamIdentity => ({
 
 const LINEUP_SLOTS = 9;
 
+/** A league roster counts a two-way player's pitching card at this fraction while it also holds
+ *  his hitting card. Mirrors `DraftRoster.TWO_WAY_PTS_MULTIPLIER` in
+ *  mlb_showdown_bot/core/league/draft.py - keep the two in sync. */
+export const TWO_WAY_PTS_MULTIPLIER = 0.5;
+
+/** The two-way rule for a team: league teams apply it, every other team doesn't. */
+export const teamTwoWayPtsMultiplier = (team: Pick<Team, 'source'>): number | undefined =>
+    team.source === 'league' ? TWO_WAY_PTS_MULTIPLIER : undefined;
+
+/** Per-card points multiplier from the two-way rule: `multiplier` for each pitching card whose
+ *  player's hitting card is also among `cardIds`, 1 for every other card. */
+export function twoWayPtsMultipliers(
+    cardIds: string[],
+    cardMap: Record<string, CardDatabaseRecord | null | undefined>,
+    multiplier: number | undefined,
+): (cardId: string) => number {
+    if (!multiplier || multiplier === 1) return () => 1;
+    const cards = cardIds.map(id => cardMap[id]).filter((card): card is CardDatabaseRecord => !!card);
+    const isPitcher = (card: CardDatabaseRecord) => card.player_type?.toUpperCase() === 'PITCHER';
+    const hitterIds = new Set(cards.filter(card => !isPitcher(card) && card.bref_id).map(card => card.bref_id));
+    const discounted = new Set(cards.filter(card => isPitcher(card) && hitterIds.has(card.bref_id)).map(card => card.card_id));
+    return cardId => (discounted.has(cardId) ? multiplier : 1);
+}
+
 /**
  * roster_size may exceed the fixed minimums (9 lineup + num_starters + min_bench +
  * min_bullpen); autofill fills that slack as extra bench/bullpen spots, split in the same

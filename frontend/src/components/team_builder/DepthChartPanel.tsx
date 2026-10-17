@@ -5,7 +5,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { FaPlus, FaPencil, FaChevronUp, FaChevronDown, FaArrowsUpDownLeftRight } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
-import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
+import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts, twoWayPtsMultipliers } from '../../domain/roster';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { Modal } from '../shared/Modal';
 import { SectionHeader } from '../shared/SectionHeader';
@@ -16,7 +16,10 @@ import { type RosterMoveControls, type RosterMoveSlotState, moveSlotClass } from
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 
 /** The slice of a `Team` the depth chart reads - lets a league draft roster render here too. */
-export type DepthChartTeam = Pick<Team, 'roster' | 'lineups' | 'rotation' | 'num_starters' | 'roster_size' | 'min_bench' | 'min_bullpen' | 'bench_pts_multiplier'>;
+export type DepthChartTeam = Pick<Team, 'roster' | 'lineups' | 'rotation' | 'num_starters' | 'roster_size' | 'min_bench' | 'min_bullpen' | 'bench_pts_multiplier'> & {
+    /** Discount for a two-way player's pitching card (`teamTwoWayPtsMultiplier`); unset = none. */
+    two_way_pts_multiplier?: number;
+};
 
 type DepthChartPanelProps = {
     team: DepthChartTeam;
@@ -212,6 +215,8 @@ export function DepthChartPanel({
     // of rows (filled cards + trailing empty "add" placeholders). The placeholder count comes
     // from `benchBullpenSlotCounts` while editing; a read-only view just shows the filled rows.
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
+    const twoWayMultiplier = twoWayPtsMultipliers(team.roster.map(slot => slot.card_id), cardMap, team.two_way_pts_multiplier);
+    const pitcherPts = (card: CardDatabaseRecord) => Math.round((card.points ?? 0) * twoWayMultiplier(card.card_id));
     const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
     const { bench: benchTarget, bullpen: bullpenTarget } = effectiveBenchBullpenMinimums(team);
     const benchSlots   = team.roster.filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
@@ -277,8 +282,8 @@ export function DepthChartPanel({
     // Point totals
     const lineupPts   = filledLineupCards.reduce((sum, c) => sum + (c.points ?? 0), 0);
     const benchPts    = filledBenchCards.reduce((sum, c) => sum + Math.round((c.points ?? 0) * (team.bench_pts_multiplier ?? 1)), 0);
-    const rotationPts = filledRotCards.reduce((sum, c) => sum + (c.points ?? 0), 0);
-    const bullpenPts  = filledBullCards.reduce((sum, c) => sum + (c.points ?? 0), 0);
+    const rotationPts = filledRotCards.reduce((sum, c) => sum + pitcherPts(c), 0);
+    const bullpenPts  = filledBullCards.reduce((sum, c) => sum + pitcherPts(c), 0);
 
     // KPI tiles
     const lineupKpis   = buildLineupKpis(filledLineupCards, lineupPts, totalDefIF, totalDefOF);
@@ -368,6 +373,7 @@ export function DepthChartPanel({
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
+                                ptsMultiplier={card ? twoWayMultiplier(card.card_id) : undefined}
                                 onMoveUp={onReorder && prevRole ? () => swapRotation(role, prevRole) : undefined}
                                 onMoveDown={onReorder && nextRole ? () => swapRotation(role, nextRole) : undefined}
                             />
@@ -394,6 +400,7 @@ export function DepthChartPanel({
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
+                                ptsMultiplier={card ? twoWayMultiplier(card.card_id) : undefined}
                             />
                         );
                     })}

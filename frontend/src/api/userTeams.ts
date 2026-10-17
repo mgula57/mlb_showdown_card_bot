@@ -40,7 +40,7 @@ export type PitcherAssignment = {
     role: string;
 };
 
-export type TeamSource = 'user' | 'official' | 'asg' | 'mlb';
+export type TeamSource = 'user' | 'official' | 'asg' | 'mlb' | 'league';
 
 /** How a team was first created — stored on the row so it can be filtered later.
  *  `challenge` is the "New Team" button on a ChallengeCard. */

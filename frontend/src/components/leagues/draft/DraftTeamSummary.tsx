@@ -19,12 +19,15 @@ const SIZES = {
 };
 
 /** A drafting team at a glance: a ring of picks made out of the roster size, its name and
- *  points, and what's left under the cap. */
+ *  points, and what's left under the cap (in total and per pick still to make). */
 export function DraftTeamSummary({ team, points, picksMade, settings, size = 'md', isOnTheClock = false }: Props) {
     const sizing = SIZES[size];
     const cap = settings.pts_cap;
     const left = cap ? cap - points : null;
     const isOverCap = left !== null && left < 0;
+    // Points left spread over the picks still to make
+    const picksLeft = settings.roster_size - picksMade;
+    const avgLeft = left !== null && picksLeft > 0 ? Math.round(left / picksLeft) : null;
 
     return (
         <div className="flex items-center gap-2.5 min-w-0">
@@ -51,6 +54,9 @@ export function DraftTeamSummary({ team, points, picksMade, settings, size = 'md
                 <div className={`${sizing.cap} shrink-0 text-right font-bold tabular-nums leading-tight`}>
                     <div className="text-(--text-tertiary)">CAP <span className="text-(--text-primary)">{cap}</span></div>
                     <div className="text-(--text-tertiary)">LEFT <span className={isOverCap ? 'text-(--red)' : 'text-(--green)'}>{left}</span></div>
+                    {avgLeft !== null && (
+                        <div className="text-(--text-tertiary)">AVG <span className={isOverCap ? 'text-(--red)' : 'text-(--text-primary)'}>{avgLeft}</span></div>
+                    )}
                 </div>
             )}
         </div>

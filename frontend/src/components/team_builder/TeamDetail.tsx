@@ -44,7 +44,7 @@ import PointsEstimateComparison from '../cards/card_elements/PointsEstimateCompa
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { imageForSet } from '../shared/SiteSettingsContext';
 import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
-import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts, getEligiblePositions } from '../../domain/roster';
+import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts, getEligiblePositions, teamTwoWayPtsMultiplier, twoWayPtsMultipliers } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
 import { Modal } from '../shared/Modal';
 import { DraftPositionModal, type DraftPositionOption } from './DraftPositionModal';
@@ -813,8 +813,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const activeRole = guidedPosition && !(FIELD_POSITIONS as readonly string[]).includes(guidedPosition) ? guidedPosition
         : pendingHighlight.activeRole;
 
+    const twoWayPtsMultiplier = teamTwoWayPtsMultiplier(draft);
     const pointsBreakdown = useMemo(() => {
+        const twoWay = twoWayPtsMultipliers(draft.roster.map(s => s.card_id), cardMap, twoWayPtsMultiplier);
         const breakdown = (pts: (id: string) => number) => {
+            const pitcherPts = (id: string) => Math.round(pts(id) * twoWay(id));
             // Exclude the starting pitcher's synthetic "batting" slot (field_position: 'SP') —
             // he's already counted under `rotation` below, so including him here double-counts him.
             const lineup = defaultLineup.slots
@@ -825,17 +828,17 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 .reduce((sum, s) => sum + Math.round(pts(s.card_id) * draft.bench_pts_multiplier), 0);
             const rotation = draft.rotation
                 .filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role))
-                .reduce((sum, r) => sum + pts(r.card_id), 0);
+                .reduce((sum, r) => sum + pitcherPts(r.card_id), 0);
             const bullpen  = draft.rotation
                 .filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role))
-                .reduce((sum, r) => sum + pts(r.card_id), 0);
+                .reduce((sum, r) => sum + pitcherPts(r.card_id), 0);
             return { lineup, bench, rotation, bullpen, total: lineup + bench + rotation + bullpen };
         };
         const actual = breakdown(id => cardMap[id]?.points ?? 0);
         // Cards without an estimate (non-WOTC) fall back to their actual points, so they don't skew the diff.
         const estimatedTotal = breakdown(id => cardMap[id]?.points_estimated ?? cardMap[id]?.points ?? 0).total;
         return { ...actual, estimatedTotal };
-    }, [draft, cardMap, defaultLineup]);
+    }, [draft, cardMap, defaultLineup, twoWayPtsMultiplier]);
     const hasWotcCards = draft.roster.some(s => s.card_source === CardSource.WOTC);
 
     // Pace indicator shown in the drafting banner: how many points are left under the
@@ -963,11 +966,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         roster: draft.roster,
         rotation: draft.rotation,
         benchPtsMultiplier: draft.bench_pts_multiplier,
+        twoWayPtsMultiplier,
         minBench: effectiveBucketMins.bench,
         minBullpen: effectiveBucketMins.bullpen,
         maxRotation: draft.num_starters,
         draftSlots: showEditControls ? draftSlotCounts : undefined,
-    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, twoWayPtsMultiplier, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
 
     const previewRosterData: FieldViewRosterData | null = useMemo(() => {
         if (!autofillPreview) return null;
@@ -975,11 +979,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             roster: autofillPreview.result.roster,
             rotation: autofillPreview.result.rotation,
             benchPtsMultiplier: draft.bench_pts_multiplier,
+            twoWayPtsMultiplier,
             minBench: effectiveBucketMins.bench,
             minBullpen: effectiveBucketMins.bullpen,
             maxRotation: draft.num_starters,
         };
-    }, [autofillPreview, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters]);
+    }, [autofillPreview, draft.bench_pts_multiplier, twoWayPtsMultiplier, effectiveBucketMins, draft.num_starters]);
     const previewLineup = autofillPreview?.result.lineups[0] ?? { name: 'Default', index: 0, slots: [] };
 
     const draftedCardIds = useMemo(() => {
@@ -1128,7 +1133,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const depthChartContent = (
         <DepthChartPanel
-            team={draft}
+            team={{ ...draft, two_way_pts_multiplier: twoWayPtsMultiplier }}
             cardMap={cardMap}
             onSlotClick={(pos, slot) => openSlot({ kind: 'field', position: pos, current: slot })}
             onRoleClick={(role, current) => openSlot({ kind: 'rotation', role, current })}

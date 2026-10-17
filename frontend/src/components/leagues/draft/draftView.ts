@@ -1,6 +1,6 @@
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import type { DraftMyRoster, DraftPick, DraftState, LeagueSettings, LeagueTeam } from '../../../api/leagues';
-import { benchBullpenSlotCounts, effectiveBenchBullpenMinimums, getEligiblePositions } from '../../../domain/roster';
+import { TWO_WAY_PTS_MULTIPLIER, benchBullpenSlotCounts, effectiveBenchBullpenMinimums, getEligiblePositions } from '../../../domain/roster';
 import { CardSource } from '../../../types/cardSource';
 import type { DepthChartTeam } from '../../team_builder/DepthChartPanel';
 import type { FieldViewRosterData } from '../../team_builder/FieldView';
@@ -10,7 +10,6 @@ const BULLPEN_POSITIONS = ['RP', 'CL'];
 // What a drafted card counts for toward its team's points. Mirrors `DraftRoster` in
 // mlb_showdown_bot/core/league/draft.py - keep the two in sync.
 export const DRAFT_BENCH_PTS_MULTIPLIER = 0.2;
-const DRAFT_TWO_WAY_PTS_MULTIPLIER = 0.5;
 
 type RosterPointsSlot = { points: number; roster_position?: string; player_type?: string | null; bref_id?: string | null };
 
@@ -22,7 +21,7 @@ export function rosterPoints(slots: RosterPointsSlot[]): number {
     const total = slots.reduce((sum, slot) => {
         const isTwoWayPitcher = isPitcher(slot) && hitterIds.has(slot.bref_id);
         const benchMultiplier = slot.roster_position === 'BE' ? DRAFT_BENCH_PTS_MULTIPLIER : 1;
-        return sum + (slot.points ?? 0) * benchMultiplier * (isTwoWayPitcher ? DRAFT_TWO_WAY_PTS_MULTIPLIER : 1);
+        return sum + (slot.points ?? 0) * benchMultiplier * (isTwoWayPitcher ? TWO_WAY_PTS_MULTIPLIER : 1);
     }, 0);
     return Math.round(total);
 }
@@ -68,6 +67,7 @@ export function teamRoster(picks: DraftPick[], team: LeagueTeam, settings: Leagu
         min_bench: settings.min_bench,
         min_bullpen: settings.min_bullpen,
         bench_pts_multiplier: DRAFT_BENCH_PTS_MULTIPLIER,
+        two_way_pts_multiplier: TWO_WAY_PTS_MULTIPLIER,
     };
     return {
         depthChart,
@@ -107,6 +107,7 @@ export function fieldRosterData(depthChart: DepthChartTeam): FieldViewRosterData
         roster: depthChart.roster,
         rotation: depthChart.rotation,
         benchPtsMultiplier: depthChart.bench_pts_multiplier,
+        twoWayPtsMultiplier: depthChart.two_way_pts_multiplier,
         minBench: bucketMins.bench,
         minBullpen: bucketMins.bullpen,
         maxRotation: depthChart.num_starters,

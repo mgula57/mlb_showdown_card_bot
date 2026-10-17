@@ -141,7 +141,7 @@ export function DraftBigBoard({ leagueId, token, onExit }: Props) {
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide grid grid-cols-2 2xl:grid-cols-3 content-start gap-[1.5vh]">
+                <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide grid grid-cols-2 2xl:grid-cols-3 auto-rows-max content-start gap-[1.5vh]">
                     {draft && view && settings
                         ? view.teams.map(team => (
                             <DraftTeamFieldView

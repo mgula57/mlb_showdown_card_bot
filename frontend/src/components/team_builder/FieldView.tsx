@@ -12,6 +12,7 @@ import { CardDetail } from '../cards/CardDetail';
 import { SlotSavingOverlay } from './SlotSavingOverlay';
 import { CardNotFoundOverlay } from '../shared/CardNotFoundOverlay';
 import { type RosterMoveControls, type RosterMoveSlotState, moveSlotClass } from '../../hooks/useRosterMove';
+import { twoWayPtsMultipliers } from '../../domain/roster';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
@@ -35,6 +36,8 @@ export type FieldViewRosterData = {
     roster: TeamRosterSlot[];
     rotation: PitcherAssignment[];
     benchPtsMultiplier: number;
+    /** Discount for a two-way player's pitching card (`teamTwoWayPtsMultiplier`); unset = none. */
+    twoWayPtsMultiplier?: number;
     minBench: number;
     minBullpen: number;
     maxRotation: number;
@@ -163,6 +166,8 @@ export function FieldView({
     const colorArmC = armC ? (armC > 7 ? 'text-(--green)' : armC > 3 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
 
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
+    const twoWayMultiplier = twoWayPtsMultipliers((rosterData?.roster ?? []).map(slot => slot.card_id), cardMap, rosterData?.twoWayPtsMultiplier);
+    const pitcherPts = (cardId: string) => Math.round(pts(cardId) * twoWayMultiplier(cardId));
 
     const moveStateFor = (position: string, occupantId: string | null): RosterMoveSlotState =>
         move?.slotState(position, occupantId) ?? { isMoving: false, isTarget: false, isDimmed: false };
@@ -196,8 +201,8 @@ export function FieldView({
     const positionPlayerSlots = lineup.slots.filter(s => s.field_position !== 'SP');
     const lineupPts = positionPlayerSlots.reduce((sum, slot) => sum + (cardMap[slot.card_id]?.points ?? 0), 0);
     const benchPts    = benchSlots.reduce((sum, s) => sum + Math.round(pts(s.card_id) * (rosterData?.benchPtsMultiplier ?? 1)), 0);
-    const rotationPts = (ROTATION_ROLES as readonly string[]).reduce((sum, role) => { const r = rotByRole[role]; return r ? sum + pts(r.card_id) : sum; }, 0);
-    const bullpenPts  = bullpenSlots.reduce((sum, r) => sum + pts(r.card_id), 0);
+    const rotationPts = (ROTATION_ROLES as readonly string[]).reduce((sum, role) => { const r = rotByRole[role]; return r ? sum + pitcherPts(r.card_id) : sum; }, 0);
+    const bullpenPts  = bullpenSlots.reduce((sum, r) => sum + pitcherPts(r.card_id), 0);
     const totalPts    = lineupPts + benchPts + rotationPts + bullpenPts;
 
     // ---- KPI computations ----
@@ -418,7 +423,7 @@ export function FieldView({
                                         <CardItemCompactFromCardDatabaseRecord
                                             card={card}
                                             className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
-                                            ptsMultiplier={ptsMultiplier}
+                                            ptsMultiplier={(ptsMultiplier ?? 1) * twoWayMultiplier(card.card_id)}
                                             isSelected={moveState.isMoving}
                                             onClick={move?.movingCardId
                                                 ? moveState.onClick ?? (() => {})
