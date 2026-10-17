@@ -2,6 +2,7 @@ import { TeamChip } from '../../shared/TeamChip';
 import { ProgressRing } from '../../team_builder/ProgressRing';
 import type { LeagueSettings, LeagueTeam } from '../../../api/leagues';
 import { leagueTeamIdentity } from '../leagueUi';
+import { luxuryTaxCost } from './draftView';
 
 type Props = {
     team: LeagueTeam;
@@ -19,10 +20,13 @@ const SIZES = {
 };
 
 /** A drafting team at a glance: a ring of picks made out of the roster size, its name and
- *  points, and what's left under the cap (in total and per pick still to make). */
+ *  points, what's left under the cap (in total and per pick still to make), and what it owes
+ *  under the luxury tax (which lets a team go over the cap). */
 export function DraftTeamSummary({ team, points, picksMade, settings, size = 'md', isOnTheClock = false }: Props) {
     const sizing = SIZES[size];
     const cap = settings.pts_cap;
+    const tax = settings.luxury_tax ?? null;
+    const cost = cap && tax ? luxuryTaxCost(points, cap, tax) : null;
     const left = cap ? cap - points : null;
     const isOverCap = left !== null && left < 0;
     // Points left spread over the picks still to make
@@ -56,6 +60,11 @@ export function DraftTeamSummary({ team, points, picksMade, settings, size = 'md
                     <div className="text-(--text-tertiary)">LEFT <span className={isOverCap ? 'text-(--red)' : 'text-(--green)'}>{left}</span></div>
                     {avgLeft !== null && (
                         <div className="text-(--text-tertiary)">AVG <span className={isOverCap ? 'text-(--red)' : 'text-(--text-primary)'}>{avgLeft}</span></div>
+                    )}
+                    {cost && tax && (
+                        <div className="text-(--text-tertiary)" title={`$${tax.buy_in} buy-in + $${cost.tax} luxury tax`}>
+                            COST <span className={cost.tax > 0 ? 'text-(--red)' : 'text-(--text-primary)'}>${cost.total}</span>
+                        </div>
                     )}
                 </div>
             )}

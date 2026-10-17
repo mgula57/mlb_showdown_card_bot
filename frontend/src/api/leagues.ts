@@ -12,6 +12,17 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // MARK: - TYPES
 // =============================================================================
 
+export type LuxuryTaxType = 'linear' | 'exponential';
+
+/** Makes `pts_cap` a soft cap: picks may go over it, and every team pays the buy-in plus a tax
+ *  on the points it's over the cap. */
+export type LuxuryTax = {
+    buy_in: number;
+    type: LuxuryTaxType;
+};
+
+export const DEFAULT_LUXURY_TAX: LuxuryTax = { buy_in: 50, type: 'linear' };
+
 export type LeagueSettings = {
     team_count: number;
     roster_size: number;
@@ -19,6 +30,8 @@ export type LeagueSettings = {
     min_bullpen: number;
     num_starters: number;
     pts_cap: number | null;
+    /** Null for no tax (a hard cap). Needs `pts_cap`. */
+    luxury_tax?: LuxuryTax | null;
     draft_order_mode: 'random' | 'manual';
 };
 
@@ -29,6 +42,7 @@ export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
     min_bullpen: 5,
     num_starters: 4,
     pts_cap: null,
+    luxury_tax: null,
     draft_order_mode: 'random',
 };
 

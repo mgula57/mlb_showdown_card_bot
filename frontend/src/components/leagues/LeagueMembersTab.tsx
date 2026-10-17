@@ -122,12 +122,15 @@ export function LeagueMembersTab({ state, token, userId, onStateChange, onDraftS
 
             <section className="flex flex-col gap-2">
                 <div className={SECTION_LABEL_CLASS}>Rules</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[12px]">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[12px]">
                     {[
                         ['Roster', `${league.settings.roster_size} cards`],
                         ['Rotation', `${league.settings.num_starters} starters`],
                         ['Bench / bullpen', `${league.settings.min_bench}+ / ${league.settings.min_bullpen}+`],
-                        ['Points cap', league.settings.pts_cap ? `${league.settings.pts_cap} pts` : 'None'],
+                        ['Points cap', league.settings.pts_cap ? `${league.settings.pts_cap} pts${league.settings.luxury_tax ? ' (soft)' : ''}` : 'None'],
+                        ['Luxury tax', league.settings.luxury_tax
+                            ? `$${league.settings.luxury_tax.buy_in} + ${league.settings.luxury_tax.type}`
+                            : 'None'],
                     ].map(([label, value]) => (
                         <div key={label} className="rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2">
                             <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">{label}</div>

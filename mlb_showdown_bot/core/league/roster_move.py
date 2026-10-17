@@ -92,7 +92,7 @@ class LeagueRosterMove:
         positions_before, positions_after = list(slots.values()), list(slots_after.values())
         roster_cards = [DraftCard.from_row(slot) for slot in my_slots]
         # A bench move changes points too, so under a cap even a swap is checked
-        if Counter(positions_before) != Counter(positions_after) or self.settings.pts_cap:
+        if Counter(positions_before) != Counter(positions_after) or self.settings.hard_cap:
             self._check_still_fillable(positions_before, positions_after, roster_cards)
 
         if not self.db.move_league_roster_slots(self.season['season_id'], self.team['team_id'], positions_before, moves):
@@ -106,9 +106,9 @@ class LeagueRosterMove:
         new = DraftRoster(settings=self.settings, positions=after, cards=cards)
         if new.slack < 0 and new.slack < old.slack:
             raise DraftError("That would open a spot you don't have picks left to fill.")
-        if self.season.get('status') == 'drafting' and self.settings.pts_cap:
+        if self.season.get('status') == 'drafting' and self.settings.hard_cap:
             pool = [DraftCard.from_row(row) for row in self.db.fetch_league_card_pool(self.season['season_id'], self.league['edition_ids'])]
-            cap = self.settings.pts_cap
+            cap = self.settings.hard_cap
             new_total = new.points + new.cheapest_fill(pool)[0]
             if new_total > cap and new_total > old.points + old.cheapest_fill(pool)[0]:
                 raise DraftError(f"That would open a spot you can't afford to fill under the {cap}-point cap.")

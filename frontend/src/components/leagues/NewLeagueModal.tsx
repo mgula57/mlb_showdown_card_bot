@@ -7,11 +7,15 @@ import FormEnabler from '../customs/FormEnabler';
 import NumberInput from '../customs/NumberInput';
 import SetMultiSelect from '../cards/SetMultiSelect';
 import { useReleaseEditionOptions } from '../../hooks/useReleaseEditionOptions';
-import { createLeague, DEFAULT_LEAGUE_SETTINGS, type LeagueSettings, type LeagueState } from '../../api/leagues';
+import { createLeague, DEFAULT_LEAGUE_SETTINGS, DEFAULT_LUXURY_TAX, type LeagueSettings, type LeagueState, type LuxuryTax, type LuxuryTaxType } from '../../api/leagues';
 import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, errorMessage } from './leagueUi';
 
 const TEAM_COUNT_OPTIONS = Array.from({ length: 11 }, (_, i) => ({ value: String(i + 2), label: `${i + 2} teams` }));
 const LINEUP_SPOTS = 9;
+const LUXURY_TAX_TYPE_OPTIONS = [
+    { value: 'linear', label: 'Linear ($1 / 10 pts)' },
+    { value: 'exponential', label: 'Exponential' },
+];
 
 type Props = {
     token: string;
@@ -30,6 +34,8 @@ export function NewLeagueModal({ token, onCreated, onClose }: Props) {
     const [error, setError] = useState<string | null>(null);
 
     const update = (patch: Partial<LeagueSettings>) => setSettings(prev => ({ ...prev, ...patch }));
+    const updateTax = (patch: Partial<LuxuryTax>) => setSettings(prev => ({ ...prev, luxury_tax: { ...(prev.luxury_tax ?? DEFAULT_LUXURY_TAX), ...patch } }));
+    const tax = settings.luxury_tax ?? null;
     const requiredSlots = LINEUP_SPOTS + settings.num_starters + settings.min_bench + settings.min_bullpen;
     const rosterTooSmall = settings.roster_size < requiredSlots;
     const canCreate = name.trim().length > 0 && editionIds.length > 0 && !rosterTooSmall && !creating;
@@ -111,10 +117,33 @@ export function NewLeagueModal({ token, onCreated, onClose }: Props) {
                 <FormEnabler
                     label="Points cap"
                     isEnabled={settings.pts_cap !== null}
-                    onChange={wasEnabled => update({ pts_cap: wasEnabled ? null : 5000 })}
+                    onChange={wasEnabled => update(wasEnabled ? { pts_cap: null, luxury_tax: null } : { pts_cap: 5000 })}
                 />
                 {settings.pts_cap !== null && (
-                    <NumberInput label="Max points per roster" value={settings.pts_cap} onChange={v => update({ pts_cap: v })} />
+                    <>
+                        <NumberInput label="Max points per roster" value={settings.pts_cap} onChange={v => update({ pts_cap: v })} />
+                        <FormEnabler
+                            label="Luxury tax (soft cap)"
+                            isEnabled={tax !== null}
+                            onChange={wasEnabled => update({ luxury_tax: wasEnabled ? null : DEFAULT_LUXURY_TAX })}
+                        />
+                        {tax !== null && (
+                            <>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <NumberInput label="Buy-in ($)" value={tax.buy_in} onChange={v => updateTax({ buy_in: v })} />
+                                    <FormDropdown
+                                        label="Tax curve"
+                                        selectedOption={tax.type}
+                                        options={LUXURY_TAX_TYPE_OPTIONS}
+                                        onChange={v => updateTax({ type: v as LuxuryTaxType })}
+                                    />
+                                </div>
+                                <span className="text-[11px] text-(--text-tertiary)">
+                                    Teams can draft over the cap. Every team pays the buy-in, and teams that finish over the cap pay a tax on top.
+                                </span>
+                            </>
+                        )}
+                    </>
                 )}
             </div>
         </Modal>

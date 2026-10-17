@@ -427,9 +427,9 @@ class LeagueDraft:
                 f"This league's editions have {len(pool)} cards, but {len(members)} teams of {settings.roster_size} "
                 f"need {settings.roster_size * len(members)}. Add editions or shrink the rosters."
             )
-        if settings.pts_cap:
+        if settings.hard_cap:
             minimum = LeagueDraft.minimum_points_per_team(pool, settings, len(members))
-            if minimum > settings.pts_cap:
+            if minimum > settings.hard_cap:
                 raise DraftError(
                     f"The {settings.pts_cap}-point cap is too low for this card pool: {len(members)} full rosters "
                     f"need at least {round(minimum)} points each. Raise the cap or add editions."
@@ -620,10 +620,11 @@ class LeagueDraft:
             slot = roster.fallback_slot(card)
             if slot is None:
                 raise DraftError(roster.rejection_reason(card))
-        if self.settings.pts_cap:
+        # UNDER A LUXURY TAX THE CAP IS SOFT - GOING OVER IS ALLOWED, IT JUST COSTS MORE
+        if self.settings.hard_cap:
             pool = pool if pool is not None else self._pool()
-            if not self.fits_points_cap(roster, card, slot, pool, self.settings.pts_cap):
-                raise DraftError(f"Drafting {card.name} would leave too few points under the {self.settings.pts_cap}-point cap to fill your roster.")
+            if not self.fits_points_cap(roster, card, slot, pool, self.settings.hard_cap):
+                raise DraftError(f"Drafting {card.name} would leave too few points under the {self.settings.hard_cap}-point cap to fill your roster.")
         return self._record(board, team, card, slot, is_auto=False)
 
     def run_bot_picks(self, limit: Optional[int] = None) -> list[dict]:
@@ -647,6 +648,7 @@ class LeagueDraft:
     def _auto_pick(self, board: DraftBoard, team: dict, pool: list[DraftCard]) -> dict:
         roster = board.rosters[team['member_id']]
         choice = LeagueDraftBot(self._pick_rng(board.next_pick)).choose(
+            # BOTS PLAN UNDER THE CAP EVEN WHEN A LUXURY TAX MAKES IT SOFT
             roster, pool, team_count=len(board.teams), pts_cap=self.settings.pts_cap,
         )
         if choice is None:

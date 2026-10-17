@@ -1,5 +1,5 @@
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
-import type { DraftMyRoster, DraftPick, DraftState, LeagueSettings, LeagueTeam } from '../../../api/leagues';
+import type { DraftMyRoster, DraftPick, DraftState, LeagueSettings, LeagueTeam, LuxuryTax } from '../../../api/leagues';
 import { TWO_WAY_PTS_MULTIPLIER, benchBullpenSlotCounts, effectiveBenchBullpenMinimums, getEligiblePositions } from '../../../domain/roster';
 import { CardSource } from '../../../types/cardSource';
 import type { DepthChartTeam } from '../../team_builder/DepthChartPanel';
@@ -24,6 +24,16 @@ export function rosterPoints(slots: RosterPointsSlot[]): number {
         return sum + (slot.points ?? 0) * benchMultiplier * (isTwoWayPitcher ? TWO_WAY_PTS_MULTIPLIER : 1);
     }, 0);
     return Math.round(total);
+}
+
+/** What a team with `points` owes: the buy-in, plus a tax on every point over the cap (exactly
+ *  at the cap is untaxed). Linear adds $1 per full 10 points over; exponential
+ *  starts at $13 one point over and doubles about every 173 points. Whole dollars. */
+export function luxuryTaxCost(points: number, cap: number, tax: LuxuryTax): { total: number; tax: number } {
+    const over = points - cap;
+    if (over <= 0) return { total: tax.buy_in, tax: 0 };
+    const amount = tax.type === 'linear' ? Math.floor(over / 10) : Math.trunc(13.5 * Math.exp(over / 250));
+    return { total: tax.buy_in + amount, tax: amount };
 }
 
 /** Lookups every draft view needs, derived once from the polled draft state. */
