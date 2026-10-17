@@ -7,6 +7,25 @@ import type { FieldViewRosterData } from '../../team_builder/FieldView';
 
 export const LINEUP_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 const BULLPEN_POSITIONS = ['RP', 'CL'];
+// What a drafted card counts for toward its team's points. Mirrors `DraftRoster` in
+// mlb_showdown_bot/core/league/draft.py - keep the two in sync.
+export const DRAFT_BENCH_PTS_MULTIPLIER = 0.2;
+const DRAFT_TWO_WAY_PTS_MULTIPLIER = 0.5;
+
+type RosterPointsSlot = { points: number; roster_position?: string; player_type?: string | null; bref_id?: string | null };
+
+/** A roster's points: a bench card counts 1/5, and a two-way player's pitching card counts half
+ *  when the roster also has his hitting card. Mirrors `DraftRoster.points`. */
+export function rosterPoints(slots: RosterPointsSlot[]): number {
+    const isPitcher = (slot: RosterPointsSlot) => slot.player_type?.toUpperCase() === 'PITCHER';
+    const hitterIds = new Set(slots.filter(slot => !isPitcher(slot) && slot.bref_id).map(slot => slot.bref_id));
+    const total = slots.reduce((sum, slot) => {
+        const isTwoWayPitcher = isPitcher(slot) && hitterIds.has(slot.bref_id);
+        const benchMultiplier = slot.roster_position === 'BE' ? DRAFT_BENCH_PTS_MULTIPLIER : 1;
+        return sum + (slot.points ?? 0) * benchMultiplier * (isTwoWayPitcher ? DRAFT_TWO_WAY_PTS_MULTIPLIER : 1);
+    }, 0);
+    return Math.round(total);
+}
 
 /** Lookups every draft view needs, derived once from the polled draft state. */
 export function draftView(draft: DraftState, myMemberId: string | null) {
@@ -48,14 +67,14 @@ export function teamRoster(picks: DraftPick[], team: LeagueTeam, settings: Leagu
         roster_size: settings.roster_size,
         min_bench: settings.min_bench,
         min_bullpen: settings.min_bullpen,
-        bench_pts_multiplier: 1,
+        bench_pts_multiplier: DRAFT_BENCH_PTS_MULTIPLIER,
     };
     return {
         depthChart,
         picksMade: mine.length,
         /** Spots that still have to be filled (lineup, rotation, bench/bullpen minimums). */
         required: requiredSpots(mine.map(pick => pick.roster_position ?? ''), settings),
-        points: mine.reduce((total, pick) => total + (pick.points ?? 0), 0),
+        points: rosterPoints(mine),
     };
 }
 

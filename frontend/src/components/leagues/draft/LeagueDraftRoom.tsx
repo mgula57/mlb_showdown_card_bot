@@ -21,7 +21,7 @@ import { DraftHistory } from './DraftHistory';
 import { DraftQueuePanel } from './DraftQueuePanel';
 import { DraftTeamFab } from './DraftTeamFab';
 import { DraftTeamPanel } from './DraftTeamPanel';
-import { draftView, legalDraftSlots } from './draftView';
+import { draftView, legalDraftSlots, rosterPoints } from './draftView';
 
 const LOCKED_FILTERS = ['release_edition_id'];
 // The pool leads with the best cards, not a release's card-number order
@@ -145,16 +145,18 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
 
     // Where the card picked from the pool can go, with its points impact - the clicked slot first
     const myRoster = draft.my_roster;
+    const myPicks = draft.picks.filter(pick => pick.member_id === myMemberId);
+    const currentPts = rosterPoints(myPicks);
     const { activePosition, activeRole } = pendingSlotHighlight(pendingSlot);
     const targetPosition = activePosition ?? activeRole;
     const confirmOptions: DraftPositionOption[] = confirmCard && myRoster
         ? legalDraftSlots(confirmCard, myRoster, league.settings)
             .sort((a, b) => Number(b === targetPosition) - Number(a === targetPosition))
             .map(position => {
-            const projected = myRoster.points + confirmCard.points;
+            const projected = rosterPoints([...myPicks, { ...confirmCard, roster_position: position }]);
             return {
                 position,
-                currentPts: myRoster.points,
+                currentPts,
                 projectedPts: projected,
                 overLimit: !!league.settings.pts_cap && projected > league.settings.pts_cap,
             };

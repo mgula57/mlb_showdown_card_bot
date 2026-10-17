@@ -11664,7 +11664,7 @@ class PostgresDB:
         if not self.connection:
             raise RuntimeError("No database connection")
         team_columns = ('user_id', 'name', 'abbreviation', 'primary_color', 'secondary_color', 'showdown_set',
-                        'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters')
+                        'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier')
         try:
             with self._transaction() as cur:
                 cur.execute(
@@ -12009,7 +12009,7 @@ class PostgresDB:
         card_columns = "p.card_data" if include_card_data else """
                    p.card_data->>'name' AS name, p.card_data->>'year' AS year, p.card_data->>'team' AS team,
                    (p.card_data->>'points')::float AS points, p.card_data->>'player_type' AS player_type,
-                   p.card_data->'positions_and_defense' AS positions_and_defense"""
+                   p.card_data->'positions_and_defense' AS positions_and_defense, p.card_data->>'bref_id' AS bref_id"""
         rows = self.execute_query(
             f"""
             SELECT p.overall_pick, p.round, p.member_id, p.release_card_id, p.source_card_id, p.is_auto, p.picked_at,
@@ -12084,7 +12084,8 @@ class PostgresDB:
         COALESCE((rc.card_snapshot->>'points')::float, 0) AS points,
         UPPER(rc.card_snapshot->>'player_type') AS player_type,
         rc.card_snapshot->'positions_and_defense' AS positions_and_defense,
-        COALESCE((rc.card_snapshot->>'is_small_sample_size')::boolean, FALSE) AS is_small_sample_size"""
+        COALESCE((rc.card_snapshot->>'is_small_sample_size')::boolean, FALSE) AS is_small_sample_size,
+        rc.card_snapshot->>'bref_id' AS bref_id"""
 
     def fetch_league_draft_card(self, release_card_id: str, edition_ids: list[str]) -> dict | None:
         """One release card's draft fields, only if it belongs to one of `edition_ids` (the
@@ -12125,19 +12126,23 @@ class PostgresDB:
 
     def get_league_roster_slots(self, season_id: str) -> list[dict]:
         """Every league team's current roster slots this season (member_id, card_id, roster_position),
-        with each drafted card's draft points. Read from user_team_roster rather than the picks so
-        a slot the owner moved (e.g. SS to 2B) is counted where it is now."""
+        in draft order, with each drafted card's draft fields (points, player type, bref id). Read
+        from user_team_roster rather than the picks so a slot the owner moved (e.g. SS to 2B) is
+        counted where it is now."""
         if not self.connection:
             return []
         rows = self.execute_query(
             """
-            SELECT lt.member_id, r.card_id, r.roster_position, p.release_card_id IS NOT NULL AS is_drafted,
-                   COALESCE((rc.card_snapshot->>'points')::float, (p.card_data->>'points')::float, 0) AS points
+            SELECT lt.member_id, r.card_id, r.card_id AS release_card_id, r.roster_position, p.release_card_id IS NOT NULL AS is_drafted,
+                   COALESCE((rc.card_snapshot->>'points')::float, (p.card_data->>'points')::float, 0) AS points,
+                   UPPER(COALESCE(rc.card_snapshot->>'player_type', p.card_data->>'player_type')) AS player_type,
+                   COALESCE(rc.card_snapshot->>'bref_id', p.card_data->>'bref_id') AS bref_id
               FROM internal.league_team lt
               JOIN internal.user_team_roster r ON r.team_id = lt.team_id
               LEFT JOIN internal.league_draft_pick p ON p.season_id = lt.season_id AND p.release_card_id::text = r.card_id
               LEFT JOIN internal.release_cards rc ON rc.id = p.release_card_id
              WHERE lt.season_id = %s::uuid
+             ORDER BY lt.member_id, p.overall_pick NULLS LAST, r.draft_order NULLS LAST, r.id
             """,
             (season_id,),
         )

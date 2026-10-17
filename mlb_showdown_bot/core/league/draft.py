@@ -8,7 +8,7 @@ card fits: clients just poll the board and submit a card id.
 
 import random
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Callable, ClassVar, Optional
 
 from ..card.team_builder.autofill import OFFENSE_POSITIONS
 from ..card.team_builder.team import ROTATION_ROLES
@@ -81,6 +81,7 @@ class DraftCard:
     is_pitcher: bool
     positions: set[Position]
     is_small_sample: bool = False
+    player_id: Optional[str] = None  # BREF ID - TIES A TWO-WAY PLAYER'S HITTING AND PITCHING CARDS
 
     @classmethod
     def from_row(cls, row: dict) -> 'DraftCard':
@@ -98,6 +99,7 @@ class DraftCard:
             is_pitcher=(row.get('player_type') or '').upper() == 'PITCHER',
             positions=positions,
             is_small_sample=bool(row.get('is_small_sample_size')),
+            player_id=row.get('bref_id'),
         )
 
     @property
@@ -115,11 +117,32 @@ class DraftRoster:
 
     Hard needs are the 9 lineup spots, the rotation, and the bench/bullpen minimums. Every pick
     either fills one, or (only while there are more picks left than needs) adds depth on the
-    bench or in the bullpen."""
+    bench or in the bullpen.
+
+    `cards` runs parallel to `positions`. A card counts toward the team's points (and the cap) at
+    a discount on the bench, and a two-way player's pitching card counts at a discount when the
+    team also has his hitting card."""
+
+    BENCH_PTS_MULTIPLIER: ClassVar[float] = 0.2
+    TWO_WAY_PTS_MULTIPLIER: ClassVar[float] = 0.5
 
     settings: LeagueSettings
     positions: list[str] = field(default_factory=list)
-    points: float = 0
+    cards: list[DraftCard] = field(default_factory=list)
+
+    @classmethod
+    def card_points(cls, card: DraftCard, position: str, is_two_way_pitcher: bool = False) -> float:
+        """What `card` counts for in `position`."""
+        points = card.points * (cls.BENCH_PTS_MULTIPLIER if position == 'BE' else 1.0)
+        return points * (cls.TWO_WAY_PTS_MULTIPLIER if is_two_way_pitcher else 1.0)
+
+    @property
+    def points(self) -> float:
+        hitter_ids = {card.player_id for card in self.cards if not card.is_pitcher and card.player_id is not None}
+        return sum(
+            self.card_points(card, position, card.is_pitcher and card.player_id in hitter_ids)
+            for position, card in zip(self.positions, self.cards)
+        )
 
     @property
     def picks_left(self) -> int:
@@ -213,9 +236,13 @@ class DraftRoster:
         open_field = self.open_field_positions
         return open_field[0] if open_field else 'BE'
 
-    def with_pick(self, slot: str, points: float) -> 'DraftRoster':
-        """This roster as it would stand after drafting a card into `slot`."""
-        return DraftRoster(settings=self.settings, positions=self.positions + [slot], points=self.points + points)
+    def with_pick(self, slot: str, card: DraftCard) -> 'DraftRoster':
+        """This roster as it would stand after drafting `card` into `slot`."""
+        return DraftRoster(settings=self.settings, positions=self.positions + [slot], cards=self.cards + [card])
+
+    def add(self, slot: str, card: DraftCard) -> None:
+        self.positions.append(slot)
+        self.cards.append(card)
 
     def cheapest_fill(self, pool: list['DraftCard'], exclude_id: Optional[str] = None, competitors: int = 0) -> tuple[float, set[str]]:
         """Lowest points it would take to fill out the roster from `pool` - every remaining hard
@@ -225,22 +252,27 @@ class DraftRoster:
 
         `competitors` > 0 assumes that many other teams take the cheapest fitting card ahead of
         this one for each need, so the estimate holds up while rival teams drain the bargains."""
-        available = sorted((c for c in pool if c.release_card_id != exclude_id), key=lambda c: c.points)
-        needs: list[Callable[[DraftCard], bool]] = [
-            (lambda c, pos=pos: c.can_play(pos)) for pos in _FIELD_FILL_ORDER + ['DH'] if pos in self.open_field_positions
+        # Each need draws from the pool cheapest first, priced in the spot it fills: a hitter
+        # on the bench counts at the bench discount
+        available = [c for c in pool if c.release_card_id != exclude_id]
+        full_price = (sorted(available, key=lambda c: c.points), lambda c: c.points)
+        bench_cost = lambda c: c.points if c.is_pitcher else self.card_points(c, 'BE')
+        bench_price = (sorted(available, key=bench_cost), bench_cost)
+        needs: list[tuple[Callable[[DraftCard], bool], tuple[list[DraftCard], Callable[[DraftCard], float]]]] = [
+            ((lambda c, pos=pos: c.can_play(pos)), full_price) for pos in _FIELD_FILL_ORDER + ['DH'] if pos in self.open_field_positions
         ]
-        needs += [lambda c: c.is_starter] * len(self.open_rotation_roles)
-        needs += [lambda c: c.is_pitcher and not c.is_starter] * max(0, self.settings.min_bullpen - self.bullpen_count)
-        needs += [lambda c: not c.is_pitcher] * max(0, self.settings.min_bench - self.bench_count)
+        needs += [(lambda c: c.is_starter, full_price)] * len(self.open_rotation_roles)
+        needs += [(lambda c: c.is_pitcher and not c.is_starter, full_price)] * max(0, self.settings.min_bullpen - self.bullpen_count)
+        needs += [(lambda c: not c.is_pitcher, bench_price)] * max(0, self.settings.min_bench - self.bench_count)
         # Every roster still drafts all the way to roster_size, so the depth picks past the hard
         # needs cost points too (bench or bullpen - anything but a starter)
-        needs += [lambda c: not c.is_starter] * max(0, self.slack)
+        needs += [(lambda c: not c.is_starter, bench_price)] * max(0, self.slack)
 
         used: set[str] = set()
         taken_by_others: set[str] = set()
         cost = 0.0
-        for matches in needs:
-            fitting = (c for c in available if c.release_card_id not in used and c.release_card_id not in taken_by_others and matches(c))
+        for matches, (ordered, cost_of) in needs:
+            fitting = (c for c in ordered if c.release_card_id not in used and c.release_card_id not in taken_by_others and matches(c))
             for _ in range(competitors):
                 rival_pick = next(fitting, None)
                 if rival_pick is not None:
@@ -248,7 +280,7 @@ class DraftRoster:
             card = next(fitting, None)
             if card is not None:
                 used.add(card.release_card_id)
-                cost += card.points
+                cost += cost_of(card)
         return cost, used
 
     def rejection_reason(self, card: DraftCard) -> str:
@@ -418,6 +450,7 @@ class LeagueDraft:
                 'min_bench': settings.min_bench,
                 'min_bullpen': settings.min_bullpen,
                 'num_starters': settings.num_starters,
+                'bench_pts_multiplier': DraftRoster.BENCH_PTS_MULTIPLIER,
             }
             for slot, member_id in enumerate(ordered)
         }
@@ -480,8 +513,7 @@ class LeagueDraft:
         for slot in self.db.get_league_roster_slots(season_id):
             roster = rosters.get(slot['member_id'])
             if roster is not None:
-                roster.positions.append(slot['roster_position'])
-                roster.points += slot.get('points') or 0
+                roster.add(slot['roster_position'], DraftCard.from_row(slot))
         return DraftBoard(
             order=SnakeOrder(len(teams), self.settings.roster_size),
             teams=teams,
@@ -537,7 +569,7 @@ class LeagueDraft:
         to `cheapest_fill` (bots plan conservatively; a human pick is checked exactly)."""
         if not pts_cap:
             return True
-        after = roster.with_pick(slot, card.points)
+        after = roster.with_pick(slot, card)
         cached = reserve_cache.get(slot) if reserve_cache is not None else None
         if cached is None:
             cached = after.cheapest_fill(pool, competitors=competitors)
@@ -658,13 +690,13 @@ class LeagueDraft:
             'source_card_id': card.source_card_id,
             'name': card.name,
             'points': card.points,
+            'player_type': 'PITCHER' if card.is_pitcher else 'HITTER',
+            'bref_id': card.player_id,
             'roster_position': slot,
             'is_auto': is_auto,
         }
         board.picks.append(pick)
-        roster = board.rosters[team['member_id']]
-        roster.positions.append(slot)
-        roster.points += card.points
+        board.rosters[team['member_id']].add(slot, card)
 
         if board.is_complete:
             self.db.update_league_season_status(self.season['season_id'], 'drafting', 'setup')

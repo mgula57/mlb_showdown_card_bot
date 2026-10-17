@@ -86,22 +86,24 @@ class LeagueRosterMove:
             raise DraftError(f"{mover.name} can't play {to_position}.")
         moves.append((release_card_id, from_position, to_position))
 
-        positions_before = list(slots.values())
-        positions_after = list(positions_before)
-        for _, old, new in moves:
-            positions_after[positions_after.index(old)] = new
-        if Counter(positions_before) != Counter(positions_after):
-            self._check_still_fillable(positions_before, positions_after, sum(slot.get('points') or 0 for slot in my_slots))
+        slots_after = dict(slots)
+        for card_id, _, new in moves:
+            slots_after[card_id] = new
+        positions_before, positions_after = list(slots.values()), list(slots_after.values())
+        roster_cards = [DraftCard.from_row(slot) for slot in my_slots]
+        # A bench move changes points too, so under a cap even a swap is checked
+        if Counter(positions_before) != Counter(positions_after) or self.settings.pts_cap:
+            self._check_still_fillable(positions_before, positions_after, roster_cards)
 
         if not self.db.move_league_roster_slots(self.season['season_id'], self.team['team_id'], positions_before, moves):
             raise DraftConflict("Your team changed while you were moving players. Refresh and try again.")
 
-    def _check_still_fillable(self, before: list[str], after: list[str], points: float) -> None:
+    def _check_still_fillable(self, before: list[str], after: list[str], cards: list[DraftCard]) -> None:
         """A move into an open spot reshapes what the roster still needs. Reject it if it leaves
         more needs than picks (or, under a cap, too few points to fill them) - unless the roster
         was already in that state, so a team drafted out of position can still shuffle."""
-        old = DraftRoster(settings=self.settings, positions=before, points=points)
-        new = DraftRoster(settings=self.settings, positions=after, points=points)
+        old = DraftRoster(settings=self.settings, positions=before, cards=cards)
+        new = DraftRoster(settings=self.settings, positions=after, cards=cards)
         if new.slack < 0 and new.slack < old.slack:
             raise DraftError("That would open a spot you don't have picks left to fill.")
         if self.season.get('status') == 'drafting' and self.settings.pts_cap:

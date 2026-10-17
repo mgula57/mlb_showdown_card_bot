@@ -123,8 +123,7 @@ class FakeLeagueDB:
         if expected_positions is not None and self._team_positions(team_id) != sorted(expected_positions):
             return False
         self.picks.append({**card, 'overall_pick': overall_pick, 'round': round, 'member_id': member_id, 'is_auto': is_auto})
-        self.roster.append({'member_id': member_id, 'card_id': release_card_id, 'roster_position': roster_position,
-                            'points': card['points']})
+        self.roster.append({**card, 'member_id': member_id, 'card_id': release_card_id, 'roster_position': roster_position})
         return True
 
     def move_league_roster_slots(self, season_id, team_id, expected_positions, moves):
@@ -234,6 +233,23 @@ check("a second reliever has no room (needs remain, no slack)", roster.slot_for(
 dh_only = DraftCard.from_row(card_row('dh', 'DH', 250))
 check("DH-only hitter goes to DH", roster.slot_for(dh_only) == 'DH')
 
+print("\nROSTER POINTS")
+points_roster = DraftRoster(settings=settings)
+two_way_hitter = DraftCard.from_row({**card_row('ohtani-h', 'DH', 400), 'bref_id': 'ohtansh01'})
+two_way_pitcher = DraftCard.from_row({**card_row('ohtani-p', 'STARTER', 300), 'bref_id': 'ohtansh01'})
+points_roster.add('DH', two_way_hitter)
+points_roster.add('BE', DraftCard.from_row(card_row('bench', 'SS', 100)))
+check("a bench card counts 1/5 of its points", points_roster.points == 420, str(points_roster.points))
+points_roster.add('SP1', two_way_pitcher)
+check("a two-way player's pitching card counts half", points_roster.points == 570, str(points_roster.points))
+check("the pitching card is discounted even when drafted first",
+      DraftRoster(settings=settings, positions=['SP1', 'DH'], cards=[two_way_pitcher, two_way_hitter]).points == 550)
+check("a two-way player's pitching card alone isn't discounted",
+      DraftRoster(settings=settings, positions=['SP1'], cards=[two_way_pitcher]).points == 300)
+same_side = DraftCard.from_row({**card_row('ohtani-h2', 'DH', 400), 'bref_id': 'ohtansh01'})
+check("two hitting cards of one player aren't discounted",
+      DraftRoster(settings=settings, positions=['DH', 'BE'], cards=[two_way_hitter, same_side]).points == 480)
+
 # ----------------------------------------------------------
 print("\nFULL ALL-BOT DRAFT")
 default_settings = LeagueSettings()
@@ -253,8 +269,9 @@ check("bots take high-value cards early", min(first_round_points) >= 450, str(fi
 print("\nPOINTS CAP")
 capped = LeagueSettings(pts_cap=7500)  # 4 ROSTERS NEED >= ~4,700 EACH FROM THIS POOL
 db = FakeLeagueDB(build_pool(seed=11), member_count=4)
-make_draft(db, capped.model_dump()).run_bot_picks()
-team_points = {t['member_id']: sum(r['points'] for r in db.roster if r['member_id'] == t['member_id']) for t in db.teams}
+capped_draft = make_draft(db, capped.model_dump())
+capped_draft.run_bot_picks()
+team_points = {member_id: round(roster.points) for member_id, roster in capped_draft.board().rosters.items()}
 check("draft finishes under a cap", db.status == 'setup')
 check("every team is at or under the cap", all(points <= 7500 for points in team_points.values()), str(team_points))
 check("rosters still complete under a cap", not roster_problems(db, capped))

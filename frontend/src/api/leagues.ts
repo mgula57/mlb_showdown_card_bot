@@ -151,6 +151,7 @@ export type DraftPick = {
     team?: string | null;
     points: number;
     player_type?: string | null;
+    bref_id?: string | null;
     positions_and_defense?: Record<string, number> | null;
     roster_position?: string;
 };
