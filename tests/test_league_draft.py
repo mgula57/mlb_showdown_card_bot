@@ -285,6 +285,20 @@ try:
 except DraftError as e:
     check("human pick that blows a tight cap is rejected", 'cap' in str(e), str(e))
 
+# A LUXURY TAX MAKES THE CAP SOFT: THE SAME PICK GOES THROUGH, AND A CAP TOO LOW FOR THE POOL DOESN'T BLOCK THE DRAFT
+soft = LeagueSettings(**{**tight.model_dump(), 'luxury_tax': {'buy_in': 50, 'type': 'linear'}})
+db = FakeLeagueDB(build_pool(seed=11), member_count=2, human_slots=(0,))
+try:
+    make_draft(db, soft.model_dump()).make_pick('m0', False, priciest['release_card_id'])
+    check("human pick over a soft cap is allowed", any(p['release_card_id'] == priciest['release_card_id'] for p in db.picks))
+except DraftError as e:
+    check("human pick over a soft cap is allowed", False, str(e))
+try:
+    LeagueSettings(luxury_tax={'buy_in': 50})
+    check("a luxury tax without a cap is rejected", False)
+except ValidationError:
+    check("a luxury tax without a cap is rejected", True)
+
 print("\nTHIN POOL")
 db = FakeLeagueDB(build_pool(seed=3, catchers=2), member_count=4)
 make_draft(db, default_settings.model_dump()).run_bot_picks()
