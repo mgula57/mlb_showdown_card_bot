@@ -206,7 +206,10 @@ class DraftRoster:
             return None
         if card.is_pitcher:
             open_roles = self.open_rotation_roles
-            return open_roles[0] if open_roles else 'RP'
+            if open_roles:
+                return open_roles[0]
+            # A pitcher can't cover an open lineup spot, so leave those to the hitters in the pool
+            return None if self.open_field_positions else 'RP'
         open_field = self.open_field_positions
         return open_field[0] if open_field else 'BE'
 
@@ -583,6 +586,8 @@ class LeagueDraft:
             if any(roster.slot_for(other) for other in pool):
                 raise DraftError(roster.rejection_reason(card))
             slot = roster.fallback_slot(card)
+            if slot is None:
+                raise DraftError(roster.rejection_reason(card))
         if self.settings.pts_cap:
             pool = pool if pool is not None else self._pool()
             if not self.fits_points_cap(roster, card, slot, pool, self.settings.pts_cap):
@@ -639,6 +644,8 @@ class LeagueDraft:
             release_card_id=card.release_card_id,
             roster_position=slot,
             is_auto=is_auto,
+            # The owner may move players between positions mid-draft; the pick was checked against these
+            expected_positions=board.rosters[team['member_id']].positions,
         )
         if not recorded:
             raise DraftConflict("Someone else picked first. Refresh the board and try again.")

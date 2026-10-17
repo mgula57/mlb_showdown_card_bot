@@ -10,6 +10,8 @@ Under test:
      cap, and with a pool that has no catchers left).
   4. HUMAN PICKS - turn order, pool membership, already-drafted cards (incl. the same source card
      in two editions), roster-fit rejections, and a stale board raising DraftConflict.
+  5. ROSTER MOVES - moving a drafted player to an open spot or swapping two, eligibility, not
+     opening a need the remaining picks can't fill, and a pick checked against a pre-move roster.
 """
 
 import os
@@ -22,7 +24,9 @@ sys.path.append(str(Path(os.path.dirname(__file__)).parent))
 from pydantic import ValidationError
 
 from mlb_showdown_bot.core.card.team_builder.autofill import OFFENSE_POSITIONS
-from mlb_showdown_bot.core.league import DraftCard, DraftConflict, DraftError, DraftRoster, LeagueDraft, LeagueSettings, SnakeOrder
+from mlb_showdown_bot.core.league import (
+    DraftCard, DraftConflict, DraftError, DraftRoster, LeagueDraft, LeagueRosterMove, LeagueSettings, SnakeOrder,
+)
 
 failures: list[str] = []
 
@@ -104,19 +108,38 @@ class FakeLeagueDB:
             return None
         return dict(card)
 
+    def _team_positions(self, team_id):
+        member_id = next(t['member_id'] for t in self.teams if t['team_id'] == team_id)
+        return sorted(r['roster_position'] for r in self.roster if r['member_id'] == member_id)
+
     def record_league_draft_pick(self, season_id, overall_pick, round, member_id, team_id, release_card_id,
-                                 roster_position, is_auto):
+                                 roster_position, is_auto, expected_positions=None):
         if self.reject_next_record:
             self.reject_next_record = False
             return False
         card = self.cards[release_card_id]
         if self.status != 'drafting' or len(self.picks) != overall_pick - 1 or self._drafted(card):
             return False
-        self.picks.append({'overall_pick': overall_pick, 'round': round, 'member_id': member_id,
-                           'release_card_id': release_card_id, 'source_card_id': card['source_card_id'], 'is_auto': is_auto})
+        if expected_positions is not None and self._team_positions(team_id) != sorted(expected_positions):
+            return False
+        self.picks.append({**card, 'overall_pick': overall_pick, 'round': round, 'member_id': member_id, 'is_auto': is_auto})
         self.roster.append({'member_id': member_id, 'card_id': release_card_id, 'roster_position': roster_position,
                             'points': card['points']})
         return True
+
+    def move_league_roster_slots(self, season_id, team_id, expected_positions, moves):
+        if self._team_positions(team_id) != sorted(expected_positions):
+            return False
+        member_id = next(t['member_id'] for t in self.teams if t['team_id'] == team_id)
+        for card_id, from_position, to_position in moves:
+            slot = next((r for r in self.roster if r['member_id'] == member_id and r['card_id'] == card_id and r['roster_position'] == from_position), None)
+            if slot is None:
+                return False
+            slot['roster_position'] = to_position
+        return True
+
+    def position_of(self, card_id):
+        return next(r['roster_position'] for r in self.roster if r['card_id'] == card_id)
 
     def update_league_season_status(self, season_id, from_status, to_status):
         if self.status != from_status:
@@ -185,7 +208,7 @@ try:
     check("roster smaller than the minimums is rejected", False)
 except ValidationError:
     check("roster smaller than the minimums is rejected", True)
-check("default settings fit", LeagueSettings().hard_minimum == 23)
+check("default settings fit", LeagueSettings().hard_minimum == 20)
 
 # ----------------------------------------------------------
 print("\nROSTER FIT")
@@ -302,6 +325,64 @@ check("a hitter can be drafted at DH by choice", chosen_draft.make_pick('m0', Fa
 check("a hitter can be drafted to the bench by choice", chosen_draft.make_pick('m1', False, 'C-0', 'BE')['roster_position'] == 'BE')
 check("a starter can't be drafted into the bullpen", raises(lambda: chosen_draft.make_pick('m1', False, 'STARTER-0', 'RP'), DraftError))
 check("a starter can take a chosen rotation role", chosen_draft.make_pick('m1', False, 'STARTER-0', 'SP2')['roster_position'] == 'SP2')
+
+
+# ----------------------------------------------------------
+print("\nROSTER MOVES")
+
+move_settings = LeagueSettings(roster_size=16, min_bench=1, min_bullpen=1, num_starters=2)
+move_db = FakeLeagueDB(build_pool(seed=13), member_count=2, human_slots=(0, 1))
+move_draft = make_draft(move_db, move_settings.model_dump())
+season = {'season_id': 'S1', 'status': 'drafting'}
+move_league = {'league_id': 'L1', 'edition_ids': [EDITION_A, EDITION_B], 'settings': move_settings.model_dump()}
+mover = LeagueRosterMove(move_db, move_league, season, move_db.teams[0])
+# m0 drafts at picks 1, 4, 5: an IF at 2B, a SS at SS, a starter at SP1
+move_draft.make_pick('m0', False, 'IF-0', '2B')
+move_draft.make_pick('m1', False, 'C-0')
+move_draft.make_pick('m1', False, 'C-1')
+move_draft.make_pick('m0', False, 'SS-0', 'SS')
+move_draft.make_pick('m0', False, 'STARTER-0', 'SP1')
+
+mover.move('IF-0', '3B')
+check("move into an open spot it can play", move_db.position_of('IF-0') == '3B')
+check("a SS can't move to C", raises(lambda: mover.move('SS-0', 'C'), DraftError))
+check("can't move into a filled spot without swapping", raises(lambda: mover.move('IF-0', 'SS'), DraftConflict))
+check("swap is rejected when the other player can't play the mover's spot", raises(lambda: mover.move('IF-0', 'SS', swap_with_card_id='SS-0'), DraftError))
+check("a hitter and a pitcher can't swap", raises(lambda: mover.move('SS-0', 'SP1', swap_with_card_id='STARTER-0'), DraftError))
+mover.move('IF-0', 'DH')
+mover.move('IF-0', 'SS', swap_with_card_id='SS-0')
+check("swap moves the IF to SS", move_db.position_of('IF-0') == 'SS')
+check("swap moves the SS to DH", move_db.position_of('SS-0') == 'DH', move_db.position_of('SS-0'))
+mover.move('STARTER-0', 'SP2')
+check("a starter moves to another rotation role", move_db.position_of('STARTER-0') == 'SP2')
+check("a starter can't move into the bullpen", raises(lambda: mover.move('STARTER-0', 'RP'), DraftError))
+mover.move('SS-0', 'BE')
+check("a hitter moves to the bench while there are picks to spare", move_db.position_of('SS-0') == 'BE')
+check("another team's player can't be moved", raises(lambda: mover.move('C-0', 'DH'), DraftError))
+
+move_draft.make_pick(None, True, 'C-2')  # PICKS 6 AND 7 ARE m1'S, THEN m0 IS UP AGAIN
+move_draft.make_pick(None, True, 'C-3')
+stale = move_draft.board()
+mover.move('SS-0', 'DH')
+check("a pick checked against a roster that moved since is a conflict",
+      raises(lambda: move_draft._record(stale, stale.on_the_clock, DraftCard.from_row(move_db.cards['C-5']), 'C', is_auto=False), DraftConflict))
+check("the pick goes through on a fresh board", move_draft.make_pick('m0', False, 'C-5', 'C')['roster_position'] == 'C')
+
+# A FULL ROSTER CAN SWAP BUT NOT OPEN A SPOT
+full_db = FakeLeagueDB(build_pool(seed=17), member_count=2)
+full_draft = make_draft(full_db, move_settings.model_dump())
+full_draft.run_bot_picks()
+full_season = {'season_id': 'S1', 'status': 'setup'}
+full_mover = LeagueRosterMove(full_db, move_league, full_season, full_db.teams[0])
+m0_slots = [r for r in full_db.roster if r['member_id'] == 'm0']
+dh = next(r['card_id'] for r in m0_slots if r['roster_position'] == 'DH')
+check("a full roster can't open a lineup spot", raises(lambda: full_mover.move(dh, 'BE'), DraftError))
+bench = next((r['card_id'] for r in m0_slots if r['roster_position'] == 'BE'), None)
+if bench:
+    full_mover.move(bench, 'DH', swap_with_card_id=dh)
+    check("a full roster can swap a bench bat in at DH", full_db.position_of(bench) == 'DH' and full_db.position_of(dh) == 'BE')
+check("no moves once the season is over",
+      raises(lambda: LeagueRosterMove(full_db, move_league, {'season_id': 'S1', 'status': 'complete'}, full_db.teams[0]).move(dh, 'BE'), DraftError))
 
 # ----------------------------------------------------------
 

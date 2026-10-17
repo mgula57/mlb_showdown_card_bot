@@ -3,7 +3,7 @@ import type { Team, LineupSlot, PitcherAssignment, TeamRosterSlot, TeamUpdatePay
 import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
-import { FaPlus, FaPencil, FaChevronUp, FaChevronDown } from 'react-icons/fa6';
+import { FaPlus, FaPencil, FaChevronUp, FaChevronDown, FaArrowsUpDownLeftRight } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
@@ -11,6 +11,7 @@ import { Modal } from '../shared/Modal';
 import { SectionHeader } from '../shared/SectionHeader';
 import { CardDetail } from '../cards/CardDetail';
 import { SlotSavingOverlay } from './SlotSavingOverlay';
+import { type RosterMoveControls, type RosterMoveSlotState, moveSlotClass } from '../../hooks/useRosterMove';
 
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 
@@ -45,6 +46,9 @@ type DepthChartPanelProps = {
     /** Field positions / rotation roles whose draft pick just landed but whose lineup/rotation
      *  the server hasn't re-derived yet — the row gets a spinner overlay until the save lands. */
     pendingPositions?: ReadonlySet<string>;
+    /** Lets filled rows be moved to another spot (`useRosterMove`). Its Move button takes the
+     *  row's action slot when there's no Replace. */
+    move?: RosterMoveControls;
 };
 
 function PositionRow({
@@ -64,6 +68,8 @@ function PositionRow({
     ptsMultiplier,
     onMoveUp,
     onMoveDown,
+    moveState,
+    onStartMove,
 }: {
     label: string;
     card: CardDatabaseRecord | null | undefined;
@@ -84,7 +90,14 @@ function PositionRow({
     ptsMultiplier?: number;
     onMoveUp?: () => void;
     onMoveDown?: () => void;
+    /** Set while a roster move is underway (`RosterMoveControls.slotState`). */
+    moveState?: RosterMoveSlotState;
+    /** Picks this row's player up to move - offered when the row has no Replace. */
+    onStartMove?: () => void;
 }) {
+    const isMoveUnderway = !!moveState && (moveState.isMoving || moveState.isTarget || moveState.isDimmed);
+    const isHighlighted = isActive || !!moveState?.isMoving;
+    const canReplace = !pickDisabled && !replaceDisabled;
     if (!card && isPending && !isSaving) {
         return (
             <div className="flex items-center gap-3 min-h-9 shrink-0">
@@ -99,39 +112,44 @@ function PositionRow({
             className={`
                 relative flex items-center gap-3 min-h-9 rounded-lg shrink-0
                 transition-all duration-200
-                ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`}
+                ${isHighlighted ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : moveState ? moveSlotClass(moveState) : ''}`}
                 onClick={e => e.stopPropagation()}
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
             >
-            <span className={`text-[11px] font-bold w-5 shrink-0 text-right ${isActive ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
+            <span className={`text-[11px] font-bold w-5 shrink-0 text-right ${isHighlighted || moveState?.isTarget ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
                 <div className={`flex-1 min-w-0 transition-transform ${isPeerHovered ? 'scale-[1.02]' : 'hover:scale-[1.02]'} active:scale-[0.98]`}>
                     <CardItemFromCardDatabaseRecord
                         card={card}
-                        isSelected={isActive}
-                        onClick={onDetailClick}
+                        isSelected={isHighlighted}
+                        onClick={isMoveUnderway ? moveState?.onClick ?? (() => {}) : onDetailClick}
                         cardPtsMultiplier={ptsMultiplier}
-                        actionButton={!pickDisabled && !replaceDisabled ? {
+                        actionButton={canReplace ? {
                             icon: <FaPencil className="w-2.5 h-2.5" />,
                             onClick,
                             label: 'Replace card',
+                        } : onStartMove && !isMoveUnderway ? {
+                            icon: <FaArrowsUpDownLeftRight className="w-2.5 h-2.5" />,
+                            onClick: onStartMove,
+                            label: 'Move player',
                         } : undefined}
                     />
                 </div>
             ) : (
                 <button
                     type="button"
-                    onClick={onClick}
-                    disabled={pickDisabled}
+                    onClick={isMoveUnderway ? moveState?.onClick : onClick}
+                    // Mid-move the row fades as a whole (not as a disabled button) when it isn't a target
+                    disabled={isMoveUnderway ? false : pickDisabled}
                     className={`flex-1 flex items-center gap-1.5 px-3 h-18 rounded-lg border border-dashed
                         text-[11px] disabled:pointer-events-none disabled:opacity-40 transition-colors
-                        ${isActive
+                        ${isActive || moveState?.isTarget
                             ? 'border-(--secondary)/70 text-(--secondary) hover:border-(--secondary) hover:text-(--secondary)'
                             : 'border-(--divider) text-(--text-tertiary) hover:border-(--secondary)/50 hover:text-(--secondary)'
                         }`}
                 >
-                    {!pickDisabled && <FaPlus className="text-[9px]" />}
+                    {!(isMoveUnderway ? !moveState?.onClick : pickDisabled) && <FaPlus className="text-[9px]" />}
                     <span>Empty</span>
                 </button>
             )}
@@ -170,7 +188,13 @@ export function DepthChartPanel({
     onCardHover,
     isLoadingCards,
     pendingPositions,
+    move,
 }: DepthChartPanelProps) {
+    /** Move wiring for one row: its slot's state mid-move, and the button that starts one. */
+    const moveProps = (position: string, occupantId: string | null) => move ? {
+        moveState: move.slotState(position, occupantId),
+        onStartMove: occupantId ? () => move.start(occupantId) : undefined,
+    } : {};
     // `onDraft` runs the same handler as the row's inline action button (opens the slot-fill
     // flow) — surfaced as a "Draft" button inside the CardDetail modal while editing.
     const [detailCard, setDetailCard] = useState<{ card: CardDatabaseRecord; onDraft?: () => void } | null>(null);
@@ -284,6 +308,7 @@ export function DepthChartPanel({
                                 pickDisabled={pickDisabled}
                                 replaceDisabled={emptySlotsOnly}
                                 isActive={activePosition === pos}
+                                {...moveProps(pos, slot?.card_id ?? null)}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
@@ -308,6 +333,7 @@ export function DepthChartPanel({
                                 replaceDisabled={emptySlotsOnly}
                                 // Bench rows are interchangeable — highlight just the next open one.
                                 isActive={activeRole === 'BE' && i === benchSlots.length}
+                                {...moveProps('BE', slot?.card_id ?? null)}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
@@ -338,6 +364,7 @@ export function DepthChartPanel({
                                 pickDisabled={pickDisabled}
                                 replaceDisabled={emptySlotsOnly}
                                 isActive={activeRole === role}
+                                {...moveProps(role, assignment?.card_id ?? null)}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
@@ -363,6 +390,7 @@ export function DepthChartPanel({
                                 pickDisabled={pickDisabled}
                                 replaceDisabled={emptySlotsOnly}
                                 isActive={activeRole === 'RP' && i === bullpenSlots.length}
+                                {...moveProps('RP', assignment?.card_id ?? null)}
                                 isPeerHovered={!!card && card.card_id === hoveredCardId}
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}

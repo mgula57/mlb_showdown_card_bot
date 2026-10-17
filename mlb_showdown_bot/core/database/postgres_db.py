@@ -12144,15 +12144,17 @@ class PostgresDB:
         return [self._stringify_uuid_fields(dict(row), ('member_id',)) for row in rows]
 
     def record_league_draft_pick(self, season_id: str, overall_pick: int, round: int, member_id: str, team_id: str,
-                                 release_card_id: str, roster_position: str, is_auto: bool) -> bool:
+                                 release_card_id: str, roster_position: str, is_auto: bool,
+                                 expected_positions: list[str] | None = None) -> bool:
         """Record one pick and add the card to the member's roster, atomically. The pick's
         `card_data` (and source card id) are copied from the release card in the same statement,
         freezing the card as drafted.
 
         The caller validates the pick against the board as it read it; this re-checks under a
-        lock on the season row that the board hasn't moved since (still drafting, and exactly
-        `overall_pick - 1` picks made) and lets the unique constraints reject a card that's
-        already gone. Returns False when either check fails, so the caller can re-read and retry.
+        lock on the season row that the board hasn't moved since (still drafting, exactly
+        `overall_pick - 1` picks made, and - given `expected_positions` - the team's roster
+        positions unchanged by a move) and lets the unique constraints reject a card that's
+        already gone. Returns False when any check fails, so the caller can re-read and retry.
         """
         if not self.connection:
             raise RuntimeError("No database connection")
@@ -12171,6 +12173,10 @@ class PostgresDB:
                 season = cur.fetchone()
                 if season is None or season['status'] != 'drafting' or season['picks_made'] != overall_pick - 1:
                     raise _LeagueWriteRejected()
+                if expected_positions is not None:
+                    cur.execute("SELECT roster_position FROM internal.user_team_roster WHERE team_id = %s::uuid", (team_id,))
+                    if sorted(row['roster_position'] for row in cur.fetchall()) != sorted(expected_positions):
+                        raise _LeagueWriteRejected()
                 cur.execute(
                     f"""
                     WITH pick AS (
@@ -12196,6 +12202,42 @@ class PostgresDB:
                 if cur.fetchone() is None:  # THE RELEASE CARD (OR ITS CARD DATA) IS GONE
                     raise _LeagueWriteRejected()
         except (_LeagueWriteRejected, psycopg2.errors.UniqueViolation):
+            return False
+        return True
+
+    def move_league_roster_slots(self, season_id: str, team_id: str, expected_positions: list[str],
+                                 moves: list[tuple[str, str, str]]) -> bool:
+        """Apply `moves` - `(card_id, from_position, to_position)` - to a league team's roster,
+        atomically. The caller validated them against the roster as it read it
+        (`expected_positions`); this re-checks under the same season-row lock a pick takes that
+        the roster hasn't changed since, the season isn't over and no sim chunk is running.
+        Returns False otherwise."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        try:
+            with self._transaction() as cur:
+                cur.execute(
+                    "SELECT status, job_status FROM internal.league_season WHERE season_id = %s::uuid FOR UPDATE",
+                    (season_id,),
+                )
+                season = cur.fetchone()
+                if season is None or season['status'] == 'complete' or season['job_status'] == 'running':
+                    raise _LeagueWriteRejected()
+                cur.execute("SELECT roster_position FROM internal.user_team_roster WHERE team_id = %s::uuid", (team_id,))
+                if sorted(row['roster_position'] for row in cur.fetchall()) != sorted(expected_positions):
+                    raise _LeagueWriteRejected()
+                for card_id, from_position, to_position in moves:
+                    cur.execute(
+                        """
+                        UPDATE internal.user_team_roster SET roster_position = %s, updated_at = NOW()
+                         WHERE team_id = %s::uuid AND card_id = %s AND roster_position = %s
+                        """,
+                        (to_position, team_id, card_id, from_position),
+                    )
+                    if cur.rowcount != 1:
+                        raise _LeagueWriteRejected()
+                cur.execute("UPDATE internal.user_teams SET updated_at = NOW() WHERE team_id = %s::uuid", (team_id,))
+        except _LeagueWriteRejected:
             return False
         return True
 

@@ -35,9 +35,6 @@ export function teamRoster(picks: DraftPick[], team: LeagueTeam, settings: Leagu
     const ref = (pick: DraftPick) => ({ card_id: pick.release_card_id, card_source: CardSource.RELEASE });
     const lineupPicks = mine.filter(pick => LINEUP_POSITIONS.includes(pick.roster_position ?? ''));
     const pitcherPicks = mine.filter(pick => pick.roster_position?.startsWith('SP') || BULLPEN_POSITIONS.includes(pick.roster_position ?? ''));
-    const bullpenCount = mine.filter(pick => BULLPEN_POSITIONS.includes(pick.roster_position ?? '')).length;
-    const benchCount = mine.filter(pick => pick.roster_position === 'BE').length;
-    const rotationCount = pitcherPicks.length - bullpenCount;
 
     const depthChart: DepthChartTeam = {
         roster: mine.map(pick => ({ ...ref(pick), roster_position: pick.roster_position ?? 'BE', draft_order: pick.overall_pick, pick_source: 'DRAFT' })),
@@ -57,11 +54,27 @@ export function teamRoster(picks: DraftPick[], team: LeagueTeam, settings: Leagu
         depthChart,
         picksMade: mine.length,
         /** Spots that still have to be filled (lineup, rotation, bench/bullpen minimums). */
-        required: (LINEUP_POSITIONS.length - lineupPicks.length) + (settings.num_starters - rotationCount)
-            + Math.max(0, settings.min_bullpen - bullpenCount)
-            + Math.max(0, settings.min_bench - benchCount),
+        required: requiredSpots(mine.map(pick => pick.roster_position ?? ''), settings),
         points: mine.reduce((total, pick) => total + (pick.points ?? 0), 0),
     };
+}
+
+/** Spots a roster holding `positions` still has to fill: the lineup, the rotation, and the
+ *  bench / bullpen minimums. Mirrors `DraftRoster.hard_needs` in mlb_showdown_bot/core/league/draft.py. */
+export function requiredSpots(positions: string[], settings: LeagueSettings): number {
+    const count = (matches: (position: string) => boolean) => positions.filter(matches).length;
+    const rotationRoles = Array.from({ length: settings.num_starters }, (_, i) => `SP${i + 1}`);
+    return LINEUP_POSITIONS.filter(position => !positions.includes(position)).length
+        + rotationRoles.filter(role => !positions.includes(role)).length
+        + Math.max(0, settings.min_bullpen - count(position => BULLPEN_POSITIONS.includes(position)))
+        + Math.max(0, settings.min_bench - count(position => position === 'BE'));
+}
+
+/** Whether moving players so the roster holds `after` (from `before`) still leaves enough picks
+ *  to fill every spot - or at least no fewer than before. Mirrors `LeagueRosterMove`. */
+export function keepsRosterFillable(before: string[], after: string[], settings: LeagueSettings): boolean {
+    const slack = (positions: string[]) => settings.roster_size - positions.length - requiredSpots(positions, settings);
+    return slack(after) >= 0 || slack(after) >= slack(before);
 }
 
 /** A drafted roster as `FieldView`'s roster data, with the same bench / bullpen row counts the

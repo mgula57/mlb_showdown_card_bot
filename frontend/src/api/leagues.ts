@@ -4,6 +4,7 @@
  */
 
 import type { SeasonAwards, SeasonSimSummary } from './sim';
+import type { RosterMove } from '../domain/roster';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -23,10 +24,10 @@ export type LeagueSettings = {
 
 export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
     team_count: 8,
-    roster_size: 25,
-    min_bench: 4,
+    roster_size: 20,
+    min_bench: 2,
     min_bullpen: 5,
-    num_starters: 5,
+    num_starters: 4,
     pts_cap: null,
     draft_order_mode: 'random',
 };
@@ -300,6 +301,13 @@ export const makeDraftPick = (token: string, leagueId: string, seasonNumber: num
         body: releaseCardId
             ? { release_card_id: releaseCardId, ...(rosterPosition ? { roster_position: rosterPosition } : {}) }
             : { auto: true },
+    });
+
+/** Move one of my drafted players into an open roster position, or swap it with another of my players. */
+export const moveRosterPlayer = (token: string, leagueId: string, seasonNumber: number, move: RosterMove) =>
+    request<DraftPayload>(`${seasonPath(leagueId, seasonNumber)}/roster/move`, token, {
+        method: 'POST',
+        body: { release_card_id: move.cardId, to_position: move.toPosition, swap_with_card_id: move.swapWithCardId },
     });
 
 // Seasons

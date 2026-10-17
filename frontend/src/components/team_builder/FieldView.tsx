@@ -3,7 +3,7 @@ import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../.
 import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
-import { FaPlus, FaPencil } from 'react-icons/fa6';
+import { FaPlus, FaPencil, FaArrowsUpDownLeftRight } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { SectionHeader } from '../shared/SectionHeader';
@@ -11,6 +11,7 @@ import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
 import { SlotSavingOverlay } from './SlotSavingOverlay';
 import { CardNotFoundOverlay } from '../shared/CardNotFoundOverlay';
+import { type RosterMoveControls, type RosterMoveSlotState, moveSlotClass } from '../../hooks/useRosterMove';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
@@ -95,6 +96,9 @@ type FieldViewProps = {
     /** `stacked` puts rotation / bullpen / bench below the field; `side` puts them in a scrolling
      *  column beside it, sized to the field's height, and drops the lineup header (a dashboard tile). */
     layout?: 'stacked' | 'side';
+    /** Lets filled cards be moved to another spot (`useRosterMove`). Its Move button takes the
+     *  card's action slot when there's no Replace. */
+    move?: RosterMoveControls;
 };
 
 
@@ -113,7 +117,7 @@ export function FieldView({
     lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, emptySlotsOnly = false, activePosition, activeRole,
     rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
-    simStatsMap, simStatsTooltip, notFoundLabels, scrollTarget, layout = 'stacked',
+    simStatsMap, simStatsTooltip, notFoundLabels, scrollTarget, layout = 'stacked', move,
 }: FieldViewProps) {
     const isSide = layout === 'side';
     const rootRef = useRef<HTMLDivElement>(null);
@@ -159,6 +163,15 @@ export function FieldView({
     const colorArmC = armC ? (armC > 7 ? 'text-(--green)' : armC > 3 ? 'text-(--warning)' : 'text-(--red)') : 'text-primary';
 
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
+
+    const moveStateFor = (position: string, occupantId: string | null): RosterMoveSlotState =>
+        move?.slotState(position, occupantId) ?? { isMoving: false, isTarget: false, isDimmed: false };
+    /** A filled card's corner button: Replace while slots can be refilled, else Move (when moves are on). */
+    const cardAction = (cardId: string, onReplace?: () => void) => onReplace
+        ? { icon: <FaPencil />, onClick: onReplace, label: 'Replace card', placement: 'left' as const }
+        : move && !move.movingCardId
+            ? { icon: <FaArrowsUpDownLeftRight />, onClick: () => move.start(cardId), label: 'Move player', placement: 'left' as const }
+            : undefined;
 
     // Rotation stays slot-precise (SP1..SPn). Bench and bullpen are free-form: sorted by card
     // points descending, with a fixed number of rows (filled cards + trailing empty "add"
@@ -224,6 +237,8 @@ export function FieldView({
             kpis: rotationKpis,
             getCard:    (role: string) => { const r = rotByRole[role]; return r ? cardMap[r.card_id] : null; },
             hasAssignment: (role: string) => !!rotByRole[role],
+            movePosition: (role: string) => role,
+            occupantId: (role: string) => rotByRole[role]?.card_id ?? null,
             onItemClick: onRoleClick && !readOnly ? (role: string) => onRoleClick(role, rotByRole[role] ?? null) : undefined,
         },
         {
@@ -233,6 +248,8 @@ export function FieldView({
             kpis: bullpenKpis,
             getCard:    (role: string) => { const r = bullpenSlots[Number(role.slice(2)) - 1]; return r ? cardMap[r.card_id] : null; },
             hasAssignment: (role: string) => !!bullpenSlots[Number(role.slice(2)) - 1],
+            movePosition: () => 'RP',
+            occupantId: (role: string) => bullpenSlots[Number(role.slice(2)) - 1]?.card_id ?? null,
             onItemClick: onBullpenClick && !readOnly ? (role: string) => onBullpenClick(bullpenSlots[Number(role.slice(2)) - 1] ?? null) : undefined,
         },
         {
@@ -243,6 +260,8 @@ export function FieldView({
             kpis: benchKpis,
             getCard:    (role: string) => { const s = benchSlots[Number(role.slice(2)) - 1]; return s ? cardMap[s.card_id] : null; },
             hasAssignment: (role: string) => !!benchSlots[Number(role.slice(2)) - 1],
+            movePosition: () => 'BE',
+            occupantId: (role: string) => benchSlots[Number(role.slice(2)) - 1]?.card_id ?? null,
             onItemClick: onBenchClick && !readOnly ? (role: string) => onBenchClick(benchSlots[Number(role.slice(2)) - 1] ?? null) : undefined,
             ptsMultiplier: rosterData?.benchPtsMultiplier,
         },
@@ -306,6 +325,7 @@ export function FieldView({
                 const card = slot ? cardMap[slot.card_id] : null;
                 const isActive = activePosition === pos;
                 const isPeerHovered = !isActive && !!card && card.card_id === hoveredCardId;
+                const moveState = moveStateFor(pos, slot?.card_id ?? null);
 
                 return (
                     <div
@@ -328,21 +348,18 @@ export function FieldView({
                         onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                         onMouseLeave={() => onCardHover?.(null)}
                     >
-                        <div className={`relative ${isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}`}>
+                        <div className={`relative transition-opacity ${isActive || moveState.isMoving ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : moveSlotClass(moveState)}`}>
                             {card ? (
                                 <CardItemCompactFromCardDatabaseRecord
                                     card={card}
                                     className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
                                     fieldPosition={pos}
                                     detailStat1Category={detailStat1Category}
-                                    onClick={() => openDetail(card, emptySlotsOnly ? undefined : () => onSlotClick(pos, slot))}
-                                    isSelected={isActive}
-                                    actionButton={!readOnly && !emptySlotsOnly ? {
-                                        icon: <FaPencil />,
-                                        onClick: () => onSlotClick(pos, slot),
-                                        label: 'Replace card',
-                                        placement: 'left'
-                                    } : undefined}
+                                    onClick={move?.movingCardId
+                                        ? moveState.onClick ?? (() => {})
+                                        : () => openDetail(card, emptySlotsOnly ? undefined : () => onSlotClick(pos, slot))}
+                                    isSelected={isActive || moveState.isMoving}
+                                    actionButton={cardAction(card.card_id, !readOnly && !emptySlotsOnly ? () => onSlotClick(pos, slot) : undefined)}
                                 />
                             ) : slot && isLoadingCards ? (
                                 <PositionSlotLoadingPlaceholder position={pos} />
@@ -350,8 +367,8 @@ export function FieldView({
                                 <>
                                     <PositionSlotPlaceholder
                                         position={pos}
-                                        isActive={isActive}
-                                        onClick={readOnly ? undefined : () => onSlotClick(pos, null)}
+                                        isActive={isActive || moveState.isTarget}
+                                        onClick={move?.movingCardId ? moveState.onClick : readOnly ? undefined : () => onSlotClick(pos, null)}
                                     />
                                     {slot && (
                                         <CardNotFoundOverlay
@@ -370,7 +387,7 @@ export function FieldView({
         </div>
     );
 
-    const sectionList = sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier, placeholderLabel }) => {
+    const sectionList = sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier, placeholderLabel, movePosition, occupantId }) => {
         const filledCount = roles.filter(r => getCard(r)).length;
         const onReplace = emptySlotsOnly ? undefined : onItemClick;
         return (
@@ -385,8 +402,14 @@ export function FieldView({
                         // Bench/bullpen key off a synthetic 'BE1'/'RP1' index, so only real
                         // rotation roles ('SP1'…) ever match a pending pick here.
                         const isSaving = !!pendingPositions?.has(role);
+                        const moveState = moveStateFor(movePosition(role), occupantId(role));
                         return (
-                            <div key={role} className="relative" data-slot={role} data-empty={card || hasAssignment(role) ? undefined : ''}>
+                            <div
+                                key={role}
+                                className={`relative transition-opacity ${moveState.isMoving ? 'rounded-lg ring-2 ring-(--secondary) animate-pulse' : moveSlotClass(moveState)}`}
+                                data-slot={role}
+                                data-empty={card || hasAssignment(role) ? undefined : ''}
+                            >
                                 {card ? (
                                     <div
                                         onMouseEnter={() => onCardHover?.(card.card_id)}
@@ -396,13 +419,11 @@ export function FieldView({
                                             card={card}
                                             className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
                                             ptsMultiplier={ptsMultiplier}
-                                            onClick={() => openDetail(card, onReplace ? () => onReplace(role) : undefined)}
-                                            actionButton={onReplace ? {
-                                                icon: <FaPencil />,
-                                                onClick: () => onReplace(role),
-                                                label: 'Replace card',
-                                                placement: 'left',
-                                            } : undefined}
+                                            isSelected={moveState.isMoving}
+                                            onClick={move?.movingCardId
+                                                ? moveState.onClick ?? (() => {})
+                                                : () => openDetail(card, onReplace ? () => onReplace(role) : undefined)}
+                                            actionButton={cardAction(card.card_id, onReplace ? () => onReplace(role) : undefined)}
                                         />
                                     </div>
                                 ) : isPending ? (
@@ -411,8 +432,8 @@ export function FieldView({
                                     <>
                                         <PositionSlotPlaceholder
                                             position={placeholderLabel ?? role}
-                                            onClick={onItemClick ? () => onItemClick(role) : undefined}
-                                            isActive={isPeerHovered || isRoleActive(role)}
+                                            onClick={move?.movingCardId ? moveState.onClick : onItemClick ? () => onItemClick(role) : undefined}
+                                            isActive={isPeerHovered || isRoleActive(role) || moveState.isTarget}
                                         />
                                         {isNotFound && <CardNotFoundOverlay variant="row" />}
                                     </>

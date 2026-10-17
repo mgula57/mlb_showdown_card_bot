@@ -10,10 +10,10 @@ class LeagueSettings(BaseModel):
     """Rules a league's commissioner sets before the first draft. Stored as `league.settings`."""
 
     team_count: int = Field(default=8, ge=2, le=12)
-    roster_size: int = Field(default=25, ge=len(OFFENSE_POSITIONS) + 1, le=40)
-    min_bench: int = Field(default=4, ge=0)
+    roster_size: int = Field(default=20, ge=len(OFFENSE_POSITIONS) + 1, le=40)
+    min_bench: int = Field(default=2, ge=0)
     min_bullpen: int = Field(default=5, ge=0)
-    num_starters: int = Field(default=5, ge=1, le=MAX_STARTERS)
+    num_starters: int = Field(default=4, ge=1, le=MAX_STARTERS)
     pts_cap: Optional[int] = Field(default=None, ge=1)  # NONE = NO CAP
     draft_order_mode: Literal['random', 'manual'] = 'random'
 

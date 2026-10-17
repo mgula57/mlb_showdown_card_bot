@@ -97,6 +97,9 @@ export function benchBullpenSlotCounts(args: {
     };
 }
 
+/** Move `cardId` into the open `toPosition`, or swap it with `swapWithCardId` (taking its spot). */
+export type RosterMove = { cardId: string; toPosition: string; swapWithCardId: string | null };
+
 /**
  * Every roster position `card` could be drafted into, in roster-slot notation (C, not CA):
  * the field spots its positions cover plus DH and bench for hitters; the rotation roles for a

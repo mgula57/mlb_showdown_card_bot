@@ -5,9 +5,11 @@ import { Tabs } from '../../shared/Tabs';
 import { DepthChartPanel } from '../../team_builder/DepthChartPanel';
 import { FieldView } from '../../team_builder/FieldView';
 import { type PendingSlot, pendingSlotHighlight } from '../../team_builder/draftSlot';
+import { RosterMoveBanner } from '../../team_builder/RosterMoveBanner';
+import { type RosterMove, useRosterMove } from '../../../hooks/useRosterMove';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import type { DraftState, LeagueSettings } from '../../../api/leagues';
-import { fieldRosterData, teamRoster } from './draftView';
+import { fieldRosterData, keepsRosterFillable, teamRoster } from './draftView';
 
 type Props = {
     draft: DraftState;
@@ -20,6 +22,8 @@ type Props = {
     pendingSlot: PendingSlot | null;
     /** Clicking an empty slot on my own roster starts filling it. Omit to keep the roster display only. */
     onFillSlot?: (slot: PendingSlot) => void;
+    /** Moves a player on my own roster to another spot, or swaps two. Omit to keep positions as drafted. */
+    onMove?: (move: RosterMove) => Promise<void>;
     /** Side gutter for the team picker / summary rows - the field view itself runs edge to edge. */
     headerClassName?: string;
 };
@@ -28,18 +32,29 @@ type RosterView = 'field' | 'depth';
 
 /** A team's roster as drafted so far, as the team builder's field view or depth chart, with what
  *  it still needs. Defaults to the viewer's team; any team can be picked to scout. */
-export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCards, pendingSlot, onFillSlot, headerClassName = '' }: Props) {
+export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCards, pendingSlot, onFillSlot, onMove, headerClassName = '' }: Props) {
     const [memberId, setMemberId] = useState<string>(myMemberId ?? draft.teams[0]?.member_id ?? '');
     const [rosterView, setRosterView] = useState<RosterView>('field');
     const team = draft.teams.find(t => t.member_id === memberId) ?? draft.teams[0];
-    if (!team) return null;
-    const roster = teamRoster(draft.picks, team, settings);
+    const roster = team ? teamRoster(draft.picks, team, settings) : null;
+    const isMine = !!team && team.member_id === myMemberId;
+    const positions = roster?.depthChart.roster.map(slot => slot.roster_position) ?? [];
+    const move = useRosterMove({
+        roster: roster?.depthChart.roster ?? [],
+        cardMap: cards,
+        numStarters: settings.num_starters,
+        canOpen: after => keepsRosterFillable(positions, after, settings),
+        onMove: async rosterMove => { await onMove?.(rosterMove); },
+    });
+    if (!team || !roster) return null;
     const { depthChart } = roster;
     const lineup = depthChart.lineups[0];
+    // Players on my own roster can be moved between spots; other teams are just for scouting
+    const moveControls = isMine && onMove ? move : undefined;
 
     // My own roster's empty slots can be clicked to search for a fit, like the team builder.
-    // Picks are final, so a filled slot is never offered for replacing.
-    const fill = team.member_id === myMemberId ? onFillSlot : undefined;
+    // Picks are final, so a filled slot is never offered for replacing - only moved.
+    const fill = isMine ? onFillSlot : undefined;
     const canFill = !!fill;
     const highlight = canFill ? pendingSlotHighlight(pendingSlot) : { activePosition: null, activeRole: null };
     const slotHandlers = {
@@ -56,7 +71,7 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
             <div className={`flex items-center justify-between gap-2 ${headerClassName}`}>
                 <CustomSelect
                     value={team.member_id}
-                    onChange={setMemberId}
+                    onChange={id => { move.cancel(); setMemberId(id); }}
                     options={draft.teams.map(t => ({ value: t.member_id, label: t.member_id === myMemberId ? `${t.name} (you)` : t.name }))}
                     buttonClassName="text-[12px] py-1 px-2 rounded-md bg-(--background-tertiary) text-(--text-primary) cursor-pointer"
                 />
@@ -83,6 +98,8 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
                 />
             </div>
 
+            {moveControls && <RosterMoveBanner move={moveControls} cardMap={cards} className={headerClassName} />}
+
             {/* Empty rows stay visible so the open spots read at a glance; they're clickable only on my own roster. */}
             {rosterView === 'field' ? (
                 <FieldView
@@ -93,6 +110,7 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
                     isLoadingCards={isLoadingCards}
                     readOnly={!canFill}
                     emptySlotsOnly
+                    move={moveControls}
                     {...highlight}
                     {...slotHandlers}
                 />
@@ -104,6 +122,7 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
                     isLoadingCards={isLoadingCards}
                     slotPickingDisabled={!canFill}
                     emptySlotsOnly
+                    move={moveControls}
                     {...highlight}
                     {...slotHandlers}
                 />

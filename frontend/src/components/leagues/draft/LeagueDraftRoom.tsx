@@ -8,7 +8,8 @@ import { type PendingSlot, getSearchFiltersForSlot, pendingSlotHighlight, pendin
 import { PendingSlotChip } from '../../team_builder/PendingSlotChip';
 import { CardSource } from '../../../types/cardSource';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
-import { makeDraftPick, type League } from '../../../api/leagues';
+import { makeDraftPick, moveRosterPlayer, type League } from '../../../api/leagues';
+import type { RosterMove } from '../../../domain/roster';
 import { useLeagueDraft } from '../../../hooks/useLeagueDraft';
 import { useCardMap } from '../../../hooks/useCardMap';
 import { useDraftQueue } from '../../../hooks/useDraftQueue';
@@ -123,6 +124,11 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
         }
     }
 
+    /** Move one of my players to another spot (or swap two) - allowed whoever is on the clock. */
+    async function movePlayer(move: RosterMove) {
+        setData(await moveRosterPlayer(token, league.league_id, seasonNumber, move));
+    }
+
     if (!draft || !view) {
         return (
             <>
@@ -222,6 +228,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                 isLoadingCards={cardsLoading}
                 pendingSlot={pendingSlot}
                 onFillSlot={view.isComplete ? undefined : fillSlot}
+                onMove={myMemberId ? movePlayer : undefined}
             />
         </div>
     );

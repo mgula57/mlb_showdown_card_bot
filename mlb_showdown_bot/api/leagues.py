@@ -20,7 +20,8 @@ from pydantic import ValidationError
 
 from ..core.database.postgres_db import PostgresDB
 from ..core.league import (
-    DraftConflict, DraftError, LeagueDraft, LeagueSeasonError, LeagueSeasonRunner, LeagueSettings, SeasonConfig, SimTarget,
+    DraftConflict, DraftError, LeagueDraft, LeagueRosterMove, LeagueSeasonError, LeagueSeasonRunner, LeagueSettings, SeasonConfig,
+    SimTarget,
 )
 from ..core.supabase.realtime_broadcast import RealtimeBroadcaster
 from .sim import _sim_slots
@@ -383,6 +384,29 @@ def make_pick(league_id: str, season_number: int):
         draft.make_pick(context.my_member['member_id'], context.is_commissioner, release_card_id, roster_position)
         draft.run_bot_picks()
         return jsonify(_draft_changed_payload(context, draft)), 200
+
+
+@leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/roster/move', methods=['POST'])
+@require_auth
+@_json_errors
+def move_roster_player(league_id: str, season_number: int):
+    """Move one of my drafted players `release_card_id` into the open `to_position`, or swap it
+    with `swap_with_card_id`. Works mid-draft (the team builder's roster save doesn't) and
+    returns the draft board."""
+    payload = request.get_json(silent=True) or {}
+    release_card_id = payload.get('release_card_id')
+    to_position = payload.get('to_position')
+    swap_with_card_id = payload.get('swap_with_card_id')
+    if not release_card_id or not (to_position or swap_with_card_id):
+        raise _ApiError('release_card_id and to_position or swap_with_card_id are required')
+    with PostgresDB() as db:
+        context = _LeagueContext.load(db, league_id)
+        season = context.season(db, season_number)
+        team = next((t for t in db.get_league_teams(season['season_id']) if t['member_id'] == context.my_member['member_id']), None)
+        if team is None:
+            raise _ApiError("You don't have a team this season", 404)
+        LeagueRosterMove(db, context.league, season, team).move(release_card_id, str(to_position or ''), swap_with_card_id)
+        return jsonify(_draft_changed_payload(context, LeagueDraft(db, context.league, season))), 200
 
 
 # ----------------------------------------------------------
