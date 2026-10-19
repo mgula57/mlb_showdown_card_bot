@@ -67,6 +67,7 @@ def card_main(
     ignore_cache: bool = typer.Option(False, "--ignore_cache", "-ic", help="Ignore local cache"),
     ignore_archive: bool = typer.Option(False, "--ignore_archive", "-ia", help="Ignore postgres showdown bot archive"),
     disable_cache_cleaning: bool = typer.Option(False, "--disable_cache_cleaning", "-dc", help="Disable removal of cached files after minutes threshold."),
+    cache_mlb_api: bool = typer.Option(False, "--cache_mlb_api", "-cma", help="Cache MLB Stats API responses on disk (24h) so repeat runs for the same card skip the network."),
     disable_realtime: bool = typer.Option(False, "--disable_realtime", "-drt", help="Skip query and integration of current days stats from MLB API."),
     
     # TRENDS

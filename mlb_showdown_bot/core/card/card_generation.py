@@ -30,6 +30,10 @@ def clean_kwargs(kwargs: dict) -> dict:
         kwargs = {k.replace(replacement, ''): v for k, v in kwargs.items()}
     return kwargs
 
+def build_mlb_api(kwargs: dict) -> MLBStatsAPI_V2:
+    """MLB Stats API client, backed by the on-disk HTTP cache when `cache_mlb_api` is set (CLI flag)."""
+    return MLBStatsAPI_V2(use_persistent_cache=bool(kwargs.get('cache_mlb_api', False)))
+
 def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
     """Check if a card with the given parameters has already been generated and stored in the database. If so, return that card instead of generating a new one."""
     
@@ -54,7 +58,7 @@ def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, 
     Name can be a BREF ID (from the player search), an MLB ID, or a plain name.
     """
     try:
-        mlb_api = MLBStatsAPI_V2()
+        mlb_api = build_mlb_api(kwargs)
         name = str(name or '').strip()
         mlb_id: int | None = int(name) if name.isdigit() else None
 
@@ -237,7 +241,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
 
                 # PULL FROM MLB API
                 # NORMALIZE FORMAT
-                mlb_stats_api = MLBStatsAPI_V2()
+                mlb_stats_api = build_mlb_api(kwargs)
                 league = kwargs.get('league', 'MLB')
                 # Strip all extra overrides from the search name (ex: "Shohei Ohtani (Pitching)" -> "Shohei Ohtani") to improve MLB API search results. MLB API is very bad at handling extra characters in the search query.
                 search_name = str(career_mlb_id) if career_mlb_id else (kwargs.get('name_original', '') if stats_period.is_multi_year else kwargs.get('name', ''))
@@ -780,7 +784,7 @@ def generate_cards(player_ids: list[str], years: list[int], keep_as_py_objects:b
         kwargs.pop('set', None)
 
     # Pull stats across player ids
-    mlb_api = MLBStatsAPI_V2()
+    mlb_api = build_mlb_api(kwargs)
     player_stats = mlb_api.build_players_from_id_list(
         player_ids=player_ids,
         seasons=years
