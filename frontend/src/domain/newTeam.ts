@@ -73,11 +73,12 @@ export function splitRequiredPlayers(playerFilters: Record<string, unknown> | nu
  *  position the challenge names (e.g. Mantle in CF). The card is the player's `year` card in the
  *  team's own Showdown set. */
 export function requiredPlayerSlots(required: RequiredPlayer[], year: number, showdownSet: string): TeamRosterSlot[] {
-    return required.map(player => ({
+    return required.map((player, index) => ({
         card_id: `${year}-${player.bref_id}-${showdownSet}`,
         card_source: CardSource.BOT,
         roster_position: player.position,
-        draft_order: null,
+        // Non-null so they show as the first picks in the draft history (which hides null orders).
+        draft_order: index + 1,
         pick_source: 'IMPORTED',
     }));
 }
