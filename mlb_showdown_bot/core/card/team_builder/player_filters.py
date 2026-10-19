@@ -37,7 +37,8 @@ class PlayerFilterSet(BaseModel):
     and `min_chart_*`/`max_chart_*` (chart slot count for a category) - since both are meaningful
     eligibility rules for a challenge (e.g. a defense-first or strikeout-heavy themed template).
     Any key can also take a `_hitters` suffix (e.g. `min_speed_hitters`, `min_fielding_if_hitters`,
-    `min_chart_hr_hitters`) to apply it to hitters only, exempting pitchers.
+    `min_chart_hr_hitters`) to apply it to hitters only, exempting pitchers, or a `_catchers`
+    suffix (e.g. `max_fielding_ca_catchers`) to apply it to catchers only, exempting everyone else.
     The rest of the SQL builder's special cases (`positions`/`icons`/`awards`/`is_hof`) aren't, so
     they're still left as plain generic keys here.
     """
@@ -54,6 +55,16 @@ class PlayerFilterSet(BaseModel):
                 if str(card.get('player_type') or '').upper() == 'PITCHER':
                     continue
                 reason = PlayerFilterSet(filters={key.removesuffix('_hitters'): value}).ineligible_reason(card)
+                if reason is not None:
+                    return reason
+                continue
+            if key.endswith('_catchers'):
+                # Catchers-only variant - mirrors the SQL builder's
+                # `(NOT <rated at catcher> OR (<base filter>))`: anyone not rated at C passes.
+                catcher_keys = Position.fielding_group_values('ca')
+                if not any(pos in catcher_keys for pos in (card.get('positions_and_defense') or {})):
+                    continue
+                reason = PlayerFilterSet(filters={key.removesuffix('_catchers'): value}).ineligible_reason(card)
                 if reason is not None:
                     return reason
                 continue

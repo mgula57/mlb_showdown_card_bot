@@ -51,14 +51,16 @@ export function challengeRestrictionsLabel(challenge: ChallengeInstance): string
 
 const FIELDING_GROUP_LABELS: Record<string, string> = { if: 'IF', of: 'OF', ca: 'C' };
 
-/** Labels for the hitters-only `min_`/`max_` filters (`min_speed_hitters`,
- *  `min_fielding_if_hitters`, `min_chart_hr_hitters`, ...), e.g. "Hitters 18+ SPD". */
+const SCOPE_LABELS: Record<string, string> = { hitters: 'Hitters', catchers: 'Catchers' };
+
+/** Labels for the scoped `min_`/`max_` filters (`min_speed_hitters`, `min_fielding_if_hitters`,
+ *  `min_chart_hr_hitters`, `max_fielding_ca_catchers`, ...), e.g. "Hitters 18+ SPD". */
 function hitterFilterLabels(pf: Record<string, unknown>): string[] {
     const labels: string[] = [];
     for (const [key, value] of Object.entries(pf)) {
-        const match = /^(min|max)_(.+)_hitters$/.exec(key);
+        const match = /^(min|max)_(.+)_(hitters|catchers)$/.exec(key);
         if (!match || value == null) continue;
-        const [, bound, base] = match;
+        const [, bound, base, scope] = match;
         const amount = bound === 'min' ? `${value}+` : `≤${value}`;
         let stat: string;
         if (base === 'speed') stat = 'SPD';
@@ -68,7 +70,7 @@ function hitterFilterLabels(pf: Record<string, unknown>): string[] {
         }
         else if (base.startsWith('chart_')) stat = `${base.replace('chart_', '').toUpperCase()} chart slots`;
         else stat = base.toUpperCase();
-        labels.push(`Hitters ${amount} ${stat}`);
+        labels.push(`${SCOPE_LABELS[scope]} ${amount} ${stat}`);
     }
     return labels;
 }
