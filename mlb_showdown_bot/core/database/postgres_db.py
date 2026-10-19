@@ -970,6 +970,22 @@ class PostgresDB:
                     filter_values.extend(base_values)
                 continue
 
+            # Catchers-only variant of any other filter (e.g. max_fielding_ca_catchers) - anyone not
+            # rated at catcher passes automatically. Same reasoning as `_hitters`: a catcher-arm rule
+            # applied to everyone would wipe out every non-catcher and leave the roster unfillable.
+            if key.endswith('_catchers'):
+                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_catchers'): value})
+                if base_clauses:
+                    filter_clauses.append(sql.SQL("""(
+                        NOT EXISTS (
+                            SELECT 1 FROM jsonb_each_text(coalesce(positions_and_defense, '{{}}'::jsonb)) AS pd(pos, val)
+                            WHERE pd.pos = ANY(%s)
+                        ) OR ({})
+                    )""").format(sql.SQL(" AND ").join(base_clauses)))
+                    filter_values.append(Position.fielding_group_values('ca'))
+                    filter_values.extend(base_values)
+                continue
+
             # Fielding min/max — applies as an OR across every position the player is rated at
             # (e.g. min_fielding=3 matches a player who is +3 or better at ANY of their listed
             # positions), since there's no single "fielding" column. `min_fielding_if`/`_of`/`_ca`
