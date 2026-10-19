@@ -46,6 +46,8 @@ export function challengeRestrictionsLabel(challenge: ChallengeInstance): string
     const league = pf.league as string[] | undefined;
     if (league?.length) parts.push(league.join('/'));
     parts.push(...hitterFilterLabels(pf));
+    const required = (pf.required_players as { bref_id: string; name?: string }[] | undefined) ?? [];
+    if (required.length) parts.push(`Must roster ${required.map(p => p.name ?? p.bref_id).join(' & ')}`);
     return parts.length ? parts.join(', ') : null;
 }
 

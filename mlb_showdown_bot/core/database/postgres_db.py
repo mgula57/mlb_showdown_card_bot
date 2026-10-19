@@ -970,6 +970,11 @@ class PostgresDB:
                     filter_values.extend(base_values)
                 continue
 
+            # `required_players` is a challenge convention key (players a roster must contain), not a
+            # column filter - see `PlayerFilterSet.missing_required_players`.
+            if key == 'required_players':
+                continue
+
             # Catchers-only variant of any other filter (e.g. max_fielding_ca_catchers) - anyone not
             # rated at catcher passes automatically. Same reasoning as `_hitters`: a catcher-arm rule
             # applied to everyone would wipe out every non-catcher and leave the roster unfillable.

@@ -127,6 +127,16 @@ showdown_bot challenges create-template --slug dethrone-27-yankees --title "Deth
   --year-pool 1927 --replaces-pool worst_record
 ```
 
+### Required players
+
+`--player-filters '{"required_players": [{"bref_id": "mantlmi01", "name": "Mickey Mantle", "position": "CF"}, {"bref_id": "marisro01", "name": "Roger Maris", "position": "RF"}]}'`
+forces specific players onto the roster. `position` is one of `C 1B 2B 3B SS LF CF RF DH` (one player per position); `name` is display-only.
+A challenge's "New Team" is created with those players already on the roster at that position (their `year` card in the
+team's Showdown set), the card shows "Must roster ...", and `start_season_sim` / the eligible-teams picker reject a roster
+missing any of them (bench counts). It's a convention key, not a card filter: the card queries and `PlayerFilterSet` skip
+it. It still counts against `--pts-limit`, so size the cap with their points in mind. Use it with a fixed `--year-pool`
+(the card is `{year}-{bref_id}-{set}`).
+
 ### Era-locking a rotating year_pool
 
 `--player-filters '{"era_lock_years": 5}'` locks eligible players to within 5 years of whatever

@@ -79,6 +79,10 @@ Everything else should carry at least one filter that changes who's worth drafti
 - To check fillability, call `PostgresDB(is_archive=True).fetch_card_list(filters={'min_year': y,
   'max_year': y, 'limit': 5000, **filters})` (keep `limit` <= 5000, bigger falls back to 50 rows)
   and dedupe on `r['id']` (one row per set per player).
+- **Required players:** `required_players` in `player_filters` puts specific players on the roster
+  (pre-populated at the named position, enforced at launch). See `CHALLENGES.md`. Good for a
+  one-week spotlight ("M&M Boys": Mantle CF, Maris RF). Budget their points into the cap, and use a
+  fixed year pool.
 - Themes that restrict well: one trait (speed, power, defense), one handedness, a division or
   rivalry (`team` list), a narrow window (`era_lock_years`), or a cap on a trait (e.g. few
   strikeouts, low HR).

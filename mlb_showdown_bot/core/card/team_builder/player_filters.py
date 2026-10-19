@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from ...shared.player_position import Position
 
 _FIELDING_VALUE_RE = re.compile(r'^-?[0-9]+$')
+# MATCHES challenge_generator.REQUIRED_PLAYERS_KEY (NOT IMPORTED - THAT MODULE IMPORTS THE DB LAYER)
+REQUIRED_PLAYERS_KEY = 'required_players'
 
 
 def _chart_slot_count(range_str: str | None) -> int:
@@ -44,10 +46,21 @@ class PlayerFilterSet(BaseModel):
     """
     filters: dict = {}
 
+    def missing_required_players(self, roster: list[dict]) -> list[str]:
+        """Display names (falling back to bref ids) of every `required_players` entry with no card
+        in `roster` (any slot, bench included). A card id is `{year}-{bref_id}-{set}`, so the
+        middle segment is the player; the year/set are already pinned by the other filters."""
+        on_roster = {str(slot.get('card_id', '')).split('-')[1] for slot in roster if str(slot.get('card_id', '')).count('-') >= 2}
+        return [
+            entry.get('name') or entry['bref_id']
+            for entry in (self.filters.get(REQUIRED_PLAYERS_KEY) or [])
+            if entry['bref_id'] not in on_roster
+        ]
+
     def ineligible_reason(self, card: dict) -> str | None:
         """None if `card` satisfies every filter, otherwise a human-readable reason it doesn't."""
         for key, value in self.filters.items():
-            if value is None:
+            if value is None or key == REQUIRED_PLAYERS_KEY:
                 continue
             if key.endswith('_hitters'):
                 # Hitters-only variant of the base filter - mirrors the SQL builder's
