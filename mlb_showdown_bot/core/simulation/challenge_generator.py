@@ -45,7 +45,7 @@ class ChallengeCategory(str, Enum):
 
 
 # MATCHES api/sim.py's _EARLIEST_SEASON - THE ARCHIVE HAS NO FULL CARD COVERAGE BEFORE THIS.
-EARLIEST_SEASON = 1975
+EARLIEST_SEASON = 1920
 INSTANCE_LIFETIME_DAYS = 7
 PRUNE_AFTER_DAYS = 30
 # A CHOSEN YEAR CAN COME BACK WITH NO STANDINGS (TRANSIENT MLB STATS API HICCUP) - RETRY A FEW
@@ -62,6 +62,13 @@ MIN_ROSTER_SIZE = 22
 # ON THE INSTANCE'S SNAPSHOT. A TEMPLATE WITH A FIXED year_pool (E.G. legendary) DOESN'T NEED
 # THIS - IT CAN JUST HARDCODE min_year/max_year DIRECTLY SINCE THE YEAR IS ALREADY KNOWN.
 ERA_LOCK_YEARS_KEY = 'era_lock_years'
+# A `player_filters` CONVENTION KEY (NOT A REAL FILTER - SKIPPED BY `PlayerFilterSet`/`fetch_card_list`)
+# LISTING PLAYERS A TEAM MUST HAVE ON ITS ROSTER TO PLAY THE CHALLENGE, E.G.
+# [{"bref_id": "mantlmi01", "name": "Mickey Mantle", "position": "CF"}]. A challenge's 'New Team'
+# IS PRE-POPULATED WITH THEM AT THE GIVEN ROSTER POSITION, AND `start_season_sim` REJECTS A ROSTER
+# MISSING ANY OF THEM (SEE `PlayerFilterSet.missing_required_players`).
+REQUIRED_PLAYERS_KEY = 'required_players'
+_REQUIRED_POSITIONS = ('C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH')
 
 
 class ChallengeError(Exception):
@@ -90,15 +97,29 @@ def validate_year_pool(year_pool: str) -> None:
 
 def validate_player_filters(player_filters: dict | None) -> None:
     """Raise ChallengeError if `player_filters` misuses a convention key the generator itself
-    interprets (currently just `era_lock_years`). Everything else in the dict is a passthrough
+    interprets (`era_lock_years`, `required_players`). Everything else in the dict is a passthrough
     validated generically by `fetch_card_list`/`PlayerFilterSet` at use time, not here."""
     if not player_filters:
         return
     era_lock = player_filters.get(ERA_LOCK_YEARS_KEY)
-    if era_lock is None:
-        return
-    if isinstance(era_lock, bool) or not isinstance(era_lock, int) or era_lock < 0:
+    if era_lock is not None and (isinstance(era_lock, bool) or not isinstance(era_lock, int) or era_lock < 0):
         raise ChallengeError(f"{ERA_LOCK_YEARS_KEY} must be a non-negative integer")
+
+    required = player_filters.get(REQUIRED_PLAYERS_KEY)
+    if required is None:
+        return
+    if not isinstance(required, list) or not all(
+        isinstance(entry, dict) and isinstance(entry.get('bref_id'), str) and entry['bref_id'].strip()
+        and entry.get('position') in _REQUIRED_POSITIONS
+        for entry in required
+    ):
+        raise ChallengeError(
+            f"{REQUIRED_PLAYERS_KEY} must be a list of {{bref_id, position}} objects "
+            f"(position one of {', '.join(_REQUIRED_POSITIONS)}), plus an optional name"
+        )
+    positions = [entry['position'] for entry in required]
+    if len(set(positions)) != len(positions):
+        raise ChallengeError(f"{REQUIRED_PLAYERS_KEY} can't put two players at the same position")
 
 
 def build_goal_value(goal_type: GoalType, min_wins: int | None, beat_team_abbr: str | None) -> dict | None:
