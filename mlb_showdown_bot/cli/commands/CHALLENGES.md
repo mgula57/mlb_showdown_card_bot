@@ -206,6 +206,33 @@ Lists every template (active and inactive) with slug, title, category, goal type
 
 ---
 
+## `challenges social`
+
+Builds the socials deliverable for the live challenges: a two-slide 1080x1350 (4:5) carousel.
+Slide 1 is the week's menu (each challenge's club, goal, budget and rules). Slide 2 shows 2-3
+key-player cards that fit the theme, plus a compact lineup and a call to action.
+
+```bash
+showdown_bot challenges social [--env dev] [--headline "Sixties Week"] [--subhead "..."] \
+  [--slug <slug> ...] [--card-id 1961-mantlmi01 ...] [--set 2001] [--out DIR] [--image-format png|jpg|none]
+```
+
+- **Challenges:** every live instance in `--env` (category order), or only the `--slug`s given.
+- **Cards:** `--card-id` (repeatable, max 3) as `{year}-{bref_id}` (the `--set` is appended) or
+  the full `{year}-{bref_id}-{set}`. Each card is tagged with the first challenge whose season it
+  fits. If you don't pass any, the command picks one per challenge, round-robin: required players
+  first, then the top-points non-small-sample card that passes that challenge's filters.
+- **Output** (default `sim_output/challenges_{YYYY-MM-DD}/`): `challenges.html` (self-contained),
+  `challenges.pdf` (one page per slide), `challenges_1.png` / `challenges_2.png`, and the full-size
+  card renders in `cards/`. The PDF and PNGs need headless Chrome (set `CHROME_PATH` if it isn't
+  found). Without it they're skipped with a notice.
+
+It renders through the same `SocialSheetReport` base
+([`core/simulation/social_report.py`](../../core/simulation/social_report.py),
+`templates/_social_base.html.j2`) as the postseason batch summary.
+
+---
+
 ## Typical workflow
 
 ```bash

@@ -1,6 +1,6 @@
 ---
 name: new-challenge
-description: Come up with new Team Challenge templates (the weekly "take over a real club and hit a goal" scenarios), starting by suggesting eras based on what the existing templates already cover, then authoring the template into the DEV database (DATABASE_URL_LOGS) for testing before promoting it to PROD (DATABASE_URL_ARCHIVE). Use when asked to brainstorm, design, add, or ideate new challenges or challenge templates.
+description: Come up with new Team Challenge templates (the weekly "take over a real club and hit a goal" scenarios), starting by suggesting eras based on what the existing templates already cover, then authoring the template into the DEV database (DATABASE_URL_LOGS) for testing before promoting it to PROD (DATABASE_URL_ARCHIVE), and finally building the week's socials carousel (challenge menu + key-player cards). Use when asked to brainstorm, design, add, or ideate new challenges or challenge templates, or to make the socials post for this week's challenges.
 ---
 
 # New Challenge
@@ -136,3 +136,32 @@ when it should go live. Since it's a one-week challenge, the usual answer is `in
 `rotate` picks it up in order, and being never-instanced it goes first in its category. Once its
 week is over, ask whether to deactivate it (`--inactive` at creation, or flip `active` in the admin
 UI), since an active template re-enters the rotation pool and will be instanced again.
+
+## Step 5: Socials deliverable
+
+Once the week's challenges are live, build the socials post: a two-slide 1080x1350 carousel with
+the challenge menu on slide 1 and 2-3 key-player cards on slide 2. Details are in
+`CHALLENGES.md` → `challenges social`.
+
+1. **Pick the key players (2-3).** Choose cards that sell the week's theme, one per challenge
+   where you can: a challenge's required player (e.g. Mantle for M&M Boys), the poster player of
+   its restriction (the fastest hitter in a speed pool, the ace of a pitching year), or the star
+   of the club being chased in a `beat_team_record` goal. Each one must be a player the user can
+   actually draft under that challenge's filters. Check this with `fetch_card_list` (the same
+   filter call from the design principle above). Skip small-sample cameo seasons. Propose the
+   picks with a one-line reason each, and let the user swap any before rendering.
+2. **Render it** against the env that holds the live instances (`prod` once promoted, `dev` while
+   testing). Give it a headline that names the week's theme:
+
+   ```bash
+   .venv/bin/showdown_bot challenges social --env prod --headline "Sixties Week" \
+     --card-id 1961-mantlmi01 --card-id 1965-mayswi01 --card-id 1966-koufasa01
+   ```
+
+   If you leave out `--card-id`, it auto-picks (required players first, then each challenge's
+   top-points eligible card). That's fine as a draft, but hand-picked cards tell the story better.
+3. **Review the output.** Look at `challenges_1.png` and `challenges_2.png` yourself (Read the
+   images) before you hand them over. Check for clipped or overflowing text, a card that failed to
+   render (`SKIPPED CARD` in the output), and a card tagged to the wrong challenge. Then give the
+   user the output folder, which holds the two PNG slides, the PDF carousel, the HTML, and
+   full-size card renders in `cards/` for posting on their own.
