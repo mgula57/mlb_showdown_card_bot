@@ -10,7 +10,7 @@ type PhaseStatus = 'complete' | 'current';
 const PHASES: { marker: string; label: string; title: string; detail: string; status: PhaseStatus }[] = [
     { marker: '1', label: 'Phase 1', title: 'Initial adjustments', detail: 'First pass on 2026 charts', status: 'complete' },
     { marker: '2', label: 'Phase 2', title: 'Sim balancing', detail: 'Simulations + WOTC set comparisons', status: 'complete' },
-    { marker: '10/15', label: 'Phase 3', title: 'Final QA', detail: 'Weights locked in. Curated V1s chosen.', status: 'current' },
+    { marker: '10/23', label: 'Phase 3', title: 'Final QA', detail: 'Weights locked in. Curated V1s chosen. Extended by a week.', status: 'current' },
 ];
 
 const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = ({ phase, isLast }) => {

@@ -5,7 +5,7 @@
  * "New Team" flow and a challenge's "New Team" flow (which layers challenge-specific
  * overrides — name, budget, 26-man roster — on top).
  */
-import type { TeamCreatePayload } from '../api/userTeams';
+import type { TeamCreatePayload, TeamRosterSlot } from '../api/userTeams';
 import { CardSource } from '../types/cardSource';
 import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../api/userSettings';
 
@@ -53,4 +53,32 @@ export function buildDefaultTeamPayload({ displayName, showdownSet, defaultPrima
         allowed_sets_by_source: { [CardSource.BOT]: [showdownSet] },
         ...overrides,
     };
+}
+
+/** A player a challenge requires on the roster (`required_players` in its `player_filters`). */
+export type RequiredPlayer = { bref_id: string; position: string; name?: string };
+
+/** Splits a challenge's `player_filters` into the real picker filters and its `required_players`.
+ *  The latter is a challenge-only convention key, so it's kept off the team's own filters. */
+export function splitRequiredPlayers(playerFilters: Record<string, unknown> | null | undefined): {
+    filters: Record<string, unknown> | null;
+    required: RequiredPlayer[];
+} {
+    if (!playerFilters) return { filters: null, required: [] };
+    const { required_players, ...filters } = playerFilters;
+    return { filters: Object.keys(filters).length ? filters : null, required: (required_players as RequiredPlayer[] | undefined) ?? [] };
+}
+
+/** Roster slots that pre-populate a challenge's new team with its required players, each at the
+ *  position the challenge names (e.g. Mantle in CF). The card is the player's `year` card in the
+ *  team's own Showdown set. */
+export function requiredPlayerSlots(required: RequiredPlayer[], year: number, showdownSet: string): TeamRosterSlot[] {
+    return required.map((player, index) => ({
+        card_id: `${year}-${player.bref_id}-${showdownSet}`,
+        card_source: CardSource.BOT,
+        roster_position: player.position,
+        // Non-null so they show as the first picks in the draft history (which hides null orders).
+        draft_order: index + 1,
+        pick_source: 'IMPORTED',
+    }));
 }

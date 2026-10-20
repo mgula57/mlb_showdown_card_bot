@@ -1,0 +1,134 @@
+{% extends "_social_base.html.j2" %}
+{% block title %}Team Challenges · {{ week_of.strftime('%b %-d') }}{% endblock %}
+{% block styles %}
+  .live { text-align: right; background: var(--background-secondary); border: 1px solid var(--divider); border-radius: 16px; padding: 16px 22px; }
+  .live .num { font-size: 84px; line-height: 1; color: var(--showdown-red); }
+  .live .who { font-size: 16px; font-weight: 900; text-transform: uppercase; color: var(--showdown-blue); margin-top: 2px; }
+
+  .challenges { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .challenge { background: var(--background-secondary); border: 1px solid var(--divider); border-top: 6px solid var(--accent); border-radius: 14px; padding: 24px 26px 24px; display: flex; flex-direction: column; }
+  .challenge .cat { color: var(--accent); font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+  .challenge .name { font-size: 42px; line-height: 1.02; color: var(--showdown-blue); margin-top: 6px; }
+  .challenge .desc { color: var(--secondary); font-size: 18px; line-height: 1.4; margin-top: 10px; }
+  .facts { margin-top: auto; padding-top: 4px; border-top: 1px solid var(--divider); }
+  .fact { display: grid; grid-template-columns: 100px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--divider); font-size: 17px; }
+  .fact:last-child { border-bottom: 0; }
+  .fact .k { color: var(--showdown-gray); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
+  .fact .v { font-weight: 800; }
+  .rules { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rule { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--secondary); border-radius: 999px; padding: 3px 12px; font-size: 15px; font-weight: 800; }
+
+  .cards { display: grid; grid-template-columns: repeat({{ [cards|length, 1]|max }}, 1fr); gap: 26px; align-items: start; }
+  .key-card { text-align: center; }
+  .key-card img { display: block; width: 100%; max-width: {{ 300 if cards|length > 2 else 380 }}px; margin: 0 auto; border-radius: 14px; box-shadow: 0 18px 36px rgba(26, 59, 95, .25); }
+  .key-card .name { font-size: 26px; color: var(--showdown-blue); margin-top: 18px; line-height: 1; }
+  .key-card .meta { color: var(--showdown-gray); font-size: 14px; font-weight: 700; margin-top: 6px; }
+  .key-card .tag { display: inline-block; margin-top: 10px; border: 2px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 3px 12px; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
+
+  .lineup-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 16px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--divider); }
+  .lineup-row:last-child { border-bottom: 0; }
+  .lineup-row .cat { color: var(--accent); font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+  .lineup-row .name { font-size: 24px; color: var(--showdown-blue); line-height: 1; }
+  .lineup-row .goal { color: var(--secondary); font-size: 15px; font-weight: 700; text-align: right; }
+
+  .cta { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+  .cta .big { font-size: 34px; color: var(--showdown-red); line-height: 1.05; }
+  .cta .url { font-size: 18px; font-weight: 900; color: var(--showdown-blue); white-space: nowrap; }
+{% endblock %}
+{% block sheets %}
+<div class="sheet">
+<div class="stripe"></div>
+<div class="inner">
+<div class="sheet-content">
+
+  <div class="hero">
+    <div>
+      <img class="logo" src="{{ logo_src }}" alt="Showdown Bot">
+      <div class="eyebrow">Team Challenges · Week of {{ week_of.strftime('%b %-d, %Y') }}</div>
+      <h1>{{ headline }}</h1>
+      <div class="sub">{{ subhead }}</div>
+    </div>
+    <div class="live">
+      <div class="eyebrow">Live now</div>
+      <div class="num display">{{ challenges|length }}</div>
+      <div class="who">challenge{{ 's' if challenges|length != 1 }}{% if expires_at %} · thru {{ expires_at.strftime('%b %-d') }}{% endif %}</div>
+    </div>
+  </div>
+
+  <section class="challenges">
+    {% for c in challenges %}
+    <div class="challenge" style="--accent: {{ c.accent }}">
+      <div class="cat">{{ c.category_label }} · {{ c.year }}</div>
+      <div class="name display">{{ c.title }}</div>
+      <div class="desc">{{ c.description }}</div>
+      <div class="facts">
+        <div class="fact"><div class="k">Take over</div><div class="v">{{ c.takeover_label }}</div></div>
+        <div class="fact"><div class="k">Goal</div><div class="v">{{ c.goal_label }}</div></div>
+        <div class="fact"><div class="k">Budget</div><div class="v">{{ '{:,}'.format(c.pts_limit) ~ ' pts' if c.pts_limit else 'No cap' }} · {{ c.roster_size }}-man roster</div></div>
+        {% if c.restrictions %}
+        <div class="fact"><div class="k">Rules</div><div class="v rules">{% for r in c.restrictions %}<span class="rule">{{ r }}</span>{% endfor %}</div></div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+</div>
+</div>
+</div>
+
+<div class="sheet">
+<div class="stripe pdf-only"></div>
+<div class="inner">
+<div class="sheet-content">
+
+  <div class="sheet-header pdf-only">
+    <img class="logo" src="{{ logo_src }}" alt="Showdown Bot">
+    <div class="eyebrow">Team Challenges · Week of {{ week_of.strftime('%b %-d, %Y') }}</div>
+  </div>
+
+  {% if cards %}
+  <section>
+    <h2>Cards to build around <small>{{ showdown_set }} set</small></h2>
+    <div class="cards">
+      {% for k in cards %}
+      <div class="key-card" style="--accent: {{ k.challenge.accent if k.challenge else 'var(--showdown-blue)' }}">
+        <img src="{{ k.image_src }}" alt="{{ k.name }} {{ k.year }} card">
+        <div class="name display">{{ k.name }}</div>
+        <div class="meta">{{ k.year }} {{ k.team }} · {{ k.points }} pts</div>
+        {% if k.challenge %}<div class="tag">{{ k.challenge.title }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>This week's lineup</h2>
+    <div class="panel">
+      {% for c in challenges %}
+      <div class="lineup-row" style="--accent: {{ c.accent }}">
+        <div class="cat">{{ c.category_label }}</div>
+        <div class="name display">{{ c.title }}</div>
+        <div class="goal">{{ c.year }} · {{ c.goal_label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel cta">
+    <div class="big display">Draft it. Sim it. Beat it.</div>
+    <div class="url">showdownbot.com/teams/challenges</div>
+  </section>
+
+</div>
+
+  <footer>
+    <div><strong>showdownbot.com</strong> · {{ challenges|length }} live Team Challenge{{ 's' if challenges|length != 1 }}</div>
+    <div>Generated {{ week_of.strftime('%b %-d, %Y') }}</div>
+  </footer>
+
+</div>
+</div>
+</div>
+{% endblock %}

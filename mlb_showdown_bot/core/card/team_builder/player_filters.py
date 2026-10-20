@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from ...shared.player_position import Position
 
 _FIELDING_VALUE_RE = re.compile(r'^-?[0-9]+$')
+# MATCHES challenge_generator.REQUIRED_PLAYERS_KEY (NOT IMPORTED - THAT MODULE IMPORTS THE DB LAYER)
+REQUIRED_PLAYERS_KEY = 'required_players'
 
 
 def _chart_slot_count(range_str: str | None) -> int:
@@ -37,16 +39,28 @@ class PlayerFilterSet(BaseModel):
     and `min_chart_*`/`max_chart_*` (chart slot count for a category) - since both are meaningful
     eligibility rules for a challenge (e.g. a defense-first or strikeout-heavy themed template).
     Any key can also take a `_hitters` suffix (e.g. `min_speed_hitters`, `min_fielding_if_hitters`,
-    `min_chart_hr_hitters`) to apply it to hitters only, exempting pitchers.
+    `min_chart_hr_hitters`) to apply it to hitters only, exempting pitchers, or a `_catchers`
+    suffix (e.g. `max_fielding_ca_catchers`) to apply it to catchers only, exempting everyone else.
     The rest of the SQL builder's special cases (`positions`/`icons`/`awards`/`is_hof`) aren't, so
     they're still left as plain generic keys here.
     """
     filters: dict = {}
 
+    def missing_required_players(self, roster: list[dict]) -> list[str]:
+        """Display names (falling back to bref ids) of every `required_players` entry with no card
+        in `roster` (any slot, bench included). A card id is `{year}-{bref_id}-{set}`, so the
+        middle segment is the player; the year/set are already pinned by the other filters."""
+        on_roster = {str(slot.get('card_id', '')).split('-')[1] for slot in roster if str(slot.get('card_id', '')).count('-') >= 2}
+        return [
+            entry.get('name') or entry['bref_id']
+            for entry in (self.filters.get(REQUIRED_PLAYERS_KEY) or [])
+            if entry['bref_id'] not in on_roster
+        ]
+
     def ineligible_reason(self, card: dict) -> str | None:
         """None if `card` satisfies every filter, otherwise a human-readable reason it doesn't."""
         for key, value in self.filters.items():
-            if value is None:
+            if value is None or key == REQUIRED_PLAYERS_KEY:
                 continue
             if key.endswith('_hitters'):
                 # Hitters-only variant of the base filter - mirrors the SQL builder's
@@ -54,6 +68,16 @@ class PlayerFilterSet(BaseModel):
                 if str(card.get('player_type') or '').upper() == 'PITCHER':
                     continue
                 reason = PlayerFilterSet(filters={key.removesuffix('_hitters'): value}).ineligible_reason(card)
+                if reason is not None:
+                    return reason
+                continue
+            if key.endswith('_catchers'):
+                # Catchers-only variant - mirrors the SQL builder's
+                # `(NOT <rated at catcher> OR (<base filter>))`: anyone not rated at C passes.
+                catcher_keys = Position.fielding_group_values('ca')
+                if not any(pos in catcher_keys for pos in (card.get('positions_and_defense') or {})):
+                    continue
+                reason = PlayerFilterSet(filters={key.removesuffix('_catchers'): value}).ineligible_reason(card)
                 if reason is not None:
                     return reason
                 continue
