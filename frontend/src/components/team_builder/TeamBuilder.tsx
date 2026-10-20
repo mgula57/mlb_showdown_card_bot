@@ -13,7 +13,7 @@ import {
     type TeamSummary,
     type TeamUpdatePayload,
 } from '../../api/userTeams';
-import { buildDefaultTeamPayload, numberedName } from '../../domain/newTeam';
+import { buildDefaultTeamPayload, numberedName, requiredPlayerSlots, splitRequiredPlayers } from '../../domain/newTeam';
 import {
     fetchShowdownTeam, fetchAsgShowdownTeam, fetchEraShowdownTeam,
     type Season,
@@ -444,6 +444,9 @@ export default function TeamBuilder() {
                     `${displayName} Team`,
                     existingTeams.filter(t => t.creation_source !== 'challenge').length,
                 );
+            // A challenge can require specific players (e.g. Mantle in CF); the new team starts with them
+            // already on the roster, and the key stays out of the team's own picker filters.
+            const { filters: challengeFilters, required } = splitRequiredPlayers(challenge?.player_filters);
             const payload = buildDefaultTeamPayload({
                 displayName,
                 showdownSet: userShowdownSet,
@@ -463,7 +466,8 @@ export default function TeamBuilder() {
                     min_bench: 3,
                     min_bullpen: 5,
                     origin_template_id: challenge.template_id,
-                    player_filters: challenge.player_filters,
+                    player_filters: challengeFilters,
+                    ...(required.length ? { roster: requiredPlayerSlots(required, challenge.year, userShowdownSet) } : {}),
                     creation_source: 'challenge',
                 } : { name, creation_source: 'new_team' },
             });

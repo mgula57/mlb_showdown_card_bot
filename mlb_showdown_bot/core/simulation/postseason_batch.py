@@ -421,7 +421,7 @@ class PostseasonBatch:
         `PostseasonBatchReport.SHEET_COUNT`."""
         from .postseason_batch_report import PostseasonBatchReport
 
-        return [self.out_dir / f"{self.IMAGE_STEM}_{page}.{image_format}" for page in range(1, PostseasonBatchReport.SHEET_COUNT + 1)]
+        return PostseasonBatchReport.image_paths(out_dir=self.out_dir, stem=self.IMAGE_STEM, image_format=image_format)
 
     @property
     def config(self) -> SeasonSimulationConfig:

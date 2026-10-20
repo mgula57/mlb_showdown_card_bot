@@ -84,7 +84,7 @@ showdown_bot challenges instance small-budget-pennant
 | `--roster-size N` | no (default 25) | Minimum roster size to take the challenge on, and the size a challenge "New Team" is pre-built at. **Must be ≥ 22** (9 fielders + 5 SP + 5 RP + 3 bench). |
 | `--year-pool` | no (default `any`) | `any` \| comma list `1998,2001,2004` \| `random_range:1977,2024`. Years before **1920** have no full archive card coverage and are skipped. |
 | `--replaces-pool` | no (default `any`) | `any` (random club that played that year) \| `worst_record` (the year's worst club) \| comma list of abbrs (first one that actually played that year wins; franchises relocate/rename across eras). |
-| `--player-filters` | no | JSON object restricting eligible players, same shape as a team's `player_filters` (`min_year`/`max_year`/`organization`/`league`/`team`/`hand`), plus `min_fielding`/`max_fielding` (best rating across every position the card is rated at - add an `_if`/`_of`/`_ca` suffix, e.g. `min_fielding_if`, to scope it to just infield, outfield, or catcher) and `min_chart_<category>`/`max_chart_<category>` (chart slot count, e.g. `min_chart_hr`). Append `_hitters` to any key (e.g. `min_speed_hitters`, `min_fielding_if_hitters`, `min_chart_hr_hitters`) to apply it to hitters only - pitchers pass automatically. Use this for any hitter-themed rule: pitchers all have speed 10 and no fielding ratings, so a plain `min_speed`/`min_fielding_*` would make the roster unfillable. E.g. `'{"team": ["NYM", "NYY"], "hand": ["L"]}'`. Also accepts `era_lock_years` (int) — see below. |
+| `--player-filters` | no | JSON object restricting eligible players, same shape as a team's `player_filters` (`min_year`/`max_year`/`organization`/`league`/`team`/`hand`), plus `min_fielding`/`max_fielding` (best rating across every position the card is rated at - add an `_if`/`_of`/`_ca` suffix, e.g. `min_fielding_if`, to scope it to just infield, outfield, or catcher) and `min_chart_<category>`/`max_chart_<category>` (chart slot count, e.g. `min_chart_hr`). Append `_hitters` to any key (e.g. `min_speed_hitters`, `min_fielding_if_hitters`, `min_chart_hr_hitters`) to apply it to hitters only - pitchers pass automatically. Use this for any hitter-themed rule: pitchers all have speed 10 and no fielding ratings, so a plain `min_speed`/`min_fielding_*` would make the roster unfillable. Append `_catchers` instead (e.g. `max_fielding_ca_catchers`, `min_fielding_ca_catchers`) to apply it to catchers only - anyone not rated at catcher passes - for a catcher-arm rule that doesn't wipe out every non-catcher. E.g. `'{"team": ["NYM", "NYY"], "hand": ["L"]}'`. Also accepts `era_lock_years` (int) — see below. |
 | `--category` | no (default `themed`) | `legendary` \| `budget_cap` \| `superteam` \| `themed`. Drives the list's accent color **and the rotation pool** — one live challenge per category at a time, so this is the lever that controls how often a template comes up. The goal/cap/filters still do the gameplay work. |
 | `--inactive` | no | Create it disabled; `rotate` skips it (but `challenges instance <slug>` still works on it, with a notice). Re-enable by flipping `active` in the DB. |
 | `--env` | no (default `dev`) | See "Which database?" above. |
@@ -126,6 +126,16 @@ showdown_bot challenges create-template --slug dethrone-27-yankees --title "Deth
   --goal-type beat_team_record --beat-team-abbr NYY --category legendary \
   --year-pool 1927 --replaces-pool worst_record
 ```
+
+### Required players
+
+`--player-filters '{"required_players": [{"bref_id": "mantlmi01", "name": "Mickey Mantle", "position": "CF"}, {"bref_id": "marisro01", "name": "Roger Maris", "position": "RF"}]}'`
+forces specific players onto the roster. `position` is one of `C 1B 2B 3B SS LF CF RF DH` (one player per position); `name` is display-only.
+A challenge's "New Team" is created with those players already on the roster at that position (their `year` card in the
+team's Showdown set), the card shows "Must roster ...", and `start_season_sim` / the eligible-teams picker reject a roster
+missing any of them (bench counts). It's a convention key, not a card filter: the card queries and `PlayerFilterSet` skip
+it. It still counts against `--pts-limit`, so size the cap with their points in mind. Use it with a fixed `--year-pool`
+(the card is `{year}-{bref_id}-{set}`).
 
 ### Era-locking a rotating year_pool
 
@@ -193,6 +203,33 @@ showdown_bot challenges list-templates [--env dev]
 ```
 
 Lists every template (active and inactive) with slug, title, category, goal type, cap, roster size, and player filters. Use it to confirm a `create-template` landed in the DB you expect.
+
+---
+
+## `challenges social`
+
+Builds the socials deliverable for the live challenges: a two-slide 1080x1350 (4:5) carousel.
+Slide 1 is the week's menu (each challenge's club, goal, budget and rules). Slide 2 shows 2-3
+key-player cards that fit the theme, plus a compact lineup and a call to action.
+
+```bash
+showdown_bot challenges social [--env dev] [--headline "Sixties Week"] [--subhead "..."] \
+  [--slug <slug> ...] [--card-id 1961-mantlmi01 ...] [--set 2001] [--out DIR] [--image-format png|jpg|none]
+```
+
+- **Challenges:** every live instance in `--env` (category order), or only the `--slug`s given.
+- **Cards:** `--card-id` (repeatable, max 3) as `{year}-{bref_id}` (the `--set` is appended) or
+  the full `{year}-{bref_id}-{set}`. Each card is tagged with the first challenge whose season it
+  fits. If you don't pass any, the command picks one per challenge, round-robin: required players
+  first, then the top-points non-small-sample card that passes that challenge's filters.
+- **Output** (default `sim_output/challenges_{YYYY-MM-DD}/`): `challenges.html` (self-contained),
+  `challenges.pdf` (one page per slide), `challenges_1.png` / `challenges_2.png`, and the full-size
+  card renders in `cards/`. The PDF and PNGs need headless Chrome (set `CHROME_PATH` if it isn't
+  found). Without it they're skipped with a notice.
+
+It renders through the same `SocialSheetReport` base
+([`core/simulation/social_report.py`](../../core/simulation/social_report.py),
+`templates/_social_base.html.j2`) as the postseason batch summary.
 
 ---
 
