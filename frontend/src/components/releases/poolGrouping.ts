@@ -278,3 +278,45 @@ export function takeFromGroups(groups: PoolGroup[], limit: number): PoolGroup[] 
     }
     return result;
 }
+
+// =============================================================================
+// MARK: - FILTERING
+// =============================================================================
+
+/** Any grouping dimension doubles as a filter, so filter values always match the group labels. */
+export type PoolFilterBy = Exclude<PoolGroupBy, 'none'>;
+/** Selected values per dimension — OR within a dimension, AND across dimensions. */
+export type PoolFilters = Partial<Record<PoolFilterBy, string[]>>;
+
+export const POOL_FILTER_OPTIONS = POOL_GROUP_OPTIONS.filter(
+    (o): o is { label: string; value: PoolFilterBy } => o.value !== 'none'
+);
+
+/** Distinct values of a dimension across `cards`, in group order, labelled with their card counts. */
+export function poolFilterValueOptions(cards: ReleaseCard[], filterBy: PoolFilterBy): { label: string; value: string }[] {
+    const { keyFn, compareKeys } = GROUPERS[filterBy];
+    const counts = new Map<string, number>();
+    for (const card of cards) {
+        for (const key of [keyFn(card)].flat()) counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+        .sort(([a], [b]) => compareKeys(a, b))
+        .map(([key, count]) => ({ label: `${key} (${count})`, value: key }));
+}
+
+export function activePoolFilterCount(filters: PoolFilters): number {
+    return Object.values(filters).filter(values => values && values.length > 0).length;
+}
+
+/** Keeps cards matching every active dimension and whose name contains `search` (case-insensitive). */
+export function filterPoolCards(cards: ReleaseCard[], filters: PoolFilters, search: string): ReleaseCard[] {
+    const active = (Object.entries(filters) as [PoolFilterBy, string[] | undefined][])
+        .filter((entry): entry is [PoolFilterBy, string[]] => !!entry[1] && entry[1].length > 0)
+        .map(([filterBy, values]) => ({ keyFn: GROUPERS[filterBy].keyFn, values: new Set(values) }));
+    const query = search.trim().toLowerCase();
+    if (active.length === 0 && !query) return cards;
+    return cards.filter(card =>
+        (!query || (card.card_snapshot.name ?? '').toLowerCase().includes(query))
+        && active.every(({ keyFn, values }) => [keyFn(card)].flat().some(key => values.has(key)))
+    );
+}

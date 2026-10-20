@@ -24,11 +24,13 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { parseEditionStyle, editionStyleSummary } from './editionStyle';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
 import {
-    groupAndSortCards, takeFromGroups, POOL_GROUP_OPTIONS, POOL_SORT_OPTIONS, POOL_SORT_DEFAULT_DIRECTION,
-    type PoolGroupBy, type PoolSortBy, type PoolSortDirection,
+    groupAndSortCards, takeFromGroups, filterPoolCards, activePoolFilterCount, POOL_GROUP_OPTIONS, POOL_SORT_OPTIONS, POOL_SORT_DEFAULT_DIRECTION,
+    type PoolGroupBy, type PoolSortBy, type PoolSortDirection, type PoolFilters,
 } from './poolGrouping';
+import { PoolFilterPanel } from './PoolFilterPanel';
+import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette } from 'react-icons/fa6';
+import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
 
 /** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
 const MIN_POOL_PANEL_WIDTH = 280;
@@ -401,14 +403,29 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         });
     }
 
+    // Filters only narrow what the grid shows — numbering, the Summary tab, and saves always use the full pool.
+    const [poolFilters, setPoolFilters] = useState<PoolFilters>({});
+    const [poolSearch, setPoolSearch] = useState('');
+    const [showPoolFilters, setShowPoolFilters] = useState(false);
+    const activeFilterCount = activePoolFilterCount(poolFilters);
+    const filteredCards = useMemo(
+        () => filterPoolCards(displayCards, poolFilters, poolSearch),
+        [displayCards, poolFilters, poolSearch]
+    );
+    const isPoolFiltered = filteredCards.length !== displayCards.length;
+    function clearPoolFilters() {
+        setPoolFilters({});
+        setPoolSearch('');
+    }
+
     const poolGroups = useMemo(
-        () => groupAndSortCards(displayCards, groupBy, sortBy, sortDirection),
-        [displayCards, groupBy, sortBy, sortDirection]
+        () => groupAndSortCards(filteredCards, groupBy, sortBy, sortDirection),
+        [filteredCards, groupBy, sortBy, sortDirection]
     );
     const visibleGroups = useMemo(() => takeFromGroups(poolGroups, visibleCount), [poolGroups, visibleCount]);
     // Can exceed the pool size when a card sits in several groups (e.g. grouping by tag)
     const poolGroupedCardCount = useMemo(() => poolGroups.reduce((sum, g) => sum + g.cards.length, 0), [poolGroups]);
-    useEffect(() => { setVisibleCount(POOL_PAGE_SIZE); }, [previewResult, groupBy, sortBy, sortDirection]);
+    useEffect(() => { setVisibleCount(POOL_PAGE_SIZE); }, [previewResult, groupBy, sortBy, sortDirection, poolFilters, poolSearch]);
     const poolSentinelRef = useCallback((node: HTMLDivElement | null) => {
         if (!node) return;
         const observer = new IntersectionObserver(entries => {
@@ -852,12 +869,46 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             </button>
                                             <button
                                                 type="button"
+                                                onClick={() => setShowPoolFilters(v => !v)}
+                                                title={showPoolFilters ? 'Hide filters' : 'Show filters'}
+                                                className={`relative flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shrink-0 cursor-pointer
+                                                    ${showPoolFilters || activeFilterCount > 0
+                                                        ? 'border-(--secondary) text-(--secondary)'
+                                                        : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                            >
+                                                <FaFilter className="text-[13px]" />
+                                                {activeFilterCount > 0 && (
+                                                    <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-(--secondary) text-(--background-primary) text-[10px] font-bold">
+                                                        {activeFilterCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onClick={toggleShowFullCards}
                                                 title={showFullCards ? 'Show compact cards' : 'Show full cards'}
                                                 className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
                                             >
                                                 {showFullCards ? <FaList className="text-[13px]" /> : <FaTableCellsLarge className="text-[13px]" />}
                                             </button>
+                                            <TeamSearchInput
+                                                value={poolSearch}
+                                                onChange={setPoolSearch}
+                                                placeholder="Search players…"
+                                                className="w-48"
+                                            />
+                                            {isPoolFiltered && (
+                                                <span className="flex items-center gap-1.5 text-[12px] text-(--text-tertiary)">
+                                                    {filteredCards.length} of {displayCards.length}
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearPoolFilters}
+                                                        className="font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </span>
+                                            )}
                                         </div>
                                     )}
 
@@ -1005,9 +1056,24 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 </div>
                             )}
 
+                            {showPoolFilters && displayCards.length > 0 && (
+                                <PoolFilterPanel cards={displayCards} filters={poolFilters} onChange={setPoolFilters} />
+                            )}
+
                             {/* Card Grid */}
                             <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                                {displayCards.length === 0 ? (
+                                {displayCards.length > 0 && filteredCards.length === 0 ? (
+                                    <div className="flex flex-col items-center gap-2 py-8">
+                                        <p className="text-[13px] text-(--text-tertiary)">No cards match these filters.</p>
+                                        <button
+                                            type="button"
+                                            onClick={clearPoolFilters}
+                                            className="min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                        >
+                                            Clear Filters
+                                        </button>
+                                    </div>
+                                ) : displayCards.length === 0 ? (
                                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
                                         {activePreview
                                             ? 'No players matched this configuration.'
