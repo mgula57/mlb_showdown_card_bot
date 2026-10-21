@@ -31,4 +31,4 @@ jobs:
       # Card snapshot failures mean a formula changed card output: if intentional, run
       # `pytest tests/test_card_snapshots.py --update-snapshots` locally and commit the snapshot diff.
       - name: Run tests
-        run: pytest tests/test_card_snapshots.py tests/test_command_out_selections.py -q
+        run: pytest tests/test_card_snapshots.py tests/test_command_out_selections.py tests/test_social_caption.py -q

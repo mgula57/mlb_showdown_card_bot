@@ -43,6 +43,7 @@ __pycache__/
 tests/cache/player_cache.csv
 tests/image_output/
 mlb_showdown_bot/scripts/output/
+scripts/social/output/
 mlb_showdown_bot/scripts/cache/
 mlb_showdown_bot/data/wotc*
 mlb_showdown_bot/data/MLB Showdown WOTC Cards*
