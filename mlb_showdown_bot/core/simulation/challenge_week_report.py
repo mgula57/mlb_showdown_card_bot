@@ -1,10 +1,10 @@
-"""Socials deliverable for the week's live Team Challenges: a two-sheet 1080x1350 carousel (the
-challenge menu, then 2-3 key-player cards that fit the week's theme), rendered through
+"""Socials deliverable for the week's live Team Challenges: one 1080x1350 slide (2-3 key-player
+cards fanned out up top, then the challenge menu), rendered through
 `SocialSheetReport`. Driven by `showdown_bot challenges social` - see CHALLENGES.md.
 """
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Callable, Optional
@@ -32,9 +32,9 @@ _FIELDING_GROUP_LABELS = {'if': 'IF', 'of': 'OF', 'ca': 'C'}
 _SCOPE_LABELS = {'hitters': 'Hitters', 'catchers': 'Catchers'}
 _SCOPED_FILTER_PATTERN = re.compile(r'^(min|max)_(.+)_(hitters|catchers)$')
 
-# CARD ART IS EMBEDDED IN THE PAGE AT 2x ITS ~300px DISPLAY WIDTH - SHARP ON A SCREENSHOT
+# CARD ART IS EMBEDDED IN THE PAGE AT 2x ITS 220px DISPLAY WIDTH - SHARP ON A SCREENSHOT
 # WITHOUT CARRYING THREE FULL 1500x2100 RENDERS AS BASE64.
-_EMBED_CARD_WIDTH = 640
+_EMBED_CARD_WIDTH = 440
 
 
 class ChallengeSpotlight(BaseModel):
@@ -61,7 +61,12 @@ class ChallengeSpotlight(BaseModel):
         return self.player_filters.get('min_year') or self.year, self.player_filters.get('max_year') or self.year
 
     @staticmethod
-    def _goal_label(row: dict) -> str:
+    def _record(wins: int, losses: int) -> str:
+        """W-L with a non-breaking hyphen, so a wrapped line never splits "(109-" from "53)"."""
+        return f"{wins}\u2011{losses}"
+
+    @classmethod
+    def _goal_label(cls, row: dict) -> str:
         """Python twin of the frontend's `challengeGoalLabel`."""
         goal_value = row.get('goal_value') or {}
         match row.get('goal_type'):
@@ -78,7 +83,7 @@ class ChallengeSpotlight(BaseModel):
                     return "Beat that season's worst record"
                 record = row.get('beat_team_record') or {}
                 if record.get('name'):
-                    return f"Out-win the {row['year']} {record['name']} ({record['wins']}-{record['losses']})"
+                    return f"Out-win the {row['year']} {record['name']} ({cls._record(record['wins'], record['losses'])})"
                 return f"Beat the {row['year']} {target}'s record"
         return 'Clear the bar'
 
@@ -130,7 +135,7 @@ class ChallengeSpotlight(BaseModel):
                 club = next((c for c in takeover.clubs if c.abbreviation == row['replaces_abbr']), None)
             except Exception:
                 club = None
-        takeover_label = f"{row['year']} {club.name} ({club.wins}-{club.losses})" if club else f"{row['year']} {row['replaces_abbr']}"
+        takeover_label = f"{row['year']} {club.name} ({cls._record(club.wins, club.losses)})" if club else f"{row['year']} {row['replaces_abbr']}"
         player_filters = row.get('player_filters') or {}
         return cls(
             instance_id=row['instance_id'], slug=row['slug'], title=row['title'], description=row['description'],
@@ -143,7 +148,7 @@ class ChallengeSpotlight(BaseModel):
 
 
 class KeyPlayerCard(BaseModel):
-    """One spotlighted card on the second sheet, tied to the challenge it fits."""
+    """One spotlighted card in the hero stack, tied to the challenge it fits."""
     card_id: str
     name: str
     year: str
@@ -155,18 +160,19 @@ class KeyPlayerCard(BaseModel):
 
 
 class ChallengeWeekReport(SocialSheetReport):
-    """Two 1080x1350 sheets: the week's challenge menu, then the key-player cards."""
+    """One 1080x1350 sheet: the key-player cards fanned out over the week's challenge menu."""
 
-    SHEET_COUNT = 2
+    SHEET_COUNT = 1
     TEMPLATE_NAME = "challenge_week_summary.html.j2"
 
-    def __init__(self, challenges: list[ChallengeSpotlight], cards: list[KeyPlayerCard], headline: str, subhead: str, showdown_set: str) -> None:
+    def __init__(self, challenges: list[ChallengeSpotlight], cards: list[KeyPlayerCard], headline: str, subhead: str, showdown_set: str, week_of: date) -> None:
         super().__init__()
         self.challenges = challenges
         self.cards = cards
         self.headline = headline
         self.subhead = subhead
         self.showdown_set = showdown_set
+        self.week_of = week_of
 
     def context(self) -> dict:
         return dict(
@@ -175,7 +181,7 @@ class ChallengeWeekReport(SocialSheetReport):
             headline=self.headline,
             subhead=self.subhead,
             showdown_set=self.showdown_set,
-            week_of=datetime.now(),
+            week_of=self.week_of,
             expires_at=min((c.expires_at for c in self.challenges), default=None),
         )
 
@@ -194,6 +200,7 @@ class ChallengeWeek:
     def __init__(
         self, db: PostgresDB, showdown_set: str, out_dir: Path, slugs: Optional[list[str]] = None,
         card_ids: Optional[list[str]] = None, headline: Optional[str] = None, subhead: Optional[str] = None,
+        start_date: Optional[date] = None,
     ) -> None:
         self.db = db
         self.showdown_set = showdown_set
@@ -202,6 +209,8 @@ class ChallengeWeek:
         self.card_ids = [self._full_card_id(card_id) for card_id in (card_ids or [])][:self.MAX_CARDS]
         self.headline = headline or "This week's challenges"
         self.subhead = subhead or "Take over a real club, draft under the rules, sim the season."
+        # THE "WEEK OF" DATE ON THE SLIDE - DEFAULTS TO TODAY, SET IT TO POST AHEAD OF (OR AFTER) LAUNCH.
+        self.start_date = start_date or date.today()
 
     def _full_card_id(self, card_id: str) -> str:
         """Accepts `{year}-{bref_id}` or the full `{year}-{bref_id}-{set}` (bref ids never contain
@@ -289,15 +298,15 @@ class ChallengeWeek:
         return SocialSheetReport.bytes_data_uri(buffer.getvalue(), 'image/jpeg')
 
     def write_outputs(self, image_format: Optional[str] = "png", status_callback: Optional[Callable[[str], None]] = None) -> Path:
-        """Write challenges.html, plus (when Chrome is available) challenges.pdf and one image per
-        sheet. Returns the HTML path. Raises ValueError when no challenge is live."""
+        """Write challenges.html, plus (when Chrome is available) challenges.pdf and the slide image
+        (`challenges_1.<ext>`). Returns the HTML path. Raises ValueError when no challenge is live."""
         challenges = self.load_challenges()
         if not challenges:
             raise ValueError("No live challenge instances" + (f" matching {', '.join(self.slugs)}" if self.slugs else ""))
         self.out_dir.mkdir(parents=True, exist_ok=True)
         cards = self.render_cards(self.pick_card_ids(challenges), status_callback=status_callback)
 
-        report = ChallengeWeekReport(challenges=challenges, cards=cards, headline=self.headline, subhead=self.subhead, showdown_set=self.showdown_set)
+        report = ChallengeWeekReport(challenges=challenges, cards=cards, headline=self.headline, subhead=self.subhead, showdown_set=self.showdown_set, week_of=self.start_date)
         html_path = self.out_dir / self.HTML_FILE
         html_path.write_text(report.render())
         skipped_pdf = ChallengeWeekReport.write_pdf(html_path=html_path, pdf_path=self.out_dir / self.PDF_FILE)
