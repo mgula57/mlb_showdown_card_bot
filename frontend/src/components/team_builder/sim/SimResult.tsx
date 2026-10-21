@@ -144,7 +144,10 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 ? 'Made the playoffs'
                 : 'Missed the playoffs';
 
-    const outcomeColor = (team.is_champion || challengeResult === 'passed')
+    // A CHALLENGE ATTEMPT IS COLORED BY ITS RESULT, SO A TITLE THAT STILL MISSED THE GOAL ISN'T GREEN.
+    const outcomeColor = challengeResult === 'failed'
+        ? '--error'
+        : (team.is_champion || challengeResult === 'passed')
         ? '--success'
         : team.made_playoffs
             ? '--warning'

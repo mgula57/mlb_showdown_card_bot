@@ -1,6 +1,6 @@
 ---
 name: new-challenge
-description: Come up with new Team Challenge templates (the weekly "take over a real club and hit a goal" scenarios), starting by suggesting eras based on what the existing templates already cover, then authoring the template into the DEV database (DATABASE_URL_LOGS) for testing before promoting it to PROD (DATABASE_URL_ARCHIVE), and finally building the week's socials carousel (challenge menu + key-player cards). Use when asked to brainstorm, design, add, or ideate new challenges or challenge templates, or to make the socials post for this week's challenges.
+description: Come up with new Team Challenge templates (the weekly "take over a real club and hit a goal" scenarios), starting by suggesting eras based on what the existing templates already cover, then authoring the template into the DEV database (DATABASE_URL_LOGS) for testing before promoting it to PROD (DATABASE_URL_ARCHIVE), and finally building the week's socials post (a key-player card stack over the challenge menu). Use when asked to brainstorm, design, add, or ideate new challenges or challenge templates, or to make the socials post for this week's challenges.
 ---
 
 # New Challenge
@@ -139,8 +139,8 @@ UI), since an active template re-enters the rotation pool and will be instanced 
 
 ## Step 5: Socials deliverable
 
-Once the week's challenges are live, build the socials post: a two-slide 1080x1350 carousel with
-the challenge menu on slide 1 and 2-3 key-player cards on slide 2. Details are in
+Once the week's challenges are live, build the socials post: one 1080x1350 slide with 2-3
+key-player cards fanned out beside the headline and the challenge menu below. Details are in
 `CHALLENGES.md` → `challenges social`.
 
 1. **Pick the key players (2-3).** Choose cards that sell the week's theme, one per challenge
@@ -154,14 +154,14 @@ the challenge menu on slide 1 and 2-3 key-player cards on slide 2. Details are i
    testing). Give it a headline that names the week's theme:
 
    ```bash
-   .venv/bin/showdown_bot challenges social --env prod --headline "Sixties Week" \
+   .venv/bin/showdown_bot challenges social --env prod --headline "Sixties Week" --start-date 2026-10-19 \
      --card-id 1961-mantlmi01 --card-id 1965-mayswi01 --card-id 1966-koufasa01
    ```
 
    If you leave out `--card-id`, it auto-picks (required players first, then each challenge's
    top-points eligible card). That's fine as a draft, but hand-picked cards tell the story better.
-3. **Review the output.** Look at `challenges_1.png` and `challenges_2.png` yourself (Read the
-   images) before you hand them over. Check for clipped or overflowing text, a card that failed to
-   render (`SKIPPED CARD` in the output), and a card tagged to the wrong challenge. Then give the
-   user the output folder, which holds the two PNG slides, the PDF carousel, the HTML, and
-   full-size card renders in `cards/` for posting on their own.
+3. **Review the output.** Look at `challenges_1.png` yourself (Read the image) before you hand it
+   over. Check for clipped or overflowing text, stickers covering each other, a card that failed
+   to render (`SKIPPED CARD` in the output), and a card tagged to the wrong challenge. Then give
+   the user the output folder, which holds the PNG slide, the PDF, the HTML, and full-size card
+   renders in `cards/` for posting on their own.
