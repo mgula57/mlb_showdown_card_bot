@@ -6,8 +6,13 @@ from pathlib import Path
 from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from PIL import Image
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
+# ONE SHEET (MATCHES `html.pdf .sheet` IN _social_base.html.j2), AND THE EXTRA WINDOW HEIGHT
+# `write_images` CAPTURES BEFORE CROPPING TO IT.
+_SHEET_SIZE = (1080, 1350)
+_CAPTURE_HEADROOM = 200
 
 # BRAND ASSETS, EMBEDDED AS DATA URIS SO THE RENDERED PAGE IS ONE SELF-CONTAINED FILE. THE FONT
 # IS THE SAME CONDENSED HEAVY OBLIQUE THE FRONTEND SHIPS AS `ShowdownSetItalic`.
@@ -117,10 +122,12 @@ class SocialSheetReport:
         html_uri = html_path.resolve().as_uri()
         for page, image_path in enumerate(image_paths, start=1):
             # `#pdf-N` HIDES EVERY SHEET BUT THE ONE BEING CAPTURED (SEE THE BASE TEMPLATE'S
-            # SCRIPT) - THE 1080x1350 WINDOW THEN FRAMES EXACTLY THAT SHEET, NO SCROLLING OR CROPPING.
+            # SCRIPT), SO THAT SHEET SITS AT THE TOP OF THE PAGE. HEADLESS CHROME CAN PAINT A
+            # VIEWPORT SHORTER THAN `--window-size` (LEAVING THE SHEET'S BOTTOM BLANK), SO CAPTURE A
+            # TALLER WINDOW AND CROP BACK DOWN TO THE SHEET.
             command = [
                 chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                "--window-size=1080,1350", "--virtual-time-budget=10000",
+                f"--window-size={_SHEET_SIZE[0]},{_SHEET_SIZE[1] + _CAPTURE_HEADROOM}", "--virtual-time-budget=10000",
                 f"--screenshot={image_path.resolve()}", f"{html_uri}#pdf-{page}",
             ]
             try:
@@ -129,4 +136,7 @@ class SocialSheetReport:
                 return f"Chrome image export failed on page {page}: {error}"
             if not image_path.exists():
                 return f"Chrome ran but produced no image for page {page}"
+            with Image.open(image_path) as screenshot:
+                sheet = screenshot.crop((0, 0, *_SHEET_SIZE))
+            sheet.save(image_path)
         return None
