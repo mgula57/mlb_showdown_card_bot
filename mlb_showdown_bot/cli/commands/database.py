@@ -616,6 +616,19 @@ def build_user_quick_filters_table(
     db.build_user_quick_filters_table()
     print("✅ User quick filters table built.")
 
+@app.command("build_social_post_log_table")
+def build_social_post_log_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")
+):
+    """Build the social post log table used by the scheduled social media card posts"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building social post log table...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_social_post_log_table()
+    db.close_connection()
+    print("✅ internal.social_post_log table built.")
+
 @app.command("build_season_stat_range_table")
 def build_season_stat_range_table(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),

@@ -10527,3 +10527,41 @@ class PostgresDB:
             if row.get('created_at') is not None:
                 row['created_at'] = str(row['created_at'])
         return rows
+
+# -----------------------------------------------------------------------
+# SOCIAL POSTS
+# -----------------------------------------------------------------------
+
+    def build_social_post_log_table(self) -> None:
+        """Create the social_post_log table - one row per card posted to a social platform.
+
+        Written by `scripts/social/post_card.py` (the scheduled "random card" X posts), which reads
+        it back to skip cards posted within its exclusion window. `card_key` is the player-season
+        (`{bref_id}-{year}`), so the same season in another set still counts as a repeat; reposting
+        a card after the window overwrites its row. RLS is enabled with no policies, so only the
+        table owner / service role can read or write it.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.social_post_log (
+                    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    platform      TEXT NOT NULL DEFAULT 'x',
+                    card_key      TEXT NOT NULL,
+                    card_id       TEXT NOT NULL,   -- internal.dim_card id, enough to re-fetch/re-render the card
+                    showdown_set  TEXT NOT NULL,
+                    year          INT,
+                    name          TEXT,
+                    post_id       TEXT NOT NULL,   -- platform's id for the post (tweet id on X)
+                    caption       TEXT,
+                    posted_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (platform, card_key)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_social_post_log_platform_posted_at
+                    ON internal.social_post_log (platform, posted_at DESC);
+            """)
+            cur.execute("ALTER TABLE internal.social_post_log ENABLE ROW LEVEL SECURITY;")
