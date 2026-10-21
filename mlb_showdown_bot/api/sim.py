@@ -1263,8 +1263,10 @@ def _run_sim_job(
         challenge_result = None
         won_pennant = None
         if challenge is not None:
+            # A PENNANT IS A WORLD SERIES APPEARANCE, NOT AN LCS WIN - PRE-1969 FORMATS HAVE NO
+            # CHAMPIONSHIP ROUND (THE LEAGUE WINNER GOES STRAIGHT TO THE WS).
             won_pennant = any(
-                series.round == PostseasonRound.CHAMPIONSHIP.value and series.winner == team_abbr
+                series.round == PostseasonRound.WORLD_SERIES.value and team_abbr in (series.home_team, series.away_team)
                 for series in summary.postseason
             )
             passed = _challenge_passed(

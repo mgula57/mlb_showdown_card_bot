@@ -97,7 +97,7 @@ Evaluated in `api/sim.py::_challenge_passed()` against the played season:
 |-------------|-------------|------------|
 | `made_playoffs` | team made the postseason | — |
 | `win_division` | `division_rank == 1` | — |
-| `win_pennant` | won the league championship round (one step before the WS) | — |
+| `win_pennant` | reached the World Series (any format, incl. pre-1969 WS-only) | — |
 | `win_world_series` | won the World Series | — |
 | `min_wins` | `wins >= min_wins` | `--min-wins` |
 | `beat_team_record` | `wins >` the target club's wins that same season | `--beat-team-abbr` |
