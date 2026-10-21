@@ -92,6 +92,7 @@ from ..card.command_out_selections import StoredCardSelectionRecord
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
+from ..card.images import ImageMatchType, AutoImageFile
 from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings, Schedule
 
 
@@ -173,13 +174,6 @@ CARD_DATA_DIAGNOSTIC_KEYS = [
     'real_vs_projected_stats',
 ]
 
-
-class ImageMatchType(str, Enum):
-    """Types of image matches available"""
-    EXACT = "exact"
-    TEAM_MATCH = "team match"
-    YEAR_MATCH = "year match"
-    NO_MATCH = "no match"
 
 class ExploreDataRecord(BaseModel):
     """Pydantic model for records from the card_bot materialized view"""
@@ -5006,58 +5000,14 @@ class PostgresDB:
         # PARSE NAMES AND STORE AS CLASSES
         auto_image_entries: list[dict] = []
         for image_name, image_data in aggregated_images.items():
-
-            # PARSE NAME INTO COMPONENTS
-            # EX: 2025-Raleigh-(raleica01)-(SEA).png
-            #   - year: 2025
-            #   - team_id: SEA
-            #   - player_id: raleica01
-            #   - player_name: Raleigh
-            #   - is_postseason: False
-            #   - is_wbc: False
-            #   - player_type_override: None 
-            #   - modified_date: datetime
-            final_attributes: dict[str, any] = {
+            auto_image_file = AutoImageFile.from_name_without_component(image_name)
+            if auto_image_file is None:
+                continue
+            auto_image_entries.append({
+                **auto_image_file.model_dump(exclude={'component'}),
                 'image_ids': image_data.get('image_ids', {}),
                 'modified_date': image_data.get('modified_date'),
-                'is_wbc': '(WBC_' in image_name
-            }
-            name_parts = image_name.rsplit('.', 1)[0].split('-')
-            has_reached_first_parenthesis = False
-            player_name = "" # ADDED TO IN MULTIPLE PARTS
-            for index, text in enumerate(name_parts):
-                has_parenthesis = text.startswith('(') and text.endswith(')')
-                
-                # YEAR
-                if index == 0:
-                    final_attributes['year'] = int(text)
-                    continue
-                
-                # PLAYER NAME
-                if not has_reached_first_parenthesis and not has_parenthesis:
-                    if player_name == "":
-                        player_name = text
-                    else:
-                        player_name += f" {text}"
-                    continue
-
-                # PLAYER ID
-                if has_parenthesis and not has_reached_first_parenthesis:
-                    final_attributes['player_name'] = player_name # STORE PLAYER NAME
-                    final_attributes['player_id'] = text.split('(')[1].split(')')[0]
-                    has_reached_first_parenthesis = True
-
-                # TEAM ID
-                if has_parenthesis and len(text) <= 5:
-                    final_attributes['team_id'] = text.split('(')[1].split(')')[0]
-
-                if text == '(POST)':
-                    final_attributes['is_postseason'] = True
-
-                if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
-                    final_attributes['player_type_override'] = text.lower() # KEEP PARENTHESIS AND LOWERCASE TO MATCH STATS ARCHIVE (e.g., (hitter), (pitcher))
-
-            auto_image_entries.append(final_attributes)
+            })
 
         # DATABASE OPERATIONS
         db_cursor = self.connection.cursor()
@@ -5155,6 +5105,24 @@ class PostgresDB:
         # REFRESH EXPLORE (DOWNSTREAM DEPENDENCY)
         if refresh_explore:
             self.refresh_explore_views()
+
+    def get_auto_images(self) -> tuple[list[AutoImageFile], Optional[datetime]]:
+        """Every Showdown Bot library image in internal.dim_auto_image (a few thousand rows).
+
+        Returns:
+          Tuple of the parsed images and the newest image modified date (UTC, naive), which is
+          when the table was last synced up to.
+        """
+        rows = self.execute_query(sql.SQL('''
+            SELECT year, player_id, player_name, team_id, player_type_override, is_postseason, is_wbc, image_modified_date
+            FROM internal.dim_auto_image
+        '''))
+        images = [
+            AutoImageFile(**{k: v for k, v in row.items() if k != 'image_modified_date' and v is not None})
+            for row in rows
+        ]
+        synced_through = max((row['image_modified_date'] for row in rows if row.get('image_modified_date')), default=None)
+        return images, synced_through
 
     def build_season_stat_range_table(self, drop_existing:bool = False) -> None:
         """

@@ -5,6 +5,7 @@ from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from ..core.card.images import ImageLibrary
 from ..core.database.postgres_db import PostgresDB
+from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
@@ -364,6 +365,35 @@ def cancel_edition_images(release_id: str, edition_id: str):
         if not cancelled:
             return jsonify({'error': 'No render in progress.'}), 409
         return jsonify({'job': job}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+_MAX_IMAGE_MATCH_CARDS = 2000
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/images/matches', methods=['POST'])
+@require_auth
+def classify_edition_image_matches(release_id: str, edition_id: str):
+    """Live auto image match per card snapshot, searching the owner's image libraries (their Google
+    Drive folders + Showdown Bot) in the order a render would. Takes `cards` (snapshots) in the body so
+    unsaved algorithm previews can be checked too; `refresh: true` re-reads the libraries from Drive."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        snapshots = payload.get('cards')
+        if not isinstance(snapshots, list) or not all(isinstance(s, dict) for s in snapshots):
+            return jsonify({'error': 'cards must be a list of card snapshots'}), 400
+        if len(snapshots) > _MAX_IMAGE_MATCH_CARDS:
+            return jsonify({'error': f'At most {_MAX_IMAGE_MATCH_CARDS} cards can be checked at once.'}), 400
+
+        with PostgresDB() as db:
+            if _owned_edition(db, release_id, edition_id, g.user_id) is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+
+        cards = [card for card in map(ImageMatchCard.from_snapshot, snapshots) if card]
+        classifier = ImageMatchClassifier(UserImageLibraries.for_card_build(g.user_id), refresh=bool(payload.get('refresh')))
+        return jsonify(classifier.classify(cards)), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

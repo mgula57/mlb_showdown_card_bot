@@ -2,6 +2,7 @@ import os
 import re
 import json
 import threading
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
 from googleapiclient.discovery import build
@@ -156,6 +157,17 @@ class UserDriveFolder:
             (summary.image_files if is_image else summary.other_files).append(file)
         return summary
 
+    def list_image_files(self) -> list[dict]:
+        """Image files directly in the folder.
+
+        Raises:
+          HttpError: Folder is missing or no longer shared.
+        """
+        files_service = UserDriveClient.files_service()
+        if files_service is None:
+            return []
+        return [f for f in self._list_children(files_service) if f.get('mimeType', '').startswith('image/')]
+
     def _list_children(self, files_service) -> list[dict]:
         """All non-trashed direct children of the folder (subfolders are not searched)."""
         files: list[dict] = []
@@ -174,12 +186,13 @@ class UserDriveFolder:
                 return files
 
 
-def fetch_image_metadata(folder_id:str, retries:int = 3) -> list[dict]:
+def fetch_image_metadata(folder_id:str, retries:int = 3, modified_after:Optional[datetime] = None) -> list[dict]:
     """Fetches file metadata from a Google Drive folder based on a query.
 
     Args:
         folder_id (str): The ID of the Google Drive folder.
         retries (int): Number of retries in case of failure.
+        modified_after (datetime): Only files modified after this time (naive = UTC).
 
     Returns:
         list[dict]: A list of file metadata dictionaries.
@@ -197,6 +210,8 @@ def fetch_image_metadata(folder_id:str, retries:int = 3) -> list[dict]:
     while True and failure_number < retries:
         try:
             query = f"mimeType='image/png' and parents = '{folder_id}'"
+            if modified_after:
+                query += f" and modifiedTime > '{modified_after.strftime('%Y-%m-%dT%H:%M:%S')}'"
             # Build request parameters conditionally
             request_params = {
                 'q': query,

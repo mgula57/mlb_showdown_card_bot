@@ -21,6 +21,8 @@ import { EditionImages } from './EditionImages';
 import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
 import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useLiveImageMatches } from './useLiveImageMatches';
+import { relativeTime } from '../../functions/formatters';
 import { parseEditionStyle, editionStyleSummary } from './editionStyle';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
 import {
@@ -375,7 +377,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         () => activePreview ? buildReleaseCardsFromPreview(activePreview.players) : null,
         [activePreview]
     );
-    const displayCards = previewCards ?? cards;
+    const liveImageMatches = useLiveImageMatches(releaseId, edition.id, previewCards ?? cards, token, !readOnly);
+    const displayCards = liveImageMatches.cards;
 
     // The detail modal renders the release card as it will print: edition style + formatted set
     // number. BOT snapshots don't embed card_data, so CardDetail hydrates those by card_id.
@@ -408,6 +411,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [poolSearch, setPoolSearch] = useState('');
     const [showPoolFilters, setShowPoolFilters] = useState(false);
     const activeFilterCount = activePoolFilterCount(poolFilters);
+    // The live image match control only shows while it affects the grid
+    const isImageMatchActive = groupBy === 'image_match' || (poolFilters.image_match?.length ?? 0) > 0;
     const filteredCards = useMemo(
         () => filterPoolCards(displayCards, poolFilters, poolSearch),
         [displayCards, poolFilters, poolSearch]
@@ -908,6 +913,26 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         Clear
                                                     </button>
                                                 </span>
+                                            )}
+                                            {isImageMatchActive && !readOnly && (
+                                                <button
+                                                    type="button"
+                                                    onClick={liveImageMatches.refresh}
+                                                    disabled={liveImageMatches.loading}
+                                                    title={liveImageMatches.error
+                                                        ?? (liveImageMatches.libraryNames.length > 0
+                                                            ? `Matched against: ${liveImageMatches.libraryNames.join(', ')}. Click to re-check your image libraries.`
+                                                            : 'Re-check your image libraries')}
+                                                    className={`flex items-center gap-1.5 min-h-9 px-3 py-2 rounded-lg text-[12px] font-semibold border transition-colors shrink-0 cursor-pointer disabled:cursor-wait
+                                                        ${liveImageMatches.error ? 'border-red-400/40 text-red-400' : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                                >
+                                                    <FaArrowsRotate className={`text-[11px] ${liveImageMatches.loading ? 'animate-spin' : ''}`} />
+                                                    {liveImageMatches.loading
+                                                        ? 'Checking images…'
+                                                        : liveImageMatches.error
+                                                            ? 'Image check failed'
+                                                            : liveImageMatches.checkedAt ? `Images checked ${relativeTime(liveImageMatches.checkedAt)}` : 'Check images'}
+                                                </button>
                                             )}
                                         </div>
                                     )}

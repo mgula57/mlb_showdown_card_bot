@@ -1,4 +1,4 @@
-import { fetchCardData, type CardDatabaseRecord } from './card_db/cardDatabase';
+import { fetchCardData, type CardDatabaseRecord, type ImageMatchType } from './card_db/cardDatabase';
 import { CardSource } from '../types/cardSource';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
@@ -373,6 +373,26 @@ export async function renderEditionImages(releaseId: string, editionId: string, 
     const body = JSON.stringify(sourceCardIds ? { source_card_ids: sourceCardIds } : {});
     const { job } = await editionImagesRequest<{ job: ReleaseImageJob }>(releaseId, editionId, '/render', { method: 'POST', body }, token);
     return job;
+}
+
+/** A card's auto image match against the owner's image libraries, as a render would search them. */
+export type LiveImageMatch = {
+    image_match_type: ImageMatchType;
+    /** Library the render would pull from (a connected Google Drive folder or "Showdown Bot"); null when no library has the player. */
+    library_name: string | null;
+};
+
+export type LiveImageMatches = {
+    /** Keyed by card snapshot `id`. */
+    matches: Record<string, LiveImageMatch>;
+    /** When the oldest library listing used was read from Drive. */
+    checked_at: string;
+};
+
+/** Re-checks each snapshot's auto image match. `refresh` re-reads the libraries from Drive instead of the ~10 minute server cache. */
+export function fetchLiveImageMatches(releaseId: string, editionId: string, cards: CardDatabaseRecord[], token: string, refresh = false): Promise<LiveImageMatches> {
+    const body = JSON.stringify({ cards, refresh });
+    return editionImagesRequest(releaseId, editionId, '/matches', { method: 'POST', body }, token);
 }
 
 export async function cancelEditionImageRender(releaseId: string, editionId: string, token: string): Promise<ReleaseImageJob> {

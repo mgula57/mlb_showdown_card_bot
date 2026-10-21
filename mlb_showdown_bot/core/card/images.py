@@ -535,6 +535,95 @@ class ImageLibrary(BaseModel):
         return bool(cls.FILE_NAME_PATTERN.match(file_name or ''))
 
 
+class ImageMatchType(str, Enum):
+    """How well a library's auto images fit a card, best first"""
+    EXACT = "exact"
+    TEAM_MATCH = "team match"
+    YEAR_MATCH = "year match"
+    NO_MATCH = "no match"
+
+    @property
+    def rank(self) -> int:
+        return list(ImageMatchType).index(self)
+
+
+class AutoImageFile(BaseModel):
+    """Attributes parsed from an auto image file name.
+
+    ex: BG-2025-Raleigh-(raleica01)-(SEA).png
+      - component: BG
+      - year: 2025
+      - player_name: Raleigh
+      - player_id: raleica01
+      - team_id: SEA
+    """
+
+    component: Optional[str] = None
+    year: str
+    player_name: str = ''
+    player_id: str
+    team_id: Optional[str] = None
+    player_type_override: Optional[str] = None
+    is_postseason: bool = False
+    is_wbc: bool = False
+
+    @classmethod
+    def from_file_name(cls, file_name: str) -> Optional['AutoImageFile']:
+        """Parse a {COMPONENT}-{YEAR}-{NAME}-({PLAYER ID})-(...) file name. None if it has no player id."""
+        component, _, name = (file_name or '').partition('-')
+        if not name:
+            return None
+        return cls.from_name_without_component(name, component=component.upper())
+
+    @classmethod
+    def from_name_without_component(cls, name: str, component: Optional[str] = None) -> Optional['AutoImageFile']:
+        """Parse a {YEAR}-{NAME}-({PLAYER ID})-(...) name (component prefix already removed)."""
+        attributes: dict = {'component': component, 'is_wbc': '(WBC_' in name}
+        name_parts = name.rsplit('.', 1)[0].split('-')
+        player_name_parts: list[str] = []
+        for index, text in enumerate(name_parts):
+            has_parenthesis = text.startswith('(') and text.endswith(')')
+            value = text[1:-1] if has_parenthesis else text
+
+            if index == 0:
+                attributes['year'] = text
+                continue
+
+            if 'player_id' not in attributes:
+                if has_parenthesis:
+                    attributes['player_id'] = value
+                else:
+                    player_name_parts.append(text)
+                # PLAYER ID CAN ALSO BE SHORT ENOUGH TO LOOK LIKE A TEAM, SO DON'T FALL THROUGH
+                continue
+
+            if has_parenthesis and len(text) <= 5:
+                attributes['team_id'] = value
+            if text == '(POST)':
+                attributes['is_postseason'] = True
+            if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
+                # KEEP PARENTHESIS AND LOWERCASE TO MATCH STATS ARCHIVE (e.g., (hitter), (pitcher))
+                attributes['player_type_override'] = text.lower()
+
+        if not attributes.get('player_id') or not attributes.get('year'):
+            return None
+        return cls(player_name=' '.join(player_name_parts), **attributes)
+
+    def match_type(self, year: str, team_id: Optional[str], player_type_override: Optional[str]) -> ImageMatchType:
+        """How well this image fits a card. Postseason/WBC images never count, matching the card_bot classification."""
+        if self.is_postseason or self.is_wbc or (self.player_type_override or None) != (player_type_override or None):
+            return ImageMatchType.NO_MATCH
+        is_year_match = self.year == str(year)
+        is_team_match = team_id is not None and self.team_id == team_id
+        if is_year_match and is_team_match:
+            return ImageMatchType.EXACT
+        if is_team_match:
+            return ImageMatchType.TEAM_MATCH
+        if is_year_match:
+            return ImageMatchType.YEAR_MATCH
+        return ImageMatchType.NO_MATCH
+
+
 class ImageSource(BaseModel):
 
     type: ImageSourceType = ImageSourceType.EMPTY
