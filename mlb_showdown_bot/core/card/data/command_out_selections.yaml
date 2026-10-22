@@ -179,6 +179,30 @@
   note: 12 Onbase / 9 Out chart is a better OPS match and still reflects his lack of HR.
 
 # ---------------------------------
+# Alex Vesia 2026
+# ---------------------------------
+- key: vesiaal01-2026-04-05-EXP
+  player_id: vesiaal01
+  year: "2026"
+  sets: ["2004", "2005", "EXPANDED"]
+  command: 2
+  outs: 20
+  added_in: "4.5"
+  note: 2 Control / 20 Out chart matches his OPS against and diversifies the reliever pool.
+
+# ---------------------------------
+# Brent Headrick 2026
+# ---------------------------------
+- key: headrbr01-2026-04-05-EXP
+  player_id: headrbr01
+  year: "2026"
+  sets: ["2004", "2005", "EXPANDED"]
+  command: 1
+  outs: 19
+  added_in: "4.5"
+  note: 1 Control / 19 Out chart better reflects his SLG against, the 4 Control / 17 Out chart understated it.
+
+# ---------------------------------
 # Johan Santana 2004
 # ---------------------------------
 - key: santajo02-2004-04-05
