@@ -21,6 +21,14 @@
 # ---------------------------------
 # Colson Montgomery 2026
 # ---------------------------------
+- key: montgco01-2026-00-01
+  player_id: montgco01
+  year: "2026"
+  sets: ["2000", "2001"]
+  command: 9
+  outs: 9
+  added_in: "4.5"
+  note: 9 Onbase / 9 Out chart matches his OPS and helps get closer to his strikeout total.
 - key: montgco01-2026-04-05-EXP
   player_id: montgco01
   year: "2026"
@@ -49,6 +57,126 @@
   outs: 8
   added_in: "4.5"
   note: 13 Onbase / 8 Out chart matches his OPS closely and is more representative of his overall performance.
+
+# ---------------------------------
+# Max Muncy (ATH) 2026
+# ---------------------------------
+- key: muncyma02-2026-00
+  player_id: muncyma02
+  year: "2026"
+  sets: ["2000"]
+  command: 8
+  outs: 7
+  added_in: "4.5"
+  note: 8 Onbase / 7 Out chart is an exact OPS match.
+
+# ---------------------------------
+# Albert Suarez 2026
+# ---------------------------------
+- key: suareal01-2026-00
+  player_id: suareal01
+  year: "2026"
+  sets: ["2000"]
+  command: 1
+  outs: 19
+  added_in: "4.5"
+  note: 1 Control / 19 Out chart matches his OPS against.
+
+# ---------------------------------
+# Griffin Jax 2026
+# ---------------------------------
+- key: jaxgr01-2026-00
+  player_id: jaxgr01
+  year: "2026"
+  sets: ["2000"]
+  command: 0
+  outs: 20
+  added_in: "4.5"
+  note: 0 Control / 20 Out chart matches his OPS against.
+
+# ---------------------------------
+# Andres Gimenez 2026
+# ---------------------------------
+- key: gimenan01-2026-01
+  player_id: gimenan01
+  year: "2026"
+  sets: ["2001"]
+  command: 6
+  outs: 0
+  added_in: "4.5"
+  note: 6 Onbase / 0 Out chart matches his OPS and adds more 6 Onbase cards to the set.
+
+# ---------------------------------
+# Foster Griffin 2026
+# ---------------------------------
+- key: grifffo01-2026-01
+  player_id: grifffo01
+  year: "2026"
+  sets: ["2001"]
+  command: 1
+  outs: 19
+  added_in: "4.5"
+  note: 1 Control / 19 Out chart matches his OPS against.
+
+# ---------------------------------
+# Michael Busch 2026
+# ---------------------------------
+- key: buschmi02-2026-02
+  player_id: buschmi02
+  year: "2026"
+  sets: ["2002"]
+  command: 12
+  outs: 8
+  added_in: "4.5"
+  note: 12 Onbase / 8 Out chart matches his OPS and adds more 12 Onbase cards to the set.
+
+# ---------------------------------
+# Eugenio Suarez 2026
+# ---------------------------------
+- key: suareeu01-2026-02
+  player_id: suareeu01
+  year: "2026"
+  sets: ["2002"]
+  command: 12
+  outs: 10
+  added_in: "4.5"
+  note: 12 Onbase / 10 Out chart is an exact OPS match and adds more 12 Onbase cards to the set.
+
+# ---------------------------------
+# Cam Schlittler 2026
+# ---------------------------------
+- key: schlica01-2026-02
+  player_id: schlica01
+  year: "2026"
+  sets: ["2002"]
+  command: 2
+  outs: 20
+  added_in: "4.5"
+  note: 2 Control / 20 Out chart matches his OPS against and diversifies the top line of pitchers.
+
+# ---------------------------------
+# Fernando Tatis Jr. 2026
+# ---------------------------------
+- key: tatisfe02-2026-03
+  player_id: tatisfe02
+  year: "2026"
+  sets: ["2003"]
+  command: 10
+  outs: 5
+  added_in: "4.5"
+  note: 10 Onbase / 5 Out chart is a better OPS match, the 11 Onbase / 6 Out chart inflates his HR.
+
+# ---------------------------------
+# Vladimir Guerrero Jr. 2026
+# ---------------------------------
+- key: guerrvl02-2026-03
+  player_id: guerrvl02
+  year: "2026"
+  sets: ["2003"]
+  command: 12
+  outs: 9
+  added_in: "4.5"
+  note: 12 Onbase / 9 Out chart is a better OPS match and still reflects his lack of HR.
 
 # ---------------------------------
 # Johan Santana 2004
