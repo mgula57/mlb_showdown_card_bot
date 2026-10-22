@@ -1045,6 +1045,26 @@ class Chart(BaseModel):
     # ---------------------------------------
 
     @property
+    def __hitter_command_set_accuracy_weights(self) -> dict[Stat, float]:
+        """Hitter accuracy weights for 2003-2005 sets"""
+
+        # 2026+ LOWER COMMAND WEIGHT SO LARGE SLG/OPS MISSES CAN OUTWEIGH AN EXACT COMMAND MATCH
+        if self.year and self.year >= 2026:
+            return {
+                Stat.COMMAND: 0.30,
+                Stat.OBP: 0.25,
+                Stat.SLG: 0.15,
+                Stat.OPS: 0.30,
+            }
+
+        return {
+            Stat.COMMAND: 0.50,
+            Stat.OBP: 0.25,
+            Stat.SLG: 0.15,
+            Stat.OPS: 0.10,
+        }
+
+    @property
     def accuracy_stat_weights(self) -> dict[Stat, float]:
         """Get stat weights for accuracy calculation"""
         match self.set:
@@ -1089,12 +1109,7 @@ class Chart(BaseModel):
                     }
             case '2003':
                 if self.is_hitter:
-                    return {
-                        Stat.COMMAND: 0.50,
-                        Stat.OBP: 0.25,
-                        Stat.SLG: 0.15,
-                        Stat.OPS: 0.10,
-                    }
+                    return self.__hitter_command_set_accuracy_weights
                 else:
                     return {
                         Stat.COMMAND: 0.30,
@@ -1104,12 +1119,7 @@ class Chart(BaseModel):
                     }
             case '2004':
                 if self.is_hitter:
-                    return {
-                        Stat.COMMAND: 0.50,
-                        Stat.OBP: 0.25,
-                        Stat.SLG: 0.15,
-                        Stat.OPS: 0.10,
-                    }
+                    return self.__hitter_command_set_accuracy_weights
                 else:
                     return {
                         Stat.COMMAND: 0.20,
@@ -1119,12 +1129,7 @@ class Chart(BaseModel):
                     }
             case '2005':
                 if self.is_hitter:
-                    return {
-                        Stat.COMMAND: 0.50,
-                        Stat.OBP: 0.25,
-                        Stat.SLG: 0.15,
-                        Stat.OPS: 0.10,
-                    }
+                    return self.__hitter_command_set_accuracy_weights
                 else:
                     return {
                         Stat.COMMAND: 0.15,
