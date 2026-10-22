@@ -1268,14 +1268,24 @@ class Chart(BaseModel):
             accuracy_cutoff = 0.99 if self.is_hitter else 0.99
             accuracy_command_minimum = 0.90 if self.is_hitter else 0.35
 
+            # REST OF THE CHART MUST CLEAR THE NON-COMMAND CUTOFF, THEN COMMAND IS BOOSTED UP TO THE TARGET
+            non_command_cutoff = accuracy_cutoff
+            command_target = accuracy_cutoff
+
             # POST 2026, INCREASE PROBABILITY OF PITCHER COMMAND ACCURACY BOOSTS TO ADD MORE VARIETY TO PITCHER CHARTS
+            #  - REST OF CHART > 98%: FULL BOOST TO 98%
+            #  - REST OF CHART 95-98%: CLOSE 80% OF THE GAP TO THE REST OF THE CHART'S ACCURACY, SO COMMAND ERROR STILL PENALIZES EXTREME CHARTS
             if self.year and self.year >= 2026 and self.is_pitcher:
                 accuracy_cutoff = 0.98
-                accuracy_command_minimum = 0.25
+                accuracy_command_minimum = 0.0 # ONLY NEEDS TO BE > 0 TO AVOID DIVIDING BY ZERO
+                non_command_cutoff = 0.95
+                command_target = accuracy_cutoff
+                if accuracy_non_command <= accuracy_cutoff:
+                    command_target = accuracy_command + 0.8 * (accuracy_non_command - accuracy_command)
 
-            is_boosted_command_accuracy = accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > accuracy_command_minimum
+            is_boosted_command_accuracy = accuracy_non_command > non_command_cutoff and accuracy_command < command_target and accuracy_command > accuracy_command_minimum
             if is_boosted_command_accuracy:
-                command_chart_accuracy.adjustment_pct = round(accuracy_cutoff / accuracy_command, 4)
+                command_chart_accuracy.adjustment_pct = round(command_target / accuracy_command, 4)
                 command_chart_accuracy.calculate_accuracy_attributes()
                 self.accuracy_breakdown[Stat.COMMAND] = command_chart_accuracy
                 self.command_out_accuracy_weight = command_chart_accuracy.adjustment_pct
@@ -1288,7 +1298,16 @@ class Chart(BaseModel):
             is_out_of_bounds = (self.outs_full < out_low_bound and self.command < onbase_upper_bound) or (self.outs_full > out_high_bound and self.command > onbase_lower_bound)
             is_reduction = self.is_hitter and is_out_of_bounds and not self.is_outlier_reduction_disabled and not is_boosted_command_accuracy and accuracy_non_command < 0.99
             if is_reduction:
-                command_chart_accuracy.adjustment_pct = 0.925
+                reduction_pct = 0.925
+
+                # POST 2026, SOFTEN THE REDUCTION FOR OUTLIERS THAT ARE ALREADY VERY CLOSE TO 100% UNADJUSTED ACCURACY
+                # SCALES LINEARLY FROM FULL REDUCTION AT/BELOW 95% TO A MILD REDUCTION AT/ABOVE 99%
+                if self.year and self.year >= 2026:
+                    unadjusted_accuracy = sum([breakdown.weighted_accuracy for breakdown in self.accuracy_breakdown.values()])
+                    closeness = min(max((unadjusted_accuracy - 0.95) / (0.99 - 0.95), 0.0), 1.0)
+                    reduction_pct = round(0.925 + (0.975 - 0.925) * closeness, 4)
+
+                command_chart_accuracy.adjustment_pct = reduction_pct
                 command_chart_accuracy.calculate_accuracy_attributes()
                 self.accuracy_breakdown[Stat.COMMAND] = command_chart_accuracy
                 self.command_out_accuracy_weight = command_chart_accuracy.adjustment_pct
