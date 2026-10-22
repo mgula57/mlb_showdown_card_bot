@@ -1,6 +1,7 @@
 from pprint import pprint
 import json
 import os
+import tempfile
 import time
 from flask import Blueprint, request, jsonify
 
@@ -22,7 +23,10 @@ _trending_cache: dict[str, tuple[list, float]] = {}
 _popular_cache: dict[str, tuple[list, float]] = {}
 _spotlight_cache: dict[str, tuple[list, float]] = {}  # key: "{set}:{limit}"
 _total_card_count_cache: tuple[int, float] | None = None
-_TOTAL_CARD_COUNT_TTL = 60 * 60  # 1 hour
+_TOTAL_CARD_COUNT_TTL = 6 * 60 * 60  # 6 hours
+# Mirrored to disk so every gunicorn worker on the dyno (including ones freshly recycled by
+# max_requests, which start with an empty in-memory cache) reuses one COUNT(*) per TTL.
+_TOTAL_CARD_COUNT_FILE = os.path.join(tempfile.gettempdir(), "showdown_total_card_count.json")
 
 # Keyed by the full search payload, so cardinality is effectively unbounded
 # (every distinct filter combination a user searches with) — must be bounded.
@@ -119,13 +123,34 @@ def fetch_cards_by_ids():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def _read_total_card_count_file() -> tuple[int, float] | None:
+    """Read the dyno-shared (count, cached_at) written by any worker, or None if absent/corrupt."""
+    try:
+        with open(_TOTAL_CARD_COUNT_FILE) as f:
+            data = json.load(f)
+        return int(data['total_count']), float(data['cached_at'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+def _write_total_card_count_file(total_count: int, cached_at: float) -> None:
+    """Atomically persist the count so concurrent readers never see a partial file."""
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(_TOTAL_CARD_COUNT_FILE))
+        with os.fdopen(fd, 'w') as f:
+            json.dump({'total_count': total_count, 'cached_at': cached_at}, f)
+        os.replace(tmp_path, _TOTAL_CARD_COUNT_FILE)
+    except OSError as e:
+        print(f"Failed to write total card count cache file: {e}")
+
 @card_db_bp.route('/cards/total_count', methods=["GET"])
 def fetch_total_card_count():
     """Fetch the total count of cards in the database"""
     try:
 
-        # CHECK CACHE FIRST
+        # CHECK CACHE FIRST (MEMORY, THEN THE DYNO-SHARED FILE)
         global _total_card_count_cache
+        if _total_card_count_cache is None:
+            _total_card_count_cache = _read_total_card_count_file()
         if _total_card_count_cache is not None:
             cached_count, cached_at = _total_card_count_cache
             if (time.time() - cached_at) < _TOTAL_CARD_COUNT_TTL:
@@ -136,6 +161,7 @@ def fetch_total_card_count():
             total_count = db.fetch_total_card_count()
 
         _total_card_count_cache = (total_count, time.time())
+        _write_total_card_count_file(*_total_card_count_cache)
         return jsonify({'total_count': total_count})
 
     except Exception as e:
