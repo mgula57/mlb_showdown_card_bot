@@ -21,6 +21,7 @@ import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Modal } from "../shared/Modal";
+import PinnedFooterScrollArea from "../shared/PinnedFooterScrollArea";
 import { useSiteSettings, showdownSets, imageForSet } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
@@ -91,6 +92,9 @@ type ShowdownCardSearchProps = {
     actionButton?: {
         icon: React.ReactNode;
         label?: string;
+        /** Label for the button in the card detail sidebar/modal, where there's room to spell out
+         * the action (e.g. "Add to Edition"). Defaults to CardDetail's "Draft". */
+        detailLabel?: string;
         bgColorClass?: string;
         onClick: (card: CardDatabaseRecord) => void;
         /** Greys out the button and blocks clicks everywhere it's rendered (grid, sidebar, modal) — e.g. while a previous pick is still saving. */
@@ -1664,8 +1668,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         </div>
                         
 
-                        {/* Scrollable Content */}
-                        <div className="flex-1 overflow-y-auto min-h-0">
+                        {/* Scrollable Content — CardDetail's action bar pins to the bottom of the screen */}
+                        <PinnedFooterScrollArea className="flex-1">
                             <CardDetail
                                 showdownBotCardData={{ card: selectedCardForSidebar?.card_data } as ShowdownBotCardAPIResponse}
                                 cardId={selectedCardForSidebar?.card_id}
@@ -1677,9 +1681,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     ? () => { actionButton.onClick(selectedCardForSidebar); handleCloseSidebar(); }
                                     : undefined}
                                 draftDisabled={actionButton?.disabled}
+                                draftLabel={actionButton?.detailLabel}
                                 enableSetSwitcher={enableSetSwitcher}
                             />
-                        </div>
+                        </PinnedFooterScrollArea>
                     </div>
                 </div>
                 
@@ -1713,6 +1718,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             ? () => { actionButton.onClick(selectedCardForModal); handleCloseModal(); }
                             : undefined}
                         draftDisabled={actionButton?.disabled}
+                        draftLabel={actionButton?.detailLabel}
                         enableSetSwitcher={enableSetSwitcher}
                     />
                 </Modal>

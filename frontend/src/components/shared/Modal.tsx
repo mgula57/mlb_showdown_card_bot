@@ -29,6 +29,7 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { FaXmark } from 'react-icons/fa6';
+import PinnedFooterScrollArea from './PinnedFooterScrollArea';
 
 // Global counter to track multiple concurrent modals for proper scroll lock management
 let bodyScrollLockCount = 0;
@@ -45,7 +46,7 @@ type ModalProps = {
     title?: React.ReactNode;
     /** Optional subtitle shown under the title, e.g. a short description of the modal's purpose */
     subtitle?: string;
-    /** Optional footer content (e.g. action buttons), pinned below the scrollable body */
+    /** Optional footer content (e.g. action buttons), pinned translucently over the bottom of the scrollable body */
     footer?: React.ReactNode;
     /** Size preset for the modal width - defaults to 'lg' */
     size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -237,17 +238,11 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                     </div>
                 )}
 
-                {/* Scrollable modal content area */}
-                <div className="flex-1 min-h-0 overflow-y-auto">
+                {/* Scrollable modal content area. The optional `footer` (and anything children pin via
+                    PinnedFooterPortal) floats translucently over its bottom edge. */}
+                <PinnedFooterScrollArea className="flex-1" footer={footer}>
                     {children}
-                </div>
-
-                {/* Optional footer (e.g. action buttons), pinned below the scrollable body */}
-                {footer && (
-                    <div className="border-t border-form-element shrink-0 p-3 flex flex-col gap-2">
-                        {footer}
-                    </div>
-                )}
+                </PinnedFooterScrollArea>
 
             </div>
         </div>

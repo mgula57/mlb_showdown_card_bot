@@ -44,6 +44,7 @@ import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
 import PointsContributionBars from './card_detail/PointsContributionBars';
 import { CardComps } from './card_detail/CardComps';
 import ImageSourceBadge from './card_detail/ImageSourceBadge';
+import PinnedFooterPortal from '../shared/PinnedFooterPortal';
 import { cardImagePublicUrl } from '../../api/supabase';
 
 /**
@@ -78,6 +79,11 @@ type CardDetailProps = {
     onDraft?: () => void;
     /** Greys out the Draft button and blocks clicks — e.g. while a previous pick is still saving. */
     draftDisabled?: boolean;
+    /** Text for the `onDraft` button — e.g. "Add to Edition" in the Release Builder. Defaults to "Draft". */
+    draftLabel?: string;
+    /** Extra controls for the action bar (pinned to the bottom of an enclosing Modal/sidebar), shown left of
+     * Customize/Draft — e.g. a release card's tags and preview slot. */
+    actionBarContent?: React.ReactNode;
     /** When true, the Set badge next to the player name becomes a dropdown (styled like the
      * header's Showdown Set selector) that swaps the displayed card for the same player/year in
      * a different set. Selecting a new card elsewhere always discards this — it only affects the
@@ -128,7 +134,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false, styleOverrides }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides }: CardDetailProps) {
     const withStyleOverrides = (data: ShowdownBotCardAPIResponse | null | undefined) => (
         styleOverrides && data?.card ? { ...data, card: applyCardStyleOverrides(data.card, styleOverrides) } : data
     );
@@ -482,10 +488,11 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 </div>
             )}
 
-            {/* Name and player attributes */}
+            {/* Name and player attributes. Right padding keeps the row clear of the Modal's floating
+                close button (most CardDetails render in a Modal). */}
             <div className="
                 flex flex-wrap items-center
-                gap-1 mb-2
+                gap-1 mb-2 pr-8
             ">
                 <a 
                     href={activeCardData?.card?.bref_url || '#'} 
@@ -547,29 +554,66 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                     </div>
                 ))}
 
-                {/* Customize — opens the Custom Card Builder prefilled with this card */}
-                {context !== 'custom' && activeCardData?.card && (
-                    <button
-                        type="button"
-                        onClick={() => activeCardData.card && customizeCard(activeCardData.card)}
-                        title="Open in the Custom Card Builder"
-                        className="
-                            flex items-center gap-2
-                            py-1 px-4 rounded-2xl
-                            border border-(--divider)
-                            text-sm font-semibold
-                            hover:bg-(--background-secondary) active:scale-95 transition
-                            cursor-pointer
-                        "
-                    >
-                        <FaWandMagicSparkles className="w-3.5 h-3.5" />
-                        Customize
-                    </button>
-                )}
-
                 {/* Player image source (Showdown Bot library, user's Drive library, upload, link) */}
                 <ImageSourceBadge source={activeCardData?.card?.image?.source} />
             </div>
+
+            {/* Action bar — caller-supplied controls (`actionBarContent`, e.g. a release card's tags)
+                on the left, Customize and the primary `onDraft` action on the right. Inside a Modal or the
+                search sidebar (any PinnedFooterScrollArea) it moves to the pinned footer so it stays
+                reachable while the detail scrolls; elsewhere it's a row under the header. */}
+            {activeCardData?.card && (context !== 'custom' || onDraft || actionBarContent) && (
+                <PinnedFooterPortal>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 w-full">
+                    {actionBarContent && (
+                        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 min-w-0">
+                            {actionBarContent}
+                        </div>
+                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                        {/* Customize — opens the Custom Card Builder prefilled with this card */}
+                        {context !== 'custom' && (
+                            <button
+                                type="button"
+                                onClick={() => activeCardData.card && customizeCard(activeCardData.card)}
+                                title="Open in the Custom Card Builder"
+                                className="
+                                    flex items-center gap-2
+                                    py-1 px-4 rounded-2xl
+                                    border border-(--divider)
+                                    text-sm font-semibold
+                                    hover:bg-(--background-secondary) active:scale-95 transition
+                                    cursor-pointer
+                                "
+                            >
+                                <FaWandMagicSparkles className="w-3.5 h-3.5" />
+                                Customize
+                            </button>
+                        )}
+
+                        {onDraft && (
+                            <button
+                                type="button"
+                                disabled={draftDisabled}
+                                title={draftDisabled ? 'Saving your last pick…' : undefined}
+                                onClick={onDraft}
+                                className={`
+                                    flex items-center gap-2
+                                    py-1 px-4 rounded-2xl
+                                    border border-transparent
+                                    animated-showdown-gradient text-white text-sm font-bold
+                                    shadow-md transition
+                                    ${draftDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90 active:scale-95 cursor-pointer'}
+                                `}
+                            >
+                                <FaPlus className="w-3.5 h-3.5" />
+                                {draftLabel}
+                            </button>
+                        )}
+                    </div>
+                </div>
+                </PinnedFooterPortal>
+            )}
 
             {/* Tooltip */}
             {tooltip && (
@@ -792,29 +836,6 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 </SectionPanel>
 
             </div>
-
-            {/* Draft button — pinned to the bottom-right of the modal (anchors to the Modal's
-                `relative` container, so it stays put as the detail content scrolls). The root's
-                `pb-24` keeps the last panel clear of it. */}
-            {onDraft && (
-                <button
-                    type="button"
-                    disabled={draftDisabled}
-                    title={draftDisabled ? 'Saving your last pick…' : undefined}
-                    onClick={onDraft}
-                    className={`
-                        absolute top-10 right-2 z-100
-                        flex items-center gap-1
-                        px-5 py-5 rounded-full
-                        animated-showdown-gradient text-white font-bold text-sm
-                        shadow-lg transition
-                        ${draftDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90 active:scale-95 cursor-pointer'}
-                    `}
-                >
-                    <FaPlus className="w-4 h-4" />
-                    Draft
-                </button>
-            )}
 
         </div>
     );

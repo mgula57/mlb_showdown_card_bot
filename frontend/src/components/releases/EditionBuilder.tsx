@@ -764,6 +764,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     actionButton={{
                                         icon: <FaPlus />,
                                         label: 'Add',
+                                        detailLabel: 'Add to Edition',
                                         bgColorClass: 'bg-(--showdown-red) opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
                                         onClick: handleAddCard,
                                     }}
@@ -1213,21 +1214,6 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 <Modal
                     onClose={() => setDetailCard(null)}
                     isVisible={!!detailCard}
-                    footer={detailCard && (detailCardTags.length > 0 || detailCardPreviewRank || (!readOnly && !activePreview)) ? (
-                        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 w-full">
-                            <ReleaseCardTagsEditor
-                                tags={detailCardTags}
-                                editionTags={editionTags}
-                                readOnly={readOnly || !!activePreview}
-                                onChange={handleDetailCardTagsChange}
-                            />
-                            <ReleaseCardPreviewRankPicker
-                                rank={detailCardPreviewRank}
-                                readOnly={readOnly || !!activePreview}
-                                onChange={rank => detailCard && handlePreviewRankChange(detailCard.source_card_id, rank)}
-                            />
-                        </div>
-                    ) : undefined}
                 >
                     <CardDetail
                         showdownBotCardData={detailCard?.card_snapshot.card_data ? { card: detailCard.card_snapshot.card_data } as ShowdownBotCardAPIResponse : undefined}
@@ -1236,6 +1222,21 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         hideTrendGraphs={true}
                         context="release"
                         parent="modal"
+                        actionBarContent={detailCard && (detailCardTags.length > 0 || detailCardPreviewRank || (!readOnly && !activePreview)) ? (
+                            <>
+                                <ReleaseCardTagsEditor
+                                    tags={detailCardTags}
+                                    editionTags={editionTags}
+                                    readOnly={readOnly || !!activePreview}
+                                    onChange={handleDetailCardTagsChange}
+                                />
+                                <ReleaseCardPreviewRankPicker
+                                    rank={detailCardPreviewRank}
+                                    readOnly={readOnly || !!activePreview}
+                                    onChange={rank => detailCard && handlePreviewRankChange(detailCard.source_card_id, rank)}
+                                />
+                            </>
+                        ) : undefined}
                     />
                 </Modal>
             </div>
