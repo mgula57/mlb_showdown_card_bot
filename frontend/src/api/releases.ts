@@ -149,6 +149,8 @@ export type AlgorithmConfig = {
     position_targets?: AlgorithmPositionTarget[];
     /** 2000/2001 only: uncap speed (instead of 10/15/20) and recalculate each card's points. */
     variable_speed?: boolean;
+    /** Frontend-only: the Algorithm tab template these settings started from. Saved with the edition; ignored by the backend. */
+    template_id?: string;
 };
 
 export type AlgorithmPreviewPlayer = CardDatabaseRecord & { algorithm_set_number: number | null };

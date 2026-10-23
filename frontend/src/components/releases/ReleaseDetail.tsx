@@ -188,7 +188,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         )}
                     </div>
                     <div className="hidden md:block w-px my-2.5 bg-(--divider) shrink-0" />
-                    <Tabs.List className="order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto border-t border-(--divider) md:border-t-0">
+                    <Tabs.List className="order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto scrollbar-hide border-t border-(--divider) md:border-t-0">
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {edition.name}

@@ -83,7 +83,7 @@ const DEFAULT_SORT_LAYERS: SortLayer[] = [
 ];
 
 const DEFAULT_NUMBERING: NumberingSettings = {
-    mode: 'manual',
+    mode: 'auto',
     autoLive: true,
     zeroPad: false,
     prefix: '',
@@ -122,7 +122,7 @@ function parseNumberingSettings(attributes: Record<string, unknown>): NumberingS
     const raw = attributes.numbering as Partial<NumberingSettings> | undefined;
     if (!raw || typeof raw !== 'object') return DEFAULT_NUMBERING;
     return {
-        mode: raw.mode === 'auto' || raw.mode === 'none' ? raw.mode : 'manual',
+        mode: raw.mode === 'manual' || raw.mode === 'none' ? raw.mode : DEFAULT_NUMBERING.mode,
         autoLive: raw.autoLive ?? true,
         zeroPad: raw.zeroPad ?? false,
         prefix: sanitizePrefix(raw.prefix),
@@ -267,7 +267,6 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         setBuildMethod(method);
         try { localStorage.setItem(buildMethodStorageKey(edition.id), method); } catch { /* storage unavailable */ }
     }
-    const [blueprintSlot, setBlueprintSlot] = useState<HTMLDivElement | null>(null);
     const [buildPanelWidth, setBuildPanelWidth] = useState<number>(() => loadSavedBuildPanelWidth() ?? DEFAULT_BUILD_PANEL_WIDTH[buildMethod]);
     // Summary mounts lazily on first open, then stays mounted so its filters/WOTC comparison survive tab switches.
     const [summaryMounted, setSummaryMounted] = useState(false);
@@ -644,7 +643,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         title="Default card style for this edition"
                         className="ml-auto flex items-center gap-2 min-h-9 px-3 py-1.5 rounded-lg border border-(--divider) text-[13px] font-bold text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                     >
-                        <FaPalette className="text-[12px] shrink-0" /> <span className="hidden sm:inline">Card</span> Style
+                        <FaPalette className="text-[12px] shrink-0" />
+                        <span><span className="hidden sm:inline">Card </span>Style</span>
                         <span className="hidden sm:contents">{formSectionSummary(styleSummary)}</span>
                     </button>
                 )}
@@ -731,7 +731,6 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 </button>
                                 <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Build Method</span>
                             </div>
-                            <div ref={setBlueprintSlot} />
                         </div>
                         <Tabs.Root
                             value={buildMethod}
@@ -754,7 +753,6 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     defaultShowdownSet={defaultShowdownSet}
                                     onPreviewResult={handlePreviewResult}
                                     onEditionUpdated={onEditionUpdated}
-                                    blueprintSlot={blueprintSlot}
                                 />
                             </Tabs.Content>
                             <Tabs.Content value="manual" className="flex-1 min-h-0 flex flex-col focus:outline-none">
