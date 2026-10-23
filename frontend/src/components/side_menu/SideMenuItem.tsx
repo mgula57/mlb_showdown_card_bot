@@ -31,11 +31,9 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
-import CardBuildIcon from "../customs/CardBuildIcon";
-import { FaPeopleGroup, FaLayerGroup } from "react-icons/fa6";
 import { markNavItemSeen, useNavItemIsNew } from "../../hooks/useSeenNavItems";
-// import { FaDice } from "react-icons/fa6"; // re-add with the Simulate nav item below
+import { SideMenuRowContent } from "./SideMenuRowContent";
+import { sideMenuRowClassName } from "./sideMenuStyles";
 
 /**
  * Props for the SideMenuItem component
@@ -84,94 +82,25 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
     };
 
     return (
-        <NavLink 
-            to={item.path} 
+        <NavLink
+            to={item.path}
             onClick={handleClick}
-            className={`
-                flex items-center h-4 py-6 rounded-md w-full
-                hover:bg-(--background-tertiary) cursor-pointer
-                ${isSideMenuOpen ? 'justify-start pl-4' : 'justify-center'}
-                ${isSelected ? 'bg-tertiary' : ''}
-            `}
+            data-selected={isSelected}
+            aria-current={isSelected ? 'page' : undefined}
+            title={isSideMenuOpen ? undefined : item.text}
+            className={sideMenuRowClassName(isSelected)}
         >
-        
-            {/* Icon - Always visible, serves as the collapsed state identifier */}
-            <div className="relative flex flex-col items-center justify-center text-primary">
-                <div className="flex items-center justify-center text-[20px]">
-                    {item.icon && <item.icon />}
-                </div>
-                
-                <span className={`${isSideMenuOpen ? 'hidden' : 'block'} mt-1 text-[7px] font-semibold text-primary text-center leading-tight max-w-10`}>
-                    {item.text}
-                </span>
-                {isNew && (
-                    <span className={`absolute text-[6px] font-bold leading-none px-1 py-0.5 rounded-full bg-blue-600 text-white ${isSideMenuOpen ? '-top-2 -left-2' : '-top-1 -right-2'}`}>
+            <SideMenuRowContent
+                icon={item.icon}
+                text={item.text}
+                isSideMenuOpen={isSideMenuOpen}
+                isSelected={isSelected}
+                badge={isNew && (
+                    <span className={`absolute text-[6px] font-bold leading-none px-1 py-0.5 rounded-full bg-blue-600 text-white ${isSideMenuOpen ? '-top-2 left-0' : '-top-1 -right-1'}`}>
                         NEW
                     </span>
                 )}
-            </div>
-
-            {/* Text Label - Only visible when menu is expanded */}
-            <h2 className={`${isSideMenuOpen ? 'flex items-center gap-2' : 'hidden'} pl-2 text-lg font-semibold text-primary leading-tight`}>
-                {item.text}
-            </h2>
+            />
         </NavLink>
     );
 }
-
-/**
- * Configuration array defining all available navigation menu items
- * 
- * Each item includes:
- * - **text**: Display label shown when menu is expanded
- * - **icon**: React Icon component for visual identification
- * - **path**: React Router path for navigation destination
- * 
- * Items are rendered in the order defined here and automatically
- * integrate with the routing system for active state detection.
- */
-export const sideMenuItems: SideMenuItemType[] = [
-    {
-        text: "Home",
-        icon: FaHome,      // Home icon representing home/exploration
-        path: "/home"
-    },
-    {
-        text: "Card Builder",
-        icon: CardBuildIcon,  // Card/profile icon representing custom card creation
-        path: "/customs",
-    },
-    {
-        text: "Card Explorer",
-        icon: FaCompass,      // Compass icon representing exploration/discovery
-        path: "/cards"
-    },
-    {
-        text: "Team Builder",
-        icon: FaPeopleGroup,      // Group icon representing teams/rosters
-        path: "/teams"
-    },
-    {
-        text: "Seasons",
-        icon: FaCalendar,      // Calendar icon representing seasons/schedules
-        path: "/seasons"
-    },
-    // Hidden for this release — the Simulate flow is reached from the Seasons page instead.
-    // {
-    //     text: "Simulate",
-    //     icon: FaDice,      // Dice icon representing a simulated season
-    //     path: "/simulate",
-    //     isNew: true
-    // },
-    {
-        text: "Release Builder", // TODO: Update name once ready for public release
-        icon: FaLayerGroup,      // Box icon representing a packaged card release/set
-        path: "/release-builder",
-        isNew: true
-    },
-    {
-        text: "Account",
-        icon: FaUserCircle,
-        path: "/account"
-    },
-];

@@ -13,3 +13,12 @@ export interface SideMenuItem {
   /** If true, shows a NEW badge on the item. */
   isNew?: boolean;
 }
+/**
+ * A group of menu items in the sidebar. Untitled sections render without a header.
+ */
+export interface SideMenuSection {
+  /** Header shown above the group when the menu is expanded (a divider when collapsed). */
+  title?: string;
+  /** Items in the group, rendered in order. */
+  items: SideMenuItem[];
+}

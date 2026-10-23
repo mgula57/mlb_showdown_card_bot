@@ -30,9 +30,10 @@
 
 import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { FaChevronRight, FaChevronLeft } from "react-icons/fa";
+import { FaChevronRight } from "react-icons/fa";
 import { FaXmark } from "react-icons/fa6";
-import { SideMenuItem, sideMenuItems } from "./SideMenuItem";
+import { SideMenuItem } from "./SideMenuItem";
+import { sideMenuItems, sideMenuSections, accountMenuItem } from "./sideMenuConfig";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import ShowdownBotLogo from "../shared/ShowdownBotLogo";
 import ThemeToggleButton from "./ThemeToggleButton";
@@ -201,6 +202,39 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
         };
     }, [isOpen, isMobile]);
 
+    /**
+     * Sliding active-tab indicator
+     *
+     * A single highlight is positioned under the selected item and glides between items on
+     * route change, instead of each item toggling its own background. It lives on the nav
+     * (not the item list) so it can travel down to Account in the footer. The first
+     * measurement snaps into place (no slide in from the top on mount); later ones animate.
+     */
+    const navRef = React.useRef<HTMLElement>(null);
+    const [indicator, setIndicator] = React.useState<{ top: number; height: number } | null>(null);
+    const [indicatorCanAnimate, setIndicatorCanAnimate] = React.useState(false);
+
+    React.useLayoutEffect(() => {
+        const nav = navRef.current;
+        if (!nav) return;
+        const measure = () => {
+            const el = nav.querySelector<HTMLElement>('[data-selected="true"]');
+            if (!el) return setIndicator(null);
+            const top = el.getBoundingClientRect().top - nav.getBoundingClientRect().top;
+            setIndicator({ top, height: el.offsetHeight });
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(nav);
+        return () => observer.disconnect();
+    }, [selectedMenuItem?.path]);
+
+    React.useEffect(() => {
+        if (!indicator || indicatorCanAnimate) return;
+        const frame = requestAnimationFrame(() => setIndicatorCanAnimate(true));
+        return () => cancelAnimationFrame(frame);
+    }, [indicator, indicatorCanAnimate]);
+
     return (
         // min-h-lvh (not dvh) — dvh shrinks/grows live as Safari's URL bar animates,
         // and since this is a top-anchored full-screen mobile overlay, that live
@@ -208,53 +242,120 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
         // lvh is fixed to the large/max viewport, so it always overshoots past the
         // visible area and bleeds under the URL bar instead of leaving a gap.
         <aside className={`min-h-lvh fixed left-0 top-0 ${className}`}>
-            {/* Main navigation container with responsive width and smooth transitions */}
-            <nav className={`
-                min-h-lvh ${isOpen ? 'w-64 md:w-48' : 'w-14'} space-y-4
-                bg-secondary border-r-divider shadow-sm
-                transition-all duration-300 ease-in-out
+            {/* Main navigation container. Only the width animates; inner layout is identical in
+                both states so content clips/fades rather than reflowing mid-transition. */}
+            <nav ref={navRef} className={`
+                relative min-h-lvh ${isOpen ? 'w-64 md:w-52' : 'w-16'} space-y-4
+                bg-secondary shadow-sm overflow-hidden
+                transition-[width] duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
                 flex flex-col
                 border-r-2 border-form-element
-                ${isOpen ? '' : 'items-center justify-center'}
             `}>
                 {/* Header Section: Logo and Toggle Button */}
-                <div className={`${isOpen ? 'flex space-x-2' : ''} h-12 p-4 pb-2 w-full items-center cursor-pointer`}>
-                    
-                    {/* Logo - Only visible when menu is expanded */}
-                    {isOpen && 
-                        <NavLink to="/" className={`${isOpen ? 'w-7/8' : 'w-full'} flex items-center`}>
+                <div className="flex items-center h-12 px-2 pt-2 w-full">
+
+                    {/* Logo - fixed width inside a shrinking, clipped slot so it fades rather than squishes */}
+                    <div
+                        className={`
+                            min-w-0 flex-1 overflow-hidden
+                            transition-opacity duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
+                            ${isOpen ? 'opacity-100 delay-100' : 'opacity-0 duration-100! pointer-events-none'}
+                        `}
+                        aria-hidden={!isOpen}
+                    >
+                        <NavLink to="/" tabIndex={isOpen ? 0 : -1} className="flex items-center w-32 pl-2">
                             <ShowdownBotLogo/>
                         </NavLink>
-                    }
+                    </div>
 
-                    {/* Menu Toggle Button - Adaptive icon based on state and device type */}
+                    {/* Menu Toggle Button - one chevron that rotates; X on mobile */}
                     <button 
                         onClick={handleToggle} 
-                        className="hover:text-secondary transition-colors duration-200 cursor-pointer"
+                        className="flex items-center justify-center w-12 h-10 shrink-0 rounded-md text-(--quaternary) hover:text-(--primary) hover:bg-(--background-primary) transition-colors duration-150 cursor-pointer"
                         aria-label={isOpen ? 'Close menu' : 'Open menu'}
+                        aria-expanded={isOpen}
                     >
-                        {isOpen ? (isMobile ? <FaXmark className="h-8 w-8" /> : <FaChevronLeft />) : <FaChevronRight className="w-6" />}
+                        {isMobile 
+                            ? <FaXmark className="h-6 w-6" />
+                            : <FaChevronRight className={`transition-transform duration-300 ease-(--side-menu-ease) motion-reduce:transition-none ${isOpen ? 'rotate-180' : ''}`} />
+                        }
                     </button>
                     
                 </div>
 
-                {/* Navigation Items - Scrollable list with responsive spacing */}
-                <ul className="flex-1 space-y-3 overflow-y-auto px-2 w-full">
-                    {sideMenuItems.map((item) => (
-                        <li key={item.path}>
-                            <SideMenuItem
-                                item={item}
-                                isSideMenuOpen={isOpen}
-                                selectedItem={selectedMenuItem}
-                                onClick={handleMenuItemClick}
-                            />
+                {/* Sliding active-tab indicator: filled pill + accent bar on the leading edge */}
+                {indicator && (
+                    <div
+                        aria-hidden="true"
+                        className={`
+                            absolute left-2 right-2 top-0 z-0 m-0! rounded-md bg-tertiary pointer-events-none
+                            ${indicatorCanAnimate ? 'transition-[transform,height] duration-300 ease-(--side-menu-ease) motion-reduce:transition-none' : ''}
+                        `}
+                        style={{ transform: `translateY(${indicator.top}px)`, height: indicator.height }}
+                    >
+                        {/* Accent bar only when expanded — in the narrow rail the pill alone reads clearly */}
+                        <span className={`
+                            absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-(--showdown-blue)
+                            transition-opacity duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
+                            ${isOpen ? 'opacity-100' : 'opacity-0'}
+                        `} />
+                    </div>
+                )}
+
+                {/* Navigation Sections - Scrollable list */}
+                <ul className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-2 w-full">
+                    {sideMenuSections.map((section, index) => (
+                        <li key={section.title ?? index}>
+                            {section.title && (
+                                // Fixed height in both states so items don't shift while the menu animates:
+                                // the label and the collapsed-rail divider just cross-fade in place.
+                                <div className="relative h-5 mb-1">
+                                    <span
+                                        aria-hidden={!isOpen}
+                                        className={`
+                                            absolute inset-0 flex items-center pl-3 whitespace-nowrap overflow-hidden
+                                            text-[10px] font-semibold uppercase tracking-wider text-(--quaternary)
+                                            transition-opacity duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
+                                            ${isOpen ? 'opacity-100 delay-100' : 'opacity-0 duration-100!'}
+                                        `}
+                                    >
+                                        {section.title}
+                                    </span>
+                                    <span
+                                        aria-hidden="true"
+                                        className={`
+                                            absolute left-1/2 top-1/2 -translate-x-1/2 h-px w-8 bg-(--divider)
+                                            transition-opacity duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
+                                            ${isOpen ? 'opacity-0 duration-100!' : 'opacity-100'}
+                                        `}
+                                    />
+                                </div>
+                            )}
+                            <ul className="space-y-2">
+                                {section.items.map((item) => (
+                                    <li key={item.path}>
+                                        <SideMenuItem
+                                            item={item}
+                                            isSideMenuOpen={isOpen}
+                                            selectedItem={selectedMenuItem}
+                                            onClick={handleMenuItemClick}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
                         </li>
                     ))}
                 </ul>
 
-                {/* Footer Section: Theme Toggle with Responsive Padding */}
-                <div className="p-2 pb-10 sm:pb-auto">
-                    <ThemeToggleButton />
+                {/* Footer Section: Account + Theme Toggle, pinned below the sections */}
+                <div className="px-2 pt-2 pb-10 sm:pb-auto space-y-2 border-t border-form-element">
+                    <SideMenuItem
+                        item={accountMenuItem}
+                        isSideMenuOpen={isOpen}
+                        selectedItem={selectedMenuItem}
+                        onClick={handleMenuItemClick}
+                    />
+                    <ThemeToggleButton isSideMenuOpen={isOpen} />
                 </div>
 
             </nav>

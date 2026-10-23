@@ -27,6 +27,8 @@
 import React from "react"
 import { FaSun, FaMoon, FaDesktop } from "react-icons/fa";
 import { useTheme } from "../shared/SiteSettingsContext";
+import { SideMenuRowContent } from "./SideMenuRowContent";
+import { sideMenuRowClassName } from "./sideMenuStyles";
 
 /**
  * Cycling theme toggle button with visual feedback
@@ -49,8 +51,23 @@ import { useTheme } from "../shared/SiteSettingsContext";
  * 
  * @returns A clickable button that cycles through available themes
  */
-const ThemeToggleButton: React.FC = () => {
+type ThemeToggleButtonProps = {
+    /** Whether the parent side menu is in expanded state */
+    isSideMenuOpen: boolean;
+};
+
+/** Icon + label for each theme mode, shown with the same row layout as the nav items */
+const THEME_OPTIONS = {
+    light:  { icon: FaSun,     text: 'Light Mode' },
+    dark:   { icon: FaMoon,    text: 'Dark Mode' },
+    system: { icon: FaDesktop, text: 'System Theme' },
+} as const;
+
+const ThemeToggleButton: React.FC<ThemeToggleButtonProps> = ({ isSideMenuOpen }) => {
     const { theme, setTheme } = useTheme();
+
+    // Only replay the icon pop after the user cycles, not on first render
+    const [hasCycled, setHasCycled] = React.useState(false);
 
     /**
      * Cycles to the next theme in the sequence: light → dark → system → light
@@ -61,38 +78,25 @@ const ThemeToggleButton: React.FC = () => {
         const currentIndex = themes.indexOf(theme);
         const nextIndex = (currentIndex + 1) % themes.length;
         setTheme(themes[nextIndex]);
+        setHasCycled(true);
     };
 
-    /**
-     * Returns the appropriate icon component for the current theme state
-     * Each icon provides clear visual feedback about the active theme mode
-     * 
-     * @returns React icon component representing the current theme
-     */
-    const getIcon = () => {
-        switch (theme) {
-            case 'light':
-                return <FaSun className="w-4 h-4" />;      // Sun represents light theme
-            case 'dark':
-                return <FaMoon className="w-4 h-4" />;     // Moon represents dark theme
-            case 'system':
-                return <FaDesktop className="w-4 h-4" />;  // Desktop represents system theme
-            default:
-                return <FaDesktop className="w-4 h-4" />;  // Fallback to system icon
-        }
-    };
+    const option = THEME_OPTIONS[theme] ?? THEME_OPTIONS.system;
 
     return (
         <button
+            type="button"
             onClick={cycleTheme}
-            className={`
-                p-2 rounded-md hover:bg-secondary/20 transition-colors duration-200
-                flex items-center justify-center
-            `}
+            className={sideMenuRowClassName(false)}
             title={`Current theme: ${theme}. Click to cycle through light/dark/system.`}
             aria-label={`Theme toggle button. Current theme: ${theme}. Click to cycle themes.`}
         >
-            {getIcon()}
+            <SideMenuRowContent
+                icon={option.icon}
+                text={option.text}
+                isSideMenuOpen={isSideMenuOpen}
+                iconKey={hasCycled ? theme : undefined}
+            />
         </button>
     );
 };

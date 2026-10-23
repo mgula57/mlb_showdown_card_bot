@@ -45,7 +45,7 @@ import { useLocation } from "react-router-dom";
 import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
 import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
-import { sideMenuItems } from "./side_menu/SideMenuItem";
+import { sideMenuItems } from "./side_menu/sideMenuConfig";
 import { WhatsNewModal, hasSeenWhatsNew, markWhatsNewAsSeen } from "./side_menu/WhatsNewModal";
 import { fetchFeatureStatuses, type FeatureStatus } from "../api/status/feature_status";
 import { FaExclamationCircle } from 'react-icons/fa';
@@ -112,6 +112,27 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             return false; // Fallback to closed if localStorage fails
         }
     });
+
+    // Mobile drawer stays mounted while its exit animation plays; unmounted on animationend.
+    const [isSideMenuClosingMobile, setIsSideMenuClosingMobile] = useState(false);
+
+    /** Open/close setter handed to the mobile SideMenu — closing plays the exit animation first. */
+    const setSideMenuOpenMobile: React.Dispatch<React.SetStateAction<boolean>> = (value) => {
+        const next = typeof value === 'function' ? value(isSideMenuOpenMobile) : value;
+        if (next) {
+            setIsSideMenuClosingMobile(false);
+            setIsSideMenuOpenMobile(true);
+        } else if (isSideMenuOpenMobile) {
+            setIsSideMenuClosingMobile(true);
+        }
+    };
+
+    const handleMobileDrawerAnimationEnd = (e: React.AnimationEvent<HTMLDivElement>) => {
+        // Ignore animations bubbling up from inside the menu (e.g. the active icon pop)
+        if (e.target !== e.currentTarget || !isSideMenuClosingMobile) return;
+        setIsSideMenuOpenMobile(false);
+        setIsSideMenuClosingMobile(false);
+    };
     const hasCheckedFeatures = useRef(false);
     const featureStatuses = useRef<Record<string, FeatureStatus>>({});
 
@@ -146,7 +167,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     // Desktop sidebar width, published as `--side-menu-width` on the layout root so fixed-position
     // elements elsewhere (e.g. the team builder's docked Guided Draft strip) can clear it at md+.
-    const sideMenuWidth = isSideMenuOpen ? '12rem' : '3.5rem';
+    const sideMenuWidth = isSideMenuOpen ? '13rem' : '4rem';
     
     // Get current route information for header title and icon
     const location = useLocation();
@@ -250,22 +271,27 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 <div className="fixed top-0 left-0 right-0 h-lvh z-40 md:hidden">
                     {/* Backdrop - Click to close sidebar */}
                     <div
-                        className="absolute inset-0 bg-black/40"
-                        onClick={() => setIsSideMenuOpenMobile(false)}
+                        className={`absolute inset-0 bg-black/40 ${isSideMenuClosingMobile ? 'side-menu-backdrop-out' : 'side-menu-backdrop-in'}`}
+                        onClick={() => setSideMenuOpenMobile(false)}
                         aria-hidden="true"
                     />
-                    {/* Sidebar with mobile-specific behavior */}
-                    <SideMenu 
-                        isOpen={true} 
-                        setIsOpen={setIsSideMenuOpenMobile} 
-                        isMobile={true} 
-                    />
+                    {/* Sidebar with mobile-specific behavior - slides in from the left edge */}
+                    <div
+                        className={`absolute top-0 left-0 ${isSideMenuClosingMobile ? 'side-menu-drawer-out' : 'side-menu-drawer-in'}`}
+                        onAnimationEnd={handleMobileDrawerAnimationEnd}
+                    >
+                        <SideMenu 
+                            isOpen={true} 
+                            setIsOpen={setSideMenuOpenMobile} 
+                            isMobile={true} 
+                        />
+                    </div>
                 </div>
             )}
 
 
             {/* Main Content Container with responsive padding for sidebar */}
-            <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 md:pl-(--side-menu-width)`}>
+            <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ease-(--side-menu-ease) motion-reduce:transition-none md:pl-(--side-menu-width)`}>
                 
                 {/* Application Header - Adaptive positioning for iOS Safari */}
                 <header
@@ -290,7 +316,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                                 cursor-pointer
                             "
                             aria-label="Open navigation menu"
-                            onClick={() => setIsSideMenuOpenMobile(true)}
+                            onClick={() => setSideMenuOpenMobile(true)}
                         >
                             <FiMenu className="h-5 w-5" />
                         </button>
