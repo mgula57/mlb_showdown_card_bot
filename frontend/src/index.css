@@ -258,7 +258,7 @@
     animation: slideOutToRight 0.3s ease-in forwards;
 }
 
-/* Side menu: active icon nudge when a tab becomes selected, and the mobile drawer/backdrop. */
+/* Side menu: active icon nudge when a tab becomes selected. */
 @keyframes side-menu-icon-pop {
     0%   { transform: scale(1); }
     40%  { transform: scale(1.18); }
@@ -269,27 +269,8 @@
     animation: side-menu-icon-pop 0.35s var(--side-menu-ease);
 }
 
-@keyframes side-menu-drawer-in {
-    from { transform: translateX(-100%); }
-    to   { transform: translateX(0); }
-}
-
-@keyframes side-menu-drawer-out {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-100%); }
-}
-
-.side-menu-drawer-in  { animation: side-menu-drawer-in 0.3s var(--side-menu-ease) both; }
-.side-menu-drawer-out { animation: side-menu-drawer-out 0.2s ease-in both; }
-.side-menu-backdrop-in  { animation: fadeIn 0.3s ease-out both; }
-.side-menu-backdrop-out { animation: fadeIn 0.2s ease-in reverse both; }
-
 @media (prefers-reduced-motion: reduce) {
     .side-menu-icon-pop { animation: none; }
-    .side-menu-drawer-in,
-    .side-menu-drawer-out,
-    .side-menu-backdrop-in,
-    .side-menu-backdrop-out { animation-duration: 1ms; }
 }
 
 @keyframes card-glow-pulse {

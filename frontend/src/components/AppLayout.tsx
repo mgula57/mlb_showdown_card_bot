@@ -113,26 +113,43 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         }
     });
 
-    // Mobile drawer stays mounted while its exit animation plays; unmounted on animationend.
-    const [isSideMenuClosingMobile, setIsSideMenuClosingMobile] = useState(false);
+    // Mobile drawer: `isSideMenuOpenMobile` controls mounting, `isSideMenuVisibleMobile` drives the
+    // slide/fade transitions. Transitions (not keyframes) so an open interrupted by a close — or vice
+    // versa — reverses from wherever the drawer is instead of jumping to the start of the other animation.
+    const [isSideMenuVisibleMobile, setIsSideMenuVisibleMobile] = useState(false);
 
-    /** Open/close setter handed to the mobile SideMenu — closing plays the exit animation first. */
+    /** Open/close setter handed to the mobile SideMenu — closing plays the exit transition before unmounting. */
     const setSideMenuOpenMobile: React.Dispatch<React.SetStateAction<boolean>> = (value) => {
-        const next = typeof value === 'function' ? value(isSideMenuOpenMobile) : value;
+        const next = typeof value === 'function' ? value(isSideMenuVisibleMobile) : value;
         if (next) {
-            setIsSideMenuClosingMobile(false);
             setIsSideMenuOpenMobile(true);
-        } else if (isSideMenuOpenMobile) {
-            setIsSideMenuClosingMobile(true);
+            // Already mounted mid-close: reverse in place. Otherwise the effect below shows it after mount.
+            if (isSideMenuOpenMobile) setIsSideMenuVisibleMobile(true);
+        } else {
+            setIsSideMenuVisibleMobile(false);
         }
     };
 
-    const handleMobileDrawerAnimationEnd = (e: React.AnimationEvent<HTMLDivElement>) => {
-        // Ignore animations bubbling up from inside the menu (e.g. the active icon pop)
-        if (e.target !== e.currentTarget || !isSideMenuClosingMobile) return;
+    /**
+     * Effect: reveal the drawer after it mounts off-screen. Two frames so the browser commits the
+     * off-screen position (and the scroll lock's layout) before the transition starts — otherwise the
+     * first frame is either skipped or janked by that layout work.
+     */
+    useEffect(() => {
+        if (!isSideMenuOpenMobile) return;
+        let frame = requestAnimationFrame(() => {
+            frame = requestAnimationFrame(() => setIsSideMenuVisibleMobile(true));
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [isSideMenuOpenMobile]);
+
+    const handleMobileDrawerTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
+        // Ignore transitions bubbling up from inside the menu (hover colors, indicator, etc.).
+        // Tailwind 4's translate-x-* sets the `translate` property, not `transform`.
+        if (e.target !== e.currentTarget || e.propertyName !== 'translate' || isSideMenuVisibleMobile) return;
         setIsSideMenuOpenMobile(false);
-        setIsSideMenuClosingMobile(false);
     };
+
     const hasCheckedFeatures = useRef(false);
     const featureStatuses = useRef<Record<string, FeatureStatus>>({});
 
@@ -268,17 +285,27 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 (and the backdrop nested inside it) always overshoots past the
                 visible area and bleeds under the URL bar instead. */}
             {isSideMenuOpenMobile && (
-                <div className="fixed top-0 left-0 right-0 h-lvh z-40 md:hidden">
+                <div className={`fixed top-0 left-0 right-0 h-lvh z-40 md:hidden ${isSideMenuVisibleMobile ? '' : 'pointer-events-none'}`}>
                     {/* Backdrop - Click to close sidebar */}
                     <div
-                        className={`absolute inset-0 bg-black/40 ${isSideMenuClosingMobile ? 'side-menu-backdrop-out' : 'side-menu-backdrop-in'}`}
+                        className={`
+                            absolute inset-0 bg-black/40 transition-opacity will-change-[opacity] motion-reduce:duration-[1ms]
+                            ${isSideMenuVisibleMobile ? 'opacity-100 duration-300 ease-out' : 'opacity-0 duration-200 ease-in'}
+                        `}
                         onClick={() => setSideMenuOpenMobile(false)}
                         aria-hidden="true"
                     />
-                    {/* Sidebar with mobile-specific behavior - slides in from the left edge */}
+                    {/* Sidebar with mobile-specific behavior - slides in from the left edge.
+                        Sized to the drawer (w-64 = SideMenu's mobile width) because SideMenu itself is
+                        position:fixed and contributes no size — without it -translate-x-full moves 0px. */}
                     <div
-                        className={`absolute top-0 left-0 ${isSideMenuClosingMobile ? 'side-menu-drawer-out' : 'side-menu-drawer-in'}`}
-                        onAnimationEnd={handleMobileDrawerAnimationEnd}
+                        className={`
+                            absolute top-0 left-0 w-64 h-full transition-[translate,box-shadow] will-change-[translate] motion-reduce:duration-[1ms]
+                            ${isSideMenuVisibleMobile
+                                ? 'translate-x-0 shadow-2xl duration-300 ease-(--side-menu-ease)'
+                                : '-translate-x-full shadow-none duration-200 ease-[cubic-bezier(0.32,0,0.67,0)]'}
+                        `}
+                        onTransitionEnd={handleMobileDrawerTransitionEnd}
                     >
                         <SideMenu 
                             isOpen={true} 
