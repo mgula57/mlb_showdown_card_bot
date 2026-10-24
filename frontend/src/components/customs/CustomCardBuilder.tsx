@@ -179,7 +179,7 @@ type loadingStatusContent = {
 
 const STORAGE_KEY = 'customCardFormSettings-V2';
 /** Bump when the 2026 notice content changes so previously dismissed users see it again. */
-const SET_2026_NOTICE_KEY = 'customCardBuilder2026Phase3Notice';
+const SET_2026_NOTICE_KEY = 'customCardBuilder2026Phase4Notice';
 
 /** Save form settings to localStorage */
 const saveFormSettings = (formData: CustomCardFormState) => {
