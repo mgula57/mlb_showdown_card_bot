@@ -109,6 +109,13 @@ const DEFENSE_POSITIONS: Record<keyof DefenseAlignment, string> = {
     shortstop: "SS", left: "LF", center: "CF", right: "RF",
 };
 
+/** Stacking order on the field: runners on the bases sit lowest, then the pitch/swing dice, then
+ *  the pitcher and the hitter at the plate. Each die is docked inside a positioned wrapper (the
+ *  pitcher's, or its own at the plate), which is what puts it on the `die`/`battery` layer —
+ *  `DieDock` then tucks it behind the card it belongs to within that wrapper. Fielders other
+ *  than the pitcher stay on the default layer. */
+const FIELD_Z = { runner: 1, die: 2, battery: 3 } as const;
+
 const atPercent = ([x, y]: readonly [number, number]): React.CSSProperties => ({
     left: `${x}%`,
     top: `${y}%`,
@@ -412,9 +419,10 @@ function ResultFlash({ play, phase, transition }: { play: PlayEntry | undefined;
 }
 
 /** Pins a sim die to the left of the player marker it sits inside (the marker's wrapper is the
- *  positioned ancestor), vertically centered on the card. */
+ *  positioned ancestor), vertically centered on the card. The negative z-index keeps it behind
+ *  that marker if they overlap, while the wrapper's own layer keeps it above the runners. */
 function DieDock({ children }: { children: ReactNode }) {
-    return <div className="absolute right-full top-1/2 -translate-y-1/2 pr-1">{children}</div>;
+    return <div className="absolute right-full top-1/2 -z-10 -translate-y-1/2 pr-1">{children}</div>;
 }
 
 /** OF / IF / CA totals for the fielding side plus the expand/collapse toggle, gathered into one
@@ -567,7 +575,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     className={`absolute -translate-x-1/2 -translate-y-1/2 transition-[opacity,transform] duration-300 ease-out ${
                                         isVisible ? "opacity-100 scale-100" : "pointer-events-none scale-75 opacity-0"
                                     }`}
-                                    style={atPercent(DEFENSE_SPOTS[slot])}
+                                    style={{ ...atPercent(DEFENSE_SPOTS[slot]), zIndex: isBattery ? FIELD_Z.battery : undefined }}
                                 >
                                     <FieldMarker
                                         player={player}
@@ -593,7 +601,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
                     {/* Pitcher without an alignment (sim, or a defense the feed hasn't set yet). */}
                     {!defense && situation?.pitcher && (
-                        <div className="absolute -translate-x-1/2 -translate-y-1/2" style={atPercent(DEFENSE_SPOTS.pitcher)}>
+                        <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ ...atPercent(DEFENSE_SPOTS.pitcher), zIndex: FIELD_Z.battery }}>
                             <FieldMarker
                                 player={situation.pitcher}
                                 role="P"
@@ -672,7 +680,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 style={{
                                     left: `${x}%`,
                                     top: `${y}%`,
-                                    zIndex: renderSpot === "plate" ? 2 : 1,
+                                    zIndex: renderSpot === "plate" ? FIELD_Z.battery : FIELD_Z.runner,
                                     transitionDuration: `${posDur}ms, ${posDur}ms, ${opacityDur}ms, 300ms`,
                                 }}
                                 className={`
@@ -703,7 +711,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     {presentOccupants.some((occ) => pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId)) && (
                         <div
                             className="absolute -translate-x-1/2 -translate-y-1/2 w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 h-px pointer-events-none"
-                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: 2 }}
+                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: FIELD_Z.die }}
                         >
                             <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
                         </div>
