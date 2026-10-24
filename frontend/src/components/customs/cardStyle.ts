@@ -22,6 +22,10 @@ export const CARD_STYLE_KEYS: (keyof CardStyleSettings)[] = [
     'stat_highlights_type', 'nickname_index', 'is_bordered', 'is_dark_mode', 'hide_team_logo',
 ];
 
+/** Whether two styles differ on any style field */
+export const isCardStyleDifferent = (a: CardStyleSettings, b: CardStyleSettings): boolean =>
+    CARD_STYLE_KEYS.some(key => (a[key] ?? null) !== (b[key] ?? null));
+
 /** Hiding the split/date text banner only applies to non-Base Set expansions (Trading Deadline,
  * Pennant Run) or the All-Star Game / Postseason editions. */
 export const canHideDisplayText = (expansion: string, edition: string): boolean =>

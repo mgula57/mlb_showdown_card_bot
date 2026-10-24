@@ -7,12 +7,16 @@
  */
 
 import type { ReactNode } from 'react';
+import { FaImage, FaLayerGroup } from 'react-icons/fa';
 import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
+import FormSection from './FormSection';
+import { formSectionSummary } from './FormSectionSummary';
 import { InfoTooltip } from '../shared/InfoTooltip';
 import {
     canHideDisplayText, expansionOptions, editionOptions, imageParallelOptions, imageColoringOptions,
-    outerGlowOptions, statHighlightsTypeOptions, nicknameIndexOptions, type CardStyleSettings,
+    outerGlowOptions, statHighlightsTypeOptions, nicknameIndexOptions, setStyleSummary, imageStyleSummary,
+    type CardStyleSettings,
 } from './cardStyle';
 
 /** Small pill badge used to flag newly added options/fields */
@@ -123,6 +127,36 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
             <FormEnabler label='Add Border' isEnabled={values.is_bordered} onChange={(isEnabled) => onChange({ is_bordered: !isEnabled })} />
             <FormEnabler label='Dark Mode' isEnabled={values.is_dark_mode} onChange={(isEnabled) => onChange({ is_dark_mode: !isEnabled })} />
             <FormEnabler label='Remove Team' className='col-span-full' isEnabled={values.hide_team_logo} onChange={(isEnabled) => onChange({ hide_team_logo: !isEnabled })} />
+        </>
+    );
+}
+
+// ----------------------------------
+// MARK: - Sections
+// ----------------------------------
+
+/** The Set and Image sections as standalone collapsible panels, for style editors outside the
+ * Custom Card Builder (an edition's default style, a single card's style). Collapsed summaries
+ * show what differs from `defaults`. */
+export function CardStyleSections({ values, onChange, defaults, isOpenByDefault = true }: StyleFieldsProps & { defaults: CardStyleSettings; isOpenByDefault?: boolean }) {
+    return (
+        <>
+            <FormSection
+                title='Set'
+                icon={<FaLayerGroup />}
+                isOpenByDefault={isOpenByDefault}
+                childrenWhenClosed={formSectionSummary(setStyleSummary(values, defaults))}
+            >
+                <SetStyleFields values={values} onChange={onChange} />
+            </FormSection>
+            <FormSection
+                title='Image'
+                icon={<FaImage />}
+                isOpenByDefault={isOpenByDefault}
+                childrenWhenClosed={formSectionSummary(imageStyleSummary(values, defaults))}
+            >
+                <ImageStyleFields values={values} onChange={onChange} />
+            </FormSection>
         </>
     );
 }

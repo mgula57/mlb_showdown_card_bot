@@ -6726,6 +6726,11 @@ class PostgresDB:
                     ADD COLUMN IF NOT EXISTS preview_rank SMALLINT
                     CHECK (preview_rank BETWEEN 1 AND 3);
             """)
+            # Per-card tweaks on top of the edition defaults, e.g. {"style": {"image_parallel": "GOLD"}}
+            cur.execute("""
+                ALTER TABLE internal.release_cards
+                    ADD COLUMN IF NOT EXISTS card_overrides JSONB;
+            """)
             # edition_id lookups (card lists, card_count) are covered by unique_card_number (edition_id, card_number)
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_edition_id;")
             # Upsert key for saves, so release_cards.id stays stable while a card stays in its edition
@@ -6970,7 +6975,8 @@ class PostgresDB:
                         'source_card_type', rc.source_card_type,
                         'card_snapshot',    rc.card_snapshot,
                         'tags',             rc.tags,
-                        'preview_rank',     rc.preview_rank
+                        'preview_rank',     rc.preview_rank,
+                        'card_overrides',   rc.card_overrides
                     ) ORDER BY rc.card_number
                 ) FILTER (WHERE rc.id IS NOT NULL),
                 '[]'::json
@@ -7339,12 +7345,13 @@ class PostgresDB:
                 card.get('card_number'),
                 PostgresDB._normalize_release_card_tags(card.get('tags')),
                 preview_rank,
+                PostgresDB._normalize_release_card_overrides(card.get('card_overrides')),
             )
             for card, preview_rank in zip(cards, preview_ranks)
         ]
         execute_values(cur, """
             INSERT INTO internal.release_cards
-                (edition_id, source_card_id, source_card_type, card_snapshot, card_number, tags, preview_rank)
+                (edition_id, source_card_id, source_card_type, card_snapshot, card_number, tags, preview_rank, card_overrides)
             VALUES %s
             ON CONFLICT (edition_id, source_card_id) DO UPDATE SET
                 source_card_type = EXCLUDED.source_card_type,
@@ -7352,6 +7359,7 @@ class PostgresDB:
                 card_number      = EXCLUDED.card_number,
                 tags             = EXCLUDED.tags,
                 preview_rank     = EXCLUDED.preview_rank,
+                card_overrides   = EXCLUDED.card_overrides,
                 updated_at       = NOW()
         """, batch)
 
@@ -7385,6 +7393,19 @@ class PostgresDB:
             for tag in tags if isinstance(tag, str) and tag.strip()
         ]
         return list(dict.fromkeys(normalized))
+
+    @staticmethod
+    def _normalize_release_card_overrides(overrides) -> Optional[extras.Json]:
+        """Per-card style overrides (`{"style": {field: value}}`), keeping only scalar style values.
+        Empty overrides are stored as NULL so the card just follows its edition's style."""
+        style = overrides.get('style') if isinstance(overrides, dict) else None
+        if not isinstance(style, dict):
+            return None
+        style = {
+            key: value for key, value in style.items()
+            if isinstance(key, str) and (value is None or isinstance(value, (str, bool, int, float)))
+        }
+        return extras.Json({'style': style}) if style else None
 
     @staticmethod
     def _generate_unique_slug(cur, table: str, name: str) -> str:

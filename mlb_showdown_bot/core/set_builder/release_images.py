@@ -55,6 +55,13 @@ class EditionCardStyle(BaseModel):
         raw = (attributes or {}).get('style')
         return cls(**raw) if isinstance(raw, dict) else cls()
 
+    def with_card_overrides(self, card_overrides: dict | None) -> 'EditionCardStyle':
+        """This style with a release card's own tweaks (`card_overrides.style`) layered on top."""
+        raw = (card_overrides or {}).get('style')
+        if not isinstance(raw, dict) or not raw:
+            return self
+        return EditionCardStyle(**{**self.model_dump(), **raw})
+
     def image_fields(self) -> dict:
         """`ShowdownImage` values for this style. Mirrors the frontend's `applyCardStyleOverrides`."""
         try:
@@ -198,7 +205,7 @@ class EditionImagePlan:
                 source_card_id=card['source_card_id'],
                 card_snapshot=card.get('card_snapshot') or {},
                 set_number=numbering.set_number(card.get('card_number'), len(cards)),
-                style=style,
+                style=style.with_card_overrides(card.get('card_overrides')),
             )
             for card in cards if card.get('source_card_id')
         ]

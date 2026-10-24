@@ -43,6 +43,8 @@ import OutcomeProbability from './card_detail/OutcomeProbability';
 import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
 import PointsContributionBars from './card_detail/PointsContributionBars';
 import { CardComps } from './card_detail/CardComps';
+import { CardStyleEditor, type CardStyleEditorConfig } from './card_detail/CardStyleEditor';
+import { isCardStyleDifferent, CARD_STYLE_KEYS } from '../customs/cardStyle';
 import ImageSourceBadge from './card_detail/ImageSourceBadge';
 import PinnedFooterPortal from '../shared/PinnedFooterPortal';
 import { cardImagePublicUrl } from '../../api/supabase';
@@ -93,6 +95,10 @@ type CardDetailProps = {
      * set number), generating a fresh image unless `storagePath` supplies the already-rendered one.
      * Applies to both `showdownBotCardData` and `cardId` cards. */
     styleOverrides?: CardStyleOverrides;
+    /** Enables editing this card's style in place: Customize opens the Card Style fields inline
+     * (instead of the Custom Card Builder) and auto-saves edits via `onSave` once they pause. The
+     * caller persists them and passes updated `styleOverrides`, which re-renders the card image. */
+    styleEditor?: CardStyleEditorConfig;
 };
 
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
@@ -134,7 +140,16 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor }: CardDetailProps) {
+    // Keyed on content, so a caller handing over an equal overrides object (e.g. after an unrelated
+    // save returns fresh objects) doesn't regenerate the image
+    const styleOverridesKey = JSON.stringify([
+        styleOverridesProp?.style && CARD_STYLE_KEYS.map(key => styleOverridesProp.style?.[key]),
+        styleOverridesProp?.setNumber,
+        styleOverridesProp?.storagePath,
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const styleOverrides = useMemo(() => styleOverridesProp, [styleOverridesKey]);
     const withStyleOverrides = (data: ShowdownBotCardAPIResponse | null | undefined) => (
         styleOverrides && data?.card ? { ...data, card: applyCardStyleOverrides(data.card, styleOverrides) } : data
     );
@@ -147,6 +162,13 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
      * already looks the way the overrides describe, so there's nothing to generate. */
     const isMissingImage = (card: ShowdownBotCard | null | undefined) =>
         !!card && !card.image.output_file_name && !styleOverrides?.storagePath;
+    /** URL of a card's rendered image, if it has one */
+    const imagePathFor = (card: ShowdownBotCard | null | undefined): string | null => {
+        const image = card?.image;
+        if (image?.storage_path) return cardImagePublicUrl(image.storage_path);
+        if (image?.output_folder_path && image?.output_file_name) return `/${image.output_folder_path}/${image.output_file_name}`.replace(/\/\//, '/');
+        return null;
+    };
 
 
     const { session } = useAuth();
@@ -173,6 +195,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     // overrides re-render (and regenerate the image) without refetching.
     const appliedStyleOverridesRef = useRef<CardStyleOverrides | undefined>(undefined);
     const fetchedCardRef = useRef<ShowdownBotCardAPIResponse | null>(null);
+    // While a restyled card's new image generates, keep showing the image it's replacing
+    const restyleFromImagePathRef = useRef<string | null>(null);
+    // Only the latest image request may land — restyles can fire while an earlier one is in flight
+    const latestImageRequestRef = useRef(0);
 
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
@@ -234,12 +260,15 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             const styleOverridesChanged = styleOverrides !== appliedStyleOverridesRef.current;
             appliedStyleOverridesRef.current = styleOverrides;
             if (!isSameCard || styleOverridesChanged) {
+                restyleFromImagePathRef.current = isSameCard
+                    ? (imagePathFor(internalCardData?.card) ?? restyleFromImagePathRef.current)
+                    : null;
                 setInternalCardData(showdownBotCardData);
                 setSetSwitchError(null);
 
-                // Load image if necessary
+                // Load image if necessary. A restyle supersedes any render already in flight.
                 console.log("Image Output Filename:", showdownBotCardData.card);
-                if (isMissingImage(showdownBotCardData.card) && !isGeneratingImage) {
+                if (isMissingImage(showdownBotCardData.card) && (styleOverridesChanged || !isGeneratingImage)) {
                     console.log("Generating image for new prop data...");
                     handleGenerateImage(showdownBotCardData);
                 }
@@ -260,6 +289,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
         appliedStyleOverridesRef.current = styleOverrides;
         if (cardId && cardId === handledCardIdPropRef.current && styleOverridesChanged && fetchedCardRef.current) {
             // Same card, new styling: restyle the already-fetched card and regenerate its image
+            restyleFromImagePathRef.current = imagePathFor(internalCardData?.card) ?? restyleFromImagePathRef.current;
             const cardResponse = withStyleOverrides(fetchedCardRef.current);
             setInternalCardData(cardResponse);
             if (isMissingImage(cardResponse?.card) && cardResponse) handleGenerateImage(cardResponse);
@@ -308,6 +338,14 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const [isSwitchingSet, setIsSwitchingSet] = useState<boolean>(false);
     const [setSwitchError, setSetSwitchError] = useState<string | null>(null);
 
+    // Inline style editor (styleEditor only) — closes whenever a different card is shown
+    const [isStyleEditorOpen, setIsStyleEditorOpen] = useState<boolean>(false);
+    const styleEditorCardKey = cardId ?? `${showdownBotCardDataProp?.card?.bref_id}-${showdownBotCardDataProp?.card?.year}-${showdownBotCardDataProp?.card?.set}`;
+    const hasStyleEditor = !!styleEditor;
+    useEffect(() => { setIsStyleEditorOpen(false); }, [styleEditorCardKey, hasStyleEditor]);
+    const showStyleEditor = isStyleEditorOpen && !!styleEditor;
+    const isStyleCustomized = !!styleEditor && isCardStyleDifferent(styleEditor.style, styleEditor.defaults);
+
     // Mark if isLoading or isGeneratingImage
     const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId || isSwitchingSet;
     // Panels only blur while chart data itself is loading — not when just the image is generating
@@ -339,12 +377,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     // --------------------------------
 
     // Card Calcs
-    const image = activeCardData?.card?.image ?? null;
-    const cardImagePath: string | null = image?.storage_path
-        ? cardImagePublicUrl(image.storage_path)
-        : image?.output_folder_path && image?.output_file_name
-            ? `/${image.output_folder_path}/${image.output_file_name}`.replace(/\/\//, '/')
-            : null;
+    const cardImagePath: string | null = imagePathFor(activeCardData?.card)
+        ?? (isGeneratingImage ? restyleFromImagePathRef.current : null);
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
         points: `${activeCardData.card.points} PTS`,
         year: activeCardData.card.year,
@@ -366,15 +400,16 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
     // Handle Image Generation
     const handleGenerateImage = (data: ShowdownBotCardAPIResponse) => {
-        if (!data?.card || isGeneratingImage || context === 'custom') return;
+        if (!data?.card || context === 'custom') return;
         
         console.log("Starting image generation...", parent);
+        const requestId = ++latestImageRequestRef.current;
         setIsGeneratingImage(true);
         
         generateCardImage(data, session?.access_token)
             .then((data) => {
                 console.log("Received card data with image:", data);
-                if (data) {
+                if (data && requestId === latestImageRequestRef.current) {
                     setInternalCardData(data as ShowdownBotCardAPIResponse);
                 }
             })
@@ -382,6 +417,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 console.error("Error generating card image:", error);
             })
             .finally(() => {
+                if (requestId !== latestImageRequestRef.current) return;
+                restyleFromImagePathRef.current = null;
                 setIsGeneratingImage(false);
             });
     };
@@ -462,6 +499,38 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     };
 
     const cardImageMaxHeight = '@xl:max-h-[600px] @xl:overflow-hidden @3xl:max-h-[700px]';
+
+    /** Live game + Card vs Real Stats — beside the card image, or down in the analysis grid while
+     * the style editor holds that spot */
+    const realStatsPanels = (
+        <>
+            {/* Game Boxscore — desktop only */}
+            {showGameBoxscore() && activeCardData?.latest_game_box_score && (
+                <div className='hidden @xl:block'>
+                    <GameItem
+                        game={fromBoxscoreDetail(activeCardData.latest_game_box_score)}
+                        playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
+                    />
+                </div>
+            )}
+
+            {/* Card vs Real Stats */}
+            <SectionPanel isLoading={isLoadingPanels} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
+                
+                <RealVsProjectedVisual
+                    realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
+                    statRanges={seasonStatRanges}
+                    isLoading={isRangesLoading}
+                    playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
+                    simStats={simStats}
+                />
+                <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">
+                    <i>* Real stat is estimated (limited data, adjusted era, etc.)</i>
+                    <i>** Projection includes post-processing accuracy correction</i>
+                </div>
+            </SectionPanel>
+        </>
+    );
 
     // MARK: MAIN CONTENT
     return (
@@ -571,23 +640,30 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                         </div>
                     )}
                     <div className="ml-auto flex items-center gap-2">
-                        {/* Customize — opens the Custom Card Builder prefilled with this card */}
+                        {/* Customize — edits this card's style inline (`styleEditor`), otherwise opens the
+                            Custom Card Builder prefilled with this card */}
                         {context !== 'custom' && (
                             <button
                                 type="button"
-                                onClick={() => activeCardData.card && customizeCard(activeCardData.card)}
-                                title="Open in the Custom Card Builder"
-                                className="
-                                    flex items-center gap-2
+                                onClick={() => styleEditor
+                                    ? setIsStyleEditorOpen(open => !open)
+                                    : activeCardData.card && customizeCard(activeCardData.card)}
+                                title={styleEditor ? "Edit this card's style" : 'Open in the Custom Card Builder'}
+                                className={`
+                                    relative flex items-center gap-2
                                     py-1 px-4 rounded-2xl
                                     border border-(--divider)
                                     text-sm font-semibold
                                     hover:bg-(--background-secondary) active:scale-95 transition
                                     cursor-pointer
-                                "
+                                    ${showStyleEditor ? 'bg-(--background-secondary) border-(--text-tertiary)' : ''}
+                                `}
                             >
                                 <FaWandMagicSparkles className="w-3.5 h-3.5" />
                                 Customize
+                                {isStyleCustomized && (
+                                    <span title="This card has its own style" className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-(--showdown-blue)" />
+                                )}
                             </button>
                         )}
 
@@ -635,16 +711,28 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 </div>
             )}
 
-            {/* Image and Breakdown Tables */}
+            {/* Image and Breakdown Tables. While customizing, the style editor takes the image's spot
+                (left, or top on mobile) and the card moves beside/below it so its re-render stays in
+                view. Keyed so the image doesn't remount when the editor slots in ahead of it. */}
             <div
                 className={`
-                    grid grid-cols-1 @xl:grid-cols-[11fr_9fr]
+                    grid grid-cols-1 ${showStyleEditor ? '@xl:grid-cols-[9fr_11fr]' : '@xl:grid-cols-[11fr_9fr]'}
                     gap-4
                     pt-2
                 `}
             >
+                {/* Card Style editor. Side by side, it's pulled out of flow so the card image alone sets
+                    the row height — the editor matches it and scrolls its fields inside. */}
+                {showStyleEditor && styleEditor && (
+                    <div key="style-editor" className="relative">
+                        <div className="flex flex-col @xl:absolute @xl:inset-0">
+                            <CardStyleEditor {...styleEditor} onClose={() => setIsStyleEditorOpen(false)} />
+                        </div>
+                    </div>
+                )}
+
                 {/* Card Image */}
-                <div className={`
+                <div key="card-image" className={`
                     relative
                     h-auto
                     w-full
@@ -720,39 +808,19 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 </div>
 
                 {/* Right column */}
-                <div className={`flex flex-col gap-3 ${cardImageMaxHeight}`}>
-                    {/* Game Boxscore — desktop only */}
-                    {showGameBoxscore() && activeCardData?.latest_game_box_score && (
-                        <div className='hidden @xl:block'>
-                            <GameItem
-                                game={fromBoxscoreDetail(activeCardData.latest_game_box_score)}
-                                playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
-                            />
-                        </div>
-                    )}
-
-                    {/* Card vs Real Stats */}
-                    <SectionPanel isLoading={isLoadingPanels} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
-                            
-                        <RealVsProjectedVisual
-                            realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
-                            statRanges={seasonStatRanges}
-                            isLoading={isRangesLoading}
-                            playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
-                            simStats={simStats}
-                        />
-                        <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">
-                            <i>* Real stat is estimated (limited data, adjusted era, etc.)</i>
-                            <i>** Projection includes post-processing accuracy correction</i>
-                        </div>
-                    </SectionPanel>
-
-                </div>{/* end right column */}
+                {!showStyleEditor && (
+                    <div key="right-column" className={`flex flex-col gap-3 ${cardImageMaxHeight}`}>
+                        {realStatsPanels}
+                    </div>
+                )}
 
             </div>
 
             {/* Below-fold grid: analysis panels + trend graphs */}
             <div className="w-full grid grid-cols-1 @xl:grid-cols-2 gap-4">
+
+                {/* Card vs Real Stats, moved down while the style editor sits beside the card */}
+                {showStyleEditor && realStatsPanels}
 
                 {/* Points Breakdown */}
                 {!activeCardData?.card?.is_wotc && (

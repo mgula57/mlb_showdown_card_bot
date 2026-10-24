@@ -23,7 +23,9 @@ import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './Rel
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useLiveImageMatches } from './useLiveImageMatches';
 import { relativeTime } from '../../functions/formatters';
-import { parseEditionStyle, editionStyleSummary } from './editionStyle';
+import { parseEditionStyle, editionStyleSummary, releaseCardStyle, releaseCardOverridesFor } from './editionStyle';
+import type { CardStyleSettings } from '../customs/cardStyle';
+import type { CardStyleEditorConfig } from '../cards/card_detail/CardStyleEditor';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
 import {
     groupAndSortCards, takeFromGroups, filterPoolCards, activePoolFilterCount, POOL_GROUP_OPTIONS, POOL_SORT_OPTIONS, POOL_SORT_DEFAULT_DIRECTION,
@@ -195,6 +197,7 @@ function buildReleaseCardsFromPreview(players: AlgorithmPreviewPlayer[]): Releas
         card_snapshot: record,
         tags: [],
         preview_rank: null,
+        card_overrides: null,
     }));
 }
 
@@ -332,8 +335,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         [cards]
     );
 
-    async function persist(nextCards: ReleaseCard[]) {
-        if (!token) return;
+    /** Saves the edition's card list (optimistically). Resolves false if the save failed. */
+    async function persist(nextCards: ReleaseCard[]): Promise<boolean> {
+        if (!token) return false;
         const previous = cards;
         setCards(nextCards);
         setSaving(true);
@@ -347,13 +351,16 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     card_snapshot: c.card_snapshot,
                     tags: c.tags,
                     preview_rank: c.preview_rank,
+                    card_overrides: c.card_overrides,
                 })),
             }, token);
             setCards(updated.cards);
             onEditionUpdated(updated);
+            return true;
         } catch (err: any) {
             setCards(previous);
             setError(err.message ?? 'Failed to save changes.');
+            return false;
         } finally {
             setSaving(false);
         }
@@ -378,16 +385,6 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     );
     const liveImageMatches = useLiveImageMatches(releaseId, edition.id, previewCards ?? cards, token, !readOnly);
     const displayCards = liveImageMatches.cards;
-
-    // The detail modal renders the release card as it will print: edition style + formatted set
-    // number. BOT snapshots don't embed card_data, so CardDetail hydrates those by card_id.
-    const detailStyleOverrides = useMemo<CardStyleOverrides | undefined>(() => {
-        if (!detailCard) return undefined;
-        const setNumber = numbering.mode === 'none' || detailCard.card_number === null
-            ? null
-            : formatCardNumber(detailCard.card_number, displayCards.length, numbering.zeroPad, numbering.prefix);
-        return { style: editionStyle, setNumber };
-    }, [detailCard, editionStyle, numbering, displayCards.length]);
 
     // The pool can be hundreds of cards, so the grid renders in pages and loads more as the
     // user scrolls to the sentinel below it.
@@ -460,7 +457,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         const existingCards = new Map(cards.map(c => [c.source_card_id, c]));
         const newCards = buildReleaseCardsFromPreview(previewResult.players).map(c => {
             const existing = existingCards.get(c.source_card_id);
-            return existing ? { ...c, tags: existing.tags, preview_rank: existing.preview_rank } : c;
+            return existing ? { ...c, tags: existing.tags, preview_rank: existing.preview_rank, card_overrides: existing.card_overrides } : c;
         });
         const newSourceIds = new Set(newCards.map(c => c.source_card_id));
         const droppedCount = cards.filter(c => !newSourceIds.has(c.source_card_id)).length;
@@ -486,6 +483,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             card_snapshot: record,
             tags: [],
             preview_rank: null,
+            card_overrides: null,
         };
         persist(applyNumberingIfNeeded([...cards, newCard]));
     }
@@ -501,6 +499,42 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const detailCardTags = detailCardCurrent?.tags ?? [];
     const detailCardPreviewRank = detailCardCurrent?.preview_rank ?? null;
     const editionTags = useMemo(() => [...new Set(cards.flatMap(c => c.tags))].sort(), [cards]);
+
+    // The detail modal renders the release card as it will print: edition style (plus the card's
+    // own overrides) + formatted set number. BOT snapshots don't embed card_data, so CardDetail
+    // hydrates those by card_id. Keyed on the overrides' content: every save returns fresh card
+    // objects, and a new style object would regenerate the image.
+    const detailCardOverridesKey = JSON.stringify(detailCardCurrent?.card_overrides?.style ?? null);
+    const detailCardStyle = useMemo<CardStyleSettings>(
+        () => releaseCardStyle(editionStyle, detailCardCurrent?.card_overrides),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [editionStyle, detailCardOverridesKey]
+    );
+    const detailStyleOverrides = useMemo<CardStyleOverrides | undefined>(() => {
+        if (!detailCard) return undefined;
+        const setNumber = numbering.mode === 'none' || detailCard.card_number === null
+            ? null
+            : formatCardNumber(detailCard.card_number, displayCards.length, numbering.zeroPad, numbering.prefix);
+        return { style: detailCardStyle, setNumber };
+    }, [detailCard, detailCardStyle, numbering, displayCards.length]);
+
+    // Per-card style edits, saved as overrides on top of the edition style. Not while browsing or
+    // viewing an unsaved algorithm preview (same as tags).
+    const detailStyleEditor = useMemo<CardStyleEditorConfig | undefined>(() => {
+        if (!detailCard || readOnly || activePreview) return undefined;
+        const sourceCardId = detailCard.source_card_id;
+        return {
+            style: detailCardStyle,
+            defaults: editionStyle,
+            revertTitle: 'Revert to the edition style',
+            onSave: async (style) => {
+                const card_overrides = releaseCardOverridesFor(style, editionStyle);
+                const saved = await persist(cards.map(c => c.source_card_id === sourceCardId ? { ...c, card_overrides } : c));
+                if (!saved) throw new Error('Failed to save card style.');
+            },
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [detailCard, readOnly, activePreview, detailCardStyle, editionStyle, cards]);
 
     function handleDetailCardTagsChange(tags: string[]) {
         if (!detailCard) return;
@@ -1219,6 +1253,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         showdownBotCardData={detailCard?.card_snapshot.card_data ? { card: detailCard.card_snapshot.card_data } as ShowdownBotCardAPIResponse : undefined}
                         cardId={detailCard?.card_snapshot.card_id}
                         styleOverrides={detailStyleOverrides}
+                        styleEditor={detailStyleEditor}
                         hideTrendGraphs={true}
                         context="release"
                         parent="modal"

@@ -1,5 +1,6 @@
 import { fetchCardData, type CardDatabaseRecord, type ImageMatchType } from './card_db/cardDatabase';
 import { CardSource } from '../types/cardSource';
+import type { CardStyleSettings } from '../components/customs/cardStyle';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -45,6 +46,12 @@ export type Release = {
     updated_at: string;
 };
 
+/** Per-card tweaks layered over the edition's defaults. `style` holds only the fields that differ
+ * from the edition style, so later edition style changes still reach everything else. */
+export type ReleaseCardOverrides = {
+    style?: Partial<CardStyleSettings>;
+};
+
 export type ReleaseCard = {
     id: string;
     card_number: number | null;
@@ -55,6 +62,8 @@ export type ReleaseCard = {
     tags: string[];
     /** User-chosen slot (1-3, 1 = front) on the release's list tile; null leaves it to the default pick. */
     preview_rank: number | null;
+    /** Null when the card just follows its edition's style */
+    card_overrides: ReleaseCardOverrides | null;
 };
 
 export type ReleaseEdition = {
@@ -87,6 +96,7 @@ export type ReleaseEditionCreatePayload = {
         card_snapshot: CardDatabaseRecord;
         tags?: string[];
         preview_rank?: number | null;
+        card_overrides?: ReleaseCardOverrides | null;
     }>;
 };
 

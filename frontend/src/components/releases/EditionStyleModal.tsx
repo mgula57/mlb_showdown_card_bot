@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import { FaImage, FaLayerGroup } from 'react-icons/fa';
 import { FaSpinner } from 'react-icons/fa6';
 import type { ReleaseEdition } from '../../api/releases';
 import { updateEdition } from '../../api/releases';
 import { Modal } from '../shared/Modal';
-import FormSection from '../customs/FormSection';
-import { SetStyleFields, ImageStyleFields } from '../customs/CardStyleFields';
-import { setStyleSummary, imageStyleSummary, type CardStyleSettings } from '../customs/cardStyle';
+import { CardStyleSections } from '../customs/CardStyleFields';
+import type { CardStyleSettings } from '../customs/cardStyle';
 import { CARD_STYLE_DEFAULTS, parseEditionStyle } from './editionStyle';
-import { formSectionSummary } from '../customs/FormSectionSummary';
 
 type EditionStyleModalProps = {
     releaseId: string;
@@ -81,22 +78,7 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
                         {error}
                     </div>
                 )}
-                <FormSection
-                    title='Set'
-                    icon={<FaLayerGroup />}
-                    isOpenByDefault={true}
-                    childrenWhenClosed={formSectionSummary(setStyleSummary(style, CARD_STYLE_DEFAULTS))}
-                >
-                    <SetStyleFields values={style} onChange={updateStyle} />
-                </FormSection>
-                <FormSection
-                    title='Image'
-                    icon={<FaImage />}
-                    isOpenByDefault={true}
-                    childrenWhenClosed={formSectionSummary(imageStyleSummary(style, CARD_STYLE_DEFAULTS))}
-                >
-                    <ImageStyleFields values={style} onChange={updateStyle} />
-                </FormSection>
+                <CardStyleSections values={style} onChange={updateStyle} defaults={CARD_STYLE_DEFAULTS} />
             </div>
         </Modal>
     );
