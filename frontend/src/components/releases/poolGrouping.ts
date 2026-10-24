@@ -1,8 +1,9 @@
 import type { ReleaseCard } from '../../api/releases';
 import { IMAGE_MATCH_TYPE_OPTIONS } from '../../api/card_db/cardDatabase';
+import { CardSource } from '../../types/cardSource';
 import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './SummaryCharts';
 
-export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'image_match' | 'tag';
+export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'chart_version' | 'image_match' | 'tag';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'year' | 'command' | 'speed' | 'ip'
     | 'obp' | 'ops' | 'ops_plus' | 'era' | 'whip';
 export type PoolSortDirection = 'asc' | 'desc';
@@ -21,6 +22,7 @@ export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy }[] = [
     { label: 'Command', value: 'command' },
     { label: 'Speed', value: 'speed' },
     { label: 'IP', value: 'ip' },
+    { label: 'Chart Version', value: 'chart_version' },
     { label: 'Image Match', value: 'image_match' },
     { label: 'Tag', value: 'tag' },
 ];
@@ -205,6 +207,21 @@ function imageMatchLabel(card: ReleaseCard): string {
     return IMAGE_MATCH_TYPE_OPTIONS.find(o => o.value === type)?.label ?? type;
 }
 
+const NO_CHART_VERSION_LABEL = 'WOTC';
+
+/** "Version N" for Bot cards — only rebuilt snapshots embed `card_data`, and archived cards are
+ * version 1. WOTC cards have no chart versions. */
+function chartVersionLabel(card: ReleaseCard): string {
+    if (card.source_card_type === CardSource.WOTC || card.card_snapshot.card_data?.is_wotc) return NO_CHART_VERSION_LABEL;
+    return `Version ${card.card_snapshot.card_data?.chart_version || 1}`;
+}
+
+/** Versions ascending, WOTC last. */
+function compareChartVersionKeys(a: string, b: string): number {
+    const parse = (key: string) => key === NO_CHART_VERSION_LABEL ? Infinity : Number(key.split(' ')[1]);
+    return parse(a) - parse(b);
+}
+
 const UNTAGGED_LABEL = 'Untagged';
 
 /** Tags alphabetically, Untagged last. */
@@ -232,6 +249,7 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     command: { keyFn: commandGroupLabel, compareKeys: compareCommandGroupKeys },
     speed: sideStatGrouper(SIDE_STATS.speed),
     ip: sideStatGrouper(SIDE_STATS.ip),
+    chart_version: { keyFn: chartVersionLabel, compareKeys: compareChartVersionKeys },
     image_match: { keyFn: imageMatchLabel, compareKeys: (a, b) => IMAGE_MATCH_LABELS.indexOf(a) - IMAGE_MATCH_LABELS.indexOf(b) },
     // A card with several tags appears in each tag's group
     tag: { keyFn: card => card.tags.length > 0 ? card.tags : UNTAGGED_LABEL, compareKeys: compareTagGroupKeys },

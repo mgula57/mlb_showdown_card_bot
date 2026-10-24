@@ -266,8 +266,6 @@ export const CardItem = ({
                                 </div>
                             )}
 
-                            <ChartVersionBadge chartVersion={cardChartVersion} />
-
                             {cardNotes && (
                                 <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={cardNotes} />
                             )}
@@ -354,8 +352,11 @@ export const CardItem = ({
                 <div className={`flex flex-row justify-between items-center gap-x-1`}>
 
                     {/* Statistical highlights ribbon */}
-                    <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
-                        
+                    <div className="flex flex-row items-center text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
+
+                        {/* Alternate (V2+) chart */}
+                        <ChartVersionBadge chartVersion={cardChartVersion} style={colorStylingSecondary} />
+
                         {/* On WBC Cards, show the Stat Source */}
                         {cardLeague && cardEdition === 'WBC' && (() => {
                             const leagueGrouped = ['AL', 'NL'].includes(cardLeague) ? 'MLB' : cardLeague;
