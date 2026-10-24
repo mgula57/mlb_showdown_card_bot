@@ -18,7 +18,11 @@ export const DEFAULT_SELECTION_WEIGHTS: AlgorithmSelectionWeights = {
     volume: 0.5,
     team_balance: 0.75,
     points_fit: 1,
+    career: 0,
 };
+
+/** Career WAR minimum when Legends is first turned on — roughly a borderline Hall of Fame career. */
+export const DEFAULT_LEGEND_MIN_CAREER_WAR = 60;
 
 export const DEFAULT_TEAM_MINIMUMS: AlgorithmTeamMinimums = { hitters: 0, starters: 0, relievers: 0 };
 
@@ -36,6 +40,7 @@ export const SELECTION_DEFAULTS = {
     include_all_stars: true,
     include_award_winners: true,
     all_stars_only: false,
+    legend_min_career_war: null,
     point_buckets: [],
     selection_weights: DEFAULT_SELECTION_WEIGHTS,
     position_targets: [],

@@ -6,7 +6,7 @@ import traceback
 import csv
 import json
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 from datetime import datetime
 from math import ceil
 from psycopg2 import sql
@@ -123,6 +123,10 @@ class ShowdownBotSet(BaseModel):
     include_all_stars: bool = Field(True, description="Include All-Star players")
     include_award_winners: bool = Field(True, description="Include Award-winning players")
     all_stars_only: bool = Field(False, description="Restrict the qualified player pool to players who received an All-Star selection that year")
+    legend_min_career_war: Optional[float] = Field(
+        None, ge=0,
+        description="Career WAR (through the latest year) at which a player skips the games/IP minimums and is guaranteed a card, e.g. a veteran's injury-shortened final season (None to disable)"
+    )
 
     # Construction results
     final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
@@ -176,6 +180,9 @@ class ShowdownBotSet(BaseModel):
         None,
         description="List of expansion cards loaded from CSV and database"
     )
+
+    # Career WAR by bref_id, loaded with the player pool when legends or the career weight need it
+    _career_wars: Dict[str, float] = PrivateAttr(default_factory=dict)
 
     def _load_expansion_players_from_csv(self) -> List[Dict]:
         """Load expansion players from CSV file in core/set_builder folder.
@@ -328,7 +335,7 @@ class ShowdownBotSet(BaseModel):
         self._calculate_quality_thresholds(player_pool)
         
         # 3. Score players and fill the set by weighted selection
-        player_pool = WeightedPlayerSelector.score_player_pool(player_pool, self.selection_weights, self._calculate_quality_score)
+        player_pool = WeightedPlayerSelector.score_player_pool(player_pool, self.selection_weights, self._calculate_quality_score, self._career_war)
         selector = WeightedPlayerSelector(player_pool, self.set_size, self.selection_weights, self.team_weighting, self.unique_players)
         final_players = self._select_players(selector)
         
@@ -609,6 +616,9 @@ class ShowdownBotSet(BaseModel):
 
         print(f"Total players found in DB for years {self.years}: {len(all_players)}")
 
+        if self.legend_min_career_war is not None or self.selection_weights.career > 0:
+            self._career_wars = db.fetch_career_wars({p.bref_id for p in all_players if p.bref_id}, through_year=max(self.years), showdown_set=self.showdown_sets[0])
+
         # All-Star Game mode includes the entire roster, regardless of games/IP thresholds
         if self.all_stars_only:
             return [
@@ -627,6 +637,10 @@ class ShowdownBotSet(BaseModel):
                 continue
             
             if self._is_manually_excluded(player) or self._is_in_other_edition(player):
+                continue
+
+            if self._is_legend(player):
+                qualified_players.append(player)
                 continue
 
             if self.all_stars_only and not player.has_award('AS'):
@@ -656,6 +670,18 @@ class ShowdownBotSet(BaseModel):
 
     def _is_manually_excluded(self, player: ExploreDataRecord) -> bool:
         return self._is_named_in(player, self.manually_excluded_ids)
+
+    def _career_war(self, player: ExploreDataRecord) -> float:
+        return self._career_wars.get(player.bref_id, 0.0)
+
+    def _is_legend(self, player: ExploreDataRecord) -> bool:
+        """Whether the player's career WAR earns them a guaranteed card (see `legend_min_career_war`)"""
+        return self.legend_min_career_war is not None and not self.all_stars_only \
+            and self._career_war(player) >= self.legend_min_career_war
+
+    def _is_guaranteed(self, player: ExploreDataRecord) -> bool:
+        """Manually included players and legends are seated first and never swapped out"""
+        return self._is_manually_included(player) or self._is_legend(player)
 
     def _is_in_other_edition(self, player: ExploreDataRecord) -> bool:
         """Whether `other_editions_rule` keeps this player out because of their card in another edition"""
@@ -707,6 +733,8 @@ class ShowdownBotSet(BaseModel):
             if self._is_manually_included(player):
                 selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None))
         
+        self._seat_legends(selector, groups)
+        
         self._fill_team_minimums(selector, groups)
         selector.fill(groups)
         
@@ -724,6 +752,26 @@ class ShowdownBotSet(BaseModel):
         selector.fill([SlotGroup('ANY', self.set_size - len(selector.selected), accepts=lambda p: True)])
         return selector.selected
     
+    def _seat_legends(self, selector: WeightedPlayerSelector, groups: List[SlotGroup]) -> None:
+        """Give each legend their highest priority card, biggest careers first, until the set is full"""
+        legends = [p for p in selector.player_pool if self._is_legend(p) and not self._is_manually_included(p)]
+        if not legends:
+            return
+        legends.sort(key=lambda p: (self._career_war(p), p.priority_score), reverse=True)
+        seated_bref_ids: set = set()
+        skipped: List[str] = []
+        for player in legends:
+            # One card per legend even when repeats are allowed, so a long career doesn't take over the set
+            if player.bref_id in seated_bref_ids or not selector.is_available(player):
+                continue
+            if len(selector.selected) >= self.set_size:
+                skipped.append(player.name)
+                continue
+            selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None))
+            seated_bref_ids.add(player.bref_id)
+        if skipped:
+            self._warn(f"Set is full before every legend fit, left out {len(set(skipped))} with {self.legend_min_career_war:g}+ career WAR. Raise the career WAR minimum or the set size")
+
     def _fill_team_minimums(self, selector: WeightedPlayerSelector, groups: List[SlotGroup]) -> None:
         """Seat each team's minimum cards first. A minimum that needs more cards of a type than the set has
         slots for is lowered to what fits (e.g. 1 SP per team in a set with 20 SP slots and 30 teams -> 0)."""
@@ -792,7 +840,7 @@ class ShowdownBotSet(BaseModel):
         whole set. For each type and each bucket below target, the highest priority unselected card in the
         bucket replaces the lowest priority card of the same type that is either outside every bucket or in a
         bucket already above its target. Swaps prefer removing a card from the incoming player's team to keep
-        team balance, never drop a team below its minimum, never remove manually included players and never add a
+        team balance, never drop a team below its minimum, never remove manually included players or legends and never add a
         second card of a selected player. Set size and type counts are unchanged.
         """
         if not self.point_buckets:
@@ -816,7 +864,7 @@ class ShowdownBotSet(BaseModel):
                 return len([p for p in type_players if bucket_index(p) == index])
             
             def is_removable(player: ShowdownBotSetPlayer, incoming: ShowdownBotSetPlayer) -> bool:
-                if self._is_manually_included(player):
+                if self._is_guaranteed(player):
                     return False
                 if player.team_id != incoming.team_id and len([p for p in type_players if p.team_id == player.team_id]) <= team_minimums[player_subtype]:
                     return False
@@ -1056,6 +1104,7 @@ class AlgorithmPreviewRequest(BaseModel):
     include_all_stars: bool = True
     include_award_winners: bool = True
     all_stars_only: bool = False
+    legend_min_career_war: Optional[float] = Field(None, ge=0)
 
     point_buckets: List[PointBucket] = Field(default_factory=list)
 
@@ -1088,6 +1137,7 @@ class AlgorithmPreviewRequest(BaseModel):
             include_all_stars=self.include_all_stars,
             include_award_winners=self.include_award_winners,
             all_stars_only=self.all_stars_only,
+            legend_min_career_war=self.legend_min_career_war,
             point_buckets=self.point_buckets,
             selection_weights=self.selection_weights,
             position_targets=self.position_targets,

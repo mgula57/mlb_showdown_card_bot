@@ -14,7 +14,7 @@ PLAYER_SUBTYPES = ('POSITION_PLAYER', 'STARTING_PITCHER', 'RELIEF_PITCHER')
 class ShowdownBotSetPlayer(ExploreDataRecord):
     """Extended player record for set building"""
 
-    priority_score: float = 0.0  # Weighted quality + volume score used for selection
+    priority_score: float = 0.0  # Weighted quality + volume + career score used for selection
 
     set_number: Optional[int] = None  # Assigned set number for the player
 
@@ -125,6 +125,7 @@ class SelectionWeights(BaseModel):
     volume: float = Field(0.5, ge=0, le=1, description="Playing time: PA for hitters, IP for pitchers")
     team_balance: float = Field(0.75, ge=0, le=1, description="Keep each team near an even share of the set")
     points_fit: float = Field(1.0, ge=0, le=1, description="Steer each position toward its target average points (position targets only)")
+    career: float = Field(0.0, ge=0, le=1, description="Career WAR through the set's latest year, to favor established veterans")
 
 
 class TeamWeighting(str, Enum):
@@ -290,16 +291,21 @@ class WeightedPlayerSelector:
 
     @classmethod
     def score_player_pool(cls, player_pool: List[ExploreDataRecord], weights: SelectionWeights,
-                          quality_score_fn: Callable[[ExploreDataRecord], float]) -> List[ShowdownBotSetPlayer]:
-        """Attach each player's weighted quality + volume `priority_score`, the part of the score that
+                          quality_score_fn: Callable[[ExploreDataRecord], float],
+                          career_war_fn: Callable[[ExploreDataRecord], float]) -> List[ShowdownBotSetPlayer]:
+        """Attach each player's weighted quality + volume + career `priority_score`, the part of the score that
         doesn't change as the set fills"""
         scored: List[ShowdownBotSetPlayer] = []
         for subtype in PLAYER_SUBTYPES:
             players = [p for p in player_pool if p.player_subtype == subtype]
             quality = cls._percentile_ranks({p.id: quality_score_fn(p) for p in players})
             volume = cls._percentile_ranks({p.id: cls.volume(p) for p in players})
+            career = cls._percentile_ranks({p.id: career_war_fn(p) for p in players})
             scored.extend(
-                ShowdownBotSetPlayer(**p.model_dump(), priority_score=weights.quality * quality[p.id] + weights.volume * volume[p.id])
+                ShowdownBotSetPlayer(
+                    **p.model_dump(),
+                    priority_score=weights.quality * quality[p.id] + weights.volume * volume[p.id] + weights.career * career[p.id],
+                )
                 for p in players
             )
         return scored

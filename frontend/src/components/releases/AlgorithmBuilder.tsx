@@ -17,7 +17,7 @@ import { distributionFromPositionTargets } from './positionTargets';
 import type { ManualPick, ManualPicks } from './manualPicks';
 import { manualPickLabel, withoutManualPick } from './manualPicks';
 import {
-    DEFAULT_PLAYER_TYPE_DISTRIBUTION, DEFAULT_SELECTION_WEIGHTS, DEFAULT_TEAM_MINIMUMS, SELECTION_DEFAULTS,
+    DEFAULT_PLAYER_TYPE_DISTRIBUTION, DEFAULT_SELECTION_WEIGHTS, DEFAULT_TEAM_MINIMUMS, DEFAULT_LEGEND_MIN_CAREER_WAR, SELECTION_DEFAULTS,
     CUSTOM_TEMPLATE_ID, ALL_STARS_TEMPLATE_ID, EXPANSION_TEMPLATE_ID, parseAlgorithmSettings,
 } from './algorithmSettings';
 
@@ -33,11 +33,12 @@ type AlgorithmBuilderProps = {
     onEditionUpdated: (edition: ReleaseEdition) => void;
 };
 
-const WEIGHT_ROWS: { key: keyof AlgorithmSelectionWeights; label: string; hint: string; requiresPositionTargets?: boolean }[] = [
-    { key: 'quality', label: 'Quality', hint: 'WAR (plus award boost)' },
-    { key: 'volume', label: 'Volume', hint: 'PA for hitters, IP for pitchers' },
-    { key: 'team_balance', label: 'Teams', hint: "each team's share of the set" },
-    { key: 'points_fit', label: 'PTS Fit', hint: "each position's average points", requiresPositionTargets: true },
+const WEIGHT_ROWS: { key: keyof AlgorithmSelectionWeights; label: string; info: string; requiresPositionTargets?: boolean }[] = [
+    { key: 'quality', label: 'Quality', info: "The season's WAR, plus the Award Boost when it's on." },
+    { key: 'volume', label: 'Volume', info: 'Playing time: plate appearances for hitters, innings pitched for pitchers.' },
+    { key: 'team_balance', label: 'Teams', info: "Keeps each team near its share of the set (see Cards per Team)." },
+    { key: 'points_fit', label: 'PTS Fit', info: "Steers each position toward its target average points.", requiresPositionTargets: true },
+    { key: 'career', label: 'Career', info: "Career WAR through the set's last year, to favor established veterans." },
 ];
 
 const TEAM_MINIMUM_FIELDS: { key: keyof AlgorithmTeamMinimums; label: string }[] = [
@@ -307,6 +308,8 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const teamWeighting = config.team_weighting ?? 'EVEN';
     const otherEditionsRule = config.other_editions_rule ?? 'ALLOW';
     const uniquePlayers = config.unique_players ?? true;
+    const legendMinCareerWar = config.legend_min_career_war ?? null;
+    const hasLegends = legendMinCareerWar !== null;
 
     const pointBuckets = config.point_buckets ?? [];
     const arePointBucketsValid = validatePointBuckets(pointBuckets) === null;
@@ -328,6 +331,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             isAllStarSet
                 ? 'All-Stars only'
                 : `${config.min_games_hitters ?? 60} G · ${config.min_ip_starters ?? 75} IP SP · ${config.min_ip_relievers ?? 30} IP RP`,
+            ...(hasLegends && !isAllStarSet ? [`Legends ${legendMinCareerWar}+ WAR`] : []),
             ...(uniquePlayers ? [] : ['Repeats allowed']),
             ...(otherEditionsRule === 'ALLOW' ? [] : [otherEditionsRule === 'EXCLUDE' ? 'New players only' : 'New or traded players']),
         ].join(' · '),
@@ -502,6 +506,25 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         <p className="text-[11px] text-(--text-tertiary)">
                             Players below these minimums are left out of the pool. Catchers only need 80% of the games minimum.
                         </p>
+                        <FormEnabler
+                            label="Legends"
+                            className="self-start"
+                            isEnabled={hasLegends}
+                            onChange={() => setConfig(prev => ({ ...prev, legend_min_career_war: hasLegends ? null : DEFAULT_LEGEND_MIN_CAREER_WAR }))}
+                        />
+                        {hasLegends && (
+                            <FormInput
+                                label="Min Career WAR"
+                                type="number"
+                                inputMode="decimal"
+                                step={5}
+                                value={legendMinCareerWar}
+                                onChange={value => setConfig(prev => ({ ...prev, legend_min_career_war: Math.max(0, parseFloat(value || '0') || 0) }))}
+                            />
+                        )}
+                        <p className="text-[11px] text-(--text-tertiary) -mt-1">
+                            Guarantees a card to every player with this much career WAR through {config.years.trim() || 'the chosen years'}, even below the minimums — like a veteran's injury-shortened season. Each legend gets their best card.
+                        </p>
                     </>
                 )}
                 <FormEnabler
@@ -618,6 +641,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         <PercentageSlider
                             key={row.key}
                             label={row.label}
+                            info={row.info}
                             fillClassName="bg-(--secondary)"
                             value={percentLabel(selectionWeights[row.key])}
                             onChange={percent => updateWeights({ [row.key]: percent / 100 })}
@@ -625,8 +649,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     ))}
                 </div>
                 <p className="text-[11px] text-(--text-tertiary)">
-                    How much each factor counts when picking the next card.{' '}
-                    {visibleWeightRows.map(row => `${row.label}: ${row.hint}`).join(' · ')}.
+                    How much each factor counts when picking the next card.
                 </p>
                 <FormEnabler
                     label="Award Boost"

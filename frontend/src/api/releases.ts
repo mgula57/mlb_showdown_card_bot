@@ -142,6 +142,8 @@ export type AlgorithmSelectionWeights = {
     team_balance: number;
     /** Steer each position toward its target average points (only applies with position targets). */
     points_fit: number;
+    /** Career WAR through the set's latest year, to favor established veterans. */
+    career: number;
 };
 
 /** Share of the set at a position, e.g. 7% shortstops averaging 220 pts. */
@@ -165,6 +167,8 @@ export type AlgorithmConfig = {
     include_award_winners?: boolean;
     /** Restrict the qualified player pool to players who received an All-Star selection that year. */
     all_stars_only?: boolean;
+    /** Career WAR (through the latest year) at which a player skips the games/IP minimums and is guaranteed a card. Null to disable. */
+    legend_min_career_war?: number | null;
     /** Point ranges (inclusive) with an ideal share of each player type's cards, e.g. 15% at 10-50 pts. */
     point_buckets?: AlgorithmPointBucket[];
     selection_weights?: AlgorithmSelectionWeights;

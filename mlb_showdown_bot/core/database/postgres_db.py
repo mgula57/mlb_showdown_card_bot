@@ -873,6 +873,33 @@ class PostgresDB:
 
         return {row['mlb_id']: row for row in raw_data}
 
+    def fetch_career_wars(self, bref_ids: List[str], through_year: int, showdown_set: str = "2000") -> Dict[str, float]:
+        """Career bWAR keyed by bref_id, summed over every season through `through_year`. Two-way players' hitter
+        and pitcher rows are both counted. WAR doesn't depend on the showdown set, so one set's rows are enough."""
+
+        if not bref_ids:
+            return {}
+
+        # DISTINCT ON (id) - card_bot can hold a row per showdown bot version
+        query = sql.SQL("""
+            SELECT bref_id, SUM(real_bwar)::float AS career_war
+            FROM (
+                SELECT DISTINCT ON (id) bref_id, real_bwar
+                FROM card_bot
+                WHERE
+                    showdown_set = %s
+                    AND bref_id = ANY(%s)
+                    AND year <= %s
+                ORDER BY id, showdown_bot_version DESC
+            ) seasons
+            GROUP BY bref_id
+        """)
+        raw_data = self.execute_query(query=query, filter_values=(showdown_set, list(bref_ids), through_year))
+        if raw_data is None:
+            return {}
+
+        return {row['bref_id']: row['career_war'] or 0.0 for row in raw_data}
+
     def fetch_cards_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
         """Fetch all explore data from the database with support for lists and min/max filtering."""
 
