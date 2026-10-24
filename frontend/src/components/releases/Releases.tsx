@@ -298,7 +298,7 @@ export default function Releases() {
 /** Placeholder shaped like ReleaseDetail's header + edition tab bar while a release loads. */
 function ReleaseDetailSkeleton() {
     return (
-        <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden animate-pulse">
+        <div className="flex flex-col md:h-[calc(100dvh-2.5rem)] md:overflow-hidden animate-pulse">
             <div className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider)">
                 <div className="h-4 w-4 rounded bg-(--background-secondary) mt-1" />
                 <div className="flex-1 space-y-2">

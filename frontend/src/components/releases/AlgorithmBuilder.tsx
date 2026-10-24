@@ -708,7 +708,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             disabled={!token || !isDirty || saving}
             aria-label="Save algorithm settings"
             title={isDirty ? 'Save settings' : 'Settings saved'}
-            className="absolute bottom-3 right-22 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
+            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-22 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
                 border border-(--divider) bg-(--background-secondary) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
             {saving ? <FaSpinner className="animate-spin text-[18px]" /> : (isDirty ? <FaFloppyDisk className="text-[18px]" /> : <FaCheck className="text-[18px]" />)}
@@ -720,7 +720,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             onClick={handleRun}
             disabled={!canRun}
             aria-label="Run algorithm"
-            className="absolute bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
+            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
                 bg-linear-to-r from-blue-500 to-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
             {status === 'running' ? <FaSpinner className="animate-spin text-[18px]" /> : <FaWandMagicSparkles className="text-[18px]" />}

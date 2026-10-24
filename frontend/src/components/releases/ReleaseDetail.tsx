@@ -163,7 +163,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const liveEditBannerButton = bannerTokens(LIVE_EDIT_BANNER.secondary).btnClass;
 
     return (
-        <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden">
+        // Height-locked from md up only — on phones the page scrolls naturally so Safari's URL bar can
+        // collapse (a dvh-locked shell leaves a black bar at the bottom as the bar animates).
+        <div className="flex flex-col md:h-[calc(100dvh-2.5rem)] md:overflow-hidden">
             <Tabs.Root
                 value={activeEditionId ?? undefined}
                 onValueChange={id => {
