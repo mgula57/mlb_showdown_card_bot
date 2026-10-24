@@ -62,6 +62,10 @@ type GameFieldProps = {
      *  so a big centered button is overlaid here rather than leaving "Watch" as a small banner
      *  action the user has to spot. Hidden as soon as playback starts. */
     onPlayClick?: () => void;
+    /** Paints the mowed-grass art behind the diamond, locked to the field art's scale and
+     *  centering. Painted at `-z-10`, so the caller should give an ancestor `isolate` to keep it
+     *  above that ancestor's own background layers. */
+    showGrassBackdrop?: boolean;
     className?: string;
 };
 
@@ -90,6 +94,30 @@ const BASES = {
     third: [20.6, 49.6],
 } as const;
 const HOME: readonly [number, number] = [49.9, 85.4];
+
+/**
+ * Mowed-grass backdrop (1264x841), drawn at `scale` of the field art's pixel scale and centered
+ * on it: the pattern's center line sits on the field's center line and its lower apex (y 740)
+ * on home plate, nudged down by `offsetY` (a fraction of the field height). It runs past the
+ * field box vertically and is clipped to it on x so it never widens the page. Both fades live on
+ * the image (a mask on the clipping wrapper would also clip the vertical overflow); the x fade
+ * reaches transparent just inside the wrapper's edges so the clip never shows as a hard line.
+ */
+const GRASS = { width: 1264, height: 841, centerX: 632, apexY: 740, scale: 0.6, offsetY: 0.18 } as const;
+const GRASS_FADE_Y = "linear-gradient(to bottom, transparent 0%, black 25%, black 80%, transparent 100%)";
+const GRASS_FADE_X = "linear-gradient(to right, transparent 4%, black 15%, black 85%, transparent 96%)";
+const GRASS_STYLE: React.CSSProperties = {
+    position: "absolute",
+    width: `${((GRASS.width * GRASS.scale) / FIELD_W) * 100}%`,
+    height: `${((GRASS.height * GRASS.scale) / FIELD_H) * 100}%`,
+    left: `${(0.5 - (GRASS.centerX * GRASS.scale) / FIELD_W) * 100}%`,
+    top: `${(HOME[1] / 100 + GRASS.offsetY - (GRASS.apexY * GRASS.scale) / FIELD_H) * 100}%`,
+    maxWidth: "none",
+    maskImage: `${GRASS_FADE_X}, ${GRASS_FADE_Y}`,
+    WebkitMaskImage: `${GRASS_FADE_X}, ${GRASS_FADE_Y}`,
+    maskComposite: "intersect",
+    WebkitMaskComposite: "source-in",
+};
 
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
     pitcher: [49.9, 50.5],
@@ -524,7 +552,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, showGrassBackdrop = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // if (!situation) return null;
 
@@ -554,6 +582,11 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 field is growing rather than snapping to a new size. */}
             <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-28 pb-12" : "pt-0 pb-0"}`}>
                 <div className="relative aspect-703/369 w-full overflow-visible">
+                    {showGrassBackdrop && (
+                        <div className="absolute inset-0 -z-10 overflow-x-clip pointer-events-none">
+                            <img src="/images/games/Grass Field.jpg" alt="" style={GRASS_STYLE} className="select-none" />
+                        </div>
+                    )}
                     <div className="absolute inset-0 overflow-hidden rounded-lg">
                         <img src="/images/teams/Field No BG No IF.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
                     </div>

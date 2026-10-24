@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { bannerTokens, getReadableTextColor } from "../../functions/colors";
 import { ordinal } from "../../functions/formatters";
 import { Modal } from "../shared/Modal";
-import { ModeBanner } from "../shared/ModeBanner";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardDetail } from "../cards/CardDetail";
 import * as Tabs from '@radix-ui/react-tabs';
@@ -166,7 +165,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     // const canSimulate = false; // TODO: Enable simulation when appropriate
 
     // "Replay mode" = the transport bar is open. Entering it freezes a live game's
-    // cursor so you can scrub back; the colored REPLAY banner then shows and its
+    // cursor so you can scrub back; the top bar then turns into the colored REPLAY strip and its
     // "Exit Replay" is the only way out (the toolbar button hides while it's on),
     // so users always know where they are. Exiting resumes live and flushes the
     // plays that buffered while paused.
@@ -384,15 +383,26 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : undefined;
                 const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
 
-                /* In a sim the mode strip is the page's own top bar (see below) rather than a
-                   separate banner, so only the controls are built here. */
-                const simLabel = simResult ? (simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM') : null;
-                const simDetail = simResult
+                /* Sim and replay both take over the page's own top bar as their mode strip (see
+                   below) rather than adding a separate banner, so only the label and controls are
+                   built here. */
+                const isReplayMode = !simResult && (isReviewing || showPlaybackControls);
+                const isModeBar = !!simResult || isReplayMode;
+                const modeLabel = simResult
+                    ? (simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM')
+                    : isReplayMode ? 'REPLAY' : null;
+                const modeDetail = simResult
                     ? (simResult.is_takeover && simResult.setup.start_state
                         ? `— took over in the ${simResult.setup.start_state.is_top ? 'top' : 'bottom'} of the ${ordinal(simResult.setup.start_state.inning)}`
                         : '— played from the first pitch')
-                    : null;
-                const simButtonClass = `rounded-lg px-2 py-1 h-7 ${simBannerTokens.btnClass}`;
+                    : isReplayMode
+                        ? (isReviewing
+                            ? '— reviewing an earlier point in the game'
+                            : isLiveReal
+                                ? '— live updates paused while you scrub'
+                                : '— playback controls open')
+                        : null;
+                const modeButtonClass = `rounded-lg px-2 py-1 h-7 ${simBannerTokens.btnClass}`;
                 const simControls = simResult ? (
                         <div className="flex min-w-0 items-center gap-2">
                             {/* The sim already opens parked on the first pitch, so this is a
@@ -405,60 +415,46 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                     playbackControls.seekToStart();
                                     playbackControls.play();
                                 }}
-                                className={simButtonClass}
+                                className={modeButtonClass}
                             />
                             {/* Only while mid-replay — jumps the cursor to the end so the final
                                 score, box score and last play all resolve at once. */}
                             {simMidReplay && (
-                                <TopBarButton label="Skip to result" shortLabel="Skip to end" onClick={() => playbackControls.seekToLive()} className={simButtonClass} />
+                                <TopBarButton label="Skip to result" shortLabel="Skip to end" onClick={() => playbackControls.seekToLive()} className={modeButtonClass} />
                             )}
                             <TopBarButton
                                 label="Exit Sim"
                                 shortLabel="Exit"
                                 onClick={() => { setSimResult(null); setShowPlaybackControls(false); setIsRecapDismissed(false); }}
-                                className={simButtonClass}
+                                className={modeButtonClass}
                             />
                         </div>
                 ) : null;
 
-                const modeBanner = simResult ? null : (isReviewing || showPlaybackControls) ? (
-                    <ModeBanner
-                        primaryColor={away.team.primary_color ?? '#374151'}
-                        secondaryColor={home.team.secondary_color ?? '#374151'}
-                        label="REPLAY"
-                        detail={
-                            isReviewing
-                                ? "— reviewing an earlier point in the game"
-                                : isLiveReal
-                                    ? "— live updates paused while you scrub"
-                                    : "— playback controls open"
-                        }
-                    >
-                        <button
-                            type="button"
-                            onClick={() => { playbackControls.seekToLive(); exitReplay(); }}
-                            className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
-                        >
-                            Exit Replay
-                        </button>
-                    </ModeBanner>
+                const replayControls = isReplayMode ? (
+                    <TopBarButton
+                        label="Exit Replay"
+                        shortLabel="Exit"
+                        onClick={() => { playbackControls.seekToLive(); exitReplay(); }}
+                        className={modeButtonClass}
+                    />
                 ) : null;
 
                 return (
                     <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                         <div
-                            className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${simResult ? '' : 'bg-(--background-primary)'}`}
-                            style={simResult ? { background: `linear-gradient(to right, ${away.team.primary_color ?? '#374151'}, ${home.team.secondary_color ?? '#374151'})` } : undefined}
+                            className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${isModeBar ? '' : 'bg-(--background-primary)'}`}
+                            style={isModeBar ? { background: `linear-gradient(to right, ${away.team.primary_color ?? '#374151'}, ${home.team.secondary_color ?? '#374151'})` } : undefined}
                         >
                             <BackButton onBack={onBack} />
                             <div className="flex items-center gap-2">
-                                <h1 className={`hidden sm:inline text-[20px] font-black ${simResult ? 'drop-shadow-sm' : 'text-(--text-primary)'}`} style={simResult ? { color: simLeftTokens.fill } : undefined}>Showdown Live</h1>
+                                <h1 className={`hidden sm:inline text-[20px] font-black ${isModeBar ? 'drop-shadow-sm' : 'text-(--text-primary)'}`} style={isModeBar ? { color: simLeftTokens.fill } : undefined}>Showdown Live</h1>
                                 <BetaBadge />
                             </div>
-                            {simResult && (
+                            {modeLabel && (
                                 <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold drop-shadow-sm" style={{ color: simLeftTokens.fill }}>
-                                    {simLabel}
-                                    <span className="hidden md:inline font-normal ml-4">{simDetail}</span>
+                                    {modeLabel}
+                                    <span className="hidden md:inline font-normal ml-4">{modeDetail}</span>
                                 </span>
                             )}
 
@@ -471,17 +467,18 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                             )}
                             <div className="ml-auto flex min-w-0 items-center gap-2">
                                 {simControls}
+                                {replayControls}
 
                                 {/* Enters replay: reveals the transport bar and, on a live game,
                                     freezes the live cursor so you can scrub back. Once active the
-                                    colored REPLAY banner takes over — its "Exit Replay" is the way
+                                    colored REPLAY top bar takes over — its "Exit Replay" is the way
                                     out — so this button hides to keep a single, obvious control. */}
                                 {!isReviewing && !showPlaybackControls && !isNotStarted && (
                                     <TopBarButton label="Replay" icon={<FaClockRotateLeft size={12} />} onClick={enterReplay} className={OUTLINE_BUTTON_CLASS} />
                                 )}
                                 {/* Independent of `canSimulate` - a finished game can still have
                                     sims run against it while it was live/upcoming, worth revisiting. */}
-                                {!simResult && (
+                                {!isModeBar && (
                                     <TopBarButton
                                         label="Past Sims"
                                         icon={<FaListUl size={12} />}
@@ -490,7 +487,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         className={OUTLINE_BUTTON_CLASS}
                                     />
                                 )}
-                                {canSimulate && !simResult && (
+                                {canSimulate && !isModeBar && (
                                     <TopBarButton
                                         label="Simulate"
                                         icon={<FaTerminal />}
@@ -500,8 +497,6 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 )}
                             </div>
                         </div>
-
-                        {modeBanner}
 
                         {hasLiveField ? (
                             <>
@@ -528,7 +523,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                             behind an ancestor's own background instead of just this image). */}
                                         <div className="relative">
                                             <img
-                                                src="/images/games/Grass.png"
+                                                src="/images/games/Grass Backdrop.png"
                                                 alt=""
                                                 className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
                                                 style={{
@@ -537,7 +532,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                 }}
                                             />
 
-                                            <div className="relative space-y-4 p-1">
+                                            {/* `isolate` keeps the field's own mowed-grass backdrop (painted
+                                                at `-z-10` inside GameField, so it sits under the scoreboard and
+                                                matchup too) above the Grass.png fill behind this group. */}
+                                            <div className="relative isolate space-y-4 p-1">
                                                 {/* Scoreboard bleeds over the grass on both breakpoints — compact
                                                     (no records, smaller type) on mobile, full-size on desktop. */}
                                                 <ScoreHeader game={headerView} compact centerAction={recapToggle} className="lg:hidden" />
@@ -557,6 +555,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                                     expanded={isFieldExpanded}
                                                     onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
                                                     isLoadingCards={isLoadingCards}
+                                                    showGrassBackdrop
                                                     transition={playbackState.transition}
                                                     pendingPlay={playbackState.pendingPlay}
                                                     phase={playbackState.phase}

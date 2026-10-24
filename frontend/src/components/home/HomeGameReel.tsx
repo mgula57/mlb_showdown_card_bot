@@ -164,7 +164,7 @@ export default function HomeGameReel({ onCardSelect }: { onCardSelect?: (card: S
                 content inside the fully opaque middle. Content below is a later positioned
                 sibling, so it paints over the image without a negative z-index. */}
             <img
-                src="/images/games/Grass 2.0.jpg"
+                src="/images/games/Grass Field.jpg"
                 alt=""
                 className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
                 style={GRASS_FADE_STYLE}
