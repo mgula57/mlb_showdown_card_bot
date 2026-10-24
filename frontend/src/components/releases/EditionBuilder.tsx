@@ -304,8 +304,13 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         setBuildPanelWidth(DEFAULT_BUILD_PANEL_WIDTH[buildMethod]);
     }, [buildMethod]);
 
-    const handleResizeStart = (e: React.MouseEvent) => {
+    // Pointer events (with capture on the handle) so dragging works with touch and pens as well as a mouse
+    const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         e.preventDefault();
+        const handle = e.currentTarget;
+        const pointerId = e.pointerId;
+        handle.setPointerCapture(pointerId);
         isResizing.current = true;
         hasManuallyResized.current = true;
         const startX = e.clientX;
@@ -314,23 +319,27 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         const maxWidth = Math.max((splitContainerRef.current?.clientWidth ?? 0) - MIN_POOL_PANEL_WIDTH, MIN_BUILD_PANEL_WIDTH);
         let latestWidth = startWidth;
 
-        const onMouseMove = (ev: MouseEvent) => {
-            if (!isResizing.current) return;
+        const onPointerMove = (ev: PointerEvent) => {
+            if (!isResizing.current || ev.pointerId !== pointerId) return;
             latestWidth = Math.min(Math.max(startWidth + (ev.clientX - startX), MIN_BUILD_PANEL_WIDTH), maxWidth);
             setBuildPanelWidth(latestWidth);
         };
-        const onMouseUp = () => {
+        const onPointerUp = (ev: PointerEvent) => {
+            if (ev.pointerId !== pointerId) return;
             isResizing.current = false;
             try { localStorage.setItem(BUILD_PANEL_WIDTH_STORAGE_KEY, String(Math.round(latestWidth))); } catch { /* storage unavailable */ }
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
+            if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+            handle.removeEventListener('pointermove', onPointerMove);
+            handle.removeEventListener('pointerup', onPointerUp);
+            handle.removeEventListener('pointercancel', onPointerUp);
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         };
         document.body.style.cursor = 'ew-resize';
         document.body.style.userSelect = 'none';
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+        handle.addEventListener('pointermove', onPointerMove);
+        handle.addEventListener('pointerup', onPointerUp);
+        handle.addEventListener('pointercancel', onPointerUp);
     };
 
     const excludeIds = useMemo(
@@ -823,13 +832,17 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     </div>
                 )}
 
-                {/* Drag-to-resize handle */}
+                {/* Drag-to-resize handle. `touch-none` keeps a touch drag from scrolling the page; the
+                    invisible strip widens the hit area for fingers beyond the thin visible bar. */}
                 {!readOnly && !buildPanelHidden && (
                     <div
-                        onMouseDown={handleResizeStart}
-                        className="relative w-1.5 shrink-0 -translate-x-0.5 cursor-ew-resize hidden md:flex items-center justify-center group hover:bg-(--divider) transition-colors"
+                        onPointerDown={handleResizeStart}
+                        className="relative z-10 w-1.5 shrink-0 -translate-x-0.5 cursor-ew-resize touch-none select-none hidden md:flex items-center justify-center group hover:bg-(--divider) transition-colors"
                     >
-                        <FaGripVertical className="absolute text-[14px] text-(--text-tertiary) group-hover:text-(--text-secondary) transition-colors bg-(--background-primary) rounded-md px-0.5" />
+                        <div aria-hidden className="absolute inset-y-0 -left-2.5 -right-2.5" />
+                        {/* Touch screens get a bigger, bordered grip — it's the only cue the bar drags, and a finger covers it */}
+                        <FaGripVertical className="absolute text-[14px] text-(--text-tertiary) group-hover:text-(--text-secondary) transition-colors bg-(--background-primary) rounded-md px-0.5
+                            pointer-coarse:text-[22px] pointer-coarse:py-1 pointer-coarse:border pointer-coarse:border-(--divider) pointer-coarse:text-(--text-secondary)" />
                     </div>
                 )}
 
